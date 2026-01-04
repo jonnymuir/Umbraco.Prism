@@ -20,11 +20,9 @@ public class PrismComposer : IComposer
     /// <param name="builder"></param>
     public void Compose(IUmbracoBuilder builder)
     {
-        // 1. Register Services
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddSingleton<ITenantService, TenantService>();
 
-        // 2. Register Middleware (This adds it to the pipeline)
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
             options.AddFilter(new UmbracoPipelineFilter(
@@ -33,7 +31,8 @@ public class PrismComposer : IComposer
             ));
         });
 
-        // 3. Register Custom Database Tables (Migrations)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();
+
+        builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
     }
 }
