@@ -1,0 +1,24 @@
+<svg width="100" height="100" viewBox="0 0 105 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+     <defs>
+        <linearGradient id="i_brand1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#3544B1" />
+            <stop offset="100%" style="stop-color:#2DA7D1" />
+        </linearGradient>
+        <linearGradient id="i_brand2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#3544B1" />
+            <stop offset="100%" style="stop-color:#F5A623" />
+        </linearGradient>
+        <linearGradient id="i_brand3" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#3544B1" />
+            <stop offset="100%" style="stop-color:#E91E63" />
+        </linearGradient>
+    </defs>
+    
+    <g transform="translate(2, 25)">
+        <path d="M2 25C2 14.5066 10.5066 6 21 6H35C37.7614 6 40 8.23858 40 11V39C40 41.7614 37.7614 44 35 44H21C10.5066 44 2 35.4934 2 25Z" fill="#1B264F"/>
+        <path d="M44 11H50L58 25L50 39H44V11Z" fill="#1B264F"/>
+        <rect x="62" y="0" width="30" height="14" rx="7" fill="url(#i_brand1)"/>
+        <rect x="62" y="18" width="38" height="14" rx="7" fill="url(#i_brand2)"/>
+        <rect x="62" y="36" width="30" height="14" rx="7" fill="url(#i_brand3)"/>
+    </g>
+</svg>

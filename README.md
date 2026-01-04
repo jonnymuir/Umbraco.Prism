@@ -1,8 +1,13 @@
+<div align="center">
+  <img src="assets/logo-horizontal-lockup.svg" width="500" alt="Umbraco Prism Logo">
+  <br/>
+  <h3>One source. A spectrum of brands.</h3>
+</div>
+
 # Umbraco Prism
-**Splitting one web site into many. Single App, Many Brands.**
 
 ## Overview
-Umbraco Prism is a multi-tenancy extension for Umbraco (v14+) designed to allow a single Umbraco instance to serve hundreds of distinct client portals. It resolves branding, identity, and content context at runtime based on the incoming domain name.
+Umbraco Prism is a multi-tenancy extension for Umbraco (v17+) designed to allow a single Umbraco instance to serve hundreds of distinct client portals. It resolves branding, identity, and content context at runtime based on the incoming domain name.
 
 ## What problem does it solve
 You are a third party service provider and you have a portal offering with very similar functionality regardless of the actual organisation you are hosting the service for. 
