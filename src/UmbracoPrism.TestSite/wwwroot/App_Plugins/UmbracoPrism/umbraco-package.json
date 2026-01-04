@@ -1,0 +1,29 @@
+{
+  "$schema": "../../umbraco-package-schema.json",
+  "name": "Umbraco Prism",
+  "version": "1.0.0",
+  "extensions": [
+    {
+      "type": "section",
+      "alias": "Prism.Section",
+      "name": "Prism",
+      "meta": {
+        "label": "Prism",
+        "pathname": "prism",
+        "icon": "icon-prism"
+      }
+    },
+    {
+      "type": "dashboard",
+      "alias": "Prism.Dashboard",
+      "name": "Prism Dashboard",
+      "elementName": "prism-dashboard",
+      "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js",
+      "weight": -10,
+      "meta": {
+        "label": "Tenants",
+        "sections": [ "Prism.Section" ]
+      }
+    }
+  ]
+}
