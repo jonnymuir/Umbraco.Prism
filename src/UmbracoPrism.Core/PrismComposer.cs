@@ -32,8 +32,8 @@ public class PrismComposer : IComposer
                 applicationBuilder => applicationBuilder.UseMiddleware<PrismTenantMiddleware>()
             ));
         });
-        
+
         // 3. Register Custom Database Tables (Migrations)
-        builder.AddNotificationHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();
     }
 }
