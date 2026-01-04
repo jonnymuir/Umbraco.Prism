@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Api.Common.Attributes;
 using Umbraco.Cms.Api.Management.Controllers;
 using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Infrastructure.Persistence;
+using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Persistence;
 
 namespace UmbracoPrism.Core.Controllers;
@@ -10,7 +12,8 @@ namespace UmbracoPrism.Core.Controllers;
 /// <summary>
 /// Controller for managing tenants in the Prism package.
 /// </summary>
-[VersionedApiBackOfficeRoute("prism/v1")]
+[Authorize(Policy = AuthorizationPolicies.BackOfficeAccess)]
+[VersionedApiBackOfficeRoute("prism")]
 [ApiExplorerSettings(GroupName = "Prism")]
 [MapToApi("Prism")]
 public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory) : ManagementApiControllerBase
@@ -32,9 +35,11 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory)
     /// </summary>
     /// <param name="tenant"></param>
     /// <returns></returns>
-    [HttpPost("tenant")]
+    [HttpPost("tenants")]
     public IActionResult SaveTenant([FromBody] PrismTenantSchema tenant)
     {
+        if (tenant == null) return BadRequest();
+
         using var db = databaseFactory.CreateDatabase();
         db.Save(tenant);
         return Ok();

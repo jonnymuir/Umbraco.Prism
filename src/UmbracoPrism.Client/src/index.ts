@@ -1,12 +1,34 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js'; // Decorators live here now
 import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
+import { UMB_MODAL_MANAGER_CONTEXT, UmbModalManagerContext } from '@umbraco-cms/backoffice/modal';
+import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
+import { PrismCreateTenantModalElement } from './prism-create-tenant-modal.ts';
+import { umbHttpClient } from '@umbraco-cms/backoffice/http-client';
+import { tryExecute } from '@umbraco-cms/backoffice/resources';
+
+console.log('Modal element loaded:', PrismCreateTenantModalElement);
 
 @customElement('prism-dashboard')
 export class PrismDashboardElement extends UmbElementMixin(LitElement) {
-  
+
   @state()
   private _tenants: any[] = [];
+
+  private async _openCreateModal() {
+    // Use consumeContext to safely get the manager with the correct type
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (instance: UmbModalManagerContext | undefined) => {
+      if (!instance) return;
+
+      const modalHandler = instance.open(this, 'Prism.CreateTenantModal');
+      
+      modalHandler.onSubmit().then(() => {
+        this._fetchTenants();
+      }).catch(() => {
+        // User closed the modal without submitting
+      });
+    });
+  }
 
   async connectedCallback() {
     super.connectedCallback();
@@ -14,23 +36,40 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
   }
 
   async _fetchTenants() {
-    try {
-      // This hits your Swagger/Management API
-      const res = await fetch('/umbraco/management/api/v1/prism/tenants');
-      this._tenants = await res.json();
-    } catch (e) {
-      console.error("Prism API Error", e);
-    }
+    this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+      if (!authContext) return;
+      const tokenCustom = await authContext.getLatestToken();
+
+      // 3. Perform the request with the manual header
+      const { data, error } = (await tryExecute(
+        this,
+        umbHttpClient.get({
+          url: '/umbraco/management/api/v1/prism/tenants',
+          headers: {
+            'Authorization': `Bearer ${tokenCustom}`
+          }
+        })
+      )) as any;
+
+      if (error) {
+        console.error("Prism API Error", error);
+        return;
+      }
+
+      this._tenants = data ?? [];
+    });
   }
 
   render() {
     return html`
       <div style="padding: 20px;">
         <uui-box headline="Prism Multi-Tenant Manager">
+          <uui-button look="primary" color="positive" @click=${this._openCreateModal} style="margin-bottom: 20px;">
+            Add New Tenant
+          </uui-button>
           <uui-button look="placeholder" @click=${this._fetchTenants} style="width:100%; margin-bottom: 20px;">
             Refresh Tenants
           </uui-button>
-
           <uui-table>
             <uui-table-head>
               <uui-table-head-cell>Name</uui-table-head-cell>
