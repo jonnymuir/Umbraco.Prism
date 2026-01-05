@@ -25,4 +25,20 @@ public class PrismTenant
     /// </summary>
     public string ThemeColor { get; set; } = "#3490dc";
     // Add other brand-specific properties here (Logo URL, etc.)
+
+    /// <summary>
+    /// Gets or sets the Entra Tenant ID for the tenant.
+    /// </summary>
+    public string? EntraTenantId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Entra Client ID for the tenant.
+    /// </summary>
+    public string? EntraClientId { get; set; }
+    
+    /// <summary>
+    /// This is NOT the secret itself. It is the NAME of the secret in Azure Key Vault.
+    /// Example: "Prism-TenantA-Secret"
+    /// </summary>
+    public string? SecretKeyName { get; set; }
 }

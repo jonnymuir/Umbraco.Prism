@@ -19,7 +19,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
     /// </summary>
     protected override void DefinePlan()
     {
-        // Define the initial state of your DB
-        To<CreatePrismTables>("initial-state");
+        To<CreatePrismTables>("initial-state")
+        .To<AddIdentityColumns>("add-identity-cols");
     }
 }

@@ -21,7 +21,6 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory)
     /// <summary>
     /// Gets all tenants.
     /// </summary>
-    /// <returns></returns>
     [HttpGet("tenants")]
     public ActionResult<IEnumerable<PrismTenantSchema>> GetTenants()
     {
@@ -31,17 +30,37 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory)
     }
 
     /// <summary>
-    /// Saves a tenant.
+    /// Saves or updates a tenant.
     /// </summary>
-    /// <param name="tenant"></param>
-    /// <returns></returns>
     [HttpPost("tenants")]
     public IActionResult SaveTenant([FromBody] PrismTenantSchema tenant)
     {
         if (tenant == null) return BadRequest();
 
         using var db = databaseFactory.CreateDatabase();
+        
+        // NPoco's Save method automatically performs an Insert if Id is 0, 
+        // or an Update if the Id already exists.
         db.Save(tenant);
+        
+        return Ok();
+    }
+
+    /// <summary>
+    /// Deletes a tenant by its integer ID.
+    /// </summary>
+    /// <param name="id">The database ID of the tenant.</param>
+    [HttpDelete("tenants/{id:int}")]
+    public IActionResult DeleteTenant(int id)
+    {
+        using var db = databaseFactory.CreateDatabase();
+        
+        // Check if it exists first to provide a better API response
+        var exists = db.Exists<PrismTenantSchema>(id);
+        if (!exists) return NotFound();
+
+        db.Delete<PrismTenantSchema>(id);
+        
         return Ok();
     }
 }

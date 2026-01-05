@@ -36,4 +36,26 @@ public class PrismTenantSchema
     /// </summary>
     [Column("themeColor")]
     public string ThemeColor { get; set; } = "#3490dc";
+
+    /// <summary>
+    /// Gets or sets the Entra Tenant ID for the tenant.
+    /// </summary>
+    [Column("EntraTenantId")]
+    [NullSetting(NullSetting = NullSettings.Null)] 
+    public string? EntraTenantId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Entra Client ID for the tenant.
+    /// </summary>
+    [Column("EntraClientId")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? EntraClientId { get; set; }
+
+    /// <summary>
+    /// This is NOT the secret itself. It is the NAME of the secret in Azure Key Vault.
+    /// Example: "Prism-TenantA-Secret"
+    /// </summary>
+    [Column("SecretKeyName")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? SecretKeyName { get; set; }
 }
