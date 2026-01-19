@@ -1,0 +1,83 @@
+@using UmbracoPrism.Core.Models
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inject IPrismContext PrismContext
+@{
+    // 1. Resolve the Tenant once at the top level
+    var tenant = PrismContext.CurrentTenant;
+    var brandColor = tenant?.ThemeColor ?? "#3544b1";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(tenant?.Name ?? "Prism") - @Model.Name</title>
+
+    <style>
+        :root {
+            /* Variables driven by the Prism Dashboard */
+            --tenant-primary: @brandColor;
+            --tenant-primary-contrast: white;
+            --bg-offset: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            margin: 0;
+            background-color: var(--bg-offset);
+            color: #1a1a1a;
+        }
+
+        .header {
+            background-color: var(--tenant-primary);
+            color: var(--tenant-primary-contrast);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="logo">
+            <strong>@(tenant?.Name ?? "Prism Portal")</strong>
+        </div>
+        <nav>
+            <span style="font-size: 0.8rem; opacity: 0.8;">@Context.Request.Host</span>
+        </nav>
+    </header>
+
+    <div class="container">
+        @RenderBody()
+    </div>
+
+    <footer class="footer">
+        &copy; @DateTime.Now.Year - Managed by Prism Multi-Tenant Engine
+    </footer>
+
+</body>
+</html>

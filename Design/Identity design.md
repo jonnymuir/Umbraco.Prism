@@ -92,7 +92,7 @@ sequenceDiagram
 
 ## 3. Data Schema Extensions
 
-To support this logic, the `Tenant` entity in the SQLite database requires specific configuration fields.
+To support this logic, the `Tenant` entity in the Umbraco database requires specific configuration fields.
 
 ```mermaid
 erDiagram

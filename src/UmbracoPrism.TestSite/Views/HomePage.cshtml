@@ -1,0 +1,30 @@
+﻿@using Umbraco.Cms.Web.Common.PublishedModels;
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.HomePage>
+@using ContentModels = Umbraco.Cms.Web.Common.PublishedModels;
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+}
+
+<div class="card">
+    <h1>@Model.Name</h1>
+    <p class="lead">
+        You are currently viewing a single Umbraco node that has been dynamically 
+        branded by the Prism Engine.
+    </p>
+
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 2rem 0;" />
+
+    <h3>Tenant Configuration</h3>
+    <p>The following values are being pulled from the custom <code>PrismTenants</code> table:</p>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 0;"><strong>Entra ID:</strong></td>
+            <td><code>@PrismContext.CurrentTenant?.EntraClientId</code></td>
+        </tr>
+        <tr>
+            <td style="padding: 10px 0;"><strong>Vault Key:</strong></td>
+            <td><code>@PrismContext.CurrentTenant?.SecretKeyName</code></td>
+        </tr>
+    </table>
+</div>

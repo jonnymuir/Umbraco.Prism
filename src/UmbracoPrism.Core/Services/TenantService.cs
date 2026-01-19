@@ -1,34 +1,50 @@
+using Umbraco.Cms.Core.Cache;
+using Umbraco.Cms.Infrastructure.Persistence;
+using Umbraco.Extensions;
 using UmbracoPrism.Core.Models;
+using UmbracoPrism.Core.Persistence;
 
 namespace UmbracoPrism.Core.Services;
 
-
-/// <summary>
-/// Service implementation for managing tenants.
-/// </summary>
 public class TenantService : ITenantService
 {
-    /// <summary>
-    /// Gets a tenant by its domain.
-    /// </summary>
-    /// <param name="domain"></param>
-    /// <returns></returns>
+    private readonly IUmbracoDatabaseFactory _databaseFactory;
+    private readonly IAppPolicyCache _runtimeCache;
+
+    public TenantService(IUmbracoDatabaseFactory databaseFactory, AppCaches appCaches)
+    {
+        _databaseFactory = databaseFactory;
+        _runtimeCache = appCaches.RuntimeCache;
+    }
+
     public async Task<PrismTenant?> GetByDomainAsync(string domain)
     {
-        // Hardcoded - will wire up to database later.
-        // Simulate an async database call
-        await Task.Yield(); 
+        if (string.IsNullOrEmpty(domain)) return null;
 
-        if (domain.Contains("localhost"))
+        string cacheKey = $"Prism_Tenant_{domain}";
+
+        // We explicitly tell the cache we are looking for a PrismTenant (nullable)
+        return _runtimeCache.GetCacheItem<PrismTenant?>(cacheKey, () =>
         {
-            return new PrismTenant 
-            { 
-                Id = 1, 
-                Name = "Localhost Client", 
-                ThemeColor = "#e74c3c" 
+            using var db = _databaseFactory.CreateDatabase();
+
+            var tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
+                "SELECT * FROM PrismTenants WHERE Hostname = @0",
+                [domain]);
+
+            // If no tenant is found in the DB, return null so we don't cache an empty object
+            if (tenantSchema == null) return null;
+
+            return new PrismTenant
+            {
+                Id = tenantSchema.Id,
+                Name = tenantSchema.Name,
+                Hostname = tenantSchema.Hostname,
+                ThemeColor = tenantSchema.ThemeColor ?? "#3490dc",
+                EntraTenantId = tenantSchema.EntraTenantId,
+                EntraClientId = tenantSchema.EntraClientId,
+                SecretKeyName = tenantSchema.SecretKeyName
             };
-        }
-        
-        return null;
+        }, TimeSpan.FromMinutes(30));
     }
 }
