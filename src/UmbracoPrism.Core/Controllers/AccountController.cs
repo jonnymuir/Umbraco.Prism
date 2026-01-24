@@ -24,7 +24,7 @@ public class AccountController : Controller
         }
 
         var properties = new AuthenticationProperties { RedirectUri = returnUrl };
-        
+
         // Triggers the OIDC flow which PrismOidcConfiguration will intercept
         return Challenge(properties, "PrismEntraID");
     }
@@ -39,7 +39,7 @@ public class AccountController : Controller
         // Sign out of the local cookie AND the Entra ID session
         return SignOut(
             new AuthenticationProperties { RedirectUri = "/" },
-            CookieAuthenticationDefaults.AuthenticationScheme,
+            "PrismMemberCookie",
             "PrismEntraID"
         );
     }

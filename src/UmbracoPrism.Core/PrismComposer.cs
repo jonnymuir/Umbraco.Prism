@@ -58,13 +58,10 @@ public class PrismComposer : IComposer
             .AddCookie("PrismMemberCookie", options =>
             {
                 options.LoginPath = "/auth/login";
+                options.Cookie.SameSite = SameSiteMode.Lax;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             })
-            .AddOpenIdConnect("PrismEntraID", options =>
-            {
-                options.Authority = "https://placeholder.local";
-                options.TokenValidationParameters.ValidateIssuer = false;
-                options.MapInboundClaims = false;
-            });
+            .AddOpenIdConnect("PrismEntraID", _ => { });
 
         // 6. Authorization Policy
         builder.Services.Configure<AuthorizationOptions>(options =>

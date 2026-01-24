@@ -24,8 +24,10 @@ public class PrismOidcConfiguration(
 
         // 1. CIAM Authority format
         // External ID tenants use: {tenant-prefix}.ciamlogin.com
-        options.Authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/"; 
+        options.Authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0";
         options.ClientId = tenant.EntraClientId;
+        options.MapInboundClaims = false; 
+        options.TokenValidationParameters.ValidateIssuer = false;
 
         // 2. Fetch the secret (Keep the .GetAwaiter().GetResult() for synchronous config)
         if (!string.IsNullOrEmpty(tenant.SecretKeyName))
