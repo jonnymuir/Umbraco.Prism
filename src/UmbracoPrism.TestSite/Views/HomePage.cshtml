@@ -1,30 +1,126 @@
 ﻿@using Umbraco.Cms.Web.Common.PublishedModels;
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.HomePage>
-@using ContentModels = Umbraco.Cms.Web.Common.PublishedModels;
+@using UmbracoPrism.Core.Services;
+@using Microsoft.Extensions.Configuration
+@using Microsoft.AspNetCore.Authentication
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inject IPrismUserContext PrismUser
+@inject IPrismContext PrismContext
+@inject IConfiguration Config
+@inject IAuthenticationSchemeProvider SchemeProvider
+
 @{
-    Layout = "~/Views/Shared/Master.cshtml";
+    Layout = null; 
+    var tenant = PrismContext.CurrentTenant;
+
+    // Diagnostic Logic
+    var vaultUri = Config["Prism:VaultUri"];
+    bool isPrismAuthGlobalEnabled = !string.IsNullOrEmpty(vaultUri);
+    bool isTenantConfigured = !string.IsNullOrEmpty(tenant?.EntraTenantId);
+
+    // Get all registered schemes to see what's alive in the pipeline
+    var allSchemes = await SchemeProvider.GetAllSchemesAsync();
 }
 
-<div class="card">
-    <h1>@Model.Name</h1>
-    <p class="lead">
-        You are currently viewing a single Umbraco node that has been dynamically 
-        branded by the Prism Engine.
-    </p>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prism Runtime - @(tenant?.Name ?? "No Tenant")</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; padding: 2rem; background: #f0f2f5; color: #1c1e21; }
+        .card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 1.5rem; border: 1px solid #e1e4e8; }
+        h1 { color: #007bff; margin-top: 0; }
+        h2 { font-size: 1.2rem; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+        .status-badge { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .status-online { background: #e6fcf5; color: #0ca678; }
+        .status-offline { background: #fff5f5; color: #fa5252; }
+        .status-warning { background: #fff9db; color: #f08c00; }
+        .btn { display: inline-block; padding: 0.6rem 1.2rem; border-radius: 6px; text-decoration: none; color: white; font-weight: 600; transition: opacity 0.2s; }
+        .btn-login { background: #007bff; }
+        .btn-logout { background: #495057; }
+        .btn:hover { opacity: 0.9; }
+        code { background: #f8f9fa; padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid #dee2e6; font-size: 0.9rem; color: #d63384; }
+        ul { list-style: none; padding: 0; }
+        li { margin-bottom: 0.5rem; }
+        .alert { padding: 1rem; border-radius: 8px; margin-top: 1rem; font-size: 0.9rem; }
+        .alert-info { background: #e7f5ff; border-left: 4px solid #339af0; color: #1971c2; }
+    </style>
+</head>
+<body>
 
-    <hr style="border: 0; border-top: 1px solid #eee; margin: 2rem 0;" />
+    <h1>Umbraco Prism Runtime</h1>
 
-    <h3>Tenant Configuration</h3>
-    <p>The following values are being pulled from the custom <code>PrismTenants</code> table:</p>
-    
-    <table style="width: 100%; border-collapse: collapse;">
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 0;"><strong>Entra ID:</strong></td>
-            <td><code>@PrismContext.CurrentTenant?.EntraClientId</code></td>
-        </tr>
-        <tr>
-            <td style="padding: 10px 0;"><strong>Vault Key:</strong></td>
-            <td><code>@PrismContext.CurrentTenant?.SecretKeyName</code></td>
-        </tr>
-    </table>
-</div>
+    @* 1. Tenant Resolution Section *@
+    <div class="card">
+        <h2>📡 Tenant Information</h2>
+        @if (tenant != null)
+        {
+            <p><strong>Resolved Name:</strong> @tenant.Name</p>
+            <ul>
+                <li><strong>Database ID:</strong> <code>@tenant.Id</code></li>
+                <li><strong>Hostname:</strong> <code>@Context.Request.Host</code></li>
+                <li><strong>Entra ID:</strong> <code>@(isTenantConfigured ? tenant.EntraTenantId : "Not Set")</code></li>
+            </ul>
+            <span class="status-badge status-online">Tenant Resolved</span>
+        }
+        else
+        {
+            <span class="status-badge status-offline">Tenant Not Resolved</span>
+            <p>Prism could not resolve a tenant for this domain. Check your <code>PrismTenants</code> table.</p>
+        }
+    </div>
+
+    @* 2. Authentication Section *@
+    <div class="card">
+        <h2>👤 Identity Status</h2>
+        @if (PrismUser.IsAuthenticated)
+        {
+            <p><strong>Logged in as:</strong> @PrismUser.Name (@PrismUser.Email)</p>
+            <p><strong>Entra Tenant (TID):</strong> <code>@PrismUser.EntraTenantId</code></p>
+            
+            <div style="margin-top: 1.5rem;">
+                <a href="/auth/logout" class="btn btn-logout">Sign Out</a>
+            </div>
+        }
+        else
+        {
+            <p>You are currently browsing as a <strong>Guest</strong>.</p>
+            
+            @if (isPrismAuthGlobalEnabled && isTenantConfigured)
+            {
+                <a href="/auth/login" class="btn btn-login">Sign In with Entra ID</a>
+            }
+            else
+            {
+                <button class="btn" style="background: #ced4da; cursor: not-allowed;" disabled>Sign In Disabled</button>
+                <div class="alert alert-info">
+                    <strong>Auth Note:</strong> Sign-in is disabled because 
+                    @(isPrismAuthGlobalEnabled ? "this specific tenant has no Entra ID configured." : "Prism:VaultUri is missing from appsettings.json.")
+                </div>
+            }
+        }
+    </div>
+
+    @* 3. System Diagnostics *@
+    <div class="card" style="font-size: 0.85rem; color: #495057;">
+        <h2 style="font-size: 1rem;">🛠 System Diagnostics</h2>
+        <ul>
+            <li><strong>Vault URI:</strong> @(isPrismAuthGlobalEnabled ? vaultUri : "❌ Not Configured")</li>
+            <li>
+                <strong>Prism Auth Mode:</strong> 
+                @if (isPrismAuthGlobalEnabled) {
+                    <b style="color:#0ca678;">ACTIVE</b> <em>(Prism owns the login flow)</em>
+                } else {
+                    <b style="color:#f08c00;">PASSIVE</b> <em>(Standard Umbraco Auth defaults)</em>
+                }
+            </li>
+            <li><strong>Active Schemes:</strong> 
+                @foreach(var s in allSchemes) {
+                    <code>@s.Name</code>
+                }
+            </li>
+            <li><strong>Request Path:</strong> <code>@Context.Request.Path</code></li>
+        </ul>
+    </div>
+
+</body>
+</html>
