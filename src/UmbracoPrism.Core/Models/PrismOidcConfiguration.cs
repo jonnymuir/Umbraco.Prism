@@ -41,7 +41,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : 
             var prismContext = httpContext?.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant == null) return Enumerable.Empty<SecurityKey>();
+            if (tenant == null) return [];
 
             validationParameters.ValidAudience = tenant.EntraClientId;
             validationParameters.ValidIssuer = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0";
