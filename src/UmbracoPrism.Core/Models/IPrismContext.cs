@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+
 namespace UmbracoPrism.Core.Models;
 
 /// <summary>
@@ -9,4 +11,5 @@ public interface IPrismContext
     /// Gets or sets the current tenant.
     /// </summary>
     PrismTenant? CurrentTenant { get; set; }
+    Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync();
 }

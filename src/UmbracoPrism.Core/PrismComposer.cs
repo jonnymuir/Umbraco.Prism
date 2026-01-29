@@ -8,12 +8,12 @@ using UmbracoPrism.Core.Middleware;
 using Umbraco.Cms.Core.Notifications;
 using UmbracoPrism.Core.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Identity.Web;
+using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
 namespace UmbracoPrism.Core;
 
-/// <summary>
-/// Composer for registering Prism services, middleware, and migrations.
-/// </summary>
 public class PrismComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
@@ -37,31 +37,46 @@ public class PrismComposer : IComposer
         // 3. Authorization Handler
         builder.Services.AddSingleton<IAuthorizationHandler, PrismTenantHandler>();
 
-        // 4. Dynamic OIDC Config Link
-        builder.Services.ConfigureOptions<PrismOidcConfiguration>();
-
-        // 5. Authentication & Cookie Setup - only if Vault URI is set
+        // 4. Dynamic OIDC Config & Credential Provider
+        // Registering our custom PostConfigure logic as a Singleton is fine because 
+        // it acts on the 'options' object passed in per-request.
+        builder.Services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
+        
+        // 5. Authentication & Cookie Setup
         var vaultUri = builder.Config["Prism:VaultUri"];
         bool isAuthEnabled = !string.IsNullOrEmpty(vaultUri);
 
+        var authBuilder = builder.Services.AddAuthentication(options =>
+        {
+            if (isAuthEnabled)
+            {
+                options.DefaultAuthenticateScheme = "PrismMemberCookie";
+                options.DefaultSignInScheme = "PrismMemberCookie";
+                options.DefaultChallengeScheme = "PrismEntraID";
+            }
+        });
 
-        builder.Services.AddAuthentication(options =>
-            {
-                // ONLY hijack the defaults if the vault is configured
-                if (isAuthEnabled)
-                {
-                    options.DefaultAuthenticateScheme = "PrismMemberCookie";
-                    options.DefaultSignInScheme = "PrismMemberCookie";
-                    options.DefaultChallengeScheme = "PrismEntraID";
-                }
-            })
-            .AddCookie("PrismMemberCookie", options =>
-            {
-                options.LoginPath = "/auth/login";
-                options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-            })
-            .AddOpenIdConnect("PrismEntraID", _ => { });
+        authBuilder.AddMicrosoftIdentityWebApp(identityOptions =>
+        {
+            // Placeholders satisfy startup validation. 
+            // Our CredentialProvider and OidcConfiguration will swap these out at runtime.
+            identityOptions.Instance = "https://login.microsoftonline.com/";
+            identityOptions.TenantId = "common";
+            identityOptions.ClientId = "DYNAMIC_PLACEHOLDER";
+            identityOptions.CallbackPath = "/signin-oidc";
+            identityOptions.SignedOutCallbackPath = "/signout-oidc";
+            
+            // Note: We no longer need TEMPORARY_PLACEHOLDER for the secret 
+            // because the presence of an IClientAssertionProvider tells MSAL to use that instead.
+        }, cookieOptions =>
+        {
+            cookieOptions.Cookie.Name = "PrismMemberCookie";
+            cookieOptions.LoginPath = "/auth/login";
+            cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
+            cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        }, openIdConnectScheme: "PrismEntraID", cookieScheme: "PrismMemberCookie")
+        .EnableTokenAcquisitionToCallDownstreamApi()
+        .AddInMemoryTokenCaches();
 
         // 6. Authorization Policy
         builder.Services.Configure<AuthorizationOptions>(options =>

@@ -1,18 +1,96 @@
-﻿@using Umbraco.Cms.Web.Common.PublishedModels;
-
+﻿@using System.Net.Http
+@using System.Net.Http.Headers
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+
 @{
-    Layout = null; 
+    Layout = null;
+
+    async Task<string> CallBackOfficeAsync()
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization = await PrismContext.GetAuthorizationHeaderAsync();
+
+        var response = await client.GetAsync("http://localhost:5163/api/backoffice/me");
+
+        if (response.IsSuccessStatusCode)
+        {
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        return $"API Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}";
+    }
+
+    string apiResult = "Not called yet.";
+    if (Context.Request.Query.ContainsKey("callApi"))
+    {
+        apiResult = await CallBackOfficeAsync();
+    }
 }
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Prism Home</title>
+    <style>
+        body {
+            font-family: -apple-system, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            color: #333;
+        }
+
+        .api-container {
+            margin-top: 30px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .api-header {
+            background: #f4f4f4;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .api-content {
+            background: #272822;
+            color: #a6e22e;
+            padding: 20px;
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            min-height: 100px;
+            white-space: pre-wrap;
+        }
+
+        .btn {
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
 </head>
+
 <body>
-    <h1>Welcome to the Site</h1>
+
+    <h1>Welcome to the Prism Site</h1>
+
     <prism-debug />
 
+    <div class="api-container">
+        <div class="api-header">
+            <strong>Mock Back-Office Connection</strong>
+            <a href="?callApi=true" class="btn">Execute Server-to-Server Call</a>
+        </div>
+        <pre class="api-content">@apiResult</pre>
+    </div>
+
 </body>
+
 </html>

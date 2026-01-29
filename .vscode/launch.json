@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -9,7 +6,22 @@
             "type": "dotnet",
             "request": "launch",
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj"
+        },
+        {
+            "name": "C#: Mock Back-Office Debug",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/src/UmbracoPrism.MockBackOffice/UmbracoPrism.MockBackOffice.csproj"
         }
-
+    ],
+    "compounds": [
+        {
+            "name": "C#: Full Prism Stack (Both)",
+            "configurations": [
+                "C#: Prism Test Debug",
+                "C#: Mock Back-Office Debug"
+            ],
+            "stopAll": true
+        }
     ]
 }
