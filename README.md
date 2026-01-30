@@ -18,6 +18,21 @@ You are a service provider offering a portal with consistent functionality acros
 4. **Stateless Identity:** No local Member records. Identity is deferred to Entra ID (CIAM), keeping the database clean and scalable.
 5. **Vaulted Security:** Sensitive OIDC Secrets are pulled securely from Azure Key Vault at runtime.
 
+## Overview screenshots
+
+### Easy backoffice setup
+
+![Shows how tenant editing appears in the umbraco back office](backoffice.png)
+
+
+### Simple to debug
+
+![Shows how debug looks on your site](debug-info.png)
+
+### Flow down to your down stream services
+
+![Example of umbraco calling a downstream service](downstream.png)
+
 ---
 
 ## Architecture
