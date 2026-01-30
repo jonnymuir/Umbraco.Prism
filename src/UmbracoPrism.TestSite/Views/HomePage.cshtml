@@ -7,17 +7,48 @@
 
     async Task<string> CallBackOfficeAsync()
     {
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.Authorization = await PrismContext.GetAuthorizationHeaderAsync();
-
-        var response = await client.GetAsync("http://localhost:5163/api/backoffice/me");
-
-        if (response.IsSuccessStatusCode)
+        try
         {
-            return await response.Content.ReadAsStringAsync();
-        }
+            using var client = new HttpClient();
 
-        return $"API Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}";
+            // This could throw if Key Vault is down or Refresh Token is rejected
+            var authHeader = await PrismContext.GetAuthorizationHeaderAsync();
+
+            if (authHeader == null)
+            {
+                return "User is not authenticated or session has expired.";
+            }
+
+            client.DefaultRequestHeaders.Authorization = authHeader;
+
+            // Standard timeout to prevent hanging the UI
+            client.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await client.GetAsync("http://localhost:5163/api/backoffice/me");
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+
+            // Handle specific status codes if needed
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                return "API Error: Unauthorized. Your session is invalid. Please log in again.";
+            }
+
+            return $"API Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}";
+        }
+        catch (HttpRequestException ex)
+        {
+            // Network-level issues (DNS, connection refused, etc.)
+            return $"Network Error: Could not reach the Back Office. {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            // Catch-all for unexpected logic errors or vault failures
+            return $"System Error: {ex.Message}";
+        }
     }
 
     string apiResult = "Not called yet.";

@@ -30,6 +30,7 @@ You are a service provider offering a portal with consistent functionality acros
 * **Dynamic Configuration:** Prism controls the OIDC pipeline per request, swapping `ClientId`, `Authority`, and `Issuer` keys based on the resolved tenant.
 * **IPrismUserContext:** High-performance access to the current user's claims and their associated Prism Tenant details.
 * **SecretVaultService:** Uses `Azure.Identity` to fetch Client Secrets from Azure Key Vault, utilizing Managed Identity in production and CLI login during development.
+* **Downstream Identity Flow:** Prism supports secure token propagation to internal APIs or Back Office systems. It validates and resolves the tenant identity on the receiving end without requiring complex shared-state logic.
 
 ---
 
@@ -101,11 +102,70 @@ Run `az login` in your terminal to allow the `SecretVaultService` to access Azur
 * **Entra Client ID:** Your App Registration ID.
 * **Secret Key Name:** `tenant-a-secret`.
 
+
+#### Phase 4: Downstream API Authentication
+
+If your Prism frontend needs to call a secure backend (e.g., a "Member Dashboard" API), Prism can flow the current tenant’s identity and access token to that downstream system.
+
+#### 1. Backend API: Enabling Prism Auth
+
+In your downstream ASP.NET Core API, register the Prism authentication handler. This allows the API to accept multi-tenant tokens from any CIAM tenant registered in your system.
+
+```csharp
+// In your API's Program.cs
+builder.Services.AddPrismAuthentication(builder.Configuration);
+
+```
+
+#### 2. Backend API: Resolving the Tenant
+
+Use the Prism identity extensions to resolve which brand the user belongs to. This ensures data isolation at the API level.
+
+```csharp
+app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =>
+{
+    // Resolves the tenant from config (default) or a custom resolver
+    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
+
+    if (tenant == null) return Results.Unauthorized();
+
+    return Results.Ok(new { 
+        Brand = tenant.DisplayName,
+        Code = tenant.Code 
+    });
+}).RequireAuthorization();
+
+```
+
+#### 3. Frontend: Calling the API
+
+From your Umbraco site, use `IPrismContext` to automatically generate the correct Authorization header containing the user's `access_token`.
+
+```csharp
+public async Task<string> GetMemberDataAsync()
+{
+    using var client = new HttpClient();
+    // Automatically handles token extraction and refresh logic
+    client.DefaultRequestHeaders.Authorization = await PrismContext.GetAuthorizationHeaderAsync();
+
+    return await client.GetStringAsync("https://your-api.com/api/backoffice/me");
+}
+
+```
+
+---
+
+### Sample Projects
+
+To see a full end-to-end implementation of the multi-tenant identity flow, refer to the following projects in this repository:
+
+* **`UmbracoPrism.TestSite`**: A reference Umbraco v17 implementation showing how to configure the OIDC pipeline and call secure downstream services.
+* **`UmbracoPrism.MockBackOffice`**: A standalone minimal API project that demonstrates the use of `AddPrismAuthentication` and the `PrismTenantResolver` to isolate data across hundreds of tenants.
+
 ---
 
 ## Technical Stack
 
 * **Umbraco:** v17.0+
 * **Framework:** .NET 10.0
-* **Security:** Azure Key Vault, Managed Identity, Stateless OIDC (CIAM)
-* **Frontend:** Lit (Backoffice), Razor (Website)
+* **Security:** Azure Key Vault, Managed Identity, Stateless OIDC (CIAM), **Multi-tenant JWT Bearer validation**

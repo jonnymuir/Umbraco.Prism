@@ -125,17 +125,12 @@ public class PrismDebugTagHelper(
             var tid = ViewContext.HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid")?.Value
                       ?? ViewContext.HttpContext.User.FindFirst("tid")?.Value;
 
-            var manualHomeAccountId = (oid != null && tid != null) ? $"{oid}.{tid}" : "NULL (Claims Missing)";
-
             sb.Append($"""
                 <div class="card">
-                    <h2>Cache Lookup Debug <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-cache-debug')">Copy</button></h2>
+                    <h2>HttpContext Debug <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-cache-debug')">Copy</button></h2>
                     <div id="prism-cache-debug">
-                        <p><strong>Required MSAL ID:</strong> <code>{manualHomeAccountId}</code></p>
                         <p><strong>OID found:</strong> <code>{oid ?? "MISSING"}</code></p>
                         <p><strong>TID found:</strong> <code>{tid ?? "MISSING"}</code></p>
-                        <hr/>
-                        <p style="font-size:0.8rem;">If 'Required MSAL ID' is NULL, TokenAcquirer will fail with <b>user_null</b> because it cannot generate a cache key.</p>
                     </div>
                 </div>
                 """);

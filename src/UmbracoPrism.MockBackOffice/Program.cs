@@ -17,10 +17,11 @@ var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
 
+
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =>
 {
 
-    var tenant = user.GetPrismTenant(config);
+    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
 
     if (tenant == null) return Results.Problem("Tenant not recognised by Back Office.");
 

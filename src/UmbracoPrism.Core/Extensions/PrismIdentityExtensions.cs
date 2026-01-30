@@ -12,13 +12,21 @@ public static class PrismIdentityExtensions
         user.FindFirst("preferred_username")?.Value ?? 
         user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
 
-    public static BackOfficeTenant? GetPrismTenant(this ClaimsPrincipal user, IConfiguration config)
+    public static BackOfficeTenant? GetPrismTenant(this ClaimsPrincipal user, PrismTenantResolver resolver)
     {
         var tid = user.GetTenantId();
-
-        // Resolve Tenant from Config
-        var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
-        var tenant = tenants?.FirstOrDefault(t => t.EntraTenantId == tid);
-        return tenant;
+        return string.IsNullOrEmpty(tid) ? null : resolver(tid);
     }
+}
+
+public delegate BackOfficeTenant? PrismTenantResolver(string tenantId);
+
+public static class PrismResolvers
+{
+    // A factory method that returns a resolver bound to your configuration
+    public static PrismTenantResolver FromConfig(IConfiguration config) => (tid) =>
+    {
+        var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
+        return tenants?.FirstOrDefault(t => t.EntraTenantId == tid);
+    };
 }

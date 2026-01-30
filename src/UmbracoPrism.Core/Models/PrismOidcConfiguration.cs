@@ -114,7 +114,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : 
             if (tenant != null && !string.IsNullOrEmpty(tenant.EntraTenantId))
             {
                 var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
-                var secret = await vault.GetSecretAsync(tenant.SecretKeyName);
+                var secret = await vault.GetSecretAsync(tenant.SecretKeyName ?? string.Empty);
 
                 // CIAM / Entra ID Token Endpoint
                 var authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
@@ -127,7 +127,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : 
                 using var client = new HttpClient();
                 var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
                 {
-                    { "client_id", tenant.EntraClientId },
+                    { "client_id", tenant.EntraClientId ?? string.Empty },
                     { "client_secret", secret },
                     { "grant_type", "authorization_code" },
                     { "code", context.ProtocolMessage.Code },
@@ -143,37 +143,34 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : 
                 }
 
                 var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                // 1. Manually exchange and get the payload as you are doing...
                 var payload = json.RootElement;
 
-                // 2. Clear and Store specifically what WE want
                 var tokens = new List<AuthenticationToken>
                 {
-                    new AuthenticationToken { Name = "access_token", Value = payload.GetProperty("access_token").GetString() },
-                    new AuthenticationToken { Name = "refresh_token", Value = payload.GetProperty("refresh_token").GetString() },
-                    new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddSeconds(payload.GetProperty("expires_in").GetInt32()).ToString("o") }
+                    new() { Name = "access_token", Value = payload.GetProperty("access_token").GetString() ?? string.Empty },
+                    new() { Name = "refresh_token", Value = payload.GetProperty("refresh_token").GetString() ?? string.Empty},
+                    new() { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddSeconds(payload.GetProperty("expires_in").GetInt32()).ToString("o") }
                 };
 
                 // Use the existing properties from the context (which contain the PKCE verifier, etc.)
                 var props = context.Properties ?? new AuthenticationProperties();
                 props.StoreTokens(tokens);
 
-                // 3. Create your Principal (using the ID Token you just got)
+                // Create your Principal (using the ID Token you just got)
                 var idToken = payload.GetProperty("id_token").GetString();
                 var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
                 var jwt = handler.ReadJwtToken(idToken);
                 var identity = new ClaimsIdentity(jwt.Claims, "PrismEntraID", "name", "role");
                 var principal = new ClaimsPrincipal(identity);
 
-                // 4. THE CRITICAL STEP: Manual Sign-In
                 // We pass 'props' here. This is what writes the encrypted cookie.
                 await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
 
-                // 5. Tell the OIDC middleware to STOP. 
+                // Tell the OIDC middleware to STOP. 
                 // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
                 context.HandleResponse();
 
-                // 6. Redirect manually
+                // Redirect manually
                 var returnUrl = props.RedirectUri ?? "/";
                 context.Response.Redirect(returnUrl);
             }
@@ -203,6 +200,4 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : 
         };
 
     }
-
-    //public void Configure(OpenIdConnectOptions options) => Configure(Options.DefaultName, options);
 }
