@@ -123,16 +123,14 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
           </div>
 
           <uui-table>
-            <uui-table-column style="width: 20%"></uui-table-column>
+            <uui-table-column style="width: 30%"></uui-table-column>
+            <uui-table-column style="width: 30%"></uui-table-column>
             <uui-table-column style="width: 25%"></uui-table-column>
-            <uui-table-column style="width: 10%"></uui-table-column>
-            <uui-table-column style="width: 25%"></uui-table-column>
-            <uui-table-column style="width: 20%"></uui-table-column>
+            <uui-table-column style="width: 15%"></uui-table-column>
 
             <uui-table-head>
               <uui-table-head-cell>Name</uui-table-head-cell>
               <uui-table-head-cell>Hostname</uui-table-head-cell>
-              <uui-table-head-cell>Color</uui-table-head-cell>
               <uui-table-head-cell>Entra Client ID</uui-table-head-cell>
               <uui-table-head-cell>Actions</uui-table-head-cell>
             </uui-table-head>
@@ -141,9 +139,6 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
               <uui-table-row>
                 <uui-table-cell><strong>${t.name}</strong></uui-table-cell>
                 <uui-table-cell><code>${t.hostname}</code></uui-table-cell>
-                <uui-table-cell>
-                    <div class="color-swatch" style="background:${t.themeColor}"></div>
-                </uui-table-cell>
                 <uui-table-cell>
                     ${t.entraClientId 
                         ? html`<uui-tag look="primary" color="positive">${t.entraClientId.substring(0,8)}...</uui-tag>`
@@ -181,13 +176,6 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
     .dashboard-container {
       max-width: 1200px;
       margin: 0 auto;
-    }
-
-    .color-swatch {
-      width: 24px;
-      height: 24px;
-      border-radius: 4px;
-      border: 1px solid var(--uui-color-divider);
     }
 
     .empty-state {

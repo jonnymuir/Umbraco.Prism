@@ -2,6 +2,16 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Client: build",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/UmbracoPrism.Client"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Storybook: dev",
       "type": "shell",
       "command": "npm",

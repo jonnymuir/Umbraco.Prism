@@ -5,7 +5,17 @@ import './prism-create-tenant-modal';
 import { PrismCreateTenantModalElement } from './prism-create-tenant-modal';
 
 type StoryArgs = {
-  data?: { tenant?: any };
+  data?: {
+    tenant?: any;
+    brandingTabs?: Array<{
+      label: string;
+      variables: Array<{
+        name: string;
+        defaultValue?: string;
+        overrideValue?: string;
+      }>;
+    }>;
+  };
 };
 
 const meta: Meta<StoryArgs> = {
@@ -67,7 +77,22 @@ export const Edit: Story = {
         entraTenantId: '00000000-0000-0000-0000-000000000000',
         entraClientId: '11111111-1111-1111-1111-111111111111',
         secretKeyName: 'northwind-prism-secret'
-      }
+      },
+      brandingTabs: [
+        {
+          label: 'General Styles',
+          variables: [
+            { name: '--color-primary', defaultValue: '#3544b1', overrideValue: '#0055ff' },
+            { name: '--color-surface', defaultValue: '#ffffff' }
+          ]
+        },
+        {
+          label: 'Other Styles',
+          variables: [
+            { name: '--custom-border', overrideValue: '2px solid #0d6efd' }
+          ]
+        }
+      ]
     }
   },
   play: async ({ canvasElement, args }) => {

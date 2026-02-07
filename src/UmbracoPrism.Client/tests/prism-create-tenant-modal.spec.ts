@@ -76,3 +76,25 @@ test('Edit modal tabs switch and content has height', async ({ page }) => {
   const identityHeight = await identityPanel.evaluate((el) => el.getBoundingClientRect().height);
   expect(identityHeight).toBeGreaterThan(0);
 });
+
+test('Edit modal shows branding tabs', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="General Styles"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  await expect(frame.getByText('--color-primary')).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Other Styles"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  await expect(frame.getByText('--custom-border')).toBeVisible();
+});

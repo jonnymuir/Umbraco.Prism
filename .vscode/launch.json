@@ -12,6 +12,7 @@
             "name": "C#: Prism Test Debug",
             "type": "dotnet",
             "request": "launch",
+            "preLaunchTask": "Client: build",
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj"
         },
         {
