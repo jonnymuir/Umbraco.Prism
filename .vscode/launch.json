@@ -2,6 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "UI: Storybook",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "npm run storybook",
+            "cwd": "${workspaceFolder}/src/UmbracoPrism.Client"
+        },
+        {
             "name": "C#: Prism Test Debug",
             "type": "dotnet",
             "request": "launch",

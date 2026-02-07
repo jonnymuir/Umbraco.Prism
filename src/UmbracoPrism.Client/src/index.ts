@@ -204,6 +204,14 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
       display: flex;
     }
 
+    uui-button[look='outline'] {
+      color: var(--uui-color-default-standalone);
+    }
+
+    uui-button[look='outline'][color='danger'] {
+      color: var(--uui-color-danger-standalone);
+    }
+
     code {
       background: var(--uui-color-surface-alt);
       padding: 2px 4px;

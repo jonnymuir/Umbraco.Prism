@@ -21,6 +21,10 @@
     <ProjectReference Include="..\UmbracoPrism.Core\UmbracoPrism.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Remove="wwwroot/App_Plugins/UmbracoPrism/**" />
+  </ItemGroup>
+
   <PropertyGroup>
     <!-- Razor files are needed for the backoffice to work correctly -->
     <CopyRazorGenerateFilesToPublishDirectory>true</CopyRazorGenerateFilesToPublishDirectory>

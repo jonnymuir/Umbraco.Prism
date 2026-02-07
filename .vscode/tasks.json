@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Storybook: dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "storybook"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/UmbracoPrism.Client"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
