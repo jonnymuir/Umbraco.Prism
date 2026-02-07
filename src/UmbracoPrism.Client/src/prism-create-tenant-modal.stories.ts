@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
 import { html } from 'lit';
 import { expect } from '@storybook/test';
-import { userEvent } from '@storybook/testing-library';
 import './prism-create-tenant-modal';
 import { PrismCreateTenantModalElement } from './prism-create-tenant-modal';
 
@@ -52,7 +51,7 @@ export const Create: Story = {
     await expect(generalPanel.getBoundingClientRect().height).toBeGreaterThan(0);
 
     const identityTab = shadow.querySelector('uui-tab[label="Identity"]') as HTMLElement;
-    await userEvent.click(identityTab);
+    identityTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;
 
     await expect(shadow.textContent ?? '').toContain('Directory (Tenant) ID');
@@ -62,7 +61,7 @@ export const Create: Story = {
     await expect(identityPanel.getBoundingClientRect().height).toBeGreaterThan(0);
 
     const generalTab = shadow.querySelector('uui-tab[label="General"]') as HTMLElement;
-    await userEvent.click(generalTab);
+    generalTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;
     await expect(shadow.textContent ?? '').toContain('Tenant Name');
   }
@@ -115,7 +114,7 @@ export const Edit: Story = {
     await expect(generalPanel.getBoundingClientRect().height).toBeGreaterThan(0);
 
     const identityTab = shadow.querySelector('uui-tab[label="Identity"]') as HTMLElement;
-    await userEvent.click(identityTab);
+    identityTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;
 
     await expect(shadow.textContent ?? '').toContain('Directory (Tenant) ID');
