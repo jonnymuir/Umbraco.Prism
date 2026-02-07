@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
 import { html } from 'lit';
-import { expect, userEvent } from '@storybook/test';
+import { expect } from '@storybook/test';
+import { userEvent } from '@storybook/testing-library';
 import './prism-create-tenant-modal';
 import { PrismCreateTenantModalElement } from './prism-create-tenant-modal';
 
