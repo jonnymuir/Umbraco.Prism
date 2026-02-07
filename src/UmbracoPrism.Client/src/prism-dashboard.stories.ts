@@ -33,7 +33,8 @@ export const EmptyState: Story = {
     const dashboard = canvasElement.querySelector('prism-dashboard') as PrismDashboardElement;
     await dashboard.updateComplete;
 
-    const canvas = within(dashboard.shadowRoot as ShadowRoot);
+    if (!dashboard.shadowRoot) throw new Error('Shadow root not found');
+    const canvas = within(dashboard.shadowRoot as unknown as HTMLElement);
     await expect(
       canvas.getByText('No tenants found. Click "Add New Tenant" to get started.')
     ).toBeInTheDocument();
@@ -63,7 +64,8 @@ export const WithTenants: Story = {
     dashboard.requestUpdate?.();
     await dashboard.updateComplete;
 
-    const canvas = within(dashboard.shadowRoot as ShadowRoot);
+    if (!dashboard.shadowRoot) throw new Error('Shadow root not found');
+    const canvas = within(dashboard.shadowRoot as unknown as HTMLElement);
     await expect(canvas.getByText('Northwind')).toBeInTheDocument();
     await expect(canvas.getByText('Contoso')).toBeInTheDocument();
     await expect(canvas.getByText('Not Configured')).toBeInTheDocument();

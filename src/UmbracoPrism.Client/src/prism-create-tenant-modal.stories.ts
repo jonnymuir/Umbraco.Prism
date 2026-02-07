@@ -29,8 +29,8 @@ export const Create: Story = {
     const modal = canvasElement.querySelector('prism-create-tenant-modal') as PrismCreateTenantModalElement;
     await modal.updateComplete;
 
-    const shadow = modal.shadowRoot as ShadowRoot;
-    await expect(shadow).not.toBeNull();
+    if (!modal.shadowRoot) throw new Error('Shadow root not found');
+    const shadow = modal.shadowRoot;
     await expect(shadow.textContent ?? '').toContain('Tenant Name');
 
     const container = shadow.querySelector('.container') as HTMLElement;
@@ -75,8 +75,8 @@ export const Edit: Story = {
     modal.data = args.data;
     await modal.updateComplete;
 
-    const shadow = modal.shadowRoot as ShadowRoot;
-    await expect(shadow).not.toBeNull();
+    if (!modal.shadowRoot) throw new Error('Shadow root not found');
+    const shadow = modal.shadowRoot;
     await expect(shadow.textContent ?? '').toContain('Update Tenant');
     const dialogLayout = shadow.querySelector('uui-dialog-layout') as HTMLElement;
     await expect(dialogLayout?.getAttribute('headline') ?? '').toContain('Edit Tenant');
