@@ -31,7 +31,11 @@ public class PrismComposer : IComposer
         {
             options.AddFilter(new UmbracoPipelineFilter(
                 "PrismTenantResolution",
-                app => app.UseMiddleware<PrismTenantMiddleware>()
+                app =>
+                {
+                    app.UseMiddleware<PrismTenantMiddleware>();
+                    app.UseMiddleware<PrismBrandingMiddleware>();
+                }
             ));
         });
 
