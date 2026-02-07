@@ -33,11 +33,27 @@ export const Create: Story = {
     await expect(shadow).not.toBeNull();
     await expect(shadow.textContent ?? '').toContain('Tenant Name');
 
+    const container = shadow.querySelector('.container') as HTMLElement;
+    const generalPanel = shadow.querySelector('#general-panel') as HTMLElement;
+    await expect(container).not.toBeNull();
+    await expect(generalPanel).not.toBeNull();
+    await expect(container.getBoundingClientRect().height).toBeGreaterThanOrEqual(350);
+    await expect(generalPanel.getBoundingClientRect().height).toBeGreaterThan(0);
+
     const identityTab = shadow.querySelector('uui-tab[label="Identity"]') as HTMLElement;
     await userEvent.click(identityTab);
     await modal.updateComplete;
 
     await expect(shadow.textContent ?? '').toContain('Directory (Tenant) ID');
+
+    const identityPanel = shadow.querySelector('#identity-panel') as HTMLElement;
+    await expect(identityPanel).not.toBeNull();
+    await expect(identityPanel.getBoundingClientRect().height).toBeGreaterThan(0);
+
+    const generalTab = shadow.querySelector('uui-tab[label="General"]') as HTMLElement;
+    await userEvent.click(generalTab);
+    await modal.updateComplete;
+    await expect(shadow.textContent ?? '').toContain('Tenant Name');
   }
 };
 
@@ -64,5 +80,21 @@ export const Edit: Story = {
     await expect(shadow.textContent ?? '').toContain('Update Tenant');
     const dialogLayout = shadow.querySelector('uui-dialog-layout') as HTMLElement;
     await expect(dialogLayout?.getAttribute('headline') ?? '').toContain('Edit Tenant');
+
+    const container = shadow.querySelector('.container') as HTMLElement;
+    const generalPanel = shadow.querySelector('#general-panel') as HTMLElement;
+    await expect(container).not.toBeNull();
+    await expect(generalPanel).not.toBeNull();
+    await expect(container.getBoundingClientRect().height).toBeGreaterThanOrEqual(350);
+    await expect(generalPanel.getBoundingClientRect().height).toBeGreaterThan(0);
+
+    const identityTab = shadow.querySelector('uui-tab[label="Identity"]') as HTMLElement;
+    await userEvent.click(identityTab);
+    await modal.updateComplete;
+
+    await expect(shadow.textContent ?? '').toContain('Directory (Tenant) ID');
+    const identityPanel = shadow.querySelector('#identity-panel') as HTMLElement;
+    await expect(identityPanel).not.toBeNull();
+    await expect(identityPanel.getBoundingClientRect().height).toBeGreaterThan(0);
   }
 };
