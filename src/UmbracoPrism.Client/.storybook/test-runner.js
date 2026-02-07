@@ -15,6 +15,12 @@ const config = {
       return;
     }
 
+    await page.evaluate(() => {
+      if (!window.__PRISM_A11Y__) {
+        window.__PRISM_A11Y__ = { running: false };
+      }
+    });
+
     await configureAxe(page, {
       runOnly: {
         type: 'tag',
@@ -23,12 +29,26 @@ const config = {
       ...(storyContext.parameters?.a11y?.config ?? {})
     });
 
-    a11yQueue = a11yQueue.then(() =>
-      checkA11y(page, '#storybook-root', {
-        detailedReport: true,
-        detailedReportOptions: { html: true }
-      })
-    );
+    a11yQueue = a11yQueue.then(async () => {
+      await page.waitForFunction(() => !window.__PRISM_A11Y__?.running);
+      await page.evaluate(() => {
+        if (window.__PRISM_A11Y__) {
+          window.__PRISM_A11Y__.running = true;
+        }
+      });
+      try {
+        await checkA11y(page, '#storybook-root', {
+          detailedReport: true,
+          detailedReportOptions: { html: true }
+        });
+      } finally {
+        await page.evaluate(() => {
+          if (window.__PRISM_A11Y__) {
+            window.__PRISM_A11Y__.running = false;
+          }
+        });
+      }
+    });
 
     await a11yQueue;
   }

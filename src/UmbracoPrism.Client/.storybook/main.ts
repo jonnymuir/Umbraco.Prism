@@ -13,6 +13,18 @@ const config: StorybookConfig = {
   },
   docs: {
     autodocs: 'tag'
+  },
+  viteFinal: async (config) => {
+    config.optimizeDeps ??= {};
+    config.optimizeDeps.include = Array.from(
+      new Set([
+        ...(config.optimizeDeps.include ?? []),
+        '@umbraco-ui/uui-icon',
+        '@umbraco-ui/uui-icon-registry-essential',
+        '@umbraco-ui/uui-css'
+      ])
+    );
+    return config;
   }
 };
 
