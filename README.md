@@ -115,6 +115,10 @@ cd src/UmbracoPrism.Client
 npm run test-storybook
 ```
 
+**VS Code:**
+
+Install the Playwright Test extension to run Playwright tests in the Testing view. Tests are in [src/UmbracoPrism.Client/tests](src/UmbracoPrism.Client/tests). You can also run `npm run test:playwright:ui` for the interactive runner.
+
 **Headless multi-browser + WCAG checks (recommended):**
 
 ```bash
@@ -124,7 +128,7 @@ npm run test-storybook:all
 
 **CI usage (GitHub Actions):**
 
-The workflow in [.github/workflows/storybook-tests.yml](.github/workflows/storybook-tests.yml) runs the following:
+The workflow in [.github/workflows/ci-tests.yml](.github/workflows/ci-tests.yml) runs the following:
 
 ```bash
 cd src/UmbracoPrism.Client
@@ -132,6 +136,16 @@ npm ci
 npx playwright install --with-deps
 npm run test-storybook:ci:all
 ```
+
+### Core Tests (UmbracoPrism.Core)
+
+```bash
+dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+```
+
+**VS Code:**
+
+Install the .NET Test Explorer extension to run the Core tests in the Testing view.
 
 **Accessibility (WCAG) checks:**
 

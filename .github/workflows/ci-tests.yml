@@ -1,15 +1,19 @@
-name: Storybook Tests
+name: CI Tests
 
 on:
   pull_request:
     paths:
       - 'src/UmbracoPrism.Client/**'
-      - '.github/workflows/storybook-tests.yml'
+      - 'src/UmbracoPrism.Core/**'
+      - 'src/UmbracoPrism.Core.Tests/**'
+      - '.github/workflows/ci-tests.yml'
   push:
     branches: [ main ]
     paths:
       - 'src/UmbracoPrism.Client/**'
-      - '.github/workflows/storybook-tests.yml'
+      - 'src/UmbracoPrism.Core/**'
+      - 'src/UmbracoPrism.Core.Tests/**'
+      - '.github/workflows/ci-tests.yml'
 
 jobs:
   storybook-tests:
@@ -35,3 +39,16 @@ jobs:
 
       - name: Run Storybook tests
         run: npm run test-storybook:ci:all
+
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run core tests
+        run: dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
