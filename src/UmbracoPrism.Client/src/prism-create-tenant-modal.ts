@@ -45,6 +45,29 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  protected updated(changedProperties: Map<string, unknown>) {
+    super.updated(changedProperties);
+
+    if (changedProperties.has('data')) {
+      if (this.data?.tenant) {
+        const t = this.data.tenant;
+        this._id = t.id ?? null;
+        this._name = t.name ?? '';
+        this._hostname = t.hostname ?? '';
+        this._entraTenantId = t.entraTenantId ?? '';
+        this._entraClientId = t.entraClientId ?? '';
+        this._secretKeyName = t.secretKeyName ?? '';
+      } else {
+        this._id = null;
+        this._name = '';
+        this._hostname = '';
+        this._entraTenantId = '';
+        this._entraClientId = '';
+        this._secretKeyName = '';
+      }
+    }
+  }
+
   private async _handleSubmit() {
     if (!this._name || !this._hostname) {
       this._activeTab = 'general';

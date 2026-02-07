@@ -1,0 +1,37 @@
+name: Storybook Tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/UmbracoPrism.Client/**'
+      - '.github/workflows/storybook-tests.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/UmbracoPrism.Client/**'
+      - '.github/workflows/storybook-tests.yml'
+
+jobs:
+  storybook-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/UmbracoPrism.Client
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Storybook tests
+        run: npm run test-storybook:ci:all

@@ -96,6 +96,49 @@ Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPris
 
 ## Setup & Development
 
+### Storybook Tests (UmbracoPrism.Client)
+
+Storybook is used for component-driven tests with the Storybook test runner + Playwright.
+
+**Local usage:**
+
+```bash
+cd src/UmbracoPrism.Client
+npm install
+npm run storybook
+```
+
+In a second terminal:
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test-storybook
+```
+
+**Headless multi-browser + WCAG checks (recommended):**
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test-storybook:all
+```
+
+**CI usage (GitHub Actions):**
+
+The workflow in [.github/workflows/storybook-tests.yml](.github/workflows/storybook-tests.yml) runs the following:
+
+```bash
+cd src/UmbracoPrism.Client
+npm ci
+npx playwright install --with-deps
+npm run test-storybook:ci:all
+```
+
+**Accessibility (WCAG) checks:**
+
+Storybook test runner runs axe checks (WCAG 2.0/2.1 A/AA) via
+[src/UmbracoPrism.Client/.storybook/test-runner.ts](src/UmbracoPrism.Client/.storybook/test-runner.ts).
+To opt out for a specific story, set `parameters: { a11y: { disable: true } }`.
+
 ### Local Authentication Walkthrough
 
 #### Phase 1: Azure Setup

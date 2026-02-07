@@ -6,13 +6,31 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "test-storybook": "test-storybook --url http://localhost:6006",
+    "test-storybook:all": "test-storybook --url http://localhost:6006 --browsers chromium firefox webkit",
+    "test-storybook:ci": "start-server-and-test storybook http://127.0.0.1:6006 test-storybook",
+    "test-storybook:ci:all": "start-server-and-test storybook http://127.0.0.1:6006 \"npm run test-storybook:all\""
   },
   "dependencies": {
     "@umbraco-cms/backoffice": "^17.1.0-rc",
     "lit": "^3.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.46.1",
+    "@storybook/addon-a11y": "^8.6.3",
+    "@storybook/addon-essentials": "^8.6.3",
+    "@storybook/addon-interactions": "^8.6.3",
+    "@storybook/test": "^8.6.3",
+    "@storybook/test-runner": "^0.18.0",
+    "@storybook/testing-library": "^0.2.2",
+    "@storybook/web-components": "^8.6.3",
+    "@storybook/web-components-vite": "^8.6.3",
+    "axe-playwright": "^2.1.0",
+    "storybook": "^8.6.3",
+    "start-server-and-test": "^2.0.4",
     "typescript": "~5.9.3",
     "vite": "^7.2.4"
   }
