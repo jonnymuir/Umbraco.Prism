@@ -72,17 +72,45 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
    * Opens the modal in "Edit" mode (passes the tenant object)
    */
   private async _editTenant(tenant: any) {
+    const brandingTabs = await this._fetchBrandingTabs(tenant.id);
+
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (instance: UmbModalManagerContext | undefined) => {
       if (!instance) return;
 
       const modalHandler = instance.open(this, 'Prism.CreateTenantModal', {
         type: 'sidebar',
         size: 'small',
-        data: { tenant } // Passing existing data triggers Edit mode in the modal
+        data: { tenant, brandingTabs } // Passing existing data triggers Edit mode in the modal
       } as any);
       
       modalHandler.onSubmit().then(() => {
         this._fetchTenants();
+      });
+    });
+  }
+
+  private async _fetchBrandingTabs(tenantId: number) {
+    return new Promise<any[]>((resolve) => {
+      this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+        if (!authContext) return resolve([]);
+        const token = await authContext.getLatestToken();
+
+        const { data, error } = (await tryExecute(
+          this,
+          umbHttpClient.get({
+            url: `/umbraco/management/api/v1/prism/tenants/${tenantId}/branding-tabs`,
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+        )) as any;
+
+        if (error) {
+          console.error('Prism Branding API Error', error);
+          return resolve([]);
+        }
+
+        resolve(data?.tabs ?? []);
       });
     });
   }

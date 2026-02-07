@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Extensions;
@@ -43,8 +44,23 @@ public class TenantService : ITenantService
                 ThemeColor = tenantSchema.ThemeColor ?? "#3490dc",
                 EntraTenantId = tenantSchema.EntraTenantId,
                 EntraClientId = tenantSchema.EntraClientId,
-                SecretKeyName = tenantSchema.SecretKeyName
+                SecretKeyName = tenantSchema.SecretKeyName,
+                BrandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides)
             };
         }, TimeSpan.FromMinutes(30));
+    }
+
+    private static Dictionary<string, string> ParseBrandingOverrides(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, string>();
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
+        }
+        catch
+        {
+            return new Dictionary<string, string>();
+        }
     }
 }

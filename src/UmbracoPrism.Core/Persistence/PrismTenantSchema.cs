@@ -58,4 +58,11 @@ public class PrismTenantSchema
     [Column("SecretKeyName")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? SecretKeyName { get; set; }
+
+    /// <summary>
+    /// Stores tenant-specific branding overrides as JSON.
+    /// </summary>
+    [Column("BrandingOverrides")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? BrandingOverrides { get; set; }
 }

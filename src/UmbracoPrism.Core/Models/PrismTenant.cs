@@ -41,4 +41,9 @@ public class PrismTenant
     /// Example: "Prism-TenantA-Secret"
     /// </summary>
     public string? SecretKeyName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the branding overrides for the tenant.
+    /// </summary>
+    public Dictionary<string, string> BrandingOverrides { get; set; } = new();
 }

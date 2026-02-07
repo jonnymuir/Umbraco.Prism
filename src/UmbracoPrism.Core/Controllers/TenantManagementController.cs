@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Api.Common.Attributes;
@@ -8,6 +9,8 @@ using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Persistence;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Extensions;
+using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -18,7 +21,10 @@ namespace UmbracoPrism.Core.Controllers;
 [VersionedApiBackOfficeRoute("prism")]
 [ApiExplorerSettings(GroupName = "Prism")]
 [MapToApi("Prism")]
-public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory, AppCaches appCaches) : ManagementApiControllerBase
+public class TenantManagementController(
+    IUmbracoDatabaseFactory databaseFactory,
+    AppCaches appCaches,
+    IBrandingService brandingService) : ManagementApiControllerBase
 {
     /// <summary>
     /// Gets all registered tenants.
@@ -35,27 +41,37 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory,
     /// Creates a new tenant.
     /// </summary>
     [HttpPost("tenants")]
-    public IActionResult CreateTenant([FromBody] PrismTenantSchema tenant)
+    public IActionResult CreateTenant([FromBody] PrismTenantRequest tenant)
     {
         if (tenant == null) return BadRequest();
 
         using var db = databaseFactory.CreateDatabase();
         
-        // Ensure ID is 0 for a new record
-        tenant.Id = 0; 
-        db.Insert(tenant);
+        var schema = new PrismTenantSchema
+        {
+            Id = 0,
+            Name = tenant.Name,
+            Hostname = tenant.Hostname,
+            ThemeColor = tenant.ThemeColor,
+            EntraTenantId = tenant.EntraTenantId,
+            EntraClientId = tenant.EntraClientId,
+            SecretKeyName = tenant.SecretKeyName,
+            BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides)
+        };
+
+        db.Insert(schema);
 
         // Clear cache for the new hostname
-        appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{tenant.Hostname}");
+        appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{schema.Hostname}");
         
-        return Ok(tenant);
+        return Ok(schema);
     }
 
     /// <summary>
     /// Updates an existing tenant.
     /// </summary>
     [HttpPut("tenants/{id:int}")]
-    public IActionResult UpdateTenant(int id, [FromBody] PrismTenantSchema updatedTenant)
+    public IActionResult UpdateTenant(int id, [FromBody] PrismTenantRequest updatedTenant)
     {
         if (updatedTenant == null) return BadRequest();
 
@@ -74,6 +90,7 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory,
         existing.EntraTenantId = updatedTenant.EntraTenantId;
         existing.EntraClientId = updatedTenant.EntraClientId;
         existing.SecretKeyName = updatedTenant.SecretKeyName;
+        existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
 
         // 3. Persist
         db.Update(existing);
@@ -86,6 +103,26 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory,
         }
         
         return Ok(existing);
+    }
+
+    /// <summary>
+    /// Gets branding tabs with overrides for a tenant.
+    /// </summary>
+    [HttpGet("tenants/{id:int}/branding-tabs")]
+    public IActionResult GetBrandingTabs(int id)
+    {
+        using var db = databaseFactory.CreateDatabase();
+        var tenant = db.SingleOrDefaultById<PrismTenantSchema>(id);
+        if (tenant == null) return NotFound();
+
+        var overrides = DeserializeBrandingOverrides(tenant.BrandingOverrides);
+        var tabs = brandingService.GetBrandingTabsWithOverrides(overrides);
+
+        return Ok(new PrismBrandingTabResponse
+        {
+            TenantId = id,
+            Tabs = tabs.ToList()
+        });
     }
 
     /// <summary>
@@ -105,5 +142,24 @@ public class TenantManagementController(IUmbracoDatabaseFactory databaseFactory,
         appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{tenant.Hostname}");
         
         return Ok();
+    }
+
+    private static string? SerializeBrandingOverrides(Dictionary<string, string>? overrides)
+    {
+        if (overrides == null || overrides.Count == 0) return null;
+        return JsonSerializer.Serialize(overrides);
+    }
+
+    private static Dictionary<string, string> DeserializeBrandingOverrides(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, string>();
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
+        }
+        catch
+        {
+            return new Dictionary<string, string>();
+        }
     }
 }

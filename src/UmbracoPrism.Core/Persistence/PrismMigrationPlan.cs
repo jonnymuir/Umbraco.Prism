@@ -20,6 +20,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
     protected override void DefinePlan()
     {
         To<CreatePrismTables>("initial-state")
-        .To<AddIdentityColumns>("add-identity-cols");
+        .To<AddIdentityColumns>("add-identity-cols")
+        .To<AddBrandingOverridesColumn>("add-branding-overrides");
     }
 }

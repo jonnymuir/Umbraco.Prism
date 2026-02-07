@@ -108,6 +108,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       return;
     }
 
+    const brandingOverrides = this._collectBrandingOverrides();
+
     const tenant = {
       id: this._id,
       name: this._name,
@@ -115,7 +117,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       themeColor: '#3544b1', // Defaulting for now, could be a color picker later
       entraTenantId: this._entraTenantId,
       entraClientId: this._entraClientId,
-      secretKeyName: this._secretKeyName
+      secretKeyName: this._secretKeyName,
+      brandingOverrides
     };
 
     this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
@@ -269,6 +272,19 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         )
       };
     });
+  }
+
+  private _collectBrandingOverrides() {
+    const overrides: Record<string, string> = {};
+    this._brandingTabs.forEach(tab => {
+      tab.variables.forEach(variable => {
+        if (variable.overrideValue && variable.overrideValue.trim().length > 0) {
+          overrides[variable.name] = variable.overrideValue.trim();
+        }
+      });
+    });
+
+    return overrides;
   }
 
   render() {
