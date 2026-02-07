@@ -8,8 +8,8 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'prism-dashboard',
     },
-    // This sends the compiled JS directly to your TestSite's App_Plugins
-    outDir: '../UmbracoPrism.TestSite/wwwroot/App_Plugins/UmbracoPrism/dist',
+    // This sends the compiled JS directly to the Core package static web assets
+    outDir: '../UmbracoPrism.Core/wwwroot/dist',
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {

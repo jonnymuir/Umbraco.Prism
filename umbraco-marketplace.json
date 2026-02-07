@@ -1,0 +1,37 @@
+{
+  "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
+  "Title": "Umbraco Prism",
+  "Description": "Multi-tenancy for Umbraco (v17+) with dynamic branding and stateless identity. Prism resolves branding, identity, and content context at runtime based on the incoming domain.",
+  "Category": "Developer Tools",
+  "PackageType": "Package",
+  "LicenseTypes": ["Free"],
+  "DocumentationUrl": "https://github.com/jonnymuir/Umbraco.Prism#readme",
+  "IssueTrackerUrl": "https://github.com/jonnymuir/Umbraco.Prism/issues",
+  "RepositoryUrl": "https://github.com/jonnymuir/Umbraco.Prism",
+  "Tags": [
+    "umbraco",
+    "multi-tenancy",
+    "oidc",
+    "azure",
+    "backoffice"
+  ],
+  "AuthorDetails": {
+    "Name": "Jonny Muir",
+    "Url": "https://github.com/jonnymuir"
+  },
+  "Screenshots": [
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/backoffice.png",
+      "Caption": "Prism backoffice tenant management"
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/debug-info.png",
+      "Caption": "Prism debug panel"
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/downstream.png",
+      "Caption": "Downstream API flow"
+    }
+  ],
+  "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/assets/logo-horizontal-lockup.svg"
+}

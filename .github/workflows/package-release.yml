@@ -1,0 +1,46 @@
+name: Package Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.1
+          cache: 'npm'
+          cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: src/UmbracoPrism.Client
+
+      - name: Build client
+        run: npm run build
+        working-directory: src/UmbracoPrism.Client
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pack UmbracoPrism
+        run: dotnet pack src/UmbracoPrism.Core/UmbracoPrism.Core.csproj -c Release -o artifacts
+
+      - name: Upload NuGet package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: umbracoprism-nuget
+          path: artifacts/*.nupkg
+
+      - name: Publish to NuGet (optional)
+        if: ${{ secrets.NUGET_API_KEY != '' }}
+        run: dotnet nuget push artifacts/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json

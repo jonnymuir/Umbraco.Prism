@@ -147,6 +147,26 @@ dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism
 
 Install the .NET Test Explorer extension to run the Core tests in the Testing view.
 
+### Packaging & Marketplace
+
+**Build the backoffice assets:**
+
+```bash
+cd src/UmbracoPrism.Client
+npm install
+npm run build
+```
+
+**Pack the NuGet package:**
+
+```bash
+dotnet pack src/UmbracoPrism.Core/UmbracoPrism.Core.csproj -c Release -o artifacts
+```
+
+**Marketplace metadata:**
+
+See [umbraco-marketplace.json](umbraco-marketplace.json) for the listing metadata (icon, screenshots, tags, description).
+
 **Accessibility (WCAG) checks:**
 
 Storybook test runner runs axe checks (WCAG 2.0/2.1 A/AA) via
