@@ -9,11 +9,11 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>UmbracoPrism</PackageId>
     <Title>Umbraco Prism</Title>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
     <Description>Multi-tenancy for Umbraco (v17+) with dynamic branding and stateless identity.</Description>
-    <PackageTags>Umbraco;Multi-tenancy;OIDC;Azure;Backoffice</PackageTags>
+    <PackageTags>Umbraco;Multi-tenancy;OIDC;Azure;Backoffice;umbraco-marketplace</PackageTags>
     <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
