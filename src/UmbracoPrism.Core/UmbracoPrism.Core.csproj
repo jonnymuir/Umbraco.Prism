@@ -9,7 +9,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>UmbracoPrism</PackageId>
     <Title>Umbraco Prism</Title>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
     <Description>Multi-tenancy for Umbraco (v17+) with dynamic branding and stateless identity.</Description>
@@ -19,7 +19,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageIcon>backoffice.png</PackageIcon>
+    <PackageIcon>assets/logo-horizontal-lockup.svg</PackageIcon>
     <StaticWebAssetBasePath>App_Plugins/UmbracoPrism</StaticWebAssetBasePath>
   </PropertyGroup>
 
@@ -36,7 +36,7 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
-    <None Include="../../backoffice.png" Pack="true" PackagePath="/" />
+    <None Include="../../assets/logo-horizontal-lockup.svg" Pack="true" PackagePath="assets/" />
     <None Include="../../LICENSE" Pack="true" PackagePath="/" />
     <Content Update="wwwroot/**" Pack="true" PackagePath="/" />
   </ItemGroup>
