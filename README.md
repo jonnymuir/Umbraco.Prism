@@ -106,6 +106,26 @@ Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPris
 }
 ```
 
+### 4. Prism Admins Policy (Backoffice Safety)
+
+Tenant management is powerful (it can change domains, secrets, and branding), so Prism restricts these endpoints to a dedicated admin policy. By default, only users in the **admin** group can create, update, or delete tenants.
+
+**Why:** ensures only trusted backoffice users can manage tenant identity and branding settings.
+
+**How:** configure which backoffice user groups are allowed by setting group aliases in `appsettings.json`:
+
+```json
+{
+  "Prism": {
+    "AdminGroups": {
+      "GroupAliases": ["admin", "prism-admins"]
+    }
+  }
+}
+```
+
+Use Umbraco's User Groups to grant access (Settings → Users → Groups). Anyone not in these groups can still access the backoffice, but cannot modify tenants via the Prism management API.
+
 ---
 
 ## Setup & Development

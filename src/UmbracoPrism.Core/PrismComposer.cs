@@ -41,6 +41,7 @@ public class PrismComposer : IComposer
 
         // 3. Authorization Handler
         builder.Services.AddSingleton<IAuthorizationHandler, PrismTenantHandler>();
+        builder.Services.AddSingleton<IAuthorizationHandler, PrismAdminHandler>();
 
         // 4. Dynamic OIDC Config & Credential Provider
         // Registering our custom PostConfigure logic as a Singleton is fine because 
@@ -91,7 +92,15 @@ public class PrismComposer : IComposer
                 policy.RequireAuthenticatedUser();
                 policy.AddRequirements(new PrismTenantRequirement());
             });
+
+            options.AddPolicy("PrismAdmins", policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.AddRequirements(new PrismAdminRequirement());
+            });
         });
+
+        builder.Services.Configure<PrismAdminOptions>(builder.Config.GetSection("Prism:AdminGroups"));
 
         // 7. Management API & Notifications
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();

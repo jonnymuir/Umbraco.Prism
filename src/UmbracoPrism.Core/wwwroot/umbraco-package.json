@@ -20,11 +20,15 @@
       "elementName": "prism-dashboard",
       "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js",
       "weight": -10,
+      "conditions": [
+        {
+          "alias": "Umb.Condition.SectionAlias",
+          "match": "Umb.Section.Content"
+        }
+      ],
       "meta": {
         "label": "Tenants",
-        "sections": [
-          "Prism.Section"
-        ]
+        "pathname": "tenants"
       }
     },
     {

@@ -18,6 +18,7 @@ namespace UmbracoPrism.Core.Controllers;
 /// Controller for managing tenants in the Prism package via the Umbraco Management API.
 /// </summary>
 [Authorize(Policy = AuthorizationPolicies.BackOfficeAccess)]
+[Authorize(Policy = "PrismAdmins")]
 [VersionedApiBackOfficeRoute("prism")]
 [ApiExplorerSettings(GroupName = "Prism")]
 [MapToApi("Prism")]
