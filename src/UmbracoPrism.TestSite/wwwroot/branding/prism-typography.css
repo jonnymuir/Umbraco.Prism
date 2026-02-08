@@ -1,0 +1,14 @@
+:root {
+    --prism-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --prism-font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --prism-font-mono: "SFMono-Regular", "Courier New", monospace;
+
+    --prism-heading-weight: 700;
+    --prism-body-weight: 500;
+    --prism-letter-spacing-caps: 0.08em;
+
+    --prism-text-size-xl: 40px;
+    --prism-text-size-lg: 22px;
+    --prism-text-size-md: 16px;
+    --prism-text-size-sm: 13px;
+}

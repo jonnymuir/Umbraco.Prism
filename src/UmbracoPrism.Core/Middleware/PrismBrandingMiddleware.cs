@@ -8,7 +8,7 @@ namespace UmbracoPrism.Core.Middleware;
 /// <summary>
 /// Injects tenant branding overrides into HTML responses.
 /// </summary>
-public class PrismBrandingMiddleware(RequestDelegate next, ILogger<PrismBrandingMiddleware> logger)
+public class PrismBrandingMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, IPrismContext prismContext)
     {
@@ -49,7 +49,10 @@ public class PrismBrandingMiddleware(RequestDelegate next, ILogger<PrismBranding
         if (!ShouldInject(context, bodyText))
         {
             var originalBytes = Encoding.UTF8.GetBytes(bodyText);
-            context.Response.ContentLength = originalBytes.Length;
+            if (!context.Response.HasStarted)
+            {
+                context.Response.ContentLength = originalBytes.Length;
+            }
             await context.Response.Body.WriteAsync(originalBytes);
             return;
         }
@@ -58,7 +61,10 @@ public class PrismBrandingMiddleware(RequestDelegate next, ILogger<PrismBranding
         var injected = InjectBranding(bodyText, css);
         var bytes = Encoding.UTF8.GetBytes(injected);
 
-        context.Response.ContentLength = bytes.Length;
+        if (!context.Response.HasStarted)
+        {
+            context.Response.ContentLength = bytes.Length;
+        }
         await context.Response.Body.WriteAsync(bytes);
     }
 

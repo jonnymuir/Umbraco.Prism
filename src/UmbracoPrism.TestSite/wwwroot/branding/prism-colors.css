@@ -1,0 +1,22 @@
+:root {
+    --prism-text: #0f172a;
+    --prism-muted: #64748b;
+
+    --prism-primary: #4f46e5;
+    --prism-primary-contrast: #ffffff;
+    --prism-accent: #22c55e;
+    --prism-link: #2563eb;
+    --prism-focus: #f59e0b;
+
+    --prism-surface: #ffffff;
+    --prism-surface-alt: #f8fafc;
+    --prism-border: #e2e8f0;
+
+    --prism-success: #16a34a;
+    --prism-warning: #f59e0b;
+    --prism-danger: #ef4444;
+
+    --prism-hero-bg: linear-gradient(135deg, #4f46e5, #22d3ee);
+    --prism-hero-text: #ffffff;
+    --prism-hero-badge: rgba(255, 255, 255, 0.2);
+}

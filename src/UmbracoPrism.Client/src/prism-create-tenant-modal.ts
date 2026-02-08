@@ -102,6 +102,18 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return `branding-${index}`;
   }
 
+  private _handleTabGroupClick(event: MouseEvent) {
+    const path = event.composedPath() as Array<EventTarget>;
+    const tab = path.find((item) => item instanceof HTMLElement && item.dataset?.tabKey) as HTMLElement | undefined;
+
+    if (!tab) return;
+
+    const nextTab = tab.dataset.tabKey;
+    if (nextTab && nextTab !== this._activeTab) {
+      this._activeTab = nextTab;
+    }
+  }
+
   private async _handleSubmit() {
     if (!this._name || !this._hostname) {
       this._activeTab = 'general';
@@ -297,25 +309,25 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return html`
       <uui-dialog-layout headline="${isUpdate ? 'Edit' : 'Register New'} Tenant">
         
-        <uui-tab-group>
+        <uui-tab-group @click=${this._handleTabGroupClick}>
           <uui-tab 
             label="General" 
-            ?active=${this._activeTab === 'general'} 
-            @click=${() => this._activeTab = 'general'}>
+            data-tab-key="general"
+            ?active=${this._activeTab === 'general'}>
             General
           </uui-tab>
           <uui-tab 
             label="Identity" 
-            ?active=${this._activeTab === 'identity'} 
-            @click=${() => this._activeTab = 'identity'}>
+            data-tab-key="identity"
+            ?active=${this._activeTab === 'identity'}>
             Identity
           </uui-tab>
           ${brandingTabs.map(({ tab, key }, index) => html`
             <uui-tab
               label=${tab.label}
               id="branding-tab-${index}"
-              ?active=${this._activeTab === key}
-              @click=${() => this._activeTab = key}>
+              data-tab-key=${key}
+              ?active=${this._activeTab === key}>
               ${tab.label}
             </uui-tab>
           `)}

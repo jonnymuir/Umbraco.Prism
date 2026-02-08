@@ -123,3 +123,74 @@ export const Edit: Story = {
     await expect(identityPanel.getBoundingClientRect().height).toBeGreaterThan(0);
   }
 };
+
+export const OverflowTabs: Story = {
+  args: {
+    data: {
+      tenant: {
+        id: 456,
+        name: 'Prism Demo',
+        hostname: 'demo.example'
+      },
+      brandingTabs: [
+        {
+          label: 'prism-colors.css',
+          variables: [{ name: '--prism-primary', defaultValue: '#4f46e5' }]
+        },
+        {
+          label: 'prism-typography.css',
+          variables: [{ name: '--prism-font-display', defaultValue: 'Space Grotesk' }]
+        },
+        {
+          label: 'prism-layout.css',
+          variables: [{ name: '--prism-page-max', defaultValue: '1100px' }]
+        },
+        {
+          label: 'prism-imagery.css',
+          variables: [{ name: '--prism-hero-image', defaultValue: 'linear-gradient(...)' }]
+        },
+        {
+          label: 'prism-components.css',
+          variables: [{ name: '--prism-button-bg', defaultValue: '#4f46e5' }]
+        },
+        {
+          label: 'prism-extra.css',
+          variables: [{ name: '--prism-extra-token', defaultValue: '1rem' }]
+        }
+      ]
+    }
+  },
+  play: async ({ canvasElement, args }) => {
+    const modal = canvasElement.querySelector('prism-create-tenant-modal') as PrismCreateTenantModalElement;
+    modal.data = args.data;
+    modal.style.width = '420px';
+    await modal.updateComplete;
+
+    if (!modal.shadowRoot) throw new Error('Shadow root not found');
+    const shadow = modal.shadowRoot;
+
+    const tabGroup = shadow.querySelector('uui-tab-group') as HTMLElement | null;
+    if (!tabGroup) throw new Error('Tab group not found');
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const tabGroupShadow = tabGroup.shadowRoot as ShadowRoot | null;
+    if (!tabGroupShadow) throw new Error('Tab group shadow root not found');
+
+    const moreButton = tabGroupShadow.querySelector('#more-button') as HTMLElement | null;
+    if (!moreButton) throw new Error('More button not found');
+
+    moreButton.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const hiddenTab = tabGroupShadow.querySelector(
+      '#hidden-tabs-container uui-tab[label="prism-typography.css"]'
+    ) as HTMLElement | null;
+    if (!hiddenTab) throw new Error('Hidden tab not found');
+
+    hiddenTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await modal.updateComplete;
+
+    await expect(shadow.textContent ?? '').toContain('--prism-font-display');
+  }
+};

@@ -1,0 +1,11 @@
+:root {
+    --prism-page-max: 1100px;
+    --prism-page-gutter: 24px;
+    --prism-section-gap: 28px;
+
+    --prism-radius: 16px;
+    --prism-card-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+
+    --prism-hero-padding: 40px;
+    --prism-grid-min: 240px;
+}
