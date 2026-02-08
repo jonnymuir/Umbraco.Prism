@@ -1,28 +1,144 @@
-<svg width="150" height="160" viewBox="0 0 150 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <linearGradient id="v_brand1" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" style="stop-color:#3544B1" />
-            <stop offset="100%" style="stop-color:#2DA7D1" />
-        </linearGradient>
-        <linearGradient id="v_brand2" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" style="stop-color:#3544B1" />
-            <stop offset="100%" style="stop-color:#F5A623" />
-        </linearGradient>
-        <linearGradient id="v_brand3" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" style="stop-color:#3544B1" />
-            <stop offset="100%" style="stop-color:#E91E63" />
-        </linearGradient>
-    </defs>
-
-    <g transform="translate(25, 10) scale(1.1)">
-        <path d="M2 25C2 14.5066 10.5066 6 21 6H35C37.7614 6 40 8.23858 40 11V39C40 41.7614 37.7614 44 35 44H21C10.5066 44 2 35.4934 2 25Z" fill="#1B264F"/>
-        <path d="M44 11H50L58 25L50 39H44V11Z" fill="#1B264F"/>
-        <rect x="62" y="0" width="30" height="14" rx="7" fill="url(#v_brand1)"/>
-        <rect x="62" y="18" width="38" height="14" rx="7" fill="url(#v_brand2)"/>
-        <rect x="62" y="36" width="30" height="14" rx="7" fill="url(#v_brand3)"/>
-    </g>
-
-    <text x="75" y="100" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="24" fill="#1B264F">Umbraco</text>
-    <text x="75" y="128" text-anchor="middle" font-family="sans-serif" font-weight="300" font-size="24" fill="#1B264F">Prism</text>
-     <text x="75" y="148" text-anchor="middle" font-family="sans-serif" font-weight="400" font-size="12" fill="#687291">One source. A spectrum of brands.</text>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="150"
+   height="160"
+   viewBox="0 0 150 160"
+   fill="none"
+   version="1.1"
+   id="svg11"
+   sodipodi:docname="logo-vertical-lockup.svg"
+   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview11"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.2986353"
+     inkscape:cx="144.38234"
+     inkscape:cy="59.678032"
+     inkscape:window-width="1336"
+     inkscape:window-height="560"
+     inkscape:window-x="0"
+     inkscape:window-y="38"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg11" />
+  <defs
+     id="defs6">
+    <linearGradient
+       id="v_brand1"
+       x1="42.354063"
+       y1="0"
+       x2="62.847965"
+       y2="0"
+       gradientTransform="scale(1.4638501,0.68313005)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         style="stop-color:#3544B1"
+         id="stop1" />
+      <stop
+         offset="100%"
+         style="stop-color:#2DA7D1"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="v_brand2"
+       x1="37.632573"
+       y1="29.655161"
+       x2="60.697698"
+       y2="29.655161"
+       gradientTransform="scale(1.6475089,0.60697698)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         style="stop-color:#3544B1"
+         id="stop3" />
+      <stop
+         offset="100%"
+         style="stop-color:#F5A623"
+         id="stop4" />
+    </linearGradient>
+    <linearGradient
+       id="v_brand3"
+       x1="42.354063"
+       y1="52.698604"
+       x2="62.847965"
+       y2="52.698604"
+       gradientTransform="scale(1.4638501,0.68313005)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         style="stop-color:#3544B1"
+         id="stop5" />
+      <stop
+         offset="100%"
+         style="stop-color:#E91E63"
+         id="stop6" />
+    </linearGradient>
+  </defs>
+  <g
+     transform="matrix(1.1,0,0,1.1,19,26)"
+     id="g9">
+    <path
+       d="M 2,25 C 2,14.5066 10.5066,6 21,6 h 14 c 2.7614,0 5,2.23858 5,5 v 28 c 0,2.7614 -2.2386,5 -5,5 H 21 C 10.5066,44 2,35.4934 2,25 Z"
+       fill="#1b264f"
+       id="path6" />
+    <path
+       d="m 44,11 h 6 l 8,14 -8,14 h -6 z"
+       fill="#1b264f"
+       id="path7" />
+    <rect
+       x="62"
+       y="0"
+       width="30"
+       height="14"
+       rx="7"
+       fill="url(#v_brand1)"
+       id="rect7"
+       style="fill:url(#v_brand1)" />
+    <rect
+       x="62"
+       y="18"
+       width="38"
+       height="14"
+       rx="7"
+       fill="url(#v_brand2)"
+       id="rect8"
+       style="fill:url(#v_brand2)" />
+    <rect
+       x="62"
+       y="36"
+       width="30"
+       height="14"
+       rx="7"
+       fill="url(#v_brand3)"
+       id="rect9"
+       style="fill:url(#v_brand3)" />
+  </g>
+  <text
+     x="75"
+     y="114"
+     text-anchor="middle"
+     font-family="sans-serif"
+     font-weight="bold"
+     font-size="24px"
+     fill="#1b264f"
+     id="text9">Umbraco</text>
+  <text
+     x="75"
+     y="140"
+     text-anchor="middle"
+     font-family="sans-serif"
+     font-weight="300"
+     font-size="24px"
+     fill="#1b264f"
+     id="text10">Prism</text>
 </svg>
