@@ -22,7 +22,21 @@ You are a service provider offering a portal with consistent functionality acros
 
 ### Easy backoffice setup
 
+Create and edit tenants in the back office.
+
 ![Shows how tenant editing appears in the umbraco back office](backoffice.png)
+
+An editable realtime design system using css variables.
+
+![Shows how altering branding works](backoffice2.png)
+
+See changes in real time on your site without any recompilation.
+
+![Test site with overrides](testsite-overrides.png)
+
+Compared to without overrides.
+
+![Test site without overrides](testsite.png)
 
 
 ### Simple to debug

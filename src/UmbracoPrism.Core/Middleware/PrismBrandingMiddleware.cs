@@ -43,6 +43,13 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             return;
         }
 
+        if (context.WebSockets.IsWebSocketRequest
+            || context.Request.Headers.ContainsKey("Upgrade")
+            || context.Response.Headers.ContainsKey("Upgrade"))
+        {
+            return;
+        }
+
         buffer.Seek(0, SeekOrigin.Begin);
 
         var bodyText = await new StreamReader(buffer, Encoding.UTF8).ReadToEndAsync();

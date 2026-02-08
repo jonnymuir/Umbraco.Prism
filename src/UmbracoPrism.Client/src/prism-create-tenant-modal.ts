@@ -245,9 +245,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         class="tab-content">
         <uui-box>
           <uui-table>
-            <uui-table-column style="width: 35%"></uui-table-column>
-            <uui-table-column style="width: 35%"></uui-table-column>
-            <uui-table-column style="width: 30%"></uui-table-column>
+            <uui-table-column style="width: 20%"></uui-table-column>
+            <uui-table-column style="width: 20%"></uui-table-column>
+            <uui-table-column style="width: 60%"></uui-table-column>
 
             <uui-table-head>
               <uui-table-head-cell>Variable</uui-table-head-cell>
