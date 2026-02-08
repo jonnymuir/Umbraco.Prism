@@ -36,18 +36,28 @@ const config = {
           window.__PRISM_A11Y__.running = true;
         }
       });
-      try {
-        await checkA11y(page, '#storybook-root', {
-          detailedReport: true,
-          detailedReportOptions: { html: true }
-        });
-      } finally {
-        await page.evaluate(() => {
-          if (window.__PRISM_A11Y__) {
-            window.__PRISM_A11Y__.running = false;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          await checkA11y(page, '#storybook-root', {
+            detailedReport: true,
+            detailedReportOptions: { html: true }
+          });
+          break;
+        } catch (err) {
+          if (err && err.message && err.message.includes('Axe is already running')) {
+            retries--;
+            await new Promise(r => setTimeout(r, 500));
+            continue;
           }
-        });
+          throw err;
+        }
       }
+      await page.evaluate(() => {
+        if (window.__PRISM_A11Y__) {
+          window.__PRISM_A11Y__.running = false;
+        }
+      });
     });
 
     await a11yQueue;
