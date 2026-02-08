@@ -19,7 +19,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageIcon>assets/logo-horizontal-lockup.svg</PackageIcon>
+    <PackageIcon>assets/logo-vertical-lockup.png</PackageIcon>
     <StaticWebAssetBasePath>App_Plugins/UmbracoPrism</StaticWebAssetBasePath>
   </PropertyGroup>
 
