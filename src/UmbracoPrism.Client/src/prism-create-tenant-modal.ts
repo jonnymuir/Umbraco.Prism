@@ -43,6 +43,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _entraClientId = '';
   @state() private _secretKeyName = '';
 
+
   modalContext?: any;
 
   /**
@@ -362,6 +363,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       height: 100%;
       min-height: 550px;
       background-color: var(--uui-color-surface);
+      position: relative;
+      resize: both;
+      overflow: auto;
+      max-width: 95vw;
+      max-height: 90vh;
     }
     .container { 
       min-height: 350px;
