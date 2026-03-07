@@ -57,7 +57,8 @@ public class TenantManagementController(
             EntraTenantId = tenant.EntraTenantId,
             EntraClientId = tenant.EntraClientId,
             SecretKeyName = tenant.SecretKeyName,
-            BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides)
+            BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides),
+            MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides)
         };
 
         db.Insert(schema);
@@ -92,6 +93,7 @@ public class TenantManagementController(
         existing.EntraClientId = updatedTenant.EntraClientId;
         existing.SecretKeyName = updatedTenant.SecretKeyName;
         existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
+        existing.MobileBrandingOverrides = SerializeBrandingOverrides(updatedTenant.MobileBrandingOverrides);
 
         // 3. Persist
         db.Update(existing);

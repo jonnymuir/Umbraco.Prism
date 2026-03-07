@@ -45,7 +45,8 @@ public class TenantService : ITenantService
                 EntraTenantId = tenantSchema.EntraTenantId,
                 EntraClientId = tenantSchema.EntraClientId,
                 SecretKeyName = tenantSchema.SecretKeyName,
-                BrandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides)
+                BrandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides),
+                MobileBrandingOverrides = ParseBrandingOverrides(tenantSchema.MobileBrandingOverrides)
             };
         }, TimeSpan.FromMinutes(30));
     }

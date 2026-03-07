@@ -46,4 +46,9 @@ public class PrismTenant
     /// Gets or sets the branding overrides for the tenant.
     /// </summary>
     public Dictionary<string, string> BrandingOverrides { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the mobile branding overrides for the tenant.
+    /// </summary>
+    public Dictionary<string, string> MobileBrandingOverrides { get; set; } = new();
 }

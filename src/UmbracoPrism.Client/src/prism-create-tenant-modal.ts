@@ -100,6 +100,19 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   }
 
   private _toOverrideMap(value: unknown): Record<string, string> {
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (!parsed || typeof parsed !== 'object') return {};
+
+        return Object.fromEntries(
+          Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        );
+      } catch {
+        return {};
+      }
+    }
+
     if (!value || typeof value !== 'object') return {};
 
     return Object.fromEntries(

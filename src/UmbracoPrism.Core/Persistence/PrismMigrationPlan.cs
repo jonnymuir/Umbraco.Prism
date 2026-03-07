@@ -21,6 +21,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
     {
         To<CreatePrismTables>("initial-state")
         .To<AddIdentityColumns>("add-identity-cols")
-        .To<AddBrandingOverridesColumn>("add-branding-overrides");
+        .To<AddBrandingOverridesColumn>("add-branding-overrides")
+        .To<AddMobileBrandingOverridesColumn>("add-mobile-branding-overrides");
     }
 }

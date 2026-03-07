@@ -10,4 +10,5 @@ public class PrismTenantRequest
     public string? EntraClientId { get; set; }
     public string? SecretKeyName { get; set; }
     public Dictionary<string, string>? BrandingOverrides { get; set; }
+    public Dictionary<string, string>? MobileBrandingOverrides { get; set; }
 }

@@ -65,4 +65,11 @@ public class PrismTenantSchema
     [Column("BrandingOverrides")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? BrandingOverrides { get; set; }
+
+    /// <summary>
+    /// Stores tenant-specific mobile branding overrides as JSON.
+    /// </summary>
+    [Column("MobileBrandingOverrides")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? MobileBrandingOverrides { get; set; }
 }
