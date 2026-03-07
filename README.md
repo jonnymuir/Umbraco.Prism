@@ -131,12 +131,34 @@ From the extracted bundle:
 
 ```bash
 npm install
-npm run sync
+```
+
+#### Prerequisites (required once per machine)
+
+- Node.js 20+ and npm
+- Xcode (for iOS)
+- CocoaPods (for iOS)
+- Android Studio + Android SDK (for Android)
+
+On macOS, install CocoaPods if needed:
+
+```bash
+brew install cocoapods
+```
+
+Verify:
+
+```bash
+pod --version
 ```
 
 **iOS (macOS required):**
 
+Add platform first, then sync and open:
+
 ```bash
+npx cap add ios
+npx cap sync ios
 npx cap open ios
 ```
 
@@ -148,7 +170,11 @@ Then in Xcode:
 
 **Android:**
 
+Add platform first, then sync and open:
+
 ```bash
+npx cap add android
+npx cap sync android
 npx cap open android
 ```
 
@@ -157,6 +183,15 @@ Then in Android Studio:
 1. Create/select emulator (AVD).
 2. Sync Gradle.
 3. Press Run.
+
+#### Common setup errors
+
+- `[error] CocoaPods is not installed.`
+  - Install with `brew install cocoapods`, then rerun `npx cap add ios`.
+- `[error] ios platform has not been added yet.`
+  - Run `npx cap add ios` before `npx cap sync ios` / `npx cap open ios`.
+- `[error] android platform has not been added yet.`
+  - Run `npx cap add android` before `npx cap sync android` / `npx cap open android`.
 
 ### 4. Mobile Runtime Behavior & Styling
 
