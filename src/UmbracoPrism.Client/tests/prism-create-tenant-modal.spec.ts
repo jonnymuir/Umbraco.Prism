@@ -98,3 +98,55 @@ test('Edit modal shows branding tabs', async ({ page }) => {
 
   await expect(frame.getByText('--custom-border')).toBeVisible();
 });
+
+test('Edit modal branding table shows mobile override column and value', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="General Styles"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  await expect(frame.getByText('Mobile')).toBeVisible();
+
+  const mobileValue = await modal.evaluate((el) => {
+    const mobileInput = el.shadowRoot?.querySelector(
+      '#branding-panel-0 uui-table-row:first-of-type uui-table-cell:nth-of-type(4) uui-input'
+    ) as HTMLInputElement | null;
+    return mobileInput?.value ?? '';
+  });
+
+  expect(mobileValue).toBe('#003399');
+});
+
+test('Edit modal allows editing mobile override value', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="General Styles"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const updatedValue = '#111111';
+  const mobileValue = await modal.evaluate((el, nextValue) => {
+    const mobileInput = el.shadowRoot?.querySelector(
+      '#branding-panel-0 uui-table-row:first-of-type uui-table-cell:nth-of-type(4) uui-input'
+    ) as HTMLInputElement | null;
+
+    if (!mobileInput) return '';
+
+    mobileInput.value = nextValue;
+    mobileInput.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+    return mobileInput.value;
+  }, updatedValue);
+
+  expect(mobileValue).toBe(updatedValue);
+});

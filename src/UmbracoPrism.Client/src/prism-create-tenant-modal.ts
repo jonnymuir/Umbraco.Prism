@@ -21,6 +21,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         name: string;
         defaultValue?: string;
         overrideValue?: string;
+        mobileOverrideValue?: string;
       }>;
     }>;
   };
@@ -32,6 +33,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       name: string;
       defaultValue?: string;
       overrideValue?: string;
+      mobileOverrideValue?: string;
     }>;
   }> = [];
   
@@ -85,9 +87,24 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._secretKeyName = '';
       }
 
-      this._brandingTabs = this.data?.brandingTabs ?? [];
+      const tenantMobileOverrides = this._toOverrideMap(this.data?.tenant?.mobileBrandingOverrides);
+      this._brandingTabs = (this.data?.brandingTabs ?? []).map((tab) => ({
+        ...tab,
+        variables: tab.variables.map((variable) => ({
+          ...variable,
+          mobileOverrideValue: variable.mobileOverrideValue ?? tenantMobileOverrides[variable.name]
+        }))
+      }));
       this._ensureActiveTab();
     }
+  }
+
+  private _toOverrideMap(value: unknown): Record<string, string> {
+    if (!value || typeof value !== 'object') return {};
+
+    return Object.fromEntries(
+      Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    );
   }
 
   private _ensureActiveTab() {
@@ -122,6 +139,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
 
     const brandingOverrides = this._collectBrandingOverrides();
+    const mobileBrandingOverrides = this._collectMobileBrandingOverrides();
 
     const tenant = {
       id: this._id,
@@ -131,7 +149,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       entraTenantId: this._entraTenantId,
       entraClientId: this._entraClientId,
       secretKeyName: this._secretKeyName,
-      brandingOverrides
+      brandingOverrides,
+      mobileBrandingOverrides
     };
 
     this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
@@ -247,12 +266,14 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           <uui-table>
             <uui-table-column style="width: 20%"></uui-table-column>
             <uui-table-column style="width: 20%"></uui-table-column>
-            <uui-table-column style="width: 60%"></uui-table-column>
+            <uui-table-column style="width: 30%"></uui-table-column>
+            <uui-table-column style="width: 30%"></uui-table-column>
 
             <uui-table-head>
               <uui-table-head-cell>Variable</uui-table-head-cell>
               <uui-table-head-cell>Default</uui-table-head-cell>
               <uui-table-head-cell>Override</uui-table-head-cell>
+              <uui-table-head-cell>Mobile</uui-table-head-cell>
             </uui-table-head>
 
             ${tab.variables.map((variable, variableIndex) => html`
@@ -265,6 +286,14 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                     placeholder="e.g. #0d6efd"
                     .value=${variable.overrideValue ?? ''}
                     @input=${(e: InputEvent) => this._updateBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
+                  </uui-input>
+                </uui-table-cell>
+                <uui-table-cell>
+                  <uui-input
+                    class="override-input"
+                    placeholder="e.g. #0d6efd"
+                    .value=${variable.mobileOverrideValue ?? ''}
+                    @input=${(e: InputEvent) => this._updateMobileBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
                   </uui-input>
                 </uui-table-cell>
               </uui-table-row>
@@ -287,12 +316,37 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     });
   }
 
+  private _updateMobileBrandingOverride(tabIndex: number, variableIndex: number, value: string) {
+    this._brandingTabs = this._brandingTabs.map((tab, index) => {
+      if (index !== tabIndex) return tab;
+      return {
+        ...tab,
+        variables: tab.variables.map((variable, vIndex) =>
+          vIndex === variableIndex ? { ...variable, mobileOverrideValue: value } : variable
+        )
+      };
+    });
+  }
+
   private _collectBrandingOverrides() {
     const overrides: Record<string, string> = {};
     this._brandingTabs.forEach(tab => {
       tab.variables.forEach(variable => {
         if (variable.overrideValue && variable.overrideValue.trim().length > 0) {
           overrides[variable.name] = variable.overrideValue.trim();
+        }
+      });
+    });
+
+    return overrides;
+  }
+
+  private _collectMobileBrandingOverrides() {
+    const overrides: Record<string, string> = {};
+    this._brandingTabs.forEach(tab => {
+      tab.variables.forEach(variable => {
+        if (variable.mobileOverrideValue && variable.mobileOverrideValue.trim().length > 0) {
+          overrides[variable.name] = variable.mobileOverrideValue.trim();
         }
       });
     });

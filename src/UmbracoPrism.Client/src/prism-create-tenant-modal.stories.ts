@@ -13,6 +13,7 @@ type StoryArgs = {
         name: string;
         defaultValue?: string;
         overrideValue?: string;
+        mobileOverrideValue?: string;
       }>;
     }>;
   };
@@ -76,13 +77,16 @@ export const Edit: Story = {
         hostname: 'northwind.example',
         entraTenantId: '00000000-0000-0000-0000-000000000000',
         entraClientId: '11111111-1111-1111-1111-111111111111',
-        secretKeyName: 'northwind-prism-secret'
+        secretKeyName: 'northwind-prism-secret',
+        mobileBrandingOverrides: {
+          '--color-primary': '#003399'
+        }
       },
       brandingTabs: [
         {
           label: 'General Styles',
           variables: [
-            { name: '--color-primary', defaultValue: '#3544b1', overrideValue: '#0055ff' },
+            { name: '--color-primary', defaultValue: '#3544b1', overrideValue: '#0055ff', mobileOverrideValue: '#003399' },
             { name: '--color-surface', defaultValue: '#ffffff' }
           ]
         },
