@@ -72,4 +72,11 @@ public class PrismTenantSchema
     [Column("MobileBrandingOverrides")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? MobileBrandingOverrides { get; set; }
+
+    /// <summary>
+    /// Stores tenant-specific mobile app generator settings as JSON.
+    /// </summary>
+    [Column("MobileAppConfig")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? MobileAppConfig { get; set; }
 }

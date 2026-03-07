@@ -23,6 +23,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<ISecretVaultService, SecretVaultService>();
         builder.Services.AddSingleton<ITenantService, TenantService>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
+        builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
 

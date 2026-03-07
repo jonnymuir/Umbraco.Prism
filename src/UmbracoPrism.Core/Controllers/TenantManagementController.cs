@@ -25,7 +25,8 @@ namespace UmbracoPrism.Core.Controllers;
 public class TenantManagementController(
     IUmbracoDatabaseFactory databaseFactory,
     AppCaches appCaches,
-    IBrandingService brandingService) : ManagementApiControllerBase
+    IBrandingService brandingService,
+    IMobileBundleService mobileBundleService) : ManagementApiControllerBase
 {
     /// <summary>
     /// Gets all registered tenants.
@@ -58,7 +59,8 @@ public class TenantManagementController(
             EntraClientId = tenant.EntraClientId,
             SecretKeyName = tenant.SecretKeyName,
             BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides),
-            MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides)
+            MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides),
+            MobileAppConfig = SerializeMobileAppConfig(tenant.MobileAppConfig)
         };
 
         db.Insert(schema);
@@ -94,6 +96,7 @@ public class TenantManagementController(
         existing.SecretKeyName = updatedTenant.SecretKeyName;
         existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
         existing.MobileBrandingOverrides = SerializeBrandingOverrides(updatedTenant.MobileBrandingOverrides);
+        existing.MobileAppConfig = SerializeMobileAppConfig(updatedTenant.MobileAppConfig);
 
         // 3. Persist
         db.Update(existing);
@@ -126,6 +129,38 @@ public class TenantManagementController(
             TenantId = id,
             Tabs = tabs.ToList()
         });
+    }
+
+    /// <summary>
+    /// Generates and downloads a Capacitor mobile bundle for a tenant.
+    /// </summary>
+    [HttpPost("tenants/{id:int}/produce-mobile")]
+    public async Task<IActionResult> ProduceMobileBundle(int id, [FromBody] PrismMobileBundleRequest? request, CancellationToken cancellationToken)
+    {
+        using var db = databaseFactory.CreateDatabase();
+        var tenant = db.SingleOrDefaultById<PrismTenantSchema>(id);
+        if (tenant == null) return NotFound();
+
+        var payload = request ?? new PrismMobileBundleRequest();
+        var savedConfig = DeserializeMobileAppConfig(tenant.MobileAppConfig);
+        payload.AppName ??= savedConfig?.AppName;
+        payload.AppId ??= savedConfig?.AppId;
+        payload.Version ??= savedConfig?.Version;
+        payload.StartUrl ??= savedConfig?.StartUrl;
+        payload.UserAgentMarker ??= savedConfig?.UserAgentMarker;
+        payload.IconUrl ??= savedConfig?.IconUrl;
+        payload.SplashUrl ??= savedConfig?.SplashUrl;
+
+        try
+        {
+            var bundle = await mobileBundleService.BuildBundleAsync(tenant, payload, cancellationToken);
+            var fileName = $"prism-mobile-{SanitizeFileSegment(tenant.Name)}.zip";
+            return File(bundle, "application/zip", fileName);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -164,5 +199,49 @@ public class TenantManagementController(
         {
             return new Dictionary<string, string>();
         }
+    }
+
+    private static string? SerializeMobileAppConfig(PrismMobileAppConfig? config)
+    {
+        if (config == null) return null;
+
+        var hasAnyValue = !string.IsNullOrWhiteSpace(config.AppName)
+            || !string.IsNullOrWhiteSpace(config.AppId)
+            || !string.IsNullOrWhiteSpace(config.Version)
+            || !string.IsNullOrWhiteSpace(config.StartUrl)
+            || !string.IsNullOrWhiteSpace(config.UserAgentMarker)
+            || !string.IsNullOrWhiteSpace(config.IconUrl)
+            || !string.IsNullOrWhiteSpace(config.SplashUrl);
+
+        if (!hasAnyValue) return null;
+        return JsonSerializer.Serialize(config);
+    }
+
+    private static PrismMobileAppConfig? DeserializeMobileAppConfig(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<PrismMobileAppConfig>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string SanitizeFileSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "tenant";
+
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = new string(value
+            .Trim()
+            .ToLowerInvariant()
+            .Select(ch => invalidChars.Contains(ch) ? '-' : ch)
+            .ToArray());
+
+        return string.IsNullOrWhiteSpace(sanitized) ? "tenant" : sanitized;
     }
 }

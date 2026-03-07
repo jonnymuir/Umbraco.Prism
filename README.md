@@ -148,7 +148,43 @@ Then scope mobile-only styles with `.prism-mobile`, for example:
 
 In Prism runtime, tenant overrides are injected first and mobile overrides are applied after them (when request is detected as mobile), so mobile values can intentionally override base tenant values.
 
-### 5. Accessing User Data
+### 5. Produce Mobile (MVP)
+
+Prism includes a first-pass **Produce Mobile** workflow in the tenant editor.
+
+From the tenant modal, open the **Produce Mobile** tab and provide:
+
+- App Name
+- App ID (reverse-domain format, e.g. `com.example.portal`)
+- Version
+- Start URL
+- User Agent Marker (defaults to `PrismMobile`)
+- Icon URL (recommended 1024x1024 source)
+- Splash URL (optional)
+
+Click **Generate & Download App Bundle** to download a Capacitor starter zip.
+
+The generated bundle includes:
+
+- `capacitor.config.ts` with tenant-specific values
+- `package.json` with Capacitor dependencies/scripts
+- `www/index.html` that forwards to your configured start URL
+- `www/mobile-overrides.css` starter file for mobile-only styles
+- `resources/mobile-assets.json` with icon/splash sources entered in Backoffice
+- a generated `README.md` with quick-start commands
+
+Backoffice helper UX includes:
+
+- app-id suggestions from tenant/app name
+- tenant-based defaults for start URL and icon URL
+- inline validation for app-id and absolute URL fields
+- image preview panes for icon/splash URLs
+
+Management API endpoint used by the modal:
+
+- `POST /umbraco/management/api/v1/prism/tenants/{id}/produce-mobile`
+
+### 6. Accessing User Data
 
 Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPrismUserContext` to access details:
 
@@ -162,7 +198,7 @@ Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPris
 }
 ```
 
-### 6. Prism Admins Policy (Backoffice Safety)
+### 7. Prism Admins Policy (Backoffice Safety)
 
 Tenant management is powerful (it can change domains, secrets, and branding), so Prism restricts these endpoints to a dedicated admin policy. By default, only users in the **admin** group can create, update, or delete tenants.
 

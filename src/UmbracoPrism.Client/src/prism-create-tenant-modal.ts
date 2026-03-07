@@ -44,6 +44,30 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _entraTenantId = '';
   @state() private _entraClientId = '';
   @state() private _secretKeyName = '';
+  @state() private _mobileAppName = '';
+  @state() private _mobileAppId = '';
+  @state() private _mobileVersion = '1.0.0';
+  @state() private _mobileStartUrl = '';
+  @state() private _mobileUserAgentMarker = 'PrismMobile';
+  @state() private _mobileIconUrl = '';
+  @state() private _mobileSplashUrl = '';
+  @state() private _isProducingMobileBundle = false;
+
+  private _readMobileAppConfig(tenant: any) {
+    const raw = tenant?.mobileAppConfig;
+    if (!raw) return null;
+
+    if (typeof raw === 'string') {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof raw === 'object') return raw;
+    return null;
+  }
 
 
   modalContext?: any;
@@ -63,6 +87,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       this._entraTenantId = t.entraTenantId ?? '';
       this._entraClientId = t.entraClientId ?? '';
       this._secretKeyName = t.secretKeyName ?? '';
+
+      const mobileConfig = this._readMobileAppConfig(t);
+      this._mobileAppName = mobileConfig?.appName ?? t.name ?? '';
+      this._mobileAppId = mobileConfig?.appId ?? this._defaultMobileAppId(t.name ?? 'tenant');
+      this._mobileVersion = mobileConfig?.version ?? '1.0.0';
+      this._mobileStartUrl = mobileConfig?.startUrl ?? this._defaultMobileStartUrl(t.hostname ?? '');
+      this._mobileUserAgentMarker = mobileConfig?.userAgentMarker ?? 'PrismMobile';
+      this._mobileIconUrl = mobileConfig?.iconUrl ?? this._defaultMobileIconUrl(t.hostname ?? '');
+      this._mobileSplashUrl = mobileConfig?.splashUrl ?? '';
     }
   }
 
@@ -78,6 +111,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._entraTenantId = t.entraTenantId ?? '';
         this._entraClientId = t.entraClientId ?? '';
         this._secretKeyName = t.secretKeyName ?? '';
+
+        const mobileConfig = this._readMobileAppConfig(t);
+        this._mobileAppName = mobileConfig?.appName ?? t.name ?? '';
+        this._mobileAppId = mobileConfig?.appId ?? this._defaultMobileAppId(t.name ?? 'tenant');
+        this._mobileVersion = mobileConfig?.version ?? '1.0.0';
+        this._mobileStartUrl = mobileConfig?.startUrl ?? this._defaultMobileStartUrl(t.hostname ?? '');
+        this._mobileUserAgentMarker = mobileConfig?.userAgentMarker ?? 'PrismMobile';
+        this._mobileIconUrl = mobileConfig?.iconUrl ?? this._defaultMobileIconUrl(t.hostname ?? '');
+        this._mobileSplashUrl = mobileConfig?.splashUrl ?? '';
       } else {
         this._id = null;
         this._name = '';
@@ -85,6 +127,13 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._entraTenantId = '';
         this._entraClientId = '';
         this._secretKeyName = '';
+        this._mobileAppName = '';
+        this._mobileAppId = '';
+        this._mobileVersion = '1.0.0';
+        this._mobileStartUrl = '';
+        this._mobileUserAgentMarker = 'PrismMobile';
+        this._mobileIconUrl = '';
+        this._mobileSplashUrl = '';
       }
 
       const tenantMobileOverrides = this._toOverrideMap(this.data?.tenant?.mobileBrandingOverrides);
@@ -122,7 +171,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
   private _ensureActiveTab() {
     const brandingTabKeys = this._brandingTabs.map((_, index) => this._brandingTabKey(index));
-    const allowedTabs = new Set(['general', 'identity', ...brandingTabKeys]);
+    const allowedTabs = new Set(['general', 'identity', 'mobile', ...brandingTabKeys]);
 
     if (!allowedTabs.has(this._activeTab)) {
       this._activeTab = 'general';
@@ -153,6 +202,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
     const brandingOverrides = this._collectBrandingOverrides();
     const mobileBrandingOverrides = this._collectMobileBrandingOverrides();
+    const mobileAppConfig = {
+      appName: this._mobileAppName,
+      appId: this._mobileAppId,
+      version: this._mobileVersion,
+      startUrl: this._mobileStartUrl,
+      userAgentMarker: this._mobileUserAgentMarker,
+      iconUrl: this._mobileIconUrl,
+      splashUrl: this._mobileSplashUrl
+    };
 
     const tenant = {
       id: this._id,
@@ -163,7 +221,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       entraClientId: this._entraClientId,
       secretKeyName: this._secretKeyName,
       brandingOverrides,
-      mobileBrandingOverrides
+      mobileBrandingOverrides,
+      mobileAppConfig
     };
 
     this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
@@ -260,6 +319,129 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             </uui-input>
             <small id="secret-hint">Must match the secret identifier in your configured Azure Key Vault.</small>
           </div>
+        </uui-box>
+      </div>
+    `;
+  }
+
+  private _renderMobileTab() {
+    const isEditMode = this._id !== null;
+    const appIdValid = this._isValidMobileAppId(this._mobileAppId);
+    const startUrlValid = this._isValidAbsoluteUrl(this._mobileStartUrl);
+    const iconUrlValid = !this._mobileIconUrl || this._isValidAbsoluteUrl(this._mobileIconUrl);
+    const splashUrlValid = !this._mobileSplashUrl || this._isValidAbsoluteUrl(this._mobileSplashUrl);
+    const canProduce = isEditMode && !this._isProducingMobileBundle && appIdValid && startUrlValid && iconUrlValid && splashUrlValid;
+
+    return html`
+      <div role="tabpanel" id="mobile-panel" aria-labelledby="mobile-tab" class="tab-content">
+        <uui-box>
+          <p class="description">
+            Generate a Capacitor starter bundle for this tenant. The bundle is intended as a near zero-code mobile shell.
+          </p>
+
+          ${!isEditMode ? html`
+            <p class="description">
+              Save the tenant first to enable mobile bundle generation.
+            </p>
+          ` : html``}
+
+          <div class="field">
+            <uui-label for="mobile-app-name">App Name</uui-label>
+            <uui-input
+              id="mobile-app-name"
+              label="App Name"
+              .value=${this._mobileAppName}
+              @input=${(e: any) => this._mobileAppName = e.target.value}>
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-app-id">App ID</uui-label>
+            <uui-input
+              id="mobile-app-id"
+              label="App ID"
+              .value=${this._mobileAppId}
+              @input=${(e: any) => this._mobileAppId = e.target.value}
+              placeholder="com.example.portal">
+            </uui-input>
+            <small>Reverse-domain format. Example: <code>com.acme.portal</code></small>
+            ${appIdValid ? html`` : html`<small class="error-text">App ID must be reverse-domain style (e.g. <code>com.example.portal</code>).</small>`}
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-version">Version</uui-label>
+            <uui-input
+              id="mobile-version"
+              label="Version"
+              .value=${this._mobileVersion}
+              @input=${(e: any) => this._mobileVersion = e.target.value}
+              placeholder="1.0.0">
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-start-url">Start URL</uui-label>
+            <uui-input
+              id="mobile-start-url"
+              label="Start URL"
+              .value=${this._mobileStartUrl}
+              @input=${(e: any) => this._mobileStartUrl = e.target.value}
+              placeholder="https://tenant.example.com">
+            </uui-input>
+            ${startUrlValid ? html`` : html`<small class="error-text">Start URL must be an absolute URL, e.g. <code>https://tenant.example.com</code>.</small>`}
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-ua-marker">User Agent Marker</uui-label>
+            <uui-input
+              id="mobile-ua-marker"
+              label="User Agent Marker"
+              .value=${this._mobileUserAgentMarker}
+              @input=${(e: any) => this._mobileUserAgentMarker = e.target.value}
+              placeholder="PrismMobile">
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-icon-url">Icon URL</uui-label>
+            <uui-input
+              id="mobile-icon-url"
+              label="Icon URL"
+              .value=${this._mobileIconUrl}
+              @input=${(e: any) => this._mobileIconUrl = e.target.value}
+              placeholder="https://tenant.example.com/favicon.ico">
+            </uui-input>
+            <small>Recommended square icon source, ideally 1024x1024 PNG.</small>
+            ${iconUrlValid ? html`` : html`<small class="error-text">Icon URL must be an absolute URL.</small>`}
+            ${this._mobileIconUrl ? html`<img class="mobile-asset-preview" src=${this._mobileIconUrl} alt="Icon preview" />` : html``}
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-splash-url">Splash URL</uui-label>
+            <uui-input
+              id="mobile-splash-url"
+              label="Splash URL"
+              .value=${this._mobileSplashUrl}
+              @input=${(e: any) => this._mobileSplashUrl = e.target.value}
+              placeholder="https://tenant.example.com/media/splash.png">
+            </uui-input>
+            <small>Optional splash image source for your generated app assets.</small>
+            ${splashUrlValid ? html`` : html`<small class="error-text">Splash URL must be an absolute URL.</small>`}
+            ${this._mobileSplashUrl ? html`<img class="mobile-asset-preview" src=${this._mobileSplashUrl} alt="Splash preview" />` : html``}
+          </div>
+
+          <div class="helper-actions">
+            <uui-button look="outline" @click=${this._applyMobileDefaultsFromTenant}>Use tenant defaults</uui-button>
+            <uui-button look="outline" @click=${this._suggestMobileAppId}>Suggest app id</uui-button>
+          </div>
+
+          <uui-button
+            look="primary"
+            color="positive"
+            ?disabled=${!canProduce}
+            @click=${this._handleProduceMobile}>
+            ${this._isProducingMobileBundle ? 'Generating…' : 'Generate & Download App Bundle'}
+          </uui-button>
         </uui-box>
       </div>
     `;
@@ -367,6 +549,113 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return overrides;
   }
 
+  private _defaultMobileAppId(name: string) {
+    const normalized = (name || 'tenant')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    return `com.prism.${normalized || 'tenant'}`;
+  }
+
+  private _defaultMobileStartUrl(hostname: string) {
+    const host = (hostname || '').trim();
+    if (!host) return '';
+
+    if (host.startsWith('http://') || host.startsWith('https://')) return host;
+    return `https://${host}`;
+  }
+
+  private _defaultMobileIconUrl(hostname: string) {
+    const startUrl = this._defaultMobileStartUrl(hostname);
+    if (!startUrl) return '';
+    return `${startUrl.replace(/\/$/, '')}/favicon.ico`;
+  }
+
+  private _isValidMobileAppId(value: string) {
+    if (!value) return false;
+    return /^[a-zA-Z0-9]+(\.[a-zA-Z0-9_-]+)+$/.test(value.trim());
+  }
+
+  private _isValidAbsoluteUrl(value: string) {
+    if (!value) return false;
+    try {
+      const parsed = new URL(value.trim());
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  private _suggestMobileAppId = () => {
+    this._mobileAppId = this._defaultMobileAppId(this._mobileAppName || this._name || 'tenant');
+  };
+
+  private _applyMobileDefaultsFromTenant = () => {
+    this._mobileAppName = this._name || this._mobileAppName;
+    this._mobileAppId = this._defaultMobileAppId(this._mobileAppName || this._name || 'tenant');
+    this._mobileStartUrl = this._defaultMobileStartUrl(this._hostname);
+    this._mobileUserAgentMarker = this._mobileUserAgentMarker || 'PrismMobile';
+    this._mobileIconUrl = this._defaultMobileIconUrl(this._hostname);
+  };
+
+  private async _handleProduceMobile() {
+    if (this._id === null || this._isProducingMobileBundle) return;
+
+    this._isProducingMobileBundle = true;
+
+    this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+      if (!authContext) {
+        this._isProducingMobileBundle = false;
+        return;
+      }
+
+      try {
+        const token = await authContext.getLatestToken();
+        const response = await fetch(`/umbraco/management/api/v1/prism/tenants/${this._id}/produce-mobile`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            appName: this._mobileAppName,
+            appId: this._mobileAppId,
+            version: this._mobileVersion,
+            startUrl: this._mobileStartUrl,
+            userAgentMarker: this._mobileUserAgentMarker,
+            iconUrl: this._mobileIconUrl,
+            splashUrl: this._mobileSplashUrl
+          })
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.error('Failed to produce mobile bundle', errorBody);
+          return;
+        }
+
+        const blob = await response.blob();
+        const fileNameHeader = response.headers.get('Content-Disposition') ?? '';
+        const nameMatch = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(fileNameHeader);
+        const fileName = nameMatch?.[1] ? decodeURIComponent(nameMatch[1]) : `prism-mobile-${this._id}.zip`;
+
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Failed to produce mobile bundle', error);
+      } finally {
+        this._isProducingMobileBundle = false;
+      }
+    });
+  }
+
   render() {
     const isUpdate = this._id !== null;
     const brandingTabs = this._brandingTabs.map((tab, index) => ({
@@ -390,6 +679,13 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             ?active=${this._activeTab === 'identity'}>
             Identity
           </uui-tab>
+          <uui-tab
+            label="Produce Mobile"
+            id="mobile-tab"
+            data-tab-key="mobile"
+            ?active=${this._activeTab === 'mobile'}>
+            Produce Mobile
+          </uui-tab>
           ${brandingTabs.map(({ tab, key }, index) => html`
             <uui-tab
               label=${tab.label}
@@ -406,6 +702,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             ? this._renderGeneralTab()
             : this._activeTab === 'identity'
               ? this._renderIdentityTab()
+              : this._activeTab === 'mobile'
+                ? this._renderMobileTab()
               : brandingTabs.map(({ key }, index) =>
                   this._activeTab === key ? this._renderBrandingTab(index) : ''
                 )}
@@ -460,6 +758,25 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     small { 
       margin-top: var(--uui-size-space-2); 
       color: var(--uui-color-text-alt); 
+    }
+    .helper-actions {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-4);
+      flex-wrap: wrap;
+    }
+    .mobile-asset-preview {
+      margin-top: var(--uui-size-space-2);
+      max-width: 160px;
+      max-height: 120px;
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+      object-fit: contain;
+      padding: 6px;
+    }
+    .error-text {
+      color: var(--uui-color-danger-standalone);
     }
   `;
 }
