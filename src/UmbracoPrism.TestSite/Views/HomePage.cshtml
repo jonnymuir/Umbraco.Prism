@@ -61,6 +61,9 @@
     var cardImage = Model?.Value<IPublishedContent>("cardImage");
     var heroImageUrl = heroImage?.Url();
     var cardImageUrl = cardImage?.Url();
+    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+    var mobileAuthHref = isAuthenticated ? "/auth/logout" : "/auth/login";
+    var mobileAuthLabel = isAuthenticated ? "Sign Out" : "Sign In";
     var hasImageryOverrides = !string.IsNullOrWhiteSpace(heroImageUrl) || !string.IsNullOrWhiteSpace(cardImageUrl);
 
     var imageryCss = new System.Text.StringBuilder();
@@ -498,7 +501,7 @@
             <div class="mobile-mode-banner">Prism mobile mode active • App-like layout preview</div>
             <div class="hero-actions">
                 <a href="/umbraco" class="btn btn-primary">Open Back Office</a>
-                <a href="/auth/login" class="btn btn-ghost btn-mobile-signin">Sign In</a>
+                <a href="@mobileAuthHref" class="btn btn-ghost btn-mobile-signin">@mobileAuthLabel</a>
                 <a href="#branding" class="btn btn-ghost">View Branding Tokens</a>
                 <prism-mobile-user-agent-demo inline="true" compact="true" title="Simulate PrismMobile" />
             </div>
