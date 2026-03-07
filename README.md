@@ -92,42 +92,92 @@ Then, drop the tag into any Razor view (e.g., your Master Template or Home Page)
 <prism-debug />
 ```
 
-### 3. Mobile UA Simulation (Tag Helper)
+### 3. Mobile Workflow (Backoffice → Emulator)
 
-To quickly simulate a mobile Prism client in local/demo environments, use the built-in user-agent demo Tag Helper.
-It appends `PrismMobile` to `navigator.userAgent` when enabled, so checks like `navigator.userAgent.includes('PrismMobile')` return `true`.
+Prism includes a first-pass **Produce Mobile** workflow in the tenant editor to generate a Capacitor starter app with minimal manual setup.
 
-Register Prism tag helpers in your `_ViewImports.cshtml`:
+#### A) Configure in Backoffice
 
-```cshtml
-@addTagHelper *, UmbracoPrism.Core
+Open a tenant, then use the **Produce Mobile** tab and provide:
+
+- App Name
+- App ID (reverse-domain format, e.g. `com.example.portal`)
+- Version (e.g. `1.0.0`)
+- Start URL (absolute URL)
+- User Agent Marker (default: `PrismMobile`)
+- Icon URL (recommended 1024x1024)
+- Splash URL (optional)
+
+Built-in helpers include app-id suggestion, tenant-based defaults, inline validation, and icon/splash previews.
+
+Click **Generate & Download App Bundle**.
+
+#### B) What the bundle contains
+
+- `capacitor.config.ts` with your tenant values
+- `package.json` with Capacitor scripts/dependencies
+- `www/index.html` forwarding to your Start URL
+- `www/mobile-overrides.css` as a mobile styling starter
+- `resources/mobile-assets.json` with icon/splash values
+- Generated `README.md` with commands
+
+Management API endpoint used by the Backoffice tab:
+
+- `POST /umbraco/management/api/v1/prism/tenants/{id}/produce-mobile`
+
+#### C) Run on emulators
+
+From the extracted bundle:
+
+```bash
+npm install
+npm run sync
 ```
 
-Then add this once in your layout (near the top of `<body>` is recommended):
+**iOS (macOS required):**
+
+```bash
+npx cap open ios
+```
+
+Then in Xcode:
+
+1. Select a simulator (or device).
+2. Set Team/Bundle Signing.
+3. Press Run.
+
+**Android:**
+
+```bash
+npx cap open android
+```
+
+Then in Android Studio:
+
+1. Create/select emulator (AVD).
+2. Sync Gradle.
+3. Press Run.
+
+### 4. Mobile Runtime Behavior & Styling
+
+Prism applies mobile behavior with these rules:
+
+1. Base tenant overrides are injected first.
+2. Mobile overrides are injected second (so mobile values can intentionally win).
+3. Mobile request detection supports user-agent marker, query flag, cookie, and platform header.
+
+For local/demo simulation, use:
 
 ```html
 <prism-mobile-user-agent-demo />
 ```
 
-Optional query string support is included:
+Optional query flags:
 
-- `?prismMobile=1` enables the mock
-- `?prismMobile=0` disables the mock
+- `?prismMobile=1` enable mobile simulation
+- `?prismMobile=0` disable mobile simulation
 
-You can also customize values:
-
-```html
-<prism-mobile-user-agent-demo
-  marker="PrismMobile"
-  storage-key="myapp.demo.mobileUa"
-  query-param="prismMobile"
-  title="Demo PrismMobile UserAgent"
-  show-toggle="true" />
-```
-
-### 4. Runtime Mobile Class for CSS
-
-For mobile-specific presentation, add a runtime class when Prism mobile user-agent is detected:
+To style app-like UI, add a runtime class when mobile UA is detected:
 
 ```html
 <script>
@@ -139,50 +189,38 @@ For mobile-specific presentation, add a runtime class when Prism mobile user-age
 </script>
 ```
 
-Then scope mobile-only styles with `.prism-mobile`, for example:
+Example CSS:
 
 ```css
 .prism-mobile .desktop-nav { display: none; }
 .prism-mobile .app-shell-footer { display: flex; }
 ```
 
-In Prism runtime, tenant overrides are injected first and mobile overrides are applied after them (when request is detected as mobile), so mobile values can intentionally override base tenant values.
+### 5. Store Readiness (App Store / Play Store)
 
-### 5. Produce Mobile (MVP)
+Prism can generate the starter shell, but store submission still needs platform-specific release work:
 
-Prism includes a first-pass **Produce Mobile** workflow in the tenant editor.
+**Required for both stores**
 
-From the tenant modal, open the **Produce Mobile** tab and provide:
+- Production app icon/splash asset set
+- Signed release build configuration
+- Privacy policy URL and support details
+- App metadata (name, description, screenshots)
+- Functional test pass on real devices
 
-- App Name
-- App ID (reverse-domain format, e.g. `com.example.portal`)
-- Version
-- Start URL
-- User Agent Marker (defaults to `PrismMobile`)
-- Icon URL (recommended 1024x1024 source)
-- Splash URL (optional)
+**Apple App Store (iOS)**
 
-Click **Generate & Download App Bundle** to download a Capacitor starter zip.
+- Apple Developer account
+- Unique bundle id + provisioning profiles
+- Archive and upload via Xcode
+- App Store Connect listing + review submission
 
-The generated bundle includes:
+**Google Play (Android)**
 
-- `capacitor.config.ts` with tenant-specific values
-- `package.json` with Capacitor dependencies/scripts
-- `www/index.html` that forwards to your configured start URL
-- `www/mobile-overrides.css` starter file for mobile-only styles
-- `resources/mobile-assets.json` with icon/splash sources entered in Backoffice
-- a generated `README.md` with quick-start commands
-
-Backoffice helper UX includes:
-
-- app-id suggestions from tenant/app name
-- tenant-based defaults for start URL and icon URL
-- inline validation for app-id and absolute URL fields
-- image preview panes for icon/splash URLs
-
-Management API endpoint used by the modal:
-
-- `POST /umbraco/management/api/v1/prism/tenants/{id}/produce-mobile`
+- Google Play Console account
+- Unique application id + signed AAB
+- Store listing + content rating + data safety form
+- Internal/closed testing, then production rollout
 
 ### 6. Accessing User Data
 
