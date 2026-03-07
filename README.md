@@ -125,7 +125,30 @@ You can also customize values:
   show-toggle="true" />
 ```
 
-### 4. Accessing User Data
+### 4. Runtime Mobile Class for CSS
+
+For mobile-specific presentation, add a runtime class when Prism mobile user-agent is detected:
+
+```html
+<script>
+  (function() {
+    if (navigator.userAgent.includes('PrismMobile')) {
+      document.documentElement.classList.add('prism-mobile');
+    }
+  })();
+</script>
+```
+
+Then scope mobile-only styles with `.prism-mobile`, for example:
+
+```css
+.prism-mobile .desktop-nav { display: none; }
+.prism-mobile .app-shell-footer { display: flex; }
+```
+
+In Prism runtime, tenant overrides are injected first and mobile overrides are applied after them (when request is detected as mobile), so mobile values can intentionally override base tenant values.
+
+### 5. Accessing User Data
 
 Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPrismUserContext` to access details:
 
@@ -139,7 +162,7 @@ Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPris
 }
 ```
 
-### 5. Prism Admins Policy (Backoffice Safety)
+### 6. Prism Admins Policy (Backoffice Safety)
 
 Tenant management is powerful (it can change domains, secrets, and branding), so Prism restricts these endpoints to a dedicated admin policy. By default, only users in the **admin** group can create, update, or delete tenants.
 

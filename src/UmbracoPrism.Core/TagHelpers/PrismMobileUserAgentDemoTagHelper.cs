@@ -190,6 +190,12 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
                 window.__prismMobileUaMockFailed = true;
             }
         }
+
+        if (navigator.userAgent.includes(marker)) {
+            document.documentElement.classList.add('prism-mobile');
+        } else {
+            document.documentElement.classList.remove('prism-mobile');
+        }
     })();
 </script>
 """;

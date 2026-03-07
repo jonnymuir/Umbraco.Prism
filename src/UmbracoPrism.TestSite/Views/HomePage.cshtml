@@ -183,6 +183,10 @@
             border-color: rgba(255, 255, 255, 0.4);
         }
 
+        .btn-mobile-signin {
+            display: none;
+        }
+
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(var(--prism-grid-min, 240px), 1fr));
@@ -309,6 +313,175 @@
             min-height: 100px;
             white-space: pre-wrap;
         }
+
+        .mobile-mode-banner {
+            display: none;
+            margin-top: 16px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            font-size: var(--prism-text-size-sm, 13px);
+            font-weight: 600;
+        }
+
+        html.prism-mobile body {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        html.prism-mobile .page {
+            max-width: 460px;
+            padding: 16px 12px 88px;
+        }
+
+        html.prism-mobile .hero {
+            border-radius: 22px;
+            padding: 20px 16px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        html.prism-mobile .hero h1 {
+            font-size: clamp(1.7rem, 5.8vw, 2.1rem);
+            margin-top: 12px;
+            margin-bottom: 8px;
+        }
+
+        html.prism-mobile .hero p {
+            font-size: 1rem;
+            margin-bottom: 14px;
+        }
+
+        html.prism-mobile .hero-actions {
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 10px;
+            box-sizing: border-box;
+        }
+
+        html.prism-mobile .hero-actions .btn {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            margin: 0;
+        }
+
+        html.prism-mobile .btn-mobile-signin {
+            display: inline-flex;
+        }
+
+        html.prism-mobile .hero-actions > * {
+            max-width: 100%;
+            box-sizing: border-box;
+            margin: 0;
+        }
+
+        html.prism-mobile .mobile-mode-banner {
+            display: block;
+        }
+
+        html.prism-mobile .section-title {
+            margin-top: 18px;
+        }
+
+        html.prism-mobile .section-subtitle {
+            font-size: var(--prism-text-size-sm, 13px);
+        }
+
+        html.prism-mobile .grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        html.prism-mobile .card {
+            border-radius: 14px;
+            padding: 16px;
+            color: var(--prism-text, #0f172a);
+            background: var(--prism-surface, #ffffff);
+        }
+
+        html.prism-mobile .card p,
+        html.prism-mobile .type-body {
+            color: var(--prism-text, #0f172a);
+        }
+
+        html.prism-mobile .token-label,
+        html.prism-mobile .type-mono {
+            color: var(--prism-muted, #64748b);
+        }
+
+        html.prism-mobile .imagery-card {
+            min-height: 150px;
+        }
+
+        html.prism-mobile .api-container {
+            display: block;
+            margin-top: 18px;
+            border-radius: 14px;
+        }
+
+        html.prism-mobile .api-header {
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        html.prism-mobile .api-header .btn {
+            width: 100%;
+        }
+
+        html.prism-mobile .api-content {
+            min-height: 80px;
+            font-size: 12px;
+        }
+
+        html.prism-mobile .prism-debug-root {
+            display: none;
+        }
+
+        .mobile-shell-nav {
+            display: none;
+        }
+
+        html.prism-mobile .mobile-shell-nav {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+            background: rgba(15, 23, 42, 0.94);
+            border-top: 1px solid rgba(148, 163, 184, 0.3);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+        }
+
+        .mobile-shell-nav__item {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 38px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(148, 163, 184, 0.16);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .mobile-shell-nav__item--active {
+            background: rgba(79, 70, 229, 0.35);
+            border-color: rgba(129, 140, 248, 0.55);
+            color: #ffffff;
+        }
     </style>
 </head>
 
@@ -322,8 +495,10 @@
                 This page reads CSS variables from the Prism branding files. Update the tenant
                 overrides and watch the theme, buttons, and tokens adapt instantly.
             </p>
+            <div class="mobile-mode-banner">Prism mobile mode active • App-like layout preview</div>
             <div class="hero-actions">
                 <a href="/umbraco" class="btn btn-primary">Open Back Office</a>
+                <a href="/auth/login" class="btn btn-ghost btn-mobile-signin">Sign In</a>
                 <a href="#branding" class="btn btn-ghost">View Branding Tokens</a>
                 <prism-mobile-user-agent-demo inline="true" compact="true" title="Simulate PrismMobile" />
             </div>
@@ -415,6 +590,39 @@
             <pre class="api-content">@apiResult</pre>
         </div>
     </div>
+
+    <nav class="mobile-shell-nav" aria-label="Mobile app navigation">
+        <a class="mobile-shell-nav__item" data-nav="home" href="#">Home</a>
+        <a class="mobile-shell-nav__item" data-nav="tokens" href="#branding">Tokens</a>
+        <a class="mobile-shell-nav__item" data-nav="api" href="?callApi=true">API</a>
+        <a class="mobile-shell-nav__item" data-nav="profile" href="/umbraco">Profile</a>
+    </nav>
+
+    <script>
+        (() => {
+            const navItems = Array.from(document.querySelectorAll('.mobile-shell-nav__item'));
+            if (!navItems.length) return;
+
+            const updateActiveNav = () => {
+                const params = new URLSearchParams(window.location.search);
+                const hash = (window.location.hash || '').toLowerCase();
+                let active = 'home';
+
+                if (params.has('callApi')) {
+                    active = 'api';
+                } else if (hash === '#branding') {
+                    active = 'tokens';
+                }
+
+                navItems.forEach((item) => {
+                    item.classList.toggle('mobile-shell-nav__item--active', item.dataset.nav === active);
+                });
+            };
+
+            updateActiveNav();
+            window.addEventListener('hashchange', updateActiveNav);
+        })();
+    </script>
 
 </body>
 
