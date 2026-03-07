@@ -16,6 +16,10 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
 
     public bool ShowToggle { get; set; } = true;
 
+    public bool Inline { get; set; }
+
+    public bool Compact { get; set; }
+
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = null;
@@ -23,22 +27,37 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         var markerJs = EscapeJsString(Marker);
         var storageKeyJs = EscapeJsString(StorageKey);
         var queryParamJs = EscapeJsString(QueryParam);
+        var cookieKeyJs = "prism.mobile";
         var titleHtml = System.Net.WebUtility.HtmlEncode(Title);
 
         var bootstrapHtml = BootstrapTemplate
             .Replace("__MARKER__", markerJs)
             .Replace("__STORAGE_KEY__", storageKeyJs)
-            .Replace("__QUERY_PARAM__", queryParamJs);
+            .Replace("__QUERY_PARAM__", queryParamJs)
+            .Replace("__COOKIE_KEY__", cookieKeyJs);
 
         var sb = new StringBuilder();
         sb.Append(bootstrapHtml);
 
         if (ShowToggle)
         {
+            var classes = "prism-mobile-ua-demo";
+            if (Inline)
+            {
+                classes += " prism-mobile-ua-demo--inline";
+            }
+
+            if (Compact)
+            {
+                classes += " prism-mobile-ua-demo--compact";
+            }
+
             var toggleHtml = ToggleTemplate
                 .Replace("__MARKER__", markerJs)
                 .Replace("__STORAGE_KEY__", storageKeyJs)
-                .Replace("__TITLE__", titleHtml);
+                .Replace("__COOKIE_KEY__", cookieKeyJs)
+                .Replace("__TITLE__", titleHtml)
+                .Replace("__CLASSES__", classes);
 
             sb.Append(toggleHtml);
         }
@@ -90,28 +109,64 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         font-size: 0.75rem;
         margin: 0.35rem 0 0;
     }
+
+    .prism-mobile-ua-demo--inline {
+        position: static;
+        min-width: 0;
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.4);
+        color: #ffffff;
+        margin: 0;
+    }
+
+    .prism-mobile-ua-demo--inline .prism-mobile-ua-demo__status,
+    .prism-mobile-ua-demo--inline .prism-mobile-ua-demo__hint {
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .prism-mobile-ua-demo--compact .prism-mobile-ua-demo__status,
+    .prism-mobile-ua-demo--compact .prism-mobile-ua-demo__hint {
+        display: none;
+    }
+
+    .prism-mobile-ua-demo--compact .prism-mobile-ua-demo__row {
+        margin-bottom: 0;
+    }
 </style>
 <script>
     (() => {
         const marker = '__MARKER__';
         const storageKey = '__STORAGE_KEY__';
         const queryParam = '__QUERY_PARAM__';
+        const cookieKey = '__COOKIE_KEY__';
         const query = new URLSearchParams(window.location.search);
+
+        const writeServerCookie = (enabled) => {
+            const maxAge = enabled ? '31536000' : '0';
+            document.cookie = cookieKey + '=' + (enabled ? '1' : '0') + '; path=/; max-age=' + maxAge + '; samesite=lax';
+        };
+
+        const readServerCookie = () => {
+            return document.cookie.split(';').some((part) => part.trim() === cookieKey + '=1');
+        };
 
         if (query.has(queryParam)) {
             const requested = query.get(queryParam) === '1';
+            writeServerCookie(requested);
             try {
                 localStorage.setItem(storageKey, requested ? '1' : '0');
-            } catch {
-                return;
-            }
+            } catch { }
         }
 
         let shouldMockMobile = false;
         try {
             shouldMockMobile = localStorage.getItem(storageKey) === '1';
         } catch {
-            return;
+            shouldMockMobile = false;
+        }
+
+        if (!shouldMockMobile) {
+            shouldMockMobile = readServerCookie();
         }
 
         if (!shouldMockMobile) return;
@@ -140,7 +195,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
 """;
 
     private const string ToggleTemplate = """
-<aside class="prism-mobile-ua-demo" aria-live="polite">
+<aside class="__CLASSES__" aria-live="polite">
     <div class="prism-mobile-ua-demo__row">
         <input type="checkbox" id="prism-mobile-ua-toggle" />
         <label for="prism-mobile-ua-toggle"><strong>__TITLE__</strong></label>
@@ -152,10 +207,20 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
     (() => {
         const marker = '__MARKER__';
         const storageKey = '__STORAGE_KEY__';
+        const cookieKey = '__COOKIE_KEY__';
         const toggle = document.getElementById('prism-mobile-ua-toggle');
         const status = document.getElementById('prism-mobile-ua-status');
 
-        if (!(toggle instanceof HTMLInputElement) || !(status instanceof HTMLParagraphElement)) {
+        const writeServerCookie = (enabled) => {
+            const maxAge = enabled ? '31536000' : '0';
+            document.cookie = cookieKey + '=' + (enabled ? '1' : '0') + '; path=/; max-age=' + maxAge + '; samesite=lax';
+        };
+
+        const readServerCookie = () => {
+            return document.cookie.split(';').some((part) => part.trim() === cookieKey + '=1');
+        };
+
+        if (!(toggle instanceof HTMLInputElement)) {
             return;
         }
 
@@ -163,13 +228,16 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         try {
             enabled = localStorage.getItem(storageKey) === '1';
         } catch {
-            status.textContent = 'localStorage is unavailable in this browser context.';
-            return;
+            enabled = readServerCookie();
         }
 
         toggle.checked = enabled;
 
         const updateStatus = () => {
+            if (!(status instanceof HTMLParagraphElement)) {
+                return;
+            }
+
             const hasMarker = navigator.userAgent.includes(marker);
             if (window.__prismMobileUaMockFailed) {
                 status.textContent = 'UA override failed in this browser. Use DevTools UA override instead.';
@@ -184,7 +252,10 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         updateStatus();
 
         toggle.addEventListener('change', () => {
-            localStorage.setItem(storageKey, toggle.checked ? '1' : '0');
+            writeServerCookie(toggle.checked);
+            try {
+                localStorage.setItem(storageKey, toggle.checked ? '1' : '0');
+            } catch { }
             window.location.reload();
         });
     })();

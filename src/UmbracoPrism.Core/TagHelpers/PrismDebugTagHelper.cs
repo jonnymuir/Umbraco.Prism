@@ -10,6 +10,7 @@ using UmbracoPrism.Core.Services;
 using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using UmbracoPrism.Core.Extensions;
 
 namespace UmbracoPrism.Core.TagHelpers;
 
@@ -41,6 +42,7 @@ public class PrismDebugTagHelper(
             var allSchemes = await schemeProvider.GetAllSchemesAsync();
             var host = ViewContext.HttpContext.Request.Host;
             var path = ViewContext.HttpContext.Request.Path;
+            var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(ViewContext.HttpContext);
 
             sb.Append("""
                 <style>
@@ -149,6 +151,7 @@ public class PrismDebugTagHelper(
                     <ul>
                         <li><strong>Vault URI:</strong> {(isPrismAuthGlobalEnabled ? vaultUri : "❌ Not Configured")}</li>
                         <li><strong>Prism Auth Mode:</strong> {authMode} <em>(Login flow control)</em></li>
+                        <li><strong>Prism Mobile Request:</strong> {(isPrismMobileRequest ? "<b style=\"color:#0ca678;\">YES</b>" : "<b style=\"color:#868e96;\">NO</b>")}</li>
                         <li><strong>Active Schemes:</strong> {schemesHtml}</li>
                         <li><strong>Request Path:</strong> <code>{path}</code></li>
                         <li><strong>Scheme Authority:</strong> <code>{oidcOptions.Authority}</code></li>

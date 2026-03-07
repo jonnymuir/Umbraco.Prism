@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Middleware;
@@ -14,8 +15,12 @@ public class PrismBrandingMiddleware(RequestDelegate next)
     {
         var tenant = prismContext.CurrentTenant;
         var overrides = tenant?.BrandingOverrides;
+        var mobileOverrides = tenant?.MobileBrandingOverrides;
+        var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(context);
+        var hasBaseOverrides = overrides is { Count: > 0 };
+        var hasMobileOverrides = isPrismMobileRequest && mobileOverrides is { Count: > 0 };
 
-        if (overrides == null || overrides.Count == 0)
+        if (!hasBaseOverrides && !hasMobileOverrides)
         {
             await next(context);
             return;
@@ -64,7 +69,7 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             return;
         }
 
-        var css = BuildCssOverrides(overrides);
+        var css = BuildCssOverrides(overrides, hasMobileOverrides ? mobileOverrides : null);
         var injected = InjectBranding(bodyText, css);
         var bytes = Encoding.UTF8.GetBytes(injected);
 
@@ -92,10 +97,26 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             || bodyText.Contains("</body>", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string BuildCssOverrides(IReadOnlyDictionary<string, string> overrides)
+    private static string BuildCssOverrides(
+        IReadOnlyDictionary<string, string>? overrides,
+        IReadOnlyDictionary<string, string>? mobileOverrides)
     {
         var builder = new StringBuilder();
         builder.Append(":root{");
+
+        AppendOverrides(builder, overrides);
+        AppendOverrides(builder, mobileOverrides);
+
+        builder.Append('}');
+        return builder.ToString();
+    }
+
+    private static void AppendOverrides(StringBuilder builder, IReadOnlyDictionary<string, string>? overrides)
+    {
+        if (overrides == null || overrides.Count == 0)
+        {
+            return;
+        }
 
         foreach (var (name, value) in overrides)
         {
@@ -105,9 +126,6 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             builder.Append(value.Trim());
             builder.Append(';');
         }
-
-        builder.Append('}');
-        return builder.ToString();
     }
 
     private static string InjectBranding(string html, string css)
