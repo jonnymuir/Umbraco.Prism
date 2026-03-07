@@ -92,7 +92,40 @@ Then, drop the tag into any Razor view (e.g., your Master Template or Home Page)
 <prism-debug />
 ```
 
-### 3. Accessing User Data
+### 3. Mobile UA Simulation (Tag Helper)
+
+To quickly simulate a mobile Prism client in local/demo environments, use the built-in user-agent demo Tag Helper.
+It appends `PrismMobile` to `navigator.userAgent` when enabled, so checks like `navigator.userAgent.includes('PrismMobile')` return `true`.
+
+Register Prism tag helpers in your `_ViewImports.cshtml`:
+
+```cshtml
+@addTagHelper *, UmbracoPrism.Core
+```
+
+Then add this once in your layout (near the top of `<body>` is recommended):
+
+```html
+<prism-mobile-user-agent-demo />
+```
+
+Optional query string support is included:
+
+- `?prismMobile=1` enables the mock
+- `?prismMobile=0` disables the mock
+
+You can also customize values:
+
+```html
+<prism-mobile-user-agent-demo
+  marker="PrismMobile"
+  storage-key="myapp.demo.mobileUa"
+  query-param="prismMobile"
+  title="Demo PrismMobile UserAgent"
+  show-toggle="true" />
+```
+
+### 4. Accessing User Data
 
 Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPrismUserContext` to access details:
 
@@ -106,7 +139,7 @@ Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPris
 }
 ```
 
-### 4. Prism Admins Policy (Backoffice Safety)
+### 5. Prism Admins Policy (Backoffice Safety)
 
 Tenant management is powerful (it can change domains, secrets, and branding), so Prism restricts these endpoints to a dedicated admin policy. By default, only users in the **admin** group can create, update, or delete tenants.
 
