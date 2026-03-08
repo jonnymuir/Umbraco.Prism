@@ -207,6 +207,29 @@ public class PrismBrandingMiddlewareTests
         html.Should().Contain("--prism-primary:#003399;");
     }
 
+    [Fact]
+    public async Task InvokeAsync_IncludesMobileShellGuards_WhenPrismMobileRequestWithoutOverrides()
+    {
+        var prismContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant()
+        };
+
+        var middleware = CreateMiddlewareWithHtmlResponse("<html><head></head><body>Demo</body></html>");
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.QueryString = new QueryString("?prismMobile=1");
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context, prismContext);
+
+        var html = await ReadResponseBodyAsync(context.Response);
+        html.Should().Contain("id=\"prism-mobile-shell-base\"");
+        html.Should().Contain("id=\"prism-mobile-shell-guard\"");
+        html.Should().Contain("classList.add('prism-mobile')");
+        html.Should().Contain("viewport-fit=cover");
+    }
+
     private static PrismBrandingMiddleware CreateMiddlewareWithHtmlResponse(string html)
     {
         return new PrismBrandingMiddleware(async context =>

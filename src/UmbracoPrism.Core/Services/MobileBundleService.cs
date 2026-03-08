@@ -35,7 +35,7 @@ public class MobileBundleService : IMobileBundleService
           AddEntry(archive, "README.md", BuildReadme(appName, startUrl, iconUrl, splashUrl));
             AddEntry(archive, "package.json", BuildPackageJson(appName));
             AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl));
-            AddEntry(archive, "capacitor.config.ts", BuildCapacitorConfig(appId, appName, version, startUrl, marker));
+            AddEntry(archive, "capacitor.config.ts", BuildCapacitorConfig(tenant, appId, appName, version, startUrl, marker));
             AddEntry(archive, ".gitignore", "node_modules\nandroid\nios\n.DS_Store\n");
             AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
             AddEntry(archive, "www/mobile-overrides.css", BuildMobileOverrideTemplate());
@@ -137,11 +137,13 @@ public class MobileBundleService : IMobileBundleService
 """;
     }
 
-    private static string BuildCapacitorConfig(string appId, string appName, string version, string startUrl, string marker)
+    private static string BuildCapacitorConfig(PrismTenantSchema tenant, string appId, string appName, string version, string startUrl, string marker)
     {
       var uri = new Uri(startUrl);
+      var mobileStartUrl = AddPrismMobileQueryFlag(startUrl);
       var cleartext = uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) ? "true" : "false";
-      var allowNavigation = uri.Authority;
+      var allowNavigationHosts = BuildAllowNavigationHosts(tenant, uri);
+      var allowNavigationJs = string.Join(", ", allowNavigationHosts.Select(host => $"'{EscapeSingleQuotes(host)}'"));
 
         return $$"""
 import type { CapacitorConfig } from '@capacitor/cli';
@@ -153,8 +155,9 @@ const config: CapacitorConfig = {
   bundledWebRuntime: false,
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
   server: {
+    url: '{{EscapeSingleQuotes(mobileStartUrl)}}',
     cleartext: {{cleartext}},
-    allowNavigation: ['{{EscapeSingleQuotes(allowNavigation)}}']
+    allowNavigation: [{{allowNavigationJs}}]
   },
   plugins: {
     SplashScreen: {
@@ -166,6 +169,64 @@ const config: CapacitorConfig = {
 export default config;
 """;
     }
+
+  private static IReadOnlyList<string> BuildAllowNavigationHosts(PrismTenantSchema tenant, Uri startUri)
+  {
+    var hosts = new List<string>();
+
+    AddHost(hosts, startUri.Authority);
+    AddHost(hosts, startUri.Host);
+
+    AddHost(hosts, "login.microsoftonline.com");
+    AddHost(hosts, "*.ciamlogin.com");
+    AddHost(hosts, "*.b2clogin.com");
+
+    var entraTenantId = tenant.EntraTenantId?.Trim();
+    if (!string.IsNullOrWhiteSpace(entraTenantId))
+    {
+      AddHost(hosts, $"{entraTenantId}.ciamlogin.com");
+      AddHost(hosts, $"{entraTenantId}.b2clogin.com");
+    }
+
+    return hosts;
+  }
+
+  private static void AddHost(List<string> hosts, string? host)
+  {
+    if (string.IsNullOrWhiteSpace(host))
+    {
+      return;
+    }
+
+    if (!hosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+    {
+      hosts.Add(host);
+    }
+  }
+
+  private static string AddPrismMobileQueryFlag(string startUrl)
+  {
+    var uri = new Uri(startUrl);
+    var builder = new UriBuilder(uri);
+    var currentQuery = builder.Query;
+    var trimmed = string.IsNullOrWhiteSpace(currentQuery) ? string.Empty : currentQuery.TrimStart('?');
+
+    if (trimmed.Contains("prismMobile=", StringComparison.OrdinalIgnoreCase))
+    {
+      var updatedParts = trimmed
+        .Split('&', StringSplitOptions.RemoveEmptyEntries)
+        .Select(part => part.StartsWith("prismMobile=", StringComparison.OrdinalIgnoreCase) ? "prismMobile=1" : part);
+      builder.Query = string.Join("&", updatedParts);
+    }
+    else
+    {
+      builder.Query = string.IsNullOrWhiteSpace(trimmed)
+        ? "prismMobile=1"
+        : $"{trimmed}&prismMobile=1";
+    }
+
+    return builder.Uri.ToString().TrimEnd('/');
+  }
 
     private static string BuildReadme(string appName, string startUrl, string? iconUrl, string? splashUrl)
     {
@@ -275,8 +336,17 @@ npm run open:android
 - Prism detects mobile mode using the appended user-agent marker.
 - Tenant branding overrides are applied first.
 - Mobile branding overrides are applied after tenant overrides.
-- App startup uses a local bootstrap page that probes your Start URL before redirecting.
-- If the Start URL cannot be reached, a branded error screen is shown with retry support.
+- App startup uses Capacitor top-level WebView loading of your Start URL.
+- Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.
+- Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.
+- A local fallback startup page is included in `www/index.html` if you choose to switch away from direct server URL mode.
+
+## Entra authentication mode
+
+- **Strict in-WebView mode:** keeps flows inside the WebView but may not satisfy all Entra/Conditional Access policies.
+- **Compliance mode (recommended):** uses system browser auth session for Entra and can visually leave WebView.
+
+Choose this explicitly per tenant/security policy. If strict in-WebView is mandatory, validate tenant policy and user journeys early.
 
 ## Customize mobile-specific UI
 
@@ -537,6 +607,28 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 :root {
   --prism-page-gutter: 12px;
   --prism-grid-min: 180px;
+}
+
+/* Safe area helpers for notch / home indicator devices */
+.prism-mobile {
+  --prism-safe-top: env(safe-area-inset-top, 0px);
+  --prism-safe-right: env(safe-area-inset-right, 0px);
+  --prism-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --prism-safe-left: env(safe-area-inset-left, 0px);
+}
+
+.prism-mobile body {
+  padding-top: var(--prism-safe-top);
+  padding-right: var(--prism-safe-right);
+  padding-bottom: var(--prism-safe-bottom);
+  padding-left: var(--prism-safe-left);
+}
+
+.prism-mobile .container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 /* App-shell styling examples */

@@ -1,37 +1,87 @@
-# Design Brief: Prism Mobile Scaffolding
+# Prism Mobile Shell Spec (v1)
 
-## 1. Objective
-To provide Umbraco users with a "Zero-Code" path to generating native mobile app shells (iOS/Android) that are dynamically branded and synced with their Prism tenant configuration.
+## 1) Product Goal
+Deliver a mobile app experience that feels native while retaining a web delivery model.
 
-## 2. Constraints & Criteria
-* **No Manual Config:** The user should not have to edit `plist` or `xml` files.
-* **Branding Fidelity:** The app must use the same CSS/Variables defined in the Prism Backoffice.
-* **Store Compliant:** The shell must follow Apple/Google guidelines for "Hybrid" apps (requiring unique branding and functionality).
-* **Environment:** Compatible with Umbraco v14+ (Management API / Bellissima UI).
+This means Prism Mobile must prioritize:
 
-## 3. Technical Requirements
-* **Engine:** Capacitor.js (latest stable).
-* **Backoffice:** Custom `umb-workspace-view` added to the Prism Tenant Workspace.
-* **Server-Side:** .NET `System.IO.Compression` for dynamic bundle generation.
-* **Identity:** Must pass the Prism stateless auth token to the WebView.
+- no unexpected context switching out of the app
+- mobile-safe layout behavior (safe areas, full-width content)
+- deterministic startup and diagnostics
+- clear constraints for Entra authentication
 
-## 4. Solution Concept
-### Phase A: The Backoffice Extension
-- Create a new tab in the Prism Tenant UI called **"App Shell"**.
-- Input fields for: App ID, App Name, Version, App Icon (Media Picker), and Splash (Media Picker).
-- Button: `Generate & Download App Bundle`.
+## 2) Non-Negotiable Rules
 
-### Phase B: The Bundle Generator
-- A C# Service (`IMobileBundleService`) that:
-  - Fetches a pre-packaged Capacitor template from the filesystem.
-  - Generates a new `capacitor.config.ts` string based on the Tenant data.
-  - Uses the `ZipArchive` class to create an in-memory zip of the project.
-  - Serves the file as an `ActionResult`.
+### R1. Stay in WebView
+The app must not intentionally launch Safari/Chrome for normal in-app navigation.
 
-### Phase C: The "Mobile Context" Middleware
-- Prism's `PrismMiddleware` will check for the header `X-Prism-Platform: Mobile`.
-- If present, Prism injects a `.prism-mobile` class into the `<body>` tag of the rendered page.
-- This allows the developer to write: `.prism-mobile nav { display: none; }` to instantly "app-ify" their web layout.
+### R2. Mobile-Safe Rendering
+When Prism mobile mode is active, pages must:
 
-## 5. Success Metric
-A user should be able to go from "New Tenant" to "Running on Android Emulator" in under 5 minutes without opening a code editor.
+- honor notch/home-indicator safe areas
+- use viewport-fit=cover compatible rendering
+- avoid desktop max-width containers unless explicitly overridden
+
+### R3. Deterministic Mobile Signal
+Mobile mode must remain sticky across in-app navigation (query -> cookie continuity).
+
+### R4. Auth Decision Must Be Explicit
+Entra interactive sign-in policy must be treated as a product decision, not an accidental behavior.
+
+## 3) Architecture Decisions
+
+### D1. Mobile Shell Mode
+Produced bundles default to direct top-level WebView startup via `server.url` with `?prismMobile=1`.
+
+### D2. Runtime Mobile Guardrails
+On Prism mobile requests, server-rendered HTML should inject:
+
+- a mobile shell base class (`.prism-mobile`)
+- safe-area helper CSS primitives
+- in-WebView navigation guard behavior (`target="_blank"` and `window.open` should not open external browser by default)
+
+### D3. Layout Contract
+Tenant/site CSS should treat `.prism-mobile` as the contract for app-style layout.
+
+### D4. Entra Authentication Contract
+There are two supported auth modes:
+
+1. **Strict in-WebView mode (no external browser):**
+  - Suitable only when auth can complete without external Entra hosted UI breakouts.
+  - May conflict with tenant Conditional Access/security posture.
+
+2. **Compliance mode (recommended for Entra):**
+  - Uses system browser / ASWebAuthenticationSession style flow.
+  - May visually leave WebView, but is standards-aligned and more reliable for Entra policies.
+
+Prism must document this tradeoff clearly; teams choose mode intentionally.
+
+## 4) Acceptance Criteria
+
+### A. Navigation
+- Tapping links with `target="_blank"` keeps navigation inside the same WebView in mobile mode.
+- `window.open(...)` in mobile mode does not spawn external browser context.
+
+### B. Safe Area & Width
+- On modern iPhones (notch + home indicator), content avoids clipping under system bars.
+- Primary page container uses full available width in mobile mode unless tenant explicitly constrains it.
+
+### C. Startup
+- Generated `capacitor.config.ts` includes direct `server.url` with `prismMobile=1`.
+- Mobile detection source can be observed and remains stable after first navigation.
+
+### D. Auth
+- README and design docs explicitly state Entra auth mode tradeoffs.
+- No silent fallback to external browser behavior without documentation.
+
+## 5) Out of Scope (v1)
+
+- Full native tab bar/navigation framework.
+- Offline-first caching/service worker strategy.
+- Native plugin parity for all device capabilities.
+
+## 6) Implementation Notes
+
+- Keep all generated starter assets minimal and editable.
+- Prefer middleware/runtime enforcement over per-page manual changes.
+- Keep this document as the source of truth for mobile UX behavior changes.

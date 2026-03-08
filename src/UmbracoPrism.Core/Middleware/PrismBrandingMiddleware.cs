@@ -21,8 +21,9 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(context);
         var hasBaseOverrides = overrides is { Count: > 0 };
         var hasMobileOverrides = isPrismMobileRequest && mobileOverrides is { Count: > 0 };
+        var hasMobileShellGuards = isPrismMobileRequest;
 
-        if (!hasBaseOverrides && !hasMobileOverrides)
+        if (!hasBaseOverrides && !hasMobileOverrides && !hasMobileShellGuards)
         {
             await next(context);
             return;
@@ -72,7 +73,7 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         }
 
         var css = BuildCssOverrides(overrides, hasMobileOverrides ? mobileOverrides : null);
-        var injected = InjectBranding(bodyText, css);
+        var injected = InjectBranding(bodyText, css, hasMobileShellGuards);
         var bytes = Encoding.UTF8.GetBytes(injected);
 
         if (!context.Response.HasStarted)
@@ -135,6 +136,12 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         IReadOnlyDictionary<string, string>? overrides,
         IReadOnlyDictionary<string, string>? mobileOverrides)
     {
+        var hasOverrides = (overrides is { Count: > 0 }) || (mobileOverrides is { Count: > 0 });
+        if (!hasOverrides)
+        {
+            return string.Empty;
+        }
+
         var builder = new StringBuilder();
         builder.Append(":root{");
 
@@ -162,21 +169,115 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         }
     }
 
-    private static string InjectBranding(string html, string css)
+        private static string InjectBranding(string html, string css, bool includeMobileShellGuards)
     {
-        var styleTag = $"<style id=\"prism-branding-overrides\">{css}</style>";
+                var injection = new StringBuilder();
+
+                if (!string.IsNullOrWhiteSpace(css))
+                {
+                        injection.Append($"<style id=\"prism-branding-overrides\">{css}</style>");
+                }
+
+                if (includeMobileShellGuards)
+                {
+                        if (!html.Contains("viewport-fit=cover", StringComparison.OrdinalIgnoreCase))
+                        {
+                                injection.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />");
+                        }
+
+                        injection.Append(BuildMobileShellStyleTag());
+                        injection.Append(BuildMobileShellGuardScriptTag());
+                }
+
+                var injectionMarkup = injection.ToString();
+                if (string.IsNullOrWhiteSpace(injectionMarkup))
+                {
+                        return html;
+                }
+
         var headCloseIndex = html.LastIndexOf("</head>", StringComparison.OrdinalIgnoreCase);
         if (headCloseIndex >= 0)
         {
-            return html.Insert(headCloseIndex, styleTag);
+                        return html.Insert(headCloseIndex, injectionMarkup);
         }
 
         var bodyCloseIndex = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
         if (bodyCloseIndex >= 0)
         {
-            return html.Insert(bodyCloseIndex, styleTag);
+                        return html.Insert(bodyCloseIndex, injectionMarkup);
         }
 
-        return html + styleTag;
+                return html + injectionMarkup;
+        }
+
+        private static string BuildMobileShellStyleTag()
+        {
+                return """
+<style id="prism-mobile-shell-base">
+html.prism-mobile,
+html.prism-mobile body {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+html.prism-mobile body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+}
+
+html.prism-mobile .container {
+    width: 100%;
+    max-width: none;
+}
+</style>
+""";
+        }
+
+        private static string BuildMobileShellGuardScriptTag()
+        {
+                return """
+<script id="prism-mobile-shell-guard">
+(function () {
+    var root = document.documentElement;
+    if (!root.classList.contains('prism-mobile')) {
+        root.classList.add('prism-mobile');
+    }
+
+    document.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+
+        var anchor = target.closest('a');
+        if (!anchor) return;
+
+        var href = anchor.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+        if (href.startsWith('mailto:') || href.startsWith('tel:')) {
+            event.preventDefault();
+            return;
+        }
+
+        var forceInWebView = anchor.target && anchor.target.toLowerCase() === '_blank';
+        if (!forceInWebView) return;
+
+        event.preventDefault();
+        window.location.assign(anchor.href);
+    }, true);
+
+    window.open = function (url) {
+        if (typeof url === 'string' && url.length > 0) {
+            window.location.assign(url);
+        }
+        return null;
+    };
+})();
+</script>
+""";
     }
 }

@@ -119,7 +119,7 @@ Click **Generate & Download App Bundle**.
 
 - `capacitor.config.ts` with your tenant values
 - `package.json` with Capacitor scripts/dependencies
-- `www/index.html` local startup bootstrap with remote reachability check + branded fallback screen
+- `www/index.html` local fallback startup page (optional when using direct server URL mode)
 - `www/mobile-overrides.css` as a mobile styling starter
 - `scripts/doctor-mobile.sh` environment diagnostics
 - `scripts/bootstrap-ios.sh` / `scripts/bootstrap-android.sh` one-command emulator bootstrap
@@ -236,10 +236,13 @@ Prism applies mobile behavior with these rules:
 1. Base tenant overrides are injected first.
 2. Mobile overrides are injected second (so mobile values can intentionally win).
 3. Mobile request detection supports user-agent marker, query flag, cookie, and platform header.
-4. Produced mobile bundles append `?prismMobile=1` on startup navigation for reliable server-side mobile detection.
+4. Produced mobile bundles use top-level WebView start URL with `?prismMobile=1` for reliable server-side mobile detection.
 5. Prism persists this marker as a cookie, so mobile mode continues across subsequent navigation in the same session.
+6. In mobile mode, Prism can force `target="_blank"` / `window.open` navigation to stay inside the same WebView.
 
-When Start URL cannot be reached at app launch, the generated app shows your configured fallback screen and optional diagnostics to help with debugging (for example, localhost or unreachable host issues).
+The generated bundle still includes a local fallback startup page if you later decide to switch away from direct server URL mode.
+
+When using mobile mode on notched devices, apply safe-area aware layout rules (for example with `env(safe-area-inset-*)`) and avoid desktop `max-width` constraints unless intentionally retained.
 
 For local/demo simulation, use:
 
@@ -271,7 +274,16 @@ Example CSS:
 .prism-mobile .app-shell-footer { display: flex; }
 ```
 
-### 5. Store Readiness (App Store / Play Store)
+### 5. Entra Authentication Mode Decision
+
+For Entra sign-in in mobile shells, choose one mode explicitly:
+
+- **Strict in-WebView mode:** keep auth inside the same WebView; this may conflict with Conditional Access / modern Entra policies in some tenants.
+- **Compliance mode (recommended):** use system-browser auth sessions; this is more policy-compatible but can visibly leave the WebView during sign-in.
+
+Treat this as a product/security decision per tenant profile and validate early in emulator/device testing.
+
+### 6. Store Readiness (App Store / Play Store)
 
 Prism can generate the starter shell, but store submission still needs platform-specific release work:
 
@@ -297,7 +309,7 @@ Prism can generate the starter shell, but store submission still needs platform-
 - Store listing + content rating + data safety form
 - Internal/closed testing, then production rollout
 
-### 6. Accessing User Data
+### 7. Accessing User Data
 
 Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPrismUserContext` to access details:
 
@@ -311,7 +323,7 @@ Since Prism is stateless, you do not use `MemberManager`. Instead, inject `IPris
 }
 ```
 
-### 7. Prism Admins Policy (Backoffice Safety)
+### 8. Prism Admins Policy (Backoffice Safety)
 
 Tenant management is powerful (it can change domains, secrets, and branding), so Prism restricts these endpoints to a dedicated admin policy. By default, only users in the **admin** group can create, update, or delete tenants.
 

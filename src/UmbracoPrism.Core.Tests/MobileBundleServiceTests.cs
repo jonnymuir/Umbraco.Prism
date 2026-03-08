@@ -48,7 +48,11 @@ public class MobileBundleServiceTests
         config.Should().Contain("appId: 'com.example.northwind'");
         config.Should().Contain("appName: 'Northwind Mobile'");
         config.Should().Contain("appendUserAgent: 'PrismMobile'");
-        config.Should().Contain("allowNavigation: ['northwind.example']");
+        config.Should().Contain("url: 'https://northwind.example/?prismMobile=1'");
+        config.Should().Contain("allowNavigation:");
+        config.Should().Contain("'northwind.example'");
+        config.Should().Contain("'login.microsoftonline.com'");
+        config.Should().Contain("'*.ciamlogin.com'");
 
         var packageJson = ReadEntry(archive, "package.json");
         packageJson.Should().Contain("\"doctor\": \"bash scripts/doctor-mobile.sh\"");
@@ -64,6 +68,8 @@ public class MobileBundleServiceTests
         var readme = ReadEntry(archive, "README.md");
         readme.Should().Contain("npm run doctor");
         readme.Should().Contain("npm run bootstrap:ios");
+        readme.Should().Contain("App startup uses Capacitor top-level WebView loading of your Start URL.");
+        readme.Should().Contain("Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.");
     }
 
     private static string ReadEntry(ZipArchive archive, string path)
