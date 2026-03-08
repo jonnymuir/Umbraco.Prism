@@ -153,6 +153,9 @@ const config: CapacitorConfig = {
   appName: '{{EscapeSingleQuotes(appName)}}',
   webDir: 'www',
   bundledWebRuntime: false,
+  ios: {
+    contentInset: 'automatic'
+  },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
   server: {
     url: '{{EscapeSingleQuotes(mobileStartUrl)}}',
@@ -162,6 +165,10 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchAutoHide: true
+    },
+    StatusBar: {
+      overlaysWebView: false,
+      style: 'DEFAULT'
     }
   }
 };
@@ -336,6 +343,7 @@ npm run open:android
 - Prism detects mobile mode using the appended user-agent marker.
 - Tenant branding overrides are applied first.
 - Mobile branding overrides are applied after tenant overrides.
+- Generated config sets iOS `contentInset: 'automatic'` and `StatusBar.overlaysWebView: false` for safer default viewport behavior.
 - App startup uses Capacitor top-level WebView loading of your Start URL.
 - Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.
 - Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.

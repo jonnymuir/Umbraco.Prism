@@ -48,11 +48,13 @@ public class MobileBundleServiceTests
         config.Should().Contain("appId: 'com.example.northwind'");
         config.Should().Contain("appName: 'Northwind Mobile'");
         config.Should().Contain("appendUserAgent: 'PrismMobile'");
+        config.Should().Contain("contentInset: 'automatic'");
         config.Should().Contain("url: 'https://northwind.example/?prismMobile=1'");
         config.Should().Contain("allowNavigation:");
         config.Should().Contain("'northwind.example'");
         config.Should().Contain("'login.microsoftonline.com'");
         config.Should().Contain("'*.ciamlogin.com'");
+        config.Should().Contain("overlaysWebView: false");
 
         var packageJson = ReadEntry(archive, "package.json");
         packageJson.Should().Contain("\"doctor\": \"bash scripts/doctor-mobile.sh\"");

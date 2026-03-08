@@ -8,6 +8,8 @@
 ## Overview
 Umbraco Prism is a multi-tenancy extension for Umbraco (v17+) designed to allow a single Umbraco instance to serve hundreds of distinct client portals. It resolves branding, identity, and content context at runtime based on the incoming domain name.
 
+The standout capability is **Produce Mobile**: generate a native-shell app starter (iOS/Android) directly from Backoffice tenant settings, keep tenant branding/auth context, and run in emulator quickly without building a full native app from scratch.
+
 ## What problem does it solve
 You are a service provider offering a portal with consistent functionality across different organizations. You want each organization to appear as its own branded web portal, but without the overhead of managing multiple root nodes or a bloated local Member database.
 
@@ -18,7 +20,37 @@ You are a service provider offering a portal with consistent functionality acros
 4. **Stateless Identity:** No local Member records. Identity is deferred to Entra ID (CIAM), keeping the database clean and scalable.
 5. **Vaulted Security:** Sensitive OIDC Secrets are pulled securely from Azure Key Vault at runtime.
 
-## Overview screenshots
+## Killer Feature: Produce Mobile
+
+Prism turns tenant settings into an app-ready mobile shell:
+
+- **Backoffice-driven app generation** (name, app id, start URL, icon/splash, startup diagnostics).
+- **Direct top-level WebView startup** with `?prismMobile=1` to activate server-side mobile behavior.
+- **In-WebView navigation guardrails** for app-like flow (`target="_blank"` / `window.open` handling in mobile mode).
+- **Mobile-safe layout defaults** (safe-area insets + full-width mobile container patterns).
+- **One-command bootstrap scripts** for iOS/Android and environment doctor checks.
+- **Entra auth mode clarity** so teams choose strict in-WebView vs compliance/system-browser intentionally.
+
+Example mobile settings:
+![screen shot](image-2.png)
+
+Example create mobile bundles:
+![screen shot](image-1.png)
+
+Example mobile overrides:
+![screen shot](image.png)
+
+Example IOS APP With overrides showing:
+![screen shot](example-IOS.png)
+
+### Mobile app shell (flagship)
+
+Use this section to show your latest mobile screenshots prominently (recommended filenames):
+
+- `docs/screenshots/mobile/backoffice-produce-mobile.png` (Backoffice mobile override/config editor)
+- `docs/screenshots/mobile/ios-simulator-home.png` (iOS simulator app-shell runtime)
+
+
 
 ### Easy backoffice setup
 
