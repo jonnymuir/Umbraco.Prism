@@ -5,8 +5,16 @@
 
 # Umbraco Prism
 
+As easy as 
+
+```bash
+dotnet add package UmbracoPrism
+```
+
+One site, multiple web and mobile distributions.
+
 ## Overview
-Umbraco Prism is a multi-tenancy extension for Umbraco (v17+) designed to allow a single Umbraco instance to serve hundreds of distinct client portals. It resolves branding, identity, and content context at runtime based on the incoming domain name.
+Umbraco Prism is a multi-tenancy web and mobile app package for Umbraco (v17+) designed to allow a single Umbraco instance to serve hundreds of distinct client portals. It resolves branding, identity, and content context at runtime based on the incoming domain name.
 
 The standout capability is **Produce Mobile**: generate a native-shell app starter (iOS/Android) directly from Backoffice tenant settings, keep tenant branding/auth context, and run in emulator quickly without building a full native app from scratch.
 
@@ -579,6 +587,12 @@ https://localhost:44345
 
 ```bash
 cloudflared tunnel --url https://localhost:44345
+```
+
+Or use the helper script (prints the exact Entra redirect URI):
+
+```bash
+bash scripts/dev/start-trycloudflare.sh
 ```
 
 4. Copy the generated `https://<random>.trycloudflare.com` URL.
