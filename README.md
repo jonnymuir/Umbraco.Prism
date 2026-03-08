@@ -65,7 +65,7 @@ Compared to without overrides.
 
 ### Simple to debug
 
-![Shows how debug looks on your site](debug-info.png)
+Just add <prism-debug /> to get all the info you need to debug
 
 ### Flow down to your down stream services
 
@@ -546,3 +546,98 @@ To see a full end-to-end implementation of the multi-tenant identity flow, refer
 * **Umbraco:** v17.0+
 * **Framework:** .NET 10.0
 * **Security:** Azure Key Vault, Managed Identity, Stateless OIDC (CIAM), **Multi-tenant JWT Bearer validation**
+
+---
+
+## Quick Start: Phone Auth via Cloudflare Tunnel (No LAN IP Dependency)
+
+If you need Entra sign-in on a phone, avoid using `http://192.168.x.x` redirect URIs.
+Entra requires redirect URIs to be `https://...` (or `http://localhost` only), so a tunnel is the easiest dev-safe approach.
+
+### Do I need a domain?
+
+No. You can start with a temporary Cloudflare URL (`*.trycloudflare.com`) and no custom domain.
+
+- **No domain yet (fastest):** use `cloudflared tunnel --url https://localhost:44345`.
+- **Have a domain later (stable):** create a named tunnel + DNS record for a fixed hostname.
+
+### Option A — No domain (temporary URL)
+
+1. Install cloudflared:
+
+```bash
+brew install cloudflared
+```
+
+2. Start your local app on HTTPS localhost:
+
+```bash
+https://localhost:44345
+```
+
+3. Start temporary tunnel:
+
+```bash
+cloudflared tunnel --url https://localhost:44345
+```
+
+4. Copy the generated `https://<random>.trycloudflare.com` URL.
+
+5. In Entra App Registration, add redirect URI:
+
+```text
+https://<random>.trycloudflare.com/umbraco/oauth_complete
+```
+
+6. Use the same tunnel URL as your mobile Start URL.
+
+> Note: This URL changes each run, so you must update Entra redirect URI each time.
+
+### Option B — Stable hostname (custom domain)
+
+If you have a domain in Cloudflare, set up a named tunnel once and keep a fixed URL.
+
+1. Authenticate cloudflared:
+
+```bash
+cloudflared tunnel login
+```
+
+2. Create tunnel:
+
+```bash
+cloudflared tunnel create prism-dev
+```
+
+3. Route DNS hostname:
+
+```bash
+cloudflared tunnel route dns prism-dev prism-dev.<your-domain>
+```
+
+4. Create `~/.cloudflared/config.yml`:
+
+```yml
+tunnel: <tunnel-id>
+credentials-file: /Users/<you>/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: prism-dev.<your-domain>
+    service: https://localhost:44345
+    originRequest:
+      noTLSVerify: true
+      httpHostHeader: localhost:44345
+  - service: http_status:404
+```
+
+5. Run tunnel:
+
+```bash
+cloudflared tunnel run prism-dev
+```
+
+6. In Entra, use:
+
+```text
+https://prism-dev.<your-domain>/umbraco/oauth_complete
+```
