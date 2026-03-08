@@ -43,14 +43,6 @@ Example mobile overrides:
 Example IOS APP With overrides showing:
 ![screen shot](example-IOS.png)
 
-### Mobile app shell (flagship)
-
-Use this section to show your latest mobile screenshots prominently (recommended filenames):
-
-- `docs/screenshots/mobile/backoffice-produce-mobile.png` (Backoffice mobile override/config editor)
-- `docs/screenshots/mobile/ios-simulator-home.png` (iOS simulator app-shell runtime)
-
-
 
 ### Easy backoffice setup
 
