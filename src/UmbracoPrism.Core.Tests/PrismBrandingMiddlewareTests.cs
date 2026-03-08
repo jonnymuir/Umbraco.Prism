@@ -139,6 +139,41 @@ public class PrismBrandingMiddlewareTests
 
         var html = await ReadResponseBodyAsync(context.Response);
         html.Should().Contain("--prism-primary:#003399;");
+        context.Response.Headers.SetCookie.ToString().Should().Contain("prism.mobile=1");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_QueryFlagOff_ClearsPrismMobileCookieAndExcludesMobileOverrides()
+    {
+        var prismContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#0055ff"
+                },
+                MobileBrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#003399"
+                }
+            }
+        };
+
+        var middleware = CreateMiddlewareWithHtmlResponse("<html><head></head><body>Demo</body></html>");
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers.UserAgent = "Mozilla/5.0";
+        context.Request.Headers.Cookie = "prism.mobile=1";
+        context.Request.QueryString = new QueryString("?prismMobile=0");
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context, prismContext);
+
+        var html = await ReadResponseBodyAsync(context.Response);
+        html.Should().Contain("--prism-primary:#0055ff;");
+        html.Should().NotContain("--prism-primary:#003399;");
+        context.Response.Headers.SetCookie.ToString().Should().Contain("prism.mobile=");
     }
 
     [Fact]

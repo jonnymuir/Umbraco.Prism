@@ -43,7 +43,13 @@ public class MobileBundleServiceTests
         config.Should().Contain("appId: 'com.example.northwind'");
         config.Should().Contain("appName: 'Northwind Mobile'");
         config.Should().Contain("appendUserAgent: 'PrismMobile'");
-        config.Should().Contain("url: 'https://northwind.example'");
+        config.Should().Contain("allowNavigation: ['northwind.example']");
+
+        var index = ReadEntry(archive, "www/index.html");
+        index.Should().Contain("We’re having trouble connecting");
+        index.Should().Contain("showDiagnostics: true");
+        index.Should().Contain("parsed.searchParams.set('prismMobile', '1');");
+        index.Should().Contain("window.location.replace(mobileStartUrl);");
     }
 
     private static string ReadEntry(ZipArchive archive, string path)

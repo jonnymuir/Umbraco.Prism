@@ -9,4 +9,9 @@ public class PrismMobileAppConfig
     public string? UserAgentMarker { get; set; }
     public string? IconUrl { get; set; }
     public string? SplashUrl { get; set; }
+    public string? ErrorBackgroundColor { get; set; }
+    public string? ErrorTextColor { get; set; }
+    public string? ErrorTitle { get; set; }
+    public string? ErrorMessage { get; set; }
+    public bool? ShowErrorDiagnostics { get; set; }
 }

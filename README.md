@@ -107,6 +107,9 @@ Open a tenant, then use the **Produce Mobile** tab and provide:
 - User Agent Marker (default: `PrismMobile`)
 - Icon URL (recommended 1024x1024)
 - Splash URL (optional)
+- Startup Error Title / Message
+- Startup Error Background / Text colors
+- Show technical diagnostics toggle
 
 Built-in helpers include app-id suggestion, tenant-based defaults, inline validation, and icon/splash previews.
 
@@ -116,7 +119,7 @@ Click **Generate & Download App Bundle**.
 
 - `capacitor.config.ts` with your tenant values
 - `package.json` with Capacitor scripts/dependencies
-- `www/index.html` forwarding to your Start URL
+- `www/index.html` local startup bootstrap with remote reachability check + branded fallback screen
 - `www/mobile-overrides.css` as a mobile styling starter
 - `resources/mobile-assets.json` with icon/splash values
 - Generated `README.md` with commands
@@ -193,6 +196,23 @@ Then in Android Studio:
 - `[error] android platform has not been added yet.`
   - Run `npx cap add android` before `npx cap sync android` / `npx cap open android`.
 
+#### iOS localhost HTTPS cert trust (`NSURLErrorDomain -1202`)
+
+If your Start URL is `https://localhost:<port>`, iOS simulator can show a blank screen until the cert is trusted.
+
+The generated app bundle includes a helper script:
+
+```bash
+bash scripts/trust-ios-localhost-cert.sh
+npx cap run ios
+```
+
+Notes:
+
+- Keep your local HTTPS site running while executing the script.
+- Ensure a simulator is booted first.
+- For physical devices, prefer LAN/tunnel/public HTTPS, or install/trust your local CA profile on-device.
+
 ### 4. Mobile Runtime Behavior & Styling
 
 Prism applies mobile behavior with these rules:
@@ -200,6 +220,10 @@ Prism applies mobile behavior with these rules:
 1. Base tenant overrides are injected first.
 2. Mobile overrides are injected second (so mobile values can intentionally win).
 3. Mobile request detection supports user-agent marker, query flag, cookie, and platform header.
+4. Produced mobile bundles append `?prismMobile=1` on startup navigation for reliable server-side mobile detection.
+5. Prism persists this marker as a cookie, so mobile mode continues across subsequent navigation in the same session.
+
+When Start URL cannot be reached at app launch, the generated app shows your configured fallback screen and optional diagnostics to help with debugging (for example, localhost or unreachable host issues).
 
 For local/demo simulation, use:
 
@@ -341,6 +365,16 @@ npm run test-storybook:ci:all
 ```bash
 dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
 ```
+
+### Dependency Vulnerability Check
+
+Run a transitive package vulnerability scan for the Core project:
+
+```bash
+dotnet list src/UmbracoPrism.Core/UmbracoPrism.Core.csproj package --vulnerable --include-transitive
+```
+
+If vulnerabilities are reported, prefer upgrading the direct package first. For transitive-only issues, add a top-level package reference in the relevant `.csproj` to force a patched version.
 
 **VS Code:**
 

@@ -51,22 +51,58 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _mobileUserAgentMarker = 'PrismMobile';
   @state() private _mobileIconUrl = '';
   @state() private _mobileSplashUrl = '';
+  @state() private _mobileErrorBackgroundColor = '#0f172a';
+  @state() private _mobileErrorTextColor = '#f8fafc';
+  @state() private _mobileErrorTitle = 'We’re having trouble connecting';
+  @state() private _mobileErrorMessage = 'Please check your connection and try again.';
+  @state() private _mobileShowErrorDiagnostics = true;
   @state() private _isProducingMobileBundle = false;
+
+  private _readMobileConfigValue(config: any, camelKey: string) {
+    if (!config || typeof config !== 'object') return undefined;
+
+    if (camelKey in config) return config[camelKey];
+
+    const pascalKey = camelKey.charAt(0).toUpperCase() + camelKey.slice(1);
+    if (pascalKey in config) return config[pascalKey];
+
+    return undefined;
+  }
 
   private _readMobileAppConfig(tenant: any) {
     const raw = tenant?.mobileAppConfig;
     if (!raw) return null;
 
+    let config: any = null;
+
     if (typeof raw === 'string') {
       try {
-        return JSON.parse(raw);
+        config = JSON.parse(raw);
       } catch {
         return null;
       }
+
+      if (!config || typeof config !== 'object') return null;
+    } else if (typeof raw === 'object') {
+      config = raw;
+    } else {
+      return null;
     }
 
-    if (typeof raw === 'object') return raw;
-    return null;
+    return {
+      appName: this._readMobileConfigValue(config, 'appName'),
+      appId: this._readMobileConfigValue(config, 'appId'),
+      version: this._readMobileConfigValue(config, 'version'),
+      startUrl: this._readMobileConfigValue(config, 'startUrl'),
+      userAgentMarker: this._readMobileConfigValue(config, 'userAgentMarker'),
+      iconUrl: this._readMobileConfigValue(config, 'iconUrl'),
+      splashUrl: this._readMobileConfigValue(config, 'splashUrl'),
+      errorBackgroundColor: this._readMobileConfigValue(config, 'errorBackgroundColor'),
+      errorTextColor: this._readMobileConfigValue(config, 'errorTextColor'),
+      errorTitle: this._readMobileConfigValue(config, 'errorTitle'),
+      errorMessage: this._readMobileConfigValue(config, 'errorMessage'),
+      showErrorDiagnostics: this._readMobileConfigValue(config, 'showErrorDiagnostics')
+    };
   }
 
 
@@ -96,6 +132,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       this._mobileUserAgentMarker = mobileConfig?.userAgentMarker ?? 'PrismMobile';
       this._mobileIconUrl = mobileConfig?.iconUrl ?? this._defaultMobileIconUrl(t.hostname ?? '');
       this._mobileSplashUrl = mobileConfig?.splashUrl ?? '';
+      this._mobileErrorBackgroundColor = mobileConfig?.errorBackgroundColor ?? '#0f172a';
+      this._mobileErrorTextColor = mobileConfig?.errorTextColor ?? '#f8fafc';
+      this._mobileErrorTitle = mobileConfig?.errorTitle ?? 'We’re having trouble connecting';
+      this._mobileErrorMessage = mobileConfig?.errorMessage ?? 'Please check your connection and try again.';
+      this._mobileShowErrorDiagnostics = mobileConfig?.showErrorDiagnostics ?? true;
     }
   }
 
@@ -120,6 +161,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileUserAgentMarker = mobileConfig?.userAgentMarker ?? 'PrismMobile';
         this._mobileIconUrl = mobileConfig?.iconUrl ?? this._defaultMobileIconUrl(t.hostname ?? '');
         this._mobileSplashUrl = mobileConfig?.splashUrl ?? '';
+        this._mobileErrorBackgroundColor = mobileConfig?.errorBackgroundColor ?? '#0f172a';
+        this._mobileErrorTextColor = mobileConfig?.errorTextColor ?? '#f8fafc';
+        this._mobileErrorTitle = mobileConfig?.errorTitle ?? 'We’re having trouble connecting';
+        this._mobileErrorMessage = mobileConfig?.errorMessage ?? 'Please check your connection and try again.';
+        this._mobileShowErrorDiagnostics = mobileConfig?.showErrorDiagnostics ?? true;
       } else {
         this._id = null;
         this._name = '';
@@ -134,6 +180,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileUserAgentMarker = 'PrismMobile';
         this._mobileIconUrl = '';
         this._mobileSplashUrl = '';
+        this._mobileErrorBackgroundColor = '#0f172a';
+        this._mobileErrorTextColor = '#f8fafc';
+        this._mobileErrorTitle = 'We’re having trouble connecting';
+        this._mobileErrorMessage = 'Please check your connection and try again.';
+        this._mobileShowErrorDiagnostics = true;
       }
 
       const tenantMobileOverrides = this._toOverrideMap(this.data?.tenant?.mobileBrandingOverrides);
@@ -209,7 +260,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       startUrl: this._mobileStartUrl,
       userAgentMarker: this._mobileUserAgentMarker,
       iconUrl: this._mobileIconUrl,
-      splashUrl: this._mobileSplashUrl
+      splashUrl: this._mobileSplashUrl,
+      errorBackgroundColor: this._mobileErrorBackgroundColor,
+      errorTextColor: this._mobileErrorTextColor,
+      errorTitle: this._mobileErrorTitle,
+      errorMessage: this._mobileErrorMessage,
+      showErrorDiagnostics: this._mobileShowErrorDiagnostics
     };
 
     const tenant = {
@@ -330,6 +386,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     const startUrlValid = this._isValidAbsoluteUrl(this._mobileStartUrl);
     const iconUrlValid = !this._mobileIconUrl || this._isValidAbsoluteUrl(this._mobileIconUrl);
     const splashUrlValid = !this._mobileSplashUrl || this._isValidAbsoluteUrl(this._mobileSplashUrl);
+    const localhostStartUrl = this._isLikelyLocalhostUrl(this._mobileStartUrl);
     const canProduce = isEditMode && !this._isProducingMobileBundle && appIdValid && startUrlValid && iconUrlValid && splashUrlValid;
 
     return html`
@@ -389,6 +446,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               placeholder="https://tenant.example.com">
             </uui-input>
             ${startUrlValid ? html`` : html`<small class="error-text">Start URL must be an absolute URL, e.g. <code>https://tenant.example.com</code>.</small>`}
+            ${localhostStartUrl ? html`<small class="error-text">Localhost is supported for simulator/device testing, but iOS requires trusting your HTTPS cert first (or use a LAN/tunnel/public URL).</small>` : html``}
           </div>
 
           <div class="field">
@@ -428,6 +486,63 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             <small>Optional splash image source for your generated app assets.</small>
             ${splashUrlValid ? html`` : html`<small class="error-text">Splash URL must be an absolute URL.</small>`}
             ${this._mobileSplashUrl ? html`<img class="mobile-asset-preview" src=${this._mobileSplashUrl} alt="Splash preview" />` : html``}
+          </div>
+
+          <h5 class="section-title">Startup Error Screen</h5>
+          <p class="description">Shown if the app cannot reach your Start URL during launch.</p>
+
+          <div class="field">
+            <uui-label for="mobile-error-title">Error Title</uui-label>
+            <uui-input
+              id="mobile-error-title"
+              label="Error Title"
+              .value=${this._mobileErrorTitle}
+              @input=${(e: any) => this._mobileErrorTitle = e.target.value}
+              placeholder="We’re having trouble connecting">
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-error-message">Error Message</uui-label>
+            <uui-input
+              id="mobile-error-message"
+              label="Error Message"
+              .value=${this._mobileErrorMessage}
+              @input=${(e: any) => this._mobileErrorMessage = e.target.value}
+              placeholder="Please check your connection and try again.">
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-error-bg">Error Background Color</uui-label>
+            <uui-input
+              id="mobile-error-bg"
+              label="Error Background Color"
+              .value=${this._mobileErrorBackgroundColor}
+              @input=${(e: any) => this._mobileErrorBackgroundColor = e.target.value}
+              placeholder="#0f172a">
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="mobile-error-text">Error Text Color</uui-label>
+            <uui-input
+              id="mobile-error-text"
+              label="Error Text Color"
+              .value=${this._mobileErrorTextColor}
+              @input=${(e: any) => this._mobileErrorTextColor = e.target.value}
+              placeholder="#f8fafc">
+            </uui-input>
+          </div>
+
+          <div class="field checkbox-field">
+            <uui-checkbox
+              label="Show technical diagnostics"
+              .checked=${this._mobileShowErrorDiagnostics}
+              @change=${(e: any) => this._mobileShowErrorDiagnostics = Boolean(e.target.checked)}>
+              Show technical diagnostics
+            </uui-checkbox>
+            <small>When enabled, users can expand technical details (status, timeout, and last error) for debugging.</small>
           </div>
 
           <div class="helper-actions">
@@ -587,6 +702,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _isLikelyLocalhostUrl(value: string) {
+    try {
+      const parsed = new URL(value.trim());
+      return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
   private _suggestMobileAppId = () => {
     this._mobileAppId = this._defaultMobileAppId(this._mobileAppName || this._name || 'tenant');
   };
@@ -597,6 +721,10 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     this._mobileStartUrl = this._defaultMobileStartUrl(this._hostname);
     this._mobileUserAgentMarker = this._mobileUserAgentMarker || 'PrismMobile';
     this._mobileIconUrl = this._defaultMobileIconUrl(this._hostname);
+    this._mobileErrorBackgroundColor = this._mobileErrorBackgroundColor || '#0f172a';
+    this._mobileErrorTextColor = this._mobileErrorTextColor || '#f8fafc';
+    this._mobileErrorTitle = this._mobileErrorTitle || 'We’re having trouble connecting';
+    this._mobileErrorMessage = this._mobileErrorMessage || 'Please check your connection and try again.';
   };
 
   private async _handleProduceMobile() {
@@ -625,7 +753,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             startUrl: this._mobileStartUrl,
             userAgentMarker: this._mobileUserAgentMarker,
             iconUrl: this._mobileIconUrl,
-            splashUrl: this._mobileSplashUrl
+            splashUrl: this._mobileSplashUrl,
+            errorBackgroundColor: this._mobileErrorBackgroundColor,
+            errorTextColor: this._mobileErrorTextColor,
+            errorTitle: this._mobileErrorTitle,
+            errorMessage: this._mobileErrorMessage,
+            showErrorDiagnostics: this._mobileShowErrorDiagnostics
           })
         });
 
@@ -777,6 +910,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .error-text {
       color: var(--uui-color-danger-standalone);
+    }
+    .section-title {
+      margin: var(--uui-size-space-5) 0 var(--uui-size-space-2);
+    }
+    .checkbox-field {
+      gap: var(--uui-size-space-2);
     }
   `;
 }

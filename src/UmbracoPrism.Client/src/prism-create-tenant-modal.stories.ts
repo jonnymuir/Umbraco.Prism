@@ -78,6 +78,20 @@ export const Edit: Story = {
         entraTenantId: '00000000-0000-0000-0000-000000000000',
         entraClientId: '11111111-1111-1111-1111-111111111111',
         secretKeyName: 'northwind-prism-secret',
+        mobileAppConfig: {
+          AppName: 'Northwind Portal',
+          AppId: 'com.northwind.portal',
+          Version: '2.3.4',
+          StartUrl: 'https://northwind.example/app',
+          UserAgentMarker: 'PrismMobileNW',
+          IconUrl: 'https://northwind.example/media/icon.png',
+          SplashUrl: 'https://northwind.example/media/splash.png',
+          ErrorBackgroundColor: '#111827',
+          ErrorTextColor: '#f3f4f6',
+          ErrorTitle: 'Cannot connect right now',
+          ErrorMessage: 'Please try again in a moment.',
+          ShowErrorDiagnostics: false
+        },
         mobileBrandingOverrides: {
           '--color-primary': '#003399'
         }

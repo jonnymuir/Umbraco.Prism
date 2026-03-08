@@ -13,6 +13,8 @@ public class PrismBrandingMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, IPrismContext prismContext)
     {
+        PersistMobileQueryFlagAsCookie(context);
+
         var tenant = prismContext.CurrentTenant;
         var overrides = tenant?.BrandingOverrides;
         var mobileOverrides = tenant?.MobileBrandingOverrides;
@@ -78,6 +80,38 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             context.Response.ContentLength = bytes.Length;
         }
         await context.Response.Body.WriteAsync(bytes);
+    }
+
+    private static void PersistMobileQueryFlagAsCookie(HttpContext context)
+    {
+        var queryFlag = PrismMobileRequestDetection.GetPrismMobileQueryFlag(context);
+        if (!queryFlag.HasValue)
+        {
+            return;
+        }
+
+        if (queryFlag.Value)
+        {
+            context.Response.Cookies.Append(
+                PrismMobileRequestDetection.CookieName,
+                "1",
+                new CookieOptions
+                {
+                    HttpOnly = false,
+                    IsEssential = true,
+                    SameSite = SameSiteMode.Lax,
+                    Secure = context.Request.IsHttps,
+                    Path = "/"
+                });
+            return;
+        }
+
+        context.Response.Cookies.Delete(
+            PrismMobileRequestDetection.CookieName,
+            new CookieOptions
+            {
+                Path = "/"
+            });
     }
 
     private static bool ShouldInject(HttpContext context, string bodyText)

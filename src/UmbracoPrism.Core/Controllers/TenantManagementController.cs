@@ -150,6 +150,11 @@ public class TenantManagementController(
         payload.UserAgentMarker ??= savedConfig?.UserAgentMarker;
         payload.IconUrl ??= savedConfig?.IconUrl;
         payload.SplashUrl ??= savedConfig?.SplashUrl;
+        payload.ErrorBackgroundColor ??= savedConfig?.ErrorBackgroundColor;
+        payload.ErrorTextColor ??= savedConfig?.ErrorTextColor;
+        payload.ErrorTitle ??= savedConfig?.ErrorTitle;
+        payload.ErrorMessage ??= savedConfig?.ErrorMessage;
+        payload.ShowErrorDiagnostics ??= savedConfig?.ShowErrorDiagnostics;
 
         try
         {
@@ -211,7 +216,12 @@ public class TenantManagementController(
             || !string.IsNullOrWhiteSpace(config.StartUrl)
             || !string.IsNullOrWhiteSpace(config.UserAgentMarker)
             || !string.IsNullOrWhiteSpace(config.IconUrl)
-            || !string.IsNullOrWhiteSpace(config.SplashUrl);
+            || !string.IsNullOrWhiteSpace(config.SplashUrl)
+            || !string.IsNullOrWhiteSpace(config.ErrorBackgroundColor)
+            || !string.IsNullOrWhiteSpace(config.ErrorTextColor)
+            || !string.IsNullOrWhiteSpace(config.ErrorTitle)
+            || !string.IsNullOrWhiteSpace(config.ErrorMessage)
+            || config.ShowErrorDiagnostics.HasValue;
 
         if (!hasAnyValue) return null;
         return JsonSerializer.Serialize(config);

@@ -111,7 +111,7 @@ test('Edit modal branding table shows mobile override column and value', async (
     tab?.click();
   });
 
-  await expect(frame.getByText('Mobile')).toBeVisible();
+  await expect(frame.getByRole('columnheader', { name: 'Mobile' })).toBeVisible();
 
   const mobileValue = await modal.evaluate((el) => {
     const mobileInput = el.shadowRoot?.querySelector(
@@ -149,4 +149,52 @@ test('Edit modal allows editing mobile override value', async ({ page }) => {
   }, updatedValue);
 
   expect(mobileValue).toBe(updatedValue);
+});
+
+test('Edit modal hydrates all Produce Mobile values from persisted config', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Produce Mobile"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const values = await modal.evaluate((el) => {
+    const read = (id: string) => (el.shadowRoot?.querySelector(`#${id}`) as HTMLInputElement | null)?.value ?? '';
+    const diagnostics = (el.shadowRoot?.querySelector('uui-checkbox[label="Show technical diagnostics"]') as HTMLInputElement | null)?.checked ?? false;
+
+    return {
+      appName: read('mobile-app-name'),
+      appId: read('mobile-app-id'),
+      version: read('mobile-version'),
+      startUrl: read('mobile-start-url'),
+      userAgentMarker: read('mobile-ua-marker'),
+      iconUrl: read('mobile-icon-url'),
+      splashUrl: read('mobile-splash-url'),
+      errorBackgroundColor: read('mobile-error-bg'),
+      errorTextColor: read('mobile-error-text'),
+      errorTitle: read('mobile-error-title'),
+      errorMessage: read('mobile-error-message'),
+      showDiagnostics: diagnostics
+    };
+  });
+
+  expect(values).toEqual({
+    appName: 'Northwind Portal',
+    appId: 'com.northwind.portal',
+    version: '2.3.4',
+    startUrl: 'https://northwind.example/app',
+    userAgentMarker: 'PrismMobileNW',
+    iconUrl: 'https://northwind.example/media/icon.png',
+    splashUrl: 'https://northwind.example/media/splash.png',
+    errorBackgroundColor: '#111827',
+    errorTextColor: '#f3f4f6',
+    errorTitle: 'Cannot connect right now',
+    errorMessage: 'Please try again in a moment.',
+    showDiagnostics: false
+  });
 });
