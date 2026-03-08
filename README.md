@@ -121,6 +121,9 @@ Click **Generate & Download App Bundle**.
 - `package.json` with Capacitor scripts/dependencies
 - `www/index.html` local startup bootstrap with remote reachability check + branded fallback screen
 - `www/mobile-overrides.css` as a mobile styling starter
+- `scripts/doctor-mobile.sh` environment diagnostics
+- `scripts/bootstrap-ios.sh` / `scripts/bootstrap-android.sh` one-command emulator bootstrap
+- `AGENT_PROMPT.md` handoff instructions for coding agents
 - `resources/mobile-assets.json` with icon/splash values
 - Generated `README.md` with commands
 
@@ -134,6 +137,7 @@ From the extracted bundle:
 
 ```bash
 npm install
+npm run doctor
 ```
 
 #### Prerequisites (required once per machine)
@@ -157,7 +161,13 @@ pod --version
 
 **iOS (macOS required):**
 
-Add platform first, then sync and open:
+One-command bootstrap:
+
+```bash
+npm run bootstrap:ios
+```
+
+Or manually add platform, sync and open:
 
 ```bash
 npx cap add ios
@@ -173,7 +183,13 @@ Then in Xcode:
 
 **Android:**
 
-Add platform first, then sync and open:
+One-command bootstrap:
+
+```bash
+npm run bootstrap:android
+```
+
+Or manually add platform, sync and open:
 
 ```bash
 npx cap add android

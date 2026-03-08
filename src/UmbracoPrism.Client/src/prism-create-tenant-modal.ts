@@ -57,6 +57,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _mobileErrorMessage = 'Please check your connection and try again.';
   @state() private _mobileShowErrorDiagnostics = true;
   @state() private _isProducingMobileBundle = false;
+  @state() private _mobileBundleGenerated = false;
+  @state() private _copiedCommand = '';
 
   private _readMobileConfigValue(config: any, camelKey: string) {
     if (!config || typeof config !== 'object') return undefined;
@@ -166,6 +168,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileErrorTitle = mobileConfig?.errorTitle ?? 'We’re having trouble connecting';
         this._mobileErrorMessage = mobileConfig?.errorMessage ?? 'Please check your connection and try again.';
         this._mobileShowErrorDiagnostics = mobileConfig?.showErrorDiagnostics ?? true;
+        this._mobileBundleGenerated = false;
       } else {
         this._id = null;
         this._name = '';
@@ -185,6 +188,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileErrorTitle = 'We’re having trouble connecting';
         this._mobileErrorMessage = 'Please check your connection and try again.';
         this._mobileShowErrorDiagnostics = true;
+        this._mobileBundleGenerated = false;
       }
 
       const tenantMobileOverrides = this._toOverrideMap(this.data?.tenant?.mobileBrandingOverrides);
@@ -557,6 +561,41 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             @click=${this._handleProduceMobile}>
             ${this._isProducingMobileBundle ? 'Generating…' : 'Generate & Download App Bundle'}
           </uui-button>
+
+          ${this._mobileBundleGenerated ? html`
+            <div class="generated-helper">
+              <small><strong>Bundle ready.</strong> From the extracted folder, run:</small>
+              <div class="command-row">
+                <code>npm install && npm run doctor</code>
+                <uui-button look="outline" @click=${() => this._copyCommand('npm install && npm run doctor')}>
+                  ${this._copiedCommand === 'npm install && npm run doctor' ? 'Copied' : 'Copy'}
+                </uui-button>
+              </div>
+              <div class="command-row">
+                <code>npm run bootstrap:ios</code>
+                <uui-button look="outline" @click=${() => this._copyCommand('npm run bootstrap:ios')}>
+                  ${this._copiedCommand === 'npm run bootstrap:ios' ? 'Copied' : 'Copy'}
+                </uui-button>
+              </div>
+              <div class="command-row">
+                <code>npm run bootstrap:android</code>
+                <uui-button look="outline" @click=${() => this._copyCommand('npm run bootstrap:android')}>
+                  ${this._copiedCommand === 'npm run bootstrap:android' ? 'Copied' : 'Copy'}
+                </uui-button>
+              </div>
+              ${this._isLikelyLocalhostUrl(this._mobileStartUrl)
+                ? html`
+                    <small>Localhost tip: if iOS trust prompts appear, run:</small>
+                    <div class="command-row">
+                      <code>bash scripts/trust-ios-localhost-cert.sh && npm run run:ios</code>
+                      <uui-button look="outline" @click=${() => this._copyCommand('bash scripts/trust-ios-localhost-cert.sh && npm run run:ios')}>
+                        ${this._copiedCommand === 'bash scripts/trust-ios-localhost-cert.sh && npm run run:ios' ? 'Copied' : 'Copy'}
+                      </uui-button>
+                    </div>
+                  `
+                : html``}
+            </div>
+          ` : html``}
         </uui-box>
       </div>
     `;
@@ -727,6 +766,30 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     this._mobileErrorMessage = this._mobileErrorMessage || 'Please check your connection and try again.';
   };
 
+  private async _copyCommand(command: string) {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(command);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = command;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+
+      this._copiedCommand = command;
+      window.setTimeout(() => {
+        if (this._copiedCommand === command) {
+          this._copiedCommand = '';
+        }
+      }, 1500);
+    } catch (error) {
+      console.error('Failed to copy command', error);
+    }
+  }
+
   private async _handleProduceMobile() {
     if (this._id === null || this._isProducingMobileBundle) return;
 
@@ -781,6 +844,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         anchor.click();
         anchor.remove();
         URL.revokeObjectURL(url);
+        this._mobileBundleGenerated = true;
       } catch (error) {
         console.error('Failed to produce mobile bundle', error);
       } finally {
@@ -916,6 +980,23 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .checkbox-field {
       gap: var(--uui-size-space-2);
+    }
+    .generated-helper {
+      margin-top: var(--uui-size-space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+    }
+    .command-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
     }
   `;
 }

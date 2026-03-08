@@ -36,8 +36,13 @@ public class MobileBundleServiceTests
         archive.GetEntry("capacitor.config.ts").Should().NotBeNull();
         archive.GetEntry("package.json").Should().NotBeNull();
         archive.GetEntry("README.md").Should().NotBeNull();
+        archive.GetEntry("AGENT_PROMPT.md").Should().NotBeNull();
         archive.GetEntry("www/index.html").Should().NotBeNull();
         archive.GetEntry("www/mobile-overrides.css").Should().NotBeNull();
+        archive.GetEntry("scripts/doctor-mobile.sh").Should().NotBeNull();
+        archive.GetEntry("scripts/bootstrap-ios.sh").Should().NotBeNull();
+        archive.GetEntry("scripts/bootstrap-android.sh").Should().NotBeNull();
+        archive.GetEntry("scripts/trust-ios-localhost-cert.sh").Should().NotBeNull();
 
         var config = ReadEntry(archive, "capacitor.config.ts");
         config.Should().Contain("appId: 'com.example.northwind'");
@@ -45,11 +50,20 @@ public class MobileBundleServiceTests
         config.Should().Contain("appendUserAgent: 'PrismMobile'");
         config.Should().Contain("allowNavigation: ['northwind.example']");
 
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().Contain("\"doctor\": \"bash scripts/doctor-mobile.sh\"");
+        packageJson.Should().Contain("\"bootstrap:ios\": \"bash scripts/bootstrap-ios.sh\"");
+        packageJson.Should().Contain("\"bootstrap:android\": \"bash scripts/bootstrap-android.sh\"");
+
         var index = ReadEntry(archive, "www/index.html");
         index.Should().Contain("We’re having trouble connecting");
         index.Should().Contain("showDiagnostics: true");
         index.Should().Contain("parsed.searchParams.set('prismMobile', '1');");
         index.Should().Contain("window.location.replace(mobileStartUrl);");
+
+        var readme = ReadEntry(archive, "README.md");
+        readme.Should().Contain("npm run doctor");
+        readme.Should().Contain("npm run bootstrap:ios");
     }
 
     private static string ReadEntry(ZipArchive archive, string path)
