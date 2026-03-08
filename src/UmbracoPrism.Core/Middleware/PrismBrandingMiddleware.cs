@@ -60,15 +60,17 @@ public class PrismBrandingMiddleware(RequestDelegate next)
 
         buffer.Seek(0, SeekOrigin.Begin);
 
+        if (!IsHtmlResponseCandidate(context))
+        {
+            await WriteBufferToResponseAsync(context, buffer);
+            return;
+        }
+
         var bodyText = await new StreamReader(buffer, Encoding.UTF8).ReadToEndAsync();
         if (!ShouldInject(context, bodyText))
         {
-            var originalBytes = Encoding.UTF8.GetBytes(bodyText);
-            if (!context.Response.HasStarted)
-            {
-                context.Response.ContentLength = originalBytes.Length;
-            }
-            await context.Response.Body.WriteAsync(originalBytes);
+            buffer.Seek(0, SeekOrigin.Begin);
+            await WriteBufferToResponseAsync(context, buffer);
             return;
         }
 
@@ -81,6 +83,40 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             context.Response.ContentLength = bytes.Length;
         }
         await context.Response.Body.WriteAsync(bytes);
+    }
+
+    private static async Task WriteBufferToResponseAsync(HttpContext context, MemoryStream buffer)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.ContentLength = buffer.Length;
+        }
+
+        await buffer.CopyToAsync(context.Response.Body);
+    }
+
+    private static bool IsHtmlResponseCandidate(HttpContext context)
+    {
+        var contentType = context.Response.ContentType;
+        if (!string.IsNullOrWhiteSpace(contentType)
+            && contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var path = context.Request.Path.Value;
+        if (!string.IsNullOrWhiteSpace(path) && Path.HasExtension(path))
+        {
+            return path.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".htm", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (context.Request.Headers.TryGetValue("Accept", out var acceptHeader))
+        {
+            return acceptHeader.Any(v => v is not null && v.Contains("text/html", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return false;
     }
 
     private static void PersistMobileQueryFlagAsCookie(HttpContext context)
