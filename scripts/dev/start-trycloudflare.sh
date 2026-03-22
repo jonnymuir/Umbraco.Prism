@@ -8,7 +8,7 @@ CONFIG_FILE="$REPO_ROOT/.prism_tunnel.conf"
 DEFAULT_LOCAL_PORT="44345"
 DEFAULT_TENANT_ID="1"
 DEFAULT_DB_PATH="src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db"
-CALLBACK_PATH="/umbraco/oauth_complete"
+CALLBACK_PATH="/signin-oidc"
 TUNNEL_TIMEOUT_SECONDS="90"
 
 LOCAL_PORT=""

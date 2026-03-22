@@ -133,3 +133,8 @@
   - 0 matches -> explicit "no tenant found" error
   - >1 matches -> explicit duplicate-name error with matching ids to force disambiguation
 - Ready summary now prints both `Tenant id updated` and `Tenant name resolved` so operator can confirm target row before continuing.
+
+## Learnings & Handoff (2026-03-22, Redirect callback alignment)
+
+- Prism auth callback path is `/signin-oidc` (as configured in Prism OIDC setup), so tunnel automation and docs must use that same callback path to avoid Entra redirect mismatches.
+- Updated local tunnel script default callback path and README tunnel redirect URI examples to `/signin-oidc` for consistency between runtime auth behavior and developer setup guidance.

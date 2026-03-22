@@ -388,7 +388,7 @@ Use `scripts/dev/start-trycloudflare.sh` to automate local development setup whe
 Purpose:
 
 - Start a Cloudflare quick tunnel for `https://localhost:<port>`
-- Update your Entra app redirect URI to `<tunnel-url>/umbraco/oauth_complete`
+- Update your Entra app redirect URI to `<tunnel-url>/signin-oidc` (Prism auth callback path)
 - Update the selected Prism tenant hostname in SQLite (`prismTenants.hostname`)
 
 Security notes:
@@ -659,7 +659,7 @@ bash scripts/dev/start-trycloudflare.sh
 5. In Entra App Registration, add redirect URI:
 
 ```text
-https://<random>.trycloudflare.com/umbraco/oauth_complete
+https://<random>.trycloudflare.com/signin-oidc
 ```
 
 6. Use the same tunnel URL as your mobile Start URL.
@@ -712,5 +712,5 @@ cloudflared tunnel run prism-dev
 6. In Entra, use:
 
 ```text
-https://prism-dev.<your-domain>/umbraco/oauth_complete
+https://prism-dev.<your-domain>/signin-oidc
 ```
