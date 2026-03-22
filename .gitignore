@@ -495,3 +495,7 @@ umbraco-package-schema.json
 .squad/sessions/
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
+
+# Local tunnel automation config
+.prism_tunnel.conf
+!.prism_tunnel.conf.example

@@ -1,0 +1,7 @@
+# Example local config for scripts/dev/start-trycloudflare.sh
+# Copy to .prism_tunnel.conf and customize for your machine.
+
+LOCAL_PORT=44345
+ENTRA_APP_CLIENT_ID=00000000-0000-0000-0000-000000000000
+TENANT_ID=1
+DB_PATH=src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db

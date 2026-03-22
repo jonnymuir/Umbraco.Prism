@@ -429,6 +429,7 @@ Tenant selector behavior:
 Config storage:
 
 - Saved in `.prism_tunnel.conf` at repo root
+- Starter template is committed at `.prism_tunnel.conf.example`
 - Script enforces permissions `600` (owner read/write only)
 - Backward compatible: if legacy `ENTRA_APP_OBJECT_ID` exists and `ENTRA_APP_CLIENT_ID` is missing, the script reads the legacy value once and then saves only `ENTRA_APP_CLIENT_ID` going forward.
 
