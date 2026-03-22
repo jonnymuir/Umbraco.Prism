@@ -1,0 +1,35 @@
+{
+  "universe": "animal-crossing",
+  "team_size": 4,
+  "allocation": [
+    {
+      "name": "tom-nook",
+      "persistent_name": "Tom Nook",
+      "role": "Lead",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "isabelle",
+      "persistent_name": "Isabelle",
+      "role": "Frontend Dev",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "blathers",
+      "persistent_name": "Blathers",
+      "role": "Backend Dev",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "tangy",
+      "persistent_name": "Tangy",
+      "role": "Tester",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    }
+  ]
+}
+    "Lost": 18,
+    "Marvel Cinematic Universe": 25,
+    "DC Universe": 18
+  }
+}

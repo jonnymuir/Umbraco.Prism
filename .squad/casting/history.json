@@ -1,0 +1,32 @@
+{
+  "snapshot_id": "2026-03-22-animal-crossing",
+  "timestamp": "2026-03-22T00:00:00.000Z",
+  "project": "Umbraco.Prism",
+  "universe": "animal-crossing",
+  "agents": [
+    {
+      "name": "tom-nook",
+      "persistent_name": "Tom Nook",
+      "role": "Lead",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "isabelle",
+      "persistent_name": "Isabelle",
+      "role": "Frontend Dev",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "blathers",
+      "persistent_name": "Blathers",
+      "role": "Backend Dev",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "tangy",
+      "persistent_name": "Tangy",
+      "role": "Tester",
+      "assigned_at": "2026-03-22T00:00:00.000Z"
+    }
+  ]
+}
