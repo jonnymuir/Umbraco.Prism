@@ -25,6 +25,35 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: Ralph Triage Complete (Tom Nook)
+
+**Session Log:** `.squad/log/2026-03-22-ralph-triage.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-architecture-review.md`
+- `.squad/decisions/inbox/tom-nook-ralph-triage.md`
+
+**Outcome:**
+- Ralph triage completed for issues #2 through #7.
+- Each issue now has one primary `squad:*` owner label.
+- Domain labels were preserved (`architecture`, `security`, `performance`, `testing`).
+- Triage inbox label `squad` was kept unchanged.
+
+**Primary Owners:**
+- #2 -> `squad:blathers`
+- #3 -> `squad:blathers`
+- #4 -> `squad:tom nook`
+- #5 -> `squad:blathers`
+- #6 -> `squad:isabelle`
+- #7 -> `squad:tangy`
+
+**Scope Notes:**
+- #4 is expected to split into architecture decision and implementation rollout if needed.
+- #6 may split if optimization work proves backend-dominant.
+- #7 is expected to split into child issues after reliability test planning.
+
+---
+
 ## 📌 2026-03-22: Squad initialized (Animal Crossing cast)
 
 **Team roster hired:**
