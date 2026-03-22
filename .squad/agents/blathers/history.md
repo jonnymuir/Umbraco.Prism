@@ -47,6 +47,22 @@
 3. **Authorization:** `PrismAdminHandler/Requirement` (default: `["admin"]`), `PrismTenantHandler/Requirement` (authenticated + in tenant context)
 4. **Mobile Detection:** Query flag (`?prismMobile=1`), user-agent (`PrismMobile`), or cookie
 
-## Learnings
+## Learnings & Handoff (2026-03-22)
+
+**From Tom Nook Architecture Review:**
+- Token resilience & auth standardization marked P0
+- Blocking async in OIDC config (IssuerSigningKeyResolver, OnAuthorizationCodeReceived use `.GetAwaiter().GetResult()`) creates bottleneck; needs non-blocking event hook or pre-warmed metadata cache
+- Token refresh has no Polly retry logic; transient CIAM outages cause all refresh attempts to fail → users logged out
+- Authorization inconsistency: PrismTenantHandler checks Entra tenant ID; PrismAdminHandler checks local Umbraco groups; should standardize on Entra groups
+- OIDC metadata cache (static, app-lifetime) never invalidates; CIAM key rotations require restart; need fallback on 401 + shorter TTL (12 hours)
+- Tenant cache pre-warming needed (background task 5 min before expiry)
+- Mobile bundle security: no rate limit, no StartUrl validation (same-domain check needed), no Capacitor.ts syntax validation
+
+**Decisions inbox (3 P0 items):**
+1. Extract TokenRefreshService with Polly retry/circuit breaker (you own this)
+2. Standardize authorization on Entra groups (you own this)
+3. Document tenant rejection policy
+
+**Next:** Design TokenRefreshService with exponential backoff + circuit breaker; plan Entra group integration (sync or Graph API lookup)
 
 _(none yet)

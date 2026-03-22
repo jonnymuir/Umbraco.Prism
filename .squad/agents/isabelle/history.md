@@ -33,6 +33,16 @@
 - Cookie-based fallback
 - CSS class `prism-mobile` for safe-area styling on notched devices
 
-## Learnings
+## Learnings & Handoff (2026-03-22)
 
-_(none yet)
+**From Tom Nook Architecture Review:**
+- Branding UI integration validation needed
+- Modal receives `data.tenant` + `data.brandingTabs` from Backoffice API
+- Branding injection happens **server-side** (PrismBrandingMiddleware), not client-side
+- Ensure WCAG compliance for color overrides (check contrast ratios)
+- Document CSS class names (`prism-mobile`, `prism-branding`, etc.) in backoffice UI
+- CSS discovery auto-populated from CSS variables found in app CSS files
+- Mobile detection: check for `prism-mobile` CSS class on page (set by middleware)
+- Consider accessibility for safe-area styling on notched devices
+
+**Next:** Validate branding tab UI against latest API; add WCAG color contrast checks to Storybook tests
