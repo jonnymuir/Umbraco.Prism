@@ -123,3 +123,13 @@
 - Entra redirect URI update preserves existing redirect URIs by reading `web.redirectUris[]`, appending only when missing, and sending the merged list.
 - SQL update safety is handled by strict hostname validation (`[A-Za-z0-9.-]`, dot required, no edge dot/hyphen) plus numeric `TENANT_ID` enforcement before issuing update.
 - Script traps `INT`/`TERM`/`EXIT` and always cleans cloudflared process plus temporary log file to reduce local environment drift.
+
+## Learnings & Handoff (2026-03-22, Tunnel input clarity + tenant selector UX)
+
+- Tunnel script now uses `ENTRA_APP_CLIENT_ID` terminology end-to-end (Entra Application (Client) ID) and keeps backward compatibility by loading legacy `ENTRA_APP_OBJECT_ID` when the new key is missing.
+- Config persistence is now one-way migration: script always writes `ENTRA_APP_CLIENT_ID` to `.prism_tunnel.conf` and no longer saves the legacy key.
+- Tenant input moved from numeric-only prompt to selector prompt (`name` or numeric `id`); script resolves selector to canonical `TENANT_ID` before applying DB updates.
+- Name lookup behavior is fail-closed:
+  - 0 matches -> explicit "no tenant found" error
+  - >1 matches -> explicit duplicate-name error with matching ids to force disambiguation
+- Ready summary now prints both `Tenant id updated` and `Tenant name resolved` so operator can confirm target row before continuing.

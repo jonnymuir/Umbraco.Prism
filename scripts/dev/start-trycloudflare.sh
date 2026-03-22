@@ -12,8 +12,10 @@ CALLBACK_PATH="/umbraco/oauth_complete"
 TUNNEL_TIMEOUT_SECONDS="90"
 
 LOCAL_PORT=""
-ENTRA_APP_OBJECT_ID=""
+ENTRA_APP_CLIENT_ID=""
 TENANT_ID=""
+TENANT_SELECTOR=""
+TENANT_NAME=""
 DB_PATH=""
 
 CLOUDFLARED_PID=""
@@ -75,6 +77,8 @@ load_config() {
     return
   fi
 
+  local legacy_entra_app_object_id=""
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="$(trim_whitespace "$line")"
     if [[ -z "$line" || "$line" == \#* ]]; then
@@ -89,11 +93,17 @@ load_config() {
 
     case "$key" in
       LOCAL_PORT) LOCAL_PORT="$value" ;;
-      ENTRA_APP_OBJECT_ID) ENTRA_APP_OBJECT_ID="$value" ;;
+      ENTRA_APP_CLIENT_ID) ENTRA_APP_CLIENT_ID="$value" ;;
+      ENTRA_APP_OBJECT_ID) legacy_entra_app_object_id="$value" ;;
       TENANT_ID) TENANT_ID="$value" ;;
       DB_PATH) DB_PATH="$value" ;;
     esac
   done < "$CONFIG_FILE"
+
+  # Backward compatibility: migrate legacy key in-memory when new key is absent.
+  if [[ -z "$ENTRA_APP_CLIENT_ID" && -n "$legacy_entra_app_object_id" ]]; then
+    ENTRA_APP_CLIENT_ID="$legacy_entra_app_object_id"
+  fi
 }
 
 prompt_with_default() {
@@ -122,7 +132,7 @@ save_config() {
 
   {
     echo "LOCAL_PORT=$LOCAL_PORT"
-    echo "ENTRA_APP_OBJECT_ID=$ENTRA_APP_OBJECT_ID"
+    echo "ENTRA_APP_CLIENT_ID=$ENTRA_APP_CLIENT_ID"
     echo "TENANT_ID=$TENANT_ID"
     echo "DB_PATH=$DB_PATH"
   } > "$temp_file"
@@ -150,18 +160,18 @@ validate_inputs() {
     exit 1
   fi
 
-  if [[ ! "$TENANT_ID" =~ ^[0-9]+$ ]]; then
-    error "TENANT_ID must be numeric."
+  if [[ -z "$TENANT_SELECTOR" ]]; then
+    error "Tenant selector is required (tenant name or numeric id)."
     exit 1
   fi
 
-  if [[ -z "$ENTRA_APP_OBJECT_ID" ]]; then
-    error "ENTRA_APP_OBJECT_ID is required."
+  if [[ -z "$ENTRA_APP_CLIENT_ID" ]]; then
+    error "ENTRA_APP_CLIENT_ID is required."
     exit 1
   fi
 
-  if [[ ! "$ENTRA_APP_OBJECT_ID" =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]]; then
-    error "ENTRA_APP_OBJECT_ID must be a GUID (app object id)."
+  if [[ ! "$ENTRA_APP_CLIENT_ID" =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]]; then
+    error "ENTRA_APP_CLIENT_ID must be a GUID (Application (Client) ID)."
     exit 1
   fi
 
@@ -171,6 +181,46 @@ validate_inputs() {
     error "DB_PATH does not exist: $resolved_db_path"
     exit 1
   fi
+}
+
+sql_escape_literal() {
+  local value="$1"
+  printf '%s' "$value" | sed "s/'/''/g"
+}
+
+resolve_tenant_selector() {
+  local database_file="$1"
+  local selector="$2"
+  local resolved_row=""
+  local escaped_selector=""
+  local match_count=""
+  local matching_ids=""
+
+  if [[ "$selector" =~ ^[0-9]+$ ]]; then
+    resolved_row="$(sqlite3 -separator $'\t' "$database_file" "SELECT id, COALESCE(NULLIF(TRIM(name), ''), '(unnamed)') FROM prismTenants WHERE id = ${selector};")"
+    if [[ -z "$resolved_row" ]]; then
+      error "No tenant found with id ${selector} in prismTenants."
+      exit 1
+    fi
+  else
+    escaped_selector="$(sql_escape_literal "$selector")"
+    match_count="$(sqlite3 "$database_file" "SELECT COUNT(*) FROM prismTenants WHERE name = '${escaped_selector}';")"
+
+    if [[ "$match_count" == "0" ]]; then
+      error "No tenant found with name '${selector}' in prismTenants."
+      exit 1
+    fi
+
+    if [[ "$match_count" != "1" ]]; then
+      matching_ids="$(sqlite3 "$database_file" "SELECT group_concat(id, ', ') FROM (SELECT id FROM prismTenants WHERE name = '${escaped_selector}' ORDER BY id);")"
+      error "Multiple tenants found for name '${selector}'. Use numeric id instead. Matching ids: ${matching_ids}"
+      exit 1
+    fi
+
+    resolved_row="$(sqlite3 -separator $'\t' "$database_file" "SELECT id, COALESCE(NULLIF(TRIM(name), ''), '(unnamed)') FROM prismTenants WHERE name = '${escaped_selector}' LIMIT 1;")"
+  fi
+
+  IFS=$'\t' read -r TENANT_ID TENANT_NAME <<< "$resolved_row"
 }
 
 extract_tunnel_url() {
@@ -211,7 +261,7 @@ update_entra_redirect_uri() {
     if [[ -n "$line" ]]; then
       existing_uris+=("$line")
     fi
-  done < <(az ad app show --id "$ENTRA_APP_OBJECT_ID" --query "web.redirectUris[]" -o tsv)
+  done < <(az ad app show --id "$ENTRA_APP_CLIENT_ID" --query "web.redirectUris[]" -o tsv)
 
   for line in "${existing_uris[@]}"; do
     final_uris+=("$line")
@@ -222,7 +272,7 @@ update_entra_redirect_uri() {
 
   if [[ "$found" == false ]]; then
     final_uris+=("$redirect_uri")
-    az ad app update --id "$ENTRA_APP_OBJECT_ID" --web-redirect-uris "${final_uris[@]}" >/dev/null
+    az ad app update --id "$ENTRA_APP_CLIENT_ID" --web-redirect-uris "${final_uris[@]}" >/dev/null
   fi
 }
 
@@ -246,16 +296,16 @@ update_tenant_hostname() {
   fi
 }
 
-mask_object_id() {
-  local object_id="$1"
-  local length="${#object_id}"
+mask_identifier() {
+  local identifier="$1"
+  local length="${#identifier}"
   if (( length <= 8 )); then
     printf '%s' "(hidden)"
     return
   fi
 
-  local prefix="${object_id:0:4}"
-  local suffix="${object_id:length-4:4}"
+  local prefix="${identifier:0:4}"
+  local suffix="${identifier:length-4:4}"
   printf '%s' "${prefix}...${suffix}"
 }
 
@@ -302,14 +352,14 @@ require_command sed "sed is required and should be present on macOS by default."
 load_config
 
 LOCAL_PORT="$(prompt_with_default "Local HTTPS port" "$LOCAL_PORT" "$DEFAULT_LOCAL_PORT")"
-ENTRA_APP_OBJECT_ID="$(prompt_with_default "Entra app object id" "$ENTRA_APP_OBJECT_ID" "")"
-TENANT_ID="$(prompt_with_default "Prism tenant id" "$TENANT_ID" "$DEFAULT_TENANT_ID")"
+ENTRA_APP_CLIENT_ID="$(prompt_with_default "Entra Application (Client) ID" "$ENTRA_APP_CLIENT_ID" "")"
+TENANT_SELECTOR="$(prompt_with_default "Prism tenant selector (tenant name or numeric id; numeric id is internal DB id)" "$TENANT_ID" "$DEFAULT_TENANT_ID")"
 DB_PATH="$(prompt_with_default "SQLite DB path (relative to repo or absolute)" "$DB_PATH" "$DEFAULT_DB_PATH")"
 
 validate_inputs
-save_config
-
 DB_ABSOLUTE_PATH="$(resolve_db_path)"
+resolve_tenant_selector "$DB_ABSOLUTE_PATH" "$TENANT_SELECTOR"
+save_config
 LOCAL_URL="https://localhost:${LOCAL_PORT}"
 
 TUNNEL_LOG_FILE="$(mktemp "$REPO_ROOT/.trycloudflared.log.XXXXXX")"
@@ -341,9 +391,11 @@ echo "================ Local Dev Tunnel Ready ================"
 echo "Tunnel URL:                $TUNNEL_URL"
 echo "Hostname:                  $HOSTNAME"
 echo "Redirect URI:              $REDIRECT_URI"
+echo "Tenant selector provided:  $TENANT_SELECTOR"
 echo "Tenant id updated:         $TENANT_ID"
+echo "Tenant name resolved:      $TENANT_NAME"
 echo "SQLite DB:                 $DB_ABSOLUTE_PATH"
-echo "Entra app object id:       $(mask_object_id "$ENTRA_APP_OBJECT_ID")"
+echo "Entra app client id:       $(mask_identifier "$ENTRA_APP_CLIENT_ID")"
 echo "Config file:               $CONFIG_FILE"
 echo "cloudflared PID:           $CLOUDFLARED_PID"
 echo "========================================================"

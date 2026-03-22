@@ -4,6 +4,28 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: Tunnel Input Clarity Convention (Blathers)
+
+**Session Log:** `.squad/log/2026-03-22-tunnel-input-clarity.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-tunnel-input-clarity.md`
+
+### Blathers — Entra Client ID + Tenant Selector Clarity
+
+**Decision:** Standardize local tunnel helper input terminology and selector behavior in `scripts/dev/start-trycloudflare.sh`.
+
+**Conventions:**
+- Use `ENTRA_APP_CLIENT_ID` as canonical input/config key and wording (Entra Application (Client) ID).
+- Keep one-way legacy compatibility: if `ENTRA_APP_OBJECT_ID` exists and `ENTRA_APP_CLIENT_ID` is missing, load legacy value for the run and persist only `ENTRA_APP_CLIENT_ID` on save.
+- Accept tenant selector by either tenant name or numeric database id; resolve to canonical `TENANT_ID` before database mutation.
+- Fail closed when tenant name has no match or multiple matches; require numeric id for disambiguation.
+- Include resolved tenant id and tenant name in completion summary output.
+
+**Why:** Reduce operator ambiguity around Entra identifiers and avoid accidental tenant mutation by allowing deterministic name-or-id selection with explicit duplicate handling.
+
+**Documentation Impact:** README local tunnel guidance now explains Application (Client) ID expectations, tenant selector behavior, and legacy key compatibility.
+
 ## 📌 2026-03-22: Cloudflared Local Dev Automation + Security Guardrails (Blathers + Copper)
 
 **Session Log:** `.squad/log/2026-03-22-cloudflared-dev-tooling.md`

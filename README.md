@@ -394,7 +394,7 @@ Purpose:
 Security notes:
 
 - Development use only. Do not run this script for production or shared environments.
-- The script changes Entra redirect URI configuration for the selected app object id. Use a dedicated dev Entra app registration.
+- The script changes Entra redirect URI configuration for the selected Entra Application (Client) ID. Use a dedicated dev Entra app registration.
 - The script writes a new hostname into your local Prism tenant record. Point it at a local/test database only.
 - Treat `.prism_tunnel.conf` as sensitive operational metadata and do not commit it.
 - Use least-privilege Azure access: identity running `az` should only manage the intended app registration.
@@ -415,14 +415,22 @@ bash scripts/dev/start-trycloudflare.sh
 On first run, you will be prompted for:
 
 - `LOCAL_PORT` (default `44345`)
-- `ENTRA_APP_OBJECT_ID`
-- `TENANT_ID` (default `1`)
+- `ENTRA_APP_CLIENT_ID` (Entra Application (Client) ID GUID)
+- `TENANT_SELECTOR` (tenant name or numeric id; numeric id is the internal DB `prismTenants.id`)
 - `DB_PATH` (default `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`)
+
+Tenant selector behavior:
+
+- If you provide a tenant name, the script resolves it to the canonical `TENANT_ID` before updating the database.
+- If no row matches that name, the script fails with a helpful message.
+- If multiple rows share that name, the script fails and prints matching ids so you can retry with a numeric id.
+- Summary output shows both tenant id and tenant name so you can confirm the updated record.
 
 Config storage:
 
 - Saved in `.prism_tunnel.conf` at repo root
 - Script enforces permissions `600` (owner read/write only)
+- Backward compatible: if legacy `ENTRA_APP_OBJECT_ID` exists and `ENTRA_APP_CLIENT_ID` is missing, the script reads the legacy value once and then saves only `ENTRA_APP_CLIENT_ID` going forward.
 
 Stop and cleanup:
 
