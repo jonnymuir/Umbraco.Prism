@@ -29,6 +29,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.2" />
     <PackageReference Include="Microsoft.Identity.Web" Version="4.3.0" />
     <PackageReference Include="MimeKit" Version="4.15.1" />
+    <PackageReference Include="Polly" Version="8.6.6" />
     <PackageReference Include="Umbraco.Cms.Api.Management" Version="17.0.0" />
     <PackageReference Include="Umbraco.Cms.Core" Version="17.0.0" />
     <PackageReference Include="Umbraco.Cms.Web.Common" Version="17.0.0" />

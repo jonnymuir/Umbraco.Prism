@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Models;
@@ -15,9 +14,8 @@ using System.Text.Json;
 
 namespace UmbracoPrism.Core.Auth;
 
-public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : IPostConfigureOptions<OpenIdConnectOptions>
+public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IPrismSigningKeyCache signingKeyCache) : IPostConfigureOptions<OpenIdConnectOptions>
 {
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ConfigurationManager<OpenIdConnectConfiguration>> _cache = new();
 
     public void PostConfigure(string? name, OpenIdConnectOptions options)
     {
@@ -57,17 +55,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor) : 
             validationParameters.ValidateAudience = true;
             validationParameters.ValidateIssuer = true;
 
-            var metadataAddress = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0/.well-known/openid-configuration";
-
-            var manager = _cache.GetOrAdd(tenant.EntraTenantId, _ =>
-                new ConfigurationManager<OpenIdConnectConfiguration>(
-                    metadataAddress,
-                    new OpenIdConnectConfigurationRetriever(),
-                    new HttpDocumentRetriever(options.Backchannel) { RequireHttps = true }
-                ));
-
-            var config = manager.GetConfigurationAsync(CancellationToken.None).GetAwaiter().GetResult();
-            return config.SigningKeys;
+            return signingKeyCache.GetSigningKeys(tenant.EntraTenantId);
         };
 
         // --- Event Wrapping Logic ---

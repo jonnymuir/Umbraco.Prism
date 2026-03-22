@@ -96,3 +96,12 @@
 - First safe slice should be compatibility-first: Entra claim evaluation for admins with optional Umbraco fallback, warning logs on fallback use, and explicit config validation before strict mode.
 - Immediate test gap: there are no dedicated auth policy handler tests in `UmbracoPrism.Core.Tests` for admin claim/group permutations or tenant mismatch behavior.
 - Rollout should ship in phases: compatibility mode first, strict Entra mode second, legacy group fallback removal last.
+
+### Auth Model Decomposition (Issue #4, 2026-03-22)
+- Deep-read of `PrismAdminHandler`, `PrismTenantHandler`, `PrismAdminOptions`, `PrismComposer`, `TenantManagementController`, and `PrismAuthExtensions` confirmed the split trust root.
+- `PrismTenantHandler` is already claim-native — no changes needed. Only `PrismAdminHandler` migrates.
+- `PrismAdminOptions` currently only has `GroupAliases`; new options shape needs `EntraAdminClaimType`, `EntraAdminClaimValues`, `StrictEntraMode`, `EnableUmbracoGroupFallback`.
+- Three child issues created: #8 (compatibility implementation, squad:tom nook), #9 (test suite, squad:blathers), #10 (fallback removal, squad:tom nook).
+- Hard gate pattern: #10 (removal) cannot merge before #8 is deployed + #9 CI-green + one release cycle of zero fallback log fires. Write the gate into the issue body itself — do not rely on process memory.
+- Using `--body-file` for `gh issue create` is far more reliable than inline `$'...'` body strings for multi-line content. Preferred approach going forward.
+- Deprecation signal in `PrismComposer` startup (warn when old config exists but new config absent) gives operators advance notice before the breaking removal in #4.3 — this pattern is worth repeating for any config migration.

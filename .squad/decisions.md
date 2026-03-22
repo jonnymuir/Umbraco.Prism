@@ -4,6 +4,59 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: P0 Implementation Round 1 — Async OIDC Cache, Token Resilience, Auth Model Split
+
+**Session Log:** `.squad/log/2026-03-22-p0-implementation-round1.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-issue2-impl.md`
+- `.squad/decisions/inbox/blathers-issue3-impl.md`
+- `.squad/decisions/inbox/tom-nook-auth-split.md`
+
+### Issue #2 — Async-warmed signing-key cache (Blathers)
+
+**Decision:** Introduce `IPrismSigningKeyCache` (singleton, `ConcurrentDictionary`, 12h TTL) and pre-warm it from `PrismTenantMiddleware.InvokeAsync` immediately after tenant resolution. The synchronous `IssuerSigningKeyResolver` reads from cache only — zero network I/O on the hot path.
+
+**Why:** `IssuerSigningKeyResolver` is a synchronous delegate and cannot be made async without changing the token validation infrastructure. Pre-warming in the first async request gate is the only non-blocking option.
+
+**Deferred:** `PrismAuthExtensions.AddPrismAuthentication` (downstream API JWT validation) retains the sync-blocking pattern; only blocks cold-start first-request. Address in a future slice.
+
+**Build/Tests:** ✅ 14/14
+
+---
+
+### Issue #3 — Token refresh resilience (Blathers)
+
+**Decision:** `IPrismTokenRefreshService` / `PrismTokenRefreshService` singleton wraps all token-endpoint HTTP calls in a Polly 8.6.6 pipeline: **CircuitBreaker (outer) → Retry (inner) → HTTP call**.
+
+**Why (CB outer, Retry inner):** Circuit breaker samples one outcome per fully-exhausted retry sequence. If circuit is open, short-circuits immediately without invoking Retry or HTTP. `ShouldHandle` triggers on 5xx, `HttpRequestException`, `TaskCanceledException` only — 4xx is not retried (invalid token; retry would not help). Token strings are never logged.
+
+**Known limitation:** Circuit breaker is shared app-wide; per-tenant circuit breakers are a recommended follow-up issue.
+
+**Build/Tests:** ✅ 19/19 (5 new)
+
+---
+
+### Issue #4 — Entra-first auth model + split into #8, #9, #10 (Tom Nook)
+
+**Decision:** Entra token claims are the single source of truth for all Prism authorization decisions. `PrismAdminHandler` migrates from Umbraco local group membership to Entra claim evaluation in three sequenced child issues.
+
+**Child issues:**
+
+| GH Issue | Title | Owner | Gate |
+|----------|-------|-------|------|
+| #8 | Auth compatibility mode (Entra claim + Umbraco fallback) | squad:tom nook | None |
+| #9 | Auth policy test suite | squad:blathers | After #8 shape finalized |
+| #10 | Auth fallback removal (breaking change) | squad:tom nook | #8 deployed + #9 CI-green + one release cycle |
+
+**Safety guardrails:**
+- #8 default config is backwards-compatible (`GroupAliases` continues to work).
+- Warning log on every Umbraco fallback activation.
+- `StrictEntraMode: true` without `EntraAdminClaimValues` → `InvalidOperationException` on startup.
+- #10 shipping gate written into the issue body — not reliant on process memory.
+
+---
+
 ## 📌 2026-03-22: Ralph Kickoff Round – P0 Architecture Issues #2, #3, #4 (Blathers + Tom Nook)
 
 **Session Log:** `.squad/log/2026-03-22-ralph-kickoff-p0.md`

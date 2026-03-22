@@ -17,7 +17,7 @@ public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMidd
     /// <param name="tenantService"></param>
     /// <param name="prismContext"></param>
     /// <returns></returns>
-    public async Task InvokeAsync(HttpContext context, ITenantService tenantService, IPrismContext prismContext)
+    public async Task InvokeAsync(HttpContext context, ITenantService tenantService, IPrismContext prismContext, IPrismSigningKeyCache signingKeyCache)
     {
         var host = context.Request.Host.Host;
         
@@ -27,6 +27,9 @@ public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMidd
         if (tenant != null)
         {
             prismContext.CurrentTenant = tenant;
+
+            if (!string.IsNullOrEmpty(tenant.EntraTenantId))
+                await signingKeyCache.WarmAsync(tenant.EntraTenantId, context.RequestAborted);
         }
         else
         {

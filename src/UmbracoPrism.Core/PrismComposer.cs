@@ -24,6 +24,12 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<ITenantService, TenantService>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
         builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();
+        builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
+        builder.Services.AddHttpClient("prism-oidc-metadata");
+        builder.Services.AddHttpClient("PrismTokenRefresh");
+        builder.Services.Configure<PrismTokenRefreshOptions>(
+            builder.Config.GetSection(PrismTokenRefreshOptions.SectionName));
+        builder.Services.AddSingleton<IPrismTokenRefreshService, PrismTokenRefreshService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
 

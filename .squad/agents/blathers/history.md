@@ -65,7 +65,16 @@
 
 **Next:** Design TokenRefreshService with exponential backoff + circuit breaker; plan Entra group integration (sync or Graph API lookup)
 
-## Learnings & Handoff (2026-03-22, P0 #2 and #3 kickoff)
+## Learnings & Handoff (2026-03-22, P0 #2 implementation complete)
+
+**Issue #2: Remove blocking OIDC calls from request path**
+
+- `IssuerSigningKeyResolver` is a *synchronous* delegate in `Microsoft.IdentityModel.Tokens` — you cannot await inside it. The only escape from blocking I/O is to ensure keys are already in memory before it runs.
+- Pre-warming in `PrismTenantMiddleware.InvokeAsync` is the correct hook: it's the first async gate on every request, runs before any auth validation, and already resolves the tenant whose keys are needed.
+- `IPrismSigningKeyCache` / `PrismSigningKeyCache`: singleton, `ConcurrentDictionary`-backed, 12h TTL per `entraTenantId`. Uses `IHttpClientFactory` named client `"prism-oidc-metadata"` to avoid socket exhaustion.
+- `PrismAuthExtensions.AddPrismAuthentication` (downstream APIs) still has the same sync-blocking pattern. Deferred: only cold-start first-request per tenant blocks; subsequent calls are `ConfigurationManager` cache hits. Should be addressed with #3 or a dedicated slice.
+- Removed unused `using Microsoft.IdentityModel.Protocols;` from `PrismOidcConfiguration.cs` but kept `Microsoft.IdentityModel.Protocols.OpenIdConnect` because `OpenIdConnectResponseType` and `OpenIdConnectResponseMode` live there.
+- When updating `PrismTenantMiddleware.InvokeAsync` signature, must also update existing unit tests that call `InvokeAsync` directly with positional args (ASP.NET DI injection doesn't apply in unit tests).
 
 - Blocking OIDC key retrieval is currently in two request-path resolvers:
   - `PrismOidcConfiguration.PostConfigure` -> `TokenValidationParameters.IssuerSigningKeyResolver`
@@ -77,3 +86,31 @@
   1. #2: Introduce async-warmed tenant signing-key cache and remove sync blocking resolvers.
   2. #3: Add retry/backoff/circuit-breaker on refresh path with tests, then consolidate token endpoint logic.
 - Validation priorities for first slices: resolver cache-hit/miss tests, refresh transient-vs-non-transient tests, per-tenant concurrency checks.
+
+## Learnings & Handoff (2026-03-22, Issue #3 — Resilient Token Refresh, COMPLETE)
+
+**What shipped:**
+- Added `IPrismTokenRefreshService` / `PrismTokenRefreshService` (Polly 8.6.6)
+- Pipeline order: CircuitBreaker (outer) → Retry (inner) → HTTP call
+  - Outer placement means the circuit breaker samples ONE failure per exhausted retry sequence (not per individual HTTP attempt)
+- `PrismContext.RefreshTokenAsync` now delegates HTTP transport to `IPrismTokenRefreshService`; orchestration/cookie-update logic stays in the context
+- All resilience settings under `"Prism:TokenRefresh"` in `appsettings.json` — no hardcoded values
+- Token values never logged; only status codes, retry counts, exception type names
+
+**Polly v8 gotchas (avoid repeating):**
+- `RetryStrategyOptions.MaxRetryAttempts` minimum is **1** (Polly throws `ValidationException` for 0) — use `Math.Max(1, n)` in test-option helpers
+- `Enumerable.Repeat(singleInstance, n)` shares one `HttpResponseMessage` across retries; on the second attempt `HttpClient` internals can consume/invalidate the shared object, causing `ObjectDisposedException` instead of the expected 5xx response and silently cutting off retries. Always use a factory delegate (`Func<HttpResponseMessage>`) in stub handlers so each call creates a fresh instance.
+- Pipeline execution order in v8: **first strategy added = outermost = executes first**. `AddCircuitBreaker().AddRetry()` → CB outer, Retry inner (correct). `AddRetry().AddCircuitBreaker()` → CB samples every individual attempt, which causes circuit to trip earlier and makes retry/CB interactions harder to reason about.
+- `BrokenCircuitException` is in namespace `Polly.CircuitBreaker`; catch it before the broader `Exception` catch for clean "circuit open" log messages.
+
+**Tests (19 passing — 5 new):**
+- `RefreshAsync_ReturnsSuccess_OnFirstAttempt`
+- `RefreshAsync_RetriesOnTransientFailure_AndSucceedsAfterRetry`
+- `RefreshAsync_ReturnsFailure_WhenAllRetriesExhausted`
+- `RefreshAsync_CircuitBreaker_OpensAfterThresholdFailures`
+- `RefreshAsync_DoesNotRetry_On4xxClientError`
+
+**Follow-up items (not in scope of this issue):**
+- Per-tenant circuit breakers — current pipeline is shared app-wide; one CIAM endpoint going down blocks all tenants
+- OpenTelemetry/AppInsights integration for retry telemetry once observability stack is available
+- `PrismAuthExtensions.AddPrismAuthentication` downstream resolver still has sync-blocking pattern (deferred from #2); should share resilience service too

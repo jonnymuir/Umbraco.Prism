@@ -19,6 +19,7 @@ public class PrismTenantMiddlewareTests
 
         var prismContext = new Mock<IPrismContext>();
         var logger = new Mock<ILogger<PrismTenantMiddleware>>();
+        var signingKeyCache = new Mock<IPrismSigningKeyCache>();
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Host = new HostString("example.com");
@@ -31,7 +32,7 @@ public class PrismTenantMiddlewareTests
         };
 
         var middleware = new PrismTenantMiddleware(next, logger.Object);
-        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object);
+        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
 
         prismContext.VerifySet(p => p.CurrentTenant = tenant, Times.Once);
         nextCalled.Should().BeTrue();
@@ -45,6 +46,7 @@ public class PrismTenantMiddlewareTests
 
         var prismContext = new Mock<IPrismContext>();
         var logger = new Mock<ILogger<PrismTenantMiddleware>>();
+        var signingKeyCache = new Mock<IPrismSigningKeyCache>();
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Host = new HostString("unknown.com");
@@ -52,7 +54,7 @@ public class PrismTenantMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
 
         var middleware = new PrismTenantMiddleware(next, logger.Object);
-        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object);
+        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
 
         prismContext.VerifySet(p => p.CurrentTenant = It.IsAny<PrismTenant>(), Times.Never);
         logger.Verify(
@@ -65,3 +67,4 @@ public class PrismTenantMiddlewareTests
             Times.Once);
     }
 }
+

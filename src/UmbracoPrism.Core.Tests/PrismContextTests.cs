@@ -16,7 +16,8 @@ public class PrismContextTests
     {
         var accessor = new HttpContextAccessor { HttpContext = null };
         var vault = new Mock<ISecretVaultService>();
-        var context = new PrismContext(accessor, vault.Object);
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        var context = new PrismContext(accessor, vault.Object, tokenRefreshService.Object);
 
         var header = await context.GetAuthorizationHeaderAsync();
 
@@ -46,7 +47,8 @@ public class PrismContextTests
 
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var vault = new Mock<ISecretVaultService>();
-        var prismContext = new PrismContext(accessor, vault.Object);
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object);
 
         var header = await prismContext.GetAuthorizationHeaderAsync();
 

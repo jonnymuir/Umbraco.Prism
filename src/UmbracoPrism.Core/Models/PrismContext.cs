@@ -1,8 +1,6 @@
 using System.Net.Http.Headers;
-using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.Identity.Client;
-using Microsoft.Identity.Web.TokenCacheProviders;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using UmbracoPrism.Core.Services;
 
@@ -11,7 +9,10 @@ namespace UmbracoPrism.Core.Models;
 /// <summary>
 /// Context implementation for managing the current tenant.
 /// </summary>
-public class PrismContext(IHttpContextAccessor httpContextAccessor, ISecretVaultService vault) : IPrismContext
+public class PrismContext(
+    IHttpContextAccessor httpContextAccessor,
+    ISecretVaultService vault,
+    IPrismTokenRefreshService tokenRefreshService) : IPrismContext
 {
     /// <summary>
     /// Gets or sets the current tenant.
@@ -49,55 +50,54 @@ public class PrismContext(IHttpContextAccessor httpContextAccessor, ISecretVault
 
     private async Task<AuthenticationHeaderValue?> RefreshTokenAsync(HttpContext context, AuthenticateResult authResult, string refreshToken)
     {
-        if(CurrentTenant == null)
+        if (CurrentTenant == null)
         {
             Log.Error("Cannot refresh token: CurrentTenant is null.");
             return null;
         }
-        
-        var authority = $"https://{CurrentTenant.EntraTenantId}.ciamlogin.com/{CurrentTenant.EntraTenantId}/oauth2/v2.0/token";
 
-        using var client = new HttpClient();
+        var tokenEndpoint = $"https://{CurrentTenant.EntraTenantId}.ciamlogin.com/{CurrentTenant.EntraTenantId}/oauth2/v2.0/token";
 
-        var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
+        var clientSecret = await vault.GetSecretAsync(CurrentTenant.SecretKeyName ?? string.Empty);
+
+        var formParameters = new Dictionary<string, string>
         {
             { "client_id", CurrentTenant.EntraClientId ?? string.Empty },
-            { "client_secret", await vault.GetSecretAsync(CurrentTenant.SecretKeyName ?? string.Empty) },
+            { "client_secret", clientSecret },
             { "grant_type", "refresh_token" },
             { "refresh_token", refreshToken },
             { "scope", $"openid profile offline_access {CurrentTenant.EntraClientId}/.default" }
-        }));
+        };
 
-        if (!response.IsSuccessStatusCode) return null;
+        var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters);
 
-        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var newAccess = json.RootElement.GetProperty("access_token").GetString();
-        var newRefresh = json.RootElement.GetProperty("refresh_token").GetString();
-        var newExpires = DateTimeOffset.UtcNow.AddSeconds(json.RootElement.GetProperty("expires_in").GetInt32()).ToString("o");
+        if (!result.Success || result.AccessToken == null)
+            return null;
 
-        // 4. Update the Cookie (Re-issue the identity with new tokens)
+        var newExpires = DateTimeOffset.UtcNow
+            .AddSeconds(result.ExpiresIn ?? 3600)
+            .ToString("o");
+
         var props = authResult.Properties;
-
-        if(props == null)
+        if (props == null)
         {
             Log.Error("Cannot refresh token: AuthenticationProperties is null.");
             return null;
         }
 
-        props.UpdateTokenValue("access_token", newAccess);
-        props.UpdateTokenValue("refresh_token", newRefresh);
+        props.UpdateTokenValue("access_token", result.AccessToken);
+        if (result.RefreshToken != null)
+            props.UpdateTokenValue("refresh_token", result.RefreshToken);
         props.UpdateTokenValue("expires_at", newExpires);
 
-        // This updates the encrypted cookie in the browser for the NEXT request
-
-        if(authResult.Principal == null)
+        if (authResult.Principal == null)
         {
             Log.Error("Cannot refresh token: Principal is null.");
             return null;
         }
-        
+
         await context.SignInAsync("PrismMemberCookie", authResult.Principal, props);
 
-        return new AuthenticationHeaderValue("Bearer", newAccess);
+        return new AuthenticationHeaderValue("Bearer", result.AccessToken);
     }
 }

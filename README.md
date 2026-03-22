@@ -373,7 +373,9 @@ Tenant management is powerful (it can change domains, secrets, and branding), so
 }
 ```
 
-Use Umbraco's User Groups to grant access (Settings → Users → Groups). Anyone not in these groups can still access the backoffice, but cannot modify tenants via the Prism management API.
+Use Umbraco's User Groups to grant access (Settings -> Users -> Groups). Anyone not in these groups can still access the backoffice, but cannot modify tenants via the Prism management API.
+
+> Note (2026-03-22): The team is standardizing Prism authorization on Entra claims to align admin and tenant authorization under one model (issue #4). Current release behavior remains Umbraco-group based for `PrismAdmins` until the migration slice ships.
 
 ---
 
