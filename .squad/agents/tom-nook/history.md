@@ -82,3 +82,10 @@
 
 **Issue:** Admin users may be synced from Entra, but policy checks local Umbraco groups. Potential for permission drift.
 **Recommendation:** Standardize on Entra groups for consistency.
+
+### Ralph Issue Triage Learnings (2026-03-22)
+- Issues #2-#7 were all architecture-driven and had overlapping squad owner labels, which diluted ownership clarity.
+- Keeping one primary `squad:*` owner per issue removed ambiguity while preserving domain labels (`architecture`, `security`, `performance`, `testing`).
+- Cross-cutting policy work (Issue #4) belongs with lead ownership first, then can split into implementation follow-ups.
+- Reliability test expansion (Issue #7) should be treated as a test-plan parent that is expected to split into scenario-focused child issues.
+- Label hygiene rule to keep: triage inbox label `squad` can remain, but only one primary `squad:*` label should exist per issue.
