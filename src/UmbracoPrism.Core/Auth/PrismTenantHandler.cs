@@ -3,8 +3,18 @@ using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Auth;
 
+/// <summary>
+/// Enforces tenant isolation by requiring the authenticated user's Entra tenant to match the resolved Prism tenant.
+/// </summary>
+/// <param name="httpContextAccessor">Provides access to the current request context.</param>
 public class PrismTenantHandler(IHttpContextAccessor httpContextAccessor) : AuthorizationHandler<PrismTenantRequirement>
 {
+    /// <summary>
+    /// Evaluates the tenant requirement against the current request tenant context.
+    /// </summary>
+    /// <param name="context">Authorization context containing the authenticated principal.</param>
+    /// <param name="requirement">The Prism tenant isolation requirement.</param>
+    /// <returns>A completed task after tenant match evaluation.</returns>
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, PrismTenantRequirement requirement)
     {
         var httpContext = httpContextAccessor.HttpContext;
@@ -19,7 +29,7 @@ public class PrismTenantHandler(IHttpContextAccessor httpContextAccessor) : Auth
         var userTenantId = prismUser.EntraTenantId;
         var currentTenantId = prismUser.CurrentTenant?.EntraTenantId;
 
-        // 3. STRICT ISOLATION CHECK: 
+        // 3. STRICT ISOLATION CHECK:
         // If the user's token belongs to a different Azure Tenant than the current domain,
         // we block access entirely.
         if (userTenantId != null && userTenantId == currentTenantId)

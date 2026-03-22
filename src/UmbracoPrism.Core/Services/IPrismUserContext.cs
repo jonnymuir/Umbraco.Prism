@@ -29,6 +29,8 @@ public interface IPrismUserContext
     /// </summary>
     string? EntraTenantId { get; }
     
-    // The "Prism" specific data
+    /// <summary>
+    /// Gets the tenant resolved for the current request.
+    /// </summary>
     PrismTenant? CurrentTenant { get; }
 }

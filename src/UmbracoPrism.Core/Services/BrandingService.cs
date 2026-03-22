@@ -6,6 +6,9 @@ using UmbracoPrism.Core.Models.Branding;
 
 namespace UmbracoPrism.Core.Services;
 
+/// <summary>
+/// Discovers Prism branding CSS variables and projects tenant-specific overrides for editor workflows.
+/// </summary>
 public class BrandingService : IBrandingService
 {
     private const string CacheKey = "Prism_BrandingTabs";
@@ -17,12 +20,21 @@ public class BrandingService : IBrandingService
     private readonly IWebHostEnvironment _environment;
     private readonly IAppPolicyCache _runtimeCache;
 
+    /// <summary>
+    /// Initializes the branding service with content-root and runtime cache dependencies.
+    /// </summary>
+    /// <param name="environment">Host environment used to locate CSS assets under the content root.</param>
+    /// <param name="appCaches">Application cache container used to cache parsed branding tabs.</param>
     public BrandingService(IWebHostEnvironment environment, AppCaches appCaches)
     {
         _environment = environment;
         _runtimeCache = appCaches.RuntimeCache;
     }
 
+    /// <summary>
+    /// Gets discovered branding tabs and CSS variable defaults.
+    /// </summary>
+    /// <returns>A read-only list of parsed branding tabs.</returns>
     public IReadOnlyList<PrismBrandingTab> GetBrandingTabs()
     {
         return _runtimeCache.GetCacheItem(CacheKey, () =>
@@ -32,6 +44,11 @@ public class BrandingService : IBrandingService
         }, TimeSpan.FromMinutes(10)) ?? new List<PrismBrandingTab>();
     }
 
+    /// <summary>
+    /// Gets branding tabs with tenant-provided override values applied.
+    /// </summary>
+    /// <param name="overrides">Override values keyed by CSS variable name.</param>
+    /// <returns>A read-only list containing known tabs and an "Other Styles" tab for unknown overrides.</returns>
     public IReadOnlyList<PrismBrandingTab> GetBrandingTabsWithOverrides(IReadOnlyDictionary<string, string> overrides)
     {
         var tabs = GetBrandingTabs().Select(tab => new PrismBrandingTab

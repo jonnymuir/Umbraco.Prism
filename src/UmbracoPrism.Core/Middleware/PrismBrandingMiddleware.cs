@@ -9,8 +9,15 @@ namespace UmbracoPrism.Core.Middleware;
 /// <summary>
 /// Injects tenant branding overrides into HTML responses.
 /// </summary>
+/// <param name="next">The next middleware delegate in the pipeline.</param>
 public class PrismBrandingMiddleware(RequestDelegate next)
 {
+    /// <summary>
+    /// Applies branding and mobile-shell response transformations for eligible HTML responses.
+    /// </summary>
+    /// <param name="context">The current HTTP request and response context.</param>
+    /// <param name="prismContext">Scoped Prism context containing the resolved tenant and branding overrides.</param>
+    /// <returns>A task that completes after optional HTML injection and downstream middleware execution.</returns>
     public async Task InvokeAsync(HttpContext context, IPrismContext prismContext)
     {
         PersistMobileQueryFlagAsCookie(context);

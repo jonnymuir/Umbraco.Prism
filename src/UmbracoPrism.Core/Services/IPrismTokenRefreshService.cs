@@ -10,6 +10,10 @@ public interface IPrismTokenRefreshService
     /// Retries on transient HTTP errors; circuit breaker opens after repeated failures.
     /// Never logs token values — only status codes and retry counts.
     /// </summary>
+    /// <param name="tokenEndpoint">Absolute token endpoint URL for the tenant authority.</param>
+    /// <param name="formParameters">Form-encoded parameters required by the token endpoint.</param>
+    /// <param name="cancellationToken">Cancellation token for the outbound refresh operation.</param>
+    /// <returns>The parsed refresh result including success state and returned token values.</returns>
     Task<TokenRefreshResult> RefreshAsync(
         string tokenEndpoint,
         IReadOnlyDictionary<string, string> formParameters,

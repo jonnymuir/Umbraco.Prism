@@ -2,13 +2,17 @@ using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using System.Security.Claims;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Models;
 
 /// <summary>
-/// Context implementation for managing the current tenant.
+/// Context implementation for managing the current tenant and downstream authorization headers.
 /// </summary>
+/// <param name="httpContextAccessor">Provides access to the current HTTP context and authentication state.</param>
+/// <param name="vault">Resolves tenant client secrets from secure storage.</param>
+/// <param name="tokenRefreshService">Performs resilient token refresh calls when session tokens expire.</param>
 public class PrismContext(
     IHttpContextAccessor httpContextAccessor,
     ISecretVaultService vault,
@@ -19,6 +23,10 @@ public class PrismContext(
     /// </summary>
     public PrismTenant? CurrentTenant { get; set; }
 
+    /// <summary>
+    /// Gets a valid bearer authorization header for downstream tenant-aware API calls.
+    /// </summary>
+    /// <returns>A bearer header when available; otherwise <see langword="null"/>.</returns>
     public async Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync()
     {
         var context = httpContextAccessor.HttpContext;
@@ -30,6 +38,17 @@ public class PrismContext(
 
         // Grab tokens from the encrypted cookie
         var authResult = await context.AuthenticateAsync("PrismMemberCookie");
+        if (!authResult.Succeeded || authResult.Principal == null)
+        {
+            return null;
+        }
+
+        if (!IsPrincipalBoundToCurrentTenant(authResult.Principal))
+        {
+            Log.Warning("Rejecting token usage because principal tenant claim does not match resolved tenant context");
+            return null;
+        }
+
         var tokens = authResult.Properties?.GetTokens();
 
         var accessToken = tokens?.FirstOrDefault(t => t.Name == "access_token")?.Value;
@@ -56,13 +75,36 @@ public class PrismContext(
             return null;
         }
 
+        if (authResult.Principal == null || !IsPrincipalBoundToCurrentTenant(authResult.Principal))
+        {
+            Log.Warning("Rejecting token refresh because principal tenant claim does not match resolved tenant context");
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(CurrentTenant.EntraTenantId) || string.IsNullOrWhiteSpace(CurrentTenant.EntraClientId))
+        {
+            Log.Error("Cannot refresh token: CurrentTenant is missing Entra tenant/client configuration");
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(CurrentTenant.SecretKeyName))
+        {
+            Log.Error("Cannot refresh token: CurrentTenant secret reference is missing");
+            return null;
+        }
+
         var tokenEndpoint = $"https://{CurrentTenant.EntraTenantId}.ciamlogin.com/{CurrentTenant.EntraTenantId}/oauth2/v2.0/token";
 
-        var clientSecret = await vault.GetSecretAsync(CurrentTenant.SecretKeyName ?? string.Empty);
+        var clientSecret = await vault.GetSecretAsync(CurrentTenant.SecretKeyName);
+        if (string.IsNullOrWhiteSpace(clientSecret))
+        {
+            Log.Error("Cannot refresh token: client secret could not be resolved from vault");
+            return null;
+        }
 
         var formParameters = new Dictionary<string, string>
         {
-            { "client_id", CurrentTenant.EntraClientId ?? string.Empty },
+            { "client_id", CurrentTenant.EntraClientId },
             { "client_secret", clientSecret },
             { "grant_type", "refresh_token" },
             { "refresh_token", refreshToken },
@@ -99,5 +141,20 @@ public class PrismContext(
         await context.SignInAsync("PrismMemberCookie", authResult.Principal, props);
 
         return new AuthenticationHeaderValue("Bearer", result.AccessToken);
+    }
+
+    private bool IsPrincipalBoundToCurrentTenant(ClaimsPrincipal principal)
+    {
+        var tenantId = CurrentTenant?.EntraTenantId;
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return false;
+        }
+
+        var principalTenantId = principal.FindFirstValue("tid")
+            ?? principal.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
+
+        return !string.IsNullOrWhiteSpace(principalTenantId)
+            && string.Equals(principalTenantId, tenantId, StringComparison.OrdinalIgnoreCase);
     }
 }

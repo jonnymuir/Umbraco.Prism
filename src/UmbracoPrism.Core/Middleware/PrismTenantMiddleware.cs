@@ -6,17 +6,20 @@ using UmbracoPrism.Core.Services;
 namespace UmbracoPrism.Core.Middleware;
 
 /// <summary>
-/// Middleware to resolve tenant based on incoming request. The brain that checks the domain.
+/// Resolves the current tenant from the incoming host and stores it in the Prism request context.
 /// </summary>
+/// <param name="next">The next middleware delegate in the pipeline.</param>
+/// <param name="logger">Logger used for unknown-host and resolution diagnostics.</param>
 public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMiddleware> logger)
 {
     /// <summary>
-    /// InvokeAsync method to handle tenant resolution.
+    /// Resolves tenant context for the current request and warms tenant signing keys when available.
     /// </summary>
-    /// <param name="context"></param>
-    /// <param name="tenantService"></param>
-    /// <param name="prismContext"></param>
-    /// <returns></returns>
+    /// <param name="context">The current HTTP request context.</param>
+    /// <param name="tenantService">Service used to map request host names to Prism tenants.</param>
+    /// <param name="prismContext">Scoped Prism context where the resolved tenant is stored.</param>
+    /// <param name="signingKeyCache">Signing key cache pre-warmed for the resolved tenant.</param>
+    /// <returns>A task that completes after tenant resolution and downstream middleware execution.</returns>
     public async Task InvokeAsync(HttpContext context, ITenantService tenantService, IPrismContext prismContext, IPrismSigningKeyCache signingKeyCache)
     {
         var host = context.Request.Host.Host;

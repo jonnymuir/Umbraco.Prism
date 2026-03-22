@@ -7,8 +7,8 @@ namespace UmbracoPrism.Core.Services;
 /// <summary>
 /// Provides context about the currently authenticated Prism user.
 /// </summary>
-/// <param name="httpContextAccessor"></param>
-/// <param name="prismContext"></param>
+/// <param name="httpContextAccessor">Provides access to the current request user principal.</param>
+/// <param name="prismContext">Provides the tenant resolved for the current request.</param>
 public class PrismUserContext(
     IHttpContextAccessor httpContextAccessor, 
     IPrismContext prismContext) : IPrismUserContext

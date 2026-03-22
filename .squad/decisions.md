@@ -4,6 +4,54 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: Docs + Security Sprint Round 1 (Celeste + Copper)
+
+**Session Log:** `.squad/log/2026-03-22-docs-security-sprint-round1.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/celeste-xml-doc-baseline.md`
+- `.squad/decisions/inbox/copper-cia-hardening-round1.md`
+
+### Celeste — XML Documentation Baseline
+
+**Decision:** Establish a low-risk XML documentation baseline across high-impact `UmbracoPrism.Core` public/protected API surfaces, prioritizing Auth, Services, Middleware, and boundary models/interfaces.
+
+**Conventions:**
+- Document public/protected classes, interfaces, methods, and properties in scope.
+- Use concise summaries with behavior-accurate wording and no implied guarantees.
+- Add `param`/`returns` details when request, tenant, or security context matters.
+- Favor security-aware wording on tenant/auth/secret boundaries.
+- Avoid noisy docs on private/internal details unless required for comprehension.
+
+**Why:** Improve IntelliSense, onboarding clarity, and integration safety on core runtime surfaces without introducing feature-risk refactors.
+
+**Validation:** `dotnet build UmbracoPrism.sln` and `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj -c Release` both passed.
+
+---
+
+### Copper — CIA Hardening Round 1
+
+**Decision:** Apply fail-closed tenant isolation hardening in token/cookie and downstream JWT validation paths.
+
+**Implemented Rules:**
+- `PrismContext.GetAuthorizationHeaderAsync` only returns bearer tokens when principal `tid` matches `CurrentTenant.EntraTenantId`.
+- `PrismContext.RefreshTokenAsync` enforces the same tenant match before any refresh call.
+- Refresh fails closed when required tenant OIDC config (`EntraTenantId`, `EntraClientId`, `SecretKeyName`) or resolved secret is missing.
+- `PrismAuthExtensions` issuer validation requires exact URI host/path binding to token `tid` plus configured tenant allow-list membership.
+- `PrismAuthExtensions` audience validation requires `aud` to match the configured client ID for the same token `tid`.
+- Signing-key resolution is denied for unconfigured tenant IDs.
+
+**Why:** Strengthen confidentiality and integrity boundaries by preventing cross-tenant token reuse and permissive issuer/audience acceptance.
+
+**Regression Coverage Added:**
+- Principal tenant mismatch blocks bearer header and refresh.
+- Issuer host mismatch rejected even when tenant appears in path.
+- Cross-tenant audience rejected; same-tenant audience accepted.
+
+**Follow-up Risk:** Token refresh circuit breaker scope remains app-wide; per-tenant breaker partitioning remains a recommended next slice.
+
+**Validation:** Build and test suite passed for this hardening round.
+
 ## 📌 2026-03-22: Team Expansion + Security Directive Captured (Scribe)
 
 **Session Log:** `.squad/log/2026-03-22-team-expansion-docs-security.md`

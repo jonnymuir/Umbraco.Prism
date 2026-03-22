@@ -7,17 +7,30 @@ using UmbracoPrism.Core.Persistence;
 
 namespace UmbracoPrism.Core.Services;
 
+/// <summary>
+/// Resolves Prism tenants by host name and caches tenant metadata for request-time lookups.
+/// </summary>
 public class TenantService : ITenantService
 {
     private readonly IUmbracoDatabaseFactory _databaseFactory;
     private readonly IAppPolicyCache _runtimeCache;
 
+    /// <summary>
+    /// Initializes a new tenant service with Umbraco database and runtime cache dependencies.
+    /// </summary>
+    /// <param name="databaseFactory">Factory used to open Umbraco database connections.</param>
+    /// <param name="appCaches">Application cache container used for runtime tenant caching.</param>
     public TenantService(IUmbracoDatabaseFactory databaseFactory, AppCaches appCaches)
     {
         _databaseFactory = databaseFactory;
         _runtimeCache = appCaches.RuntimeCache;
     }
 
+    /// <summary>
+    /// Looks up the tenant mapped to a request host and caches the resolved tenant for subsequent requests.
+    /// </summary>
+    /// <param name="domain">The request host name to resolve.</param>
+    /// <returns>The resolved tenant, or <see langword="null"/> when no tenant matches.</returns>
     public async Task<PrismTenant?> GetByDomainAsync(string domain)
     {
         if (string.IsNullOrEmpty(domain)) return null;

@@ -24,3 +24,6 @@
 - User requested stronger XML-style documentation discipline across code.
 - Documentation must support multi-tenant and security-critical reasoning, not generic summaries.
 - Security-sensitive flows should document tenant boundaries, trust assumptions, and failure behavior explicitly.
+- Practical baseline works best when focused on public/protected API surface in Auth, Services, Middleware, and boundary Models before private internals.
+- Parameter and return tags should be explicit for request/tenant/security context values to improve IntelliSense safety during integration work.
+- Docs-only passes should stay behavior-neutral and be validated with full build plus Core tests to keep risk minimal.

@@ -5,12 +5,22 @@ using System.Collections.Concurrent;
 
 namespace UmbracoPrism.Core.Services;
 
+/// <summary>
+/// In-memory cache of Entra signing keys keyed by tenant identifier.
+/// </summary>
+/// <param name="httpClientFactory">Factory used to create HTTP clients for OIDC metadata retrieval.</param>
 public sealed class PrismSigningKeyCache(IHttpClientFactory httpClientFactory) : IPrismSigningKeyCache
 {
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(12);
 
     private readonly ConcurrentDictionary<string, (IReadOnlyCollection<SecurityKey> Keys, DateTimeOffset FetchedAt)> _store = new();
 
+    /// <summary>
+    /// Fetches and caches signing keys for the provided tenant when the cache is missing or expired.
+    /// </summary>
+    /// <param name="entraTenantId">The Entra tenant identifier.</param>
+    /// <param name="cancellationToken">Cancellation token for metadata retrieval.</param>
+    /// <returns>A task that completes when keys are cached.</returns>
     public async Task WarmAsync(string entraTenantId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(entraTenantId)) return;
@@ -29,6 +39,11 @@ public sealed class PrismSigningKeyCache(IHttpClientFactory httpClientFactory) :
         _store[entraTenantId] = (config.SigningKeys.ToList().AsReadOnly(), DateTimeOffset.UtcNow);
     }
 
+    /// <summary>
+    /// Returns cached signing keys for a tenant.
+    /// </summary>
+    /// <param name="entraTenantId">The Entra tenant identifier.</param>
+    /// <returns>Cached signing keys, or an empty sequence if no cache entry exists.</returns>
     public IEnumerable<SecurityKey> GetSigningKeys(string entraTenantId)
     {
         if (_store.TryGetValue(entraTenantId, out var cached))

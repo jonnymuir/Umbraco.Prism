@@ -22,3 +22,14 @@
 - Entra-first authorization model migration is underway (#4 with child issues #8, #9, #10).
 - OIDC and token refresh paths recently hardened (#2, #3) and require ongoing isolation-focused verification.
 - Security reviews should include cache keying, token claim scoping, fallback behavior, and failure-mode isolation.
+
+## 2026-03-22 — CIA Hardening Round 1
+
+- Added strict tenant-binding in `PrismContext`: bearer token usage and refresh now require principal `tid` to match resolved `CurrentTenant.EntraTenantId`; mismatch returns null and blocks refresh.
+- Added fail-closed guards in token refresh flow for missing tenant OIDC config (`EntraTenantId`, `EntraClientId`, `SecretKeyName`) and empty resolved vault secret.
+- Hardened downstream JWT validation in `PrismAuthExtensions`:
+	- Issuer must be a valid absolute URI with exact host/path bound to token `tid` (`{tid}.ciamlogin.com/{tid}/v2.0...`).
+	- Audience must match the configured `ClientId` for the same token tenant (`tid`), preventing cross-tenant audience acceptance.
+	- Signing keys are resolved only for configured tenant IDs.
+- Added regression coverage for tenant mismatch and issuer/audience tenant-bound checks in core tests.
+- Remaining availability risk: token refresh circuit breaker is still application-wide; outage/failure bursts from one tenant can contribute to shared breaker pressure for all tenants.

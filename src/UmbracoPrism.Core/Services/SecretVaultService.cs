@@ -7,6 +7,9 @@ using Umbraco.Extensions;
 
 namespace UmbracoPrism.Core.Services;
 
+/// <summary>
+/// Retrieves tenant client secrets from Azure Key Vault with runtime caching.
+/// </summary>
 public class SecretVaultService : ISecretVaultService
 {
     private readonly SecretClient? _secretClient;
@@ -14,6 +17,12 @@ public class SecretVaultService : ISecretVaultService
 
     private readonly ILogger<SecretVaultService> _logger;
 
+    /// <summary>
+    /// Initializes the Key Vault-backed secret service.
+    /// </summary>
+    /// <param name="configuration">Application configuration containing the Prism vault URI.</param>
+    /// <param name="appCaches">Application cache container used for secret value caching.</param>
+    /// <param name="logger">Logger for vault lookup diagnostics without secret contents.</param>
     public SecretVaultService(IConfiguration configuration, AppCaches appCaches, ILogger<SecretVaultService> logger)
     {
         // You'll add "Prism:VaultUri" to your appsettings.json
@@ -29,6 +38,11 @@ public class SecretVaultService : ISecretVaultService
         }
     }
 
+    /// <summary>
+    /// Retrieves a tenant secret value from the configured vault and caches it.
+    /// </summary>
+    /// <param name="secretName">The secret name reference to resolve.</param>
+    /// <returns>The secret value, or an empty string when the secret cannot be resolved.</returns>
     public async Task<string> GetSecretAsync(string secretName)
     {
         if (_secretClient == null || string.IsNullOrEmpty(secretName))

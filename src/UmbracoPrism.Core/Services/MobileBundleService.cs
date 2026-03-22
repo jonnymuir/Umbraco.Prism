@@ -5,8 +5,19 @@ using UmbracoPrism.Core.Persistence;
 
 namespace UmbracoPrism.Core.Services;
 
+/// <summary>
+/// Produces Prism mobile starter bundles with tenant-specific runtime and identity configuration.
+/// </summary>
 public class MobileBundleService : IMobileBundleService
 {
+  /// <summary>
+  /// Builds a ZIP archive containing a Capacitor app scaffold for a tenant.
+  /// </summary>
+  /// <param name="tenant">Tenant record used to derive default host and Entra settings.</param>
+  /// <param name="request">Bundle generation options provided from the backoffice workflow.</param>
+  /// <param name="cancellationToken">Cancellation token for bundle generation.</param>
+  /// <returns>ZIP archive bytes for download.</returns>
+  /// <exception cref="ArgumentException">Thrown when request input contains invalid app identifiers or URLs.</exception>
     public Task<byte[]> BuildBundleAsync(PrismTenantSchema tenant, PrismMobileBundleRequest request, CancellationToken cancellationToken = default)
     {
         var appName = string.IsNullOrWhiteSpace(request.AppName) ? tenant.Name : request.AppName.Trim();

@@ -4,8 +4,16 @@ using System.Globalization;
 
 namespace UmbracoPrism.Core.Services;
 
+/// <summary>
+/// Retrieves the current access token from the authenticated session and refreshes near-expiry tokens.
+/// </summary>
+/// <param name="httpContextAccessor">Provides access to the active HTTP request and authentication state.</param>
 public class PrismTokenService(IHttpContextAccessor httpContextAccessor)
 {
+    /// <summary>
+    /// Gets a currently valid access token for the active user session.
+    /// </summary>
+    /// <returns>The access token when available; otherwise <see langword="null"/>.</returns>
     public async Task<string?> GetValidTokenAsync()
     {
         var context = httpContextAccessor.HttpContext;

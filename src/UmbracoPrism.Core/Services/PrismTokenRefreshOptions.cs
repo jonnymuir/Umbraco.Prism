@@ -6,6 +6,9 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public class PrismTokenRefreshOptions
 {
+    /// <summary>
+    /// Configuration section path used to bind token refresh options.
+    /// </summary>
     public const string SectionName = "Prism:TokenRefresh";
 
     /// <summary>Number of retry attempts after the initial failure (default: 3).</summary>

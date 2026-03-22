@@ -14,9 +14,19 @@ using System.Text.Json;
 
 namespace UmbracoPrism.Core.Auth;
 
+/// <summary>
+/// Post-configures Prism OpenID Connect options with per-request tenant authority, audience, and signing keys.
+/// </summary>
+/// <param name="httpContextAccessor">Provides request context used to resolve the current Prism tenant.</param>
+/// <param name="signingKeyCache">Provides cached tenant signing keys for token validation.</param>
 public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IPrismSigningKeyCache signingKeyCache) : IPostConfigureOptions<OpenIdConnectOptions>
 {
 
+    /// <summary>
+    /// Applies Prism dynamic OIDC settings for the named authentication scheme.
+    /// </summary>
+    /// <param name="name">The authentication scheme name being configured.</param>
+    /// <param name="options">The OIDC options instance to mutate.</param>
     public void PostConfigure(string? name, OpenIdConnectOptions options)
     {
         if (name != "PrismEntraID") return;
