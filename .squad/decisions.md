@@ -4,6 +4,27 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: trycloudflare Redirect URI Rotation Safety (Blathers)
+
+**Session Log:** `.squad/log/2026-03-22-trycloudflare-uri-rotation-and-az-login.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-trycloudflare-uri-rotation.md`
+
+### Blathers — trycloudflare Redirect URI Rotation Safety
+
+**Decision:** Adopt safe rotation behavior for trycloudflare Prism callback URIs in `scripts/dev/start-trycloudflare.sh`.
+
+**Conventions:**
+- Preserve all non-trycloudflare redirect URIs unchanged.
+- Before adding current tunnel callback URI, remove stale `*.trycloudflare.com/signin-oidc` entries.
+- Ensure the current tunnel callback URI exists exactly once in final redirect URI set.
+- Print a concise summary count of stale trycloudflare callback entries removed.
+
+**Why:** Prevent redirect URI sprawl in Entra app registrations used for local development while limiting mutation scope to ephemeral trycloudflare callback entries only.
+
+**Documentation Impact:** README local tunnel guidance documents automatic trycloudflare callback rotation and local auth guidance recommends `az login --allow-no-subscriptions` for tenant-selection scenarios.
+
 ## 📌 2026-03-22: Tunnel Input Clarity Convention (Blathers)
 
 **Session Log:** `.squad/log/2026-03-22-tunnel-input-clarity.md`

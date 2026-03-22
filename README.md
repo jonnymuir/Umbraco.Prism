@@ -389,6 +389,7 @@ Purpose:
 
 - Start a Cloudflare quick tunnel for `https://localhost:<port>`
 - Update your Entra app redirect URI to `<tunnel-url>/signin-oidc` (Prism auth callback path)
+- Remove stale `*.trycloudflare.com/signin-oidc` redirect URIs before adding the current tunnel callback URI
 - Update the selected Prism tenant hostname in SQLite (`prismTenants.hostname`)
 
 Security notes:
@@ -402,7 +403,7 @@ Security notes:
 Prerequisites:
 
 - `cloudflared`
-- `az` (Azure CLI) with an authenticated session (`az login`)
+- `az` (Azure CLI) with an authenticated session (`az login --allow-no-subscriptions` recommended when your dev Entra tenant has no active Azure subscription)
 - `sqlite3`
 - `grep` and `sed` (available by default on macOS)
 
@@ -425,6 +426,13 @@ Tenant selector behavior:
 - If no row matches that name, the script fails with a helpful message.
 - If multiple rows share that name, the script fails and prints matching ids so you can retry with a numeric id.
 - Summary output shows both tenant id and tenant name so you can confirm the updated record.
+
+Redirect URI rotation behavior:
+
+- Non-trycloudflare redirect URIs are preserved as-is.
+- Stale `*.trycloudflare.com/signin-oidc` entries are pruned.
+- The current tunnel callback URI is ensured exactly once.
+- Script output includes a concise prune summary with the number of stale trycloudflare callback entries removed.
 
 Config storage:
 
@@ -535,7 +543,7 @@ To opt out for a specific story, set `parameters: { a11y: { disable: true } }`.
 
 #### Phase 2: Local Auth
 
-Run `az login` in your terminal to allow the `SecretVaultService` to access Azure during local development.
+Run `az login --allow-no-subscriptions` in your terminal to allow the `SecretVaultService` to access Azure during local development, especially when you need to select the correct Entra tenant but do not have an active Azure subscription in that directory.
 
 #### Phase 3: Tenant Onboarding
 
@@ -664,7 +672,7 @@ https://<random>.trycloudflare.com/signin-oidc
 
 6. Use the same tunnel URL as your mobile Start URL.
 
-> Note: This URL changes each run, so you must update Entra redirect URI each time.
+> Note: This URL changes each run. If you use `scripts/dev/start-trycloudflare.sh`, the script rotates trycloudflare `/signin-oidc` redirect URIs automatically and keeps only the current callback entry plus non-trycloudflare entries.
 
 ### Option B — Stable hostname (custom domain)
 

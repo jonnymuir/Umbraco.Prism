@@ -250,12 +250,20 @@ validate_hostname() {
   return 0
 }
 
+is_trycloudflare_callback_uri() {
+  local uri="$1"
+  [[ "$uri" =~ ^https://[A-Za-z0-9.-]+\.trycloudflare\.com${CALLBACK_PATH}/?$ ]]
+}
+
 update_entra_redirect_uri() {
   local redirect_uri="$1"
   local -a existing_uris=()
   local -a final_uris=()
   local line
-  local found=false
+  local update_required=false
+  local current_seen=false
+  local stale_removed_count=0
+  local current_duplicate_removed_count=0
 
   while IFS= read -r line; do
     if [[ -n "$line" ]]; then
@@ -264,16 +272,34 @@ update_entra_redirect_uri() {
   done < <(az ad app show --id "$ENTRA_APP_CLIENT_ID" --query "web.redirectUris[]" -o tsv)
 
   for line in "${existing_uris[@]}"; do
-    final_uris+=("$line")
-    if [[ "$line" == "$redirect_uri" ]]; then
-      found=true
+    if is_trycloudflare_callback_uri "$line" && [[ "$line" != "$redirect_uri" ]]; then
+      stale_removed_count=$((stale_removed_count + 1))
+      update_required=true
+      continue
     fi
+
+    if [[ "$line" == "$redirect_uri" ]]; then
+      if [[ "$current_seen" == true ]]; then
+        current_duplicate_removed_count=$((current_duplicate_removed_count + 1))
+        update_required=true
+        continue
+      fi
+      current_seen=true
+    fi
+
+    final_uris+=("$line")
   done
 
-  if [[ "$found" == false ]]; then
+  if [[ "$current_seen" == false ]]; then
     final_uris+=("$redirect_uri")
+    update_required=true
+  fi
+
+  if [[ "$update_required" == true ]]; then
     az ad app update --id "$ENTRA_APP_CLIENT_ID" --web-redirect-uris "${final_uris[@]}" >/dev/null
   fi
+
+  echo "Entra redirect URI prune: removed ${stale_removed_count} stale trycloudflare callbacks (${CALLBACK_PATH})."
 }
 
 update_tenant_hostname() {

@@ -138,3 +138,10 @@
 
 - Prism auth callback path is `/signin-oidc` (as configured in Prism OIDC setup), so tunnel automation and docs must use that same callback path to avoid Entra redirect mismatches.
 - Updated local tunnel script default callback path and README tunnel redirect URI examples to `/signin-oidc` for consistency between runtime auth behavior and developer setup guidance.
+
+## Learnings & Handoff (2026-03-22, trycloudflare callback rotation safety)
+
+- Local tunnel script now prunes only stale `*.trycloudflare.com/signin-oidc` redirect URIs before adding current callback URI.
+- Non-trycloudflare redirect URIs are preserved unchanged to avoid destructive Entra app mutation.
+- Script guarantees current tunnel callback URI exists exactly once and prints a concise stale-prune count.
+- README now recommends `az login --allow-no-subscriptions` for dev scenarios where selecting the right Entra tenant is required without an active Azure subscription.
