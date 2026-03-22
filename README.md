@@ -444,8 +444,8 @@ Config storage:
 Stop and cleanup:
 
 - Press `Ctrl+C`
-- Temporary tunnel logs are written under `artifacts/logs/trycloudflared` when writable
-- If that path is not writable, script falls back to `${TMPDIR:-/tmp}/prism-trycloudflared-logs`
+- Script first attempts `mktemp` under `artifacts/logs/trycloudflared`
+- If that `mktemp` attempt fails for any reason, script falls back to `${TMPDIR:-/tmp}/prism-trycloudflared-logs`
 - The script stops `cloudflared` and removes its temporary log file automatically
 
 ### Storybook Tests (UmbracoPrism.Client)

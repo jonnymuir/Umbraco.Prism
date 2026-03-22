@@ -169,6 +169,29 @@ resolve_tunnel_log_dir() {
   exit 1
 }
 
+create_tunnel_log_file() {
+  local preferred_dir="$TUNNEL_LOG_DIR"
+  local fallback_dir="${TMPDIR:-/tmp}/prism-trycloudflared-logs"
+
+  if mkdir -p "$preferred_dir" >/dev/null 2>&1; then
+    if TUNNEL_LOG_FILE="$(mktemp "$preferred_dir/.trycloudflared.log.XXXXXX" 2>/dev/null)"; then
+      ACTIVE_TUNNEL_LOG_DIR="$preferred_dir"
+      return
+    fi
+  fi
+
+  if mkdir -p "$fallback_dir" >/dev/null 2>&1; then
+    if TUNNEL_LOG_FILE="$(mktemp "$fallback_dir/.trycloudflared.log.XXXXXX" 2>/dev/null)"; then
+      ACTIVE_TUNNEL_LOG_DIR="$fallback_dir"
+      return
+    fi
+  fi
+
+  error "Unable to create temporary tunnel log file. Tried '$preferred_dir' and '$fallback_dir'."
+  error "Check directory permissions and retry."
+  exit 1
+}
+
 validate_inputs() {
   if [[ ! "$LOCAL_PORT" =~ ^[0-9]+$ ]]; then
     error "LOCAL_PORT must be numeric."
@@ -409,7 +432,7 @@ save_config
 LOCAL_URL="https://localhost:${LOCAL_PORT}"
 
 ACTIVE_TUNNEL_LOG_DIR="$(resolve_tunnel_log_dir)"
-TUNNEL_LOG_FILE="$(mktemp "$ACTIVE_TUNNEL_LOG_DIR/.trycloudflared.log.XXXXXX")"
+create_tunnel_log_file
 
 echo "Starting Cloudflare quick tunnel to $LOCAL_URL"
 echo "Waiting for a trycloudflare URL (timeout: ${TUNNEL_TIMEOUT_SECONDS}s)..."

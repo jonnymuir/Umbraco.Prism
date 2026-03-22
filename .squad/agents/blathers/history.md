@@ -150,3 +150,8 @@
 
 - `scripts/dev/start-trycloudflare.sh` now creates tunnel temp logs under `artifacts/logs/trycloudflared/` instead of repo root to keep workspace root clean.
 - Keep cleanup behavior unchanged: temp log file is still removed on script exit via the existing `cleanup` trap.
+
+## Learnings & Handoff (2026-03-22, mktemp fallback hardening)
+
+- Tunnel log creation now attempts `mktemp` in `artifacts/logs/trycloudflared` first and falls back to `${TMPDIR:-/tmp}/prism-trycloudflared-logs` if that creation fails for any reason.
+- Script only exits with an error when both `mktemp` attempts fail, and summary output still reports the active tunnel log directory.
