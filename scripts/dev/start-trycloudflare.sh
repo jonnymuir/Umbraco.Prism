@@ -151,44 +151,52 @@ resolve_db_path() {
   fi
 }
 
-resolve_tunnel_log_dir() {
-  local preferred_dir="$TUNNEL_LOG_DIR"
-  if mkdir -p "$preferred_dir" >/dev/null 2>&1 && [[ -w "$preferred_dir" ]]; then
-    printf '%s' "$preferred_dir"
-    return
-  fi
-
-  local fallback_dir="${TMPDIR:-/tmp}/prism-trycloudflared-logs"
-  if mkdir -p "$fallback_dir" >/dev/null 2>&1 && [[ -w "$fallback_dir" ]]; then
-    printf '%s' "$fallback_dir"
-    return
-  fi
-
-  error "Unable to create a writable tunnel log directory. Tried '$preferred_dir' and '$fallback_dir'."
-  error "Check directory permissions and retry."
-  exit 1
-}
-
 create_tunnel_log_file() {
-  local preferred_dir="$TUNNEL_LOG_DIR"
-  local fallback_dir="${TMPDIR:-/tmp}/prism-trycloudflared-logs"
+  local -a candidate_dirs
+  local dir=""
+  local timestamp=""
+  local random_suffix=""
+  local probe_file=""
+  local candidate_file=""
 
-  if mkdir -p "$preferred_dir" >/dev/null 2>&1; then
-    if TUNNEL_LOG_FILE="$(mktemp "$preferred_dir/.trycloudflared.log.XXXXXX" 2>/dev/null)"; then
-      ACTIVE_TUNNEL_LOG_DIR="$preferred_dir"
-      return
-    fi
+  candidate_dirs=(
+    "$TUNNEL_LOG_DIR"
+    "${TMPDIR:-/tmp}/prism-trycloudflared-logs"
+    "/tmp/prism-trycloudflared-logs"
+  )
+
+  if [[ -n "${HOME:-}" ]]; then
+    candidate_dirs+=("$HOME/.cache/prism-trycloudflared-logs")
   fi
 
-  if mkdir -p "$fallback_dir" >/dev/null 2>&1; then
-    if TUNNEL_LOG_FILE="$(mktemp "$fallback_dir/.trycloudflared.log.XXXXXX" 2>/dev/null)"; then
-      ACTIVE_TUNNEL_LOG_DIR="$fallback_dir"
+  timestamp="$(date +%Y%m%d%H%M%S)"
+
+  for dir in "${candidate_dirs[@]}"; do
+    if ! mkdir -p "$dir" >/dev/null 2>&1; then
+      continue
+    fi
+
+    probe_file="$dir/.write-test.$$.$RANDOM"
+    if ! : > "$probe_file" 2>/dev/null; then
+      continue
+    fi
+    rm -f "$probe_file" >/dev/null 2>&1 || true
+
+    random_suffix="$(printf '%04x%04x' "$RANDOM" "$RANDOM")"
+    candidate_file="$dir/.trycloudflared.log.${timestamp}.$$.$random_suffix"
+    if : > "$candidate_file" 2>/dev/null && [[ -f "$candidate_file" ]]; then
+      TUNNEL_LOG_FILE="$candidate_file"
+      ACTIVE_TUNNEL_LOG_DIR="$dir"
       return
     fi
-  fi
+  done
 
-  error "Unable to create temporary tunnel log file. Tried '$preferred_dir' and '$fallback_dir'."
-  error "Check directory permissions and retry."
+  error "Unable to create temporary tunnel log file in any candidate directory."
+  error "Directories attempted:"
+  for dir in "${candidate_dirs[@]}"; do
+    error " - $dir"
+  done
+  error "Check permissions, disk space, and TMPDIR/HOME environment settings, then retry."
   exit 1
 }
 
@@ -431,7 +439,6 @@ resolve_tenant_selector "$DB_ABSOLUTE_PATH" "$TENANT_SELECTOR"
 save_config
 LOCAL_URL="https://localhost:${LOCAL_PORT}"
 
-ACTIVE_TUNNEL_LOG_DIR="$(resolve_tunnel_log_dir)"
 create_tunnel_log_file
 
 echo "Starting Cloudflare quick tunnel to $LOCAL_URL"

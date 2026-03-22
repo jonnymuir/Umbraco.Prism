@@ -155,3 +155,9 @@
 
 - Tunnel log creation now attempts `mktemp` in `artifacts/logs/trycloudflared` first and falls back to `${TMPDIR:-/tmp}/prism-trycloudflared-logs` if that creation fails for any reason.
 - Script only exits with an error when both `mktemp` attempts fail, and summary output still reports the active tunnel log directory.
+
+## Learnings & Handoff (2026-03-22, tunnel log creation without mktemp)
+
+- Tunnel temp log creation in `scripts/dev/start-trycloudflare.sh` no longer depends on `mktemp`; it now creates files directly with shell redirection after real write probes.
+- Candidate log directories are attempted in a fixed order: repo artifacts, TMPDIR fallback folder, `/tmp` fallback folder, then `$HOME/.cache` (if `HOME` is set).
+- Failure output now lists all attempted directories and gives actionable guidance (permissions, disk space, TMPDIR/HOME checks).

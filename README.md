@@ -444,8 +444,8 @@ Config storage:
 Stop and cleanup:
 
 - Press `Ctrl+C`
-- Script first attempts `mktemp` under `artifacts/logs/trycloudflared`
-- If that `mktemp` attempt fails for any reason, script falls back to `${TMPDIR:-/tmp}/prism-trycloudflared-logs`
+- Script creates tunnel temp logs by trying writable directories in order:
+  `artifacts/logs/trycloudflared`, `${TMPDIR:-/tmp}/prism-trycloudflared-logs`, `/tmp/prism-trycloudflared-logs`, then `$HOME/.cache/prism-trycloudflared-logs` (when `HOME` is set)
 - The script stops `cloudflared` and removes its temporary log file automatically
 
 ### Storybook Tests (UmbracoPrism.Client)
