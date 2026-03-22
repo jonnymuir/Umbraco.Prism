@@ -21,6 +21,7 @@ DB_PATH=""
 
 CLOUDFLARED_PID=""
 TUNNEL_LOG_FILE=""
+ACTIVE_TUNNEL_LOG_DIR=""
 
 error() {
   echo "Error: $1" >&2
@@ -148,6 +149,24 @@ resolve_db_path() {
   else
     printf '%s' "$REPO_ROOT/$DB_PATH"
   fi
+}
+
+resolve_tunnel_log_dir() {
+  local preferred_dir="$TUNNEL_LOG_DIR"
+  if mkdir -p "$preferred_dir" >/dev/null 2>&1 && [[ -w "$preferred_dir" ]]; then
+    printf '%s' "$preferred_dir"
+    return
+  fi
+
+  local fallback_dir="${TMPDIR:-/tmp}/prism-trycloudflared-logs"
+  if mkdir -p "$fallback_dir" >/dev/null 2>&1 && [[ -w "$fallback_dir" ]]; then
+    printf '%s' "$fallback_dir"
+    return
+  fi
+
+  error "Unable to create a writable tunnel log directory. Tried '$preferred_dir' and '$fallback_dir'."
+  error "Check directory permissions and retry."
+  exit 1
 }
 
 validate_inputs() {
@@ -389,8 +408,8 @@ resolve_tenant_selector "$DB_ABSOLUTE_PATH" "$TENANT_SELECTOR"
 save_config
 LOCAL_URL="https://localhost:${LOCAL_PORT}"
 
-mkdir -p "$TUNNEL_LOG_DIR"
-TUNNEL_LOG_FILE="$(mktemp "$TUNNEL_LOG_DIR/.trycloudflared.log.XXXXXX")"
+ACTIVE_TUNNEL_LOG_DIR="$(resolve_tunnel_log_dir)"
+TUNNEL_LOG_FILE="$(mktemp "$ACTIVE_TUNNEL_LOG_DIR/.trycloudflared.log.XXXXXX")"
 
 echo "Starting Cloudflare quick tunnel to $LOCAL_URL"
 echo "Waiting for a trycloudflare URL (timeout: ${TUNNEL_TIMEOUT_SECONDS}s)..."
@@ -425,6 +444,7 @@ echo "Tenant name resolved:      $TENANT_NAME"
 echo "SQLite DB:                 $DB_ABSOLUTE_PATH"
 echo "Entra app client id:       $(mask_identifier "$ENTRA_APP_CLIENT_ID")"
 echo "Config file:               $CONFIG_FILE"
+echo "Tunnel log directory:      $ACTIVE_TUNNEL_LOG_DIR"
 echo "cloudflared PID:           $CLOUDFLARED_PID"
 echo "========================================================"
 echo
