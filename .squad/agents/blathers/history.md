@@ -65,4 +65,15 @@
 
 **Next:** Design TokenRefreshService with exponential backoff + circuit breaker; plan Entra group integration (sync or Graph API lookup)
 
-_(none yet)
+## Learnings & Handoff (2026-03-22, P0 #2 and #3 kickoff)
+
+- Blocking OIDC key retrieval is currently in two request-path resolvers:
+  - `PrismOidcConfiguration.PostConfigure` -> `TokenValidationParameters.IssuerSigningKeyResolver`
+  - `PrismAuthExtensions.AddPrismAuthentication` -> `TokenValidationParameters.IssuerSigningKeyResolver`
+- Both resolver paths call `GetConfigurationAsync(...).GetAwaiter().GetResult()`, which creates sync blocking under load.
+- Token refresh logic currently lives in `PrismContext.RefreshTokenAsync` and performs single-attempt network calls without retry or breaker behavior.
+- OIDC authorization-code exchange (`PrismOidcConfiguration` -> `OnAuthorizationCodeReceived`) also calls the token endpoint and should share resilience behavior to avoid drift.
+- First safe PR sequence:
+  1. #2: Introduce async-warmed tenant signing-key cache and remove sync blocking resolvers.
+  2. #3: Add retry/backoff/circuit-breaker on refresh path with tests, then consolidate token endpoint logic.
+- Validation priorities for first slices: resolver cache-hit/miss tests, refresh transient-vs-non-transient tests, per-tenant concurrency checks.

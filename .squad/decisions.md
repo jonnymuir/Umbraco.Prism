@@ -4,6 +4,51 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: Ralph Kickoff Round – P0 Architecture Issues #2, #3, #4 (Blathers + Tom Nook)
+
+**Session Log:** `.squad/log/2026-03-22-ralph-kickoff-p0.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-p0-kickoff.md`
+- `.squad/decisions/inbox/tom-nook-auth-model-kickoff.md`
+
+### Issue #2 & #3 – P0 Auth Hardening (Blathers)
+
+**Decision:** Execute in two sequential first PRs.
+
+1. **Issue #2 first PR:** Remove sync-blocking OIDC metadata calls from request-path key resolvers; introduce tenant-scoped async-warmed signing key cache.
+2. **Issue #3 first PR:** Add retry with exponential backoff plus per-tenant circuit breaker to token refresh path; cover resilience behavior with focused unit tests before broader refactor.
+
+**Why:** #2 reduces immediate request-path contention risk and removes known sync bottlenecks. #3 touches correctness-sensitive token lifecycle behavior and must ship with tests to avoid auth regressions. Sequencing avoids mixing two high-risk auth changes into one PR.
+
+**Guardrails:** Preserve tenant isolation semantics and issuer/audience correctness. Keep first PR scopes narrow; no policy model changes in these kickoff PRs.
+
+### Issue #4 – Standardize Authorization Model (Tom Nook)
+
+**Decision:** Adopt Entra token claims as the single source of truth for Prism authorization decisions.
+
+**Why:** Current authorization is split — tenant isolation uses Entra `tid` claim (`PrismTenantHandler`); admin authorization uses Umbraco backoffice local group aliases (`PrismAdminHandler`). This split can drift when Entra and Umbraco group memberships are out of sync, creating unpredictable effective permissions.
+
+**Target Model:**
+- Keep Umbraco backoffice access policy for entry to management UI/API surface.
+- Standardize Prism-specific authorization (`PrismAdmins`, tenant-aware checks) on Entra claims.
+- One claim-driven model for both admin and tenant decisions with explicit configuration.
+
+**First Implementation Slice:**
+1. Introduce authorization options for Entra admin claim evaluation (claim type + allowed values + compatibility toggle).
+2. Update `PrismAdminHandler` to evaluate Entra claims first with optional temporary fallback to Umbraco groups.
+3. Keep `PrismTenantHandler` Entra-claim based; add tests for mismatch/missing scenarios.
+4. Add policy tests for `PrismAdmins` and tenant isolation paths.
+
+**Safety & Migration:** Start in compatibility mode (Entra-first, optional Umbraco fallback); emit warning logs when fallback fires; fail fast on startup if strict Entra mode is enabled without configured claim values.
+
+**Follow-up Split (recommended):**
+1. Core implementation + compatibility mode + tests.
+2. Migration hardening: diagnostics/telemetry and strict-mode rollout guidance.
+3. Optional cleanup: remove legacy Umbraco-group fallback after adoption window.
+
+---
+
 ## 📌 2026-03-22: Architecture Review Complete (Tom Nook)
 
 **Session Log:** `.squad/log/2026-03-22-architecture-review.md`

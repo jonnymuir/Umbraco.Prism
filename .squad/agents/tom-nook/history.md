@@ -89,3 +89,10 @@
 - Cross-cutting policy work (Issue #4) belongs with lead ownership first, then can split into implementation follow-ups.
 - Reliability test expansion (Issue #7) should be treated as a test-plan parent that is expected to split into scenario-focused child issues.
 - Label hygiene rule to keep: triage inbox label `squad` can remain, but only one primary `squad:*` label should exist per issue.
+
+### Auth Model Kickoff Learnings (2026-03-22)
+- Enforcement is currently mixed: `PrismTenantHandler` uses Entra tenant claim (`tid`), while `PrismAdminHandler` uses Umbraco local backoffice group aliases.
+- `PrismAdmins` is only applied on `TenantManagementController`, layered on top of Umbraco backoffice access policy; this creates a split trust model for Prism-specific authorization.
+- First safe slice should be compatibility-first: Entra claim evaluation for admins with optional Umbraco fallback, warning logs on fallback use, and explicit config validation before strict mode.
+- Immediate test gap: there are no dedicated auth policy handler tests in `UmbracoPrism.Core.Tests` for admin claim/group permutations or tenant mismatch behavior.
+- Rollout should ship in phases: compatibility mode first, strict Entra mode second, legacy group fallback removal last.
