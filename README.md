@@ -444,6 +444,7 @@ Config storage:
 Stop and cleanup:
 
 - Press `Ctrl+C`
+- Temporary tunnel logs are written under `artifacts/logs/trycloudflared/`
 - The script stops `cloudflared` and removes its temporary log file automatically
 
 ### Storybook Tests (UmbracoPrism.Client)

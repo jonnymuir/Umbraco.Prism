@@ -145,3 +145,8 @@
 - Non-trycloudflare redirect URIs are preserved unchanged to avoid destructive Entra app mutation.
 - Script guarantees current tunnel callback URI exists exactly once and prints a concise stale-prune count.
 - README now recommends `az login --allow-no-subscriptions` for dev scenarios where selecting the right Entra tenant is required without an active Azure subscription.
+
+## Learnings & Handoff (2026-03-22, trycloudflared temp log hygiene)
+
+- `scripts/dev/start-trycloudflare.sh` now creates tunnel temp logs under `artifacts/logs/trycloudflared/` instead of repo root to keep workspace root clean.
+- Keep cleanup behavior unchanged: temp log file is still removed on script exit via the existing `cleanup` trap.

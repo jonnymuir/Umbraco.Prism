@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$REPO_ROOT/.prism_tunnel.conf"
+TUNNEL_LOG_DIR="$REPO_ROOT/artifacts/logs/trycloudflared"
 
 DEFAULT_LOCAL_PORT="44345"
 DEFAULT_TENANT_ID="1"
@@ -388,7 +389,8 @@ resolve_tenant_selector "$DB_ABSOLUTE_PATH" "$TENANT_SELECTOR"
 save_config
 LOCAL_URL="https://localhost:${LOCAL_PORT}"
 
-TUNNEL_LOG_FILE="$(mktemp "$REPO_ROOT/.trycloudflared.log.XXXXXX")"
+mkdir -p "$TUNNEL_LOG_DIR"
+TUNNEL_LOG_FILE="$(mktemp "$TUNNEL_LOG_DIR/.trycloudflared.log.XXXXXX")"
 
 echo "Starting Cloudflare quick tunnel to $LOCAL_URL"
 echo "Waiting for a trycloudflare URL (timeout: ${TUNNEL_TIMEOUT_SECONDS}s)..."

@@ -499,3 +499,8 @@ umbraco-package-schema.json
 # Local tunnel automation config
 .prism_tunnel.conf
 !.prism_tunnel.conf.example
+
+# Local tunnel automation temp logs
+.trycloudflared.log.*
+# Explicit for clarity (already covered by artifacts/)
+/artifacts/logs/trycloudflared/
