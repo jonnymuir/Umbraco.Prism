@@ -4,6 +4,29 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: Team Expansion + Security Directive Captured (Scribe)
+
+**Session Log:** `.squad/log/2026-03-22-team-expansion-docs-security.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copilot-directive-20260322-201034.md`
+
+### Team Expansion Decision
+
+**Decision:** Add two specialist members to the active roster:
+- **Celeste** as Documentation Engineer
+- **Copper** as Security Engineer
+
+**Why:** Current delivery needs explicit ownership for documentation quality and security-hardening depth alongside implementation velocity.
+
+### Security Directive (Jonny Muir via Copilot)
+
+**Directive:** Security is critical across confidentiality, integrity, and availability. There must be no cross-tenant authentication leakage and no tenant data leakage. OAuth implementation must preserve tenant-safe behavior and avoid single-tenancy cache assumptions (including MSAL-style patterns).
+
+**Team Implication:** Treat tenant isolation as a hard invariant for auth flows, cache boundaries, and runtime data access.
+
+---
+
 ## 📌 2026-03-22: P0 Implementation Round 1 — Async OIDC Cache, Token Resilience, Auth Model Split
 
 **Session Log:** `.squad/log/2026-03-22-p0-implementation-round1.md`

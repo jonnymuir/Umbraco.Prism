@@ -11,6 +11,8 @@ How to decide who handles what.
 | Web Components & UI | Isabelle | Build/enhance components, Storybook stories, styling, accessibility, UI logic |
 | C# services & APIs | Blathers | Services, middleware, authentication, database, business logic, controllers |
 | Testing strategy & QA | Tangy | Playwright tests, edge cases, test coverage, quality gate, accessibility validation |
+| XML documentation and API docs | Celeste | XML style docs, public API summaries, param/returns/exception docs, readability standards |
+| Security, tenant isolation, CIA | Copper | Confidentiality/integrity/availability analysis, auth hardening, cross-tenant leak prevention |
 | Async issue work (bugs, small features) | @copilot 🤖 | Well-defined tasks matching capability profile (see Lead triage) |
 | Session logging & decisions | Scribe | Automatic — never needs routing |
 
@@ -19,7 +21,7 @@ How to decide who handles what.
 | Label | Action | Who |
 |-------|--------|-----|
 | `squad` | Triage: analyze issue, evaluate @copilot fit, assign `squad:{member}` label | Tom Nook (Lead) |
-| `squad:{name}` | Pick up issue and complete the work | Named member (Isabelle, Blathers, or Tangy) |
+| `squad:{name}` | Pick up issue and complete the work | Named member (Isabelle, Blathers, Tangy, Celeste, or Copper) |
 | `squad:copilot` | Assign to @copilot for autonomous work (if auto-assign enabled) | @copilot 🤖 |
 
 ### How Issue Assignment Works

@@ -27,6 +27,18 @@
       "persistent_name": "Tangy",
       "role": "Tester",
       "assigned_at": "2026-03-22T00:00:00.000Z"
+    },
+    {
+      "name": "celeste",
+      "persistent_name": "Celeste",
+      "role": "Documentation Engineer",
+      "assigned_at": "2026-03-22T20:10:34Z"
+    },
+    {
+      "name": "copper",
+      "persistent_name": "Copper",
+      "role": "Security Engineer",
+      "assigned_at": "2026-03-22T20:10:34Z"
     }
   ]
 }

@@ -105,3 +105,8 @@
 - Hard gate pattern: #10 (removal) cannot merge before #8 is deployed + #9 CI-green + one release cycle of zero fallback log fires. Write the gate into the issue body itself — do not rely on process memory.
 - Using `--body-file` for `gh issue create` is far more reliable than inline `$'...'` body strings for multi-line content. Preferred approach going forward.
 - Deprecation signal in `PrismComposer` startup (warn when old config exists but new config absent) gives operators advance notice before the breaking removal in #4.3 — this pattern is worth repeating for any config migration.
+
+### Team Expansion Routing Note (2026-03-22)
+- Celeste (Documentation Engineer) and Copper (Security Engineer) joined the squad.
+- Route to Celeste for XML documentation coverage, public API clarity, and documentation standards alignment.
+- Route to Copper for tenant-isolation hardening, OAuth/cache-boundary security review, and CIA-focused risk reduction.
