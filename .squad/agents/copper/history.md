@@ -33,3 +33,11 @@
 	- Signing keys are resolved only for configured tenant IDs.
 - Added regression coverage for tenant mismatch and issuer/audience tenant-bound checks in core tests.
 - Remaining availability risk: token refresh circuit breaker is still application-wide; outage/failure bursts from one tenant can contribute to shared breaker pressure for all tenants.
+
+## 2026-03-22 — trycloudflare Dev Automation Security Review
+
+- Reviewed `scripts/dev/start-trycloudflare.sh` from CIA + tenant-isolation perspective.
+- Added stricter guardrails for local inputs: enforce valid TCP port range (1-65535) and GUID format for Entra app object ID.
+- Enforced tunnel hostname trust boundary to `*.trycloudflare.com` before any redirect URI or tenant DB mutation is applied.
+- Added clearer operator warning in script output that the flow is local-development only and mutates Entra + local tenant state.
+- Added README security notes clarifying dev-only scope, least-privilege Azure access, and local/test database targeting to reduce blast radius.

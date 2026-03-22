@@ -381,6 +381,54 @@ Use Umbraco's User Groups to grant access (Settings -> Users -> Groups). Anyone 
 
 ## Setup & Development
 
+### Local Dev Tunnel Automation (trycloudflare + Entra + Prism DB)
+
+Use `scripts/dev/start-trycloudflare.sh` to automate local development setup when your local Umbraco site needs a public HTTPS callback.
+
+Purpose:
+
+- Start a Cloudflare quick tunnel for `https://localhost:<port>`
+- Update your Entra app redirect URI to `<tunnel-url>/umbraco/oauth_complete`
+- Update the selected Prism tenant hostname in SQLite (`prismTenants.hostname`)
+
+Security notes:
+
+- Development use only. Do not run this script for production or shared environments.
+- The script changes Entra redirect URI configuration for the selected app object id. Use a dedicated dev Entra app registration.
+- The script writes a new hostname into your local Prism tenant record. Point it at a local/test database only.
+- Treat `.prism_tunnel.conf` as sensitive operational metadata and do not commit it.
+- Use least-privilege Azure access: identity running `az` should only manage the intended app registration.
+
+Prerequisites:
+
+- `cloudflared`
+- `az` (Azure CLI) with an authenticated session (`az login`)
+- `sqlite3`
+- `grep` and `sed` (available by default on macOS)
+
+Run:
+
+```bash
+bash scripts/dev/start-trycloudflare.sh
+```
+
+On first run, you will be prompted for:
+
+- `LOCAL_PORT` (default `44345`)
+- `ENTRA_APP_OBJECT_ID`
+- `TENANT_ID` (default `1`)
+- `DB_PATH` (default `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`)
+
+Config storage:
+
+- Saved in `.prism_tunnel.conf` at repo root
+- Script enforces permissions `600` (owner read/write only)
+
+Stop and cleanup:
+
+- Press `Ctrl+C`
+- The script stops `cloudflared` and removes its temporary log file automatically
+
 ### Storybook Tests (UmbracoPrism.Client)
 
 Storybook is used for component-driven tests with the Storybook test runner + Playwright.

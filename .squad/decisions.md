@@ -4,6 +4,47 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-03-22: Cloudflared Local Dev Automation + Security Guardrails (Blathers + Copper)
+
+**Session Log:** `.squad/log/2026-03-22-cloudflared-dev-tooling.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-cloudflare-dev-tooling.md`
+- `.squad/decisions/inbox/copper-cloudflare-script-security.md`
+
+### Blathers — Local Tunnel Dev Tooling Convention
+
+**Decision:** Standardize on `scripts/dev/start-trycloudflare.sh` for temporary public callback setup when running Prism tenant auth locally.
+
+**Convention:**
+- Use repo-root `.prism_tunnel.conf` for script inputs and enforce file mode `600`.
+- Derive redirect URI as `<tunnel-url>/umbraco/oauth_complete`.
+- Update local SQLite tenant hostname (`prismTenants.hostname`) for an operator-selected numeric tenant id.
+- Manage cloudflared lifecycle and cleanup via script traps.
+- Enforce dependency checks, numeric tenant id validation, hostname validation, startup timeout handling, and minimal sensitive output.
+
+**Why:** Reduce manual drift between Entra redirect configuration and Prism tenant hostname while keeping local auth setup repeatable and safer by default.
+
+---
+
+### Copper — Security Guardrails for trycloudflare Helper
+
+**Decision:** Add fail-closed input and hostname guardrails to the helper script and document explicit dev-only security boundaries in README.
+
+**Guardrails Adopted:**
+- Validate `LOCAL_PORT` is within `1-65535`.
+- Validate `ENTRA_APP_OBJECT_ID` format as GUID.
+- Accept and persist hostnames only under `*.trycloudflare.com`.
+- Keep config permission hardening and cleanup behavior.
+- Emit explicit warning that script mutates Entra redirect URIs and local tenant hostname for local development only.
+- Document least-privilege Azure permissions and local/test DB targeting guidance.
+
+**Why:** Prevent accidental hostname substitution and malformed mutation inputs, and make blast radius assumptions explicit for local operators.
+
+**Follow-up Candidates:**
+- Optional parameterized SQLite invocation mode for defense-in-depth.
+- Optional explicit confirmation prompt before Entra redirect URI mutation.
+
 ## 📌 2026-03-22: Docs + Security Sprint Round 1 (Celeste + Copper)
 
 **Session Log:** `.squad/log/2026-03-22-docs-security-sprint-round1.md`

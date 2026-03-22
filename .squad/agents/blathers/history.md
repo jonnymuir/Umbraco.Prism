@@ -114,3 +114,12 @@
 - Per-tenant circuit breakers — current pipeline is shared app-wide; one CIAM endpoint going down blocks all tenants
 - OpenTelemetry/AppInsights integration for retry telemetry once observability stack is available
 - `PrismAuthExtensions.AddPrismAuthentication` downstream resolver still has sync-blocking pattern (deferred from #2); should share resilience service too
+
+## Learnings & Handoff (2026-03-22, Local tunnel dev automation)
+
+- Added robust local script at `scripts/dev/start-trycloudflare.sh` that chains three operations in one run: trycloudflare startup, Entra redirect URI update, and `prismTenants.hostname` update in SQLite.
+- Config persistence is now explicit via repo-root `.prism_tunnel.conf` and enforced to mode `600`; loader is key-value parsing (not `source`) to avoid shell execution from config content.
+- Tunnel startup is treated as a bounded wait (90s timeout) with actionable diagnostics from cloudflared logs; fail-fast if process exits before URL discovery.
+- Entra redirect URI update preserves existing redirect URIs by reading `web.redirectUris[]`, appending only when missing, and sending the merged list.
+- SQL update safety is handled by strict hostname validation (`[A-Za-z0-9.-]`, dot required, no edge dot/hyphen) plus numeric `TENANT_ID` enforcement before issuing update.
+- Script traps `INT`/`TERM`/`EXIT` and always cleans cloudflared process plus temporary log file to reduce local environment drift.
