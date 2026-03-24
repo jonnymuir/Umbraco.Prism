@@ -322,3 +322,19 @@ Umbraco.Prism team decisions. Append-only ledger.
 **Casting policy:** One universe per assignment, persistent names, no re-casting. Stored in `.squad/casting/` (policy.json, registry.json, history.json).
 
 ---
+
+## 📌 2026-03-24: Authorization Planes Decision (Jonny Muir)
+
+**Decision:** Treat Prism member tenant isolation and Prism backoffice admin authorization as two different identity planes by design.
+
+**Policy:**
+- Member plane (tenant-facing websites) remains Entra claim-based and tenant-isolated.
+- Backoffice plane (shared Umbraco admin surface) remains controlled by Umbraco backoffice groups via `PrismAdmins`/`GroupAliases` unless a future requirement explicitly mandates unification.
+
+**Why:** This deployment model intentionally supports multiple member tenants on one shared Umbraco backoffice. Unifying both planes under one model is not required for current product behavior and can introduce unnecessary migration risk.
+
+**Issue impact:**
+- GitHub issue #4 was closed as **not planned** with this rationale.
+- Any future unification proposal must start from a new issue with explicit deployment constraints and migration justification.
+
+---
