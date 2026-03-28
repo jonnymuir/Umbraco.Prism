@@ -1029,3 +1029,50 @@ if (!info.isAvailable) {
 **Audit logging promoted to v1:** Minimum exchange logging (attempt + outcome + token ID + IP) is a v1 requirement (~5 lines of code), not deferred to v2.
 
 **Rate limiting hardened:** 3 failed exchange attempts within 10 minutes for a given token → token locked; requires re-registration. IP-based rate limiting as secondary layer. Replaces the unenforceable "5 requests/minute per device ID" policy.
+
+## 📌 2026-07-14: Biometric Auth Issue Decomposition (Tom Nook)
+
+**Session Log:** `.squad/log/2026-07-14T12:38:13Z-biometric-issues.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-biometric-issues-created.md`
+
+### Tom Nook — Biometric Auth Issue Map (#12–#28)
+
+**Decision:** `Design/biometric-auth.md` has been decomposed into 17 GitHub issues across 4 implementation phases. All issues are live in `jonnymuir/Umbraco.Prism` with `biometric-auth` and `squad:*` labels.
+
+**Issue Map:**
+
+| # | Title | Owner(s) | Phase |
+|---|-------|----------|-------|
+| #12 | prismBiometricTokens DB table + EF migration | Blathers | 1 — Backend Foundation |
+| #13 | BiometricToken JWT signing + key management | Blathers | 1 — Backend Foundation |
+| #14 | POST /register endpoint | Blathers | 1 — Backend Foundation |
+| #15 | POST /exchange endpoint | Blathers | 1 — Backend Foundation |
+| #16 | DELETE /unenrol + admin revocation | Blathers | 1 — Backend Foundation |
+| #17 | Exchange audit logging | Blathers | 1 — Backend Foundation |
+| #18 | Rate limiting on /exchange | Blathers | 1 — Backend Foundation |
+| #19 | BiometricAuthEnabled flag + plugin deps in MobileBundleService | Blathers + Kicks | 2 — MobileBundleService |
+| #20 | iOS entitlement injection (NSFaceIDUsageDescription) | Blathers + Kicks | 2 — MobileBundleService |
+| #21 | Android manifest injection (USE_BIOMETRIC) | Blathers + Kicks | 2 — MobileBundleService |
+| #22 | biometric-bridge.ts — registration flow | Isabelle + Kicks | 3 — Capacitor Client |
+| #23 | biometric-bridge.ts — login/exchange flow + cookie injection | Isabelle + Kicks | 3 — Capacitor Client |
+| #24 | biometric-bridge.ts — revocation flow + event | Isabelle + Kicks | 3 — Capacitor Client |
+| #25 | Fallback to full Entra OIDC on failure | Isabelle + Kicks | 3 — Capacitor Client |
+| #26 | Biometric enrollment change detection + credential wipe | Copper + Kicks | 4 — Security & Hardening |
+| #27 | Multi-tenant keystore key pattern + server boundary validation | Copper | 4 — Security & Hardening |
+| #28 | Penetration test checklist before v1 ship | Copper | 4 — Security & Hardening |
+
+**Key Constraints:**
+- Rolling refresh token rotation is v1 mandatory (#15)
+- `/exchange` is unauthenticated by design — rate limiting is non-negotiable (#18)
+- `biometricToken` must never appear in logs (#17)
+- Cross-tenant deletion guard is explicit in #16 and #27
+- `@capacitor/preferences` is explicitly forbidden in #19 and #22 (not hardware-backed)
+- `squad:kicks` label created as part of this session (was absent from repo label set)
+
+**Decomposition Rationale:**
+- Phase 1 before Phase 2: Backend endpoints must exist before MobileBundleService generates bundles referencing them. DB migration (#12) and JWT signing (#13) are the two roots.
+- Phase 2 before Phase 3: `BiometricAuthEnabled` flag (#19) controls whether `biometric-bridge.ts` is generated. iOS/Android platform entries (#20, #21) must be in bootstrap before bridge runs on device.
+- Audit logging (#17) and rate limiting (#18) are Phase 1, not deferred — implemented alongside the exchange endpoint.
+- #28 (pentest checklist) is a spike: closes only when Copper posts a signed-off comment. Blocking Phase 3 merge on #28 is recommended but not encoded in GitHub — note in sprint planning.

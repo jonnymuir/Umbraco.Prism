@@ -150,3 +150,25 @@
 - **Prism-as-secondary-identity-system risk:** Holding Entra refresh tokens server-side is correct (vs. device) but makes the Prism DB a very high-value target. The encryption key for `RefreshTokenEnc` is the blast radius control — must be in Key Vault, per-record IVs non-negotiable, key rotation plan required before go-live.
 - **Industry comparison:** Design aligns with banking app patterns (opaque device token, server-side storage, bounded lifetime). Not FIDO2/passkeys, which would give cryptographic proof of device and user presence. FIDO2 is the stronger path but adds significant implementation complexity. The opaque token model is defensible for v1 if device binding and lifetime are properly specified.
 - **One change before implementation:** Resolve JWT vs UUID inconsistency and commit to the JWT-with-DeviceId model. Add `DeviceId` to `prismBiometricTokens` schema, validate on exchange. This is the single architectural decision that closes the bearer theft vector without user friction.
+
+## 2026-07-10 — FIDO2/Passkeys vs JWT+DeviceId Advisory (Response to Jonny)
+
+- Jonny challenged the design choice directly: "If FIDO2 is more secure, why not use it in v1?"
+- **Verdict: JWT+DeviceId is the right call for v1. FIDO2 is not.**
+
+**Key findings documented:**
+
+1. **Multi-tenant RP ID is the hard blocker.** FIDO2 WebAuthn credentials are cryptographically bound to an RP ID (origin domain). Prism serves tenants on different custom domains. Each tenant domain becomes a separate FIDO2 Relying Party — meaning a credential registered on `tenant-a.example.com` is cryptographically invalid for `tenant-b.example.com`. There is no standard FIDO2 mechanism for cross-domain RP sharing. This is an architectural problem, not a complexity problem. It is not solvable without either (a) forcing all tenants onto a shared subdomain, which contradicts the multi-tenant custom-domain model, or (b) implementing per-tenant FIDO2 credential stores, which multiplies complexity without benefit.
+
+2. **No mature Capacitor passkey plugin.** `@capawesome-team/capacitor-passkeys` exists but is new and unproven in production enterprise apps. The FIDO2 native path (iOS ASWebAuthenticationSession / Android FIDO2 Client API) is callable from Capacitor but requires custom native plugin work. Passkeys in a WebView (WKWebView/Android WebView) require iOS 16+ and Android 9+ with specific WebView versions — the Prism WebView is not the system browser, which adds risk.
+
+3. **Entra CA policies would not apply.** The current design calls the Entra `/token` endpoint on every exchange — Entra Conditional Access policies (MFA, compliant device, location restrictions) re-evaluate on every refresh. If FIDO2 is the local authenticator and replaces the Entra token exchange, CA policies only fire on initial FIDO2 enrollment (which requires a prior Entra login) and on re-registration. Between those events, CA policy changes are invisible to the device. The JWT+DeviceId model preserves live CA enforcement because Entra is called on every exchange server-side. FIDO2 would need to sit alongside Entra (not replace it) to preserve this — but then you have two parallel identity paths with no material benefit from FIDO2.
+
+4. **Implementation cost: 3–6× the JWT model.** JWT+DeviceId: 3 endpoints, 1 table, 1 service, ~2 weeks. FIDO2: `Fido2NetLib` integration (non-trivial, needs careful multi-tenant config), challenge/session state management, attestation verification, assertion verification, new credential store tables, per-tenant RP config, Capacitor native plugin work, and bridging back to an Entra session at the end anyway. Conservative estimate: 8–14 weeks for a correct implementation.
+
+5. **FIDO2 closes a gap the current design mostly compensates for.** FIDO2 provides cryptographic proof that the authenticating key is on the registered hardware. The JWT+DeviceId model provides device binding by UUID — it's a bearer credential, not a hardware-bound key. An attacker who extracts the JWT from a jailbroken device can replay it. The mitigation is rate limiting, short lifetimes, and anomaly detection — already in the design. For an enterprise mobile convenience feature (not a payment authorization path), this is an acceptable tradeoff.
+
+**Recommendation recorded:**
+- v1: JWT+DeviceId model as designed. The multi-tenant RP problem alone rules FIDO2 out cleanly.
+- v2/v3 candidate: Revisit FIDO2 only if (a) Prism adopts a unified shared domain for all tenants, OR (b) Microsoft Entra External ID natively supports passkeys at the Entra level (delegating the RP and credential management to Microsoft, not Prism), OR (c) a specific high-security tenant requests it and is willing to fund the per-tenant implementation. Not a generic v2 roadmap item.
+- The JWT model is genuinely good enough long-term for what biometric login is: a session convenience layer, not an identity root.

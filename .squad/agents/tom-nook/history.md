@@ -150,3 +150,19 @@
 **Audit logging is a v1 requirement, not v2.** Minimum exchange logging (attempt, outcome, token ID, IP) is ~5 lines of code and should not be deferred. Moved to v1 in-scope list.
 
 **Rate limiting policy is now concrete.** Replaced the unenforceable "5 req/min per device ID" with: 3 failed exchange attempts within 10 minutes → token locked, requires re-registration. IP-based limiting as secondary layer.
+
+### Biometric Auth Issue Decomposition (2026-07-14)
+
+**17 issues created (#12–#28) decomposing Design/biometric-auth.md into 4 implementation phases.**
+
+**Phase ownership model proved effective:** One primary `squad:*` label per issue, with a secondary label only where joint ownership is genuinely required (e.g., `squad:blathers` + `squad:kicks` for MobileBundleService, `squad:isabelle` + `squad:kicks` for Capacitor bridge). Avoids the ownership dilution pattern flagged in the Ralph issue triage learnings.
+
+**Dependency order matters:** Created issues #12 (DB) and #13 (JWT signing) before register/exchange endpoints so issue numbers could be referenced in dependent bodies. Use `--body-file` for all multi-line issue bodies — far more reliable than inline shell strings.
+
+**`squad:kicks` label was missing** — created it as part of this task. Any future mobile native work should use this label.
+
+**Security issues flagged as `priority:p1`** — rate limiting (#18), audit logging (#17), tenant isolation (#27), enrollment change detection (#26), and pentest checklist (#28) are all marked p1. None should slip to v2.
+
+**Pentest checklist (#28) is a `type:spike`** — it produces a sign-off comment, not code. Closing it requires Copper's explicit go/no-go comment on the issue thread.
+
+**`biometric-auth` label created** with color `#7B68EE` for grouping all 17 issues.
