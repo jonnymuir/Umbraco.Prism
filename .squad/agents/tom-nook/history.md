@@ -114,3 +114,27 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+
+### Biometric Auth Architecture (2026-07-14)
+
+**What was designed:** End-to-end biometric login feature for Prism Mobile (Capacitor WebView wrapper).
+
+**Key architectural decisions made:**
+
+1. **Never store raw Entra tokens on device.** An opaque Prism-issued `BiometricToken` (UUID) lives in the device Keychain/Keystore. The Entra refresh_token is stored encrypted server-side only.
+
+2. **Exchange endpoint is the auth root.** `POST /umbraco/prism/mobile/biometric/exchange` accepts the BiometricToken, does the Entra token refresh server-side, and returns a `PrismMemberCookie`. No Entra token ever touches the WebView JS layer.
+
+3. **Cookie injection from native layer, not WebView JS.** The `Set-Cookie` header from `/exchange` is read by the Capacitor native layer and injected via `WKHTTPCookieStore` (iOS) / `CookieManager` (Android) before WebView navigation. This avoids CORS restrictions on `Set-Cookie` and keeps tokens away from WebView JS.
+
+4. **Rolling refresh token rotation is v1 hard requirement.** Not deferrable on security grounds.
+
+5. **Biometric enrollment change = automatic credential wipe.** If the fingerprint set or Face ID changes, the stored credential is cleared before it can be misused.
+
+6. **`BiometricAuthEnabled` is opt-in in `MobileBundleService`.** Existing bundles are unaffected. New bundles include a generated `biometric-bridge.ts` and updated `package.json` deps.
+
+7. **`/exchange` is unauthenticated by design** (biometric token IS the credential). Rate limiting on this endpoint is non-optional — flagged as a required implementation constraint.
+
+**Risk flagged:** Token expiry duration (90-day default) may conflict with shorter Entra CA refresh token windows on some tenants. Needs security sign-off before implementation.
+
+**Open question for Copper:** Should the refresh token encryption key be global (single Key Vault secret) or per-tenant? Recommendation is global key + per-record IV for v1.

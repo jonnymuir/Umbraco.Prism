@@ -676,3 +676,339 @@ Button click handlers triggering downloads should call `preventDefault()` and `s
 - **Blathers:** Use this pattern for any backend endpoints returning binary downloads.
 - **Tangy:** Consider Playwright tests verifying downloads complete without navigation errors.
 - **All:** This applies to any SPA with client-side routing — always set `target="_blank"` on programmatic download anchors.
+
+---
+
+## 📌 2026-03-28: Biometric Auth Architecture for Prism Mobile (Tom Nook, Copper, Kicks)
+
+**Session Log:** `.squad/log/2026-03-28T11:55:34Z-biometric-design.md`
+
+**Orchestration Logs:**
+- `.squad/orchestration-log/2026-03-28T11:55:34Z-tom-nook.md` — Architecture overview
+- `.squad/orchestration-log/2026-03-28T11:55:34Z-copper.md` — Security threat model
+- `.squad/orchestration-log/2026-03-28T11:55:34Z-kicks.md` — Native implementation patterns
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-biometric-arch.md`
+- `.squad/decisions/inbox/copper-biometric-security.md`
+- `.squad/decisions/inbox/kicks-biometric-native.md`
+
+**Design Document:** `/Design/biometric-auth.md`
+
+### Tom Nook — Biometric Auth Architecture Decisions
+
+**Decision 1:** Opaque server-issued BiometricToken instead of raw Entra tokens on device.
+
+The device Keychain/Keystore stores an opaque Prism-issued `BiometricToken` (UUID v4). The Entra `refresh_token` is stored encrypted on the server only.
+
+**Rationale:** Keeps Entra credentials off the device entirely. Enables server-side revocation without Entra involvement. Limits blast radius if a device is compromised — the BiometricToken is useless without the server-side record and is rate-limited at the `/exchange` endpoint.
+
+---
+
+**Decision 2:** `/exchange` endpoint sets PrismMemberCookie directly.
+
+`POST /umbraco/prism/mobile/biometric/exchange` accepts the BiometricToken, performs Entra token refresh server-side, and returns a `Set-Cookie: PrismMemberCookie` response. The native Capacitor layer reads the cookie and injects it into the WebView store.
+
+**Rationale:** Reuses the existing `PrismMemberCookie` auth mechanism unchanged. No new WebView session model required. Keeps tokens out of WebView JS (avoids XSS exposure vector). Consistent with how the existing OIDC flow establishes the WebView session.
+
+---
+
+**Decision 3:** Cookie injection is native-layer responsibility, not WebView JS.
+
+After the exchange call, the Capacitor native layer injects the `PrismMemberCookie` into the WebView via platform APIs (`WKHTTPCookieStore` on iOS, `CookieManager` on Android) before triggering navigation.
+
+**Rationale:** `Set-Cookie` headers on cross-origin HTTP responses are not accessible to WebView JS. The native HTTP client receives the full response including headers. Injecting from native is the correct platform pattern and avoids needing a JS-readable token at any point.
+
+---
+
+**Decision 4:** Rolling refresh token rotation is a v1 hard requirement.
+
+On each successful `/exchange`, the server replaces the stored Entra refresh_token with the newly issued one (rolling rotation). This is NOT deferred to v1.1.
+
+**Rationale:** Without rolling rotation, a stolen BiometricToken (before detection) can be used indefinitely as long as the Entra refresh token remains valid. Rolling rotation limits the window to one use per exchange.
+
+---
+
+**Decision 5:** BiometricAuthEnabled is opt-in in MobileBundleService.
+
+`PrismMobileBundleRequest` gains an optional `BiometricAuthEnabled` flag. Existing bundles without this flag are unaffected. New bundles with `BiometricAuthEnabled: true` include biometric bridge code and updated package.json dependencies.
+
+**Rationale:** Prevents breaking changes to existing generated apps. Tenant operators choose to adopt biometric login explicitly.
+
+---
+
+**Decision 6:** Biometric enrollment change triggers automatic credential wipe.
+
+On app launch, the native layer checks if the biometric enrollment set has changed since registration. If changed, delete the Keychain credential and force full OIDC re-auth (then re-offer enrol).
+
+**Rationale:** Prevents a scenario where a new fingerprint added to a device inherits the previous owner's stored credential. Standard security practice on both iOS and Android; both platforms provide this signal.
+
+---
+
+### Copper — Biometric Authentication Security Model
+
+**Decision:** Adopt Prism-issued device credentials instead of storing Entra refresh tokens on-device for biometric authentication flows.
+
+**Rationale:** Storing Entra refresh tokens directly in device keystores creates several unacceptable risks:
+1. **High-Value Target:** Refresh tokens have long lifetimes and broad OAuth scope
+2. **Limited Revocation Control:** Tenant admins cannot selectively revoke device credentials without full Entra user session revocation
+3. **Compliance Gap:** Violates principle of least-privilege for mobile credential storage
+4. **Multi-Tenant Leakage Risk:** No tenant boundary enforcement in refresh token itself
+
+**Proposed Architecture: Device Credential Model**
+
+1. User completes full Entra OIDC authentication in mobile app
+2. App requests device credential from Prism backend (requires valid Entra access token)
+3. Server issues device-bound JWT containing:
+   - Device ID (UUID generated on first registration)
+   - Tenant ID (single tenant binding)
+   - User ID (Entra object ID)
+   - Expiration (7-30 days, configurable per tenant)
+   - Signature (Prism backend signing key)
+4. Device credential stored in iOS Keychain / Android Keystore with biometric access control
+5. On subsequent app opens: biometric prompt → load device credential → exchange for short-lived access token → establish WebView session
+
+**Security Properties:**
+- Server-side device registry enables admin revocation
+- Credential scoped to single tenant (prevents cross-tenant abuse)
+- Bounded lifetime forces periodic full re-auth
+- Device binding (device ID) allows detection of credential theft/replay
+- No Entra token leakage on device compromise
+
+**Required Server-Side Controls:**
+
+1. **Device Registry Table:**
+   - `DeviceId` (UUID, primary key)
+   - `TenantId` (foreign key, indexed)
+   - `UserId` (Entra object ID)
+   - `DeviceName` (user-provided, for admin display)
+   - `RegisteredAt`, `LastUsedAt`
+   - `RevokedAt` (nullable)
+   - `Platform` (iOS/Android)
+
+2. **Device Credential Exchange Endpoint:**
+   - `POST /api/prism/device/exchange`
+   - Input: device credential JWT (from keystore)
+   - Output: short-lived access token (5-15 min lifetime)
+   - Validation:
+     - JWT signature valid
+     - Device not revoked
+     - Tenant matches request context
+     - Expiration not exceeded
+     - Device ID binding consistent
+
+3. **Admin Revocation API:**
+   - `DELETE /api/prism/device/{deviceId}` (tenant admin only)
+   - Sets `RevokedAt` timestamp
+   - Subsequent exchange requests fail immediately
+
+4. **Automatic Expiration:**
+   - Maximum credential age: 30 days (recommended default)
+   - Configurable per tenant security policy
+   - Expired credentials → force full Entra re-auth
+
+**Multi-Tenant Isolation Requirements:**
+
+1. **Keystore Key Naming:**
+   - Pattern: `prism_device_cred_{tenantId}_{userId}`
+   - Ensures no cross-tenant credential confusion
+   - Allows same device to authenticate to multiple tenants safely
+
+2. **Credential Scoping:**
+   - Device credential JWT contains `tenant_id` claim
+   - Exchange endpoint validates request tenant matches credential tenant
+   - Prevents credential reuse across tenants
+
+3. **Device Registry Isolation:**
+   - Device records scoped to tenant
+   - Admin revocation limited to tenant-owned devices
+   - Query filters always include tenant boundary
+
+**Hard Constraints for Architecture:**
+
+1. No Entra Refresh Token Storage in device keystore
+2. Single-Tenant Binding (tenant ID in JWT)
+3. Server-Side Registry (central control)
+4. Bounded Lifetime (max 30 days)
+5. Biometric Failure Handling (fallback to full OIDC)
+6. Keystore Isolation (multi-tenant support)
+
+**Recommended Implementation Priority:**
+
+1. **Phase 1 (MVP):** Device credential issuance endpoint, device registry table and basic CRUD, exchange endpoint with validation, iOS/Android keystore integration with biometric access control
+2. **Phase 2 (Hardening):** Admin device management UI, tenant-configurable credential lifetime, device registration approval flow, anomaly detection on exchange endpoint
+3. **Phase 3 (Advanced):** Credential rotation on suspicious activity, device fingerprinting for binding validation, compliance reporting
+
+---
+
+### Kicks — Biometric Native Plugin & Implementation Decisions
+
+**Decision:** Capacitor plugin stack for biometric auth.
+
+**Selected Plugins:**
+- **Biometric Authentication:** `@aparajita/capacitor-biometric-auth@7.x`
+- **Secure Credential Storage:** `@aparajita/capacitor-secure-storage@7.x`
+
+**Rationale:**
+1. **Active Maintenance:** Both plugins maintained by Aparajita (verified Capacitor 7 compatibility, released 2024-2025)
+2. **Native API Coverage:** Biometric plugin wraps iOS LocalAuthentication (LAContext) and Android BiometricPrompt API (API 28+) with FingerprintManager fallback (API 23-27)
+3. **Secure Storage Mapping:** Direct mapping to iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) and Android Keystore-backed EncryptedSharedPreferences (AES256-GCM)
+4. **TypeScript Quality:** Strong types with enums (`BiometryType`, `BiometryError`) for capability detection and error handling
+5. **Fallback Support:** Built-in PIN/passcode fallback via `allowDeviceCredential: true`
+6. **Consistency:** Same author ensures API surface consistency between biometric and storage plugins
+
+**Rejected Alternatives:**
+- `@capacitor-community/biometric-auth` — less active maintenance, fewer edge case handlers
+- `capacitor-biometric-auth` — unmaintained (last release pre-Capacitor 5)
+- `@capacitor/preferences` — no encryption layer (unsuitable for credential storage)
+- `capacitor-secure-storage-plugin` — stale (Capacitor 5 era)
+
+---
+
+**Decision:** Platform entitlements auto-injection in bootstrap scripts.
+
+**Convention:** Bootstrap scripts (`bootstrap-ios.sh`, `bootstrap-android.sh`) auto-inject required entitlements/permissions after `npx cap add {platform}`.
+
+**iOS: FaceID Usage Description**
+- Inject `NSFaceIDUsageDescription` into `ios/App/App/Info.plist` via perl regex
+- Text: `"{appName} uses Face ID to securely log you in without requiring your password each time."`
+- Reason: FaceID requires explicit usage description or biometric prompt fails silently (iOS privacy requirement); TouchID does not require description
+
+**Android: Biometric Permission**
+- Inject `<uses-permission android:name="android.permission.USE_BIOMETRIC" />` into `android/app/src/main/AndroidManifest.xml` via perl regex
+- Reason: BiometricPrompt API (API 28+) requires this permission to access biometric hardware
+
+**Why Auto-Inject:**
+- Reduces operator error (forgetting to add entitlements manually)
+- Maintains consistency with Prism's "zero-config mobile bundle" philosophy
+- Scripts remain idempotent (check for existing entry before adding)
+
+**Fallback:** Bundle also includes `resources/ios-info-plist-additions.xml` and `resources/android-manifest-additions.xml` for manual reference if auto-injection fails
+
+---
+
+**Decision:** Biometric registration flow — post-OIDC enrollment.
+
+**Trigger:** After Entra OIDC completes successfully in WebView, prompt user to enable biometric login.
+
+**Flow:**
+1. **Detection:** WebView OIDC callback page (`/signin-oidc`) posts message to native layer via Capacitor message bridge when tokens received
+2. **Capability Check:** Call `BiometricAuth.checkBiometry()` to verify `isAvailable: true`
+3. **User Prompt:** Show native-style dialog: "Enable {FaceID|TouchID|Fingerprint} for faster login?"
+4. **Confirmation Auth:** Prompt biometric authentication to confirm user identity (`authenticate()` with reason: "Confirm your identity to enable biometric login")
+5. **Store Credential:** On auth success, store credential in SecureStorage
+6. **Graceful Fallback:** If biometrics unavailable or user declines, fall back to standard web session (no enrollment)
+
+---
+
+**Decision:** Biometric login flow — launch-time authentication.
+
+**Trigger:** On app launch (cold start or return from background).
+
+**Flow:**
+1. **Credential Check:** Check if credential exists in SecureStorage
+2. **Biometric Prompt:** If credential exists, prompt biometric authentication (`authenticate()` with reason: "Log in with biometrics")
+3. **Token Retrieval:** On auth success, retrieve credential from SecureStorage
+4. **Token Exchange:** Call Entra `/token` endpoint with `grant_type=refresh_token` to obtain new access token
+5. **Session Injection:** Inject access token into WebView session before page load
+6. **Load WebView:** Load Capacitor WebView with session established (user bypasses OIDC login flow)
+
+**Fallback Paths:**
+- **User Cancels:** Silent fallback to standard web login (no error message)
+- **Biometric Lockout:** Show error message ("Too many failed attempts. Please use your account credentials.") + fallback to web login
+- **Credential Expired:** Silently clear stored credential + fallback to web login
+
+---
+
+**Decision:** Capability detection & graceful degradation.
+
+**Pre-Flight Check Pattern:**
+```typescript
+const info = await BiometricAuth.checkBiometry();
+if (!info.isAvailable) {
+  // reason: BiometryError.biometryNotAvailable | biometryNotEnrolled | ...
+}
+```
+
+**Fallback Strategy:**
+1. **Simulator/Emulator:** `isAvailable: false` → Hide biometric enrollment option; web login only
+2. **Biometrics Not Enrolled:** Show informational message: "Enable Face ID in Settings to use biometric login." Do not offer enrollment.
+3. **Hardware Not Available:** Hide biometric features entirely
+4. **Biometric Lockout (5 failed attempts):** Immediately fall back to web login with message
+5. **Accessibility Users:** Respect system-wide biometric disable settings; always provide web login fallback
+
+**Principle:** Never block app usage if biometrics fail. Always provide "Skip" or "Use Password" option.
+
+---
+
+**Decision:** MobileBundleService C# changes.
+
+**Changes Required:**
+1. **`BuildPackageJson()`:** Add `@aparajita/capacitor-biometric-auth` and `@aparajita/capacitor-secure-storage` to `dependencies` section
+2. **New Method:** `BuildIosInfoPlistAdditions(string appName)` → returns XML snippet for manual reference
+3. **New Method:** `BuildAndroidManifestAdditions()` → returns XML snippet for manual reference
+4. **Update:** `BuildBootstrapIosScript()` to auto-inject FaceID usage description (perl regex before closing `</plist>` tag)
+5. **Update:** `BuildBootstrapAndroidScript()` to auto-inject biometric permission (perl regex after `<manifest>` opening tag)
+6. **Update:** `BuildReadme()` to add "Biometric Login Setup" section with iOS/Android requirements
+7. **In `BuildBundleAsync()`:** Add two new entries: `resources/ios-info-plist-additions.xml` and `resources/android-manifest-additions.xml`
+
+**No Changes Needed:**
+- `capacitor.config.ts`: Biometric plugins do not require Capacitor config entries (auto-discovered via `npx cap sync`)
+
+---
+
+**Decision:** iOS vs Android platform behavior differences.
+
+| Aspect | iOS | Android |
+|--------|-----|---------|
+| **Biometric Types** | FaceID (iPhone X+), TouchID (iPhone 5s+) | Fingerprint, Face, Iris (device-dependent) |
+| **Usage Description** | Requires `NSFaceIDUsageDescription` (FaceID only) | None |
+| **Permission** | None (capability check only) | `USE_BIOMETRIC` in AndroidManifest.xml |
+| **Fallback UI** | Shows "Use Passcode" button in prompt | Shows "Use PIN" automatically if `allowDeviceCredential: true` |
+| **Prompt UX** | System-modal FaceID animation or TouchID overlay | Bottom sheet with biometric icon |
+| **Error Codes** | `LAError` codes (e.g., `biometryLockout`) | `BiometricPrompt` error codes (mapped by plugin) |
+| **Storage** | iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) | EncryptedSharedPreferences (Keystore-backed AES256-GCM) |
+| **Simulator** | `isAvailable: false` (no biometrics in simulator) | Emulator supports mock enrollment via ADB |
+| **API Level** | iOS 11+ (TouchID), iOS 11+ (FaceID) | API 23+ (Keystore), API 28+ (BiometricPrompt) |
+
+**Behavioral Notes:**
+- **iOS Lockout:** 5 failed biometric attempts locks biometrics; requires passcode unlock. Plugin returns `biometryLockout` error.
+- **Android API 23-27:** Plugin uses FingerprintManager compat layer (different UX than BiometricPrompt but functionally equivalent)
+
+---
+
+**Decision:** Testing strategy.
+
+**iOS Testing:**
+- Physical device required (biometrics unavailable in Simulator)
+- Verify `NSFaceIDUsageDescription` in Info.plist
+- Test FaceID/TouchID prompt appearance
+- Test "Use Passcode" fallback button
+- Verify Simulator shows "Biometrics not available" fallback
+
+**Android Testing:**
+- Physical device or emulator with enrolled biometric
+- Emulator mock enrollment: `adb -e emu finger touch 1`
+- Verify `USE_BIOMETRIC` permission in AndroidManifest.xml
+- Test BiometricPrompt appearance (API 28+) and FingerprintManager compat (API 23-27)
+- Test "Use PIN" fallback
+
+**Cross-Platform:**
+- `checkBiometry()` returns correct availability status
+- Enrollment flow only triggers after successful OIDC callback
+- Stored credentials survive app restart
+- Biometric lockout (5 failed attempts) falls back gracefully
+- Credential removal on logout clears stored credential
+
+---
+
+### Open Questions for Implementation
+
+1. **Copper:** Should the Entra refresh_token encryption key be global (one Key Vault secret) or per-tenant? Recommendation: global key + per-record IV for v1.
+2. **Blathers:** Token expiry duration (90-day default) may conflict with shorter Entra CA refresh token windows on some tenants. Needs validation before implementation.
+3. **Blathers:** Confirm `/exchange` rate limiting strategy — suggest per-IP + per-token-attempt limits at the ASP.NET middleware level.
+
+**Team Notes:**
+- Kicks newly joined squad as Mobile Native Specialist (2026-03-28)
+- Design document ready at `/Design/biometric-auth.md` (merged from all three team members)
+- Next phase: Blathers implements C# backend changes; TypeScript implements WebView bridge + flows

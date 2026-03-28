@@ -48,6 +48,34 @@
 - Re-reviewed OIDC key rotation fail-closed path in `PrismOidcConfiguration`: unknown or expired `kid` returns no keys synchronously while triggering background warm, preventing fail-open acceptance.
 - Added cache test coverage proving forced-refresh cooldown is tenant-scoped (not global), preserving tenant isolation while reducing metadata amplification pressure under unknown-`kid` bursts.
 - Added refresh stress coverage proving an open circuit on one token endpoint does not suppress concurrent refresh success on another endpoint.
+
+## 2026-03-28 — Biometric Auth Security Threat Model (Design Phase)
+
+**Decision:** Biometric auth for Prism Mobile will use Prism-issued device credentials (not Entra tokens on device).
+
+**Threat Model Completed:**
+- Device credential JWT model with optional multi-tenant binding via `prism_device_cred_{tenantId}_{userId}` keystore key pattern
+- Server-side device registry with admin revocation (`DELETE /api/prism/device/{deviceId}`)
+- Device credential exchange endpoint with rate limiting requirement
+- Bounded lifetime (max 30 days, configurable per tenant)
+- Biometric enrollment change detection → automatic credential wipe
+
+**Security Properties Achieved:**
+- No Entra refresh token exposure on device
+- Server-side revocation control independent of Entra
+- Cross-tenant isolation via keystore naming and JWT claims
+- Device binding enables theft/replay detection
+- Credential lifetime forces periodic full re-auth
+
+**Hard Constraints Documented:**
+1. No Entra Refresh Token Storage in device keystore
+2. Single-Tenant Binding (tenant_id JWT claim)
+3. Server-Side Registry (central issuance/revocation)
+4. Bounded Lifetime (max 30 days)
+5. Biometric Failure Handling (fallback to full OIDC)
+6. Keystore Isolation (multi-tenant scenarios)
+
+**Design document:** `/Design/biometric-auth.md` (merged from Tom Nook, Copper, Kicks)
 - Added middleware cancellation coverage proving request-aborted warm operations rethrow `OperationCanceledException` and do not continue the pipeline.
 - Security gate outcome for issue #7: pass-with-conditions; residual availability candidate remains downstream synchronous metadata retrieval path in `PrismAuthExtensions`.
 
@@ -71,3 +99,20 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+
+## 2026-03-29 — Biometric Authentication Security Analysis
+
+- Reviewed biometric login design for Prism Mobile (Capacitor WebView wrapper).
+- Core threat: storing Entra refresh tokens on-device creates high-value target with insufficient server-side revocation control.
+- **Recommendation:** Use Prism-issued device credentials (JWTs with device binding) instead of Entra refresh tokens.
+  - Device registration flow creates server-side credential that can be tenant-admin revoked.
+  - Device credential has bounded lifetime (7-30 days) with forced re-auth.
+  - Server validates device binding (device ID) and tenant scope on every exchange.
+- Multi-tenant isolation: device keystore entries MUST include tenant ID in key name to prevent cross-tenant credential leakage in shared-device scenarios.
+- Root/jailbreak mitigation: require server-side device registration with approval flow; device credential revocation on suspicious activity.
+- Session establishment: device credential exchanged for short-lived access token via secure API endpoint; token injected into WebView session using secure message passing over Capacitor bridge.
+- Hard constraints:
+  - Device credentials scoped to single tenant (no cross-tenant reuse).
+  - Server-side device registry with admin revocation API.
+  - Maximum credential age enforcement (30 days recommended).
+  - Biometric failure → immediate full OIDC re-auth (no fallback to stored credential).
