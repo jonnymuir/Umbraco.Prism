@@ -37,13 +37,21 @@ When asked to cut a release (e.g. "Mabel, cut a release"):
    - ...
    ```
    Write entries in plain English for developers — not raw commit messages. Group and summarise meaningfully.
-6. **Commit and tag:**
+6. **Polish and review the release notes** before committing. Apply these standards:
+   - **Plain English:** No jargon, no commit hashes, no internal ticket references in the output
+   - **Developer-first clarity:** Each entry answers "what changed and why does it matter to me?"
+   - **Consistent tone:** Active voice, present tense ("Adds support for X", "Fixes Y when Z")
+   - **Accessible structure:** Short sentences, one change per bullet, no walls of text
+   - **Meaningful grouping:** Breaking Changes → New Features → Bug Fixes & Improvements — omit empty sections
+   - **No filler:** Remove entries that are pure chore/internal (e.g. "Update dependencies") unless they affect users
+   - Re-read the final CHANGELOG entry as if you are a developer landing on it for the first time. If anything is unclear, rewrite it.
+7. **Commit and tag:**
    ```bash
    git add src/UmbracoPrism.Core/UmbracoPrism.Core.csproj src/UmbracoPrism.Client/package.json CHANGELOG.md
    git commit -m "chore: release v{new_version}"
    git tag v{new_version}
    ```
-7. **Report** what version was cut, the bump type, and a summary of what's in the release.
+8. **Report** what version was cut, the bump type, and a summary of what's in the release.
 
 ## Boundaries
 
