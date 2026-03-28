@@ -639,3 +639,40 @@ All entries use plain English (no raw commit hashes or internal references). Eac
 **Impact:** v1.2.0 is now the canonical production release. The project moves from alpha/beta versioning (v1.1.2) to minor version releases, enabling predictable SemVer-based dependency management and clear feature communication to users.
 
 ---
+
+---
+
+## 📌 2026-03-28: Blob URL Download Pattern for SPA Environments (Isabelle)
+
+**Session Log:** `.squad/log/2026-03-28T11:19:31Z-blob-url-fix.md`
+
+### Isabelle — Blob URL Download Pattern for SPA Environments
+
+**Decision:** For all programmatic file downloads using blob URLs, adopt the pattern:
+
+```typescript
+const url = URL.createObjectURL(blob);
+const anchor = document.createElement('a');
+anchor.href = url;
+anchor.download = fileName;
+anchor.style.display = 'none';
+anchor.target = '_blank';           // Prevents router interception
+anchor.rel = 'noopener noreferrer'; // Security best practice
+document.body.appendChild(anchor);
+anchor.click();
+document.body.removeChild(anchor);
+URL.revokeObjectURL(url);
+```
+
+Button click handlers triggering downloads should call `preventDefault()` and `stopPropagation()`.
+
+**Root Cause:** Umbraco's SPA router (activated by UmbracoApplicationUrl config) intercepts all `<a>` click events for client-side navigation. When the download anchor was clicked, the router captured the event and attempted `history.pushState()` on the blob: URL, which browsers reject for security.
+
+**Why:** Prevents SecurityError and enables clean blob-based downloads for any file type (ZIP, PDF, images, CSVs, etc.) without triggering SPA navigation.
+
+**Implementation:** Fixed in `src/UmbracoPrism.Client/src/prism-create-tenant-modal.ts` lines 793-851
+
+**Team Notes:**
+- **Blathers:** Use this pattern for any backend endpoints returning binary downloads.
+- **Tangy:** Consider Playwright tests verifying downloads complete without navigation errors.
+- **All:** This applies to any SPA with client-side routing — always set `target="_blank"` on programmatic download anchors.
