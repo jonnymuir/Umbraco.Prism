@@ -1012,3 +1012,20 @@ if (!info.isAvailable) {
 - Kicks newly joined squad as Mobile Native Specialist (2026-03-28)
 - Design document ready at `/Design/biometric-auth.md` (merged from all three team members)
 - Next phase: Blathers implements C# backend changes; TypeScript implements WebView bridge + flows
+
+---
+
+## 📌 2026-07-14: BiometricToken is a Signed JWT — Consistency Fix (Tom Nook)
+
+**Author:** Tom Nook (Lead Architect)  
+**Status:** Accepted
+
+`BiometricToken` is a **signed JWT** (Prism backend signing key), not a plain UUID v4. JWT payload: `deviceId` (client-generated UUID stored by the app on first launch), `tenantId`, `userOid`, `iat`, `exp`.
+
+**Device binding via DeviceId claim:** On registration, `DeviceId` is stored in the `prismBiometricTokens` DB table alongside the token hash. On `/exchange`, the server validates that the `deviceId` claim in the presented JWT matches the registered `DeviceId` in the DB row. This closes the bearer theft vector.
+
+**Token lifetime:** 30 days default, configurable per tenant (range: 7–90 days). The previous "90 days, non-configurable" value is removed.
+
+**Audit logging promoted to v1:** Minimum exchange logging (attempt + outcome + token ID + IP) is a v1 requirement (~5 lines of code), not deferred to v2.
+
+**Rate limiting hardened:** 3 failed exchange attempts within 10 minutes for a given token → token locked; requires re-registration. IP-based rate limiting as secondary layer. Replaces the unenforceable "5 requests/minute per device ID" policy.

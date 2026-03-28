@@ -20,7 +20,7 @@ Allow returning mobile users to skip the full Entra OIDC flow and authenticate w
 
 | Term | Meaning |
 |---|---|
-| `BiometricToken` | Opaque server-issued token (UUID), stored on device, exchanged for a session cookie |
+| `BiometricToken` | Prism-issued signed JWT, stored on device, exchanged for a session cookie |
 | `PrismMemberCookie` | The existing encrypted ASP.NET auth cookie that establishes the WebView session |
 | `PrismBiometricRecord` | Server-side DB row linking a BiometricToken to a tenant, user OID, and encrypted Entra refresh token |
 | Entra OID | The user's immutable object ID from Entra (`oid` claim) |
@@ -61,7 +61,7 @@ User completes Entra OIDC → PrismMemberCookie is set in WebView
          |
          v
 [Server] Extract user OID from PrismMemberCookie claims
-         Generate opaque BiometricToken (UUID v4)
+         Issue signed BiometricToken (JWT) containing: deviceId, tenantId, userOid, iat, exp
          Encrypt + store Entra refresh_token alongside BiometricToken record
          Save PrismBiometricRecord to DB (see schema below)
          Return: { biometricToken: "...", expiresAt: "..." }
@@ -84,7 +84,7 @@ User completes Entra OIDC → PrismMemberCookie is set in WebView
 | Location | What | How |
 |---|---|---|
 | Device Keychain (iOS) / Keystore (Android) | `BiometricToken` + `tenantHostname` | Encrypted by OS, biometric-gated |
-| Server DB (`prismBiometricTokens`) | Hashed `BiometricToken`, encrypted Entra `refresh_token`, user OID, tenant ID, expiry, revoked flag | Encrypted at rest |
+| Server DB (`prismBiometricTokens`) | Hashed `BiometricToken`, `DeviceId`, encrypted Entra `refresh_token`, user OID, tenant ID, expiry, revoked flag | Encrypted at rest |
 
 The Entra `refresh_token` is never sent to the device. It is stored server-side only, encrypted, and only used server-side during a token exchange.
 
@@ -116,8 +116,9 @@ App launches
                (no auth cookie required — this IS the auth step)
          |
          v
-[Server] Look up PrismBiometricRecord by hashed token
-         Check: not revoked, not expired, tenant matches request hostname
+[Server] Validate JWT signature and claims (not expired, tenant matches request hostname)
+         Look up PrismBiometricRecord by hashed token
+         Check: not revoked, DeviceId in JWT claims matches registered DeviceId in DB row
          Use stored encrypted refresh_token → call Entra /token endpoint
          On success: get new access_token + new refresh_token
          Update stored refresh_token in DB (rolling rotation)
@@ -282,11 +283,12 @@ CREATE TABLE prismBiometricTokens (
     Id              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     TenantId        INT NOT NULL,                          -- FK to prismTenants
     UserOid         NVARCHAR(64) NOT NULL,                 -- Entra OID claim
-    TokenHash       NVARCHAR(128) NOT NULL UNIQUE,         -- SHA-256 of BiometricToken
+    DeviceId        NVARCHAR(64) NOT NULL,                 -- Client-generated UUID; matches JWT deviceId claim
+    TokenHash       NVARCHAR(128) NOT NULL UNIQUE,         -- SHA-256 of BiometricToken JWT
     RefreshTokenEnc NVARCHAR(MAX) NOT NULL,                -- Entra refresh_token, encrypted at rest
     CreatedAt       DATETIMEOFFSET NOT NULL,
     LastUsedAt      DATETIMEOFFSET NULL,
-    ExpiresAt       DATETIMEOFFSET NOT NULL,               -- Default: 90 days from registration
+    ExpiresAt       DATETIMEOFFSET NOT NULL,               -- Default: 30 days from registration
     RevokedAt       DATETIMEOFFSET NULL                    -- NULL = active
 );
 
@@ -305,13 +307,14 @@ Handles:
 - Purging expired/revoked records (background cleanup, optional for v1)
 
 The `/exchange` endpoint calls `PrismBiometricService.ExchangeAsync`, which:
-1. Hashes the presented token and looks it up.
-2. Validates not revoked, not expired, tenant matches.
-3. Decrypts the stored Entra refresh_token.
-4. Calls the Entra token endpoint (same path as `PrismContext.RefreshTokenAsync`).
-5. Re-encrypts and stores the new refresh_token (rolling rotation).
-6. Builds a `ClaimsPrincipal` from the returned token claims.
-7. Signs and returns a `PrismMemberCookie` response using `HttpContext.SignInAsync`.
+1. Validates the JWT signature and claims (not expired, tenant matches request hostname).
+2. Hashes the token and looks up the `PrismBiometricRecord`.
+3. Validates not revoked; DeviceId in JWT claims matches registered DeviceId in the DB row.
+4. Decrypts the stored Entra refresh_token.
+5. Calls the Entra token endpoint (same path as `PrismContext.RefreshTokenAsync`).
+6. Re-encrypts and stores the new refresh_token (rolling rotation).
+7. Builds a `ClaimsPrincipal` from the returned token claims.
+8. Signs and returns a `PrismMemberCookie` response using `HttpContext.SignInAsync`.
 
 The RefreshToken encryption key should be stored in Azure Key Vault (via existing `SecretVaultService`), referenced by a new per-tenant or global secret key name.
 
@@ -345,7 +348,8 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 - `MobileBundleService` changes (opt-in flag, generated `biometric-bridge.ts`)
 - Fallback to full OIDC on all biometric failure paths
 - Device biometric enrollment change detection and credential wipe
-- Server-side token expiry (90 days, non-configurable in v1)
+- Minimum exchange audit logging (attempt, outcome, token ID, IP) — ~5 lines of code
+- Server-side token expiry (30 days default, configurable per tenant, range: 7–90 days)
 
 ### Out of scope for v1
 
@@ -353,9 +357,7 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 |---|---|
 | Multiple enrolled devices per user | Adds UI complexity; one device per user is sufficient for v1 |
 | Tenant admin UI to view/revoke biometric enrollments | Backoffice work; not blocking core flow |
-| Configurable token expiry per tenant | Adds config surface; 90 days is safe default |
 | Push notification on server-side revocation | Requires FCM/APNs integration; deferred |
-| Audit log for biometric usage events | Useful but not safety-critical for v1 |
 | Biometric for Android API < 28 | API 28+ covers ~95% of active Android devices |
 | Token rotation on exchange (rolling refresh) | Should land in v1 — see note below |
 
@@ -366,7 +368,7 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 | Phase | What ships |
 |---|---|
 | **v1 — Core** | Registration, login, unenrol, fallback, DB schema, `MobileBundleService` opt-in |
-| **v1.1 — Hardening** | Rolling refresh token rotation, biometric enrollment change detection, token expiry config per tenant |
+| **v1.1 — Hardening** | Rolling refresh token rotation, biometric enrollment change detection |
 | **v2 — Admin** | Backoffice UI: view enrolled devices, admin revoke, audit log |
 
 ---
@@ -374,9 +376,9 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 ## Open Questions (record before implementation starts)
 
 1. **Refresh token encryption key:** Single global key in Key Vault, or one per tenant? Per-tenant is safer (blast radius on key compromise is contained) but adds operational complexity. Recommend global key with per-record IV for v1, with a path to per-tenant in v2.
-2. **Token expiry duration:** 90 days is a placeholder. Needs sign-off from a security perspective — Entra's own refresh token window may be shorter than 90 days for some tenant CA policies.
+2. **Token expiry duration:** Standardised at 30 days default, configurable per tenant (range: 7–90 days). Note: Entra's own refresh token window may be shorter than 90 days for some tenant CA policies — tenants with shorter Entra windows should configure the Prism token lifetime to match.
 3. **In-WebView vs. compliance mode interaction:** If a tenant uses compliance mode (system browser OIDC per mobile.md D4), the post-OIDC callback lands in a different context. The registration prompt trigger point may need to differ. Needs validation against both auth modes.
-4. **`/exchange` rate limiting:** The exchange endpoint is unauthenticated (by design). It must be rate-limited and the token should be opaque + non-guessable. UUID v4 is sufficient entropy but rate limiting is non-optional.
+4. **`/exchange` rate limiting:** Rate limiting policy: 3 failed exchange attempts within 10 minutes for a given token → token locked; requires re-registration. IP-based rate limiting as secondary layer.
 
 ---
 
@@ -396,7 +398,7 @@ Biometric authentication in Prism Mobile introduces device-stored credentials th
    - Device ID (UUID generated on first registration)
    - Tenant ID (single tenant binding)
    - User ID (Entra object ID)
-   - Expiration (7–30 days, configurable per tenant)
+   - Expiration (30 days default, configurable per tenant, range: 7–90 days)
    - Signature (Prism backend signing key)
 3. Device credential stored in iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` + `kSecAccessControlBiometryCurrentSet`) or Android Keystore (`setUserAuthenticationRequired(true)`)
 4. On subsequent opens: biometric prompt → load device credential → exchange for short-lived access token via `POST /api/prism/device/exchange` → establish WebView session
@@ -463,7 +465,7 @@ DeviceCredentials table:
 ### Transport & Session Security
 
 - Exchange endpoint requires HTTPS (enforced); consider certificate pinning for production
-- Rate limiting: 5 requests/minute per device ID (the exchange endpoint is unauthenticated by design — this is non-optional)
+- Rate limiting: 3 failed exchange attempts within 10 minutes for a given token → token locked; requires re-registration. IP-based rate limiting as secondary layer.
 - After successful exchange, native app injects access token via Capacitor bridge message to WebView
 - Session cookie attributes: `Secure`, `HttpOnly`, `SameSite=Strict`, tenant-scoped path
 - Access token lifetime: 5–15 minutes; native app re-exchanges device credential on expiry
@@ -489,7 +491,7 @@ DeviceCredentials table:
 | Credential Type | Lifetime | Stored Where | Revocable By |
 |-----------------|----------|--------------|--------------|
 | Entra refresh token | 90 days+ | **NOT STORED** | N/A |
-| Prism device credential | 7–30 days (configurable) | Device keystore (biometric-protected) | Tenant admin, automatic expiration |
+| Prism device credential | 30 days default, configurable per tenant (range: 7–90 days) | Device keystore (biometric-protected) | Tenant admin, automatic expiration |
 | Access token (from exchange) | 5–15 minutes | WebView session (cookie) | Session logout, device credential revocation |
 
 ---

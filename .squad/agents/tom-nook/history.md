@@ -138,3 +138,15 @@
 **Risk flagged:** Token expiry duration (90-day default) may conflict with shorter Entra CA refresh token windows on some tenants. Needs security sign-off before implementation.
 
 **Open question for Copper:** Should the refresh token encryption key be global (single Key Vault secret) or per-tenant? Recommendation is global key + per-record IV for v1.
+
+### Biometric Auth Design Hardening (2026-07-14)
+
+**Copper's security review resolved the UUID-vs-JWT inconsistency.** BiometricToken is now definitively a signed JWT (not a plain UUID v4). The UUID concept survives only as the `deviceId` claim value inside the JWT — a client-generated identifier stored by the app on first install.
+
+**DeviceId binding closes the bearer theft vector.** The `DeviceId` is stored in `prismBiometricTokens` alongside the token hash on registration. On every exchange, the server asserts that the `deviceId` claim in the presented JWT matches the stored value. A stolen JWT cannot be replayed from a different device without that binding check.
+
+**Token lifetime standardised at 30 days default (7–90 configurable).** Three conflicting values existed in the design doc (7 days, 30 days, 90 days). All resolved to 30 days default.
+
+**Audit logging is a v1 requirement, not v2.** Minimum exchange logging (attempt, outcome, token ID, IP) is ~5 lines of code and should not be deferred. Moved to v1 in-scope list.
+
+**Rate limiting policy is now concrete.** Replaced the unenforceable "5 req/min per device ID" with: 3 failed exchange attempts within 10 minutes → token locked, requires re-registration. IP-based limiting as secondary layer.

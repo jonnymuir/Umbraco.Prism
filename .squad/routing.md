@@ -15,6 +15,7 @@ How to decide who handles what.
 | Public docs & README | Mabel | README.md, /docs/ content, marketplace listing, changelogs, onboarding guides |
 | Release / versioning | Mabel | "cut a release", "bump version", "what's changed since last release", CHANGELOG.md, semver |
 | Security, tenant isolation, CIA | Copper | Confidentiality/integrity/availability analysis, auth hardening, cross-tenant leak prevention |
+| Mobile native & Capacitor plugins | Kicks | Biometric auth, iOS Keychain/Android Keystore, Capacitor plugin integration, native entitlements |
 | Async issue work (bugs, small features) | @copilot 🤖 | Well-defined tasks matching capability profile (see Lead triage) |
 | Session logging & decisions | Scribe | Automatic — never needs routing |
 

@@ -90,3 +90,11 @@
 - **Release size:** First comprehensive release cut; covers 100+ commits across 4 months of development
 - **Changelog pattern:** Organized into New Features (major capabilities), Bug Fixes & Improvements (stability), Documentation (onboarding clarity)
 - **Version sync:** Successfully synced package.json (0.0.0 → 1.2.0) with csproj (1.1.2 → 1.2.0)
+
+### Release v1.2.2 (2026-03-28)
+
+- **Bump type:** Patch (1.2.1 → 1.2.2)
+- **Signal:** 5 commits; 3 `fix:` (build race condition, blob download interception, mobile config hostname sync), 2 `docs:`
+- **Changes:** Build stability improvements and SPA router fix; no new features
+- **Version sync:** Both csproj and package.json updated to 1.2.2
+- **Changelog style:** Refined user-facing language. Each bug fix entry answers "what changed and why it matters."

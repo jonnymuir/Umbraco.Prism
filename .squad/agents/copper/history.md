@@ -116,3 +116,37 @@
   - Server-side device registry with admin revocation API.
   - Maximum credential age enforcement (30 days recommended).
   - Biometric failure → immediate full OIDC re-auth (no fallback to stored credential).
+
+## 2026-03-29 — Biometric Design Security Review (Advisory)
+
+- Conducted comprehensive security review of `/Design/biometric-auth.md` at Jonny's request.
+- **Trust chain analysis:** Entra is the root identity provider; Prism acts as delegation layer storing encrypted Entra refresh tokens server-side; BiometricToken is opaque server-issued credential; device biometric is local user presence verification only.
+- **Industry practice assessment:** Design aligns with banking/enterprise app patterns (opaque device tokens, server-side storage, bounded lifetime). Not bleeding-edge (FIDO2/passkeys would be stronger) but solid for v1 convenience feature.
+- **Strengths identified:**
+  - No Entra tokens stored on device (critical security win).
+  - Single-tenant binding with keystore isolation.
+  - Server-side registry with revocation control.
+  - Fail-closed on all error paths.
+  - Rolling refresh token rotation (marked as v1 hard requirement).
+  - Biometric enrollment change detection with credential wipe.
+- **Critical gaps flagged for mitigation:**
+  - **90-day token expiry too long:** Recommended 30 days with sliding expiry; document admin revocation requirement on user disable.
+  - **Rate limiting underspecified:** Recommended per-token lockout (3 failed exchanges/10min) + IP-based rate limiting (10 req/min); log all failed exchanges.
+  - **Device binding incomplete:** Recommended full specification with UUID device ID, server-side storage in `prismBiometricTokens.DeviceId`, and validation on exchange; this is the single biggest security improvement before implementation.
+  - **Certificate pinning optional:** Should be default for credential-handling endpoints, not a "consideration."
+  - **Global refresh token encryption key:** Recommended per-record IVs and quarterly key rotation for v1; defer per-tenant keys to v2.
+  - **No audit logging:** Deferred to v2 but recommended minimum logging of exchange attempts (success/failure) for incident response.
+- **Prism vs. Entra role separation:** Well-separated. Prism is session convenience layer delegating identity decisions to Entra. Prism respects Entra CA policies via token refresh flow (policies re-evaluated on every exchange). Risk is in implementation: must maintain bounded lifetime and refresh token protection to avoid creating parallel weaker identity system.
+- **Primary recommendation:** Fully specify and implement device binding before implementation starts. This is an architectural decision (adds `DeviceId` column, exchange validation logic, client-side UUID generation) that closes bearer token theft vector with minimal user friction impact.
+- **Overall assessment:** Design is 80% there with sound architecture; needs tactical hardening on token lifetime, rate limiting, and device binding to reach production-ready security posture.
+
+## 2026-07-10 — Biometric Design Walkthrough (Advisory to Jonny)
+
+- Delivered full chain-of-trust walkthrough: Entra is root; Prism is delegation/session layer; BiometricToken is opaque server-issued bearer credential; biometric is local device-side access gate only — server has NO cryptographic proof biometric occurred.
+- **Critical design inconsistency flagged:** Security Considerations section describes a signed JWT with embedded DeviceId claim; main architecture section describes a plain UUID v4 stored by SHA-256 hash with no DeviceId column in the DB schema. These are fundamentally different credential models with very different security properties. This MUST be resolved before implementation begins — it is not a detail, it changes the DB schema, the exchange validation logic, and the threat model.
+- **Bearer token without device binding is the real gap:** UUID v4 presented at `/exchange` with no cryptographic proof of device identity. Server cannot distinguish the real device from an attacker who extracted the UUID via root/jailbreak. Mitigation requires either: (a) commit to JWT model with DeviceId embedded + validated on exchange, or (b) commit to UUID model explicitly, document it's a pure bearer credential, and compensate with extremely tight rate limiting and 30-day max lifetime.
+- **Token lifetime conflict:** DB schema says 90 days. Security section says 7–30 days. v1 scope says 90 days. Three different values in the same document. 90 days is too long for a bearer credential without device binding.
+- **Biometric trust is local-only:** The server trusts the OS enforced biometric. This is the standard industry model and is fine — but it means the real security is in OS platform integrity and hardware security module, not in Prism's code.
+- **Prism-as-secondary-identity-system risk:** Holding Entra refresh tokens server-side is correct (vs. device) but makes the Prism DB a very high-value target. The encryption key for `RefreshTokenEnc` is the blast radius control — must be in Key Vault, per-record IVs non-negotiable, key rotation plan required before go-live.
+- **Industry comparison:** Design aligns with banking app patterns (opaque device token, server-side storage, bounded lifetime). Not FIDO2/passkeys, which would give cryptographic proof of device and user presence. FIDO2 is the stronger path but adds significant implementation complexity. The opaque token model is defensible for v1 if device binding and lifetime are properly specified.
+- **One change before implementation:** Resolve JWT vs UUID inconsistency and commit to the JWT-with-DeviceId model. Add `DeviceId` to `prismBiometricTokens` schema, validate on exchange. This is the single architectural decision that closes the bearer theft vector without user friction.
