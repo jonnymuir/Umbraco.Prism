@@ -23,6 +23,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddIdentityColumns>("add-identity-cols")
         .To<AddBrandingOverridesColumn>("add-branding-overrides")
         .To<AddMobileBrandingOverridesColumn>("add-mobile-branding-overrides")
-        .To<AddMobileAppConfigColumn>("add-mobile-app-config");
+        .To<AddMobileAppConfigColumn>("add-mobile-app-config")
+        .To<CreatePrismDeviceCredentialsTable>("add-device-credentials");
     }
 }
