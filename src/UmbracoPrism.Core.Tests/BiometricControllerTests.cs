@@ -859,7 +859,7 @@ public class BiometricControllerTests
             refreshToken: "rt",
             existingRecord: existingRecord);
 
-        var result = controller.Unenrol();
+        var result = controller.Unenrol("device-uuid-1");
 
         result.Should().BeOfType<NoContentResult>();
 
@@ -881,7 +881,7 @@ public class BiometricControllerTests
             refreshToken: "rt",
             existingRecord: null);
 
-        var result = controller.Unenrol();
+        var result = controller.Unenrol("device-uuid-1");
 
         result.Should().BeOfType<NoContentResult>();
 
@@ -897,7 +897,7 @@ public class BiometricControllerTests
             userOid: "user-oid-123",
             refreshToken: "rt");
 
-        var result = controller.Unenrol();
+        var result = controller.Unenrol("device-uuid-1");
 
         result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -912,7 +912,7 @@ public class BiometricControllerTests
             refreshToken: "rt",
             authenticated: true);
 
-        var result = controller.Unenrol();
+        var result = controller.Unenrol("device-uuid-1");
 
         result.Should().BeOfType<UnauthorizedObjectResult>();
     }

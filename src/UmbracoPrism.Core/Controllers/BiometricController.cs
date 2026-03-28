@@ -309,11 +309,11 @@ public class BiometricController(
     }
 
     /// <summary>
-    /// Removes the authenticated user's biometric credential for the current tenant.
+    /// Removes the authenticated user's biometric credential for a specific device on the current tenant.
     /// Soft-deletes by setting RevokedAt; idempotent (returns 204 even if no active record exists).
     /// </summary>
-    [HttpDelete("unenrol")]
-    public IActionResult Unenrol()
+    [HttpDelete("unenrol/{deviceId}")]
+    public IActionResult Unenrol(string deviceId)
     {
         // 1. Verify tenant context
         var tenant = prismContext.CurrentTenant;
@@ -333,12 +333,12 @@ public class BiometricController(
             return Unauthorized(new { error = "User identity could not be determined." });
         }
 
-        // 3. Look up and soft-delete the credential (scoped by TenantId + UserId)
+        // 3. Look up and soft-delete the credential (scoped by TenantId + UserId + DeviceId)
         var tenantId = tenant.Id.ToString();
         using var db = databaseFactory.CreateDatabase();
 
         var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(
-            "WHERE TenantId = @0 AND UserId = @1 AND RevokedAt IS NULL", tenantId, userOid);
+            "WHERE TenantId = @0 AND UserId = @1 AND DeviceId = @2 AND RevokedAt IS NULL", tenantId, userOid, deviceId);
 
         if (credential != null)
         {
@@ -346,14 +346,14 @@ public class BiometricController(
             db.Update(credential);
 
             logger.LogInformation(
-                "Biometric unenrol: revoked credential for user {UserOid} tenant {TenantId}",
-                userOid, tenantId);
+                "Biometric unenrol: revoked credential for user {UserOid} device {DeviceId} tenant {TenantId}",
+                userOid, deviceId, tenantId);
         }
         else
         {
             logger.LogInformation(
-                "Biometric unenrol: no active credential found for user {UserOid} tenant {TenantId} (idempotent)",
-                userOid, tenantId);
+                "Biometric unenrol: no active credential found for user {UserOid} device {DeviceId} tenant {TenantId} (idempotent)",
+                userOid, deviceId, tenantId);
         }
 
         return NoContent();
