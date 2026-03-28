@@ -366,7 +366,7 @@ update_tenant_hostname() {
     exit 1
   fi
 
-  changed="$(sqlite3 "$database_file" "BEGIN; UPDATE prismTenants SET hostname = '${hostname}' WHERE id = ${tenant_id}; SELECT changes(); COMMIT;")"
+  changed="$(sqlite3 "$database_file" "BEGIN; UPDATE prismTenants SET hostname = '${hostname}', MobileAppConfig = json_set(COALESCE(MobileAppConfig, '{}'), '$.startUrl', 'https://${hostname}') WHERE id = ${tenant_id}; SELECT changes(); COMMIT;")"
   if [[ "$changed" != "1" ]]; then
     error "Tenant hostname update failed for id $tenant_id."
     exit 1
@@ -460,13 +460,14 @@ REDIRECT_URI="${TUNNEL_URL}${CALLBACK_PATH}"
 echo "Updating Entra redirect URI..."
 update_entra_redirect_uri "$REDIRECT_URI"
 
-echo "Updating Prism tenant hostname in SQLite..."
+echo "Updating Prism tenant hostname and mobile start URL in SQLite..."
 update_tenant_hostname "$DB_ABSOLUTE_PATH" "$HOSTNAME" "$TENANT_ID"
 
 echo
 echo "================ Local Dev Tunnel Ready ================"
 echo "Tunnel URL:                $TUNNEL_URL"
 echo "Hostname:                  $HOSTNAME"
+echo "Mobile start URL:          https://${HOSTNAME}"
 echo "Redirect URI:              $REDIRECT_URI"
 echo "Tenant selector provided:  $TENANT_SELECTOR"
 echo "Tenant id updated:         $TENANT_ID"
