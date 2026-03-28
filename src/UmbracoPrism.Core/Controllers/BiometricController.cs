@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Controllers.Models;
 using UmbracoPrism.Core.Models;
@@ -12,8 +14,9 @@ using UmbracoPrism.Core.Services;
 namespace UmbracoPrism.Core.Controllers;
 
 /// <summary>
-/// Handles biometric device registration for mobile app users.
-/// All endpoints require an authenticated PrismMemberCookie session.
+/// Handles biometric device registration and token exchange for mobile app users.
+/// Registration requires an authenticated PrismMemberCookie session; exchange is
+/// unauthenticated — the BiometricToken JWT is the sole credential.
 /// </summary>
 [Route("umbraco/prism/mobile/biometric")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
@@ -22,6 +25,8 @@ public class BiometricController(
     IBiometricTokenService biometricTokenService,
     IRefreshTokenEncryptionService encryptionService,
     IPrismContext prismContext,
+    IPrismTokenRefreshService tokenRefreshService,
+    ISecretVaultService vault,
     IOptions<PrismBiometricOptions> biometricOptions,
     ILogger<BiometricController> logger) : Controller
 {
@@ -137,5 +142,168 @@ public class BiometricController(
             BiometricToken = jwt,
             ExpiresAt = expiresAt,
         });
+    }
+
+    /// <summary>
+    /// Exchanges a BiometricToken JWT for a PrismMemberCookie session.
+    /// This endpoint is unauthenticated — the biometric token IS the credential.
+    /// Performs rolling refresh token rotation on every successful exchange.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("exchange")]
+    public async Task<IActionResult> Exchange([FromBody] BiometricExchangeRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        // 1. Verify tenant context
+        var tenant = prismContext.CurrentTenant;
+        if (tenant == null)
+        {
+            logger.LogWarning("Biometric exchange: no tenant context resolved");
+            return BadRequest(new { error = "No tenant context available." });
+        }
+
+        // 2. Validate biometric token JWT (signature, lifetime, claims)
+        BiometricTokenClaims claims;
+        try
+        {
+            claims = biometricTokenService.ValidateToken(request.BiometricToken);
+        }
+        catch (Exception ex) when (ex is SecurityTokenException or ArgumentException)
+        {
+            logger.LogWarning("Biometric exchange: token validation failed — {Reason}", ex.Message);
+            return Unauthorized(new { error = "biometric_token_invalid" });
+        }
+
+        // 3. Verify tenantId claim matches request tenant
+        var tenantId = tenant.Id.ToString();
+        if (!string.Equals(claims.TenantId, tenantId, StringComparison.Ordinal))
+        {
+            logger.LogWarning("Biometric exchange: tenant mismatch (token={TokenTid}, request={RequestTid})",
+                claims.TenantId, tenantId);
+            return Unauthorized(new { error = "biometric_token_invalid" });
+        }
+
+        // 4. Hash the token and look up the credential row
+        var tokenHash = biometricTokenService.HashToken(request.BiometricToken);
+
+        using var db = databaseFactory.CreateDatabase();
+        var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(
+            "WHERE TokenHash = @0", tokenHash);
+
+        if (credential == null)
+        {
+            logger.LogWarning("Biometric exchange: no credential found for token hash");
+            return Unauthorized(new { error = "biometric_token_invalid" });
+        }
+
+        // 5. Assert not revoked and not expired
+        if (credential.RevokedAt != null)
+        {
+            logger.LogWarning("Biometric exchange: credential has been revoked");
+            return Unauthorized(new { error = "biometric_token_invalid" });
+        }
+
+        if (credential.ExpiresAt <= DateTime.UtcNow)
+        {
+            logger.LogWarning("Biometric exchange: credential has expired");
+            return Unauthorized(new { error = "biometric_token_invalid" });
+        }
+
+        // 6. DeviceId binding check — JWT deviceId must match DB row
+        if (!string.Equals(credential.DeviceId, claims.DeviceId, StringComparison.Ordinal))
+        {
+            logger.LogWarning("Biometric exchange: device mismatch (token={TokenDev}, db={DbDev})",
+                claims.DeviceId, credential.DeviceId);
+            return Unauthorized(new { error = "device_mismatch" });
+        }
+
+        // 7. UserId binding check — prevent cross-user token substitution
+        if (!string.Equals(credential.UserId, claims.UserOid, StringComparison.Ordinal))
+        {
+            logger.LogWarning("Biometric exchange: userId mismatch (token={TokenUid}, db={DbUid})",
+                claims.UserOid, credential.UserId);
+            return Unauthorized(new { error = "biometric_token_invalid" });
+        }
+
+        // 8. Decrypt the stored Entra refresh token
+        string refreshToken;
+        try
+        {
+            refreshToken = encryptionService.Decrypt(credential.RefreshTokenEnc);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Biometric exchange: failed to decrypt refresh token for device {DeviceId}", credential.DeviceId);
+            return Unauthorized(new { error = "credential_refresh_failed" });
+        }
+
+        // 9. Call Entra /token endpoint with the decrypted refresh_token
+        if (string.IsNullOrWhiteSpace(tenant.EntraTenantId) ||
+            string.IsNullOrWhiteSpace(tenant.EntraClientId) ||
+            string.IsNullOrWhiteSpace(tenant.SecretKeyName))
+        {
+            logger.LogWarning("Biometric exchange: tenant missing Entra configuration");
+            return Unauthorized(new { error = "credential_refresh_failed" });
+        }
+
+        var clientSecret = await vault.GetSecretAsync(tenant.SecretKeyName);
+        if (string.IsNullOrWhiteSpace(clientSecret))
+        {
+            logger.LogWarning("Biometric exchange: client secret could not be resolved from vault");
+            return Unauthorized(new { error = "credential_refresh_failed" });
+        }
+
+        var tokenEndpoint = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
+        var formParameters = new Dictionary<string, string>
+        {
+            { "client_id", tenant.EntraClientId },
+            { "client_secret", clientSecret },
+            { "grant_type", "refresh_token" },
+            { "refresh_token", refreshToken },
+            { "scope", $"openid profile offline_access {tenant.EntraClientId}/.default" }
+        };
+
+        var tokenResult = await tokenRefreshService.RefreshAsync(
+            tokenEndpoint, formParameters, HttpContext.RequestAborted);
+
+        if (!tokenResult.Success || tokenResult.AccessToken == null)
+        {
+            logger.LogWarning("Biometric exchange: Entra token refresh failed for device {DeviceId}", credential.DeviceId);
+            return Unauthorized(new { error = "credential_refresh_failed" });
+        }
+
+        // 10. Rolling rotation — re-encrypt and store the new refresh token
+        var newRefreshToken = tokenResult.RefreshToken ?? refreshToken;
+        credential.RefreshTokenEnc = encryptionService.Encrypt(newRefreshToken);
+        credential.LastUsedAt = DateTime.UtcNow;
+        db.Update(credential);
+
+        logger.LogInformation(
+            "Biometric exchange: successful for device {DeviceId} tenant {TenantId}",
+            credential.DeviceId, tenantId);
+
+        // 11. Build ClaimsPrincipal and issue PrismMemberCookie
+        var identity = new ClaimsIdentity("PrismMemberCookie");
+        identity.AddClaim(new Claim("oid", claims.UserOid));
+        identity.AddClaim(new Claim("tid", tenant.EntraTenantId));
+
+        var principal = new ClaimsPrincipal(identity);
+
+        var expiresAt = DateTimeOffset.UtcNow
+            .AddSeconds(tokenResult.ExpiresIn ?? 3600)
+            .ToString("o");
+
+        var authProps = new AuthenticationProperties();
+        authProps.StoreTokens([
+            new AuthenticationToken { Name = "access_token", Value = tokenResult.AccessToken },
+            new AuthenticationToken { Name = "refresh_token", Value = newRefreshToken },
+            new AuthenticationToken { Name = "expires_at", Value = expiresAt },
+        ]);
+
+        await HttpContext.SignInAsync("PrismMemberCookie", principal, authProps);
+
+        return Ok();
     }
 }
