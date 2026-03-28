@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
-import { html } from 'lit';
 import { expect } from '@storybook/test';
 import './prism-biometric-register';
 import { PrismBiometricRegisterElement } from './prism-biometric-register';
@@ -55,6 +54,14 @@ type StoryArgs = {
   };
 };
 
+function makeElement(args: StoryArgs): PrismBiometricRegisterElement {
+  const el = document.createElement('prism-biometric-register') as PrismBiometricRegisterElement;
+  el.tenantHost = args.tenantHost;
+  if (args.loginHint) el.loginHint = args.loginHint;
+  el._mockBridge = createMockBridge(args.mockConfig);
+  return el;
+}
+
 const meta: Meta<StoryArgs> = {
   title: 'Prism/Biometric Register',
   component: 'prism-biometric-register',
@@ -67,25 +74,7 @@ const meta: Meta<StoryArgs> = {
       registerBehavior: 'success'
     }
   },
-  render: (args) => {
-    // Mock the biometric bridge
-    const mockBridge = createMockBridge(args.mockConfig);
-    
-    // Inject mock into component
-    setTimeout(() => {
-      const element = document.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
-      if (element) {
-        (element as any)._mockBridge = mockBridge;
-      }
-    }, 0);
-
-    return html`
-      <prism-biometric-register 
-        tenantHost=${args.tenantHost}
-        .loginHint=${args.loginHint}>
-      </prism-biometric-register>
-    `;
-  }
+  render: (args) => makeElement(args)
 };
 
 export default meta;
@@ -100,6 +89,7 @@ export const Available: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
@@ -122,6 +112,7 @@ export const Loading: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
@@ -150,6 +141,7 @@ export const Success: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
@@ -177,6 +169,7 @@ export const NotEnrolled: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
@@ -208,6 +201,7 @@ export const Cancelled: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
@@ -234,6 +228,7 @@ export const LockedOut: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
@@ -256,6 +251,7 @@ export const Unavailable: Story = {
     }
   },
   play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
     const component = canvasElement.querySelector('prism-biometric-register') as PrismBiometricRegisterElement;
     await component.updateComplete;
 
