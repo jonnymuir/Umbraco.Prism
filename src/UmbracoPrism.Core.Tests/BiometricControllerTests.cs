@@ -243,6 +243,52 @@ public class BiometricControllerTests
         )), Times.Once);
     }
 
+    [Fact]
+    public async Task Register_CrossUserDevice_CreatesNewRecordInsteadOfHijacking()
+    {
+        var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
+
+        // Alice already registered this device
+        var alicesRecord = new PrismDeviceCredentialSchema
+        {
+            Id = 99,
+            DeviceId = "device-uuid-1",
+            TenantId = "42",
+            UserId = "alice-oid",
+            TokenHash = "alice-hash",
+            RefreshTokenEnc = "alice-encrypted-token",
+            RegisteredAt = DateTime.UtcNow.AddDays(-5),
+            ExpiresAt = DateTime.UtcNow.AddDays(25),
+        };
+
+        // Bob tries to register the same DeviceId — query should NOT find Alice's record
+        var (controller, db) = BuildController(
+            tenant: tenant,
+            userOid: "bob-oid",
+            refreshToken: "bob-refresh-token",
+            existingRecord: null); // no existing record for Bob + this device
+
+        var request = new BiometricRegistrationRequest
+        {
+            DeviceId = "device-uuid-1",
+            Platform = "ios",
+        };
+
+        var result = await controller.Register(request);
+
+        // Should succeed with a new insert (not an update of Alice's record)
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<BiometricRegistrationResponse>().Subject;
+        response.BiometricToken.Should().NotBeNullOrWhiteSpace();
+
+        // Should have called Insert (new record), not Update
+        db.Verify(d => d.Insert(It.Is<PrismDeviceCredentialSchema>(r =>
+            r.UserId == "bob-oid" &&
+            r.DeviceId == "device-uuid-1"
+        )), Times.Once);
+        db.Verify(d => d.Update(It.IsAny<object>()), Times.Never);
+    }
+
     // ------------------------------------------------------------------ auth failures
 
     [Fact]

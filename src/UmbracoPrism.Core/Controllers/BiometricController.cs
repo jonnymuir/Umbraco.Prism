@@ -83,17 +83,16 @@ public class BiometricController(
         // 6. Encrypt the refresh token (AES-256-GCM)
         var refreshTokenEnc = encryptionService.Encrypt(refreshToken);
 
-        // 7. Persist (upsert by TenantId + DeviceId)
+        // 7. Persist (upsert by TenantId + UserId + DeviceId)
         var expiresAt = DateTime.UtcNow.Add(lifetime);
 
         using var db = databaseFactory.CreateDatabase();
 
         var existing = db.FirstOrDefault<PrismDeviceCredentialSchema>(
-            "WHERE TenantId = @0 AND DeviceId = @1", tenantId, request.DeviceId);
+            "WHERE TenantId = @0 AND DeviceId = @1 AND UserId = @2", tenantId, request.DeviceId, userOid);
 
         if (existing != null)
         {
-            existing.UserId = userOid;
             existing.TokenHash = tokenHash;
             existing.RefreshTokenEnc = refreshTokenEnc;
             existing.ExpiresAt = expiresAt;
