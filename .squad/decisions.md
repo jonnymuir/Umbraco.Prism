@@ -338,3 +338,15 @@ Umbraco.Prism team decisions. Append-only ledger.
 - Any future unification proposal must start from a new issue with explicit deployment constraints and migration justification.
 
 ---
+
+## 📌 2026-03-24: Follow-through on Authorization Planes Decision
+
+**Decision:** Close child unification issues and preserve only architecture-aligned follow-up work.
+
+**Issue actions:**
+- Closed as **not planned**: #8, #9, #10 (all tied to Entra-first backoffice admin unification path).
+- Opened replacement issue: #11 (**Auth: Policy test suite for two-plane authorization model**) to retain needed test coverage without changing the chosen architecture.
+
+**Why:** #8/#9/#10 were implementation slices for the rejected unification direction. Test coverage remains valuable, so it was re-scoped into #11 for the accepted two-plane model.
+
+---
