@@ -42,6 +42,13 @@
       "legacy_named": false,
       "status": "active"
     },
+    "mabel": {
+      "persistent_name": "Mabel",
+      "universe": "animal-crossing",
+      "created_at": "2026-03-28T09:46:34.000Z",
+      "legacy_named": false,
+      "status": "active"
+    },
     "scribe": {
       "persistent_name": "Scribe",
       "universe": null,
