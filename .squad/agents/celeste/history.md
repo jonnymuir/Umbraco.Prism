@@ -27,3 +27,7 @@
 - Practical baseline works best when focused on public/protected API surface in Auth, Services, Middleware, and boundary Models before private internals.
 - Parameter and return tags should be explicit for request/tenant/security context values to improve IntelliSense safety during integration work.
 - Docs-only passes should stay behavior-neutral and be validated with full build plus Core tests to keep risk minimal.
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.

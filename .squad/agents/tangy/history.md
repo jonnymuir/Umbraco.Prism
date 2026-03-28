@@ -100,3 +100,7 @@
 - Focused Core validation for `PrismOidcConfigurationTests`, `PrismTokenRefreshServiceTests`, `PrismTenantMiddlewareTests`, `BrandingServiceTests`, and `TenantServiceCacheStrategyTests` passed green: 27 tests, 0 failures.
 - 2026-03-28 (Issue #7 reliability verification): Re-ran an expanded focused reliability filter including `PrismSigningKeyCacheTests`, `PrismOidcConfigurationTests`, `PrismTokenRefreshServiceTests`, `TenantServiceCacheStrategyTests`, `BrandingServiceTests`, and `PrismTenantMiddlewareTests`; result was 32 passed, 0 failed, 0 skipped in 1.7s.
 - Coverage now explicitly demonstrates: unknown/rotated signing-key handling with non-blocking warm requests, transient timeout/outage refresh resilience with half-open recovery and concurrent open-circuit short-circuiting, and tenant/branding update races constrained to coherent snapshots with no cross-tenant leakage.
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.

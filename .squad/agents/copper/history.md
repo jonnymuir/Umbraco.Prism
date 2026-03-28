@@ -67,3 +67,7 @@
 	- `PrismOidcConfigurationTests`: 4 passed, 0 failed.
 	- Total: 14 passed, 0 failed.
 - Gate outcome: pass.
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.

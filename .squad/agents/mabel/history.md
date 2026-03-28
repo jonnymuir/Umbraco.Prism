@@ -77,3 +77,7 @@
 6. **Missing quick-start:** No "5-minute setup" for the core Prism package — only detailed walkthroughs
 7. **TestSite/MockBackOffice:** Mentioned briefly but no guidance on when/how to use them for onboarding
 8. **Stale URI note:** References "old redirect URI" behavior but doesn't clearly state current behavior end-to-end
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.

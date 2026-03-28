@@ -570,3 +570,24 @@ Umbraco.Prism team decisions. Append-only ledger.
 **Why:** User requested dedicated release versioning ownership for the Technical Writer role.
 
 ---
+
+## 📌 2026-03-28: Conventional Commits Directive + Mabel Release Powers (User + Copilot)
+
+**By:** Jonny Muir (via Copilot)
+
+### Conventional Commits Standard (Team-wide)
+
+**Decision:** All agents who commit code must follow the conventional commits standard (`feat:`, `fix:`, `perf:`, `chore:`, `docs:`, `test:`, `refactor:`, `style:` prefixes, and `feat!:` or `BREAKING CHANGE:` footer for breaking changes).
+
+**Why:** Mabel's automated semver versioning depends on clean commit signals to infer the correct version bump. Unflagged breaking changes will ship with incorrect semver and no user warning; commit discipline is a prerequisite for reliable release notes.
+
+**Conventions locked:**
+- Every commit message MUST use a conventional type prefix (see `.squad/skills/conventional-commits/SKILL.md` for full reference).
+- Breaking changes MUST be flagged with `!` (e.g., `feat!:`) or a `BREAKING CHANGE:` footer and discussed with Tom Nook (Lead) before committing.
+- Mabel infers semver bump automatically from `git log` using conventional commit signals.
+
+**Skill Reference:** `.squad/skills/conventional-commits/SKILL.md` — All committing agents must read this before every commit to stay aligned.
+
+**Impact:** All committing agents (Tom Nook, Isabelle, Blathers, Tangy, Celeste, Copper, Mabel) must adopt this standard immediately. Release notes and versioning accuracy depend on this.
+
+---

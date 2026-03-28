@@ -46,3 +46,7 @@
 - Consider accessibility for safe-area styling on notched devices
 
 **Next:** Validate branding tab UI against latest API; add WCAG color contrast checks to Storybook tests
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.

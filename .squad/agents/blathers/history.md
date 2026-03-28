@@ -171,3 +171,7 @@
 - 2026-03-28 (PrismAuth downstream hardening): `PrismAuthExtensions` key resolution now mirrors the OIDC runtime pattern: snapshot read first, background warm trigger when `ShouldRefresh`, and strict fail-closed return when cache is expired or requested `kid` is missing.
 - 2026-03-28 (PrismAuth downstream hardening): `AddPrismAuthentication` now configures JWT options via DI (`Configure<IPrismSigningKeyCache>`) so resolver logic can stay cache-only and avoid sync request-thread metadata I/O.
 - 2026-03-28 (PrismAuth downstream hardening): Non-blocking behavior is testable by using a never-completing warm task and asserting resolver return timing + key return correctness on cached snapshot paths.
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.

@@ -110,3 +110,7 @@
 - Celeste (Documentation Engineer) and Copper (Security Engineer) joined the squad.
 - Route to Celeste for XML documentation coverage, public API clarity, and documentation standards alignment.
 - Route to Copper for tenant-isolation hardening, OAuth/cache-boundary security review, and CIA-focused risk reduction.
+
+## Learnings
+
+- 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
