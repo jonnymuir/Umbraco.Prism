@@ -34,6 +34,7 @@ public class MobileBundleService : IMobileBundleService
         var errorTitle = string.IsNullOrWhiteSpace(request.ErrorTitle) ? "We’re having trouble connecting" : request.ErrorTitle.Trim();
         var errorMessage = string.IsNullOrWhiteSpace(request.ErrorMessage) ? "Please check your connection and try again." : request.ErrorMessage.Trim();
         var showErrorDiagnostics = request.ShowErrorDiagnostics ?? true;
+        var biometricAuthEnabled = request.BiometricAuthEnabled ?? false;
 
         if (!IsValidAppId(appId))
         {
@@ -44,15 +45,15 @@ public class MobileBundleService : IMobileBundleService
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
         {
           AddEntry(archive, "README.md", BuildReadme(appName, startUrl, iconUrl, splashUrl));
-            AddEntry(archive, "package.json", BuildPackageJson(appName));
+            AddEntry(archive, "package.json", BuildPackageJson(appName, biometricAuthEnabled));
             AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl));
             AddEntry(archive, "capacitor.config.ts", BuildCapacitorConfig(tenant, appId, appName, version, startUrl, marker));
             AddEntry(archive, ".gitignore", "node_modules\nandroid\nios\n.DS_Store\n");
             AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
             AddEntry(archive, "www/mobile-overrides.css", BuildMobileOverrideTemplate());
             AddEntry(archive, "scripts/doctor-mobile.sh", BuildDoctorScript(startUrl));
-            AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl));
-            AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript());
+            AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled));
+            AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(biometricAuthEnabled));
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", BuildTrustIosLocalhostCertScript(startUrl));
           AddEntry(archive, "resources/mobile-assets.json", BuildAssetsManifest(iconUrl, splashUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
         }
@@ -117,8 +118,16 @@ public class MobileBundleService : IMobileBundleService
         writer.Write(content);
     }
 
-    private static string BuildPackageJson(string appName)
+    private static string BuildPackageJson(string appName, bool biometricAuthEnabled)
     {
+        var biometricDeps = biometricAuthEnabled
+            ? """
+,
+    "@aparajita/capacitor-biometric-auth": "^7.0.0",
+    "@aparajita/capacitor-secure-storage": "^7.0.0"
+"""
+            : string.Empty;
+
         return $$"""
 {
   "name": "{{ToSafeIdentifier(appName)}}-mobile",
@@ -136,7 +145,7 @@ public class MobileBundleService : IMobileBundleService
     "open:android": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/core": "^7.0.0"
+    "@capacitor/core": "^7.0.0"{{biometricDeps}}
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
@@ -779,8 +788,26 @@ echo "Doctor complete."
 """;
     }
 
-    private static string BuildBootstrapIosScript(string startUrl)
+    private static string BuildBootstrapIosScript(string startUrl, bool biometricAuthEnabled)
     {
+        var infoPlistInjection = biometricAuthEnabled
+            ? """
+
+echo "Injecting NSFaceIDUsageDescription into Info.plist..."
+if [ -f ios/App/App/Info.plist ]; then
+  if ! grep -q "NSFaceIDUsageDescription" ios/App/App/Info.plist; then
+    plutil -insert NSFaceIDUsageDescription -string "We use Face ID to securely log you in without requiring your password each time." ios/App/App/Info.plist
+    echo "✓ NSFaceIDUsageDescription added to Info.plist"
+  else
+    echo "✓ NSFaceIDUsageDescription already present in Info.plist"
+  fi
+else
+  echo "⚠️ Info.plist not found. Run 'npx cap add ios' first."
+fi
+
+"""
+            : string.Empty;
+
         return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -796,7 +823,7 @@ if ! npx cap ls | grep -qi "ios"; then
 fi
 
 npx cap sync ios
-
+{{infoPlistInjection}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
@@ -813,9 +840,30 @@ fi
 """;
     }
 
-    private static string BuildBootstrapAndroidScript()
+    private static string BuildBootstrapAndroidScript(bool biometricAuthEnabled)
     {
-        return """
+        var manifestInjection = biometricAuthEnabled
+            ? """
+
+echo "Injecting USE_BIOMETRIC permission into AndroidManifest.xml..."
+MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+if [ -f "$MANIFEST_PATH" ]; then
+  if ! grep -q "android.permission.USE_BIOMETRIC" "$MANIFEST_PATH"; then
+    # Insert USE_BIOMETRIC permission before the <application> tag
+    sed -i.bak '/<application/i\    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' "$MANIFEST_PATH"
+    rm -f "$MANIFEST_PATH.bak"
+    echo "✓ USE_BIOMETRIC permission added to AndroidManifest.xml"
+  else
+    echo "✓ USE_BIOMETRIC permission already present in AndroidManifest.xml"
+  fi
+else
+  echo "⚠️ AndroidManifest.xml not found. Run 'npx cap add android' first."
+fi
+
+"""
+            : string.Empty;
+
+        return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -830,7 +878,7 @@ if ! npx cap ls | grep -qi "android"; then
 fi
 
 npx cap sync android
-
+{{manifestInjection}}
 if command -v adb >/dev/null 2>&1 && adb devices | tail -n +2 | grep -q "device"; then
   echo "Android device/emulator found. Running app..."
   npx cap run android

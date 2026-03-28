@@ -7,6 +7,10 @@ import { PrismCreateTenantModalElement } from './prism-create-tenant-modal.ts';
 import { umbHttpClient } from '@umbraco-cms/backoffice/http-client';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
 
+// Export biometric bridge for mobile apps
+export { biometricBridge, BiometricError } from './biometric-bridge';
+export type { BiometricBridge } from './biometric-bridge';
+
 // Log the modal element for debugging
 console.log('Modal element loaded:', PrismCreateTenantModalElement);
 
