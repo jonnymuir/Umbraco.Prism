@@ -81,3 +81,12 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+
+### Release v1.2.0 (2026-03-29)
+
+- **Bump type:** Minor (1.1.2 → 1.2.0)
+- **Signal:** 53 `feat:` commits, zero breaking changes
+- **Key features:** Squad framework, mobile app generation, tenant cache metrics, OIDC enhancements, branding middleware, authorization planes, Storybook integration
+- **Release size:** First comprehensive release cut; covers 100+ commits across 4 months of development
+- **Changelog pattern:** Organized into New Features (major capabilities), Bug Fixes & Improvements (stability), Documentation (onboarding clarity)
+- **Version sync:** Successfully synced package.json (0.0.0 → 1.2.0) with csproj (1.1.2 → 1.2.0)

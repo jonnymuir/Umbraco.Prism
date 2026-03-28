@@ -590,4 +590,52 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 **Impact:** All committing agents (Tom Nook, Isabelle, Blathers, Tangy, Celeste, Copper, Mabel) must adopt this standard immediately. Release notes and versioning accuracy depend on this.
 
+## 📌 2026-03-29: Release v1.2.0 (Mabel)
+
+**Session Log:** `.squad/log/2026-03-28T10:19:29Z-release-v1.2.0.md`  
+**Orchestration Log:** `.squad/orchestration-log/2026-03-28T10:19:29Z-mabel.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/mabel-release-1.2.0.md`
+
+### Mabel — Release v1.2.0 Decision
+
+**Decision:** Released Umbraco Prism v1.2.0 — a minor version bump covering the first comprehensive feature set.
+
+**Semver Signal:**
+- **Commits:** 53 `feat:` commits + multiple `fix:`, `perf:`, `docs:`, `chore:` commits
+- **Breaking Changes:** None (`BREAKING CHANGE:` footer absent; no `!` type markers)
+- **Bump:** MINOR (v1.1.2 → v1.2.0)
+
+**Justification:**
+The project has accumulated significant new capabilities warranting a minor version bump:
+- Mobile app generation (Capacitor scaffold + iOS/Android emulator support)
+- Tenant cache metrics & diagnostics
+- Cloudflared tunnel automation for dev
+- OIDC per-tenant configuration
+- Branding middleware for tenant customization
+- Authorization planes for secure tenant isolation
+- Storybook + Playwright integration for testing
+- Full tenant CRUD in backoffice
+- Squad project management framework
+
+This represents the first full-feature release, moving from development versioning (v1.1.2 placeholder) to production-ready versioning after 4 months of substantial development.
+
+**Artifacts Created:**
+- **CHANGELOG.md** — New file with 39 entries organized into three categories:
+  1. New Features (20+ entries: Squad framework, mobile generation, tenant management, OIDC, branding, authorization, Storybook)
+  2. Bug Fixes & Improvements (15+ entries: stability, tooling, configuration)
+  3. Documentation (4 entries: README clarity, onboarding, marketplace metadata)
+- **Version Synchronization:**
+  - `package.json`: 0.0.0 → 1.2.0 (placeholder to production)
+  - `csproj`: 1.1.2 → 1.2.0 (synced to minor bump)
+- **Git Tag:** `v1.2.0` created with release commit `0059954`
+
+**Changelog Style:**
+All entries use plain English (no raw commit hashes or internal references). Each entry answers: "What changed and why does it matter to me?"
+
+**Why:** Mabel's release decision follows conventional commit signals and semver classification to deliver accurate, user-focused release notes that communicate project maturity and feature completeness to stakeholders.
+
+**Impact:** v1.2.0 is now the canonical production release. The project moves from alpha/beta versioning (v1.1.2) to minor version releases, enabling predictable SemVer-based dependency management and clear feature communication to users.
+
 ---
