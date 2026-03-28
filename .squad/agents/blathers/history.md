@@ -188,3 +188,14 @@
 
 **CHANGELOG extraction pattern (Mabel's format):**
 Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after the matching heading line and stops before the next `## [` line, giving the full section body without the heading itself.
+
+## Learnings (Issue #14 — Biometric Registration Endpoint)
+
+- **RefreshTokenEnc column**: `PrismDeviceCredential` schema from PR #30 deliberately deferred `RefreshTokenEnc`. Added via `AddRefreshTokenEncColumn` migration chained in `PrismMigrationPlan` as `"add-refresh-token-enc"`.
+- **AES-256-GCM encryption**: `RefreshTokenEncryptionService` uses AES-GCM with 12-byte random nonce, 16-byte auth tag. Wire format: `Base64([nonce][ciphertext][tag])`. Key is base64-encoded 32-byte value from `Prism:Biometric:EncryptionKey`.
+- **Controller pattern for mobile endpoints**: `BiometricController` uses `[Route("umbraco/prism/mobile/biometric")]` with `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` — distinct from backoffice Management API controllers which use `[VersionedApiBackOfficeRoute]`.
+- **User OID extraction**: Claims from PrismMemberCookie use `oid` (short) or `http://schemas.microsoft.com/identity/claims/objectidentifier` (long form) — always check both.
+- **Refresh token from session**: Use `HttpContext.AuthenticateAsync("PrismMemberCookie")` → `authResult.Properties.GetTokens()` → find `"refresh_token"`. Same pattern as `PrismContext.GetAuthorizationHeaderAsync`.
+- **DB testing with Moq**: Use `Mock<IUmbracoDatabase>()` + `Mock<IUmbracoDatabaseFactory>()` pattern (matches `TenantServiceCacheStrategyTests`). Don't hand-roll `IUmbracoDatabase` — the interface has 100+ members.
+- **Upsert pattern**: Lookup by `(TenantId, DeviceId)` using `db.FirstOrDefault<PrismDeviceCredentialSchema>()` then update or insert. The unique index `IX_prismDeviceCredentials_TenantId_DeviceId` enforces one credential per device per tenant.
+- **Key files**: `BiometricController.cs`, `RefreshTokenEncryptionService.cs`, `IRefreshTokenEncryptionService.cs`, `BiometricRegistrationRequest.cs`, `BiometricRegistrationResponse.cs`, `AddRefreshTokenEncColumn.cs`.
