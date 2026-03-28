@@ -89,6 +89,12 @@ public class PrismDeviceCredentialSchema
     public DateTime ExpiresAt { get; set; }
 
     /// <summary>
+    /// Gets or sets the AES-256-GCM encrypted Entra refresh token. The raw refresh token is never stored.
+    /// </summary>
+    [Column("RefreshTokenEnc")]
+    public string RefreshTokenEnc { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the UTC datetime when this credential was revoked. Null means active.
     /// </summary>
     [Column("RevokedAt")]

@@ -20,4 +20,11 @@ public class PrismBiometricOptions
 
     /// <summary>Number of days before an issued BiometricToken expires (default: 30).</summary>
     public int TokenLifetimeDays { get; set; } = 30;
+
+    /// <summary>
+    /// Base64-encoded 32-byte AES-256 key used to encrypt Entra refresh tokens at rest.
+    /// Generate with: <c>Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))</c>.
+    /// In production, inject via environment variable or Azure Key Vault reference.
+    /// </summary>
+    public string EncryptionKey { get; set; } = string.Empty;
 }
