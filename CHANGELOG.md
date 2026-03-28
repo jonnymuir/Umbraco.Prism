@@ -2,6 +2,12 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.2.1] — 2026-03-29
+
+### Bug Fixes & Improvements
+
+- Fixes the GitHub release pipeline to only create releases when triggered by a version tag, preventing errors on manual workflow runs.
+
 ## [v1.2.0] — 2026-03-29
 
 ### New Features
