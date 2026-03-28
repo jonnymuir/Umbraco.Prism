@@ -102,10 +102,10 @@ class BiometricBridgeImpl implements BiometricBridge {
         throw new Error('Server did not return a biometric token');
       }
 
-      await SecureStorage.set({
-        key: `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`,
-        value: biometricToken
-      });
+      await SecureStorage.set(
+        `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`,
+        biometricToken
+      );
 
       console.log('Biometric registration successful for tenant:', tenantHost);
     } catch (error: any) {
@@ -120,12 +120,13 @@ class BiometricBridgeImpl implements BiometricBridge {
     let storedToken: string;
 
     try {
-      const result = await SecureStorage.get({ key: `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}` });
-      storedToken = result.value;
+      const result = await SecureStorage.get(`${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`);
       
-      if (!storedToken) {
+      if (!result || typeof result !== 'string') {
         throw new BiometricError('Biometric authentication not registered for this tenant', 'unavailable');
       }
+      
+      storedToken = result;
     } catch (error) {
       throw new BiometricError('Biometric authentication not registered for this tenant', 'unavailable');
     }
@@ -177,10 +178,10 @@ class BiometricBridgeImpl implements BiometricBridge {
       }
 
       if (newBiometricToken) {
-        await SecureStorage.set({
-          key: `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`,
-          value: newBiometricToken
-        });
+        await SecureStorage.set(
+          `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`,
+          newBiometricToken
+        );
       }
 
       return sessionToken;
@@ -196,8 +197,10 @@ class BiometricBridgeImpl implements BiometricBridge {
     let storedToken: string | null = null;
 
     try {
-      const result = await SecureStorage.get({ key: `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}` });
-      storedToken = result.value;
+      const result = await SecureStorage.get(`${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`);
+      if (result && typeof result === 'string') {
+        storedToken = result;
+      }
     } catch (error) {
       // Token not found, nothing to revoke on server
     }
@@ -227,14 +230,14 @@ class BiometricBridgeImpl implements BiometricBridge {
   async clearLocalCredentials(tenantHost?: string): Promise<void> {
     try {
       if (tenantHost) {
-        await SecureStorage.remove({ key: `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}` });
+        await SecureStorage.remove(`${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`);
         console.log('Cleared biometric credentials for tenant:', tenantHost);
       } else {
         const allKeys = await SecureStorage.keys();
-        const tokenKeys = allKeys.keys.filter(key => key.startsWith(this.BIOMETRIC_TOKEN_PREFIX));
+        const tokenKeys = allKeys.filter(key => key.startsWith(this.BIOMETRIC_TOKEN_PREFIX));
         
         for (const key of tokenKeys) {
-          await SecureStorage.remove({ key });
+          await SecureStorage.remove(key);
         }
 
         await Preferences.remove({ key: this.DEVICE_ID_KEY });
