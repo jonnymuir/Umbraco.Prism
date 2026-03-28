@@ -161,3 +161,10 @@
 - Tunnel temp log creation in `scripts/dev/start-trycloudflare.sh` no longer depends on `mktemp`; it now creates files directly with shell redirection after real write probes.
 - Candidate log directories are attempted in a fixed order: repo artifacts, TMPDIR fallback folder, `/tmp` fallback folder, then `$HOME/.cache` (if `HOME` is set).
 - Failure output now lists all attempted directories and gives actionable guidance (permissions, disk space, TMPDIR/HOME checks).
+
+## Learnings
+
+- 2026-03-28 (Issue #6): Precomputing normalized branding CSS declarations in `TenantService` and storing them on `PrismTenant` removes repeated per-request trimming/concatenation work in `PrismBrandingMiddleware` while preserving tenant-specific override behavior.
+- 2026-03-28 (Issue #6): Cache coherence for branding updates is preserved by existing domain cache invalidation; when tenant updates invalidate host entries, refreshed tenant loads rebuild both override dictionaries and precomputed CSS declarations.
+- 2026-03-28 (Issue #6): Middleware should keep a dictionary-based fallback path for safety so tests and non-cached tenant objects remain behavior-compatible even when precomputed declarations are absent.
+- 2026-03-28 (Cross-agent): Tangy's parallel cache-coherence tests validated the optimization assumptions, confirming no cross-tenant branding bleed and correct same-tenant refresh behavior.

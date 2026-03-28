@@ -350,3 +350,60 @@ Umbraco.Prism team decisions. Append-only ledger.
 **Why:** #8/#9/#10 were implementation slices for the rejected unification direction. Test coverage remains valuable, so it was re-scoped into #11 for the accepted two-plane model.
 
 ---
+
+## 📌 2026-03-28: P1 #5 Completed — Tenant Cache Invalidation Strategy
+
+**Decision:** Centralize tenant-cache invalidation in `ITenantService` and instrument cache behavior with runtime counters.
+
+**Implementation policy:**
+- Tenant cache entries are invalidated via `ITenantService.InvalidateDomain(s)` only.
+- Tenant-affecting writes (create/update/delete) must trigger invalidation through the service, not direct controller cache-key manipulation.
+- Tenant cache observability counters are required: `Hits`, `Misses`, `Invalidations`, `DatabaseLoads`.
+
+**Validation evidence:**
+- Added stress-oriented cache strategy tests in `TenantServiceCacheStrategyTests`:
+	- repeated lookup hit/miss effectiveness
+	- high-tenant invalidation deduplication across 2,000 domains
+	- post-invalidation forced refresh behavior
+- Core test suite passed (`36` succeeded, `0` failed).
+
+**Issue impact:**
+- GitHub issue #5 closed as **completed**.
+
+---
+
+## 📌 2026-03-28: P1 #6 Completed — Branding Load-Path Optimization + Cache-Coherence Coverage
+
+**Session Log:** `.squad/log/2026-03-28T07:47:36Z-issue-6-branding-optimization.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-branding-load-path.md`
+- `.squad/decisions/inbox/blathers-tunnel-input-clarity.md` (deduped; already captured in 2026-03-22 Tunnel Input Clarity decision)
+
+### Blathers — Branding Load Path Hot-Path Optimization (Issue #6)
+
+**Decision:** Precompute normalized branding CSS declarations at tenant cache-load time in `TenantService` and consume those declarations directly in `PrismBrandingMiddleware` during HTML injection.
+
+**Conventions adopted:**
+- Keep tenant override dictionaries as the source representation for correctness and compatibility.
+- Add runtime-only `PrismTenant` fields for precomputed desktop/mobile declaration strings.
+- In middleware, prefer precomputed declarations when available and fall back to dictionary rendering when not.
+- Preserve existing tenant cache invalidation behavior (`InvalidateDomain(s)`) as the coherence mechanism for rebuilds after tenant updates.
+
+**Why:** Reduces request-path CPU work under high tenant/request volume by eliminating repeated dictionary iteration, trim operations, and declaration concatenation while keeping scope low-risk.
+
+**Validation:** Focused tests passed (`19/19`) across `TenantServiceCacheStrategyTests`, `PrismBrandingMiddlewareTests`, and `BrandingServiceTests`.
+
+### Tangy — Parallel Cache-Coherence and Update Behavior Test Expansion
+
+**Decision:** Expand branding-path regression tests to verify cross-tenant isolation and same-tenant update reflection behavior under sequential request patterns.
+
+**Why:** Optimization changes were safe to ship only with explicit assertions that stale branding values do not bleed across tenant boundaries and that cache invalidation still refreshes outputs correctly.
+
+**Validation:** Focused branding test run passed for affected test classes.
+
+**Issue impact:**
+- GitHub issue #6 closed as **completed**.
+- Stale `go:needs-research` label removed.
+
+---

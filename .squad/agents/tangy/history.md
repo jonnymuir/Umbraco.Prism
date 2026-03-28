@@ -85,3 +85,11 @@
 - `MaxRetryAttempts` minimum is **1**; use `Math.Max(1, n)` in test-option helpers.
 - `Enumerable.Repeat(singleInstance, n)` for stub `HttpResponseMessage` causes `ObjectDisposedException` on second attempt — use factory delegates instead.
 - `BrokenCircuitException` is in `Polly.CircuitBreaker` namespace; catch before broad `Exception` handler.
+
+## Learnings
+
+- 2026-03-28 (Issue #6 branding optimization): Added backend tests to lock in cache-coherence behavior for branding tabs and per-request override projection.
+- Sequential multi-tenant requests now have explicit regression coverage to ensure one tenant's branding values never appear in another tenant response.
+- Added same-tenant update coverage to verify that changed desktop/mobile overrides are reflected on subsequent requests, with no stale response carry-over assumptions.
+- Tests were validated with a focused run of branding-related Core test classes (14 passing, 0 failing).
+- 2026-03-28 (Cross-agent): Blathers' precomputed declaration implementation informed assertion targets so the test suite now covers both optimized and fallback rendering paths.
