@@ -790,7 +790,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  private async _handleProduceMobile() {
+  private async _handleProduceMobile(e?: Event) {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (this._id === null || this._isProducingMobileBundle) return;
 
     this._isProducingMobileBundle = true;
@@ -840,9 +842,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         const anchor = document.createElement('a');
         anchor.href = url;
         anchor.download = fileName;
+        anchor.style.display = 'none';
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
         document.body.appendChild(anchor);
         anchor.click();
-        anchor.remove();
+        document.body.removeChild(anchor);
         URL.revokeObjectURL(url);
         this._mobileBundleGenerated = true;
       } catch (error) {
