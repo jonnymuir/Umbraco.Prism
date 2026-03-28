@@ -203,7 +203,7 @@ export class PrismBiometricSettingsElement extends LitElement {
     }
 
     .btn:focus-visible {
-      outline: 3px solid #4a90e2;
+      outline: 3px solid #2563eb;
       outline-offset: 2px;
     }
 
@@ -221,7 +221,7 @@ export class PrismBiometricSettingsElement extends LitElement {
     }
 
     .btn-primary {
-      background-color: #4a90e2;
+      background-color: #2563eb;
       color: #fff;
     }
 
@@ -275,7 +275,7 @@ export class PrismBiometricSettingsElement extends LitElement {
       width: 1rem;
       height: 1rem;
       border: 2px solid rgba(0, 0, 0, 0.15);
-      border-top-color: #4a90e2;
+      border-top-color: #2563eb;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       flex-shrink: 0;
