@@ -13,6 +13,7 @@ How to decide who handles what.
 | Testing strategy & QA | Tangy | Playwright tests, edge cases, test coverage, quality gate, accessibility validation |
 | XML documentation and API docs | Celeste | XML style docs, public API summaries, param/returns/exception docs, readability standards |
 | Public docs & README | Mabel | README.md, /docs/ content, marketplace listing, changelogs, onboarding guides |
+| Release / versioning | Mabel | "cut a release", "bump version", "what's changed since last release", CHANGELOG.md, semver |
 | Security, tenant isolation, CIA | Copper | Confidentiality/integrity/availability analysis, auth hardening, cross-tenant leak prevention |
 | Async issue work (bugs, small features) | @copilot 🤖 | Well-defined tasks matching capability profile (see Lead triage) |
 | Session logging & decisions | Scribe | Automatic — never needs routing |

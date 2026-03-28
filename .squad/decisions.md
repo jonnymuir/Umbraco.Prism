@@ -561,4 +561,12 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 **Outcome:** All 7 improvements complete and ready for deployment.
 
+## 📌 2026-03-28: Mabel granted release management powers
+
+**By:** Jonny Muir (via Copilot)
+
+**What:** Mabel's charter expanded to include semantic versioning, release cutting, CHANGELOG authoring, and version bumps across csproj + package.json. She infers semver bump automatically from git log using conventional commit signals.
+
+**Why:** User requested dedicated release versioning ownership for the Technical Writer role.
+
 ---
