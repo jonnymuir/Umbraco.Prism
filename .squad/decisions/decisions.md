@@ -1,5 +1,34 @@
 # Decisions
 
+## Decision: GitHub Release Workflow Convention
+
+**Date:** 2026-03-29  
+**Agent:** Blathers (Backend Dev)  
+**Status:** Implemented
+
+### What Was Decided
+
+Adopt automated GitHub Release creation as part of the `package-release.yml` workflow, triggered unconditionally on every `v*` tag push.
+
+### Conventions
+
+- **Permissions:** The `pack` job requires `permissions: contents: write` at job level to allow `GITHUB_TOKEN` to create GitHub Releases.
+- **Release action:** Use `softprops/action-gh-release@v2` — the standard well-maintained action. Set `draft: false`, `prerelease: false`, `generate_release_notes: false`.
+- **Release name:** Use `github.ref_name` (e.g. `v1.2.0`) as the release title.
+- **Release body:** Extract from `CHANGELOG.md` using the `awk` pattern:
+  ```sh
+  awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md
+  ```
+  This captures everything between the current tag's heading and the next `## [` heading, matching Mabel's CHANGELOG format (`## [vX.Y.Z] — YYYY-MM-DD`).
+- **Assets:** Attach `artifacts/*.nupkg` to the release.
+- **Gate:** GitHub Release creation is **not** gated on `NUGET_API_KEY`. NuGet publish remains gated (`if: ${{ env.NUGET_API_KEY != '' }}`).
+
+### Why This Matters
+
+Publishing a GitHub Release alongside the NuGet package gives users a changelog-rich release page on GitHub without manual steps. Extracting from `CHANGELOG.md` ensures the release body matches the canonical team-maintained changelog written by Mabel (Scribe). Keeping it unconditional means a release is always created even if NuGet publish is skipped.
+
+---
+
 ## Decision: Comprehensive Copilot Instructions Created
 
 **Date:** 2026-03-22  

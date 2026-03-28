@@ -175,3 +175,16 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+
+## Learnings (2026-03-29 — GitHub Release Workflow)
+
+**Workflow change:** Updated `.github/workflows/package-release.yml` to automatically create a GitHub Release on every `v*` tag push.
+
+**Key additions:**
+- Added `permissions: contents: write` at job level (required for `softprops/action-gh-release@v2` to create releases via `GITHUB_TOKEN`).
+- Added "Extract release notes from CHANGELOG" step using `awk` to extract the section between the current tag's `## [vX.Y.Z]` heading and the next `## [` heading. Pattern: `awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found{print}"`.
+- Added "Create GitHub Release" step using `softprops/action-gh-release@v2` with the `.nupkg` from `artifacts/` attached, tag name as release title, extracted CHANGELOG section as body, `generate_release_notes: false`.
+- GitHub Release creation is unconditional (not gated on `NUGET_API_KEY`); NuGet publish remains gated as before.
+
+**CHANGELOG extraction pattern (Mabel's format):**
+Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after the matching heading line and stops before the next `## [` line, giving the full section body without the heading itself.

@@ -9,6 +9,8 @@ on:
 jobs:
   pack:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
     steps:
@@ -45,6 +47,29 @@ jobs:
         with:
           name: umbracoprism-nuget
           path: artifacts/*.nupkg
+
+      - name: Extract release notes from CHANGELOG
+        id: release_notes
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Extract the section for this tag: from the heading line to (but not including) the next ## [ heading
+          NOTES=$(awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          # Store as multiline output
+          {
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ steps.release_notes.outputs.notes }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          files: artifacts/*.nupkg
 
       - name: Publish to NuGet (optional)
         if: ${{ env.NUGET_API_KEY != '' }}
