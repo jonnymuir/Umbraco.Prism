@@ -2,6 +2,14 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.2.2] — 2026-03-28
+
+### Bug Fixes & Improvements
+
+- Fixes intermittent MockBackOffice build failures by disabling parallel package generation (GeneratePackageOnBuild).
+- Prevents SPA router from intercepting blob URL downloads by stopping propagation on mobile app button clicks.
+- Updates mobile app config start URL automatically when Cloudflare tunnel hostname changes.
+
 ## [v1.2.1] — 2026-03-29
 
 ### Bug Fixes & Improvements
