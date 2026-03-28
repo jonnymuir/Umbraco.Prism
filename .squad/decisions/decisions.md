@@ -1,5 +1,116 @@
 # Decisions
 
+## Decision: Direct Main Branch Workflow
+
+**Date:** 2026-03-28  
+**Agent:** Copilot (via user directive)  
+**Status:** Active
+
+### What Was Decided
+
+Work directly on main branch, one issue at a time. No pull requests — commits go straight to main after work is complete.
+
+### Why This Matters
+
+Solo developer project context. PR overhead is unnecessary when individual is responsible for all decisions and testing. Enables faster iteration while maintaining code quality through direct validation and commit practices.
+
+---
+
+## Decision: PrismDeviceCredential Schema Choices (Issue #12)
+
+**Author:** Blathers (Backend Dev)  
+**Date:** 2026-03-28  
+**Issue:** #12 — Phase 1: prismBiometricTokens DB table + migration
+
+### Type Choices
+
+| Field | Type | Rationale |
+|---|---|---|
+| `TenantId` | `nvarchar(450)` | Logical tenant string identifier (not int FK) per issue spec; matches Umbraco identity column sizing |
+| `UserId` | `nvarchar(450)` | Entra OID stored as string; 450 is Umbraco's standard for identity keys |
+| `DeviceId` | `nvarchar(64)` | Client UUID as string, 36 chars + headroom |
+| `TokenHash` | `nvarchar(512)` | SHA-256 hex (64 chars) with headroom for algorithm prefixing |
+| `RegisteredAt` | `datetime2` + `getutcdate()` default | UTC enforced; `datetime2` is higher precision than `datetime` |
+| `FailedAttempts` | `int` + default `0` | Rate-limiting counter; int sufficient for any realistic limit |
+| `Platform` | `nvarchar(50)` | Bounded enum-like values ('ios', 'android'); validated at application layer |
+
+### Index Rationale
+
+| Index | Type | Rationale |
+|---|---|---|
+| `(TenantId, DeviceId)` | UNIQUE | Enforces one credential entry per device per tenant at DB level |
+| `(TenantId, UserId)` | Non-unique | Supports listing/revoking all devices for a user within a tenant |
+| `(TokenHash)` | Non-unique | Exchange endpoint hashes the incoming JWT and looks up the record; hot path |
+
+### Composite Index Approach
+
+The Umbraco `[Index]` NPoco annotation only supports single-column indexes. Composite indexes were created via `Database.Execute()` raw SQL inside the migration class. This is consistent with the Umbraco migration pattern and safe because the `TableExists` guard ensures idempotency.
+
+### What Was Deferred
+
+- `RefreshTokenEnc` field (from the original design doc SQL) is not in this phase; the issue spec omits it and it belongs to the `/exchange` service implementation, not the registry schema.
+- Per-tenant expiry configuration (7–90 day range) is an application-layer concern; the `ExpiresAt` column stores the computed value set at registration time.
+
+---
+
+## Decision: Native Biometric Platform Configuration
+
+**Date:** 2026-01-25  
+**Author:** Kicks (Mobile Native Specialist)  
+**Context:** Issues #20, #21 — iOS and Android biometric platform config in MobileBundleService
+
+### Decision
+
+The `MobileBundleService` now conditionally injects platform-specific biometric configuration into generated mobile app bundles when the `BiometricAuthEnabled` flag is set to true.
+
+### iOS Configuration
+- **Info.plist Key:** `NSFaceIDUsageDescription` with usage string
+- **Injection Method:** `plutil -insert` command in bootstrap-ios.sh script
+- **When:** After `npx cap add ios` but before app build/run
+- **Rationale:** FaceID requires explicit usage description in Info.plist for App Store approval; TouchID does not
+
+### Android Configuration
+- **Manifest Permission:** `android.permission.USE_BIOMETRIC`
+- **Injection Method:** `sed` insertion before `<application>` tag in bootstrap-android.sh script
+- **When:** After `npx cap add android` but before app build/run
+- **API Level:** Targets API 28+ (BiometricPrompt API); no need for deprecated `USE_FINGERPRINT` permission
+
+### Plugin Dependencies
+When `BiometricAuthEnabled` is true, package.json includes:
+- `@aparajita/capacitor-biometric-auth@^7.0.0` — biometric authentication prompts
+- `@aparajita/capacitor-secure-storage@^7.0.0` — secure Keychain/Keystore access
+
+**Plugin Selection Rationale:** `@aparajita` packages chosen over `@capacitor-community` alternatives for:
+- Capacitor 7 compatibility
+- Active maintenance
+- Superior iOS Keychain and Android Keystore mapping
+- Consistent API surface from same author
+
+### Implementation Details
+
+Both iOS and Android bootstrap scripts follow this pattern:
+1. Check if the platform-specific file exists
+2. Check if the required entry is already present (idempotent)
+3. If not present, inject using platform-appropriate tool (`plutil` for iOS plist, `sed` for Android XML)
+4. Provide clear feedback to developer
+
+This approach ensures the scripts can be run multiple times without duplication and gracefully handle cases where the platform hasn't been added yet.
+
+### Future Considerations
+
+- If the tenant disables biometric auth after a bundle is generated, developers must manually remove the permissions or regenerate the bundle
+- The `BiometricAuthEnabled` flag is currently a simple boolean; future enhancements might allow for platform-specific toggles (iOS-only, Android-only)
+- No Capacitor config changes needed — plugins auto-register via Capacitor's discovery mechanism
+
+### Testing Notes
+
+The configuration injection happens during the bootstrap script phase, which occurs on the developer's machine after bundle extraction. This means:
+- No server-side testing needed for the injection itself
+- Testing requires full Capacitor app generation and platform addition
+- Verification: check generated Info.plist and AndroidManifest.xml after running bootstrap scripts
+
+---
+
 ## Decision: GitHub Release Workflow Convention
 
 **Date:** 2026-03-29  
