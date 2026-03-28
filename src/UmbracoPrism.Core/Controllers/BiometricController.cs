@@ -154,17 +154,22 @@ public class BiometricController(
     public async Task<IActionResult> Exchange([FromBody] BiometricExchangeRequest request)
     {
         if (!ModelState.IsValid)
+        {
+            LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: null);
             return BadRequest(ModelState);
+        }
 
         // 1. Verify tenant context
         var tenant = prismContext.CurrentTenant;
         if (tenant == null)
         {
             logger.LogWarning("Biometric exchange: no tenant context resolved");
+            LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: null);
             return BadRequest(new { error = "No tenant context available." });
         }
 
         // 2. Validate biometric token JWT (signature, lifetime, claims)
+        var tenantId = tenant.Id.ToString();
         BiometricTokenClaims claims;
         try
         {
@@ -173,15 +178,16 @@ public class BiometricController(
         catch (Exception ex) when (ex is SecurityTokenException or ArgumentException)
         {
             logger.LogWarning("Biometric exchange: token validation failed — {Reason}", ex.Message);
+            LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
         // 3. Verify tenantId claim matches request tenant
-        var tenantId = tenant.Id.ToString();
         if (!string.Equals(claims.TenantId, tenantId, StringComparison.Ordinal))
         {
             logger.LogWarning("Biometric exchange: tenant mismatch (token={TokenTid}, request={RequestTid})",
                 claims.TenantId, tenantId);
+            LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
@@ -196,6 +202,7 @@ public class BiometricController(
         if (credential == null)
         {
             logger.LogWarning("Biometric exchange: no credential found for token hash");
+            LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
@@ -203,12 +210,14 @@ public class BiometricController(
         if (credential.RevokedAt != null)
         {
             logger.LogWarning("Biometric exchange: credential has been revoked");
+            LogExchangeAudit("Failure", "token_invalid", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
         if (credential.ExpiresAt <= DateTime.UtcNow)
         {
             logger.LogWarning("Biometric exchange: credential has expired");
+            LogExchangeAudit("Failure", "token_invalid", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
@@ -217,6 +226,7 @@ public class BiometricController(
         {
             logger.LogWarning("Biometric exchange: device mismatch (token={TokenDev}, db={DbDev})",
                 claims.DeviceId, credential.DeviceId);
+            LogExchangeAudit("Failure", "device_mismatch", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "device_mismatch" });
         }
 
@@ -225,6 +235,7 @@ public class BiometricController(
         {
             logger.LogWarning("Biometric exchange: userId mismatch (token={TokenUid}, db={DbUid})",
                 claims.UserOid, credential.UserId);
+            LogExchangeAudit("Failure", "token_invalid", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
@@ -237,6 +248,7 @@ public class BiometricController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Biometric exchange: failed to decrypt refresh token for device {DeviceId}", credential.DeviceId);
+            LogExchangeAudit("Failure", "credential_refresh_failed", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "credential_refresh_failed" });
         }
 
@@ -246,6 +258,7 @@ public class BiometricController(
             string.IsNullOrWhiteSpace(tenant.SecretKeyName))
         {
             logger.LogWarning("Biometric exchange: tenant missing Entra configuration");
+            LogExchangeAudit("Failure", "credential_refresh_failed", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "credential_refresh_failed" });
         }
 
@@ -253,6 +266,7 @@ public class BiometricController(
         if (string.IsNullOrWhiteSpace(clientSecret))
         {
             logger.LogWarning("Biometric exchange: client secret could not be resolved from vault");
+            LogExchangeAudit("Failure", "credential_refresh_failed", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "credential_refresh_failed" });
         }
 
@@ -272,6 +286,7 @@ public class BiometricController(
         if (!tokenResult.Success || tokenResult.AccessToken == null)
         {
             logger.LogWarning("Biometric exchange: Entra token refresh failed for device {DeviceId}", credential.DeviceId);
+            LogExchangeAudit("Failure", "credential_refresh_failed", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "credential_refresh_failed" });
         }
 
@@ -284,6 +299,7 @@ public class BiometricController(
         logger.LogInformation(
             "Biometric exchange: successful for device {DeviceId} tenant {TenantId}",
             credential.DeviceId, tenantId);
+        LogExchangeAudit("Success", failureReason: null, tokenId: credential.Id, tenantId: tenantId);
 
         // 11. Build ClaimsPrincipal and issue PrismMemberCookie
         var identity = new ClaimsIdentity("PrismMemberCookie");
@@ -357,5 +373,28 @@ public class BiometricController(
         }
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Emits a structured audit log entry for every biometric exchange attempt.
+    /// </summary>
+    private void LogExchangeAudit(string outcome, string? failureReason, int? tokenId, string? tenantId)
+    {
+        var clientIp = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+            ?? HttpContext.Connection.RemoteIpAddress?.ToString();
+        var timestamp = DateTime.UtcNow;
+
+        if (outcome == "Success")
+        {
+            logger.LogInformation(
+                "{EventType}: {Outcome} TokenId={TokenId} TenantId={TenantId} ClientIp={ClientIp} Timestamp={Timestamp}",
+                "BiometricExchangeAttempt", outcome, tokenId, tenantId, clientIp, timestamp);
+        }
+        else
+        {
+            logger.LogWarning(
+                "{EventType}: {Outcome} FailureReason={FailureReason} TokenId={TokenId} TenantId={TenantId} ClientIp={ClientIp} Timestamp={Timestamp}",
+                "BiometricExchangeAttempt", outcome, failureReason, tokenId, tenantId, clientIp, timestamp);
+        }
     }
 }

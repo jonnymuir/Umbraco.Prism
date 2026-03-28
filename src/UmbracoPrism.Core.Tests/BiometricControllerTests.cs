@@ -54,7 +54,7 @@ public class BiometricControllerTests
     /// Builds a controller with configurable mocks. Returns the controller and the
     /// mock database for verifying persisted records.
     /// </summary>
-    private static (BiometricController Controller, Mock<IUmbracoDatabase> Db) BuildController(
+    private static (BiometricController Controller, Mock<IUmbracoDatabase> Db, Mock<ILogger<BiometricController>> Logger) BuildController(
         PrismTenant? tenant = null,
         string? userOid = null,
         string? refreshToken = null,
@@ -67,7 +67,7 @@ public class BiometricControllerTests
         var tokenService = BuildTokenService();
         var encryptionService = BuildEncryptionService();
         var biometricOptions = BuildBiometricOptions(lifetimeDays);
-        var logger = Mock.Of<ILogger<BiometricController>>();
+        var loggerMock = new Mock<ILogger<BiometricController>>();
 
         var prismContext = new Mock<IPrismContext>();
         prismContext.Setup(c => c.CurrentTenant).Returns(tenant);
@@ -91,7 +91,7 @@ public class BiometricControllerTests
             tokenRefreshServiceMock.Object,
             vaultMock.Object,
             biometricOptions,
-            logger);
+            loggerMock.Object);
 
         // Set up HttpContext with claims and authentication
         var claims = new List<Claim>();
@@ -131,7 +131,7 @@ public class BiometricControllerTests
             HttpContext = httpContext,
         };
 
-        return (controller, mockDb);
+        return (controller, mockDb, loggerMock);
     }
 
     // ------------------------------------------------------------------ happy path
@@ -140,7 +140,7 @@ public class BiometricControllerTests
     public async Task Register_HappyPath_ReturnsTokenAndPersistsRecord()
     {
         var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
-        var (controller, db) = BuildController(
+        var (controller, db, _) = BuildController(
             tenant: tenant,
             userOid: "user-oid-123",
             refreshToken: "entra-refresh-token-abc");
@@ -183,7 +183,7 @@ public class BiometricControllerTests
         var tenant = new PrismTenant { Id = 1, Name = "T" };
         PrismDeviceCredentialSchema? capturedRecord = null;
 
-        var (controller, db) = BuildController(
+        var (controller, db, _) = BuildController(
             tenant: tenant,
             userOid: "oid-1",
             refreshToken: "secret-refresh-token");
@@ -219,7 +219,7 @@ public class BiometricControllerTests
             ExpiresAt = DateTime.UtcNow.AddDays(20),
         };
 
-        var (controller, db) = BuildController(
+        var (controller, db, _) = BuildController(
             tenant: tenant,
             userOid: "user-oid-123",
             refreshToken: "new-refresh-token",
@@ -269,7 +269,7 @@ public class BiometricControllerTests
         };
 
         // Bob tries to register the same DeviceId — query should NOT find Alice's record
-        var (controller, db) = BuildController(
+        var (controller, db, _) = BuildController(
             tenant: tenant,
             userOid: "bob-oid",
             refreshToken: "bob-refresh-token",
@@ -302,7 +302,7 @@ public class BiometricControllerTests
     public async Task Register_UnauthenticatedSession_Returns401()
     {
         var tenant = new PrismTenant { Id = 1, Name = "T" };
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: tenant,
             authenticated: false);
 
@@ -317,7 +317,7 @@ public class BiometricControllerTests
     public async Task Register_MissingUserOid_Returns401()
     {
         var tenant = new PrismTenant { Id = 1, Name = "T" };
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: tenant,
             userOid: null,
             refreshToken: "some-token",
@@ -335,7 +335,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Register_NoTenantContext_Returns400()
     {
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: null,
             userOid: "user-1",
             refreshToken: "rt-1");
@@ -353,7 +353,7 @@ public class BiometricControllerTests
     public async Task Register_NoRefreshTokenInSession_Returns400()
     {
         var tenant = new PrismTenant { Id = 1, Name = "T" };
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: tenant,
             userOid: "user-1",
             refreshToken: null);
@@ -442,7 +442,8 @@ public class BiometricControllerTests
     /// </summary>
     private static (BiometricController Controller, Mock<IUmbracoDatabase> Db,
         string BiometricToken, PrismDeviceCredentialSchema Credential,
-        Mock<IPrismTokenRefreshService> RefreshMock, Mock<IAuthenticationService> AuthMock)
+        Mock<IPrismTokenRefreshService> RefreshMock, Mock<IAuthenticationService> AuthMock,
+        Mock<ILogger<BiometricController>> Logger)
         BuildExchangeScenario(
             string deviceId = "device-uuid-1",
             string userOid = "user-oid-123",
@@ -490,7 +491,7 @@ public class BiometricControllerTests
         var vaultMock = new Mock<ISecretVaultService>();
         vaultMock.Setup(v => v.GetSecretAsync(It.IsAny<string>())).ReturnsAsync(vaultSecret!);
 
-        var (controller, db) = BuildController(
+        var (controller, db, loggerMock) = BuildController(
             tenant: tenant,
             existingRecord: credential,
             tokenRefreshServiceMock: refreshMock,
@@ -510,7 +511,7 @@ public class BiometricControllerTests
             HttpContext = httpContext,
         };
 
-        return (controller, db, biometricToken, credential, refreshMock, authMock);
+        return (controller, db, biometricToken, credential, refreshMock, authMock, loggerMock);
     }
 
     // ------------------------------------------------------------------ exchange happy path
@@ -518,7 +519,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_HappyPath_IssuesCookieAndReturns200()
     {
-        var (controller, _, biometricToken, _, _, authMock) = BuildExchangeScenario();
+        var (controller, _, biometricToken, _, _, authMock, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         var result = await controller.Exchange(request);
@@ -541,7 +542,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_HappyPath_RollingRotationStoresNewRefreshToken()
     {
-        var (controller, db, biometricToken, _, _, _) = BuildExchangeScenario();
+        var (controller, db, biometricToken, _, _, _, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         await controller.Exchange(request);
@@ -568,7 +569,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_HappyPath_CallsEntraWithCorrectEndpointAndParams()
     {
-        var (controller, _, biometricToken, _, refreshMock, _) = BuildExchangeScenario();
+        var (controller, _, biometricToken, _, refreshMock, _, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         await controller.Exchange(request);
@@ -587,7 +588,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_EntraReturnsNoNewRefreshToken_FallsBackToExisting()
     {
-        var (controller, db, biometricToken, _, _, _) = BuildExchangeScenario(
+        var (controller, db, biometricToken, _, _, _, _) = BuildExchangeScenario(
             refreshResult: new TokenRefreshResult(true, "new-access", null, 3600));
 
         PrismDeviceCredentialSchema? capturedRecord = null;
@@ -608,7 +609,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_InvalidToken_Returns401BiometricTokenInvalid()
     {
-        var (controller, _, _, _, _, _) = BuildExchangeScenario();
+        var (controller, _, _, _, _, _, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = "not-a-valid-jwt" };
         var result = await controller.Exchange(request);
@@ -632,7 +633,7 @@ public class BiometricControllerTests
         var wrongKeyService = new BiometricTokenService(wrongKeyOpts);
         var tamperedToken = wrongKeyService.IssueToken("dev-1", "42", "user-1", TimeSpan.FromDays(30));
 
-        var (controller, _, _, _, _, _) = BuildExchangeScenario();
+        var (controller, _, _, _, _, _, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = tamperedToken };
         var result = await controller.Exchange(request);
@@ -648,7 +649,7 @@ public class BiometricControllerTests
         var tokenService = BuildTokenService();
         var tokenForOtherTenant = tokenService.IssueToken("device-uuid-1", "999", "user-oid-123", TimeSpan.FromDays(30));
 
-        var (controller, _, _, _, _, _) = BuildExchangeScenario();
+        var (controller, _, _, _, _, _, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = tokenForOtherTenant };
         var result = await controller.Exchange(request);
@@ -667,7 +668,7 @@ public class BiometricControllerTests
         // Build controller with NO existing record
         var refreshMock = new Mock<IPrismTokenRefreshService>();
         var vaultMock = new Mock<ISecretVaultService>();
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: ExchangeTenant,
             existingRecord: null,
             tokenRefreshServiceMock: refreshMock,
@@ -690,7 +691,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_RevokedCredential_Returns401BiometricTokenInvalid()
     {
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(revoked: true);
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(revoked: true);
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         var result = await controller.Exchange(request);
@@ -702,7 +703,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_ExpiredCredential_Returns401BiometricTokenInvalid()
     {
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(expired: true);
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(expired: true);
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         var result = await controller.Exchange(request);
@@ -716,7 +717,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_DeviceMismatch_Returns401DeviceMismatch()
     {
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
             overrideDbDeviceId: "different-device-id");
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
@@ -729,7 +730,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_UserIdMismatch_Returns401BiometricTokenInvalid()
     {
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
             overrideDbUserId: "different-user-oid");
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
@@ -744,7 +745,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_EntraRefreshFails_Returns401CredentialRefreshFailed()
     {
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
             refreshResult: new TokenRefreshResult(false, null, null, null));
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
@@ -759,7 +760,7 @@ public class BiometricControllerTests
     {
         var refreshMock = new Mock<IPrismTokenRefreshService>();
         var vaultMock = new Mock<ISecretVaultService>();
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: null,
             tokenRefreshServiceMock: refreshMock,
             vaultMock: vaultMock);
@@ -786,7 +787,7 @@ public class BiometricControllerTests
             SecretKeyName = null,
         };
 
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(tenant: tenantWithoutEntra);
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(tenant: tenantWithoutEntra);
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         var result = await controller.Exchange(request);
@@ -798,7 +799,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_VaultSecretMissing_Returns401CredentialRefreshFailed()
     {
-        var (controller, _, biometricToken, _, _, _) = BuildExchangeScenario(vaultSecret: null);
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(vaultSecret: null);
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         var result = await controller.Exchange(request);
@@ -810,7 +811,7 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_DoesNotCallEntra_WhenTokenValidationFails()
     {
-        var (controller, _, _, _, refreshMock, _) = BuildExchangeScenario();
+        var (controller, _, _, _, refreshMock, _, _) = BuildExchangeScenario();
 
         var request = new BiometricExchangeRequest { BiometricToken = "invalid-jwt" };
         await controller.Exchange(request);
@@ -825,13 +826,190 @@ public class BiometricControllerTests
     [Fact]
     public async Task Exchange_DoesNotUpdateDb_WhenEntraRefreshFails()
     {
-        var (controller, db, biometricToken, _, _, _) = BuildExchangeScenario(
+        var (controller, db, biometricToken, _, _, _, _) = BuildExchangeScenario(
             refreshResult: new TokenRefreshResult(false, null, null, null));
 
         var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
         await controller.Exchange(request);
 
         db.Verify(d => d.Update(It.IsAny<object>()), Times.Never);
+    }
+
+    // ------------------------------------------------------------------ exchange audit logging
+
+    private static void VerifyAuditLog(
+        Mock<ILogger<BiometricController>> loggerMock,
+        LogLevel expectedLevel,
+        string expectedOutcome,
+        string? expectedFailureReason)
+    {
+        loggerMock.Verify(
+            x => x.Log(
+                expectedLevel,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains("BiometricExchangeAttempt") &&
+                    v.ToString()!.Contains(expectedOutcome) &&
+                    (expectedFailureReason == null || v.ToString()!.Contains(expectedFailureReason))),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once,
+            $"Expected audit log: Level={expectedLevel}, Outcome={expectedOutcome}, FailureReason={expectedFailureReason}");
+    }
+
+    [Fact]
+    public async Task Exchange_HappyPath_LogsAuditSuccess()
+    {
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario();
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        VerifyAuditLog(loggerMock, LogLevel.Information, "Success", null);
+    }
+
+    [Fact]
+    public async Task Exchange_InvalidToken_LogsAuditFailure_TokenInvalid()
+    {
+        var (controller, _, _, _, _, _, loggerMock) = BuildExchangeScenario();
+
+        var request = new BiometricExchangeRequest { BiometricToken = "not-a-valid-jwt" };
+        await controller.Exchange(request);
+
+        VerifyAuditLog(loggerMock, LogLevel.Warning, "Failure", "token_invalid");
+    }
+
+    [Fact]
+    public async Task Exchange_DeviceMismatch_LogsAuditFailure_DeviceMismatch()
+    {
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario(
+            overrideDbDeviceId: "different-device-id");
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        VerifyAuditLog(loggerMock, LogLevel.Warning, "Failure", "device_mismatch");
+    }
+
+    [Fact]
+    public async Task Exchange_EntraRefreshFails_LogsAuditFailure_CredentialRefreshFailed()
+    {
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario(
+            refreshResult: new TokenRefreshResult(false, null, null, null));
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        VerifyAuditLog(loggerMock, LogLevel.Warning, "Failure", "credential_refresh_failed");
+    }
+
+    [Fact]
+    public async Task Exchange_NoTenantContext_LogsAuditFailure()
+    {
+        var refreshMock = new Mock<IPrismTokenRefreshService>();
+        var vaultMock = new Mock<ISecretVaultService>();
+        var (controller, _, loggerMock) = BuildController(
+            tenant: null,
+            tokenRefreshServiceMock: refreshMock,
+            vaultMock: vaultMock);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.RequestServices = new MockServiceProvider(new Mock<IAuthenticationService>().Object);
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+
+        var request = new BiometricExchangeRequest { BiometricToken = "any-token" };
+        await controller.Exchange(request);
+
+        VerifyAuditLog(loggerMock, LogLevel.Warning, "Failure", "token_invalid");
+    }
+
+    [Fact]
+    public async Task Exchange_RevokedCredential_LogsAuditFailure_TokenInvalid()
+    {
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario(revoked: true);
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        VerifyAuditLog(loggerMock, LogLevel.Warning, "Failure", "token_invalid");
+    }
+
+    [Fact]
+    public async Task Exchange_AuditLog_IncludesTokenIdWhenCredentialFound()
+    {
+        var (controller, _, biometricToken, credential, _, _, loggerMock) = BuildExchangeScenario(
+            overrideDbDeviceId: "different-device-id");
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        // Verify the audit log contains the credential's TokenId
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains("BiometricExchangeAttempt") &&
+                    v.ToString()!.Contains($"TokenId={credential.Id}")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_AuditLog_IncludesTenantId()
+    {
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario();
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains("BiometricExchangeAttempt") &&
+                    v.ToString()!.Contains("TenantId=42")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_AuditLog_DoesNotContainSensitiveData()
+    {
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario();
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        // Collect all log messages
+        var logMessages = new List<string>();
+        loggerMock.Verify(
+            x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => CaptureLogMessage(v.ToString()!, logMessages)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+
+        // Verify none of the audit logs contain sensitive values
+        var auditLogs = logMessages.Where(m => m.Contains("BiometricExchangeAttempt")).ToList();
+        auditLogs.Should().NotBeEmpty();
+        foreach (var msg in auditLogs)
+        {
+            msg.Should().NotContain(biometricToken, because: "audit logs must not contain JWT values");
+            msg.Should().NotContain("stored-entra-refresh-token", because: "audit logs must not contain refresh tokens");
+            msg.Should().NotContain("new-refresh-token", because: "audit logs must not contain new refresh tokens");
+        }
+    }
+
+    private static bool CaptureLogMessage(string message, List<string> messages)
+    {
+        messages.Add(message);
+        return true;
     }
 
     // ------------------------------------------------------------------ unenrol happy path
@@ -853,7 +1031,7 @@ public class BiometricControllerTests
             RevokedAt = null,
         };
 
-        var (controller, db) = BuildController(
+        var (controller, db, _) = BuildController(
             tenant: tenant,
             userOid: "user-oid-123",
             refreshToken: "rt",
@@ -875,7 +1053,7 @@ public class BiometricControllerTests
         var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
 
         // No active credential found (already revoked or never existed)
-        var (controller, db) = BuildController(
+        var (controller, db, _) = BuildController(
             tenant: tenant,
             userOid: "user-oid-123",
             refreshToken: "rt",
@@ -892,7 +1070,7 @@ public class BiometricControllerTests
     [Fact]
     public void Unenrol_NoTenantContext_Returns400()
     {
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: null,
             userOid: "user-oid-123",
             refreshToken: "rt");
@@ -906,7 +1084,7 @@ public class BiometricControllerTests
     public void Unenrol_MissingUserOid_Returns401()
     {
         var tenant = new PrismTenant { Id = 1, Name = "T" };
-        var (controller, _) = BuildController(
+        var (controller, _, _) = BuildController(
             tenant: tenant,
             userOid: null,
             refreshToken: "rt",
