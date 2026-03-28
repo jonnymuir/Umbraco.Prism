@@ -185,12 +185,13 @@ public class BiometricController(
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
-        // 4. Hash the token and look up the credential row
+        // 4. Hash the token and look up the credential row (include TenantId + UserId per security policy)
         var tokenHash = biometricTokenService.HashToken(request.BiometricToken);
 
         using var db = databaseFactory.CreateDatabase();
         var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(
-            "WHERE TokenHash = @0", tokenHash);
+            "WHERE TokenHash = @0 AND TenantId = @1 AND UserId = @2",
+            tokenHash, claims.TenantId, claims.UserOid);
 
         if (credential == null)
         {
