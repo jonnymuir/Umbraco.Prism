@@ -231,12 +231,12 @@ export class PrismBiometricSettingsElement extends LitElement {
     }
 
     .btn-danger {
-      background-color: #d9534f;
+      background-color: #c82333;
       color: #fff;
     }
 
     .confirm-dialog {
-      border: 1px solid #d9534f;
+      border: 1px solid #c82333;
       border-radius: 8px;
       padding: 1.25rem;
       background-color: #fff8f8;
