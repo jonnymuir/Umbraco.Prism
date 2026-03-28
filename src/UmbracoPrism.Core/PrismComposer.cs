@@ -30,6 +30,9 @@ public class PrismComposer : IComposer
         builder.Services.Configure<PrismTokenRefreshOptions>(
             builder.Config.GetSection(PrismTokenRefreshOptions.SectionName));
         builder.Services.AddSingleton<IPrismTokenRefreshService, PrismTokenRefreshService>();
+        builder.Services.Configure<PrismBiometricOptions>(
+            builder.Config.GetSection(PrismBiometricOptions.SectionName));
+        builder.Services.AddSingleton<IBiometricTokenService, BiometricTokenService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
 
