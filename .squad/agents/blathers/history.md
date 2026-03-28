@@ -199,3 +199,17 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **DB testing with Moq**: Use `Mock<IUmbracoDatabase>()` + `Mock<IUmbracoDatabaseFactory>()` pattern (matches `TenantServiceCacheStrategyTests`). Don't hand-roll `IUmbracoDatabase` — the interface has 100+ members.
 - **Upsert pattern**: Lookup by `(TenantId, DeviceId)` using `db.FirstOrDefault<PrismDeviceCredentialSchema>()` then update or insert. The unique index `IX_prismDeviceCredentials_TenantId_DeviceId` enforces one credential per device per tenant.
 - **Key files**: `BiometricController.cs`, `RefreshTokenEncryptionService.cs`, `IRefreshTokenEncryptionService.cs`, `BiometricRegistrationRequest.cs`, `BiometricRegistrationResponse.cs`, `AddRefreshTokenEncColumn.cs`.
+
+## Learnings (Issue #15 — Biometric Exchange Endpoint)
+
+- **Exchange is unauthenticated**: `[AllowAnonymous]` on the action overrides the class-level `[Authorize]` on `BiometricController`. The BiometricToken JWT IS the credential — no cookie required.
+- **Token validation flow**: `BiometricTokenService.ValidateToken()` → verify tenantId matches request tenant → hash token → DB lookup by `TokenHash` → assert not revoked/expired → verify DeviceId + UserId binding.
+- **Cross-user protection**: Always verify `credential.UserId == claims.UserOid` after DB lookup (security note from Copper's review of #14). Prevents token substitution attacks.
+- **DeviceId binding check**: JWT `sub` claim (DeviceId) must match DB row's `DeviceId`. Mismatch returns specific `device_mismatch` error code (distinct from generic `biometric_token_invalid`).
+- **Entra token refresh orchestration**: Replicated from `PrismContext.RefreshTokenAsync` — build token endpoint URL from `tenant.EntraTenantId`, get client secret from `ISecretVaultService`, call `IPrismTokenRefreshService.RefreshAsync`. Controller injects both services directly.
+- **Rolling refresh token rotation**: On every successful exchange, re-encrypt the new refresh token (or fall back to existing if Entra doesn't return a new one) and update `LastUsedAt`. Matches v1 hard requirement.
+- **Cookie issuance**: Build `ClaimsIdentity` with `oid` (user OID) and `tid` (Entra tenant ID — NOT Prism internal ID) claims. Store `access_token`, `refresh_token`, `expires_at` in `AuthenticationProperties`. Call `HttpContext.SignInAsync("PrismMemberCookie", principal, authProps)`.
+- **Important distinction**: Biometric token stores Prism internal tenant ID (`tenant.Id.ToString()`) as `tid` claim, but the cookie principal needs the Entra tenant ID (`tenant.EntraTenantId`) because `PrismContext.IsPrincipalBoundToCurrentTenant` checks against `EntraTenantId`.
+- **Test pattern for exchange**: `BuildExchangeScenario` helper issues a valid JWT, creates a matching DB record with encrypted refresh token, and wires up `IAuthenticationService` mock for `SignInAsync` verification. 18 tests cover all error paths.
+- **Error code convention**: `biometric_token_invalid` (catch-all for bad JWT, not found, revoked, expired, user mismatch), `device_mismatch` (specific), `credential_refresh_failed` (Entra-side failures).
+- **Key files added**: `BiometricExchangeRequest.cs`.
