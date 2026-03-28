@@ -518,3 +518,47 @@ Umbraco.Prism team decisions. Append-only ledger.
 **Validation evidence:** Focused suites reported pass in the merged reviews (mitigation and security gate) with zero failures.
 
 **Outcome:** Security gate is **pass**; mitigation is complete.
+
+## 📌 2026-03-28: README & Marketplace Improvements (Mabel)
+
+**Session Log:** `.squad/log/2026-03-28-readme-improvements.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/mabel-readme-review.md`
+- `.squad/decisions/inbox/mabel-readme-improvements.md`
+
+### Mabel — README & Marketplace Structural Improvements
+
+**Decision:** Implement 7 targeted README and marketplace improvements to reduce developer onboarding friction and clarify optional tooling.
+
+**Changes Implemented:**
+
+**HIGH PRIORITY (Required fixes)**
+1. **Marketplace JSON Description** — Fixed `umbraco-marketplace.json` Description to accurately reflect multi-tenancy platform (was: "syntax highlighting package")
+2. **Prerequisites Section** — Added top-level Prerequisites section with .NET 10.0, Node.js 20+, Azure Key Vault, Entra ID, and mandatory `npm install` callout
+
+**MEDIUM PRIORITY (Implemented cleanly)**
+3. **VS Code Extensions Optional** — Changed Storybook and Core tests language from "Install" to "Optionally, install" with CLI alternatives (`npm run test:playwright:ui`, `dotnet test`)
+4. **WCAG Opt-Out Code Example** — Added TypeScript code block showing `.stories.ts` usage pattern for `parameters: { a11y: { disable: true } }`
+5. **Sample Projects Promotion** — Expanded with use cases, TestSite tenant guidance, and forward reference to "Local Authentication Walkthrough"
+
+**LOW PRIORITY (Also implemented)**
+6. **PrismAdmins Note Clarity** — Updated note format to "⚠️ Pending (2026-03-22)" with "not yet shipped" indicator and issue #4 reference
+7. **Tunnel Behavior Rationale** — Added explanation: "This prevents redirect URI sprawl accumulating in Entra over repeated dev sessions"
+
+**Files Modified:**
+- `README.md` — 8 targeted edits; ~150 lines added/updated
+- `umbraco-marketplace.json` — 1 Description field edit
+
+**Validation:**
+- ✅ Markdown structure validated
+- ✅ All 7 issues addressed
+- ✅ No content broken or removed
+- ✅ Links and references preserved
+- ✅ Tone consistent
+
+**Impact:** Developers now reach "running local Prism instance" with clearer onboarding path, see dependencies upfront, understand optional tooling, have code examples for common patterns, and know where to find working examples.
+
+**Outcome:** All 7 improvements complete and ready for deployment.
+
+---

@@ -1,7 +1,7 @@
 {
   "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
   "Title": "Umbraco Prism",
-  "Description": "Multi-tenancy for Umbraco (v17+) with dynamic branding and stateless identity. Prism resolves branding, identity, and content context at runtime based on the incoming domain.",
+  "Description": "Multi-tenancy platform for Umbraco (v17+) enabling a single CMS instance to serve hundreds of distinct client portals with dynamic branding, stateless OIDC identity, and native mobile app generation. Prism resolves branding, identity, and content context at runtime based on the incoming domain.",
   "Category": "Developer Tools",
   "PackageType": "Package",
   "LicenseTypes": ["Free"],

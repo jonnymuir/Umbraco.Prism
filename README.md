@@ -13,6 +13,22 @@ dotnet add package UmbracoPrism
 
 One site, multiple web and mobile distributions.
 
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **.NET 10.0** ([Download](https://dotnet.microsoft.com/download))
+- **Node.js 20+** ([Download](https://nodejs.org/))
+- **Azure Key Vault account** (for production; local development can use a local config)
+- **Entra ID (Azure AD) account** (for authentication setup)
+
+> **Important:** Before building, install dependencies for the Client project:
+> ```bash
+> cd src/UmbracoPrism.Client
+> npm install
+> ```
+> This must be run once before your first build.
+
 ## Overview
 Umbraco Prism is a multi-tenancy web and mobile app package for Umbraco (v17+) designed to allow a single Umbraco instance to serve hundreds of distinct client portals. It resolves branding, identity, and content context at runtime based on the incoming domain name.
 
@@ -375,7 +391,7 @@ Tenant management is powerful (it can change domains, secrets, and branding), so
 
 Use Umbraco's User Groups to grant access (Settings -> Users -> Groups). Anyone not in these groups can still access the backoffice, but cannot modify tenants via the Prism management API.
 
-> Note (2026-03-22): The team is standardizing Prism authorization on Entra claims to align admin and tenant authorization under one model (issue #4). Current release behavior remains Umbraco-group based for `PrismAdmins` until the migration slice ships.
+> **⚠️ Pending (2026-03-22):** The team is standardizing Prism authorization on Entra claims to align admin and tenant authorization under one model (issue #4). Current release behavior remains Umbraco-group based for `PrismAdmins` until this migration ships. This is **not yet shipped** — check issue #4 for migration timeline.
 
 ---
 
@@ -430,7 +446,7 @@ Tenant selector behavior:
 Redirect URI rotation behavior:
 
 - Non-trycloudflare redirect URIs are preserved as-is.
-- Stale `*.trycloudflare.com/signin-oidc` entries are pruned.
+- Stale `*.trycloudflare.com/signin-oidc` entries are pruned. This prevents redirect URI sprawl accumulating in Entra over repeated dev sessions.
 - The current tunnel callback URI is ensured exactly once.
 - Script output includes a concise prune summary with the number of stale trycloudflare callback entries removed.
 
@@ -467,9 +483,9 @@ cd src/UmbracoPrism.Client
 npm run test-storybook
 ```
 
-**VS Code:**
+**VS Code (Optional):**
 
-Install the Playwright Test extension to run Playwright tests in the Testing view. Tests are in [src/UmbracoPrism.Client/tests](src/UmbracoPrism.Client/tests). You can also run `npm run test:playwright:ui` for the interactive runner.
+Optionally, install the **Playwright Test extension** for a convenient Testing view UI to run Playwright tests. Tests are in [src/UmbracoPrism.Client/tests](src/UmbracoPrism.Client/tests). You can also run `npm run test:playwright:ui` for the interactive runner without the extension.
 
 **Headless multi-browser + WCAG checks (recommended):**
 
@@ -505,9 +521,9 @@ dotnet list src/UmbracoPrism.Core/UmbracoPrism.Core.csproj package --vulnerable 
 
 If vulnerabilities are reported, prefer upgrading the direct package first. For transitive-only issues, add a top-level package reference in the relevant `.csproj` to force a patched version.
 
-**VS Code:**
+**VS Code (Optional):**
 
-Install the .NET Test Explorer extension to run the Core tests in the Testing view.
+Optionally, install the **.NET Test Explorer extension** for a convenient Testing view UI to run the Core tests. Tests can also be run from the command line using `dotnet test`.
 
 ### Packaging & Marketplace
 
@@ -533,7 +549,17 @@ See [umbraco-marketplace.json](umbraco-marketplace.json) for the listing metadat
 
 Storybook test runner runs axe checks (WCAG 2.0/2.1 A/AA) via
 [src/UmbracoPrism.Client/.storybook/test-runner.ts](src/UmbracoPrism.Client/.storybook/test-runner.ts).
-To opt out for a specific story, set `parameters: { a11y: { disable: true } }`.
+
+To opt out for a specific story, set `parameters: { a11y: { disable: true } }` in your `.stories.ts` file:
+
+```typescript
+export const MyStory = {
+  render: (args) => <MyComponent {...args} />,
+  parameters: {
+    a11y: { disable: true }  // Disables WCAG checks for this story
+  }
+};
+```
 
 ### Local Authentication Walkthrough
 
@@ -611,10 +637,12 @@ public async Task<string> GetMemberDataAsync()
 
 ### Sample Projects
 
-To see a full end-to-end implementation of the multi-tenant identity flow, refer to the following projects in this repository:
+The repository includes two reference projects that demonstrate end-to-end multi-tenant authentication and configuration:
 
-* **`UmbracoPrism.TestSite`**: A reference Umbraco v17 implementation showing how to configure the OIDC pipeline and call secure downstream services.
-* **`UmbracoPrism.MockBackOffice`**: A standalone minimal API project that demonstrates the use of `AddPrismAuthentication` and the `PrismTenantResolver` to isolate data across hundreds of tenants.
+* **`UmbracoPrism.TestSite`**: A reference Umbraco v17 implementation showing how to configure the OIDC pipeline with Prism, set up tenant-specific branding, and call secure downstream services. Use this when setting up local Entra authentication — it includes pre-configured tenant definitions.
+* **`UmbracoPrism.MockBackOffice`**: A standalone minimal API project that demonstrates how to use `AddPrismAuthentication` and the `PrismTenantResolver` to isolate data across hundreds of tenants on the backend.
+
+These projects ship pre-configured OIDC settings and are referenced in the "[Local Authentication Walkthrough](#local-authentication-walkthrough)" section below.
 
 ---
 
