@@ -1,4 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -23,6 +25,30 @@ public class BiometricTokenServiceTests
     }
 
     private static TimeSpan DefaultLifetime => TimeSpan.FromDays(30);
+
+    private static string BuildExpiredToken()
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidKey));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
+        var past = DateTime.UtcNow.AddDays(-2);
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = BiometricTokenService.Issuer,
+            Audience = BiometricTokenService.Audience,
+            NotBefore = past,
+            IssuedAt = past,
+            Expires = past.AddDays(1),
+            SigningCredentials = creds,
+            Subject = new ClaimsIdentity(new[]
+            {
+                new Claim(BiometricTokenService.DeviceIdClaim, "dev-expired"),
+                new Claim(BiometricTokenService.TenantIdClaim, "tenant-x"),
+                new Claim(BiometricTokenService.UserOidClaim, "oid-abc"),
+            })
+        };
+        return handler.WriteToken(handler.CreateToken(descriptor));
+    }
 
     // ------------------------------------------------------------------ IssueToken
 
@@ -65,10 +91,9 @@ public class BiometricTokenServiceTests
     public void ValidateToken_ExpiredToken_Throws()
     {
         var svc = BuildService();
-        // Issue a token that expired immediately by using a negative lifetime
-        var token = svc.IssueToken("dev-expired", "tenant-x", "oid-abc", TimeSpan.FromSeconds(-1));
+        var expiredToken = BuildExpiredToken();
 
-        var act = () => svc.ValidateToken(token);
+        var act = () => svc.ValidateToken(expiredToken);
 
         act.Should().Throw<SecurityTokenException>();
     }

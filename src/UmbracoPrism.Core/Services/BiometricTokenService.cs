@@ -14,11 +14,11 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public class BiometricTokenService : IBiometricTokenService
 {
-    private const string DeviceIdClaim = "sub";
-    private const string TenantIdClaim = "tid";
-    private const string UserOidClaim = "oid";
-    private const string Issuer = "UmbracoPrism";
-    private const string Audience = "PrismBiometric";
+    internal const string DeviceIdClaim = "sub";
+    internal const string TenantIdClaim = "tid";
+    internal const string UserOidClaim = "oid";
+    internal const string Issuer = "UmbracoPrism";
+    internal const string Audience = "PrismBiometric";
 
     private readonly SymmetricSecurityKey _signingKey;
     private readonly SigningCredentials _signingCredentials;
@@ -93,11 +93,14 @@ public class BiometricTokenService : IBiometricTokenService
         if (validatedToken is not JwtSecurityToken jwt)
             throw new SecurityTokenException("Prism: BiometricToken validation produced an unexpected token type.");
 
+        // Read claims directly from the JWT payload to avoid claim-type mapping
+        // differences across platforms and .NET versions (ClaimsPrincipal.FindFirstValue
+        // can return empty for short claim names like "sub" on some runtimes).
         return new BiometricTokenClaims
         {
-            DeviceId = principal.FindFirstValue(DeviceIdClaim) ?? string.Empty,
-            TenantId = principal.FindFirstValue(TenantIdClaim) ?? string.Empty,
-            UserOid = principal.FindFirstValue(UserOidClaim) ?? string.Empty,
+            DeviceId = jwt.Claims.FirstOrDefault(c => c.Type == DeviceIdClaim)?.Value ?? string.Empty,
+            TenantId = jwt.Claims.FirstOrDefault(c => c.Type == TenantIdClaim)?.Value ?? string.Empty,
+            UserOid = jwt.Claims.FirstOrDefault(c => c.Type == UserOidClaim)?.Value ?? string.Empty,
             IssuedAt = jwt.IssuedAt,
             ExpiresAt = jwt.ValidTo,
         };
