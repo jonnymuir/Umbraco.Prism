@@ -32,7 +32,20 @@ public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMidd
             prismContext.CurrentTenant = tenant;
 
             if (!string.IsNullOrEmpty(tenant.EntraTenantId))
-                await signingKeyCache.WarmAsync(tenant.EntraTenantId, context.RequestAborted);
+            {
+                try
+                {
+                    await signingKeyCache.WarmAsync(tenant.EntraTenantId, cancellationToken: context.RequestAborted);
+                }
+                catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to warm Prism signing keys for tenant '{TenantId}'. Continuing request with existing cache state.", tenant.EntraTenantId);
+                }
+            }
         }
         else
         {

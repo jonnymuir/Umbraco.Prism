@@ -4,6 +4,7 @@ using Polly;
 using Polly.CircuitBreaker;
 using Polly.Retry;
 using System.Text.Json;
+using System.Collections.Concurrent;
 
 namespace UmbracoPrism.Core.Services;
 
@@ -19,7 +20,8 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<PrismTokenRefreshService> _logger;
-    private readonly ResiliencePipeline<HttpResponseMessage> _pipeline;
+    private readonly PrismTokenRefreshOptions _options;
+    private readonly ConcurrentDictionary<string, ResiliencePipeline<HttpResponseMessage>> _pipelines = new(StringComparer.OrdinalIgnoreCase);
 
     public PrismTokenRefreshService(
         IHttpClientFactory httpClientFactory,
@@ -28,15 +30,19 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _options = options.Value;
+    }
 
-        var opts = options.Value;
+    private ResiliencePipeline<HttpResponseMessage> CreatePipeline()
+    {
+        var opts = _options;
 
         var shouldHandle = new PredicateBuilder<HttpResponseMessage>()
             .Handle<HttpRequestException>()
             .Handle<TaskCanceledException>()
             .HandleResult(r => (int)r.StatusCode >= 500);
 
-        _pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
+        return new ResiliencePipelineBuilder<HttpResponseMessage>()
             // Outer: circuit breaker observes the final outcome of each full retry sequence.
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage>
             {
@@ -92,17 +98,26 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
         IReadOnlyDictionary<string, string> formParameters,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(tokenEndpoint))
+        {
+            _logger.LogWarning("Token refresh skipped: token endpoint is missing");
+            return new TokenRefreshResult(false, null, null, null);
+        }
+
+        var normalizedEndpoint = tokenEndpoint.Trim();
+        var pipeline = _pipelines.GetOrAdd(normalizedEndpoint, _ => CreatePipeline());
+
         HttpResponseMessage response;
         try
         {
             var client = _httpClientFactory.CreateClient("PrismTokenRefresh");
 
-            response = await _pipeline.ExecuteAsync(async ct =>
+            response = await pipeline.ExecuteAsync(async ct =>
             {
                 // Re-create content on every attempt: FormUrlEncodedContent is single-use.
                 using var content = new FormUrlEncodedContent(
                     formParameters.Select(p => KeyValuePair.Create<string?, string?>(p.Key, p.Value)));
-                return await client.PostAsync(tokenEndpoint, content, ct);
+                return await client.PostAsync(normalizedEndpoint, content, ct);
             }, cancellationToken);
         }
         catch (BrokenCircuitException)

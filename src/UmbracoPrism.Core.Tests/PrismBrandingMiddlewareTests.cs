@@ -230,6 +230,156 @@ public class PrismBrandingMiddlewareTests
         html.Should().Contain("viewport-fit=cover");
     }
 
+    [Fact]
+    public async Task InvokeAsync_DoesNotLeakBrandingBetweenTenants_OnSequentialRequests()
+    {
+        var middleware = CreateMiddlewareWithHtmlResponse("<html><head></head><body>Demo</body></html>");
+
+        var tenantAContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#aa0000"
+                }
+            }
+        };
+
+        var tenantBContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#00aa00"
+                }
+            }
+        };
+
+        var requestA = CreateGetHtmlContext();
+        await middleware.InvokeAsync(requestA, tenantAContext);
+        var htmlA = await ReadResponseBodyAsync(requestA.Response);
+
+        var requestB = CreateGetHtmlContext();
+        await middleware.InvokeAsync(requestB, tenantBContext);
+        var htmlB = await ReadResponseBodyAsync(requestB.Response);
+
+        htmlA.Should().Contain("--prism-primary:#aa0000;");
+        htmlA.Should().NotContain("--prism-primary:#00aa00;");
+
+        htmlB.Should().Contain("--prism-primary:#00aa00;");
+        htmlB.Should().NotContain("--prism-primary:#aa0000;");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_UsesUpdatedBrandingOverrides_ForSameTenantOnLaterRequest()
+    {
+        var middleware = CreateMiddlewareWithHtmlResponse("<html><head></head><body>Demo</body></html>");
+        var prismContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#111111"
+                }
+            }
+        };
+
+        var firstRequest = CreateGetHtmlContext();
+        await middleware.InvokeAsync(firstRequest, prismContext);
+        var firstHtml = await ReadResponseBodyAsync(firstRequest.Response);
+
+        prismContext.CurrentTenant!.BrandingOverrides["--prism-primary"] = "#222222";
+
+        var secondRequest = CreateGetHtmlContext();
+        await middleware.InvokeAsync(secondRequest, prismContext);
+        var secondHtml = await ReadResponseBodyAsync(secondRequest.Response);
+
+        firstHtml.Should().Contain("--prism-primary:#111111;");
+        secondHtml.Should().Contain("--prism-primary:#222222;");
+        secondHtml.Should().NotContain("--prism-primary:#111111;");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_UsesUpdatedMobileOverrides_ForSameTenantOnLaterMobileRequest()
+    {
+        var middleware = CreateMiddlewareWithHtmlResponse("<html><head></head><body>Demo</body></html>");
+        var prismContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#111111"
+                },
+                MobileBrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#333333"
+                }
+            }
+        };
+
+        var firstMobileRequest = CreateGetHtmlContext();
+        firstMobileRequest.Request.QueryString = new QueryString("?prismMobile=1");
+        await middleware.InvokeAsync(firstMobileRequest, prismContext);
+        var firstHtml = await ReadResponseBodyAsync(firstMobileRequest.Response);
+
+        prismContext.CurrentTenant!.MobileBrandingOverrides["--prism-primary"] = "#444444";
+
+        var secondMobileRequest = CreateGetHtmlContext();
+        secondMobileRequest.Request.QueryString = new QueryString("?prismMobile=1");
+        await middleware.InvokeAsync(secondMobileRequest, prismContext);
+        var secondHtml = await ReadResponseBodyAsync(secondMobileRequest.Response);
+
+        firstHtml.Should().Contain("--prism-primary:#333333;");
+        secondHtml.Should().Contain("--prism-primary:#444444;");
+        secondHtml.Should().NotContain("--prism-primary:#333333;");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PrefersPrecomputedCssDeclarations_WhenAvailable()
+    {
+        var middleware = CreateMiddlewareWithHtmlResponse("<html><head></head><body>Demo</body></html>");
+        var prismContext = new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#old"
+                },
+                MobileBrandingOverrides = new Dictionary<string, string>
+                {
+                    ["--prism-primary"] = "#old-mobile"
+                },
+                BrandingCssDeclarations = "--prism-primary:#new;",
+                MobileBrandingCssDeclarations = "--prism-primary:#new-mobile;"
+            }
+        };
+
+        var context = CreateGetHtmlContext();
+        context.Request.QueryString = new QueryString("?prismMobile=1");
+
+        await middleware.InvokeAsync(context, prismContext);
+
+        var html = await ReadResponseBodyAsync(context.Response);
+        html.Should().Contain("--prism-primary:#new;");
+        html.Should().Contain("--prism-primary:#new-mobile;");
+        html.Should().NotContain("--prism-primary:#old;");
+        html.Should().NotContain("--prism-primary:#old-mobile;");
+    }
+
+    private static DefaultHttpContext CreateGetHtmlContext()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers.UserAgent = "Mozilla/5.0";
+        context.Response.Body = new MemoryStream();
+        return context;
+    }
+
     private static PrismBrandingMiddleware CreateMiddlewareWithHtmlResponse(string html)
     {
         return new PrismBrandingMiddleware(async context =>

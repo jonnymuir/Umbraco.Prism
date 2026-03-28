@@ -8,35 +8,123 @@ namespace UmbracoPrism.Core.Services;
 /// <summary>
 /// In-memory cache of Entra signing keys keyed by tenant identifier.
 /// </summary>
-/// <param name="httpClientFactory">Factory used to create HTTP clients for OIDC metadata retrieval.</param>
-public sealed class PrismSigningKeyCache(IHttpClientFactory httpClientFactory) : IPrismSigningKeyCache
+public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
 {
-    private static readonly TimeSpan Ttl = TimeSpan.FromHours(12);
+    internal static readonly TimeSpan RefreshAfter = TimeSpan.FromMinutes(45);
+    internal static readonly TimeSpan HardExpiry = TimeSpan.FromHours(1);
+    internal static readonly TimeSpan ForcedRefreshCooldown = TimeSpan.FromSeconds(30);
 
-    private readonly ConcurrentDictionary<string, (IReadOnlyCollection<SecurityKey> Keys, DateTimeOffset FetchedAt)> _store = new();
+    private readonly ConcurrentDictionary<string, (IReadOnlyCollection<SecurityKey> Keys, DateTimeOffset FetchedAt)> _store = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _warmLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly TimeProvider _timeProvider;
+    private readonly Func<HttpClient, string, IConfigurationManager<OpenIdConnectConfiguration>> _configurationManagerFactory;
+
+    /// <summary>
+    /// Creates a signing-key cache with the default metadata retriever and system clock.
+    /// </summary>
+    /// <param name="httpClientFactory">Factory used to create OIDC metadata HTTP clients.</param>
+    public PrismSigningKeyCache(IHttpClientFactory httpClientFactory)
+        : this(httpClientFactory, TimeProvider.System, CreateConfigurationManager)
+    {
+    }
+
+    internal PrismSigningKeyCache(
+        IHttpClientFactory httpClientFactory,
+        TimeProvider timeProvider,
+        Func<HttpClient, string, IConfigurationManager<OpenIdConnectConfiguration>> configurationManagerFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+        _timeProvider = timeProvider;
+        _configurationManagerFactory = configurationManagerFactory;
+    }
 
     /// <summary>
     /// Fetches and caches signing keys for the provided tenant when the cache is missing or expired.
     /// </summary>
     /// <param name="entraTenantId">The Entra tenant identifier.</param>
+    /// <param name="forceRefresh">When <see langword="true"/>, bypasses TTL checks and refreshes immediately.</param>
     /// <param name="cancellationToken">Cancellation token for metadata retrieval.</param>
     /// <returns>A task that completes when keys are cached.</returns>
-    public async Task WarmAsync(string entraTenantId, CancellationToken cancellationToken = default)
+    public async Task WarmAsync(string entraTenantId, bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(entraTenantId)) return;
+        if (string.IsNullOrWhiteSpace(entraTenantId)) return;
 
-        if (_store.TryGetValue(entraTenantId, out var existing) && DateTimeOffset.UtcNow - existing.FetchedAt < Ttl)
+        var normalizedTenantId = entraTenantId.Trim();
+        var requestStartedAt = _timeProvider.GetUtcNow();
+
+        if (!forceRefresh && !GetSnapshot(normalizedTenantId).ShouldRefresh)
             return;
 
-        var metadataAddress = $"https://{entraTenantId}.ciamlogin.com/{entraTenantId}/v2.0/.well-known/openid-configuration";
-        var http = httpClientFactory.CreateClient("prism-oidc-metadata");
-        var manager = new ConfigurationManager<OpenIdConnectConfiguration>(
-            metadataAddress,
-            new OpenIdConnectConfigurationRetriever(),
-            new HttpDocumentRetriever(http) { RequireHttps = true });
+        var warmLock = _warmLocks.GetOrAdd(normalizedTenantId, _ => new SemaphoreSlim(1, 1));
+        await warmLock.WaitAsync(cancellationToken);
+        try
+        {
+            var snapshot = GetSnapshot(normalizedTenantId);
+            if (!forceRefresh && !snapshot.ShouldRefresh)
+                return;
 
-        var config = await manager.GetConfigurationAsync(cancellationToken);
-        _store[entraTenantId] = (config.SigningKeys.ToList().AsReadOnly(), DateTimeOffset.UtcNow);
+            if (forceRefresh
+                && _store.TryGetValue(normalizedTenantId, out var forcedRefreshExisting)
+                && requestStartedAt - forcedRefreshExisting.FetchedAt < ForcedRefreshCooldown)
+            {
+                return;
+            }
+
+            // Deduplicate overlapping forced refresh requests for the same tenant:
+            // if another waiter already refreshed after this call started, reuse it.
+            if (forceRefresh
+                && _store.TryGetValue(normalizedTenantId, out var existing)
+                && existing.FetchedAt >= requestStartedAt)
+                return;
+
+            var metadataAddress = $"https://{normalizedTenantId}.ciamlogin.com/{normalizedTenantId}/v2.0/.well-known/openid-configuration";
+            var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
+            var manager = _configurationManagerFactory(http, metadataAddress);
+
+            var config = await manager.GetConfigurationAsync(cancellationToken);
+            var signingKeys = config.SigningKeys.ToList().AsReadOnly();
+            if (signingKeys.Count == 0)
+            {
+                throw new SecurityTokenSignatureKeyNotFoundException("OIDC metadata did not contain any signing keys.");
+            }
+
+            _store[normalizedTenantId] = (signingKeys, _timeProvider.GetUtcNow());
+        }
+        finally
+        {
+            warmLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Returns cached signing-key state for a tenant.
+    /// </summary>
+    /// <param name="entraTenantId">The Entra tenant identifier.</param>
+    /// <param name="keyId">Optional signing-key identifier required by the current token.</param>
+    /// <returns>A snapshot describing the current cache state.</returns>
+    public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)
+    {
+        if (string.IsNullOrWhiteSpace(entraTenantId))
+        {
+            return new PrismSigningKeyCacheSnapshot([], true, true, false);
+        }
+
+        var normalizedTenantId = entraTenantId.Trim();
+        if (!_store.TryGetValue(normalizedTenantId, out var existing))
+        {
+            return new PrismSigningKeyCacheSnapshot([], true, true, false);
+        }
+
+        var age = _timeProvider.GetUtcNow() - existing.FetchedAt;
+        var containsRequestedKey = string.IsNullOrWhiteSpace(keyId)
+            || existing.Keys.Any(key => string.Equals(key.KeyId, keyId, StringComparison.OrdinalIgnoreCase));
+
+        return new PrismSigningKeyCacheSnapshot(
+            existing.Keys,
+            age >= RefreshAfter || !containsRequestedKey,
+            age >= HardExpiry,
+            containsRequestedKey);
     }
 
     /// <summary>
@@ -46,8 +134,14 @@ public sealed class PrismSigningKeyCache(IHttpClientFactory httpClientFactory) :
     /// <returns>Cached signing keys, or an empty sequence if no cache entry exists.</returns>
     public IEnumerable<SecurityKey> GetSigningKeys(string entraTenantId)
     {
-        if (_store.TryGetValue(entraTenantId, out var cached))
-            return cached.Keys;
-        return [];
+        return GetSnapshot(entraTenantId).Keys;
+    }
+
+    private static IConfigurationManager<OpenIdConnectConfiguration> CreateConfigurationManager(HttpClient httpClient, string metadataAddress)
+    {
+        return new ConfigurationManager<OpenIdConnectConfiguration>(
+            metadataAddress,
+            new OpenIdConnectConfigurationRetriever(),
+            new HttpDocumentRetriever(httpClient) { RequireHttps = true });
     }
 }

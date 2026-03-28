@@ -22,6 +22,7 @@
 - Entra-first authorization model migration is underway (#4 with child issues #8, #9, #10).
 - OIDC and token refresh paths recently hardened (#2, #3) and require ongoing isolation-focused verification.
 - Security reviews should include cache keying, token claim scoping, fallback behavior, and failure-mode isolation.
+- Repeated unknown-`kid` tokens can trigger forced key-cache refresh loops unless refresh cadence is bounded; a short per-tenant cooldown materially reduces outbound metadata amplification DoS risk while keeping fail-closed signature behavior.
 
 ## 2026-03-22 — CIA Hardening Round 1
 
@@ -41,3 +42,28 @@
 - Enforced tunnel hostname trust boundary to `*.trycloudflare.com` before any redirect URI or tenant DB mutation is applied.
 - Added clearer operator warning in script output that the flow is local-development only and mutates Entra + local tenant state.
 - Added README security notes clarifying dev-only scope, least-privilege Azure access, and local/test database targeting to reduce blast radius.
+
+## 2026-03-28 — Issue #7 Security Gate Review
+
+- Re-reviewed OIDC key rotation fail-closed path in `PrismOidcConfiguration`: unknown or expired `kid` returns no keys synchronously while triggering background warm, preventing fail-open acceptance.
+- Added cache test coverage proving forced-refresh cooldown is tenant-scoped (not global), preserving tenant isolation while reducing metadata amplification pressure under unknown-`kid` bursts.
+- Added refresh stress coverage proving an open circuit on one token endpoint does not suppress concurrent refresh success on another endpoint.
+- Added middleware cancellation coverage proving request-aborted warm operations rethrow `OperationCanceledException` and do not continue the pipeline.
+- Security gate outcome for issue #7: pass-with-conditions; residual availability candidate remains downstream synchronous metadata retrieval path in `PrismAuthExtensions`.
+
+## 2026-03-28 — PrismAuthExtensions Mitigation Security Gate
+
+- Reviewed downstream auth key resolution and confirmed tenant allow-list plus tenant-bound issuer/audience checks remain intact in `PrismAuthExtensions`.
+- Verified fail-closed behavior in `ResolveSigningKeys`: when the signing-key cache snapshot is expired or does not contain the requested `kid`, resolver returns empty keys and only triggers non-blocking background warm.
+- Confirmed tenant isolation invariants remain intact:
+	- Signing key lookup is tenant-scoped via tenant-id keyed cache entry and tenant allow-list gate.
+	- Unknown tenant IDs return no keys.
+	- Unknown/stale key paths fail closed in both downstream resolver and `PrismOidcConfiguration` snapshot path.
+	- Background warm trigger in `PrismOidcConfiguration` does not bypass validation because resolver still returns no keys when cache is expired or requested key is absent.
+- Updated security tests to target the current cache-snapshot resolver API shape in `PrismAuthExtensions`.
+- Focused security tests (exact counts):
+	- `PrismAuthExtensionsSecurityTests`: 5 passed, 0 failed.
+	- `PrismSigningKeyCacheTests`: 5 passed, 0 failed.
+	- `PrismOidcConfigurationTests`: 4 passed, 0 failed.
+	- Total: 14 passed, 0 failed.
+- Gate outcome: pass.

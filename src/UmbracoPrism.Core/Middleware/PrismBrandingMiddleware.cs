@@ -25,6 +25,8 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         var tenant = prismContext.CurrentTenant;
         var overrides = tenant?.BrandingOverrides;
         var mobileOverrides = tenant?.MobileBrandingOverrides;
+        var overrideDeclarations = tenant?.BrandingCssDeclarations;
+        var mobileOverrideDeclarations = tenant?.MobileBrandingCssDeclarations;
         var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(context);
         var hasBaseOverrides = overrides is { Count: > 0 };
         var hasMobileOverrides = isPrismMobileRequest && mobileOverrides is { Count: > 0 };
@@ -81,7 +83,11 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             return;
         }
 
-        var css = BuildCssOverrides(overrides, hasMobileOverrides ? mobileOverrides : null);
+        var css = BuildCssOverrides(
+            overrides,
+            hasMobileOverrides ? mobileOverrides : null,
+            overrideDeclarations,
+            hasMobileOverrides ? mobileOverrideDeclarations : null);
         var injected = InjectBranding(bodyText, css, hasMobileShellGuards);
         var bytes = Encoding.UTF8.GetBytes(injected);
 
@@ -177,7 +183,9 @@ public class PrismBrandingMiddleware(RequestDelegate next)
 
     private static string BuildCssOverrides(
         IReadOnlyDictionary<string, string>? overrides,
-        IReadOnlyDictionary<string, string>? mobileOverrides)
+        IReadOnlyDictionary<string, string>? mobileOverrides,
+        string? overrideDeclarations,
+        string? mobileOverrideDeclarations)
     {
         var hasOverrides = (overrides is { Count: > 0 }) || (mobileOverrides is { Count: > 0 });
         if (!hasOverrides)
@@ -188,8 +196,23 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         var builder = new StringBuilder();
         builder.Append(":root{");
 
-        AppendOverrides(builder, overrides);
-        AppendOverrides(builder, mobileOverrides);
+        if (!string.IsNullOrWhiteSpace(overrideDeclarations))
+        {
+            builder.Append(overrideDeclarations);
+        }
+        else
+        {
+            AppendOverrides(builder, overrides);
+        }
+
+        if (!string.IsNullOrWhiteSpace(mobileOverrideDeclarations))
+        {
+            builder.Append(mobileOverrideDeclarations);
+        }
+        else
+        {
+            AppendOverrides(builder, mobileOverrides);
+        }
 
         builder.Append('}');
         return builder.ToString();

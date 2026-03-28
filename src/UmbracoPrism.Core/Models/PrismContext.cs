@@ -111,7 +111,7 @@ public class PrismContext(
             { "scope", $"openid profile offline_access {CurrentTenant.EntraClientId}/.default" }
         };
 
-        var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters);
+        var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters, context.RequestAborted);
 
         if (!result.Success || result.AccessToken == null)
             return null;

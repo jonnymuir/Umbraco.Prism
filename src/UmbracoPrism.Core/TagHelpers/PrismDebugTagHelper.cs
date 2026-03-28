@@ -18,6 +18,7 @@ namespace UmbracoPrism.Core.TagHelpers;
 public class PrismDebugTagHelper(
     IPrismContext prismContext,
     IPrismUserContext prismUser,
+    ITenantService tenantService,
     IConfiguration config,
     IAuthenticationSchemeProvider schemeProvider) : TagHelper
 {
@@ -40,6 +41,7 @@ public class PrismDebugTagHelper(
             var isPrismAuthGlobalEnabled = !string.IsNullOrEmpty(vaultUri);
             var isTenantConfigured = !string.IsNullOrEmpty(tenant?.EntraTenantId);
             var allSchemes = await schemeProvider.GetAllSchemesAsync();
+            var tenantCacheMetrics = tenantService.GetCacheMetrics();
             var host = ViewContext.HttpContext.Request.Host;
             var path = ViewContext.HttpContext.Request.Path;
             var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(ViewContext.HttpContext);
@@ -157,6 +159,10 @@ public class PrismDebugTagHelper(
                         <li><strong>Active Schemes:</strong> {schemesHtml}</li>
                         <li><strong>Request Path:</strong> <code>{path}</code></li>
                         <li><strong>Scheme Authority:</strong> <code>{oidcOptions.Authority}</code></li>
+                        <li><strong>Tenant Cache Hits:</strong> <code>{tenantCacheMetrics.Hits}</code></li>
+                        <li><strong>Tenant Cache Misses:</strong> <code>{tenantCacheMetrics.Misses}</code></li>
+                        <li><strong>Tenant Cache Invalidations:</strong> <code>{tenantCacheMetrics.Invalidations}</code></li>
+                        <li><strong>Tenant DB Loads:</strong> <code>{tenantCacheMetrics.DatabaseLoads}</code></li>
                     </ul>
                 </div>
                 """);

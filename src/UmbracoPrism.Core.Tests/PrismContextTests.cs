@@ -149,6 +149,63 @@ public class PrismContextTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_PassesRequestAbortedToken_ToRefreshService()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "expired-access-token" },
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("o") }
+        });
+
+        var principal = CreatePrincipalWithTenant("tenant-a");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var cancellation = new CancellationTokenSource();
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        httpContext.RequestAborted = cancellation.Token;
+
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.GetSecretAsync("secret-a")).ReturnsAsync("secret-value");
+
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                cancellation.Token))
+            .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                EntraTenantId = "tenant-a",
+                EntraClientId = "client-a",
+                SecretKeyName = "secret-a"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().NotBeNull();
+        header!.Parameter.Should().Be("new-access-token");
+        tokenRefreshService.Verify(
+            t => t.RefreshAsync(
+                "https://tenant-a.ciamlogin.com/tenant-a/oauth2/v2.0/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                cancellation.Token),
+            Times.Once);
+    }
+
     private static ClaimsPrincipal CreatePrincipalWithTenant(string tenantId)
     {
         var identity = new ClaimsIdentity("Test");

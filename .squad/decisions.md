@@ -407,3 +407,114 @@ Umbraco.Prism team decisions. Append-only ledger.
 - Stale `go:needs-research` label removed.
 
 ---
+
+## 📌 2026-03-28: Copper Security Hardening Check + Reliability Boundaries
+
+**Session Log:** `.squad/log/2026-03-28-copper-signing-key-hardening-check.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copilot-directive-20260328T074900Z.md`
+- `.squad/decisions/inbox/copper-signing-key-security.md`
+- `.squad/decisions/inbox/tangy-issue-7-reliability.md`
+
+### User directive captured (Jonny Muir via Copilot)
+
+**Decision:** Security work for this round must explicitly include Copper review and hardening ownership.
+
+**Why:** Keep this auth/security slice water-tight and clearly accountable.
+
+---
+
+### Copper — Signing-key warm-path availability hardening
+
+**Decision:** Add a short per-tenant forced-refresh cooldown in signing-key cache warm logic.
+
+**Conventions adopted:**
+- Add `ForcedRefreshCooldown` (30s) in signing-key cache warm path.
+- In `WarmAsync(..., forceRefresh: true)`, skip metadata fetch when same tenant was refreshed inside cooldown.
+- Preserve existing tenant-level lock and overlap deduplication behavior.
+
+**Why:** Bound metadata fetch amplification during unknown-`kid` token bursts without changing fail-closed key behavior.
+
+**Security effect:**
+- Confidentiality and integrity remain fail-closed.
+- Availability improves by rate-limiting forced refresh pressure per tenant.
+
+**Validation:** Focused suite passed (20/20): `PrismSigningKeyCacheTests`, `PrismOidcConfigurationTests`, `PrismTokenRefreshServiceTests`, `PrismTenantMiddlewareTests`.
+
+**Residual follow-up:** Downstream `PrismAuthExtensions` synchronous metadata retrieval remains a separate availability hardening candidate.
+
+---
+
+### Tangy — Reliability test boundaries for Issue #7
+
+**Decision:** Keep reliability assertions aligned to current architecture and implementation boundaries.
+
+**Conventions adopted:**
+- OIDC tests assert missing/rotated keys trigger async background warm, not request-path blocking.
+- Refresh resilience tests use token-endpoint partitioning as isolation boundary and verify open-circuit short-circuit behavior for concurrent callers.
+- Tenant/branding race tests allow old-or-new snapshots but reject hybrid torn states.
+
+**Why:** Cover real reliability risks without encoding contracts stronger than current implementation.
+
+**Validation:** Focused Core run passed (27/27). Issue #7 remains open for Copper review.
+
+---
+
+## 📌 2026-03-28: P1 #7 Completed — Reliability Expansion Closed with Security Gate (Tangy + Copper)
+
+**Session Log:** `.squad/log/2026-03-28-issue-7-completion.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tangy-issue-7-reliability.md`
+- `.squad/decisions/inbox/copper-issue-7-security-gate.md`
+
+### Tangy — Reliability completion acceptance
+
+**Decision:** Reliability acceptance for Issue #7 is satisfied by the current test suite and focused validation.
+
+**Delta recorded (deduped):**
+- Captured completion evidence for the full Issue #7 reliability scope in one focused run.
+- Confirmed CI inclusion remains automatic because tests are standard xUnit coverage under `src/UmbracoPrism.Core.Tests`.
+
+**Validation evidence:** Focused run passed (`32` passed, `0` failed).
+
+---
+
+### Copper — Security gate outcome for Issue #7
+
+**Decision:** Security review is **pass-with-conditions** and acceptable for Issue #7 closure.
+
+**Conditions locked:**
+1. Keep focused security tests in CI as blocking gate checks.
+2. Track downstream synchronous metadata retrieval in `PrismAuthExtensions` as a separate availability hardening follow-up.
+
+**Validation evidence:** Focused security run passed (`19` passed, `0` failed).
+
+**Issue impact:**
+- GitHub issue #7 closed as **completed**.
+
+---
+
+## 📌 2026-03-28: PrismAuthExtensions Sync-Metadata Mitigation Completed + Security Gate (Blathers + Copper)
+
+**Session Log:** `.squad/log/2026-03-28-prismauth-sync-metadata-mitigation.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-prismauth-sync-metadata-hardening.md`
+- `.squad/decisions/inbox/copper-prismauth-mitigation-security-gate.md`
+
+### Blathers + Copper — Merged mitigation and security outcome
+
+**Decision:** Accept and record completion of the PrismAuthExtensions sync-metadata mitigation with security gate **pass**.
+
+**Conventions locked:**
+- Downstream signing-key resolution in `PrismAuthExtensions` remains cache-first and non-blocking on request paths.
+- Unknown, stale, or untrusted-key states fail closed (empty key set).
+- Tenant allow-list and tenant-bound issuer/audience checks remain mandatory.
+
+**Why:** Closes the previously tracked downstream synchronous metadata retrieval availability risk while preserving tenant isolation and fail-closed trust behavior.
+
+**Validation evidence:** Focused suites reported pass in the merged reviews (mitigation and security gate) with zero failures.
+
+**Outcome:** Security gate is **pass**; mitigation is complete.

@@ -1,22 +1,25 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Protocols;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using System.Collections.Concurrent;
+using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Extensions;
 
 public static class PrismAuthExtensions
 {
-    private static readonly ConcurrentDictionary<string, ConfigurationManager<OpenIdConnectConfiguration>> _keyCache = new();
-
     public static IServiceCollection AddPrismAuthentication(this IServiceCollection services, IConfiguration config)
     {
+        services.AddHttpClient("prism-oidc-metadata");
+        services.TryAddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
+            .AddJwtBearer();
+
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IPrismSigningKeyCache>((options, signingKeyCache) =>
             {
                 options.Events = new JwtBearerEvents
                 {
@@ -83,38 +86,46 @@ public static class PrismAuthExtensions
 
                     IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
                     {
-                        string? tid = null;
-
-                        if (securityToken is Microsoft.IdentityModel.JsonWebTokens.JsonWebToken jsonWebToken)
-                            tid = jsonWebToken.GetClaim("tid")?.Value;
-                        else if (securityToken is System.IdentityModel.Tokens.Jwt.JwtSecurityToken jwtSecurityToken)
-                            tid = jwtSecurityToken.Claims.FirstOrDefault(c => c.Type == "tid")?.Value;
-
-                        if (string.IsNullOrEmpty(tid)) return Enumerable.Empty<SecurityKey>();
-
                         var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
-                        if (tenants == null || !tenants.Any(t => string.Equals(t.EntraTenantId, tid, StringComparison.OrdinalIgnoreCase)))
-                            return Enumerable.Empty<SecurityKey>();
-
-                        var metadataAddress = $"https://{tid}.ciamlogin.com/{tid}/v2.0/.well-known/openid-configuration";
-
-                        var manager = _keyCache.GetOrAdd(tid, _ => 
-                            new ConfigurationManager<OpenIdConnectConfiguration>(metadataAddress, new OpenIdConnectConfigurationRetriever()));
-
-                        try
-                        {
-                            var oidcConfig = manager.GetConfigurationAsync(CancellationToken.None).GetAwaiter().GetResult();
-                            return oidcConfig.SigningKeys;
-                        }
-                        catch
-                        {
-                            return Enumerable.Empty<SecurityKey>();
-                        }
+                        return ResolveSigningKeys(
+                            GetTokenTenantId(securityToken),
+                            kid,
+                            tenants,
+                            signingKeyCache);
                     }
                 };
             });
 
         return services;
+    }
+
+    internal static IEnumerable<SecurityKey> ResolveSigningKeys(
+        string? tokenTenantId,
+        string? keyId,
+        IReadOnlyCollection<BackOfficeTenant>? tenants,
+        IPrismSigningKeyCache signingKeyCache)
+    {
+        if (string.IsNullOrWhiteSpace(tokenTenantId))
+            return Enumerable.Empty<SecurityKey>();
+
+        if (tenants == null || !tenants.Any(t => string.Equals(t.EntraTenantId, tokenTenantId, StringComparison.OrdinalIgnoreCase)))
+            return Enumerable.Empty<SecurityKey>();
+
+        var snapshot = signingKeyCache.GetSnapshot(tokenTenantId, keyId);
+        if (snapshot.ShouldRefresh)
+        {
+            _ = signingKeyCache.WarmAsync(
+                tokenTenantId,
+                forceRefresh: snapshot.IsExpired || !snapshot.ContainsRequestedKey,
+                cancellationToken: CancellationToken.None);
+        }
+
+        if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
+        {
+            return Enumerable.Empty<SecurityKey>();
+        }
+
+        return snapshot.Keys;
     }
 
     private static string? GetTokenTenantId(SecurityToken securityToken)

@@ -7,7 +7,6 @@ using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Persistence;
-using Umbraco.Cms.Core.Cache;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Controllers.Models;
 using UmbracoPrism.Core.Services;
@@ -24,7 +23,7 @@ namespace UmbracoPrism.Core.Controllers;
 [MapToApi("Prism")]
 public class TenantManagementController(
     IUmbracoDatabaseFactory databaseFactory,
-    AppCaches appCaches,
+    ITenantService tenantService,
     IBrandingService brandingService,
     IMobileBundleService mobileBundleService) : ManagementApiControllerBase
 {
@@ -65,8 +64,8 @@ public class TenantManagementController(
 
         db.Insert(schema);
 
-        // Clear cache for the new hostname
-        appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{schema.Hostname}");
+        // Tenant-affecting writes invalidate host-based tenant cache entries.
+        tenantService.InvalidateDomain(schema.Hostname, "tenant-create");
         
         return Ok(schema);
     }
@@ -101,12 +100,8 @@ public class TenantManagementController(
         // 3. Persist
         db.Update(existing);
 
-        // 4. Clear cache for BOTH old and new hostnames to prevent routing issues
-        appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{oldHostname}");
-        if (oldHostname != updatedTenant.Hostname)
-        {
-            appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{updatedTenant.Hostname}");
-        }
+        // Tenant/branding/key changes are reflected by invalidating old and new host entries.
+        tenantService.InvalidateDomains([oldHostname, updatedTenant.Hostname], "tenant-update");
         
         return Ok(existing);
     }
@@ -181,8 +176,8 @@ public class TenantManagementController(
 
         db.Delete<PrismTenantSchema>(id);
 
-        // Clear cache so the site stops recognizing this hostname immediately
-        appCaches.RuntimeCache.ClearByKey($"Prism_Tenant_{tenant.Hostname}");
+        // Remove cached host mapping immediately after delete.
+        tenantService.InvalidateDomain(tenant.Hostname, "tenant-delete");
         
         return Ok();
     }

@@ -66,5 +66,94 @@ public class PrismTenantMiddlewareTests
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task InvokeAsync_ContinuesRequest_WhenSigningKeyWarmFails()
+    {
+        var tenant = new PrismTenant
+        {
+            Id = 1,
+            Name = "Example",
+            Hostname = "example.com",
+            EntraTenantId = "tenant-a"
+        };
+
+        var tenantService = new Mock<ITenantService>();
+        tenantService.Setup(s => s.GetByDomainAsync("example.com")).ReturnsAsync(tenant);
+
+        var prismContext = new Mock<IPrismContext>();
+        var logger = new Mock<ILogger<PrismTenantMiddleware>>();
+        var signingKeyCache = new Mock<IPrismSigningKeyCache>();
+        signingKeyCache
+            .Setup(s => s.WarmAsync("tenant-a", false, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("metadata unavailable"));
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Host = new HostString("example.com");
+
+        var nextCalled = false;
+        RequestDelegate next = _ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        };
+
+        var middleware = new PrismTenantMiddleware(next, logger.Object);
+        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
+
+        nextCalled.Should().BeTrue();
+        prismContext.VerifySet(p => p.CurrentTenant = tenant, Times.Once);
+        logger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Failed to warm Prism signing keys")),
+                It.IsAny<HttpRequestException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ThrowsOperationCanceled_WhenRequestIsAbortedDuringSigningKeyWarm()
+    {
+        var tenant = new PrismTenant
+        {
+            Id = 1,
+            Name = "Example",
+            Hostname = "example.com",
+            EntraTenantId = "tenant-a"
+        };
+
+        var tenantService = new Mock<ITenantService>();
+        tenantService.Setup(s => s.GetByDomainAsync("example.com")).ReturnsAsync(tenant);
+
+        var prismContext = new Mock<IPrismContext>();
+        var logger = new Mock<ILogger<PrismTenantMiddleware>>();
+        var signingKeyCache = new Mock<IPrismSigningKeyCache>();
+
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        signingKeyCache
+            .Setup(s => s.WarmAsync("tenant-a", false, cts.Token))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Host = new HostString("example.com");
+        httpContext.RequestAborted = cts.Token;
+
+        var nextCalled = false;
+        RequestDelegate next = _ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        };
+
+        var middleware = new PrismTenantMiddleware(next, logger.Object);
+        var act = () => middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        nextCalled.Should().BeFalse();
+    }
 }
 

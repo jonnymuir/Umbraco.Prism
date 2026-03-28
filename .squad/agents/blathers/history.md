@@ -168,3 +168,6 @@
 - 2026-03-28 (Issue #6): Cache coherence for branding updates is preserved by existing domain cache invalidation; when tenant updates invalidate host entries, refreshed tenant loads rebuild both override dictionaries and precomputed CSS declarations.
 - 2026-03-28 (Issue #6): Middleware should keep a dictionary-based fallback path for safety so tests and non-cached tenant objects remain behavior-compatible even when precomputed declarations are absent.
 - 2026-03-28 (Cross-agent): Tangy's parallel cache-coherence tests validated the optimization assumptions, confirming no cross-tenant branding bleed and correct same-tenant refresh behavior.
+- 2026-03-28 (PrismAuth downstream hardening): `PrismAuthExtensions` key resolution now mirrors the OIDC runtime pattern: snapshot read first, background warm trigger when `ShouldRefresh`, and strict fail-closed return when cache is expired or requested `kid` is missing.
+- 2026-03-28 (PrismAuth downstream hardening): `AddPrismAuthentication` now configures JWT options via DI (`Configure<IPrismSigningKeyCache>`) so resolver logic can stay cache-only and avoid sync request-thread metadata I/O.
+- 2026-03-28 (PrismAuth downstream hardening): Non-blocking behavior is testable by using a never-completing warm task and asserting resolver return timing + key return correctness on cached snapshot paths.

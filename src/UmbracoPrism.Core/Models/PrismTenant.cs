@@ -51,4 +51,14 @@ public class PrismTenant
     /// Gets or sets the mobile branding overrides for the tenant.
     /// </summary>
     public Dictionary<string, string> MobileBrandingOverrides { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets normalized desktop branding CSS declarations precomputed for request-time injection.
+    /// </summary>
+    public string BrandingCssDeclarations { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets normalized mobile branding CSS declarations precomputed for request-time injection.
+    /// </summary>
+    public string MobileBrandingCssDeclarations { get; set; } = string.Empty;
 }

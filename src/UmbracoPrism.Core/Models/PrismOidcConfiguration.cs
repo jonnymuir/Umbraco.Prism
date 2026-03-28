@@ -65,7 +65,21 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             validationParameters.ValidateAudience = true;
             validationParameters.ValidateIssuer = true;
 
-            return signingKeyCache.GetSigningKeys(tenant.EntraTenantId);
+            var snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
+            if (snapshot.ShouldRefresh)
+            {
+                _ = signingKeyCache.WarmAsync(
+                    tenant.EntraTenantId,
+                    forceRefresh: true,
+                    cancellationToken: CancellationToken.None);
+            }
+
+            if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
+            {
+                return [];
+            }
+
+            return snapshot.Keys;
         };
 
         // --- Event Wrapping Logic ---
