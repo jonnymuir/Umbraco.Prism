@@ -834,6 +834,89 @@ public class BiometricControllerTests
         db.Verify(d => d.Update(It.IsAny<object>()), Times.Never);
     }
 
+    // ------------------------------------------------------------------ unenrol happy path
+
+    [Fact]
+    public void Unenrol_HappyPath_SoftDeletesAndReturns204()
+    {
+        var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
+        var existingRecord = new PrismDeviceCredentialSchema
+        {
+            Id = 10,
+            DeviceId = "device-uuid-1",
+            TenantId = "42",
+            UserId = "user-oid-123",
+            TokenHash = "some-hash",
+            RefreshTokenEnc = "enc-token",
+            RegisteredAt = DateTime.UtcNow.AddDays(-5),
+            ExpiresAt = DateTime.UtcNow.AddDays(25),
+            RevokedAt = null,
+        };
+
+        var (controller, db) = BuildController(
+            tenant: tenant,
+            userOid: "user-oid-123",
+            refreshToken: "rt",
+            existingRecord: existingRecord);
+
+        var result = controller.Unenrol();
+
+        result.Should().BeOfType<NoContentResult>();
+
+        db.Verify(d => d.Update(It.Is<PrismDeviceCredentialSchema>(r =>
+            r.Id == 10 &&
+            r.RevokedAt != null
+        )), Times.Once);
+    }
+
+    [Fact]
+    public void Unenrol_AlreadyRevoked_Returns204WithoutUpdate()
+    {
+        var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
+
+        // No active credential found (already revoked or never existed)
+        var (controller, db) = BuildController(
+            tenant: tenant,
+            userOid: "user-oid-123",
+            refreshToken: "rt",
+            existingRecord: null);
+
+        var result = controller.Unenrol();
+
+        result.Should().BeOfType<NoContentResult>();
+
+        // Should NOT call Update since no record was found
+        db.Verify(d => d.Update(It.IsAny<object>()), Times.Never);
+    }
+
+    [Fact]
+    public void Unenrol_NoTenantContext_Returns400()
+    {
+        var (controller, _) = BuildController(
+            tenant: null,
+            userOid: "user-oid-123",
+            refreshToken: "rt");
+
+        var result = controller.Unenrol();
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public void Unenrol_MissingUserOid_Returns401()
+    {
+        var tenant = new PrismTenant { Id = 1, Name = "T" };
+        var (controller, _) = BuildController(
+            tenant: tenant,
+            userOid: null,
+            refreshToken: "rt",
+            authenticated: true);
+
+        var result = controller.Unenrol();
+
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+    }
+
     // ------------------------------------------------------------------ error code helper
 
     private static string? GetErrorCode(UnauthorizedObjectResult result)

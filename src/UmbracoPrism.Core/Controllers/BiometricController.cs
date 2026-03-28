@@ -307,4 +307,55 @@ public class BiometricController(
 
         return Ok();
     }
+
+    /// <summary>
+    /// Removes the authenticated user's biometric credential for the current tenant.
+    /// Soft-deletes by setting RevokedAt; idempotent (returns 204 even if no active record exists).
+    /// </summary>
+    [HttpDelete("unenrol")]
+    public IActionResult Unenrol()
+    {
+        // 1. Verify tenant context
+        var tenant = prismContext.CurrentTenant;
+        if (tenant == null)
+        {
+            logger.LogWarning("Biometric unenrol: no tenant context resolved");
+            return BadRequest(new { error = "No tenant context available." });
+        }
+
+        // 2. Extract user OID from cookie claims
+        var userOid = User.FindFirst("oid")?.Value
+            ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+
+        if (string.IsNullOrWhiteSpace(userOid))
+        {
+            logger.LogWarning("Biometric unenrol: user OID claim not found in principal");
+            return Unauthorized(new { error = "User identity could not be determined." });
+        }
+
+        // 3. Look up and soft-delete the credential (scoped by TenantId + UserId)
+        var tenantId = tenant.Id.ToString();
+        using var db = databaseFactory.CreateDatabase();
+
+        var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(
+            "WHERE TenantId = @0 AND UserId = @1 AND RevokedAt IS NULL", tenantId, userOid);
+
+        if (credential != null)
+        {
+            credential.RevokedAt = DateTime.UtcNow;
+            db.Update(credential);
+
+            logger.LogInformation(
+                "Biometric unenrol: revoked credential for user {UserOid} tenant {TenantId}",
+                userOid, tenantId);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Biometric unenrol: no active credential found for user {UserOid} tenant {TenantId} (idempotent)",
+                userOid, tenantId);
+        }
+
+        return NoContent();
+    }
 }
