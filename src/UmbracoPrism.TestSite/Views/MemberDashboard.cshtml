@@ -1,26 +1,4 @@
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
-@functions {
-    async Task<string> CallBackOfficeAsync()
-    {
-        try
-        {
-            using var client = new HttpClient();
-            var authHeader = await PrismContext.GetAuthorizationHeaderAsync();
-            if (authHeader == null)
-                return "User is not authenticated or session has expired.";
-            client.DefaultRequestHeaders.Authorization = authHeader;
-            client.Timeout = TimeSpan.FromSeconds(10);
-            var response = await client.GetAsync("http://localhost:5163/api/backoffice/me");
-            if (response.IsSuccessStatusCode)
-                return await response.Content.ReadAsStringAsync();
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                return "API Error: Unauthorized. Your session is invalid.";
-            return $"API Error: {response.StatusCode}";
-        }
-        catch (HttpRequestException ex) { return $"Network Error: Could not reach Back Office. {ex.Message}"; }
-        catch (Exception ex) { return $"System Error: {ex.Message}"; }
-    }
-}
 @{
     Layout = null;
 
@@ -28,10 +6,6 @@
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
-
-    string apiResult = "Not called yet.";
-    if (Context.Request.Query.ContainsKey("callApi"))
-        apiResult = await CallBackOfficeAsync();
 }
 
 <!DOCTYPE html>
@@ -506,36 +480,82 @@
             <p>Demonstrates how Prism propagates your identity to business applications via a Bearer token.</p>
 
             <div class="dash-api-card">
-                @if (Context.Request.Query.ContainsKey("callApi"))
-                {
-                    <p style="margin:0 0 4px; font-weight:600; font-size: var(--prism-text-size-sm, 13px); color: var(--prism-muted);">
-                        Response from <code style="font-family:monospace">http://localhost:5163/api/backoffice/me</code>
-                    </p>
-                    <pre>@apiResult</pre>
-                    @if (apiResult.StartsWith("Network Error"))
-                    {
-                        <div class="api-hint">
-                            💡 MockBackOffice is not running. Start it with:<br />
-                            <code>dotnet run --project src/UmbracoPrism.MockBackOffice</code>
-                        </div>
-                    }
-                }
-                else
-                {
+                <div id="api-idle">
                     <p style="margin:0 0 16px; color: var(--prism-muted, #64748b);">
                         Click the button below to call the MockBackOffice API using your current Prism Bearer token.
                         The API will validate the token, resolve your tenant, and return your registered role.
                     </p>
-                    <a href="?callApi=true" class="btn btn-primary" style="font-size: var(--prism-text-size-sm, 13px); padding: 8px 16px;">
+                    <button onclick="callDownstreamApi()" class="btn btn-primary" id="api-btn"
+                            style="font-size: var(--prism-text-size-sm, 13px); padding: 8px 16px;">
                         Call MockBackOffice API
-                    </a>
+                    </button>
                     <div class="api-hint" style="margin-top: 16px;">
                         💡 Make sure MockBackOffice is running first:<br />
                         <code>dotnet run --project src/UmbracoPrism.MockBackOffice</code>
                     </div>
-                }
+                </div>
+
+                <div id="api-loading" style="display:none; padding: 16px 0; color: var(--prism-muted, #64748b); font-size: var(--prism-text-size-sm, 13px);">
+                    ⏳ Calling MockBackOffice…
+                </div>
+
+                <div id="api-result" style="display:none;">
+                    <div id="api-status-bar" style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                        <span id="api-status-badge" style="display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:var(--prism-text-size-sm,13px); font-weight:700; font-family:monospace;"></span>
+                        <span id="api-url-label" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace; word-break:break-all;"></span>
+                        <span id="api-timing" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); margin-left:auto;"></span>
+                    </div>
+                    <div style="background:var(--prism-surface-alt,#f8fafc); border:1px solid var(--prism-border,#e2e8f0); border-radius:10px; overflow:hidden;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:var(--prism-surface,#fff); border-bottom:1px solid var(--prism-border,#e2e8f0);">
+                            <span id="api-content-type" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace;"></span>
+                            <button onclick="resetApiDemo()" style="background:none; border:none; color:var(--prism-muted,#64748b); cursor:pointer; font-size:var(--prism-text-size-sm,13px); padding:2px 6px;">✕ Reset</button>
+                        </div>
+                        <pre id="api-body" style="margin:0; padding:16px; font-size:var(--prism-text-size-sm,13px); overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--prism-text,#0f172a);"></pre>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <script>
+            async function callDownstreamApi() {
+                document.getElementById('api-idle').style.display = 'none';
+                document.getElementById('api-result').style.display = 'none';
+                document.getElementById('api-loading').style.display = 'block';
+
+                try {
+                    const res = await fetch('/api/prism/downstream-demo', { credentials: 'include' });
+                    const data = await res.json();
+
+                    document.getElementById('api-loading').style.display = 'none';
+                    document.getElementById('api-result').style.display = 'block';
+
+                    const ok = data.statusCode >= 200 && data.statusCode < 300;
+                    const badge = document.getElementById('api-status-badge');
+                    badge.textContent = `${data.statusCode} ${data.statusText}`;
+                    badge.style.background = ok ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
+                    badge.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
+
+                    document.getElementById('api-url-label').textContent = data.url;
+                    document.getElementById('api-timing').textContent = `${data.elapsedMs}ms`;
+                    document.getElementById('api-content-type').textContent = data.contentType;
+                    document.getElementById('api-body').textContent = data.body;
+                } catch (err) {
+                    document.getElementById('api-loading').style.display = 'none';
+                    document.getElementById('api-result').style.display = 'block';
+                    const badge = document.getElementById('api-status-badge');
+                    badge.textContent = '0 Client Error';
+                    badge.style.background = 'rgba(239,68,68,0.12)';
+                    badge.style.color = 'var(--prism-danger,#ef4444)';
+                    document.getElementById('api-url-label').textContent = '/api/prism/downstream-demo';
+                    document.getElementById('api-body').textContent = err.toString();
+                }
+            }
+
+            function resetApiDemo() {
+                document.getElementById('api-result').style.display = 'none';
+                document.getElementById('api-idle').style.display = 'block';
+            }
+        </script>
 
         <div style="margin-top: 24px;">
             <a href="/auth/logout" class="btn btn-outline">Sign Out</a>
