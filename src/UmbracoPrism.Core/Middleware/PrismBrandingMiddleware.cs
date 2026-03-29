@@ -28,6 +28,10 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         var overrideDeclarations = tenant?.BrandingCssDeclarations;
         var mobileOverrideDeclarations = tenant?.MobileBrandingCssDeclarations;
         var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(context);
+        var injectBiometricEnroll = isPrismMobileRequest
+            && (tenant?.AllowBiometricLogin ?? false)
+            && context.User.Identity?.IsAuthenticated == true;
+        var tenantHost = tenant?.Hostname ?? context.Request.Host.Value;
         var hasBaseOverrides = overrides is { Count: > 0 };
         var hasMobileOverrides = isPrismMobileRequest && mobileOverrides is { Count: > 0 };
         var hasMobileShellGuards = isPrismMobileRequest;
@@ -88,7 +92,7 @@ public class PrismBrandingMiddleware(RequestDelegate next)
             hasMobileOverrides ? mobileOverrides : null,
             overrideDeclarations,
             hasMobileOverrides ? mobileOverrideDeclarations : null);
-        var injected = InjectBranding(bodyText, css, hasMobileShellGuards);
+        var injected = InjectBranding(bodyText, css, hasMobileShellGuards, injectBiometricEnroll, tenantHost);
         var bytes = Encoding.UTF8.GetBytes(injected);
 
         if (!context.Response.HasStarted)
@@ -235,7 +239,7 @@ public class PrismBrandingMiddleware(RequestDelegate next)
         }
     }
 
-        private static string InjectBranding(string html, string css, bool includeMobileShellGuards)
+        private static string InjectBranding(string html, string css, bool includeMobileShellGuards, bool injectBiometricEnroll = false, string? tenantHost = null)
     {
                 var injection = new StringBuilder();
 
@@ -253,6 +257,11 @@ public class PrismBrandingMiddleware(RequestDelegate next)
 
                         injection.Append(BuildMobileShellStyleTag());
                         injection.Append(BuildMobileShellGuardScriptTag());
+                }
+
+                if (injectBiometricEnroll && !string.IsNullOrWhiteSpace(tenantHost))
+                {
+                    injection.Append(BuildBiometricEnrollScriptTag(tenantHost));
                 }
 
                 var injectionMarkup = injection.ToString();
@@ -342,6 +351,126 @@ html.prism-mobile .container {
         }
         return null;
     };
+})();
+</script>
+""";
+    }
+
+    private static string BuildBiometricEnrollScriptTag(string tenantHost)
+    {
+        var escapedHost = tenantHost.Replace("\\", "\\\\").Replace("'", "\\'");
+        return $$"""
+<script id="prism-biometric-enroll">
+(function () {
+  var TENANT_HOST = '{{escapedHost}}';
+  var SS_PFX = 'capacitor-storage_';
+  var TOKEN_KEY = SS_PFX + 'prism_biometric_token_' + TENANT_HOST;
+  var ENROLL_KEY = 'prism_biometric_enrollment_state_' + TENANT_HOST;
+  var DEV_ID_KEY = 'prism_device_id';
+
+  var Cap = window.Capacitor;
+  if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return;
+
+  (async function () {
+    try {
+      var storedResult = await Cap.nativePromise('SecureStorage', 'internalGetItem', { prefixedKey: TOKEN_KEY, sync: false });
+      var hasToken = storedResult && storedResult.data && storedResult.data !== 'null';
+      if (hasToken) return;
+
+      var info = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
+      if (!info || !info.isAvailable) return;
+
+      showEnrollBanner();
+    } catch (e) {
+      // Silent fail
+    }
+  })();
+
+  function showEnrollBanner() {
+    if (document.getElementById('prism-bio-banner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'prism-bio-banner';
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e5e7eb;box-shadow:0 -4px 16px rgba(0,0,0,.12);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+    banner.innerHTML = '<p style="margin:0 0 8px;font-size:1rem;font-weight:600;color:#111827;">Enable Face ID / Touch ID?</p>' +
+      '<p style="margin:0 0 12px;font-size:.875rem;color:#6b7280;">Sign in faster next time without entering your password.</p>' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button id="prism-bio-yes" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;">Enable</button>' +
+        '<button id="prism-bio-no" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;">Not now</button>' +
+      '</div>';
+    document.body.appendChild(banner);
+    document.getElementById('prism-bio-no').addEventListener('click', function () { banner.remove(); });
+    document.getElementById('prism-bio-yes').addEventListener('click', handleEnroll);
+  }
+
+  async function handleEnroll() {
+    var yesBtn = document.getElementById('prism-bio-yes');
+    if (yesBtn) yesBtn.textContent = 'Setting up\u2026';
+    try {
+      await Cap.nativePromise('BiometricAuthNative', 'internalAuthenticate', {
+        reason: 'Register biometric login',
+        allowDeviceCredential: true,
+        iosFallbackTitle: 'Use Passcode'
+      });
+
+      var devResult = await Cap.nativePromise('Preferences', 'get', { key: DEV_ID_KEY });
+      var deviceId = devResult && devResult.value ? devResult.value : null;
+      if (!deviceId) {
+        var arr = new Uint8Array(16);
+        crypto.getRandomValues(arr);
+        arr[6] = (arr[6] & 0x0f) | 0x40;
+        arr[8] = (arr[8] & 0x3f) | 0x80;
+        var hex = Array.from(arr).map(function(b) { return b.toString(16).padStart(2,'0'); }).join('');
+        deviceId = hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+        await Cap.nativePromise('Preferences', 'set', { key: DEV_ID_KEY, value: deviceId });
+      }
+
+      var resp = await fetch('https://' + TENANT_HOST + '/umbraco/prism/mobile/biometric/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ deviceId: deviceId, platform: Cap.getPlatform() })
+      });
+
+      if (!resp.ok) throw new Error('Register failed: ' + resp.status);
+      var data = await resp.json();
+      if (!data.biometricToken) throw new Error('No biometric token');
+
+      await Cap.nativePromise('SecureStorage', 'internalSetItem', {
+        prefixedKey: TOKEN_KEY,
+        data: JSON.stringify(data.biometricToken),
+        sync: false,
+        access: 'whenUnlocked'
+      });
+
+      var biometryInfo = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
+      var fp = [biometryInfo.biometryType,(biometryInfo.biometryTypes||[]).slice().sort().join(','),biometryInfo.isAvailable,biometryInfo.strongBiometryIsAvailable,biometryInfo.deviceIsSecure].join('|');
+      await Cap.nativePromise('Preferences', 'set', { key: ENROLL_KEY, value: fp });
+
+      var banner = document.getElementById('prism-bio-banner');
+      if (banner) {
+        banner.innerHTML = '<p style="margin:0;font-size:.9rem;font-weight:600;color:#16a34a;text-align:center;padding:4px 0;">&#10003; Biometric login enabled</p>';
+        setTimeout(function () { banner.remove(); }, 2000);
+      }
+    } catch (e) {
+      var msg = e && (e.message || String(e));
+      var banner = document.getElementById('prism-bio-banner');
+      if (!banner) return;
+      if (msg && (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('usercancel'))) {
+        banner.remove();
+        return;
+      }
+      var yesBtn2 = document.getElementById('prism-bio-yes');
+      if (yesBtn2) yesBtn2.textContent = 'Enable';
+      var errEl = banner.querySelector('#prism-bio-err');
+      if (!errEl) {
+        errEl = document.createElement('p');
+        errEl.id = 'prism-bio-err';
+        errEl.style.cssText = 'margin:8px 0 0;color:#dc2626;font-size:.8rem;';
+        banner.appendChild(errEl);
+      }
+      errEl.textContent = 'Setup failed. Please try again.';
+    }
+  }
 })();
 </script>
 """;

@@ -1213,3 +1213,98 @@ if (!info.isAvailable) {
 
 ---
 
+
+## 📌 2026-03-30: Remove btn-mobile-signin Pattern from Hero CTAs (Isabelle)
+
+**Session Log:** `.squad/log/2026-03-29-biometric-flow-and-signin-dedup.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-signin-dedup.md`
+
+### Isabelle — Remove btn-mobile-signin Pattern
+
+**Context:**
+The unauthenticated hero section contained a `btn-mobile-signin` anchor that duplicated the primary "Sign In" CTA. It was hidden in desktop mode (`display:none`) and revealed only under `html.prism-mobile`, creating two "Sign In" buttons in the mobile app body.
+
+**Decision:**
+**Do not use hidden-then-revealed buttons as a pattern for mobile-specific auth CTAs.** The primary `btn-primary` CTA already gets full-width grid layout in mobile mode — no replacement is needed. If a mobile-specific variant of an auth action is ever needed (e.g., biometric login shortcut), introduce it as a distinct named element with a unique label, not as a ghost-copy of the primary CTA.
+
+**Changes:**
+- Removed `btn-mobile-signin` anchor element from `HomePage.cshtml`
+- Removed unused `mobileAuthHref` and `mobileAuthLabel` C# variables
+- Removed CSS rules: `.btn-mobile-signin { display:none }` and `html.prism-mobile .btn-mobile-signin { display:inline-flex }`
+
+**Why:** Silent duplication via hidden-then-revealed buttons is hard to spot in code review and creates confusing UX (two identical CTAs). Explicit named elements force clarity in both code and design.
+
+**Status:** ✅ Implemented. Build clean.
+
+---
+
+## 📌 2026-07-14 (backdated to 2026-03-29): Biometric Client-Side Flow Implementation (Kicks)
+
+**Session Log:** `.squad/log/2026-03-29-biometric-flow-and-signin-dedup.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/kicks-biometric-client-flow.md`
+
+### Kicks — Biometric Client-Side Flow Implementation
+
+**Problem:**
+Jonny deployed the Prism mobile app to iPhone and could log in with Entra External ID, but:
+- No biometric enrollment prompt appeared after first login
+- On subsequent app opens, a full Entra login was required every time
+- The backend `BiometricController` existed but the client-side flow was entirely missing
+
+**Root Causes Identified:**
+
+1. **`biometric-bridge.ts` bug:** `authenticate()` called `response.json()` on the `/exchange` response, but `BiometricController.Exchange()` returns `Ok()` (empty 200) + `Set-Cookie: PrismMemberCookie`. The JSON parse threw, making biometric authentication always fail silently.
+
+2. **No startup biometric flow in `www/index.html`:** `MobileBundleService.BuildPlaceholderIndex()` generated a bootstrap that always navigated directly to the start URL without attempting biometric auth first.
+
+3. **No enrollment trigger after Entra login:** Nothing prompted users to enable Face ID/Touch ID after their first successful Entra authentication.
+
+4. **Missing CORS headers on `/exchange`:** The startup shell (`capacitor://localhost`) calling `/exchange` cross-origin would fail without `Access-Control-Allow-Origin` headers.
+
+**Decisions Made:**
+
+### D1: Exchange returns cookie, not sessionToken
+`authenticate()` return type changed from `Promise<string>` to `Promise<void>`. The `PrismMemberCookie` is set server-side via `SignInAsync`; the client does not need to handle a token value. Added `credentials: 'include'` to the exchange fetch to ensure the Set-Cookie is accepted cross-origin.
+
+### D2: Startup biometric flow via `Cap.nativePromise()`
+Since `www/index.html` is vanilla JS (no ES module bundler), Capacitor plugins cannot be imported via npm. Instead, `window.Capacitor.nativePromise(pluginId, methodName, options)` is used to call native plugins directly. Plugin method names used:
+- `BiometricAuthNative.checkBiometry` / `BiometricAuthNative.internalAuthenticate`
+- `SecureStorage.internalGetItem` / `internalRemoveItem` / `internalSetItem`
+  - Key prefix: `capacitor-storage_` (SecureStorage applies this internally)
+  - Data is JSON-encoded: `JSON.stringify(value)` on write, `JSON.parse(data)` on read
+- `Preferences.get` / `set` / `remove`
+
+### D3: Enrollment banner injected via PrismBrandingMiddleware
+When `isPrismMobileRequest && tenant.AllowBiometricLogin && user.IsAuthenticated`, `PrismBrandingMiddleware` injects a `<script id="prism-biometric-enroll">` into the `<head>` of the response HTML. This script:
+- Checks for existing biometric registration (SecureStorage token key)
+- Checks biometry availability (`BiometricAuthNative.checkBiometry`)
+- Shows a bottom-sheet enrollment banner if enrollment is needed
+- Handles the full registration flow: biometric confirm → POST `/register` → SecureStorage store → enrollment fingerprint save
+- Gracefully handles cancellation and errors
+
+### D4: CORS for Capacitor origins on `/exchange`
+Added explicit CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`) on the `/exchange` endpoint for `capacitor://localhost` (iOS) and `http://localhost` (Android). Added `[HttpOptions("exchange")]` preflight handler. This is scoped only to the exchange endpoint (unauthenticated by design) and only for known Capacitor origins.
+
+**Files Changed:**
+- `src/UmbracoPrism.Client/src/biometric-bridge.ts` — fix authenticate(), add credentials:include
+- `src/UmbracoPrism.Core/Services/MobileBundleService.cs` — add tryBiometricSignIn() to www/index.html bootstrap
+- `src/UmbracoPrism.Core/Middleware/PrismBrandingMiddleware.cs` — inject enrollment banner on authenticated mobile pages
+- `src/UmbracoPrism.Core/Controllers/BiometricController.cs` — CORS for Capacitor origins on /exchange
+
+**Key Technical Insights:**
+- `PrismMemberCookie` is `SameSite=Lax` → Set-Cookie IS stored from cross-origin fetch (with `credentials: 'include'`), AND the cookie IS sent on subsequent top-level navigation
+- `BiometricController.Exchange()` returns `Ok()` (empty 200) + `Set-Cookie`, no JSON body, no `sessionToken` — session established via cookie alone
+- `@aparajita/capacitor-secure-storage` applies `capacitor-storage_` prefix internally; all data is JSON-encoded by the wrapper
+- `@aparajita/capacitor-biometric-auth` plugin ID is `BiometricAuthNative`. Direct raw bridge call: `nativePromise('BiometricAuthNative', 'internalAuthenticate', {reason, allowDeviceCredential, iosFallbackTitle})`
+
+**Known Constraints:**
+- The enrollment banner is only injected by the server when the user is authenticated — i.e., it will appear on the first page load after a successful Entra login that creates a `PrismMemberCookie` session.
+- Requires `biometricAuthEnabled: true` in the generated mobile bundle (`MobileBundleService`) for the startup flow. The enrollment banner is controlled solely by `tenant.AllowBiometricLogin`.
+- `NSFaceIDUsageDescription` in `Info.plist` is handled by `bootstrap-ios.sh` (`plutil` injection). Developers must re-run bootstrap if regenerating the iOS project.
+
+**Status:** ✅ Implemented. Build clean. Tested on iOS device by Jonny (enrollment flow works, Face ID prompts appear after Entra login).
+

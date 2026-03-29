@@ -352,6 +352,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             <label class="toggle-switch" title="${this._allowBiometricLogin ? 'Biometric login enabled' : 'Biometric login disabled'}">
               <input
                 type="checkbox"
+                aria-label="Allow Biometric Login"
                 .checked=${this._allowBiometricLogin}
                 @change=${(e: Event) => { this._allowBiometricLogin = (e.target as HTMLInputElement).checked; }}
               />

@@ -54,3 +54,26 @@
 - 2026-03-28: Implemented biometric bridge (issue #22) using Aparajita packages (@aparajita/capacitor-biometric-auth, @aparajita/capacitor-secure-storage) — these have different API signatures than @capacitor-community equivalents. SecureStorage.set(key, value) not {key, value}, and returns DataType directly not {value}. Always check node_modules definitions when working with Capacitor plugins.
 - 2026-03-29: Added unenrolBiometric() to BiometricBridge (issue #24) — authenticated DELETE to /biometric/unenrol/{deviceId} with credentials: 'include'. Key distinction: revokeDevice() is unauthenticated + sends token in POST body; unenrolBiometric() is cookie-authenticated + uses deviceId in URL. Also added initBiometricLoginListener() and wired prismBiometricLoginComplete event into MobileBundleService's generated www/index.html (conditionally injected when biometricAuthEnabled). Always update story mocks when adding new methods to BiometricBridge interface.
 - 2026-03-29: Implemented biometric enrollment change detection (issue #26). Enrollment state fingerprint (biometryType|isAvailable|strongBiometryIsAvailable) stored in Preferences (not SecureStorage — it's metadata, not a credential). checkEnrollmentChange() runs BEFORE any biometric prompt in authenticate(); on mismatch, credentials are wiped via clearLocalCredentials() and BiometricError('unavailable') is thrown. State saved after both register() and authenticate() success. clearLocalCredentials() also removes enrollment state for the tenant. Two story mocks (register + settings) needed updating.
+- 2026-03-30: Fixed duplicate sign-in buttons on HomePage (issue: bug report from Jonny). Root cause: `btn-mobile-signin` anchor was rendered inside the unauthenticated hero alongside the primary `btn-primary` "Sign In" CTA. In desktop/standard mode it was hidden (`display:none`), but in `html.prism-mobile` mode both buttons rendered, resulting in two "Sign In" items in the body plus the nav-bar one. Fix: removed the `btn-mobile-signin` anchor, its two CSS rules, and the unused `mobileAuthHref`/`mobileAuthLabel` C# variables. The primary hero CTA already gets full-width grid layout in mobile mode so no replacement was needed.
+
+## Session: 2026-03-29 — Biometric Flow + Sign-In Dedup
+
+**Task:** Remove duplicate mobile sign-in button (bug report from Jonny)
+
+**Result:** ✅ Complete, build clean
+
+**Context:**
+The unauthenticated hero section rendered two "Sign In" buttons when running inside the Prism mobile shell:
+1. The primary `btn-primary` CTA (always visible)
+2. The hidden-then-revealed `btn-mobile-signin` anchor (visible only under `html.prism-mobile`)
+
+**Decision:** Do not use hidden-then-revealed buttons as a pattern for mobile-specific CTAs. The primary CTA already gets full-width layout in mobile. If a mobile variant is needed (e.g., biometric shortcut), introduce as a distinct named element with unique label.
+
+**Changes:**
+- Removed `btn-mobile-signin` anchor element from HomePage.cshtml
+- Removed unused `mobileAuthHref` and `mobileAuthLabel` C# variables
+- Removed CSS rules: `.btn-mobile-signin { display:none }` and `html.prism-mobile .btn-mobile-signin { display:inline-flex }`
+
+**Decision Record:** `.squad/decisions.md#2026-03-30-remove-btn-mobile-signin-pattern`
+
+**Orchestration Log:** `.squad/orchestration-log/2026-03-29T160329-isabelle.md`

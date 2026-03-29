@@ -18,7 +18,7 @@ export interface BiometricBridge {
   getOrCreateDeviceId(): Promise<string>;
   checkEnrollmentChange(tenantHost: string): Promise<boolean>;
   register(tenantHost: string, loginHint?: string): Promise<void>;
-  authenticate(tenantHost: string): Promise<string>;
+  authenticate(tenantHost: string): Promise<void>;
   revokeDevice(tenantHost: string): Promise<void>;
   unenrolBiometric(tenantHostname: string): Promise<void>;
   clearLocalCredentials(tenantHost?: string): Promise<void>;
@@ -179,7 +179,7 @@ class BiometricBridgeImpl implements BiometricBridge {
     }
   }
 
-  async authenticate(tenantHost: string): Promise<string> {
+  async authenticate(tenantHost: string): Promise<void> {
     // Check for biometric enrollment changes before attempting auth
     const enrollmentChanged = await this.checkEnrollmentChange(tenantHost);
     if (enrollmentChanged) {
@@ -222,6 +222,7 @@ class BiometricBridgeImpl implements BiometricBridge {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           biometricToken: storedToken,
           deviceId
@@ -229,8 +230,6 @@ class BiometricBridgeImpl implements BiometricBridge {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Token exchange failed' }));
-        
         if (response.status === 401 || response.status === 403) {
           await this.clearLocalCredentials(tenantHost);
           throw new BiometricError(
@@ -238,28 +237,13 @@ class BiometricBridgeImpl implements BiometricBridge {
             'unavailable'
           );
         }
-        
+
+        const errorData = await response.json().catch(() => ({ message: 'Token exchange failed' }));
         throw new Error(errorData.message || `Exchange failed with status ${response.status}`);
       }
 
-      const data = await response.json();
-      const newBiometricToken = data.biometricToken;
-      const sessionToken = data.sessionToken;
-
-      if (!sessionToken) {
-        throw new Error('Server did not return a session token');
-      }
-
-      if (newBiometricToken) {
-        await SecureStorage.set(
-          `${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`,
-          newBiometricToken
-        );
-      }
-
+      // Server sets PrismMemberCookie via Set-Cookie — no JSON body to parse.
       await this._saveEnrollmentState(tenantHost);
-
-      return sessionToken;
     } catch (error: any) {
       if (error instanceof BiometricError) {
         throw error;
