@@ -29,7 +29,8 @@
                 "C#: Prism Test Debug",
                 "C#: Mock Back-Office Debug"
             ],
-            "stopAll": true
+            "stopAll": true,
+            "dependsOrder": "sequence"
         }
     ]
 }
