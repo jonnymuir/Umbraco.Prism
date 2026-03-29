@@ -25,6 +25,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddMobileBrandingOverridesColumn>("add-mobile-branding-overrides")
         .To<AddMobileAppConfigColumn>("add-mobile-app-config")
         .To<CreatePrismDeviceCredentialsTable>("add-device-credentials")
-        .To<AddRefreshTokenEncColumn>("add-refresh-token-enc");
+        .To<AddRefreshTokenEncColumn>("add-refresh-token-enc")
+        .To<AddAllowBiometricLoginColumn>("add-allow-biometric-login");
     }
 }

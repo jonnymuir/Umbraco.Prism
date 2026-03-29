@@ -12,4 +12,5 @@ public class PrismTenantRequest
     public Dictionary<string, string>? BrandingOverrides { get; set; }
     public Dictionary<string, string>? MobileBrandingOverrides { get; set; }
     public PrismMobileAppConfig? MobileAppConfig { get; set; }
+    public bool AllowBiometricLogin { get; set; } = true;
 }

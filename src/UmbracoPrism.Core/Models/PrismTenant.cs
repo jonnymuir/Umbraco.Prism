@@ -61,4 +61,9 @@ public class PrismTenant
     /// Gets or sets normalized mobile branding CSS declarations precomputed for request-time injection.
     /// </summary>
     public string MobileBrandingCssDeclarations { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether biometric login is enabled for this tenant. Defaults to true.
+    /// </summary>
+    public bool AllowBiometricLogin { get; set; } = true;
 }

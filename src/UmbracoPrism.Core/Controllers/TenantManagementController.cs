@@ -59,7 +59,8 @@ public class TenantManagementController(
             SecretKeyName = tenant.SecretKeyName,
             BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides),
             MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides),
-            MobileAppConfig = SerializeMobileAppConfig(tenant.MobileAppConfig)
+            MobileAppConfig = SerializeMobileAppConfig(tenant.MobileAppConfig),
+            AllowBiometricLogin = tenant.AllowBiometricLogin
         };
 
         db.Insert(schema);
@@ -96,6 +97,7 @@ public class TenantManagementController(
         existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
         existing.MobileBrandingOverrides = SerializeBrandingOverrides(updatedTenant.MobileBrandingOverrides);
         existing.MobileAppConfig = SerializeMobileAppConfig(updatedTenant.MobileAppConfig);
+        existing.AllowBiometricLogin = updatedTenant.AllowBiometricLogin;
 
         // 3. Persist
         db.Update(existing);

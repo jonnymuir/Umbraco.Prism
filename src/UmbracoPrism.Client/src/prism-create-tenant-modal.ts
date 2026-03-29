@@ -56,6 +56,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _mobileErrorTitle = 'We’re having trouble connecting';
   @state() private _mobileErrorMessage = 'Please check your connection and try again.';
   @state() private _mobileShowErrorDiagnostics = true;
+  @state() private _allowBiometricLogin = true;
   @state() private _isProducingMobileBundle = false;
   @state() private _mobileBundleGenerated = false;
   @state() private _copiedCommand = '';
@@ -125,6 +126,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       this._entraTenantId = t.entraTenantId ?? '';
       this._entraClientId = t.entraClientId ?? '';
       this._secretKeyName = t.secretKeyName ?? '';
+      this._allowBiometricLogin = t.allowBiometricLogin ?? true;
 
       const mobileConfig = this._readMobileAppConfig(t);
       this._mobileAppName = mobileConfig?.appName ?? t.name ?? '';
@@ -169,6 +171,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileErrorMessage = mobileConfig?.errorMessage ?? 'Please check your connection and try again.';
         this._mobileShowErrorDiagnostics = mobileConfig?.showErrorDiagnostics ?? true;
         this._mobileBundleGenerated = false;
+        this._allowBiometricLogin = t.allowBiometricLogin ?? true;
       } else {
         this._id = null;
         this._name = '';
@@ -189,6 +192,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileErrorMessage = 'Please check your connection and try again.';
         this._mobileShowErrorDiagnostics = true;
         this._mobileBundleGenerated = false;
+        this._allowBiometricLogin = true;
       }
 
       const tenantMobileOverrides = this._toOverrideMap(this.data?.tenant?.mobileBrandingOverrides);
@@ -282,7 +286,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       secretKeyName: this._secretKeyName,
       brandingOverrides,
       mobileBrandingOverrides,
-      mobileAppConfig
+      mobileAppConfig,
+      allowBiometricLogin: this._allowBiometricLogin
     };
 
     this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
@@ -337,6 +342,21 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               @input=${(e: any) => this._hostname = e.target.value}
               required>
             </uui-input>
+          </div>
+
+          <div class="field">
+            <div class="toggle-label">
+              <span>Allow Biometric Login</span>
+              <span class="toggle-hint">When disabled, mobile users cannot register or use biometric authentication for this tenant.</span>
+            </div>
+            <label class="toggle-switch" title="${this._allowBiometricLogin ? 'Biometric login enabled' : 'Biometric login disabled'}">
+              <input
+                type="checkbox"
+                .checked=${this._allowBiometricLogin}
+                @change=${(e: Event) => { this._allowBiometricLogin = (e.target as HTMLInputElement).checked; }}
+              />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
         </uui-box>
       </div>
@@ -1002,6 +1022,53 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       justify-content: space-between;
       gap: var(--uui-size-space-2);
       flex-wrap: wrap;
+    }
+    .toggle-label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      margin-bottom: 0.5rem;
+    }
+    .toggle-hint {
+      font-size: 0.8rem;
+      color: #666;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+      cursor: pointer;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background-color: #ccc;
+      border-radius: 24px;
+      transition: background-color 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #2563eb;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(22px);
     }
   `;
 }

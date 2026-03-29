@@ -51,6 +51,13 @@ public class BiometricController(
             return BadRequest(new { error = "No tenant context available." });
         }
 
+        // Check if biometric login is enabled for this tenant
+        if (!tenant.AllowBiometricLogin)
+        {
+            logger.LogInformation("Biometric {Action}: disabled for tenant {TenantId}", "Register", tenant.Id);
+            return StatusCode(403, new { error = "Biometric login is not enabled for this tenant." });
+        }
+
         // 2. Extract user OID from cookie claims
         var userOid = User.FindFirst("oid")?.Value
             ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
@@ -190,6 +197,14 @@ public class BiometricController(
             logger.LogWarning("Biometric exchange: no tenant context resolved");
             LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: null);
             return BadRequest(new { error = "No tenant context available." });
+        }
+
+        // Check if biometric login is enabled for this tenant
+        if (!tenant.AllowBiometricLogin)
+        {
+            logger.LogInformation("Biometric {Action}: disabled for tenant {TenantId}", "Exchange", tenant.Id);
+            LogExchangeAudit("Failure", "biometric_disabled", tokenId: null, tenantId: tenant.Id.ToString());
+            return StatusCode(403, new { error = "Biometric login is not enabled for this tenant." });
         }
 
         // 2. Validate biometric token JWT (signature, lifetime, claims)

@@ -79,4 +79,10 @@ public class PrismTenantSchema
     [Column("MobileAppConfig")]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? MobileAppConfig { get; set; }
+
+    /// <summary>
+    /// Whether biometric login is enabled for this tenant (default: true).
+    /// </summary>
+    [Column("AllowBiometricLogin")]
+    public bool AllowBiometricLogin { get; set; } = true;
 }
