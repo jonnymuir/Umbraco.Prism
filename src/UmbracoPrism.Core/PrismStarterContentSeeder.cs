@@ -40,26 +40,46 @@ public class PrismStarterContentSeeder(
 
             // Seed home page
             var homePageType = contentTypeService.Get("homePage");
-            if (homePageType == null) return; // Type not created yet
-
-            var homePage = contentService.Create("Home", Constants.System.Root, homePageType.Alias);
-            var saveResult = contentService.Save(homePage);
-            if (saveResult.Success)
+            if (homePageType != null)
             {
-                var publishResult = contentService.Publish(homePage, new[] { "*" });
-                
-                if (publishResult.Success)
+                var homePage = contentService.Create("Home", Constants.System.Root, homePageType.Alias);
+                var saveResult = contentService.Save(homePage);
+                if (saveResult.Success)
                 {
-                    // Seed member dashboard as child of home
-                    var dashboardType = contentTypeService.Get("memberDashboard");
-                    if (dashboardType != null)
+                    var publishResult = contentService.Publish(homePage, new[] { "*" });
+                    
+                    if (publishResult.Success)
                     {
-                        var dashboardPage = contentService.Create("Dashboard", homePage.Id, dashboardType.Alias);
-                        var saveDashResult = contentService.Save(dashboardPage);
-                        if (saveDashResult.Success)
+                        // Seed member dashboard as child of home
+                        var dashboardType = contentTypeService.Get("memberDashboard");
+                        if (dashboardType != null)
                         {
-                            contentService.Publish(dashboardPage, new[] { "*" });
+                            var dashboardPage = contentService.Create("Dashboard", homePage.Id, dashboardType.Alias);
+                            var saveDashResult = contentService.Save(dashboardPage);
+                            if (saveDashResult.Success)
+                            {
+                                contentService.Publish(dashboardPage, new[] { "*" });
+                            }
                         }
+                    }
+                }
+            }
+
+            // Seed Settings node (independent of HomePage)
+            var settingsType = contentTypeService.Get("settings");
+            if (settingsType != null)
+            {
+                // Check if Settings already exists at root
+                var existingSettings = contentService.GetRootContent()
+                    .FirstOrDefault(c => c.ContentType.Alias == "settings");
+                
+                if (existingSettings == null)
+                {
+                    var settings = contentService.Create("Settings", Constants.System.Root, settingsType.Alias);
+                    var saveSettingsResult = contentService.Save(settings);
+                    if (saveSettingsResult.Success)
+                    {
+                        contentService.Publish(settings, new[] { "*" });
                     }
                 }
             }

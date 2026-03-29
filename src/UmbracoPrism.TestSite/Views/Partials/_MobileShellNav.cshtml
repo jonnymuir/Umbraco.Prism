@@ -1,0 +1,23 @@
+@using Umbraco.Cms.Core.Models
+@model IEnumerable<Link>
+
+@if (Model != null && Model.Any())
+{
+    var currentPath = Context.Request.Path.Value ?? "/";
+    
+    <nav class="mobile-shell-nav" aria-label="Mobile app navigation">
+        @foreach (var link in Model)
+        {
+            var isActive = string.Equals(link.Url, currentPath, StringComparison.OrdinalIgnoreCase);
+            var cssClass = isActive 
+                ? "mobile-shell-nav__item mobile-shell-nav__item--active" 
+                : "mobile-shell-nav__item";
+            
+            <a class="@cssClass" 
+               href="@link.Url" 
+               @(link.Target == "_blank" ? "target=\"_blank\" rel=\"noopener noreferrer\"" : "")>
+                @link.Name
+            </a>
+        }
+    </nav>
+}

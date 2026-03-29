@@ -344,3 +344,145 @@ Splitting into a dedicated guide (full reference) + README brief (quick overview
 - **Reduced support questions:** Explicit verification steps + non-destructive seeding guarantee prevent common confusion
 - **MockBackOffice adoption:** Dedicated section with run commands + test steps makes the demo discoverable and concrete
 - **First-time user experience:** Integration point is now the second thing in README (after Prerequisites), not buried after 600+ lines
+
+---
+
+## Decision: Editor-Configurable Mobile Navigation (Brewster Pass 1)
+
+**Date:** 2026-03-29  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Superseded by Settings Node Pattern (Pass 2)
+
+### Context
+
+The TestSite `HomePage.cshtml` had a hardcoded mobile navigation bar with 3 links that varied based on authentication state. This was inflexible and not editor-friendly.
+
+### Decision
+
+Replaced hardcoded mobile nav with an **editor-configurable Multi URL Picker property** on the `homePage` document type.
+
+#### Implementation Details
+
+1. **Property Configuration:**
+   - Property alias: `mobileNavLinks`
+   - Editor: Umbraco's built-in Multi URL Picker (GUID `fd1e0da5-5606-4862-b679-5d0cf3a52a59`)
+   - Property group: "Mobile Navigation"
+   - Description: "Configure up to 4 navigation links for the mobile app bottom navigation bar (max 4 items recommended)"
+   - Non-mandatory (editors can opt out of mobile nav by leaving it empty)
+
+2. **Seeder Pattern:**
+   - Extended `PrismContentTypeSeeder.cs` with `EnsureMobileNavPropertyAsync()` method
+   - Uses Umbraco's built-in Multi URL Picker rather than creating custom data types (avoids complex property editor instantiation)
+   - Idempotent: checks if property exists before adding
+   - Added `IDataTypeService` to constructor dependencies
+
+3. **View Pattern:**
+   - Created reusable partial: `Views/Partials/_MobileShellNav.cshtml`
+   - Model: `@model IEnumerable<Umbraco.Cms.Core.Models.Link>`
+   - Handles null/empty gracefully (renders nothing)
+   - Detects active link by comparing `link.Url` to `Context.Request.Path`
+   - Preserves existing CSS classes (`.mobile-shell-nav`, `.mobile-shell-nav__item`, `.mobile-shell-nav__item--active`)
+
+4. **HomePage Integration:**
+   - Reads property via `Model.Value<IEnumerable<Link>>("mobileNavLinks")`
+   - Passes to partial via `@Html.Partial("_MobileShellNav", mobileNavLinks)`
+   - Replaced 15 lines of hardcoded HTML with 3 lines of Razor
+
+### Rationale
+
+- **Umbraco-idiomatic:** Multi URL Picker is the standard Umbraco pattern for configurable navigation - any Umbraco developer will recognize this immediately
+- **Editor-friendly:** Backoffice UI for adding/reordering links with content tree picker
+- **Flexible:** Editors can configure 1-4 links, or omit mobile nav entirely
+- **Reusable:** Partial can be used on other pages (e.g., MemberDashboard)
+- **No custom UI needed:** Uses existing Umbraco backoffice functionality
+
+### Consequences
+
+#### Positive
+- Mobile nav is now fully editor-controlled
+- No code changes needed to modify navigation structure
+- Pattern is extensible to other pages
+- Test site demonstrates proper Umbraco content type configuration
+
+#### Considerations
+- Editors must configure mobile nav links after creating a HomePage node (property starts empty)
+- Built-in Multi URL Picker has no enforced max limit - description recommends 4 items but doesn't restrict
+- If more complex validation needed (e.g., strict 3-4 item limit), a custom data type would be required
+
+### Alternatives Considered
+
+1. **Create custom data type with maxNumber: 4 config**
+   - Rejected: Complex to create programmatically in v17 (requires property editor instantiation with multiple dependencies)
+   - Built-in data type is simpler and "good enough"
+
+2. **Keep hardcoded nav with config file override**
+   - Rejected: Not Umbraco-native; editors expect backoffice control
+
+3. **Custom Angular backoffice editor**
+   - Rejected: Overkill for simple link list; Multi URL Picker already provides ideal UX
+
+### Related Files
+
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs` (lines 52-104)
+- `src/UmbracoPrism.TestSite/Views/Partials/_MobileShellNav.cshtml`
+- `src/UmbracoPrism.TestSite/Views/HomePage.cshtml` (lines 472-475)
+
+---
+
+## Decision: Settings Node Pattern for Site-Wide Configuration (Brewster Pass 2)
+
+**Date:** 2026-03-29  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Implemented
+
+### Context
+
+Pass 1 added `mobileNavLinks` as a per-page property on `homePage`. This works but doesn't scale — every new doc type would need the same property. The standard Umbraco community pattern for site-wide settings is the Settings Node Pattern (Paul Seal).
+
+### Decision
+
+We will use the **Settings Node Pattern** — a standard Umbraco community approach for site-wide configuration:
+
+1. Create a `settings` document type with:
+   - `AllowedAsRoot = true`
+   - `Icon = "icon-settings-alt"`
+   - No template (it's a config node, not a rendered page)
+   - Property groups for various settings (e.g., "Mobile Navigation")
+
+2. Seed a single root-level Settings node via `PrismStarterContentSeeder`
+
+3. Master layout reads Settings at the top:
+   ```csharp
+   var settings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
+   var mobileNavLinks = settings?.Value<IEnumerable<Link>>("mobileNavLinks");
+   ```
+
+4. All site-wide UI (mobile nav, footer, etc.) renders from Master using Settings data
+
+### Rationale
+
+- **Single source of truth:** Editors configure once, all pages inherit
+- **No per-page duplication:** New doc types don't need the same properties
+- **Standard Umbraco pattern:** Recognized by any Umbraco developer
+- **Separation of concerns:** Master handles site-wide UI, pages handle content
+- **Scalable:** Easy to add more site-wide settings (footer links, social media, contact info, etc.)
+
+### Alternatives Considered
+
+- **Per-page properties:** Doesn't scale; every doc type needs the same property
+- **Configuration files:** Not editor-friendly; requires deployment for changes
+- **Composition:** Over-engineering for simple site-wide config
+
+### Files Modified
+
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs` — added Settings doc type creation, refactored mobile nav property logic
+- `src/UmbracoPrism.Core/PrismStarterContentSeeder.cs` — seeds Settings node alongside Home
+- `src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml` — reads Settings, renders mobile nav globally
+- `src/UmbracoPrism.TestSite/Views/HomePage.cshtml` — removed per-page nav logic and CSS
+
+### Impact
+
+- Existing installations: Next startup will create Settings doc type; seeder won't run (content already exists)
+- New installations: Get Settings node automatically when `SeedStarterContent = true`
+- Editors: Configure mobile nav once in Settings node, not per-page
+- Developers: Extend Settings with new properties as needed (footer, social, etc.)
