@@ -24,6 +24,20 @@ export interface BiometricBridge {
   clearLocalCredentials(tenantHost?: string): Promise<void>;
 }
 
+/**
+ * Multi-tenant keystore key design:
+ *
+ * All SecureStorage and Preferences keys are suffixed with the tenant hostname
+ * (e.g. "tenant-a.example.com"), NOT an integer tenantId. This guarantees:
+ *   1. Keys are naturally unique across tenants (hostnames are globally unique).
+ *   2. The client never needs to resolve or cache numeric tenant IDs.
+ *   3. clearLocalCredentials() can enumerate and purge all tenant keys by prefix.
+ *
+ * Key patterns:
+ *   - `prism_biometric_token_{hostname}`  → SecureStorage (biometric JWT)
+ *   - `prism_biometric_enrollment_state_{hostname}` → Preferences (enrollment fingerprint)
+ *   - `prism_device_id` → Preferences (device-scoped, not tenant-scoped)
+ */
 class BiometricBridgeImpl implements BiometricBridge {
   private readonly DEVICE_ID_KEY = 'prism_device_id';
   private readonly BIOMETRIC_TOKEN_PREFIX = 'prism_biometric_token_';

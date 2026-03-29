@@ -648,7 +648,7 @@ public class BiometricControllerTests
     }
 
     [Fact]
-    public async Task Exchange_TenantMismatch_Returns401BiometricTokenInvalid()
+    public async Task Exchange_TenantMismatch_Returns401TenantMismatch()
     {
         // Issue a token for a different tenant
         var tokenService = BuildTokenService();
@@ -660,7 +660,7 @@ public class BiometricControllerTests
         var result = await controller.Exchange(request);
 
         var unauthorized = result.Should().BeOfType<UnauthorizedObjectResult>().Subject;
-        GetErrorCode(unauthorized).Should().Be("biometric_token_invalid");
+        GetErrorCode(unauthorized).Should().Be("tenant_mismatch");
     }
 
     [Fact]
@@ -1108,6 +1108,100 @@ public class BiometricControllerTests
         if (value == null) return null;
         var errorProp = value.GetType().GetProperty("error");
         return errorProp?.GetValue(value)?.ToString();
+    }
+
+    // ------------------------------------------------------------------ tenant boundary: defence-in-depth
+
+    [Fact]
+    public async Task Exchange_TenantMismatch_LogsAuditWithTenantMismatchReason()
+    {
+        var tokenService = BuildTokenService();
+        var tokenForOtherTenant = tokenService.IssueToken("device-uuid-1", "999", "user-oid-123", TimeSpan.FromDays(30));
+
+        var (controller, _, _, _, _, _, loggerMock) = BuildExchangeScenario();
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = tokenForOtherTenant });
+
+        loggerMock.Verify(l => l.Log(
+            LogLevel.Warning,
+            It.IsAny<EventId>(),
+            It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("tenant_mismatch")),
+            null,
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task Exchange_TenantMismatch_RecordsTokenFailure()
+    {
+        var tokenService = BuildTokenService();
+        var tokenForOtherTenant = tokenService.IssueToken("device-uuid-1", "999", "user-oid-123", TimeSpan.FromDays(30));
+
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((false, 0));
+
+        var (controller, _, _, _, _, _, _) = BuildExchangeScenario(rateLimitService: rateLimitMock.Object);
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = tokenForOtherTenant });
+
+        rateLimitMock.Verify(s => s.RecordTokenFailure(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Register_DbQuery_IncludesTenantIdPredicate()
+    {
+        var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
+        var (controller, db, _) = BuildController(
+            tenant: tenant,
+            userOid: "user-oid-123",
+            refreshToken: "test-refresh-token");
+
+        var request = new BiometricRegistrationRequest
+        {
+            DeviceId = "device-uuid-1",
+            Platform = "ios",
+        };
+
+        await controller.Register(request);
+
+        // Verify FirstOrDefault query includes TenantId as the first parameter
+        db.Verify(d => d.FirstOrDefault<PrismDeviceCredentialSchema>(
+            It.Is<string>(sql => sql.Contains("TenantId")),
+            It.Is<object[]>(args => args.Length >= 1 && args[0].ToString() == "42")),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_DbQuery_IncludesTenantIdPredicate()
+    {
+        var (controller, db, biometricToken, _, _, _, _) = BuildExchangeScenario();
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        // Verify the DB lookup included TenantId in the query
+        db.Verify(d => d.FirstOrDefault<PrismDeviceCredentialSchema>(
+            It.Is<string>(sql => sql.Contains("TenantId")),
+            It.Is<object[]>(args => args.Any(a => a.ToString() == "42"))),
+            Times.Once);
+    }
+
+    [Fact]
+    public void Unenrol_DbQuery_IncludesTenantIdPredicate()
+    {
+        var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
+        var (controller, db, _) = BuildController(
+            tenant: tenant,
+            userOid: "user-oid-123",
+            refreshToken: "rt");
+
+        controller.Unenrol("device-uuid-1");
+
+        // Verify the DB lookup included TenantId in the query
+        db.Verify(d => d.FirstOrDefault<PrismDeviceCredentialSchema>(
+            It.Is<string>(sql => sql.Contains("TenantId")),
+            It.Is<object[]>(args => args.Length >= 1 && args[0].ToString() == "42")),
+            Times.Once);
     }
 
     // ------------------------------------------------------------------ mock helpers

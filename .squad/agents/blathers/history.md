@@ -213,3 +213,11 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **Test pattern for exchange**: `BuildExchangeScenario` helper issues a valid JWT, creates a matching DB record with encrypted refresh token, and wires up `IAuthenticationService` mock for `SignInAsync` verification. 18 tests cover all error paths.
 - **Error code convention**: `biometric_token_invalid` (catch-all for bad JWT, not found, revoked, expired, user mismatch), `device_mismatch` (specific), `credential_refresh_failed` (Entra-side failures).
 - **Key files added**: `BiometricExchangeRequest.cs`.
+
+## Learnings (Issue #27 — Multi-tenant Boundary Validation)
+
+- **Client-side keystore audit (biometric-bridge.ts)**: All `SecureStorage` keys use hostname strings (`tenantHost`), not integer tenant IDs. Key pattern: `prism_biometric_token_{hostname}`. This is architecturally correct — hostnames are globally unique and the client never needs to resolve numeric IDs. Documented with JSDoc block.
+- **Exchange tenant mismatch error code**: Changed from generic `biometric_token_invalid` to explicit `tenant_mismatch`. Defence-in-depth: even though JWT signature validation implicitly covers tenant binding, the explicit assertion prevents a misconfigured signing key from leaking credentials across tenants.
+- **All DB queries already included TenantId predicates**: Register (`TenantId + DeviceId + UserId`), Exchange (`TokenHash + TenantId + UserId`), Unenrol (`TenantId + UserId + DeviceId`), Admin Revoke (`DeviceId + TenantId`). Added verification tests to lock this invariant.
+- **DeviceAdminController was already tenant-scoped**: The `Revoke` action queries by `DeviceId + TenantId`, so admin of Tenant A cannot see or delete Tenant B's devices. Added explicit TenantId-predicate verification test alongside the existing cross-tenant 404 test.
+- **Test count**: 159 → 165 after adding 6 tenant boundary tests.

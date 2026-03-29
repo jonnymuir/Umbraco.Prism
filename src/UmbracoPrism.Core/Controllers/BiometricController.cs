@@ -207,14 +207,16 @@ public class BiometricController(
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
-        // 3. Verify tenantId claim matches request tenant
+        // 3. Defence-in-depth: assert JWT tenantId matches the current request tenant.
+        //    Even though JWT signature validation covers this, an explicit check ensures
+        //    a misconfigured signing key can never leak across tenant boundaries.
         if (!string.Equals(claims.TenantId, tenantId, StringComparison.Ordinal))
         {
             logger.LogWarning("Biometric exchange: tenant mismatch (token={TokenTid}, request={RequestTid})",
                 claims.TenantId, tenantId);
             exchangeRateLimitService.RecordTokenFailure(tokenHash);
-            LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
-            return Unauthorized(new { error = "biometric_token_invalid" });
+            LogExchangeAudit("Failure", "tenant_mismatch", tokenId: null, tenantId: tenantId);
+            return Unauthorized(new { error = "tenant_mismatch" });
         }
 
         // 4. Look up the credential row (tokenHash already computed above)

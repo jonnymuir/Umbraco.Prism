@@ -145,6 +145,34 @@ public class DeviceAdminControllerTests
             Times.Once);
     }
 
+    [Fact]
+    public void Revoke_DbQuery_IncludesTenantIdPredicate()
+    {
+        var tenant = new PrismTenant { Id = 42, Name = "TestTenant" };
+        var credential = new PrismDeviceCredentialSchema
+        {
+            Id = 5,
+            DeviceId = "device-uuid-1",
+            TenantId = "42",
+            UserId = "some-user-oid",
+            TokenHash = "hash",
+            RefreshTokenEnc = "enc",
+            RegisteredAt = DateTime.UtcNow.AddDays(-3),
+            ExpiresAt = DateTime.UtcNow.AddDays(27),
+            RevokedAt = null,
+        };
+
+        var (controller, db) = BuildAdminController(tenant: tenant, existingRecord: credential);
+
+        controller.Revoke("device-uuid-1");
+
+        // Verify the SQL query contains TenantId filtering
+        db.Verify(d => d.FirstOrDefault<PrismDeviceCredentialSchema>(
+            It.Is<string>(sql => sql.Contains("TenantId")),
+            It.Is<object[]>(args => args.Any(a => a.ToString() == "42"))),
+            Times.Once);
+    }
+
     // ------------------------------------------------------------------ no tenant context
 
     [Fact]
