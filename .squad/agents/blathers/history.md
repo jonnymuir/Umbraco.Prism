@@ -221,3 +221,13 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **All DB queries already included TenantId predicates**: Register (`TenantId + DeviceId + UserId`), Exchange (`TokenHash + TenantId + UserId`), Unenrol (`TenantId + UserId + DeviceId`), Admin Revoke (`DeviceId + TenantId`). Added verification tests to lock this invariant.
 - **DeviceAdminController was already tenant-scoped**: The `Revoke` action queries by `DeviceId + TenantId`, so admin of Tenant A cannot see or delete Tenant B's devices. Added explicit TenantId-predicate verification test alongside the existing cross-tenant 404 test.
 - **Test count**: 159 → 165 after adding 6 tenant boundary tests.
+
+## Learnings (Reference Member Portal — Test Site Improvements)
+
+- **OIDC prompt override pattern**: `OpenIdConnectDefaults.PromptKey` does NOT exist in the ASP.NET Core OIDC package bundled with Umbraco 17 / .NET 10. Use a custom key (`"PrismPrompt"`) in `AuthenticationProperties.Items` and read it in `PrismOidcConfiguration.OnRedirectToIdentityProvider` before defaulting to `"select_account"`.
+- **Registration route**: `/auth/register` mirrors `/auth/login` but sets `properties.Items["PrismPrompt"] = "create"` to trigger Entra CIAM's sign-up flow. No new dependencies needed.
+- **MemberDashboardController placement**: Lives in `UmbracoPrism.Core/Controllers/` alongside `AccountController` and `BiometricController`. Uses `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` — same pattern as `BiometricController`.
+- **Claim extraction for display**: User OID uses dual-claim check (`oid` / long-form URI). Display name uses `name` → `preferred_username` fallback. Email uses `email` → `preferred_username`.
+- **View discovery for Core controllers**: Views for controllers in `UmbracoPrism.Core` are resolved from the TestSite's `Views/` folder (e.g. `Views/MemberDashboard/Index.cshtml`). This works because the TestSite references Core as a project and MVC's default view discovery finds them.
+- **HomePage redesign**: Removed the inline `CallBackOfficeAsync` demo code and design-token showcase. Replaced with a member-portal landing page that shows different hero content based on authentication state. Preserved `prism-mobile-user-agent-demo` tag helper, mobile CSS overrides, and `prism-debug` tag helper.
+- **CSS variable tokens**: All portal and dashboard styles use existing branding CSS variables (`--prism-primary`, `--prism-surface`, `--prism-radius`, etc.) so they automatically adapt per-tenant. Added `--prism-nav-height`, `--prism-dash-icon-size`, `--prism-dash-icon-radius` to `prism-components.css`.

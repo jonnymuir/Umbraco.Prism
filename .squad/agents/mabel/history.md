@@ -98,3 +98,30 @@
 - **Changes:** Build stability improvements and SPA router fix; no new features
 - **Version sync:** Both csproj and package.json updated to 1.2.2
 - **Changelog style:** Refined user-facing language. Each bug fix entry answers "what changed and why it matters."
+
+### Biometric Authentication Documentation (2026-03-29)
+
+**Task:** Add comprehensive biometric auth section to README after Phase 1-4 feature completion.
+
+**Section added:** Placed as "### 9. Biometric Authentication (Mobile)" in Integration & Usage, immediately after Prism Admins Policy section.
+
+**Content coverage:**
+- **How it works (2 paragraphs):** Explains enrollment after first OIDC login, biometric token exchange on app launch, no OIDC redirect on return visits, secure keystore storage, automatic fallback to OIDC.
+- **Enabling biometric auth (5-step list):** Backoffice tenant settings, toggle flag, bundle generation, enrollment flow.
+- **Security features (6 bullet points):** Per-token/per-IP rate limiting, enrollment change detection, multi-tenant isolation, refresh token rotation, audit logging.
+- **Configuration table:** All 5 PrismBiometricOptions (SigningKey, EncryptionKey, TokenLifetimeDays, MaxFailedAttempts, FailureWindowMinutes, PerIpRequestsPerMinute) with defaults and rationale.
+- **Revocation & enrollment management (3 scenarios):** User-initiated removal, admin revocation, enrollment tracking.
+- **Test site reference:** Points to UmbracoPrism.TestSite as working reference with pre-configured tenant, login/enrollment flow, dashboard status display.
+
+**Key writing choices:**
+- Avoided over-explanation of OIDC — assumed developer familiarity (matches README tone).
+- Emphasized security model without deep threat analysis (full threat model lives in Design/biometric-auth.md).
+- Referenced configuration options directly from PrismBiometricOptions.cs source.
+- Aligned rate-limiting defaults (3 attempts, 10 min window, 20 req/min per IP) with code.
+- Mentioned TestSite as concrete reference without over-selling it.
+
+**File modified:**
+- `README.md` — 59 lines added; positioned logically within Integration & Usage section flow.
+
+**Commit:** `docs: add biometric authentication section to README` with Copilot co-author trailer.
+
