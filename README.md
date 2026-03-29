@@ -111,6 +111,23 @@ Just add <prism-debug /> to get all the info you need to debug
 
 ---
 
+## Umbraco Setup
+
+Getting Prism running is straightforward: install the package, register services, and Prism handles document type creation automatically.
+
+- **Install:** `dotnet add package UmbracoPrism` → register `AddPrism()` in `Program.cs`
+- **Document types:** Auto-created on startup (`homePage`, `memberDashboard`) — no manual schema work
+- **Content tree:** Expected structure is Home page → Dashboard child page (Prism doesn't touch existing content)
+- **For new sites:** Set `"Prism:SeedStarterContent": true` in `appsettings.json` to auto-seed Home + Dashboard pages and a Content Blueprint
+- **Configure tenant:** Create your first tenant in Backoffice → Settings → Prism Dashboard, assign hostname and auth settings
+- **Verify:** Visit homepage (see Sign In CTA), log in, visit `/dashboard` (see authenticated portal)
+
+**MockBackOffice demo:** Run `dotnet run --project src/UmbracoPrism.MockBackOffice` alongside your site to see downstream credential flow. Visit `/dashboard?callApi=true` once logged in.
+
+→ **Full guide:** See [docs/umbraco-setup.md](docs/umbraco-setup.md) for detailed step-by-step instructions.
+
+---
+
 ## Integration & Usage
 
 ### 1. Enabling Authentication

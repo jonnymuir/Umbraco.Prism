@@ -204,3 +204,143 @@ Future Copilot sessions will spend less time exploring and more time implementin
 ### Rationale
 
 This document is **not** generic Copilot advice (no "make atomic commits" or "use descriptive variable names"). It is purely project-specific, answering: "What is the shape of this codebase, and how does work get done here?"
+
+---
+
+## Decision: Content Type & Starter Content Seeders
+
+**Date:** 2026-03-29  
+**Author:** Blathers (Backend Dev)  
+**Status:** Implemented
+
+### What Was Decided
+
+Implemented two notification handlers that run on application startup to eliminate manual Umbraco backoffice setup for new Prism installations.
+
+### 1. PrismContentTypeSeeder (Always Runs)
+
+- **When:** Every startup (idempotent)
+- **What:** Creates `homePage` and `memberDashboard` document types if they don't exist
+- **Why:** `MemberDashboardController` inherits `RenderController` and requires the `memberDashboard` type to route properly
+
+**Implementation:**
+- Uses `IContentTypeService.Get()` guard to check existence
+- Only `homePage` has `AllowedAsRoot = true`
+- Runs on `UmbracoApplicationStartedNotification` with runtime level check
+
+### 2. PrismStarterContentSeeder (Opt-In)
+
+- **When:** Startup IF `Prism:SeedStarterContent = true` AND content tree is empty
+- **What:** Creates "Home" page (homePage type) at root, "Dashboard" page (memberDashboard type) as child, and publishes both
+- **Why:** Gives package consumers a working member portal immediately after install
+
+**Implementation:**
+- Checks `IContentService.GetRootContent()` — only seeds if empty
+- Uses v17 pattern: `Create()` → `Save()` (check `.Success`) → `Publish()`
+- Non-destructive: never overwrites existing content
+
+### Configuration Model
+
+Created `PrismConfiguration` class in `/Models/` with:
+```csharp
+public const string SectionName = "Prism";
+public bool SeedStarterContent { get; set; } = false;
+```
+
+Registered in `PrismComposer` using `IOptions<T>` pattern (matches existing options models).
+
+### Umbraco v17 API Notes
+
+- **Content types:** `IContentTypeService.Save()` is marked obsolete but functional. New approach uses separate Create/Update methods, but Save still works for both operations.
+- **Content creation:** `IContentService.Create()` returns `IContent` directly (not wrapped in result object)
+- **Content saving:** `IContentService.Save()` returns `Attempt<T>` with `.Success` property
+- **Publishing:** `IContentService.Publish(content, new[] { "*" })` for all cultures
+
+### Testing
+
+- Build: ✅ 0 errors (1 non-blocking deprecation warning)
+- Tests: ✅ All 165 tests pass
+- Idempotency: Both handlers safe to run repeatedly
+
+### Impact on Other Features
+
+- **Isabelle (Frontend):** Dashboard view files will be discovered automatically via MVC's default view discovery from TestSite's `Views/MemberDashboard/` folder
+- **Copper (Security):** No security concerns — seeders only create content types and sample content, no auth/permissions involved
+- **Package consumers:** Can now install Prism, set one config flag, and get a working member portal without touching the backoffice
+
+### Files Changed
+
+- `src/UmbracoPrism.Core/Models/PrismConfiguration.cs` (created)
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs` (created)
+- `src/UmbracoPrism.Core/PrismStarterContentSeeder.cs` (created)
+- `src/UmbracoPrism.Core/PrismComposer.cs` (registered handlers + config)
+- `src/UmbracoPrism.TestSite/appsettings.json` (enabled seeding)
+
+### Future Considerations
+
+- **Blueprint support:** Deferred due to obsolete API (`CreateContentFromBlueprint` scheduled for removal in v18). Teams can create blueprints manually in backoffice if needed.
+- **Additional document types:** If future controllers need more types (e.g., `resetPassword`, `accountSettings`), add them to `PrismContentTypeSeeder.HandleAsync()`.
+- **Multi-language seeding:** Current implementation uses `"*"` for all cultures. If specific culture seeding is needed, inject `ILocalizationService` and iterate enabled cultures.
+
+---
+
+## Decision: Umbraco Setup Documentation
+
+**Date:** 2026-03-29  
+**Author:** Mabel (Scribe/Documentation)  
+**Status:** Implemented
+
+### What Was Decided
+
+Create dedicated Umbraco setup guide and position it clearly in README for developers integrating Prism into new or existing Umbraco installations.
+
+### Documentation Structure
+
+#### New File: `/docs/umbraco-setup.md`
+
+An 8-step guide covering the full integration path:
+
+1. **Install NuGet package**
+2. **Register services in Program.cs**
+3. **Automatic startup seeding** — explains `PrismContentTypeSeeder` creating `homePage` and `memberDashboard` non-destructively
+4. **Content tree structure** — ASCII diagram showing Home → Dashboard hierarchy
+5. **Manual setup path** — for existing Umbraco sites (3 steps: create Home, create Dashboard, configure tenant)
+6. **Auto-seed path** — for greenfield sites (`"Prism:SeedStarterContent": true` flag)
+7. **MockBackOffice demo** — demonstrates downstream credential flow, includes run commands and verification steps
+8. **Verification checklist** — concrete success criteria (document types visible, content tree correct, tenant configured, dashboard loads)
+
+#### Updated `README.md`
+
+Added "## Umbraco Setup" section between Architecture and Integration & Usage sections:
+
+- Bullet-point summary of install, document types, content tree, seeding flag, tenant config
+- One-liner about MockBackOffice demo
+- Link to `/docs/umbraco-setup.md` for detailed guide
+- Maintains 5-8 bullet constraint requested
+
+### Documentation Conventions
+
+- **Document type aliases use code formatting:** `homePage`, `memberDashboard`
+- **Content tree shown as ASCII diagram** for clarity
+- **Non-destructive seeding emphasized:** "Prism does NOT touch existing content tree, members, navigation"
+- **Two paths presented equally:** existing sites get manual steps, greenfield sites get auto-seed option
+- **Verification-first:** developers know what success looks like before testing
+- **Forward references only:** no duplication of Entra setup, mobile generation, or biometric auth (those live in main README Integration & Usage)
+
+### Why This Matters
+
+Blathers' auto-seeding feature is a significant improvement that reduces friction for new users. Without clear setup documentation, developers don't understand:
+
+1. What Prism creates automatically vs. what they must create
+2. Whether their existing content/members are safe
+3. How to verify success
+4. How to test the platform with downstream credential flow
+
+Splitting into a dedicated guide (full reference) + README brief (quick overview) follows the project's onboarding-first philosophy and lets new users get running fast without scrolling a 800+ line README.
+
+### Impact
+
+- **Onboarding clarity:** New developers can follow a linear 8-step path instead of hunting through architecture docs
+- **Reduced support questions:** Explicit verification steps + non-destructive seeding guarantee prevent common confusion
+- **MockBackOffice adoption:** Dedicated section with run commands + test steps makes the demo discoverable and concrete
+- **First-time user experience:** Integration point is now the second thing in README (after Prerequisites), not buried after 600+ lines

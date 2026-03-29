@@ -125,3 +125,47 @@
 
 **Commit:** `docs: add biometric authentication section to README` with Copilot co-author trailer.
 
+### Umbraco Setup Documentation (2026-03-29)
+
+**Task:** Document Brewster's Umbraco v17 rework and Blathers' auto-seeding feature for developers adding Prism to existing or new sites.
+
+**Deliverables:**
+
+1. **Created `/docs/umbraco-setup.md`** (180 lines):
+   - 8-step guide for Umbraco developers: NuGet install → service registration → automatic document type creation → content tree structure → tenant configuration → MockBackOffice demo → verification → next steps
+   - Covers both existing sites (manual 3-step content creation) and greenfield sites (auto-seeding with `SeedStarterContent` flag)
+   - Emphasizes non-destructive seeding: Prism creates only `homePage` and `memberDashboard` types; respects existing content, members, navigation
+   - ASCII content tree diagram showing expected Home → Dashboard hierarchy
+   - MockBackOffice demo walkthrough with purpose (downstream credential flow) and test steps
+   - Verification checklist (document types visible in backoffice, content tree correct, tenant configured, dashboard accessible)
+   - Forward references to README for additional features (Entra auth, mobile generation, biometric auth)
+
+2. **Updated `README.md`** (13 lines added):
+   - Inserted new "## Umbraco Setup" section between Architecture and Integration & Usage
+   - Bullet-point summary: install, auto-created document types, content tree structure, `SeedStarterContent` flag, tenant config, verification steps
+   - Single line about MockBackOffice demo with invocation and test URL
+   - Link to `/docs/umbraco-setup.md` for full guide
+   - Maintains focus on "setup should just work" tone
+
+**Key writing choices:**
+- Addressed two personas: developers with existing Umbraco sites (manual content creation path) vs. greenfield users (auto-seed path)
+- Emphasized `homePage` and `memberDashboard` as concrete document type aliases (matching Brewster's v17 naming convention)
+- Avoided referencing deprecated patterns (Surface Controllers, old backoffice)
+- Kept setup section brief in README (5-8 bullets as requested) while full guide is in `/docs/`
+- Clarified what Prism touches vs. respects (prevents confusion about content/member data safety)
+- Included verification steps so developers know what success looks like
+
+**Files created/modified:**
+- Created: `/docs/umbraco-setup.md`
+- Modified: `README.md` (13 lines added after Architecture section)
+
+## Work Summary (2026-03-29)
+
+Completed creation of dedicated Umbraco setup guide and positioned it prominently in README. New `/docs/umbraco-setup.md` provides 8-step comprehensive guide covering full integration path for both existing and greenfield Umbraco installations. Updated README includes "Umbraco Setup" section (5–8 bullets) with link to full guide.
+
+**Impact:** First-time users now see integration documentation as second section (after Prerequisites) instead of buried 600+ lines down. Explicit verification checklist and non-destructive seeding guarantee prevent common confusion. MockBackOffice demo is now discoverable with concrete run commands and test steps.
+
+**Cross-team coordination:** Documentation directly references Blathers' `PrismContentTypeSeeder` and `"Prism:SeedStarterContent"` config, ensuring technical accuracy and alignment.
+
+**Documented in** `.squad/decisions/decisions.md` under "Decision: Umbraco Setup Documentation".
+

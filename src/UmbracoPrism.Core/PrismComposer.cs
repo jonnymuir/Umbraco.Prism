@@ -37,6 +37,8 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
+        builder.Services.Configure<PrismConfiguration>(
+            builder.Config.GetSection(PrismConfiguration.SectionName));
 
         // 2. Middleware Registration
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
@@ -116,6 +118,8 @@ public class PrismComposer : IComposer
 
         // 7. Management API & Notifications
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
     }
 }

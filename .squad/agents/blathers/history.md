@@ -231,3 +231,27 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **View discovery for Core controllers**: Views for controllers in `UmbracoPrism.Core` are resolved from the TestSite's `Views/` folder (e.g. `Views/MemberDashboard/Index.cshtml`). This works because the TestSite references Core as a project and MVC's default view discovery finds them.
 - **HomePage redesign**: Removed the inline `CallBackOfficeAsync` demo code and design-token showcase. Replaced with a member-portal landing page that shows different hero content based on authentication state. Preserved `prism-mobile-user-agent-demo` tag helper, mobile CSS overrides, and `prism-debug` tag helper.
 - **CSS variable tokens**: All portal and dashboard styles use existing branding CSS variables (`--prism-primary`, `--prism-surface`, `--prism-radius`, etc.) so they automatically adapt per-tenant. Added `--prism-nav-height`, `--prism-dash-icon-size`, `--prism-dash-icon-radius` to `prism-components.css`.
+
+## Learnings (Content Type and Starter Content Seeders)
+
+- **Seeder registration pattern**: `PrismContentTypeSeeder` and `PrismStarterContentSeeder` registered in `PrismComposer` using `builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, T>()` — runs after Umbraco is fully booted (`runtimeState.Level >= RuntimeLevel.Run`).
+- **PrismContentTypeSeeder**: Creates `homePage` and `memberDashboard` document types idempotently on startup using `IContentTypeService.Get()` guard check. Uses `ContentType(shortStringHelper, -1)` constructor with `-1` parent for root-level types. `AllowedAsRoot = true` only on `homePage`.
+- **v17 content type API**: `IContentTypeService.Save()` is marked obsolete but still works. Recommended approach is separate Create/Update methods, but Save remains functional for both operations. Warning is non-blocking.
+- **PrismStarterContentSeeder**: Opt-in via `PrismConfiguration.SeedStarterContent` flag (default: false). Only runs if flag is true AND content tree is empty (`contentService.GetRootContent().Any()` returns false). Creates Home page at root, Dashboard as child, and publishes both.
+- **v17 content creation & publishing**: `IContentService.Create()` returns `IContent` directly (not a result object). Save using `contentService.Save()` which returns an `Attempt<T>` result. Publish using `contentService.Publish(content, new[] { "*" })` for all cultures. Check `result.Success` before proceeding.
+- **Configuration model pattern**: Created `PrismConfiguration.cs` in `/Models/` with `SectionName = "Prism"` constant. Registered in `PrismComposer` using `builder.Services.Configure<PrismConfiguration>(builder.Config.GetSection(PrismConfiguration.SectionName))` — matches existing pattern from `PrismTokenRefreshOptions` and `PrismBiometricOptions`.
+- **TestSite appsettings**: Added `"Prism": { "SeedStarterContent": true }` to enable seeding. This creates a functional member portal tree on first run without manual Umbraco backoffice setup.
+- **Idempotency guarantee**: Both seeders are safe to run on every startup. `PrismContentTypeSeeder` checks existence before creating types. `PrismStarterContentSeeder` exits early if content already exists. No duplicate content risk.
+- **Package consumer UX**: With both seeders, any Prism consumer can install the package, set `SeedStarterContent: true`, and immediately have a working member dashboard without backoffice intervention. Document types are always created automatically.
+- **Blueprint feature deferred**: Initial implementation included `IContentService.CreateContentFromBlueprint()` for a "Member Dashboard Template" blueprint, but that API is obsolete and scheduled for removal in v18. Removed from seeder to avoid future breaking changes. Teams can manually create blueprints in the backoffice if needed.
+- **Key files**: `PrismConfiguration.cs`, `PrismContentTypeSeeder.cs`, `PrismStarterContentSeeder.cs`, updated `PrismComposer.cs` and `appsettings.json`.
+
+## Work Summary (2026-03-29)
+
+Completed implementation of PrismContentTypeSeeder and PrismStarterContentSeeder notification handlers. Both handlers register in PrismComposer and run on UmbracoApplicationStartedNotification.
+
+**Build Status:** 0 errors (1 non-blocking deprecation warning on Save()). **Test Status:** All 165 tests pass.
+
+**Package consumer impact:** With the seeder enabled via `"Prism:SeedStarterContent": true`, any consumer can install Prism and immediately get a working member portal with document types and starter content, no backoffice intervention required. This significantly reduces onboarding friction.
+
+**Documented in** `.squad/decisions/decisions.md` under "Decision: Content Type & Starter Content Seeders".
