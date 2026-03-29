@@ -28,6 +28,7 @@ public class BiometricController(
     IPrismTokenRefreshService tokenRefreshService,
     ISecretVaultService vault,
     IOptions<PrismBiometricOptions> biometricOptions,
+    IExchangeRateLimitService exchangeRateLimitService,
     ILogger<BiometricController> logger) : Controller
 {
     /// <summary>
@@ -159,6 +160,29 @@ public class BiometricController(
             return BadRequest(ModelState);
         }
 
+        // ── Rate limit checks (fail fast, before expensive validation) ──
+
+        var clientIp = GetClientIp();
+        var (ipLimited, ipRetry) = exchangeRateLimitService.CheckIpLimit(clientIp);
+        if (ipLimited)
+        {
+            LogExchangeAudit("Failure", "rate_limited", tokenId: null, tenantId: null);
+            Response.Headers.Append("Retry-After", ipRetry.ToString());
+            return StatusCode(429, new { error = "rate_limited" });
+        }
+
+        var tokenHash = biometricTokenService.HashToken(request.BiometricToken);
+
+        var (tokenLimited, tokenRetry) = exchangeRateLimitService.CheckTokenLimit(tokenHash);
+        if (tokenLimited)
+        {
+            LogExchangeAudit("Failure", "rate_limited", tokenId: null, tenantId: null);
+            Response.Headers.Append("Retry-After", tokenRetry.ToString());
+            return StatusCode(429, new { error = "rate_limited" });
+        }
+
+        // ── Standard exchange flow ──
+
         // 1. Verify tenant context
         var tenant = prismContext.CurrentTenant;
         if (tenant == null)
@@ -178,6 +202,7 @@ public class BiometricController(
         catch (Exception ex) when (ex is SecurityTokenException or ArgumentException)
         {
             logger.LogWarning("Biometric exchange: token validation failed — {Reason}", ex.Message);
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
@@ -187,13 +212,12 @@ public class BiometricController(
         {
             logger.LogWarning("Biometric exchange: tenant mismatch (token={TokenTid}, request={RequestTid})",
                 claims.TenantId, tenantId);
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
 
-        // 4. Hash the token and look up the credential row (include TenantId + UserId per security policy)
-        var tokenHash = biometricTokenService.HashToken(request.BiometricToken);
-
+        // 4. Look up the credential row (tokenHash already computed above)
         using var db = databaseFactory.CreateDatabase();
         var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(
             "WHERE TokenHash = @0 AND TenantId = @1 AND UserId = @2",
@@ -202,6 +226,7 @@ public class BiometricController(
         if (credential == null)
         {
             logger.LogWarning("Biometric exchange: no credential found for token hash");
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "token_invalid", tokenId: null, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
@@ -210,6 +235,7 @@ public class BiometricController(
         if (credential.RevokedAt != null)
         {
             logger.LogWarning("Biometric exchange: credential has been revoked");
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "token_invalid", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
@@ -217,6 +243,7 @@ public class BiometricController(
         if (credential.ExpiresAt <= DateTime.UtcNow)
         {
             logger.LogWarning("Biometric exchange: credential has expired");
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "token_invalid", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
@@ -226,6 +253,7 @@ public class BiometricController(
         {
             logger.LogWarning("Biometric exchange: device mismatch (token={TokenDev}, db={DbDev})",
                 claims.DeviceId, credential.DeviceId);
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "device_mismatch", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "device_mismatch" });
         }
@@ -235,6 +263,7 @@ public class BiometricController(
         {
             logger.LogWarning("Biometric exchange: userId mismatch (token={TokenUid}, db={DbUid})",
                 claims.UserOid, credential.UserId);
+            exchangeRateLimitService.RecordTokenFailure(tokenHash);
             LogExchangeAudit("Failure", "token_invalid", tokenId: credential.Id, tenantId: tenantId);
             return Unauthorized(new { error = "biometric_token_invalid" });
         }
@@ -296,12 +325,15 @@ public class BiometricController(
         credential.LastUsedAt = DateTime.UtcNow;
         db.Update(credential);
 
+        // 11. Success — reset rate-limit counter for this token
+        exchangeRateLimitService.ResetTokenFailures(tokenHash);
+
         logger.LogInformation(
             "Biometric exchange: successful for device {DeviceId} tenant {TenantId}",
             credential.DeviceId, tenantId);
         LogExchangeAudit("Success", failureReason: null, tokenId: credential.Id, tenantId: tenantId);
 
-        // 11. Build ClaimsPrincipal and issue PrismMemberCookie
+        // 12. Build ClaimsPrincipal and issue PrismMemberCookie
         var identity = new ClaimsIdentity("PrismMemberCookie");
         identity.AddClaim(new Claim("oid", claims.UserOid));
         identity.AddClaim(new Claim("tid", tenant.EntraTenantId));
@@ -380,8 +412,7 @@ public class BiometricController(
     /// </summary>
     private void LogExchangeAudit(string outcome, string? failureReason, int? tokenId, string? tenantId)
     {
-        var clientIp = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-            ?? HttpContext.Connection.RemoteIpAddress?.ToString();
+        var clientIp = GetClientIp();
         var timestamp = DateTime.UtcNow;
 
         if (outcome == "Success")
@@ -397,4 +428,9 @@ public class BiometricController(
                 "BiometricExchangeAttempt", outcome, failureReason, tokenId, tenantId, clientIp, timestamp);
         }
     }
+
+    private string GetClientIp() =>
+        HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+            ?? HttpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown";
 }

@@ -62,7 +62,8 @@ public class BiometricControllerTests
         int lifetimeDays = 30,
         PrismDeviceCredentialSchema? existingRecord = null,
         Mock<IPrismTokenRefreshService>? tokenRefreshServiceMock = null,
-        Mock<ISecretVaultService>? vaultMock = null)
+        Mock<ISecretVaultService>? vaultMock = null,
+        IExchangeRateLimitService? rateLimitService = null)
     {
         var tokenService = BuildTokenService();
         var encryptionService = BuildEncryptionService();
@@ -82,6 +83,7 @@ public class BiometricControllerTests
 
         tokenRefreshServiceMock ??= new Mock<IPrismTokenRefreshService>();
         vaultMock ??= new Mock<ISecretVaultService>();
+        rateLimitService ??= BuildPassthroughRateLimitService();
 
         var controller = new BiometricController(
             dbFactory.Object,
@@ -91,6 +93,7 @@ public class BiometricControllerTests
             tokenRefreshServiceMock.Object,
             vaultMock.Object,
             biometricOptions,
+            rateLimitService,
             loggerMock.Object);
 
         // Set up HttpContext with claims and authentication
@@ -453,7 +456,8 @@ public class BiometricControllerTests
             string? overrideDbDeviceId = null,
             string? overrideDbUserId = null,
             TokenRefreshResult? refreshResult = null,
-            string? vaultSecret = "client-secret-value")
+            string? vaultSecret = "client-secret-value",
+            IExchangeRateLimitService? rateLimitService = null)
     {
         tenant ??= ExchangeTenant;
         var tenantId = tenant.Id.ToString();
@@ -495,7 +499,8 @@ public class BiometricControllerTests
             tenant: tenant,
             existingRecord: credential,
             tokenRefreshServiceMock: refreshMock,
-            vaultMock: vaultMock);
+            vaultMock: vaultMock,
+            rateLimitService: rateLimitService);
 
         // Wire up HttpContext for the unauthenticated exchange endpoint
         var httpContext = new DefaultHttpContext();
@@ -1107,6 +1112,28 @@ public class BiometricControllerTests
 
     // ------------------------------------------------------------------ mock helpers
 
+    private static IExchangeRateLimitService BuildPassthroughRateLimitService()
+    {
+        var mock = new Mock<IExchangeRateLimitService>();
+        mock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((false, 0));
+        mock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        return mock.Object;
+    }
+
+    private static ExchangeRateLimitService BuildRealRateLimitService(
+        int maxFailed = 3, int windowMinutes = 10, int ipPerMinute = 20)
+    {
+        var opts = Options.Create(new PrismBiometricOptions
+        {
+            SigningKey = ValidSigningKey,
+            EncryptionKey = ValidEncryptionKey,
+            MaxFailedAttempts = maxFailed,
+            FailureWindowMinutes = windowMinutes,
+            PerIpRequestsPerMinute = ipPerMinute,
+        });
+        return new ExchangeRateLimitService(opts);
+    }
+
     /// <summary>
     /// Minimal IServiceProvider to supply IAuthenticationService for HttpContext.AuthenticateAsync.
     /// </summary>
@@ -1114,5 +1141,222 @@ public class BiometricControllerTests
     {
         public object? GetService(Type serviceType) =>
             serviceType == typeof(IAuthenticationService) ? authService : null;
+    }
+
+    // ------------------------------------------------------------------ rate limiting: per-token
+
+    [Fact]
+    public async Task Exchange_TokenRateLimited_Returns429WithRetryAfter()
+    {
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((true, 600));
+
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            rateLimitService: rateLimitMock.Object);
+
+        var result = await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(429);
+
+        controller.HttpContext.Response.Headers["Retry-After"].ToString().Should().Be("600");
+    }
+
+    [Fact]
+    public async Task Exchange_IpRateLimited_Returns429WithRetryAfter()
+    {
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((true, 45));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((false, 0));
+
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            rateLimitService: rateLimitMock.Object);
+
+        var result = await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(429);
+
+        controller.HttpContext.Response.Headers["Retry-After"].ToString().Should().Be("45");
+    }
+
+    [Fact]
+    public async Task Exchange_429Response_ContainsRateLimitedError()
+    {
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((true, 600));
+
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            rateLimitService: rateLimitMock.Object);
+
+        var result = await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        var errorProp = objectResult.Value!.GetType().GetProperty("error");
+        errorProp!.GetValue(objectResult.Value)!.ToString().Should().Be("rate_limited");
+    }
+
+    [Fact]
+    public async Task Exchange_RateLimited_LogsAuditWithRateLimitedReason()
+    {
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((true, 600));
+
+        var (controller, _, biometricToken, _, _, _, loggerMock) = BuildExchangeScenario(
+            rateLimitService: rateLimitMock.Object);
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        loggerMock.Verify(l => l.Log(
+            LogLevel.Warning,
+            It.IsAny<EventId>(),
+            It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("rate_limited")),
+            null,
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task Exchange_AuthFailure_CallsRecordTokenFailure()
+    {
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((false, 0));
+
+        // Device mismatch triggers auth failure
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            overrideDbDeviceId: "wrong-device",
+            rateLimitService: rateLimitMock.Object);
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        rateLimitMock.Verify(s => s.RecordTokenFailure(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_Success_CallsResetTokenFailures()
+    {
+        var rateLimitMock = new Mock<IExchangeRateLimitService>();
+        rateLimitMock.Setup(s => s.CheckIpLimit(It.IsAny<string>())).Returns((false, 0));
+        rateLimitMock.Setup(s => s.CheckTokenLimit(It.IsAny<string>())).Returns((false, 0));
+
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            rateLimitService: rateLimitMock.Object);
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        rateLimitMock.Verify(s => s.ResetTokenFailures(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_ThreeFailures_LocksToken()
+    {
+        var rateLimitService = BuildRealRateLimitService(maxFailed: 3);
+
+        // Use device mismatch to trigger auth failures
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            overrideDbDeviceId: "wrong-device",
+            rateLimitService: rateLimitService);
+
+        // First 3 attempts produce auth failures (not 429 yet, but the 3rd triggers lockout)
+        for (int i = 0; i < 3; i++)
+        {
+            var result = await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+            result.Should().BeOfType<UnauthorizedObjectResult>(
+                because: $"attempt {i + 1} should fail with 401 (device mismatch)");
+        }
+
+        // 4th attempt should be rate-limited (429)
+        var finalResult = await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+        var objectResult = finalResult.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(429);
+    }
+
+    [Fact]
+    public async Task Exchange_SuccessResetsCounter_AfterPartialFailures()
+    {
+        var rateLimitService = BuildRealRateLimitService(maxFailed: 3);
+
+        // 2 failures (below threshold)
+        var (failController, _, failToken, _, _, _, _) = BuildExchangeScenario(
+            overrideDbDeviceId: "wrong-device",
+            rateLimitService: rateLimitService);
+
+        for (int i = 0; i < 2; i++)
+            await failController.Exchange(new BiometricExchangeRequest { BiometricToken = failToken });
+
+        // 1 success with a valid scenario (same token hash)
+        var (successController, _, successToken, _, _, _, _) = BuildExchangeScenario(
+            rateLimitService: rateLimitService);
+
+        var successResult = await successController.Exchange(
+            new BiometricExchangeRequest { BiometricToken = successToken });
+        successResult.Should().BeOfType<OkResult>();
+
+        // After reset, 3 more failures should be needed for lockout (counter was cleared)
+        var (failController2, _, failToken2, _, _, _, _) = BuildExchangeScenario(
+            overrideDbDeviceId: "wrong-device",
+            rateLimitService: rateLimitService);
+
+        for (int i = 0; i < 3; i++)
+        {
+            var result = await failController2.Exchange(
+                new BiometricExchangeRequest { BiometricToken = failToken2 });
+            result.Should().BeOfType<UnauthorizedObjectResult>();
+        }
+
+        // Now the 4th should be locked
+        var lockedResult = await failController2.Exchange(
+            new BiometricExchangeRequest { BiometricToken = failToken2 });
+        var objectResult = lockedResult.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(429);
+    }
+
+    [Fact]
+    public async Task Exchange_LockedTokenStaysLocked_UntilReregistration()
+    {
+        var rateLimitService = BuildRealRateLimitService(maxFailed: 3);
+
+        // Lock the token (3 failures)
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(
+            overrideDbDeviceId: "wrong-device",
+            rateLimitService: rateLimitService);
+
+        for (int i = 0; i < 3; i++)
+            await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        // Even with a "valid" scenario, the same token hash is still locked
+        var (validController, _, _, _, _, _, _) = BuildExchangeScenario(
+            rateLimitService: rateLimitService);
+
+        var result = await validController.Exchange(
+            new BiometricExchangeRequest { BiometricToken = biometricToken });
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(429);
+    }
+
+    // ------------------------------------------------------------------ rate limiting: per-IP
+
+    [Fact]
+    public async Task Exchange_ExceedsIpLimit_Returns429()
+    {
+        var rateLimitService = BuildRealRateLimitService(ipPerMinute: 2);
+
+        // First 2 requests should pass the IP check (they may fail for other reasons)
+        for (int i = 0; i < 2; i++)
+        {
+            var (c, _, t, _, _, _, _) = BuildExchangeScenario(rateLimitService: rateLimitService);
+            await c.Exchange(new BiometricExchangeRequest { BiometricToken = t });
+        }
+
+        // 3rd request should be IP-rate-limited
+        var (controller, _, token, _, _, _, _) = BuildExchangeScenario(rateLimitService: rateLimitService);
+        var result = await controller.Exchange(new BiometricExchangeRequest { BiometricToken = token });
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(429);
     }
 }

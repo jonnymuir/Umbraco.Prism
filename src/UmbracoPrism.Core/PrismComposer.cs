@@ -34,6 +34,7 @@ public class PrismComposer : IComposer
             builder.Config.GetSection(PrismBiometricOptions.SectionName));
         builder.Services.AddSingleton<IBiometricTokenService, BiometricTokenService>();
         builder.Services.AddSingleton<IRefreshTokenEncryptionService, RefreshTokenEncryptionService>();
+        builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
 

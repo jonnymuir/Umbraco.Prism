@@ -27,4 +27,13 @@ public class PrismBiometricOptions
     /// In production, inject via environment variable or Azure Key Vault reference.
     /// </summary>
     public string EncryptionKey { get; set; } = string.Empty;
+
+    /// <summary>Maximum consecutive failed exchange attempts per token hash before lockout (default: 3).</summary>
+    public int MaxFailedAttempts { get; set; } = 3;
+
+    /// <summary>Sliding window in minutes for counting failed attempts (default: 10).</summary>
+    public int FailureWindowMinutes { get; set; } = 10;
+
+    /// <summary>Maximum exchange requests per IP address per minute (default: 20).</summary>
+    public int PerIpRequestsPerMinute { get; set; } = 20;
 }
