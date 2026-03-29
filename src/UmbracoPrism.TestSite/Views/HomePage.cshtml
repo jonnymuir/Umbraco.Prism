@@ -12,8 +12,6 @@
     var displayName = Context.User.FindFirst("name")?.Value
                       ?? Context.User.FindFirst("preferred_username")?.Value
                       ?? "Member";
-    var mobileAuthHref = isAuthenticated ? "/auth/logout" : "/auth/login";
-    var mobileAuthLabel = isAuthenticated ? "Sign Out" : "Sign In";
     var hasImageryOverrides = !string.IsNullOrWhiteSpace(heroImageUrl) || !string.IsNullOrWhiteSpace(cardImageUrl);
 
     var imageryCss = new System.Text.StringBuilder();
@@ -191,10 +189,6 @@
             transform: translateY(-1px);
         }
 
-        .btn-mobile-signin {
-            display: none;
-        }
-
         /* Feature cards */
         .features {
             margin-top: var(--prism-section-gap, 28px);
@@ -314,10 +308,6 @@
             box-sizing: border-box;
         }
 
-        html.prism-mobile .btn-mobile-signin {
-            display: inline-flex;
-        }
-
         html.prism-mobile .mobile-mode-banner {
             display: block;
         }
@@ -434,7 +424,6 @@
                 <div class="hero-actions">
                     <a href="/auth/login" class="btn btn-primary">Sign In</a>
                     <a href="/auth/register" class="btn btn-ghost">Create Account</a>
-                    <a href="@mobileAuthHref" class="btn btn-ghost btn-mobile-signin">@mobileAuthLabel</a>
                     <prism-mobile-user-agent-demo inline="true" compact="true" title="Simulate PrismMobile" />
                 </div>
             </header>
