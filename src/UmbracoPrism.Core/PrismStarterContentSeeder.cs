@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
@@ -20,7 +21,8 @@ public class PrismStarterContentSeeder(
     IOptions<PrismConfiguration> prismConfig,
     IContentService contentService,
     IContentTypeService contentTypeService,
-    IRuntimeState runtimeState)
+    IRuntimeState runtimeState,
+    ILogger<PrismStarterContentSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     public async Task HandleAsync(
@@ -79,6 +81,8 @@ public class PrismStarterContentSeeder(
 
     private void EnsureSettingsDefaults()
     {
+        logger.LogInformation("PRISM StarterSeeder: EnsureSettingsDefaults starting");
+
         var settingsType = contentTypeService.Get("settings");
         if (settingsType == null) return;
 
@@ -96,6 +100,27 @@ public class PrismStarterContentSeeder(
         var existing = settings!.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing)) return;
 
+        // Guard: verify mobileNavLinks property exists and uses the correct data type
+        var mobileNavProperty = settingsType.PropertyTypes.FirstOrDefault(p => p.Alias == "mobileNavLinks");
+        if (mobileNavProperty == null)
+        {
+            logger.LogWarning("PRISM: mobileNavLinks property not found on settings doc type. Saving without nav links.");
+            contentService.Save(settings!);
+            return;
+        }
+
+        var expectedDataTypeKey = new Guid("3b4c5d6e-7f80-9a1b-c2d3-e4f567890abc");
+        logger.LogInformation("PRISM: About to publish Settings node. mobileNavLinks property data type key from content type: {Key}",
+            mobileNavProperty.DataTypeKey);
+
+        if (mobileNavProperty.DataTypeKey != expectedDataTypeKey)
+        {
+            logger.LogWarning("PRISM: mobileNavLinks property uses unexpected data type {Key}. Saving without nav links to avoid validation error.", mobileNavProperty.DataTypeKey);
+            contentService.Save(settings!);
+            contentService.Publish(settings!, new[] { "*" });
+            return;
+        }
+
         var navLinksJson = JsonSerializer.Serialize(new[]
         {
             new { name = "Home", target = "", type = "External", url = "/" },
@@ -108,5 +133,7 @@ public class PrismStarterContentSeeder(
         {
             contentService.Publish(settings, new[] { "*" });
         }
+
+        logger.LogInformation("PRISM StarterSeeder: EnsureSettingsDefaults complete");
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
@@ -20,18 +21,27 @@ public class PrismContentTypeSeeder(
     IDataTypeService dataTypeService,
     IConfigurationEditorJsonSerializer configurationEditorJsonSerializer,
     PropertyEditorCollection propertyEditorCollection,
-    IRuntimeState runtimeState)
+    IRuntimeState runtimeState,
+    ILogger<PrismContentTypeSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
+    // Deterministic project-specific GUID for the Prism Mobile Nav data type.
+    // Using a fixed key means we can always find/create it reliably without name-based lookups.
+    private static readonly Guid PrismMobileNavDataTypeKey = new Guid("3b4c5d6e-7f80-9a1b-c2d3-e4f567890abc");
+
     public async Task HandleAsync(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
 
+        logger.LogInformation("PRISM ContentTypeSeeder: Starting");
+
         await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureSettingsDocumentTypeAsync();
+
+        logger.LogInformation("PRISM ContentTypeSeeder: Complete");
     }
 
     private async Task EnsureDocumentTypeAsync(string alias, string name, bool allowedAsRoot)
@@ -62,8 +72,8 @@ public class PrismContentTypeSeeder(
 
         if (contentType != null)
         {
-            // Already exists - check if it has the property
-            await EnsureMobileNavPropertyAsync(contentType);
+            // Already exists - check if it has the correct property
+            contentType = await EnsureMobileNavPropertyAsync(contentType) ?? contentType;
             return;
         }
 
@@ -82,32 +92,41 @@ public class PrismContentTypeSeeder(
 #pragma warning restore CS0618
 
         // Add the mobile nav property
-        await EnsureMobileNavPropertyAsync(contentType);
+        contentType = await EnsureMobileNavPropertyAsync(contentType) ?? contentType;
     }
 
-    private async Task EnsureMobileNavPropertyAsync(IContentType contentType)
+    private async Task<IContentType?> EnsureMobileNavPropertyAsync(IContentType contentType)
     {
         const string propertyAlias = "mobileNavLinks";
 
         var newDataType = await GetOrCreatePrismMobileNavDataTypeAsync();
-        if (newDataType == null) return;
+        if (newDataType == null) return contentType;
 
         var existingProperty = contentType.PropertyTypes.FirstOrDefault(p => p.Alias == propertyAlias);
 
         if (existingProperty != null)
         {
-            // Already exists — check if it's using the correct data type
-            if (existingProperty.DataTypeKey == newDataType.Key) return; // Already correct, nothing to do
+            if (existingProperty.DataTypeKey == newDataType.Key)
+            {
+                logger.LogDebug("PRISM: mobileNavLinks already uses correct data type {Key}", newDataType.Key);
+                return contentType;
+            }
 
-            // Wrong data type (old built-in) — update it to the new custom one
-            existingProperty.DataTypeKey = newDataType.Key;
+            logger.LogInformation("PRISM: mobileNavLinks has wrong data type {OldKey}, removing and re-adding with {NewKey}",
+                existingProperty.DataTypeKey, newDataType.Key);
+
+            // Remove the property type entirely and fall through to re-create it correctly
+            contentType.RemovePropertyType(propertyAlias);
 #pragma warning disable CS0618
             contentTypeService.Save(contentType);
 #pragma warning restore CS0618
-            return;
+
+            // Re-fetch the content type to get fresh state from DB (avoid stale cache)
+            contentType = contentTypeService.Get(contentType.Alias)!;
+            if (contentType == null) return null;
         }
 
-        // Property doesn't exist yet — create it (rest of existing logic unchanged)
+        // Property doesn't exist yet — create it
         const string groupName = "Mobile Navigation";
         const string groupKey = "mobileNavigation";
         if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
@@ -128,45 +147,58 @@ public class PrismContentTypeSeeder(
 #pragma warning disable CS0618
         contentTypeService.Save(contentType);
 #pragma warning restore CS0618
+
+        var savedProperty = contentType.PropertyTypes.FirstOrDefault(p => p.Alias == propertyAlias);
+        logger.LogInformation("PRISM: mobileNavLinks property data type key: {Key}", savedProperty?.DataTypeKey);
+
+        return contentType;
     }
 
     private async Task<IDataType?> GetOrCreatePrismMobileNavDataTypeAsync()
     {
-        const string dataTypeName = "Prism Mobile Nav Links";
         const string editorAlias = "Umbraco.MultiUrlPicker";
+        const string dataTypeName = "Prism Mobile Nav Links";
 
-        // Look for an existing correct data type
-        var existingCorrect = (await dataTypeService.GetByEditorAliasAsync(editorAlias))
-            ?.FirstOrDefault(dt => dt.Name == dataTypeName);
+        logger.LogInformation("PRISM: Getting or creating data type. Fixed key: {Key}", PrismMobileNavDataTypeKey);
 
-        if (existingCorrect != null)
-            return existingCorrect;
+        // Try to find by our deterministic fixed GUID
+        var existing = await dataTypeService.GetAsync(PrismMobileNavDataTypeKey);
 
-        // Check if there's one with the WRONG editor (e.g. MultiNodeTreePicker created by mistake)
-        // and delete it so we can create the correct one
-        const string wrongEditorAlias = "Umbraco.MultiNodeTreePicker";
-        var wrongDataType = (await dataTypeService.GetByEditorAliasAsync(wrongEditorAlias))
-            ?.FirstOrDefault(dt => dt.Name == dataTypeName);
-
-        if (wrongDataType != null)
+        if (existing != null)
         {
-            var deleteAttempt = await dataTypeService.DeleteAsync(wrongDataType.Key, Constants.Security.SuperUserKey);
-            // Continue even if delete fails — user may need to manually remove it
+            if (existing.EditorAlias == editorAlias)
+            {
+                logger.LogInformation("PRISM: Data type found/created with editor {EditorAlias}", existing.EditorAlias);
+                return existing;
+            }
+
+            // Found but wrong editor — delete it (safe here as it's our own GUID, pre-content-type creation path)
+            logger.LogWarning("PRISM: Data type at fixed key has wrong editor {WrongAlias}. Deleting and recreating.", existing.EditorAlias);
+            var deleteAttempt = await dataTypeService.DeleteAsync(PrismMobileNavDataTypeKey, Constants.Security.SuperUserKey);
+            if (!deleteAttempt.Success)
+            {
+                logger.LogError("PRISM: Failed to delete wrong data type: {Error}", deleteAttempt.Exception?.Message);
+            }
         }
 
-        // Get the correct editor from the registry — do NOT use a GUID to clone from
+        // Create fresh with our fixed GUID
         var editor = propertyEditorCollection[editorAlias];
         if (editor == null)
+        {
+            logger.LogError("PRISM: Editor '{EditorAlias}' not found in PropertyEditorCollection", editorAlias);
             return null;
+        }
 
         var newDataType = new DataType(editor, configurationEditorJsonSerializer)
         {
+            Key = PrismMobileNavDataTypeKey,
             Name = dataTypeName,
             DatabaseType = ValueStorageType.Ntext,
             ConfigurationData = new Dictionary<string, object> { { "maxNumber", 4 } }
         };
 
         await dataTypeService.CreateAsync(newDataType, Constants.Security.SuperUserKey);
+        logger.LogInformation("PRISM: Data type found/created with editor {EditorAlias}", newDataType.EditorAlias);
         return newDataType;
     }
 

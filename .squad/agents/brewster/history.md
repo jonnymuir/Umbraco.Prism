@@ -317,3 +317,32 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
    - Link type: string enum ("External", "Content", "Media") not integer
 
 **Commit:** `42fdf5f` — All fixes integrated, decisions documented, ready for team adoption.
+
+---
+
+## Session: 2026-06-17 — Deterministic GUID Fix for Settings Node Seeder
+
+**Status:** Completed
+**Issue:** Settings node seeder crashing with JSON deserialization error on `MultiNodeTreePickerPropertyEditor+...EditorEntityReference` — missing `unique` property.
+
+**Root cause confirmed (as provided):**
+1. `dataTypeService.DeleteAsync` silently fails when data type is in use by a content type
+2. In-place `existingProperty.DataTypeKey = newDataType.Key` is unreliable — Umbraco's `PropertyType` stores both a `DataTypeKey` (GUID) and `DataTypeId` (int), and setting just the key leaves the integer ID stale, causing validation to still use the old data type
+3. The old MultiNodeTreePicker data type was therefore never actually replaced
+
+**Changes made:**
+1. **Deterministic fixed GUID** (`3b4c5d6e-7f80-9a1b-c2d3-e4f567890abc`) for the Prism Mobile Nav data type — now looked up by `dataTypeService.GetAsync(PrismMobileNavDataTypeKey)` instead of by name
+2. **Set `Key = PrismMobileNavDataTypeKey`** on the `DataType` before creating it — ensures the same GUID is used on every fresh install
+3. **Remove + re-add pattern** for property migration: call `contentType.RemovePropertyType(alias)`, save, re-fetch from DB, then fall through to create fresh — avoids stale integer ID mismatch
+4. **`ILogger<T>` added** to both seeders with strategic log lines tracking data type key at each stage
+5. **Guard in `EnsureSettingsDefaults`**: compares `mobileNavProperty.DataTypeKey` against expected GUID before setting nav links JSON — worst case publishes Settings node empty rather than crashing
+
+**Learnings:**
+
+- **`IDataType.Key` is settable** on `DataType` (concrete class) before calling `CreateAsync` — this is the correct way to create a data type with a deterministic GUID in Umbraco v17
+- **`dataTypeService.GetAsync(Guid key)`** is the reliable lookup once a fixed GUID is established — no more name-based fragility
+- **`dataTypeService.DeleteAsync` silently fails** when the data type is referenced by a content type (Umbraco blocks it at DB level). The `Attempt<>` result carries the failure but the code was discarding it. Log the failure explicitly.
+- **In-place `DataTypeKey` mutation is unreliable** for existing PropertyType instances — the integer `DataTypeId` used internally for validation lookup is NOT updated. Always remove + re-add.
+- **Re-fetch content type from DB after structural changes** (`contentTypeService.Get(alias)`) to get a clean cache-free object before further operations
+- **Guard pattern in StarterSeeder** prevents the crash from propagating — publish succeeds (empty), user can fill in nav links manually
+
