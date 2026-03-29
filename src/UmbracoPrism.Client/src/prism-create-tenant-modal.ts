@@ -844,7 +844,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             errorTextColor: this._mobileErrorTextColor,
             errorTitle: this._mobileErrorTitle,
             errorMessage: this._mobileErrorMessage,
-            showErrorDiagnostics: this._mobileShowErrorDiagnostics
+            showErrorDiagnostics: this._mobileShowErrorDiagnostics,
+            biometricAuthEnabled: this._allowBiometricLogin
           })
         });
 
