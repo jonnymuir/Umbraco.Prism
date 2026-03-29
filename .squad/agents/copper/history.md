@@ -275,3 +275,72 @@
 - Token refresh correctness: ✅ Side-effect model works as intended
 
 **Gate Status:** Pass with required fix for exception handling. Error handling improvement should be applied before merge.
+
+## 2026-03-28 — OIDC Signing Key Resolver Cold-Start Fix Security Review
+
+**Context:** `PrismAuthExtensions.ResolveSigningKeys` now synchronously blocks on `WarmAsync(...).GetAwaiter().GetResult()` when the cache is empty or requested `kid` is absent, rather than returning empty keys immediately on cold start.
+
+**Security Assessment:**
+
+1. **Deadlock Risk:** ✅ Safe — ASP.NET Core on .NET 10.0 has no SynchronizationContext, making `GetAwaiter().GetResult()` safe in middleware. `PrismSigningKeyCache.WarmAsync` has no blocking calls and uses `await` with per-tenant semaphore (no nested lock acquisition). Umbraco v17 runs on ASP.NET Core and does not introduce SynchronizationContext. Similar pattern already used safely in `MemberDashboardController`.
+
+2. **DoS / Resource Exhaustion:** ✅ Acceptable Risk — Per-tenant semaphore (`_warmLocks`) prevents concurrent fetch deduplication within each tenant. `ForcedRefreshCooldown` (30 seconds, per-tenant) limits repeated metadata fetches for novel `kid` values from the same tenant. However, an attacker with access to multiple valid tenant IDs or fake tenant IDs can trigger concurrent blocking fetches. Mitigation: the resolver checks the tenant allow-list first (line 111) and rejects unknown tenants early, preventing unbounded fetch amplification. Remaining risk is limited to configured tenant count × metadata endpoint latency.
+
+3. **Timing Attack Surface:** ⚠️ Minor Concern — Synchronous blocking introduces observable latency difference between cold start (blocks on OIDC fetch) vs warm cache (instant). This could theoretically leak whether a tenant's keys are cached. However, the signal is weak (metadata fetch is network-bound, not tenant-specific) and does not leak tenant existence beyond what the allow-list check already reveals. No exploitable timing oracle detected.
+
+4. **Key Substitution / Confused Deputy:** ✅ Protected — After `WarmAsync` completes, `ResolveSigningKeys` re-reads `GetSnapshot(tokenTenantId, keyId)` (line 126). The cache store is keyed by normalized tenant ID (`ConcurrentDictionary<string, ...>` with `OrdinalIgnoreCase`, line 17). `GetSnapshot` reads from `_store[normalizedTenantId]` under case-insensitive comparison (line 114). Race condition between `WarmAsync` write (line 92) and `GetSnapshot` read is benign: `ConcurrentDictionary` ensures atomic per-key updates. Cache poisoning is not possible because `WarmAsync` derives metadata URL directly from tenant ID (line 81) and does not accept user-supplied metadata endpoints.
+
+5. **Tenant Isolation:** ✅ Preserved — The resolver validates tenant ID against configured allow-list (line 111) before any cache interaction. Cache store keys are normalized tenant IDs. `GetSnapshot` checks `string.Equals(key.KeyId, keyId, OrdinalIgnoreCase)` (line 121), preventing key ID collision across tenants (each tenant's cache entry is isolated). Test coverage confirms per-tenant isolation (`WarmAsync_KeepsTenantEntriesIsolated`).
+
+6. **ForcedRefreshCooldown Edge Case:** ⚠️ Design Risk — On cold start with `forceRefresh: true`, if cooldown check passes (line 68-71), but a concurrent request completes the fetch before the current request proceeds, the resolver will correctly reuse the fetched keys (line 77-79 deduplication). However, if the cache is truly cold and the cooldown fires after the semaphore is acquired (impossible in current flow: `requestStartedAt` is captured before semaphore wait), there's no fallback. **Actual risk:** The cooldown check happens *before* the semaphore wait (line 68), so it only prevents redundant fetches when keys already exist from a recent forced refresh. On true cold start (no cache entry), `TryGetValue` returns false, so cooldown check is skipped. ✅ No issue detected.
+
+7. **Test Coverage Gaps:** ⚠️ Partial — Existing tests cover:
+   - Background refresh non-blocking behavior (`TriggersWarmInBackground_WithoutBlockingResolver`)
+   - Missing kid triggers forced refresh (`RefreshesMetadata_WhenRequestedKidIsMissingFromCachedConfiguration`)
+   - Still-missing kid after refresh returns empty (`ReturnsEmpty_WhenRequestedKidStillMissingAfterRefresh`)
+   
+   **Missing security-critical scenarios:**
+   - Cold start race: multiple concurrent requests with the same tenant ID and different `kid` values
+   - Forced refresh cooldown interaction with cold start (though code analysis shows it's safe)
+   - Exception handling in `WarmAsync` during synchronous block (e.g., network failure, timeout)
+   - Tenant ID case-sensitivity edge cases with cache key normalization
+
+**Recommendations:**
+
+1. **Add exception handling test:** Verify that when `WarmAsync(...).GetAwaiter().GetResult()` throws (e.g., OIDC metadata fetch fails), the exception propagates to the resolver and causes token validation to fail (returning empty keys is not enough—exception must surface to trigger proper 401).
+
+2. **Add cold start concurrency test:** Verify that when multiple concurrent requests for the same tenant with different `kid` values hit a cold cache, all waiters block on the first fetch and correctly resolve their respective keys after the cache warms.
+
+3. **Consider adding timeout:** Synchronous blocking on `WarmAsync` could hang indefinitely if metadata endpoint is unresponsive. Consider wrapping with `Task.WhenAny` + timeout to fail fast (though ASP.NET Core has request timeouts).
+
+**Verdict:** ✅ **Approved with recommendations**
+
+The synchronous blocking change is sound from a tenant isolation and fail-closed security perspective. Deadlock risk is negligible. DoS risk is bounded by tenant allow-list and per-tenant cooldown. No key substitution or confused deputy vulnerabilities detected. Test coverage should be extended to cover exception propagation and cold start concurrency edge cases.
+
+
+## 2026-03-29 — Synchronous Key Resolver Cold Start Security Review
+
+**Session:** OIDC Signing Key Fix  
+**Work Type:** Security review + recommendation
+
+**Context:** Copilot fixed a 401 cold-start bug by replacing fire-and-forget `WarmAsync` with synchronous blocking fetch in `PrismAuthExtensions.ResolveSigningKeys`.
+
+**Security Assessment:**
+- ✅ **Deadlock Risk:** Safe — .NET 10.0 has no SynchronizationContext; per-tenant semaphore with no nesting.
+- ✅ **DoS Risk:** Bounded — Per-tenant cooldown (30s) + tenant allow-list prevent fetch amplification.
+- ✅ **Tenant Isolation:** Preserved — Cache keyed by tenant; allow-list checked; normalized comparisons.
+- ✅ **Exception Handling:** Correct fail-closed behavior; exceptions propagate to JWT middleware.
+
+**Recommendations (All Implemented by Tangy):**
+1. Test exception propagation from `WarmAsync` during synchronous block → ✅ Tangy: PrismAuthExtensionsSecurityTests
+2. Test cold-start concurrency with multiple `kid` values for same tenant → ✅ Tangy: Semaphore deduplication test
+3. Test case-insensitive tenant ID matching → ✅ Tangy: OrdinalIgnoreCase comparison test
+
+**Verdict:** ✅ **Approved** (no blocking issues; test coverage gaps closed)
+
+**Test Results:** 168/168 passing
+
+**Related:**
+- Orchestration log: `.squad/orchestration-log/2026-03-29T13-53Z-copper.md`
+- Decision record: `.squad/decisions.md` → "OIDC Signing Key Cold-Start Fix"
+

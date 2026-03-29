@@ -182,6 +182,83 @@ public class PrismAuthExtensionsSecurityTests
         };
     }
 
+    [Fact]
+    public void ResolveSigningKeys_PropagatesException_WhenWarmAsyncThrowsDuringColdStart()
+    {
+        // Arrange — cold cache (IsExpired + no requested key), WarmAsync simulates a network failure
+        var cache = new Mock<IPrismSigningKeyCache>();
+        cache
+            .Setup(c => c.GetSnapshot("tenant-a", "kid-a"))
+            .Returns(new PrismSigningKeyCacheSnapshot([], true, true, false));
+        cache
+            .Setup(c => c.WarmAsync("tenant-a", true, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Network failure"));
+
+        // Act
+        var act = () => PrismAuthExtensions.ResolveSigningKeys(
+            "tenant-a",
+            "kid-a",
+            [new BackOfficeTenant("tenant-a", "client-a", "ta", "Tenant A")],
+            cache.Object).ToArray();
+
+        // Assert — exception must propagate; signing-key resolution must not return empty silently
+        act.Should().Throw<HttpRequestException>().WithMessage("Network failure");
+    }
+
+    [Fact]
+    public async Task ResolveSigningKeys_DeduplicatesConcurrentColdStartFetches_ForSameTenant()
+    {
+        // Arrange — gate controls when the underlying fetch completes; warmStarted signals entry
+        var warmStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var warmGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var signingKey = CreateSigningKey("kid-a");
+        var cache = new ConcurrentWarmSigningKeyCache(
+            [signingKey],
+            () => { warmStarted.TrySetResult(); return warmGate.Task; });
+
+        var tenants = new[] { new BackOfficeTenant("tenant-a", "client-a", "ta", "Tenant A") };
+        const int concurrency = 5;
+
+        // Act — spin up N concurrent cold callers, all blocked on the gate
+        var callerTasks = Enumerable.Range(0, concurrency)
+            .Select(_ => Task.Run(() =>
+                PrismAuthExtensions.ResolveSigningKeys("tenant-a", "kid-a", tenants, cache).ToArray()))
+            .ToArray();
+
+        await warmStarted.Task; // deterministic: at least one caller is inside WarmAsync
+        warmGate.TrySetResult(); // unblock the fetch
+
+        var results = await Task.WhenAll(callerTasks);
+
+        // Assert — exactly one underlying fetch; every caller received the resolved key
+        cache.UnderlyingFetchCount.Should().Be(1);
+        foreach (var keys in results)
+            keys.Should().ContainSingle().Which.KeyId.Should().Be("kid-a");
+    }
+
+    [Fact]
+    public void ResolveSigningKeys_MatchesTenantId_CaseInsensitively()
+    {
+        // Arrange — token tid uses upper-case but configured tenant id is lower-case
+        var signingKey = CreateSigningKey("kid-a");
+        var cache = new Mock<IPrismSigningKeyCache>();
+        cache
+            .Setup(c => c.GetSnapshot("TENANT-A", "kid-a"))
+            .Returns(new PrismSigningKeyCacheSnapshot([signingKey], false, false, true));
+
+        // Act
+        var keys = PrismAuthExtensions.ResolveSigningKeys(
+            "TENANT-A",
+            "kid-a",
+            [new BackOfficeTenant("tenant-a", "client-a", "ta", "Tenant A")],
+            cache.Object)
+            .ToArray();
+
+        // Assert — tenant is recognised despite casing mismatch; no warm triggered
+        keys.Should().ContainSingle().Which.KeyId.Should().Be("kid-a");
+        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private sealed class BlockingWarmSigningKeyCache(
         PrismSigningKeyCacheSnapshot snapshot,
         Func<string, bool, CancellationToken, Task> warmAsync) : IPrismSigningKeyCache
@@ -194,6 +271,42 @@ public class PrismAuthExtensionsSecurityTests
 
         public IEnumerable<SecurityKey> GetSigningKeys(string entraTenantId)
             => snapshot.Keys;
+    }
+
+    private sealed class ConcurrentWarmSigningKeyCache(
+        SecurityKey[] keysAfterWarm,
+        Func<Task> warmGate) : IPrismSigningKeyCache
+    {
+        private readonly SemaphoreSlim _lock = new(1, 1);
+        private bool _warmed;
+
+        public int UnderlyingFetchCount { get; private set; }
+
+        public async Task WarmAsync(string entraTenantId, bool forceRefresh = false, CancellationToken cancellationToken = default)
+        {
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_warmed) return;
+                await warmGate();
+                UnderlyingFetchCount++;
+                _warmed = true;
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
+        public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)
+        {
+            if (!_warmed)
+                return new PrismSigningKeyCacheSnapshot([], true, true, false);
+            var containsKey = string.IsNullOrWhiteSpace(keyId) || keysAfterWarm.Any(k => k.KeyId == keyId);
+            return new PrismSigningKeyCacheSnapshot(keysAfterWarm, false, false, containsKey);
+        }
+
+        public IEnumerable<SecurityKey> GetSigningKeys(string entraTenantId) => keysAfterWarm;
     }
 
 }

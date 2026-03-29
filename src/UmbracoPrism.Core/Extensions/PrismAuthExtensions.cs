@@ -112,20 +112,26 @@ public static class PrismAuthExtensions
             return Enumerable.Empty<SecurityKey>();
 
         var snapshot = signingKeyCache.GetSnapshot(tokenTenantId, keyId);
-        if (snapshot.ShouldRefresh)
-        {
-            _ = signingKeyCache.WarmAsync(
-                tokenTenantId,
-                forceRefresh: snapshot.IsExpired || !snapshot.ContainsRequestedKey,
-                cancellationToken: CancellationToken.None);
-        }
 
         if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
         {
-            return Enumerable.Empty<SecurityKey>();
+            // Keys are missing or don't contain the required key — fetch them now.
+            // Safe to block here: ASP.NET Core has no SynchronizationContext, and
+            // WarmAsync's internal semaphore deduplicates concurrent fetches per tenant.
+            signingKeyCache.WarmAsync(
+                tokenTenantId,
+                forceRefresh: true,
+                cancellationToken: CancellationToken.None).GetAwaiter().GetResult();
+
+            snapshot = signingKeyCache.GetSnapshot(tokenTenantId, keyId);
+        }
+        else if (snapshot.ShouldRefresh)
+        {
+            // Keys exist and are valid but approaching expiry — refresh in the background.
+            _ = signingKeyCache.WarmAsync(tokenTenantId, cancellationToken: CancellationToken.None);
         }
 
-        return snapshot.Keys;
+        return snapshot.ContainsRequestedKey ? snapshot.Keys : Enumerable.Empty<SecurityKey>();
     }
 
     private static string? GetTokenTenantId(SecurityToken securityToken)

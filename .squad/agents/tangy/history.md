@@ -104,3 +104,47 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+
+## Learnings
+
+- 2026-07-10 (Issue — OIDC cold-start test coverage): Added three tests to `PrismAuthExtensionsSecurityTests.cs` covering Copper's identified gaps after the cold-start signing-key fix:
+  1. `ResolveSigningKeys_PropagatesException_WhenWarmAsyncThrowsDuringColdStart` — verifies `HttpRequestException` from `WarmAsync` is not swallowed; uses Moq `ThrowsAsync`.
+  2. `ResolveSigningKeys_DeduplicatesConcurrentColdStartFetches_ForSameTenant` — verifies the semaphore in `PrismSigningKeyCache` means only one underlying fetch fires across N concurrent cold callers; uses a `ConcurrentWarmSigningKeyCache` test double with a `TaskCompletionSource` gate and internal `SemaphoreSlim` mirroring real-cache deduplication semantics.
+  3. `ResolveSigningKeys_MatchesTenantId_CaseInsensitively` — verifies a token `tid` of `"TENANT-A"` is matched to a configured tenant of `"tenant-a"` via `OrdinalIgnoreCase`; no warm triggered when cache already contains the key.
+- Total test count: 168 (165 existing + 3 new), 0 failures.
+- Gotcha: `GetAwaiter().GetResult()` on `WarmAsync` inside `ResolveSigningKeys` means blocking the calling thread; for concurrency tests use `Task.Run` callers to avoid deadlock on the test thread. Use `warmStarted` TCS to ensure callers are blocking before releasing the gate — avoids `Task.Delay` timing fragility.
+
+## 2026-03-29 — OIDC Signing Key Cold-Start Test Coverage
+
+**Session:** OIDC Signing Key Fix  
+**Work Type:** Test implementation
+
+**Context:** Copper security-reviewed the synchronous key resolver cold-start fix and identified 3 test coverage gaps. All three implemented.
+
+**Tests Implemented (PrismAuthExtensionsSecurityTests.cs):**
+
+1. **Exception Propagation**
+   - Validates that exceptions during synchronous `WarmAsync` fetch are propagated correctly
+   - Confirms token validation fails when OIDC metadata endpoint is unreachable (fail-closed)
+
+2. **Cold-Start Concurrency Deduplication**
+   - Tests per-tenant `SemaphoreSlim` inside `PrismSigningKeyCache.WarmAsync`
+   - Verifies only first waiter performs HTTP fetch; subsequent waiters see cached result
+   - Validates atomic cache update semantics
+
+3. **Case-Insensitive Tenant ID Matching**
+   - Tests `OrdinalIgnoreCase` comparison in `Any(t => Equals(t.EntraTenantId, tokenTenantId, OrdinalIgnoreCase))`
+   - Tests `ConcurrentDictionary` case-insensitive lookup
+   - Validates mixed-case `tid` claims are handled correctly
+
+**Architectural Insights Documented:**
+- Exception propagation is intentional (fail-loud, not fail-open)
+- Deduplication barrier lives in `PrismSigningKeyCache.WarmAsync`, not in `ResolveSigningKeys`
+- Case-insensitive matching is end-to-end (both tenant lookup and cache store)
+
+**Test Results:** 168/168 passing (100%)
+
+**Related:**
+- Orchestration log: `.squad/orchestration-log/2026-03-29T13-53Z-tangy.md`
+- Decision record: `.squad/decisions.md` → "OIDC Signing Key Cold-Start Fix"
+

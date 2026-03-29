@@ -1115,3 +1115,66 @@ if (!info.isAvailable) {
 **Why:** The design spec requires refresh tokens to be encrypted at rest with AES-256. GCM mode provides authenticated encryption (tamper detection) without needing a separate HMAC. The base64 key format aligns with standard key generation patterns (`Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))`).
 
 **Impact:** Any future endpoint that reads `RefreshTokenEnc` (e.g., the `/exchange` endpoint in Phase 2) must use the same `IRefreshTokenEncryptionService` to decrypt.
+
+## 📌 2026-03-29: OIDC Signing Key Cold-Start Fix (Copilot + Copper + Tangy)
+
+**Session Log:** `.squad/log/2026-03-29T13-53-oidc-signing-key-fix.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copper-signing-key-review.md`
+- `.squad/decisions/inbox/copper-token-warmup-review.md`
+- `.squad/decisions/inbox/tangy-auth-test-coverage.md`
+
+### Copilot — Synchronous Key Resolver Cold Start Unblocking
+
+**Decision:** Replace fire-and-forget `WarmAsync` with synchronous blocking fetch in `PrismAuthExtensions.ResolveSigningKeys` when cache is empty or the requested key ID is absent.
+
+**Implementation:**
+- When cache is cold or `kid` missing: block on `WarmAsync(...).GetAwaiter().GetResult()`
+- Re-read cache snapshot after fetch
+- Return empty if key still absent (correct — don't return keys that can't validate the token)
+- Background refresh unchanged for approaching-expiry case (ShouldRefresh)
+- Guard: `ContainsRequestedKey` validation on return
+
+**Why:** First requests to cold instances received 401 errors (IDX10500: Signature validation failed. No security keys were provided) due to fire-and-forget warmup completing after token validation.
+
+**Addresses:** Bug fix for OIDC authorization failures on cold start.
+
+### Copper — Security Review: Approved with Recommendations
+
+**Verdict:** ✅ Approved — No blocking security issues.
+
+**Security Findings:**
+
+1. **Deadlock Risk:** Safe — .NET 10.0 has no SynchronizationContext; `WarmAsync` uses per-tenant semaphore with no nested locks.
+2. **DoS Risk:** Bounded — Per-tenant cooldown (30s) and tenant allow-list prevent unbounded fetch amplification.
+3. **Tenant Isolation:** Preserved — Cache keyed by tenant ID; allow-list checked before cache interaction; `GetSnapshot` uses normalized comparison.
+4. **Exception Handling:** Exceptions from `WarmAsync` propagate correctly (fail-closed behavior). Test coverage gaps identified.
+
+**Recommendations:**
+1. Test exception propagation from `WarmAsync` during synchronous block.
+2. Test cold-start concurrency with multiple `kid` values for same tenant.
+3. Test case-insensitive tenant ID matching in key resolution.
+
+### Tangy — Test Coverage: 3 New Tests, 168/168 Passing
+
+**Implementation:** 3 new xUnit tests in `PrismAuthExtensionsSecurityTests.cs`
+
+1. **Exception Propagation:** Validates that exceptions during synchronous fetch propagate correctly.
+2. **Cold-Start Concurrency Deduplication:** Tests per-tenant `SemaphoreSlim` deduplication; only first waiter performs HTTP fetch.
+3. **Case-Insensitive Tenant ID Matching:** Tests `OrdinalIgnoreCase` comparison in `Any(t => Equals(...))` and `ConcurrentDictionary` lookups.
+
+**Architectural Notes:**
+- Exception propagation is intentional — token validation must fail-loud when OIDC metadata is unreachable.
+- Deduplication lives in `PrismSigningKeyCache.WarmAsync`, not in `ResolveSigningKeys`.
+- Case-insensitive matching is end-to-end (tenant lookup + cache store).
+
+**Test Results:** 168/168 passing (100%)
+
+---
+
+**Cross-Agent Notes:**
+- Copper security review recommendations fully addressed by Tangy
+- All tests passing; ready for merge
+- Orchestration logs: `.squad/orchestration-log/2026-03-29T13-53Z-*.md`
+
