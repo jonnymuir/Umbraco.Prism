@@ -1,3 +1,26 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
+@functions {
+    async Task<string> CallBackOfficeAsync()
+    {
+        try
+        {
+            using var client = new HttpClient();
+            var authHeader = await PrismContext.GetAuthorizationHeaderAsync();
+            if (authHeader == null)
+                return "User is not authenticated or session has expired.";
+            client.DefaultRequestHeaders.Authorization = authHeader;
+            client.Timeout = TimeSpan.FromSeconds(10);
+            var response = await client.GetAsync("http://localhost:5163/api/backoffice/me");
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                return "API Error: Unauthorized. Your session is invalid.";
+            return $"API Error: {response.StatusCode}";
+        }
+        catch (HttpRequestException ex) { return $"Network Error: Could not reach Back Office. {ex.Message}"; }
+        catch (Exception ex) { return $"System Error: {ex.Message}"; }
+    }
+}
 @{
     Layout = null;
 
@@ -5,6 +28,10 @@
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
+
+    string apiResult = "Not called yet.";
+    if (Context.Request.Query.ContainsKey("callApi"))
+        apiResult = await CallBackOfficeAsync();
 }
 
 <!DOCTYPE html>
@@ -309,6 +336,44 @@
             color: #ffffff;
         }
 
+        .dash-api-card {
+            background: var(--prism-surface, #ffffff);
+            border-radius: var(--prism-radius, 16px);
+            padding: 24px;
+            border: 1px solid var(--prism-border, #e2e8f0);
+            box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+        }
+
+        .dash-api-card pre {
+            background: var(--prism-surface-alt, #f8fafc);
+            border: 1px solid var(--prism-border, #e2e8f0);
+            border-radius: 10px;
+            padding: 16px;
+            font-size: var(--prism-text-size-sm, 13px);
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 12px 0 0;
+            color: var(--prism-text, #0f172a);
+        }
+
+        .dash-api-card .api-hint {
+            margin-top: 12px;
+            padding: 12px 14px;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            font-size: var(--prism-text-size-sm, 13px);
+            color: var(--prism-text, #0f172a);
+        }
+
+        .dash-api-card .api-hint code {
+            background: rgba(0, 0, 0, 0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
         .dash-footer {
             text-align: center;
             padding: 32px var(--prism-page-gutter, 24px);
@@ -432,6 +497,43 @@
                     <span class="dash-profile__label">Tenant</span>
                     <span class="dash-profile__value">@(tenant?.Name ?? "—")</span>
                 </div>
+            </div>
+        </div>
+
+        <!-- Downstream API demo -->
+        <div class="dash-section">
+            <h2>Downstream API</h2>
+            <p>Demonstrates how Prism propagates your identity to business applications via a Bearer token.</p>
+
+            <div class="dash-api-card">
+                @if (Context.Request.Query.ContainsKey("callApi"))
+                {
+                    <p style="margin:0 0 4px; font-weight:600; font-size: var(--prism-text-size-sm, 13px); color: var(--prism-muted);">
+                        Response from <code style="font-family:monospace">http://localhost:5163/api/backoffice/me</code>
+                    </p>
+                    <pre>@apiResult</pre>
+                    @if (apiResult.StartsWith("Network Error"))
+                    {
+                        <div class="api-hint">
+                            💡 MockBackOffice is not running. Start it with:<br />
+                            <code>dotnet run --project src/UmbracoPrism.MockBackOffice</code>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p style="margin:0 0 16px; color: var(--prism-muted, #64748b);">
+                        Click the button below to call the MockBackOffice API using your current Prism Bearer token.
+                        The API will validate the token, resolve your tenant, and return your registered role.
+                    </p>
+                    <a href="?callApi=true" class="btn btn-primary" style="font-size: var(--prism-text-size-sm, 13px); padding: 8px 16px;">
+                        Call MockBackOffice API
+                    </a>
+                    <div class="api-hint" style="margin-top: 16px;">
+                        💡 Make sure MockBackOffice is running first:<br />
+                        <code>dotnet run --project src/UmbracoPrism.MockBackOffice</code>
+                    </div>
+                }
             </div>
         </div>
 
