@@ -28,6 +28,7 @@ function makeElement(
   el._mockBridge = {
     isAvailable: async () => isAvail,
     getOrCreateDeviceId: async () => 'mock-device-id',
+    checkEnrollmentChange: async () => false,
     register: async () => {},
     authenticate: async () => 'mock-session-token',
     revokeDevice: async () => {},

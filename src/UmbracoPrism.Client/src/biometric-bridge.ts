@@ -16,6 +16,7 @@ export class BiometricError extends Error {
 export interface BiometricBridge {
   isAvailable(): Promise<boolean>;
   getOrCreateDeviceId(): Promise<string>;
+  checkEnrollmentChange(tenantHost: string): Promise<boolean>;
   register(tenantHost: string, loginHint?: string): Promise<void>;
   authenticate(tenantHost: string): Promise<string>;
   revokeDevice(tenantHost: string): Promise<void>;
@@ -26,6 +27,7 @@ export interface BiometricBridge {
 class BiometricBridgeImpl implements BiometricBridge {
   private readonly DEVICE_ID_KEY = 'prism_device_id';
   private readonly BIOMETRIC_TOKEN_PREFIX = 'prism_biometric_token_';
+  private readonly ENROLLMENT_STATE_PREFIX = 'prism_biometric_enrollment_state_';
 
   async isAvailable(): Promise<boolean> {
     try {
@@ -51,6 +53,48 @@ class BiometricBridgeImpl implements BiometricBridge {
     } catch (error) {
       throw new Error(`Failed to get or create device ID: ${error}`);
     }
+  }
+
+  async checkEnrollmentChange(tenantHost: string): Promise<boolean> {
+    try {
+      const result: CheckBiometryResult = await BiometricAuth.checkBiometry();
+      const currentFingerprint = this._buildEnrollmentFingerprint(result);
+      const { value: storedFingerprint } = await Preferences.get({
+        key: `${this.ENROLLMENT_STATE_PREFIX}${tenantHost}`
+      });
+
+      if (!storedFingerprint) {
+        // No stored state yet — first run, not a change
+        return false;
+      }
+
+      if (storedFingerprint !== currentFingerprint) {
+        console.warn('Biometric enrollment change detected for tenant:', tenantHost);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn('Enrollment change check failed:', error);
+      return false;
+    }
+  }
+
+  private async _saveEnrollmentState(tenantHost: string): Promise<void> {
+    try {
+      const result: CheckBiometryResult = await BiometricAuth.checkBiometry();
+      const fingerprint = this._buildEnrollmentFingerprint(result);
+      await Preferences.set({
+        key: `${this.ENROLLMENT_STATE_PREFIX}${tenantHost}`,
+        value: fingerprint
+      });
+    } catch (error) {
+      console.warn('Failed to save enrollment state:', error);
+    }
+  }
+
+  private _buildEnrollmentFingerprint(result: CheckBiometryResult): string {
+    return `${result.biometryType}|${result.isAvailable}|${result.strongBiometryIsAvailable}`;
   }
 
   async register(tenantHost: string, loginHint?: string): Promise<void> {
@@ -109,6 +153,8 @@ class BiometricBridgeImpl implements BiometricBridge {
       );
 
       console.log('Biometric registration successful for tenant:', tenantHost);
+
+      await this._saveEnrollmentState(tenantHost);
     } catch (error: any) {
       if (error instanceof BiometricError) {
         throw error;
@@ -118,6 +164,16 @@ class BiometricBridgeImpl implements BiometricBridge {
   }
 
   async authenticate(tenantHost: string): Promise<string> {
+    // Check for biometric enrollment changes before attempting auth
+    const enrollmentChanged = await this.checkEnrollmentChange(tenantHost);
+    if (enrollmentChanged) {
+      await this.clearLocalCredentials(tenantHost);
+      throw new BiometricError(
+        'Biometric enrollment has changed. Please re-register biometric login.',
+        'unavailable'
+      );
+    }
+
     let storedToken: string;
 
     try {
@@ -184,6 +240,8 @@ class BiometricBridgeImpl implements BiometricBridge {
           newBiometricToken
         );
       }
+
+      await this._saveEnrollmentState(tenantHost);
 
       return sessionToken;
     } catch (error: any) {
@@ -253,6 +311,7 @@ class BiometricBridgeImpl implements BiometricBridge {
     try {
       if (tenantHost) {
         await SecureStorage.remove(`${this.BIOMETRIC_TOKEN_PREFIX}${tenantHost}`);
+        await Preferences.remove({ key: `${this.ENROLLMENT_STATE_PREFIX}${tenantHost}` });
         console.log('Cleared biometric credentials for tenant:', tenantHost);
       } else {
         const allKeys = await SecureStorage.keys();

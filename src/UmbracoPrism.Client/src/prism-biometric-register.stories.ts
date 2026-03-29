@@ -15,6 +15,9 @@ const createMockBridge = (config: {
   async getOrCreateDeviceId() {
     return 'mock-device-id';
   },
+  async checkEnrollmentChange(_tenantHost: string) {
+    return false;
+  },
   async register(_tenantHost: string, _loginHint?: string) {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
