@@ -98,3 +98,35 @@ if (!info.isAvailable) {
 - Package version note: `package.json` uses `@aparajita/capacitor-biometric-auth@^10.0.0` and `@aparajita/capacitor-secure-storage@^8.0.0`, while earlier design docs referenced `^7.x`. Installed versions are newer but API-compatible for the methods used.
 
 **Decision Record:** `.squad/decisions/inbox/kicks-biometric-client-flow.md`
+
+## Session: 2026-07-14 → 2026-03-29 — Biometric Client-Side Flow Implementation
+
+**Task:** Fix missing biometric client-side flow — Jonny signed in via Entra but no Face ID prompt appeared on subsequent app opens
+
+**Result:** ✅ Complete, build clean, tested on iOS device
+
+**Root Causes Fixed:**
+
+1. **`biometric-bridge.ts` bug:** `authenticate()` called `response.json()` on `/exchange` response, but server returns empty 200 + Set-Cookie. Removed JSON parsing, added `credentials: 'include'`, changed return type to `Promise<void>`.
+
+2. **No startup biometric flow:** `www/index.html` bootstrap never attempted biometric auth. Added `tryBiometricSignIn()` async function using `window.Capacitor.nativePromise()` to call plugins directly from vanilla JS.
+
+3. **No enrollment trigger:** Users never prompted to enroll Face ID/Touch ID after Entra login. `PrismBrandingMiddleware` now injects `<script id="prism-biometric-enroll">` into authenticated mobile pages.
+
+4. **Missing CORS:** `/exchange` called cross-origin from `capacitor://localhost` would fail. Added CORS headers + OPTIONS preflight.
+
+**Technical Context:**
+- `PrismMemberCookie` is `SameSite=Lax` → Set-Cookie stored from cross-origin fetch, AND sent on top-level navigation
+- `/exchange` returns empty 200 + cookie, no sessionToken — session established via cookie alone
+- `@aparajita/capacitor-secure-storage` applies `capacitor-storage_` prefix, data is JSON-encoded
+- `@aparajita/capacitor-biometric-auth` plugin ID is `BiometricAuthNative`, use `internalAuthenticate()` natively
+
+**Files Changed:**
+- `src/UmbracoPrism.Client/src/biometric-bridge.ts`
+- `src/UmbracoPrism.Core/Services/MobileBundleService.cs`
+- `src/UmbracoPrism.Core/Middleware/PrismBrandingMiddleware.cs`
+- `src/UmbracoPrism.Core/Controllers/BiometricController.cs`
+
+**Decision Record:** `.squad/decisions.md#2026-07-14-backdated-to-2026-03-29-biometric-client-side-flow-implementation`
+
+**Orchestration Log:** `.squad/orchestration-log/2026-03-29T160329-kicks.md`
