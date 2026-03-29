@@ -288,3 +288,32 @@
 **Outcome:** Correct Multi URL Picker data type now created. Seed data uses correct integer type values. Build clean, backoffice shows correct URL picker UI.
 
 Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", not 0)
+
+---
+
+## Session: 2026-03-29 — Integration & Documentation (Scribe Finalization)
+
+**Status:** Completed  
+**Action:** Merged 4 inbox decision files into consolidated `decisions.md`. All fixes integrated and committed.
+
+**Key learnings consolidated for team:**
+
+1. **PropertyEditorCollection is the canonical editor lookup pattern** — Use `propertyEditorCollection["Umbraco.MultiUrlPicker"]` by alias, never hard-coded GUIDs. GUID `fd1e0da5-5606-4862-b679-5d0cf3a52a59` is Multi Node Tree Picker, not Multi URL Picker.
+
+2. **Custom data type creation pattern (v17):**
+   - Requires `IDataEditor` and `IConfigurationEditorJsonSerializer` in constructor
+   - Lookup editor by alias via `PropertyEditorCollection` (safe, documented)
+   - Create with `new DataType(editor, serializer) { Name, DatabaseType, ConfigurationData }`
+   - Always check for existing by name (idempotent)
+
+3. **Idempotent seeder pattern for upgrades:**
+   - Content Type: Check `DataTypeKey` not just property existence → update if wrong
+   - Content Seeder: Separate guards (tree-empty for new content, property-empty for defaults)
+   - Both patterns allow graceful auto-upgrade on startup
+
+4. **Multi URL Picker pre-seeding:**
+   - Use external-type links for defaults (simpler than content UDI)
+   - Serialize with `System.Text.Json` (simple anonymous objects work)
+   - Link type: string enum ("External", "Content", "Media") not integer
+
+**Commit:** `42fdf5f` — All fixes integrated, decisions documented, ready for team adoption.
