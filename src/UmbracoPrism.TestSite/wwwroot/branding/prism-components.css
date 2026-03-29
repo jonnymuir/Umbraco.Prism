@@ -9,4 +9,11 @@
     --prism-graph-1: #38bdf8;
     --prism-graph-2: #a78bfa;
     --prism-graph-3: #34d399;
+
+    /* Portal navigation */
+    --prism-nav-height: 56px;
+
+    /* Dashboard cards */
+    --prism-dash-icon-size: 48px;
+    --prism-dash-icon-radius: 12px;
 }

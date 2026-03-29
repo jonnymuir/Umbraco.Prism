@@ -107,10 +107,15 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             // It will see the message already has a ClientId and IssuerAddress and should respect them
             await onRedirectToIdentityProvider(context);
 
-            // 3. Post-processing: Ensure the Prompt is set after MS might have messed with it
+            // 3. Post-processing: Respect prompt from challenge properties (e.g. "create" for
+            //    registration), otherwise default to "select_account".
             if (tenant != null)
             {
-                context.ProtocolMessage.Prompt = "select_account";
+                var promptOverride = context.Properties.Items.TryGetValue(
+                    "PrismPrompt", out var p) ? p : null;
+                context.ProtocolMessage.Prompt = !string.IsNullOrEmpty(promptOverride)
+                    ? promptOverride
+                    : "select_account";
             }
 
             context.Properties.Items["Prism_PKCE_Verifier"] = context.Properties.Items.TryGetValue("code_verifier", out var verifier)

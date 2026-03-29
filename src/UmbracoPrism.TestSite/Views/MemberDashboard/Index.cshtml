@@ -1,0 +1,448 @@
+@{
+    Layout = null;
+
+    var tenant = PrismContext.CurrentTenant;
+    var displayName = ViewBag.DisplayName as string ?? "Member";
+    var email = ViewBag.Email as string ?? "";
+    var userOid = ViewBag.UserOid as string ?? "";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>@(tenant?.Name ?? "Prism") — Dashboard</title>
+
+    <link rel="stylesheet" href="/branding/prism-colors.css" />
+    <link rel="stylesheet" href="/branding/prism-typography.css" />
+    <link rel="stylesheet" href="/branding/prism-layout.css" />
+    <link rel="stylesheet" href="/branding/prism-imagery.css" />
+    <link rel="stylesheet" href="/branding/prism-components.css" />
+
+    <style>
+        body {
+            font-family: var(--prism-font-body, -apple-system, sans-serif);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: var(--prism-text, #0f172a);
+            background: var(--prism-surface-alt, #f8fafc);
+        }
+
+        .dash-header {
+            background: var(--prism-primary, #4f46e5);
+            color: var(--prism-primary-contrast, #ffffff);
+            padding: 0 var(--prism-page-gutter, 24px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 56px;
+        }
+
+        .dash-header__brand {
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .dash-header__nav {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .dash-header__link {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            font-size: var(--prism-text-size-sm, 13px);
+            font-weight: 600;
+        }
+
+        .dash-header__link:hover {
+            color: #ffffff;
+        }
+
+        .dash-page {
+            max-width: var(--prism-page-max, 1100px);
+            margin: 0 auto;
+            padding: 32px var(--prism-page-gutter, 24px) 60px;
+        }
+
+        .dash-welcome {
+            margin-bottom: 32px;
+        }
+
+        .dash-welcome h1 {
+            font-family: var(--prism-font-display, var(--prism-font-body));
+            font-size: var(--prism-text-size-xl, 40px);
+            font-weight: var(--prism-heading-weight, 700);
+            margin: 0 0 4px;
+        }
+
+        .dash-welcome p {
+            color: var(--prism-muted, #64748b);
+            margin: 0;
+        }
+
+        .dash-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(var(--prism-grid-min, 240px), 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .dash-card {
+            background: var(--prism-surface, #ffffff);
+            border-radius: var(--prism-radius, 16px);
+            padding: 24px;
+            border: 1px solid var(--prism-border, #e2e8f0);
+            box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .dash-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+        }
+
+        .dash-card__icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+        }
+
+        .dash-card__icon--account {
+            background: rgba(79, 70, 229, 0.12);
+            color: var(--prism-primary, #4f46e5);
+        }
+
+        .dash-card__icon--documents {
+            background: rgba(34, 197, 94, 0.12);
+            color: var(--prism-accent, #22c55e);
+        }
+
+        .dash-card__icon--support {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--prism-warning, #f59e0b);
+        }
+
+        .dash-card h3 {
+            margin: 0 0 8px;
+            font-weight: 700;
+        }
+
+        .dash-card p {
+            margin: 0;
+            color: var(--prism-muted, #64748b);
+            font-size: var(--prism-text-size-md, 16px);
+        }
+
+        .dash-section {
+            margin-bottom: 32px;
+        }
+
+        .dash-section h2 {
+            font-family: var(--prism-font-display, var(--prism-font-body));
+            font-size: var(--prism-text-size-lg, 22px);
+            font-weight: var(--prism-heading-weight, 700);
+            margin: 0 0 8px;
+        }
+
+        .dash-section > p {
+            color: var(--prism-muted, #64748b);
+            margin: 0 0 16px;
+        }
+
+        .dash-bio-card {
+            background: var(--prism-surface, #ffffff);
+            border-radius: var(--prism-radius, 16px);
+            padding: 24px;
+            border: 1px solid var(--prism-border, #e2e8f0);
+            box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+        }
+
+        .dash-bio-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--prism-surface-alt, #f8fafc);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .dash-bio-status__dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .dash-bio-status__dot--active {
+            background: var(--prism-success, #16a34a);
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.2);
+        }
+
+        .dash-bio-status__dot--inactive {
+            background: var(--prism-muted, #64748b);
+        }
+
+        .dash-bio-status strong {
+            flex: 1;
+        }
+
+        .dash-bio-steps {
+            display: grid;
+            gap: 12px;
+        }
+
+        .dash-bio-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--prism-border, #e2e8f0);
+        }
+
+        .dash-bio-step:last-child {
+            border-bottom: none;
+        }
+
+        .dash-bio-step__num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--prism-primary, #4f46e5);
+            color: var(--prism-primary-contrast, #ffffff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .dash-bio-step h4 {
+            margin: 0 0 2px;
+            font-size: 0.95rem;
+        }
+
+        .dash-bio-step p {
+            margin: 0;
+            color: var(--prism-muted, #64748b);
+            font-size: var(--prism-text-size-sm, 13px);
+        }
+
+        .dash-profile {
+            background: var(--prism-surface, #ffffff);
+            border-radius: var(--prism-radius, 16px);
+            padding: 24px;
+            border: 1px solid var(--prism-border, #e2e8f0);
+            box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+        }
+
+        .dash-profile__row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--prism-border, #e2e8f0);
+        }
+
+        .dash-profile__row:last-child {
+            border-bottom: none;
+        }
+
+        .dash-profile__label {
+            color: var(--prism-muted, #64748b);
+            font-size: var(--prism-text-size-sm, 13px);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: var(--prism-letter-spacing-caps, 0.08em);
+        }
+
+        .dash-profile__value {
+            font-weight: 600;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-decoration: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-size: var(--prism-text-size-md, 16px);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--prism-button-bg, #4f46e5);
+            color: var(--prism-button-text, #ffffff);
+            box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: var(--prism-button-hover, #4338ca);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--prism-danger, #ef4444);
+            border-color: var(--prism-danger, #ef4444);
+        }
+
+        .btn-outline:hover {
+            background: var(--prism-danger, #ef4444);
+            color: #ffffff;
+        }
+
+        .dash-footer {
+            text-align: center;
+            padding: 32px var(--prism-page-gutter, 24px);
+            color: var(--prism-muted, #64748b);
+            font-size: var(--prism-text-size-sm, 13px);
+        }
+
+        /* Mobile */
+        html.prism-mobile .dash-header {
+            padding-top: env(safe-area-inset-top);
+            height: calc(56px + env(safe-area-inset-top));
+        }
+
+        html.prism-mobile .dash-page {
+            max-width: none;
+            padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+        }
+
+        html.prism-mobile .dash-welcome h1 {
+            font-size: clamp(1.5rem, 5vw, 2rem);
+        }
+
+        html.prism-mobile .dash-grid {
+            grid-template-columns: 1fr;
+        }
+    </style>
+</head>
+
+<body>
+    <prism-mobile-user-agent-demo />
+
+    <header class="dash-header">
+        <a href="/" class="dash-header__brand">@(tenant?.Name ?? "Prism Portal")</a>
+        <nav class="dash-header__nav">
+            <a href="/" class="dash-header__link">Home</a>
+            <a href="/auth/logout" class="dash-header__link">Sign Out</a>
+        </nav>
+    </header>
+
+    <main class="dash-page">
+        <div class="dash-welcome">
+            <h1>Welcome back, @displayName</h1>
+            <p>Manage your account, documents, and security settings.</p>
+        </div>
+
+        <!-- Account overview cards -->
+        <div class="dash-grid">
+            <div class="dash-card">
+                <div class="dash-card__icon dash-card__icon--account">👤</div>
+                <h3>My Account</h3>
+                <p>View and update your personal information, contact details, and communication preferences.</p>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card__icon dash-card__icon--documents">📄</div>
+                <h3>Documents</h3>
+                <p>Access your statements, correspondence, and important documents in one secure location.</p>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card__icon dash-card__icon--support">💬</div>
+                <h3>Support</h3>
+                <p>Get help with your account. Contact our team or browse frequently asked questions.</p>
+            </div>
+        </div>
+
+        <!-- Biometric authentication section -->
+        <div class="dash-section">
+            <h2>Biometric Authentication</h2>
+            <p>Use Face ID or fingerprint to sign in securely from the mobile app — no password needed.</p>
+
+            <div class="dash-bio-card">
+                <div class="dash-bio-status">
+                    <div class="dash-bio-status__dot dash-bio-status__dot--inactive"></div>
+                    <strong>Not configured</strong>
+                    <span style="color: var(--prism-muted); font-size: var(--prism-text-size-sm, 13px);">Set up via mobile app</span>
+                </div>
+
+                <div class="dash-bio-steps">
+                    <div class="dash-bio-step">
+                        <div class="dash-bio-step__num">1</div>
+                        <div>
+                            <h4>Open the mobile app</h4>
+                            <p>Download and install the Prism mobile app for iOS or Android.</p>
+                        </div>
+                    </div>
+                    <div class="dash-bio-step">
+                        <div class="dash-bio-step__num">2</div>
+                        <div>
+                            <h4>Sign in with your account</h4>
+                            <p>Log in using your existing credentials to link your device.</p>
+                        </div>
+                    </div>
+                    <div class="dash-bio-step">
+                        <div class="dash-bio-step__num">3</div>
+                        <div>
+                            <h4>Enable biometric login</h4>
+                            <p>Follow the prompt to register Face ID or fingerprint. Future sign-ins will be instant.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile details -->
+        <div class="dash-section">
+            <h2>Profile</h2>
+            <p>Your account details from your identity provider.</p>
+
+            <div class="dash-profile">
+                <div class="dash-profile__row">
+                    <span class="dash-profile__label">Name</span>
+                    <span class="dash-profile__value">@displayName</span>
+                </div>
+                @if (!string.IsNullOrEmpty(email))
+                {
+                    <div class="dash-profile__row">
+                        <span class="dash-profile__label">Email</span>
+                        <span class="dash-profile__value">@email</span>
+                    </div>
+                }
+                <div class="dash-profile__row">
+                    <span class="dash-profile__label">Tenant</span>
+                    <span class="dash-profile__value">@(tenant?.Name ?? "—")</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 24px;">
+            <a href="/auth/logout" class="btn btn-outline">Sign Out</a>
+        </div>
+    </main>
+
+    <footer class="dash-footer">
+        &copy; @DateTime.Now.Year @(tenant?.Name ?? "Prism") &mdash; Powered by Umbraco Prism
+    </footer>
+</body>
+
+</html>

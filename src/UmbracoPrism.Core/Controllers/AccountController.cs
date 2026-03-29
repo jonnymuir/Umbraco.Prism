@@ -30,6 +30,27 @@ public class AccountController : Controller
     }
 
     /// <summary>
+    /// Initiates the Entra ID CIAM sign-up flow.
+    /// Uses the same tenant-specific OIDC configuration as login but adds
+    /// the <c>prompt=create</c> parameter to trigger registration.
+    /// </summary>
+    /// <param name="returnUrl"></param>
+    /// <returns></returns>
+    [HttpGet("register")]
+    public IActionResult Register(string returnUrl = "/")
+    {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return LocalRedirect(returnUrl);
+        }
+
+        var properties = new AuthenticationProperties { RedirectUri = returnUrl };
+        properties.Items["PrismPrompt"] = "create";
+
+        return Challenge(properties, "PrismEntraID");
+    }
+
+    /// <summary>
     /// Logs the user out of both the local session and Entra ID.
     /// </summary>
     /// <returns></returns>

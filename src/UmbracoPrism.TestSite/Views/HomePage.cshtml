@@ -1,67 +1,17 @@
-﻿@using System.Net.Http
-@using System.Net.Http.Headers
+@using System.Security.Claims
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 
 @{
     Layout = null;
-
-    async Task<string> CallBackOfficeAsync()
-    {
-        try
-        {
-            using var client = new HttpClient();
-
-            // This could throw if Key Vault is down or Refresh Token is rejected
-            var authHeader = await PrismContext.GetAuthorizationHeaderAsync();
-
-            if (authHeader == null)
-            {
-                return "User is not authenticated or session has expired.";
-            }
-
-            client.DefaultRequestHeaders.Authorization = authHeader;
-
-            // Standard timeout to prevent hanging the UI
-            client.Timeout = TimeSpan.FromSeconds(10);
-
-            var response = await client.GetAsync("http://localhost:5163/api/backoffice/me");
-
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadAsStringAsync();
-            }
-
-            // Handle specific status codes if needed
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                return "API Error: Unauthorized. Your session is invalid. Please log in again.";
-            }
-
-            return $"API Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}";
-        }
-        catch (HttpRequestException ex)
-        {
-            // Network-level issues (DNS, connection refused, etc.)
-            return $"Network Error: Could not reach the Back Office. {ex.Message}";
-        }
-        catch (Exception ex)
-        {
-            // Catch-all for unexpected logic errors or vault failures
-            return $"System Error: {ex.Message}";
-        }
-    }
-
-    string apiResult = "Not called yet.";
-    if (Context.Request.Query.ContainsKey("callApi"))
-    {
-        apiResult = await CallBackOfficeAsync();
-    }
 
     var heroImage = Model?.Value<IPublishedContent>("heroImage");
     var cardImage = Model?.Value<IPublishedContent>("cardImage");
     var heroImageUrl = heroImage?.Url();
     var cardImageUrl = cardImage?.Url();
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+    var displayName = Context.User.FindFirst("name")?.Value
+                      ?? Context.User.FindFirst("preferred_username")?.Value
+                      ?? "Member";
     var mobileAuthHref = isAuthenticated ? "/auth/logout" : "/auth/login";
     var mobileAuthLabel = isAuthenticated ? "Sign Out" : "Sign In";
     var hasImageryOverrides = !string.IsNullOrWhiteSpace(heroImageUrl) || !string.IsNullOrWhiteSpace(cardImageUrl);
@@ -83,10 +33,13 @@
 }
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>Prism Home</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>@(PrismContext.CurrentTenant?.Name ?? "Prism") — Welcome</title>
+
     <link rel="stylesheet" href="/branding/prism-colors.css" />
     <link rel="stylesheet" href="/branding/prism-typography.css" />
     <link rel="stylesheet" href="/branding/prism-layout.css" />
@@ -108,12 +61,45 @@
             background: var(--prism-surface-alt, #f8fafc);
         }
 
+        .portal-header {
+            background: var(--prism-primary, #4f46e5);
+            color: var(--prism-primary-contrast, #ffffff);
+            padding: 0 var(--prism-page-gutter, 24px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 56px;
+        }
+
+        .portal-header__brand {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .portal-header__nav {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .portal-header__link {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            font-size: var(--prism-text-size-sm, 13px);
+            font-weight: 600;
+        }
+
+        .portal-header__link:hover {
+            color: #ffffff;
+        }
+
         .page {
             max-width: var(--prism-page-max, 1100px);
             margin: 0 auto;
-            padding: 32px var(--prism-page-gutter, 24px) 60px;
+            padding: 0 var(--prism-page-gutter, 24px) 60px;
         }
 
+        /* Hero */
         .hero {
             background-color: var(--prism-primary, #4f46e5);
             background-image: var(--prism-hero-image, none), var(--prism-hero-bg, none);
@@ -122,6 +108,7 @@
             color: var(--prism-hero-text, #ffffff);
             border-radius: var(--prism-radius, 16px);
             padding: var(--prism-hero-padding, 40px);
+            margin-top: 32px;
             box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
         }
 
@@ -145,7 +132,7 @@
         }
 
         .hero p {
-            margin: 0 0 20px;
+            margin: 0 0 24px;
             max-width: 640px;
             color: rgba(255, 255, 255, 0.9);
             font-size: var(--prism-text-size-lg, 22px);
@@ -157,15 +144,18 @@
             flex-wrap: wrap;
         }
 
+        /* Buttons */
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 10px 18px;
+            padding: 12px 24px;
             border-radius: 10px;
             font-weight: 600;
             text-decoration: none;
             border: 1px solid transparent;
+            cursor: pointer;
+            font-size: var(--prism-text-size-md, 16px);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
@@ -186,137 +176,88 @@
             border-color: rgba(255, 255, 255, 0.4);
         }
 
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .btn-secondary {
+            background: var(--prism-surface, #ffffff);
+            color: var(--prism-primary, #4f46e5);
+            border-color: var(--prism-border, #e2e8f0);
+        }
+
+        .btn-secondary:hover {
+            background: var(--prism-surface-alt, #f8fafc);
+            transform: translateY(-1px);
+        }
+
         .btn-mobile-signin {
             display: none;
+        }
+
+        /* Feature cards */
+        .features {
+            margin-top: var(--prism-section-gap, 28px);
+        }
+
+        .features h2 {
+            font-family: var(--prism-font-display, var(--prism-font-body));
+            font-size: var(--prism-text-size-lg, 22px);
+            font-weight: var(--prism-heading-weight, 700);
+            margin: 0 0 8px;
+        }
+
+        .features > p {
+            color: var(--prism-muted, #64748b);
+            margin: 0 0 20px;
         }
 
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(var(--prism-grid-min, 240px), 1fr));
             gap: 20px;
-            margin-top: var(--prism-section-gap, 28px);
         }
 
         .card {
             background: var(--prism-surface, #ffffff);
             border-radius: var(--prism-radius, 16px);
-            padding: 20px;
+            padding: 24px;
             border: 1px solid var(--prism-border, #e2e8f0);
             box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
         }
 
-        .card h3 {
-            margin-top: 0;
-        }
-
-        .chip {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: var(--prism-chip-bg, rgba(79, 70, 229, 0.12));
-            color: var(--prism-chip-text, #3730a3);
-            font-size: var(--prism-text-size-sm, 12px);
-            font-weight: 600;
-        }
-
-        .token-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 12px 0;
-        }
-
-        .token-swatch {
-            width: 36px;
-            height: 36px;
+        .card__icon {
+            width: 48px;
+            height: 48px;
             border-radius: 12px;
-            border: 1px solid var(--prism-border, #e2e8f0);
-        }
-
-        .token-label {
-            font-size: var(--prism-text-size-sm, 13px);
-            color: var(--prism-muted, #64748b);
-        }
-
-        .section-title {
-            margin: 32px 0 8px;
-            font-size: var(--prism-text-size-lg, 22px);
-            font-weight: var(--prism-heading-weight, 700);
-        }
-
-        .section-subtitle {
-            margin: 0 0 20px;
-            color: var(--prism-muted, #64748b);
-        }
-
-        .type-stack {
-            display: grid;
-            gap: 10px;
-        }
-
-        .type-sample {
-            font-family: var(--prism-font-display, var(--prism-font-body));
-            font-size: 28px;
-            font-weight: var(--prism-heading-weight, 700);
-        }
-
-        .type-body {
-            font-size: var(--prism-text-size-md, 16px);
-            font-weight: var(--prism-body-weight, 500);
-        }
-
-        .type-mono {
-            font-family: var(--prism-font-mono, "Courier New", monospace);
-            font-size: var(--prism-text-size-sm, 13px);
-            color: var(--prism-muted, #64748b);
-        }
-
-        .imagery-card {
-            min-height: 220px;
-            border-radius: var(--prism-image-radius, 20px);
-            background-image: var(--prism-card-image, linear-gradient(120deg, #4f46e5, #22d3ee));
-            background-size: cover;
-            background-position: center;
-            border: 1px solid var(--prism-border, #e2e8f0);
             display: flex;
-            align-items: flex-end;
-            padding: 16px;
-            color: #ffffff;
-            font-weight: 600;
-            text-shadow: 0 2px 10px rgba(15, 23, 42, 0.4);
-        }
-
-        .api-container {
-            margin-top: 30px;
-            border: 1px solid var(--prism-border, #e2e8f0);
-            border-radius: 12px;
-            overflow: hidden;
-            background: var(--prism-surface, #ffffff);
-            box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
-        }
-
-        .api-header {
-            background: var(--prism-surface-alt, #f8fafc);
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--prism-border, #e2e8f0);
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 16px;
         }
 
-        .api-content {
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 20px;
-            margin: 0;
-            font-family: var(--prism-font-mono, "SFMono-Regular", "Courier New", monospace);
-            min-height: 100px;
-            white-space: pre-wrap;
+        .card__icon--security { background: rgba(79, 70, 229, 0.12); color: var(--prism-primary); }
+        .card__icon--tenancy  { background: rgba(34, 197, 94, 0.12); color: var(--prism-accent); }
+        .card__icon--mobile   { background: rgba(245, 158, 11, 0.12); color: var(--prism-warning); }
+
+        .card h3 { margin: 0 0 8px; }
+        .card p  { margin: 0; color: var(--prism-muted, #64748b); }
+
+        /* Prism debug block */
+        .prism-debug-section {
+            margin-top: var(--prism-section-gap, 28px);
         }
 
+        /* Footer */
+        .portal-footer {
+            text-align: center;
+            padding: 32px var(--prism-page-gutter, 24px);
+            color: var(--prism-muted, #64748b);
+            font-size: var(--prism-text-size-sm, 13px);
+        }
+
+        /* Mobile overrides */
         .mobile-mode-banner {
             display: none;
             margin-top: 16px;
@@ -334,6 +275,11 @@
             color: #e2e8f0;
         }
 
+        html.prism-mobile .portal-header {
+            padding-top: env(safe-area-inset-top);
+            height: calc(56px + env(safe-area-inset-top));
+        }
+
         html.prism-mobile .page {
             max-width: 460px;
             padding: 16px 12px 88px;
@@ -342,7 +288,7 @@
         html.prism-mobile .hero {
             border-radius: 22px;
             padding: 20px 16px;
-            min-height: 300px;
+            min-height: 280px;
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
@@ -350,13 +296,10 @@
 
         html.prism-mobile .hero h1 {
             font-size: clamp(1.7rem, 5.8vw, 2.1rem);
-            margin-top: 12px;
-            margin-bottom: 8px;
         }
 
         html.prism-mobile .hero p {
             font-size: 1rem;
-            margin-bottom: 14px;
         }
 
         html.prism-mobile .hero-actions {
@@ -364,36 +307,19 @@
             display: grid;
             grid-template-columns: minmax(0, 1fr);
             gap: 10px;
-            box-sizing: border-box;
         }
 
         html.prism-mobile .hero-actions .btn {
             width: 100%;
-            max-width: 100%;
             box-sizing: border-box;
-            margin: 0;
         }
 
         html.prism-mobile .btn-mobile-signin {
             display: inline-flex;
         }
 
-        html.prism-mobile .hero-actions > * {
-            max-width: 100%;
-            box-sizing: border-box;
-            margin: 0;
-        }
-
         html.prism-mobile .mobile-mode-banner {
             display: block;
-        }
-
-        html.prism-mobile .section-title {
-            margin-top: 18px;
-        }
-
-        html.prism-mobile .section-subtitle {
-            font-size: var(--prism-text-size-sm, 13px);
         }
 
         html.prism-mobile .grid {
@@ -409,38 +335,8 @@
             background: var(--prism-surface, #ffffff);
         }
 
-        html.prism-mobile .card p,
-        html.prism-mobile .type-body {
-            color: var(--prism-text, #0f172a);
-        }
-
-        html.prism-mobile .token-label,
-        html.prism-mobile .type-mono {
+        html.prism-mobile .card p {
             color: var(--prism-muted, #64748b);
-        }
-
-        html.prism-mobile .imagery-card {
-            min-height: 150px;
-        }
-
-        html.prism-mobile .api-container {
-            display: block;
-            margin-top: 18px;
-            border-radius: 14px;
-        }
-
-        html.prism-mobile .api-header {
-            align-items: stretch;
-            gap: 10px;
-        }
-
-        html.prism-mobile .api-header .btn {
-            width: 100%;
-        }
-
-        html.prism-mobile .api-content {
-            min-height: 80px;
-            font-size: 12px;
         }
 
         html.prism-mobile .prism-debug-root {
@@ -457,7 +353,7 @@
             right: 0;
             bottom: 0;
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
             padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
             background: rgba(15, 23, 42, 0.94);
@@ -490,143 +386,104 @@
 
 <body>
 
+    <prism-mobile-user-agent-demo />
+
+    <header class="portal-header">
+        <div class="portal-header__brand">@(PrismContext.CurrentTenant?.Name ?? "Prism Portal")</div>
+        <nav class="portal-header__nav">
+            @if (isAuthenticated)
+            {
+                <a href="/dashboard" class="portal-header__link">Dashboard</a>
+                <a href="/auth/logout" class="portal-header__link">Sign Out</a>
+            }
+            else
+            {
+                <a href="/auth/login" class="portal-header__link">Sign In</a>
+                <a href="/auth/register" class="portal-header__link">Register</a>
+            }
+        </nav>
+    </header>
+
     <div class="page">
-        <header class="hero">
-            <span class="hero-badge">Prism Branding Demo</span>
-            <h1>Welcome to the Prism Site</h1>
-            <p>
-                This page reads CSS variables from the Prism branding files. Update the tenant
-                overrides and watch the theme, buttons, and tokens adapt instantly.
-            </p>
-            <div class="mobile-mode-banner">Prism mobile mode active • App-like layout preview</div>
-            <div class="hero-actions">
-                <a href="/umbraco" class="btn btn-primary">Open Back Office</a>
-                <a href="@mobileAuthHref" class="btn btn-ghost btn-mobile-signin">@mobileAuthLabel</a>
-                <a href="#branding" class="btn btn-ghost">View Branding Tokens</a>
-                <prism-mobile-user-agent-demo inline="true" compact="true" title="Simulate PrismMobile" />
-            </div>
-        </header>
 
-        <h2 class="section-title">Design system tokens</h2>
-        <p class="section-subtitle">
-            Categories mirror real design systems: color, typography, layout, imagery, and components.
-        </p>
+        @if (isAuthenticated)
+        {
+            <!-- Authenticated: brief welcome + dashboard link -->
+            <header class="hero">
+                <span class="hero-badge">✓ Signed in</span>
+                <h1>Welcome back, @displayName</h1>
+                <p>Your secure portal is ready. Head to your dashboard to manage your account.</p>
+                <div class="mobile-mode-banner">Prism mobile mode active</div>
+                <div class="hero-actions">
+                    <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+                    <a href="/auth/logout" class="btn btn-ghost">Sign Out</a>
+                    <prism-mobile-user-agent-demo inline="true" compact="true" title="Simulate PrismMobile" />
+                </div>
+            </header>
+        }
+        else
+        {
+            <!-- Unauthenticated: welcoming hero with Sign In + Register CTAs -->
+            <header class="hero">
+                <span class="hero-badge">Secure Member Portal</span>
+                <h1>Your account, your&nbsp;way</h1>
+                <p>
+                    Access your documents, manage your preferences, and stay in control — all
+                    in one secure place.
+                </p>
+                <div class="mobile-mode-banner">Prism mobile mode active</div>
+                <div class="hero-actions">
+                    <a href="/auth/login" class="btn btn-primary">Sign In</a>
+                    <a href="/auth/register" class="btn btn-ghost">Create Account</a>
+                    <a href="@mobileAuthHref" class="btn btn-ghost btn-mobile-signin">@mobileAuthLabel</a>
+                    <prism-mobile-user-agent-demo inline="true" compact="true" title="Simulate PrismMobile" />
+                </div>
+            </header>
+        }
 
-        <section class="grid" id="branding">
-            <div class="card">
-                <div class="chip">Color</div>
-                <h3>Primary palette</h3>
-                <p>Swap values in the branding panel to change cards, buttons, and accents.</p>
-                <div class="token-row">
-                    <div class="token-swatch" style="background: var(--prism-primary);"></div>
-                    <div>
-                        <div class="token-label">Primary</div>
-                        <strong>--prism-primary</strong>
-                    </div>
-                </div>
-                <div class="token-row">
-                    <div class="token-swatch" style="background: var(--prism-accent);"></div>
-                    <div>
-                        <div class="token-label">Accent</div>
-                        <strong>--prism-accent</strong>
-                    </div>
-                </div>
-            </div>
+        <section class="features">
+            <h2>Built for security and scale</h2>
+            <p>Powered by Umbraco Prism — multi-tenant identity, branding, and mobile in one package.</p>
 
-            <div class="card">
-                <div class="chip">Layout</div>
-                <h3>Surfaces and spacing</h3>
-                <p>Layout tokens control density, elevation, and radius across the system.</p>
-                <div class="token-row">
-                    <div class="token-swatch" style="background: var(--prism-surface);"></div>
-                    <div>
-                        <div class="token-label">Surface</div>
-                        <strong>--prism-surface</strong>
-                    </div>
+            <div class="grid">
+                <div class="card">
+                    <div class="card__icon card__icon--security">🔐</div>
+                    <h3>Enterprise Authentication</h3>
+                    <p>Sign in with your organisation's identity provider. Powered by Entra ID with PKCE, token refresh, and biometric login on mobile.</p>
                 </div>
-                <div class="token-row">
-                    <div class="token-swatch" style="background: var(--prism-surface-alt);"></div>
-                    <div>
-                        <div class="token-label">Surface alt</div>
-                        <strong>--prism-surface-alt</strong>
-                    </div>
+                <div class="card">
+                    <div class="card__icon card__icon--tenancy">🏢</div>
+                    <h3>Multi-Tenant Branding</h3>
+                    <p>Every tenant gets its own colours, typography, imagery, and layout — resolved automatically from the request hostname.</p>
                 </div>
-                <div class="token-row">
-                    <div class="token-swatch" style="background: var(--prism-primary);"></div>
-                    <div>
-                        <div class="token-label">Radius</div>
-                        <strong>--prism-radius</strong>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="chip">Typography</div>
-                <h3>Type scale</h3>
-                <p>Fonts and sizes are a first-class token group in most design systems.</p>
-                <div class="type-stack">
-                    <div class="type-sample">Prism Display</div>
-                    <div class="type-body">Body copy uses the system font to keep pages fast.</div>
-                    <div class="type-mono">--prism-font-mono for code and tokens</div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="chip">Imagery</div>
-                <h3>Media and art direction</h3>
-                <p>Background imagery is tokenized so tenant overrides can swap assets.</p>
-                <div class="imagery-card">Hero image token</div>
-                <div class="token-label" style="margin-top: 12px;">
-                    Add media pickers named <strong>heroImage</strong> and <strong>cardImage</strong> on the Home page.
-                    Use Slimsy for responsive crops and lazy loading when rendering media URLs.
+                <div class="card">
+                    <div class="card__icon card__icon--mobile">📱</div>
+                    <h3>Native Mobile Experience</h3>
+                    <p>The same portal works inside iOS and Android apps with safe-area handling, biometric auth, and app-native navigation.</p>
                 </div>
             </div>
         </section>
 
-        <prism-debug />
-
-        <div class="api-container">
-            <div class="api-header">
-                <strong>Mock Back-Office Connection</strong>
-                <a href="?callApi=true" class="btn btn-primary">Execute Server-to-Server Call</a>
-            </div>
-            <pre class="api-content">@apiResult</pre>
+        <div class="prism-debug-section">
+            <prism-debug />
         </div>
     </div>
 
     <nav class="mobile-shell-nav" aria-label="Mobile app navigation">
-        <a class="mobile-shell-nav__item" data-nav="home" href="#">Home</a>
-        <a class="mobile-shell-nav__item" data-nav="tokens" href="#branding">Tokens</a>
-        <a class="mobile-shell-nav__item" data-nav="api" href="?callApi=true">API</a>
-        <a class="mobile-shell-nav__item" data-nav="profile" href="/umbraco">Profile</a>
+        <a class="mobile-shell-nav__item mobile-shell-nav__item--active" href="/">Home</a>
+        @if (isAuthenticated)
+        {
+            <a class="mobile-shell-nav__item" href="/dashboard">Dashboard</a>
+        }
+        else
+        {
+            <a class="mobile-shell-nav__item" href="/auth/login">Sign In</a>
+        }
+        <a class="mobile-shell-nav__item" href="/auth/@(isAuthenticated ? "logout" : "register")">@(isAuthenticated ? "Sign Out" : "Register")</a>
     </nav>
 
-    <script>
-        (() => {
-            const navItems = Array.from(document.querySelectorAll('.mobile-shell-nav__item'));
-            if (!navItems.length) return;
-
-            const updateActiveNav = () => {
-                const params = new URLSearchParams(window.location.search);
-                const hash = (window.location.hash || '').toLowerCase();
-                let active = 'home';
-
-                if (params.has('callApi')) {
-                    active = 'api';
-                } else if (hash === '#branding') {
-                    active = 'tokens';
-                }
-
-                navItems.forEach((item) => {
-                    item.classList.toggle('mobile-shell-nav__item--active', item.dataset.nav === active);
-                });
-            };
-
-            updateActiveNav();
-            window.addEventListener('hashchange', updateActiveNav);
-        })();
-    </script>
+    <footer class="portal-footer">
+        &copy; @DateTime.Now.Year @(PrismContext.CurrentTenant?.Name ?? "Prism") &mdash; Powered by Umbraco Prism
+    </footer>
 
 </body>
-
-</html>
