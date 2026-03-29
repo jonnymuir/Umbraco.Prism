@@ -172,3 +172,31 @@
 - v1: JWT+DeviceId model as designed. The multi-tenant RP problem alone rules FIDO2 out cleanly.
 - v2/v3 candidate: Revisit FIDO2 only if (a) Prism adopts a unified shared domain for all tenants, OR (b) Microsoft Entra External ID natively supports passkeys at the Entra level (delegating the RP and credential management to Microsoft, not Prism), OR (c) a specific high-security tenant requests it and is willing to fund the per-tenant implementation. Not a generic v2 roadmap item.
 - The JWT model is genuinely good enough long-term for what biometric login is: a session convenience layer, not an identity root.
+
+## 2026-03-31 — Issue #28 Penetration Test Checklist (Spike)
+
+- Conducted comprehensive security audit of biometric auth implementation against 17-item pen test checklist from issue #28.
+- **Scope:** 17 security test items covering auth tokens, tenant isolation, rate limiting, data leakage, session injection, and fallback flows.
+- **Coverage Assessment:**
+  - ✅ **9/17 Automated Tests:** Device mismatch 401, token expiry, revoked tokens, JWT tampering, rolling rotation integrity, cross-tenant rejection, admin cross-tenant isolation, rate limiting (3-failure lockout + reset), audit logging without sensitive data
+  - 🟡 **4/17 Partial:** Audit log sanitization (tested but needs staging log inspection), Entra token isolation (design confirmed server-side; device Keystore check pending), OIDC fallback (error handling present; integration test pending)
+  - ❌ **4/17 Manual Device Testing:** Cookie attributes (Secure, HttpOnly, SameSite=Strict), session cookie pre-injection before navigation, WebView JS isolation verification, credential clearance on 401 response
+- **Key Security Findings:**
+  - Device mismatch validation prevents bearer token replay on different hardware
+  - Tenant isolation enforced at two levels: DB query filter (`WHERE TenantId = @TenantId`) + JWT claim validation
+  - Rate limiting service correctly tracks per-token and per-IP limits with configurable thresholds
+  - Audit logging verified to exclude raw JWTs, refresh tokens, and cookie values
+  - **Critical:** Design and code confirm Entra refresh tokens stored server-side only in encrypted DB column; no Entra tokens on device. This is the major security win vs. naive client-side token storage.
+- **Manual Testing Phase Requirements:**
+  - Staging deployment: All Phase 1–3 issues complete, rate limiting functional, device registry operational
+  - Devices: iOS (iPhone 14+, iOS 16+) + Android (Pixel 6+, Android 13+) with biometric sensors
+  - Tools: HTTP intercept proxy (Charles/Fiddler), iOS Safari Web Inspector, Android Chrome DevTools (remote debugging)
+  - Time: 4–6 hours estimated for device test plan execution
+- **Created documentation:** Design/pentest-checklist.md (388 lines) with:
+  - Full 17-item checklist with inline test citations
+  - Coverage summary table (9 ✅ | 4 🟡 | 4 ❌)
+  - Detailed manual verification steps for each manual test item
+  - Device requirements and tool specifications
+  - Pre-ship gate status and sign-off placeholder
+- **Gate Status:** 9/17 covered by CI/CD automated tests; 4/17 partial (code review verified, staging inspection pending); 4/17 blocked on real device testing.
+- **Next Steps:** Jonny to schedule staging deployment window + device testing. Issue #28 remains open pending manual testing completion and final security sign-off.
