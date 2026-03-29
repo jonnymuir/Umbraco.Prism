@@ -565,6 +565,13 @@
     <footer class="dash-footer">
         &copy; @DateTime.Now.Year @(tenant?.Name ?? "Prism") &mdash; Powered by Umbraco Prism
     </footer>
+
+    @{
+        var navSettings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
+        var mobileNavLinks = navSettings?.Value<IEnumerable<Link>>("mobileNavLinks");
+    }
+    @Html.Partial("_MobileShellNav", mobileNavLinks)
+
 </body>
 
 </html>
