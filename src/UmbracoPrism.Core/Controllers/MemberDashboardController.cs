@@ -30,7 +30,10 @@ public class MemberDashboardController(
     /// Proactively warms up (and refreshes if expired) the Prism access token
     /// so the downstream API demo works immediately without a page reload.
     /// </summary>
-    public new async Task<IActionResult> Index()
+    // 'override' matches the base RenderController.Index() signature exactly, ensuring
+    // only one endpoint is registered for this route. ASP.NET Core has no
+    // SynchronizationContext, so GetAwaiter().GetResult() is safe here.
+    public override IActionResult Index()
     {
         if (User.Identity?.IsAuthenticated != true)
             return Redirect("/auth/login?returnUrl=/dashboard");
@@ -41,7 +44,7 @@ public class MemberDashboardController(
         // API calls will surface their own errors rather than crashing the dashboard.
         try
         {
-            await prismContext.GetAuthorizationHeaderAsync();
+            prismContext.GetAuthorizationHeaderAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
