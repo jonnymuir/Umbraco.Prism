@@ -368,21 +368,32 @@ html.prism-mobile .container {
   var ENROLL_KEY = 'prism_biometric_enrollment_state_' + TENANT_HOST;
   var DEV_ID_KEY = 'prism_device_id';
 
+  console.log('[Prism Enroll] enrollment script running for tenant:', TENANT_HOST);
+
   var Cap = window.Capacitor;
-  if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return;
+  if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) {
+    console.log('[Prism Enroll] not a native platform — enrollment script skipped');
+    return;
+  }
 
   (async function () {
     try {
       var storedResult = await Cap.nativePromise('SecureStorage', 'internalGetItem', { prefixedKey: TOKEN_KEY, sync: false });
       var hasToken = storedResult && storedResult.data && storedResult.data !== 'null';
+      console.log('[Prism Enroll] existing token check:', hasToken ? 'already enrolled — skipping banner' : 'no token found — will check biometry');
       if (hasToken) return;
 
       var info = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
-      if (!info || !info.isAvailable) return;
+      console.log('[Prism Enroll] biometry check result:', JSON.stringify(info));
+      if (!info || !info.isAvailable) {
+        console.log('[Prism Enroll] biometry not available — skipping banner');
+        return;
+      }
 
+      console.log('[Prism Enroll] biometry available — showing enrollment banner');
       showEnrollBanner();
     } catch (e) {
-      // Silent fail
+      console.warn('[Prism Enroll] setup check threw:', e && (e.message || e));
     }
   })();
 
@@ -403,6 +414,7 @@ html.prism-mobile .container {
   }
 
   async function handleEnroll() {
+    console.log('[Prism Enroll] user tapped Enable — starting enrollment');
     var yesBtn = document.getElementById('prism-bio-yes');
     if (yesBtn) yesBtn.textContent = 'Setting up\u2026';
     try {

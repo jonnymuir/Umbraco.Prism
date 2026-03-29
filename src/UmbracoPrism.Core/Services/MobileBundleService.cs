@@ -683,7 +683,9 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
     </section>
   </main>
   <noscript>This app shell requires JavaScript to connect to your Start URL.</noscript>
+  <!-- [Prism Debug] biometricAuthEnabled: {{ToJsonBoolean(biometricAuthEnabled)}} -->
   <script>
+    console.log('[Prism] www/index.html loaded — biometricAuthEnabled: {{ToJsonBoolean(biometricAuthEnabled)}}');
     const prismBootstrap = {
       startUrl: '{{EscapeSingleQuotes(startUrl)}}',
       timeoutMs: 10000,
@@ -771,8 +773,8 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
     }
 
     async function bootstrap() {
-      setLoading();
-{{biometricBootstrapBlock}}      const result = await canReachStartUrl();
+      console.log('[Prism] bootstrap() called');
+      setLoading();      const result = await canReachStartUrl();
       if (result.ok) {
         window.location.replace(mobileStartUrl);
         return;
