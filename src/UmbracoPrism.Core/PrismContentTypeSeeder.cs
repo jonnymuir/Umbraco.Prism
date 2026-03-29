@@ -168,6 +168,13 @@ public class PrismContentTypeSeeder(
         {
             if (existing.EditorAlias == editorAlias)
             {
+                // Fix EditorUiAlias if it's wrong (covers existing installations created before this fix)
+                if (existing.EditorUiAlias != "Umb.PropertyEditorUi.MultiUrlPicker")
+                {
+                    logger.LogInformation("PRISM: Fixing EditorUiAlias on existing data type (was '{Old}')", existing.EditorUiAlias);
+                    existing.EditorUiAlias = "Umb.PropertyEditorUi.MultiUrlPicker";
+                    await dataTypeService.UpdateAsync(existing, Constants.Security.SuperUserKey);
+                }
                 logger.LogInformation("PRISM: Data type found/created with editor {EditorAlias}", existing.EditorAlias);
                 return existing;
             }
@@ -194,6 +201,7 @@ public class PrismContentTypeSeeder(
             Key = PrismMobileNavDataTypeKey,
             Name = dataTypeName,
             DatabaseType = ValueStorageType.Ntext,
+            EditorUiAlias = "Umb.PropertyEditorUi.MultiUrlPicker",
             ConfigurationData = new Dictionary<string, object> { { "maxNumber", 4 } }
         };
 
