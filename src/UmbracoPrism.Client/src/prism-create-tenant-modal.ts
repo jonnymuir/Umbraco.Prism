@@ -826,27 +826,29 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
       try {
         const token = await authContext.getLatestToken();
+        const bundlePayload = {
+          appName: this._mobileAppName,
+          appId: this._mobileAppId,
+          version: this._mobileVersion,
+          startUrl: this._mobileStartUrl,
+          userAgentMarker: this._mobileUserAgentMarker,
+          iconUrl: this._mobileIconUrl,
+          splashUrl: this._mobileSplashUrl,
+          errorBackgroundColor: this._mobileErrorBackgroundColor,
+          errorTextColor: this._mobileErrorTextColor,
+          errorTitle: this._mobileErrorTitle,
+          errorMessage: this._mobileErrorMessage,
+          showErrorDiagnostics: this._mobileShowErrorDiagnostics,
+          biometricAuthEnabled: this._allowBiometricLogin
+        };
+        console.log('[Prism] Producing mobile bundle — request payload:', JSON.stringify(bundlePayload));
         const response = await fetch(`/umbraco/management/api/v1/prism/tenants/${this._id}/produce-mobile`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            appName: this._mobileAppName,
-            appId: this._mobileAppId,
-            version: this._mobileVersion,
-            startUrl: this._mobileStartUrl,
-            userAgentMarker: this._mobileUserAgentMarker,
-            iconUrl: this._mobileIconUrl,
-            splashUrl: this._mobileSplashUrl,
-            errorBackgroundColor: this._mobileErrorBackgroundColor,
-            errorTextColor: this._mobileErrorTextColor,
-            errorTitle: this._mobileErrorTitle,
-            errorMessage: this._mobileErrorMessage,
-            showErrorDiagnostics: this._mobileShowErrorDiagnostics,
-            biometricAuthEnabled: this._allowBiometricLogin
-          })
+          body: JSON.stringify(bundlePayload)
         });
 
         if (!response.ok) {

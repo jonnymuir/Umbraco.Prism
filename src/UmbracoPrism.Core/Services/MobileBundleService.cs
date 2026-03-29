@@ -470,8 +470,12 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 
     async function tryBiometricSignIn() {
       try {
+        console.log('[Prism Bio] tryBiometricSignIn: starting');
         var Cap = window.Capacitor;
-        if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return false;
+        if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) {
+          console.log('[Prism Bio] Not a native platform — skipping biometric');
+          return false;
+        }
 
         var tenantHost = new URL(prismBootstrap.startUrl).host;
         var SS_PREFIX = 'capacitor-storage_';
@@ -480,16 +484,26 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
         var deviceIdKey = 'prism_device_id';
 
         // 1. Check stored biometric token (SecureStorage uses internalGetItem)
+        console.log('[Prism Bio] Step 1: checking SecureStorage for token, key:', tokenKey);
         var storedResult = await Cap.nativePromise('SecureStorage', 'internalGetItem', {
           prefixedKey: tokenKey,
           sync: false
         });
         var storedToken = storedResult && storedResult.data ? JSON.parse(storedResult.data) : null;
-        if (!storedToken) return false;
+        if (!storedToken) {
+          console.log('[Prism Bio] Step 1: no stored token — not yet enrolled');
+          return false;
+        }
+        console.log('[Prism Bio] Step 1: stored token found');
 
         // 2. Check biometry availability
+        console.log('[Prism Bio] Step 2: checking biometry availability');
         var biometryInfo = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
-        if (!biometryInfo || !biometryInfo.isAvailable) return false;
+        console.log('[Prism Bio] Step 2: biometryInfo =', JSON.stringify(biometryInfo));
+        if (!biometryInfo || !biometryInfo.isAvailable) {
+          console.log('[Prism Bio] Step 2: biometry not available');
+          return false;
+        }
 
         // 3. Check enrollment change
         var fingerprint = [
@@ -499,35 +513,43 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
           biometryInfo.strongBiometryIsAvailable,
           biometryInfo.deviceIsSecure
         ].join('|');
+        console.log('[Prism Bio] Step 3: enrollment fingerprint =', fingerprint);
         var enrollResult = await Cap.nativePromise('Preferences', 'get', { key: enrollKey });
         var storedFingerprint = enrollResult && enrollResult.value;
         if (storedFingerprint && storedFingerprint !== fingerprint) {
+          console.log('[Prism Bio] Step 3: enrollment changed — clearing token');
           await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
           await Cap.nativePromise('Preferences', 'remove', { key: enrollKey });
           return false;
         }
 
         // 4. Prompt biometric authentication
+        console.log('[Prism Bio] Step 4: prompting biometric authentication');
         await Cap.nativePromise('BiometricAuthNative', 'internalAuthenticate', {
           reason: 'Sign in with biometrics',
           allowDeviceCredential: true,
           iosFallbackTitle: 'Use Passcode'
         });
+        console.log('[Prism Bio] Step 4: biometric authentication passed');
 
         // 5. Get device ID
         var devResult = await Cap.nativePromise('Preferences', 'get', { key: deviceIdKey });
         var deviceId = devResult && devResult.value ? devResult.value : '';
+        console.log('[Prism Bio] Step 5: deviceId =', deviceId || '(empty)');
 
         // 6. Exchange biometric token for PrismMemberCookie (Set-Cookie on response)
+        console.log('[Prism Bio] Step 6: exchanging token with server');
         var resp = await fetch('https://' + tenantHost + '/umbraco/prism/mobile/biometric/exchange', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ biometricToken: storedToken, deviceId: deviceId })
         });
+        console.log('[Prism Bio] Step 6: exchange response status =', resp.status);
 
         if (!resp.ok) {
           if (resp.status === 401 || resp.status === 403) {
+            console.log('[Prism Bio] Step 6: server rejected token — clearing stored credentials');
             await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
             await Cap.nativePromise('Preferences', 'remove', { key: enrollKey });
           }
@@ -536,9 +558,10 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 
         // Save updated enrollment fingerprint
         await Cap.nativePromise('Preferences', 'set', { key: enrollKey, value: fingerprint });
+        console.log('[Prism Bio] Step 6: exchange successful — proceeding to app');
         return true;
       } catch (e) {
-        console.warn('[Prism] Biometric sign-in skipped:', e && (e.message || e));
+        console.warn('[Prism Bio] tryBiometricSignIn threw:', e && (e.message || e));
         return false;
       }
     }
@@ -547,14 +570,20 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 
         var biometricBootstrapBlock = biometricAuthEnabled
             ? """
+      console.log('[Prism Bio] Bootstrap: biometric auth enabled — attempting sign-in');
       const biometricOk = await tryBiometricSignIn();
+      console.log('[Prism Bio] Bootstrap: tryBiometricSignIn returned', biometricOk);
       if (biometricOk) {
         window.location.replace(mobileStartUrl);
         return;
       }
+      console.log('[Prism Bio] Bootstrap: biometric did not sign in — falling through to Entra');
 
 """
-            : "";
+            : """
+      console.log('[Prism] Bootstrap: biometric auth NOT compiled into this bundle');
+
+""";
 
         return $$"""
 <!doctype html>
