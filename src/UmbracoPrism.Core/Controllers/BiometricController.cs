@@ -167,6 +167,15 @@ public class BiometricController(
             return BadRequest(ModelState);
         }
 
+        // Allow Capacitor app origins (iOS: capacitor://localhost, Android: http://localhost)
+        // so the www/index.html startup shell can call this endpoint cross-origin.
+        var requestOrigin = Request.Headers.Origin.ToString();
+        if (IsCapacitorOrigin(requestOrigin))
+        {
+            Response.Headers.Append("Access-Control-Allow-Origin", requestOrigin);
+            Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+        }
+
         // ── Rate limit checks (fail fast, before expensive validation) ──
 
         var clientIp = GetClientIp();
@@ -446,10 +455,33 @@ public class BiometricController(
         }
     }
 
+    /// <summary>
+    /// Handles CORS preflight requests from the Capacitor app shell.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpOptions("exchange")]
+    public IActionResult ExchangePreflight()
+    {
+        var requestOrigin = Request.Headers.Origin.ToString();
+        if (IsCapacitorOrigin(requestOrigin))
+        {
+            Response.Headers.Append("Access-Control-Allow-Origin", requestOrigin);
+            Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+            Response.Headers.Append("Access-Control-Allow-Methods", "POST, OPTIONS");
+            Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type");
+            Response.Headers.Append("Access-Control-Max-Age", "3600");
+        }
+
+        return NoContent();
+    }
+
     // Use RemoteIpAddress as primary source — X-Forwarded-For is trivially spoofable
     // and must only be trusted when ASP.NET Core's ForwardedHeadersMiddleware is configured
     // with known proxy IPs, which rewrites RemoteIpAddress automatically.
     private string GetClientIp() =>
         HttpContext.Connection.RemoteIpAddress?.ToString()
             ?? "unknown";
+
+    private static bool IsCapacitorOrigin(string origin) =>
+        origin is "capacitor://localhost" or "http://localhost";
 }

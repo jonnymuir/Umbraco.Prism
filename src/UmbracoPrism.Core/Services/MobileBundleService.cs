@@ -465,13 +465,94 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
         bool showErrorDiagnostics,
         bool biometricAuthEnabled)
     {
-        var biometricListenerScript = biometricAuthEnabled
+        var biometricStartupScript = biometricAuthEnabled
             ? """
 
-    // Listen for biometric login completion and navigate to start URL
-    document.addEventListener('prismBiometricLoginComplete', function() {
-      window.location.href = mobileStartUrl;
-    });
+    async function tryBiometricSignIn() {
+      try {
+        var Cap = window.Capacitor;
+        if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return false;
+
+        var tenantHost = new URL(prismBootstrap.startUrl).host;
+        var SS_PREFIX = 'capacitor-storage_';
+        var tokenKey = SS_PREFIX + 'prism_biometric_token_' + tenantHost;
+        var enrollKey = 'prism_biometric_enrollment_state_' + tenantHost;
+        var deviceIdKey = 'prism_device_id';
+
+        // 1. Check stored biometric token (SecureStorage uses internalGetItem)
+        var storedResult = await Cap.nativePromise('SecureStorage', 'internalGetItem', {
+          prefixedKey: tokenKey,
+          sync: false
+        });
+        var storedToken = storedResult && storedResult.data ? JSON.parse(storedResult.data) : null;
+        if (!storedToken) return false;
+
+        // 2. Check biometry availability
+        var biometryInfo = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
+        if (!biometryInfo || !biometryInfo.isAvailable) return false;
+
+        // 3. Check enrollment change
+        var fingerprint = [
+          biometryInfo.biometryType,
+          (biometryInfo.biometryTypes || []).slice().sort().join(','),
+          biometryInfo.isAvailable,
+          biometryInfo.strongBiometryIsAvailable,
+          biometryInfo.deviceIsSecure
+        ].join('|');
+        var enrollResult = await Cap.nativePromise('Preferences', 'get', { key: enrollKey });
+        var storedFingerprint = enrollResult && enrollResult.value;
+        if (storedFingerprint && storedFingerprint !== fingerprint) {
+          await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
+          await Cap.nativePromise('Preferences', 'remove', { key: enrollKey });
+          return false;
+        }
+
+        // 4. Prompt biometric authentication
+        await Cap.nativePromise('BiometricAuthNative', 'internalAuthenticate', {
+          reason: 'Sign in with biometrics',
+          allowDeviceCredential: true,
+          iosFallbackTitle: 'Use Passcode'
+        });
+
+        // 5. Get device ID
+        var devResult = await Cap.nativePromise('Preferences', 'get', { key: deviceIdKey });
+        var deviceId = devResult && devResult.value ? devResult.value : '';
+
+        // 6. Exchange biometric token for PrismMemberCookie (Set-Cookie on response)
+        var resp = await fetch('https://' + tenantHost + '/umbraco/prism/mobile/biometric/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ biometricToken: storedToken, deviceId: deviceId })
+        });
+
+        if (!resp.ok) {
+          if (resp.status === 401 || resp.status === 403) {
+            await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
+            await Cap.nativePromise('Preferences', 'remove', { key: enrollKey });
+          }
+          return false;
+        }
+
+        // Save updated enrollment fingerprint
+        await Cap.nativePromise('Preferences', 'set', { key: enrollKey, value: fingerprint });
+        return true;
+      } catch (e) {
+        console.warn('[Prism] Biometric sign-in skipped:', e && (e.message || e));
+        return false;
+      }
+    }
+"""
+            : "";
+
+        var biometricBootstrapBlock = biometricAuthEnabled
+            ? """
+      const biometricOk = await tryBiometricSignIn();
+      if (biometricOk) {
+        window.location.replace(mobileStartUrl);
+        return;
+      }
+
 """
             : "";
 
@@ -662,7 +743,7 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 
     async function bootstrap() {
       setLoading();
-      const result = await canReachStartUrl();
+{{biometricBootstrapBlock}}      const result = await canReachStartUrl();
       if (result.ok) {
         window.location.replace(mobileStartUrl);
         return;
@@ -673,7 +754,7 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 
     retryButton.addEventListener('click', bootstrap);
     bootstrap();
-{{biometricListenerScript}}  </script>
+{{biometricStartupScript}}  </script>
 </body>
 </html>
 """;

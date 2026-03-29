@@ -38,7 +38,7 @@ const createMockBridge = (config: {
     }
   },
   async authenticate(_tenantHost: string) {
-    return 'mock-session-token';
+    return;
   },
   async revokeDevice(_tenantHost: string) {
     return;
