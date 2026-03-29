@@ -200,3 +200,78 @@
   - Pre-ship gate status and sign-off placeholder
 - **Gate Status:** 9/17 covered by CI/CD automated tests; 4/17 partial (code review verified, staging inspection pending); 4/17 blocked on real device testing.
 - **Next Steps:** Jonny to schedule staging deployment window + device testing. Issue #28 remains open pending manual testing completion and final security sign-off.
+
+## 2026-03-31 — Token Warmup Security Review (MemberDashboardController)
+
+**Context:** `MemberDashboardController.Index()` changed from synchronous `override IActionResult Index()` to `new async Task<IActionResult> Index()`, now calling `await prismContext.GetAuthorizationHeaderAsync()` before rendering to proactively warm up and refresh the Prism access token. Return value is discarded; side effect (cookie update via `SignInAsync`) is the goal.
+
+**Security Review Completed:**
+
+### A. Token Refresh Correctness ✅
+- `GetAuthorizationHeaderAsync()` with discarded return is **safe by design**. The method returns `null` on all failure paths and returns a bearer header on success. Discarding a header or `null` has no side effects beyond the intentional `SignInAsync` call in `RefreshTokenAsync`.
+- `SignInAsync("PrismMemberCookie", ...)` inside `RefreshTokenAsync` is **correctly called**. ASP.NET Core cookie middleware writes the updated cookie to the response via `HttpContext.Response` — this works in any async MVC/Razor controller context, including Umbraco render controllers. Response headers are committed at render time, after the controller method returns.
+- Silent failure risk is **mitigated**. `RefreshTokenAsync` logs all failure paths (`Log.Error`/`Log.Warning`) and returns `null`. The controller does not check the return value — if refresh fails, the page still renders with a stale token. This is **acceptable**: user sees the dashboard, downstream API calls may fail, but the page load succeeds gracefully. Alternative (throwing exception) would cause 500 errors on token service outages — current behavior is better availability posture.
+
+### B. Race / Concurrency 🟡 LOW RISK
+- **No locking or idempotency guard** in `RefreshTokenAsync` or `GetAuthorizationHeaderAsync`.
+- **Scenario:** User opens two tabs → both call `GetAuthorizationHeaderAsync()` → both detect expiry → both call `RefreshTokenAsync()` → both POST to the Entra token endpoint with the same refresh token.
+- **Entra refresh token behavior (CIAM single-use rolling model):**
+  - First request succeeds → Entra returns new `access_token` + new `refresh_token`, invalidates old refresh token.
+  - Second request fails → 400 Bad Request (refresh token already used).
+- **Result:** Second request logs failure, returns `null`, writes no cookie update. First request's cookie update wins (last-write-wins for the session cookie). User's session remains valid with the first refresh result.
+- **Risk Level:** **Low**. One tab gets the refresh, one tab logs a failure. No session invalidation, no cross-tenant leakage, no prolonged outage. User experience: second tab may see downstream API errors until next page load (which will succeed because the first tab's refresh wrote a valid cookie).
+- **Mitigation opportunity (future):** Add in-process SemaphoreSlim keyed by `(EntraTenantId, userId)` to serialize concurrent refresh attempts per user-tenant pair. Not critical for v1.
+
+### C. Tenant Isolation ✅
+- `GetAuthorizationHeaderAsync` **correctly gates** on `CurrentTenant` non-null (line 32 check + line 46–50 tenant-binding validation via `IsPrincipalBoundToCurrentTenant`).
+- `IsPrincipalBoundToCurrentTenant` enforces principal `tid` claim **must match** `CurrentTenant.EntraTenantId` (lines 146–159). Mismatch returns `false`, which blocks both bearer header return and `RefreshTokenAsync` invocation.
+- **If `CurrentTenant` is null** when controller runs: `GetAuthorizationHeaderAsync` returns `null` (line 36), no refresh occurs, page renders with `ViewBag.Tenant = null`. No token leakage, no cross-tenant risk.
+- **Refresh cannot write wrong-tenant token:** `RefreshTokenAsync` (lines 72–76) fails closed if `CurrentTenant` is `null` or if principal tenant binding fails. The token endpoint URL and client secret are derived from `CurrentTenant`, and the updated cookie is only written if tenant validation passes.
+
+### D. Cookie Security ✅
+- Cookie security properties are **correctly configured** in `PrismComposer.cs:91–96`:
+  - `Cookie.Name = "PrismMemberCookie"`
+  - `Cookie.SameSite = SameSiteMode.Lax` (acceptable; prevents CSRF on state-changing requests, allows top-level navigation)
+  - `Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest` (allows local HTTP dev; enforces HTTPS in production when request is HTTPS)
+  - **HttpOnly + Secure** are ASP.NET Core cookie authentication **defaults** (`HttpOnly = true`, `Secure` follows `SecurePolicy`). Verified in Microsoft.AspNetCore.Authentication.Cookies source.
+- **`new` keyword risk:** **Low**. The `new` keyword hides `RenderController.Index()` but does **not** change Umbraco's route-hijacking dispatch behavior. Umbraco v17 route-hijacking resolves controllers by naming convention (`MemberDashboardController` matches document type alias `memberDashboard`) and invokes the most-derived `Index()` method via polymorphic dispatch. The async `Task<IActionResult> Index()` signature is **valid** and will be called correctly by Umbraco's MVC dispatcher. No base-class fallback risk.
+
+### E. Error Handling 🟡 MEDIUM CONCERN
+- **No try-catch** around `await prismContext.GetAuthorizationHeaderAsync()` in `MemberDashboardController.Index()` (line 41).
+- **Exception scenarios:**
+  1. `HttpContext` is `null` → returns `null`, no exception.
+  2. `AuthenticateAsync` fails → returns `null`, no exception.
+  3. Tenant validation fails → returns `null`, no exception.
+  4. `RefreshTokenAsync` throws (vault secret resolution, HTTP client factory, Polly pipeline exception outside Polly's `ShouldHandle` scope) → **exception propagates to controller → 500 error page**.
+- **Known safe paths:**
+  - `BrokenCircuitException` is caught in `PrismTokenRefreshService.RefreshAsync` (line 123), returns `TokenRefreshResult(false, ...)`, no exception.
+  - `HttpRequestException`, `TaskCanceledException` caught (line 128), returns failure result.
+  - JSON parse failure caught (line 152), returns failure result.
+- **Unhandled exception risk:** Vault service (`vault.GetSecretAsync`) or HTTP client factory could throw. These would bubble up as 500 errors.
+- **Recommendation:** **Wrap in try-catch with graceful fallback:**
+  ```csharp
+  try
+  {
+      await prismContext.GetAuthorizationHeaderAsync();
+  }
+  catch (Exception ex)
+  {
+      logger.LogWarning(ex, "Token warmup failed during dashboard page load; continuing with stale token");
+      // Page still renders, user may see downstream API errors but dashboard is accessible
+  }
+  ```
+- **Severity:** **Medium**. Availability impact: a vault or HTTP factory failure during page load causes 500 for all users hitting that controller. Likelihood is low (vault and HTTP client factory are core dependencies, failures are rare), but blast radius is high (complete page failure vs. graceful degradation).
+
+### Summary Verdict: ⚠️ CONCERNS — Medium Severity
+
+**Recommendation:**
+1. **Required (Medium severity):** Add try-catch around `GetAuthorizationHeaderAsync()` call in `MemberDashboardController.Index()` to prevent vault/HTTP exceptions from causing 500 errors. Log warning and continue rendering page.
+2. **Optional (Low severity, future enhancement):** Add per-user-tenant SemaphoreSlim in `RefreshTokenAsync` to prevent double-refresh races in multi-tab scenarios. Not blocking for current change.
+
+**Security Invariants Confirmed:**
+- Tenant isolation: ✅ Maintained
+- Cookie security: ✅ Correct
+- Fail-closed on tenant mismatch: ✅ Preserved
+- Token refresh correctness: ✅ Side-effect model works as intended
+
+**Gate Status:** Pass with required fix for exception handling. Error handling improvement should be applied before merge.

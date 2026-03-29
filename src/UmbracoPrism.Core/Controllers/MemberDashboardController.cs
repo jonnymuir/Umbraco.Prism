@@ -27,11 +27,26 @@ public class MemberDashboardController(
     /// the login page (the <c>[Authorize]</c> challenge handles this via the
     /// PrismMemberCookie scheme's configured <c>LoginPath</c>, but we also
     /// guard explicitly for any edge cases).
+    /// Proactively warms up (and refreshes if expired) the Prism access token
+    /// so the downstream API demo works immediately without a page reload.
     /// </summary>
-    public override IActionResult Index()
+    public new async Task<IActionResult> Index()
     {
         if (User.Identity?.IsAuthenticated != true)
             return Redirect("/auth/login?returnUrl=/dashboard");
+
+        // Warm up the token — triggers a silent refresh if near expiry.
+        // Wrapped in try/catch so infrastructure failures (vault, HTTP factory)
+        // degrade gracefully: page still renders, user can navigate, and downstream
+        // API calls will surface their own errors rather than crashing the dashboard.
+        try
+        {
+            await prismContext.GetAuthorizationHeaderAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Token warmup failed during dashboard page load; continuing with potentially stale token");
+        }
 
         ViewBag.DisplayName = User.FindFirst("name")?.Value
                               ?? User.FindFirst("preferred_username")?.Value
