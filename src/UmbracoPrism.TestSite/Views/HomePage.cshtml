@@ -342,6 +342,46 @@
         html.prism-mobile .prism-debug-root {
             display: none;
         }
+
+        /* Mobile shell navigation */
+        .mobile-shell-nav {
+            display: none;
+        }
+
+        .prism-mobile .mobile-shell-nav {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+            background: rgba(15, 23, 42, 0.94);
+            border-top: 1px solid rgba(148, 163, 184, 0.3);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+        }
+
+        .mobile-shell-nav__item {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 38px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(148, 163, 184, 0.16);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .mobile-shell-nav__item--active {
+            background: rgba(79, 70, 229, 0.35);
+            border-color: rgba(129, 140, 248, 0.55);
+            color: #ffffff;
+        }
     </style>
 </head>
 
