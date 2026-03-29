@@ -8,11 +8,12 @@ using Umbraco.Cms.Core.Strings;
 namespace UmbracoPrism.Core;
 
 /// <summary>
-/// Ensures required Prism document types exist on application startup.
-/// Runs idempotently — only creates types if they don't already exist.
+/// Ensures required Prism document types (and their templates) exist on startup.
+/// Runs idempotently — only creates types/templates if they don't already exist.
 /// </summary>
 public class PrismContentTypeSeeder(
     IContentTypeService contentTypeService,
+    ITemplateService templateService,
     IShortStringHelper shortStringHelper,
     IRuntimeState runtimeState)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -21,29 +22,55 @@ public class PrismContentTypeSeeder(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
-        // Only run if Umbraco is fully installed and running
         if (runtimeState.Level < RuntimeLevel.Run) return;
 
-        await Task.Run(() =>
-        {
-            EnsureDocumentType("homePage", "Home Page", allowedAsRoot: true);
-            EnsureDocumentType("memberDashboard", "Member Dashboard", allowedAsRoot: false);
-        }, cancellationToken);
+        await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
+        await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
     }
 
-    private void EnsureDocumentType(string alias, string name, bool allowedAsRoot)
+    private async Task EnsureDocumentTypeAsync(string alias, string name, bool allowedAsRoot)
     {
-        if (contentTypeService.Get(alias) != null) return; // Already exists
+        var contentType = contentTypeService.Get(alias);
 
-        var contentType = new ContentType(shortStringHelper, -1)
+        if (contentType == null)
         {
-            Alias = alias,
-            Name = name,
-            AllowedAsRoot = allowedAsRoot,
-            Icon = alias == "homePage" ? "icon-home" : "icon-dashboard"
-        };
+            contentType = new ContentType(shortStringHelper, -1)
+            {
+                Alias = alias,
+                Name = name,
+                AllowedAsRoot = allowedAsRoot,
+                Icon = alias == "homePage" ? "icon-home" : "icon-dashboard"
+            };
+#pragma warning disable CS0618 // No non-deprecated Create overload exists on IContentTypeService in v17
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
 
-        // In v17, Save is used for both create and update
+        await EnsureTemplateAsync(contentType, name);
+    }
+
+    private async Task EnsureTemplateAsync(IContentType contentType, string templateName)
+    {
+        // Skip if the doc type already has an allowed template assigned
+        if (contentType.AllowedTemplates?.Any() == true) return;
+
+        // Create the template if it doesn't exist yet.
+        // CreateForContentTypeAsync creates the template file and DB record but does NOT
+        // update the doc type — we must assign it separately.
+        var template = await templateService.GetAsync(contentType.Alias);
+        if (template == null)
+        {
+            var attempt = await templateService.CreateForContentTypeAsync(
+                contentType.Alias, templateName, Constants.Security.SuperUserKey);
+            template = attempt.Result;
+        }
+
+        if (template == null) return;
+
+        contentType.AllowedTemplates = [template];
+        contentType.SetDefaultTemplate(template);
+#pragma warning disable CS0618 // IContentTypeService has no non-deprecated Save replacement in v17.2.2
         contentTypeService.Save(contentType);
+#pragma warning restore CS0618
     }
 }
