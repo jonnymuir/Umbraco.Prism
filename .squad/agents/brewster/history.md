@@ -346,3 +346,30 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
 - **Re-fetch content type from DB after structural changes** (`contentTypeService.Get(alias)`) to get a clean cache-free object before further operations
 - **Guard pattern in StarterSeeder** prevents the crash from propagating — publish succeeds (empty), user can fill in nav links manually
 
+
+---
+
+## Session: 2026-06-18 — Per-tenant biometric authentication toggle
+
+**Status:** Completed
+
+**Feature:** `AllowBiometricLogin` per-tenant flag — backoffice toggle, DB persistence, BiometricController enforcement.
+
+**Changes made:**
+
+1. **`AddAllowBiometricLoginColumn.cs`** (new) — idempotent migration adding `AllowBiometricLogin` boolean column to `prismTenants` with default `true`
+2. **`PrismMigrationPlan.cs`** — appended `.To<AddAllowBiometricLoginColumn>("add-allow-biometric-login")` as final step
+3. **`PrismTenantSchema.cs`** — added `[Column("AllowBiometricLogin")] bool AllowBiometricLogin { get; set; } = true`
+4. **`PrismTenant.cs`** — added `bool AllowBiometricLogin { get; set; } = true`
+5. **`PrismTenantRequest.cs`** — added `bool AllowBiometricLogin { get; set; } = true`
+6. **`TenantManagementController.cs`** — mapped field in both `CreateTenant` and `UpdateTenant`
+7. **`TenantService.cs`** — added `AllowBiometricLogin = tenantSchema.AllowBiometricLogin` to schema→model mapping
+8. **`BiometricController.cs`** — HTTP 403 guard added after tenant null check in both `Register` and `Exchange` actions
+9. **`prism-create-tenant-modal.ts`** — `@state() _allowBiometricLogin`, loaded in `connectedCallback` + `updated`, included in submit payload, toggle switch UI in General tab with full CSS
+
+**Learnings:**
+
+- **AllowBiometricLogin default = true** — backward compatible; existing rows get the default via DB migration `WithDefaultValue(true)`
+- **Guard placement in BiometricController** — check goes immediately after the tenant null check in both `Register` (authenticated) and `Exchange` (anonymous) actions; Exchange also logs audit entry with `"biometric_disabled"` failure reason
+- **Toggle in General tab** — placed after the Hostname field, uses a custom CSS toggle switch (not Umbraco UUI) since there is no UUI toggle component wired for raw boolean state in this codebase
+- **TypeScript field casing** — API returns camelCase (`allowBiometricLogin`), consistent with all other fields read from `this.data?.tenant` in the modal

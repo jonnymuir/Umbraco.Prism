@@ -1178,3 +1178,30 @@ if (!info.isAvailable) {
 - All tests passing; ready for merge
 - Orchestration logs: `.squad/orchestration-log/2026-03-29T13-53Z-*.md`
 
+## 📌 2026-06-18: Per-tenant AllowBiometricLogin Toggle (Brewster)
+
+**Session Log:** `.squad/log/2026-06-18-biometric-tenant-toggle.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/brewster-biometric-toggle.md`
+
+### Per-tenant `AllowBiometricLogin` Flag
+
+**Decision:** Implement a per-tenant `AllowBiometricLogin` toggle (default `true`, backward compatible) to allow admins to disable biometric login at the tenant level.
+
+**Implementation:**
+
+1. **Database:** New `AllowBiometricLogin` boolean column in `prismTenants` table (default `TRUE`). Migration `AddAllowBiometricLoginColumn` is idempotent and registered as final step in `PrismMigrationPlan`.
+
+2. **Domain Model:** Field added to `PrismTenantSchema` and propagated through `TenantService` to `PrismTenant` domain model, accessible via `IPrismContext.CurrentTenant.AllowBiometricLogin` at request time.
+
+3. **Backoffice UI:** Toggle switch in the **General tab** of `prism-create-tenant-modal.ts`, below Hostname field. Uses custom CSS toggle. Payload field: `allowBiometricLogin` (camelCase).
+
+4. **API Enforcement:** Both `BiometricController.Register` and `BiometricController.Exchange` check `tenant.AllowBiometricLogin` immediately after tenant null guard. If `false`, return `HTTP 403` with `{ error: "Biometric login is not enabled for this tenant." }`. Exchange action also emits audit log with `"biometric_disabled"` failure reason.
+
+**Why:** Admins need granular control over tenant capabilities. Default `true` ensures backward compatibility; no existing tenants are affected.
+
+**Status:** ✅ Implemented and tested. Dotnet and npm builds passing.
+
+---
+
