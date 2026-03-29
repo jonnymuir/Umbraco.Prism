@@ -82,7 +82,7 @@ class BiometricBridgeImpl implements BiometricBridge {
     }
 
     try {
-      const response = await fetch(`https://${tenantHost}/umbraco/prism/biometric/register`, {
+      const response = await fetch(`https://${tenantHost}/umbraco/prism/mobile/biometric/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -145,7 +145,7 @@ class BiometricBridgeImpl implements BiometricBridge {
     const deviceId = await this.getOrCreateDeviceId();
 
     try {
-      const response = await fetch(`https://${tenantHost}/umbraco/prism/biometric/exchange`, {
+      const response = await fetch(`https://${tenantHost}/umbraco/prism/mobile/biometric/exchange`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -210,7 +210,7 @@ class BiometricBridgeImpl implements BiometricBridge {
       const deviceId = await this.getOrCreateDeviceId();
 
       try {
-        await fetch(`https://${tenantHost}/umbraco/prism/biometric/revoke`, {
+        await fetch(`https://${tenantHost}/umbraco/prism/mobile/biometric/revoke`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -232,7 +232,7 @@ class BiometricBridgeImpl implements BiometricBridge {
     const deviceId = await this.getOrCreateDeviceId();
 
     const response = await fetch(
-      `https://${tenantHostname}/umbraco/prism/biometric/unenrol/${deviceId}`,
+      `https://${tenantHostname}/umbraco/prism/mobile/biometric/unenrol/${deviceId}`,
       {
         method: 'DELETE',
         credentials: 'include'
