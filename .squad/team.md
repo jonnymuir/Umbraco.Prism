@@ -20,6 +20,7 @@
 | Mabel | Technical Writer | [mabel/charter.md](.squad/agents/mabel/charter.md) | 🟢 Active |
 | Copper | Security Engineer | [copper/charter.md](.squad/agents/copper/charter.md) | 🟢 Active |
 | Kicks | Mobile Native Specialist | [kicks/charter.md](.squad/agents/kicks/charter.md) | 🟢 Active |
+| Brewster | Umbraco Platform Specialist | [brewster/charter.md](.squad/agents/brewster/charter.md) | 🟢 Active |
 | @copilot | 🤖 Coding Agent | [copilot-instructions.md](../.github/copilot-instructions.md) | 🟢 Autonomous |
 | Scribe | Session Logger | [scribe/charter.md](.squad/agents/scribe/charter.md) | 🟢 Automatic |
 

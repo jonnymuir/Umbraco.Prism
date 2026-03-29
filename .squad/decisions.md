@@ -1076,3 +1076,42 @@ if (!info.isAvailable) {
 - Phase 2 before Phase 3: `BiometricAuthEnabled` flag (#19) controls whether `biometric-bridge.ts` is generated. iOS/Android platform entries (#20, #21) must be in bootstrap before bridge runs on device.
 - Audit logging (#17) and rate limiting (#18) are Phase 1, not deferred — implemented alongside the exchange endpoint.
 - #28 (pentest checklist) is a spike: closes only when Copper posts a signed-off comment. Blocking Phase 3 merge on #28 is recommended but not encoded in GitHub — note in sprint planning.
+
+---
+
+## 📌 2026-03-29: User Directive — Test Site Content Setup (Copilot)
+
+**Session Log:** `.squad/log/2026-03-29T09:00:49Z-brewster-rework.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copilot-directive-20260329-content-setup.md`
+
+### User Directive
+
+**Decision:** If the test site or demo requires content editors to manually create pages, navigation, block list entries, or any Umbraco content tree structure to get the demo working, we must: (1) make it as simple as possible — preferably seed/auto-create it; (2) document clearly what is expected and why, in plain language an Umbraco editor would understand.
+
+**Why:** User request — captured for team memory. Affects Brewster's work on the test site and any future Prism package setup documentation.
+
+---
+
+## 📌 2026-03-29: Biometric Refresh Token Encryption (Blathers)
+
+**Session Log:** `.squad/log/...` (pending)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-biometric-refresh-token-encryption.md`
+
+### Blathers — Biometric Refresh Token Encryption
+
+**Decision:** Use AES-256-GCM for encrypting Entra refresh tokens at rest in `prismDeviceCredentials.RefreshTokenEnc`.
+
+**Conventions:**
+- Encryption key is a base64-encoded 32-byte value configured at `Prism:Biometric:EncryptionKey`.
+- Wire format: `Base64([12-byte nonce][ciphertext][16-byte authentication tag])`.
+- Each encryption produces a unique nonce via `RandomNumberGenerator.Fill`, ensuring identical plaintexts yield different ciphertexts.
+- The key should be injected via environment variable or Azure Key Vault reference in production.
+- `IRefreshTokenEncryptionService` is the abstraction; `RefreshTokenEncryptionService` is the singleton implementation registered in `PrismComposer`.
+
+**Why:** The design spec requires refresh tokens to be encrypted at rest with AES-256. GCM mode provides authenticated encryption (tamper detection) without needing a separate HMAC. The base64 key format aligns with standard key generation patterns (`Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))`).
+
+**Impact:** Any future endpoint that reads `RefreshTokenEnc` (e.g., the `/exchange` endpoint in Phase 2) must use the same `IRefreshTokenEncryptionService` to decrypt.
