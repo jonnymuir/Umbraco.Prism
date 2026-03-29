@@ -1203,5 +1203,13 @@ if (!info.isAvailable) {
 
 **Status:** ✅ Implemented and tested. Dotnet and npm builds passing.
 
+## 📌 2026-03-29: EditorUiAlias must be set on programmatically-created data types
+
+**By:** Jonny (via Brewster)
+
+**What:** In Umbraco v14+, when creating IDataType programmatically, set both EditorAlias (e.g. "Umbraco.MultiUrlPicker") AND EditorUiAlias (e.g. "Umb.PropertyEditorUi.MultiUrlPicker"). Missing EditorUiAlias causes backoffice to show "property editor UI is missing" error.
+
+**Why:** User-reported bug. Umbraco v14+ split property editors into schema (backend) and UI (frontend Web Component) with separate aliases.
+
 ---
 

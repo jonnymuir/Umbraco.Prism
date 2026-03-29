@@ -373,3 +373,29 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
 - **Guard placement in BiometricController** — check goes immediately after the tenant null check in both `Register` (authenticated) and `Exchange` (anonymous) actions; Exchange also logs audit entry with `"biometric_disabled"` failure reason
 - **Toggle in General tab** — placed after the Hostname field, uses a custom CSS toggle switch (not Umbraco UUI) since there is no UUI toggle component wired for raw boolean state in this codebase
 - **TypeScript field casing** — API returns camelCase (`allowBiometricLogin`), consistent with all other fields read from `this.data?.tenant` in the modal
+- **EditorUiAlias for MultiUrlPicker** in Umbraco v14+ is `Umb.PropertyEditorUi.MultiUrlPicker`
+- **IDataType in Umbraco v17** has both `EditorAlias` (schema/backend) and `EditorUiAlias` (frontend Web Component) — both must be set when creating data types programmatically
+- **Fix pattern for EditorUiAlias bug**: set `EditorUiAlias` at creation + repair existing records via `UpdateAsync` on startup
+
+## 2026-03-29: Mobile Nav CSS Self-Contained Pattern
+
+**Session Log:** `.squad/log/2026-03-29-mobile-nav-css-finalized.md`  
+**Coordinator:** Copilot  
+**Commit:** `b5109f3`
+
+**Change:** Mobile nav CSS moved from `Master.cshtml` into `_MobileShellNav.cshtml` partial
+
+**Decision:** Partials should own their styles. CSS that styles a partial component should live in that partial, not in the layout. This ensures styles are available on Layout=null pages and keeps components self-contained.
+
+**Implementation:**
+- Mobile nav styles now in `_MobileShellNav.cshtml`
+- Uses `auto-fit` grid columns (responsive 2–4 link layout)
+- Removed from `Master.cshtml`
+- Works on Layout=null pages (previously broken)
+
+**Why:** Previously, mobile nav styles in Master.cshtml weren't loaded on Layout=null pages, causing rendering issues. Partial-scoped CSS fixes this and establishes a cleaner component pattern.
+
+**Status:** ✅ Confirmed working; pattern established for future partials.
+
+**EditorUiAlias Confirmation (Brewster):** EditorUiAlias fix confirmed working on startup seeder. Decision merged and documented for future reference.
+
