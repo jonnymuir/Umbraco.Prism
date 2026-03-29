@@ -40,6 +40,9 @@ const createMockBridge = (config: {
   async revokeDevice(_tenantHost: string) {
     return;
   },
+  async unenrolBiometric(_tenantHostname: string) {
+    return;
+  },
   async clearLocalCredentials(_tenantHost?: string) {
     return;
   }

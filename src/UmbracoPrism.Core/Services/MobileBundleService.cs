@@ -49,7 +49,7 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl, biometricAuthEnabled));
             AddEntry(archive, "capacitor.config.ts", BuildCapacitorConfig(tenant, appId, appName, version, startUrl, marker));
             AddEntry(archive, ".gitignore", "node_modules\nandroid\nios\n.DS_Store\n");
-            AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
+            AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics, biometricAuthEnabled));
             AddEntry(archive, "www/mobile-overrides.css", BuildMobileOverrideTemplate());
             AddEntry(archive, "scripts/doctor-mobile.sh", BuildDoctorScript(startUrl));
             AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled));
@@ -462,8 +462,19 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
         string errorTextColor,
         string errorTitle,
         string errorMessage,
-        bool showErrorDiagnostics)
+        bool showErrorDiagnostics,
+        bool biometricAuthEnabled)
     {
+        var biometricListenerScript = biometricAuthEnabled
+            ? """
+
+    // Listen for biometric login completion and navigate to start URL
+    document.addEventListener('prismBiometricLoginComplete', function() {
+      window.location.href = mobileStartUrl;
+    });
+"""
+            : "";
+
         return $$"""
 <!doctype html>
 <html lang="en">
@@ -662,7 +673,7 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 
     retryButton.addEventListener('click', bootstrap);
     bootstrap();
-  </script>
+{{biometricListenerScript}}  </script>
 </body>
 </html>
 """;

@@ -19,6 +19,7 @@ export interface BiometricBridge {
   register(tenantHost: string, loginHint?: string): Promise<void>;
   authenticate(tenantHost: string): Promise<string>;
   revokeDevice(tenantHost: string): Promise<void>;
+  unenrolBiometric(tenantHostname: string): Promise<void>;
   clearLocalCredentials(tenantHost?: string): Promise<void>;
 }
 
@@ -227,6 +228,27 @@ class BiometricBridgeImpl implements BiometricBridge {
     await this.clearLocalCredentials(tenantHost);
   }
 
+  async unenrolBiometric(tenantHostname: string): Promise<void> {
+    const deviceId = await this.getOrCreateDeviceId();
+
+    const response = await fetch(
+      `https://${tenantHostname}/umbraco/prism/biometric/unenrol/${deviceId}`,
+      {
+        method: 'DELETE',
+        credentials: 'include'
+      }
+    );
+
+    if (response.status === 204) {
+      await SecureStorage.remove(`${this.BIOMETRIC_TOKEN_PREFIX}${tenantHostname}`);
+      console.log('Biometric unenrolment successful for tenant:', tenantHostname);
+      return;
+    }
+
+    const errorData = await response.json().catch(() => ({ message: 'Unenrolment failed' }));
+    throw new Error(errorData.message || `Unenrolment failed with status ${response.status}`);
+  }
+
   async clearLocalCredentials(tenantHost?: string): Promise<void> {
     try {
       if (tenantHost) {
@@ -275,3 +297,14 @@ class BiometricBridgeImpl implements BiometricBridge {
 }
 
 export const biometricBridge: BiometricBridge = new BiometricBridgeImpl();
+
+/**
+ * Registers a listener for the `prismBiometricLoginComplete` custom event.
+ * When fired, navigates to the given startUrl.
+ * Called from the generated www/index.html bootstrap when biometric auth is enabled.
+ */
+export function initBiometricLoginListener(startUrl: string): void {
+  document.addEventListener('prismBiometricLoginComplete', () => {
+    window.location.href = startUrl;
+  });
+}

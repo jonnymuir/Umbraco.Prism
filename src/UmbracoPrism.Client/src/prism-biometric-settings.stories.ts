@@ -31,6 +31,7 @@ function makeElement(
     register: async () => {},
     authenticate: async () => 'mock-session-token',
     revokeDevice: async () => {},
+    unenrolBiometric: async () => {},
     clearLocalCredentials: async () => {}
   };
 
