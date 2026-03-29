@@ -393,6 +393,65 @@ Use Umbraco's User Groups to grant access (Settings -> Users -> Groups). Anyone 
 
 ---
 
+### 9. Biometric Authentication (Mobile)
+
+Prism supports fingerprint and face recognition login for mobile apps, allowing returning users to skip the full OIDC flow on subsequent visits.
+
+#### How It Works
+
+After a user completes their first OIDC login in the mobile app, they can enroll a biometric credential on their device. On the next app launch, the native layer prompts for biometric verification, exchanges the stored token for a session cookie, and opens an authenticated WebView — no OIDC redirect needed.
+
+The architecture stores a Prism-issued device token on the device's secure platform keystore (iOS Keychain / Android Keystore), never storing Entra credentials locally. If biometric is unavailable, blocked, or fails, the app automatically falls back to full OIDC authentication.
+
+#### Enabling Biometric Auth
+
+1. In the Umbraco backoffice, open a tenant.
+2. Locate the **Mobile Settings** or **Produce Mobile** section.
+3. Set **"Biometric Auth Enabled"** to `true`.
+4. The generated mobile app bundle will automatically include the required Capacitor biometric plugins.
+5. On first login after enabling, users are prompted to enroll biometric after successful OIDC completion.
+
+#### Security Features
+
+- **Per-token rate limiting:** Locks a token after 3 failed exchange attempts within a 10-minute window.
+- **Per-IP rate limiting:** Maximum of 20 exchange requests per IP per minute, preventing brute-force attacks.
+- **Biometric enrollment change detection:** If a user adds or removes a fingerprint on their device, stored credentials are automatically wiped on the next app launch, forcing re-authentication.
+- **Multi-tenant isolation:** Biometric tokens are scoped to a single tenant and cannot be used across different tenant domains.
+- **Automatic token rotation:** Underlying Entra refresh tokens are rotated on each successful exchange, limiting exposure if a device is compromised.
+- **Audit logging:** All exchange attempts (success, failure, token ID, IP, timestamp) are logged server-side for compliance and debugging.
+
+#### Configuration Options
+
+Configure in `appsettings.json` under `"Prism": { "Biometric": { ... } }`:
+
+| Option | Default | Description |
+|---|---|---|
+| `SigningKey` | (required) | HMAC-SHA256 key for signing biometric tokens. At least 32 characters; inject via environment variable or Azure Key Vault in production. |
+| `EncryptionKey` | (required) | Base64-encoded 32-byte AES-256 key for encrypting stored Entra refresh tokens. Generate via: `Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))` |
+| `TokenLifetimeDays` | 30 | How long biometric tokens remain valid (range: 7–90 days). Users must re-authenticate via OIDC if a token expires. |
+| `MaxFailedAttempts` | 3 | Consecutive failed exchange attempts before a token is locked out. |
+| `FailureWindowMinutes` | 10 | Sliding window for counting failed attempts. |
+| `PerIpRequestsPerMinute` | 20 | Maximum exchange requests per IP address per minute. |
+
+#### Revocation and Enrollment Management
+
+- **User-initiated:** Users can remove biometric login from in-app account settings. The stored credential is deleted from their device and marked as revoked server-side.
+- **Admin revocation:** When a tenant admin or Entra admin blocks a user, their biometric tokens are automatically revoked. The next biometric exchange attempt returns a 401 error, forcing the app to fall back to OIDC.
+- **Enrollment tracking:** Each biometric enrollment is tracked server-side with device metadata, registration date, and last-used timestamp for auditing.
+
+#### Testing with the Test Site
+
+The **UmbracoPrism.TestSite** is a reference implementation that demonstrates biometric authentication in a working member portal scenario. It includes:
+
+- A tenant pre-configured with biometric auth enabled.
+- A member login/registration flow that enrolls biometric credentials.
+- A dashboard showing when biometric is available and enrollment status.
+- Full fallback paths to OIDC if biometric is unavailable.
+
+To test locally: configure your test site tenant with biometric enabled, generate a mobile app bundle from the backoffice, run it on an emulator or device, and follow the enrollment prompts after OIDC login.
+
+---
+
 ## Setup & Development
 
 ### Local Dev Tunnel Automation (trycloudflare + Entra + Prism DB)
