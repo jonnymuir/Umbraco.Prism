@@ -3,6 +3,7 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Serialization;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Strings;
 
@@ -17,6 +18,8 @@ public class PrismContentTypeSeeder(
     ITemplateService templateService,
     IShortStringHelper shortStringHelper,
     IDataTypeService dataTypeService,
+    IConfigurationEditorJsonSerializer configurationEditorJsonSerializer,
+    PropertyEditorCollection propertyEditorCollection,
     IRuntimeState runtimeState)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
@@ -85,24 +88,26 @@ public class PrismContentTypeSeeder(
     private async Task EnsureMobileNavPropertyAsync(IContentType contentType)
     {
         const string propertyAlias = "mobileNavLinks";
-        
-        // Skip if property already exists
-        if (contentType.PropertyTypes.Any(p => p.Alias == propertyAlias))
+
+        var newDataType = await GetOrCreatePrismMobileNavDataTypeAsync();
+        if (newDataType == null) return;
+
+        var existingProperty = contentType.PropertyTypes.FirstOrDefault(p => p.Alias == propertyAlias);
+
+        if (existingProperty != null)
         {
+            // Already exists — check if it's using the correct data type
+            if (existingProperty.DataTypeKey == newDataType.Key) return; // Already correct, nothing to do
+
+            // Wrong data type (old built-in) — update it to the new custom one
+            existingProperty.DataTypeKey = newDataType.Key;
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
             return;
         }
 
-        // Use the built-in Multi URL Picker data type (well-known Key in Umbraco)
-        var multiUrlPickerKey = new Guid("fd1e0da5-5606-4862-b679-5d0cf3a52a59");
-        var dataType = await dataTypeService.GetAsync(multiUrlPickerKey);
-        
-        if (dataType == null)
-        {
-            // Fallback: if the built-in doesn't exist, skip this property
-            return;
-        }
-
-        // Add property group if it doesn't exist
+        // Property doesn't exist yet — create it (rest of existing logic unchanged)
         const string groupName = "Mobile Navigation";
         const string groupKey = "mobileNavigation";
         if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
@@ -110,8 +115,7 @@ public class PrismContentTypeSeeder(
             contentType.AddPropertyGroup(groupName, groupKey);
         }
 
-        // Add the property
-        var propertyType = new PropertyType(shortStringHelper, dataType, propertyAlias)
+        var propertyType = new PropertyType(shortStringHelper, newDataType, propertyAlias)
         {
             Name = "Mobile Navigation Links",
             Description = "Configure up to 4 navigation links for the mobile app bottom navigation bar (max 4 items recommended)",
@@ -120,10 +124,50 @@ public class PrismContentTypeSeeder(
         };
 
         contentType.AddPropertyType(propertyType, groupName);
-        
+
 #pragma warning disable CS0618
         contentTypeService.Save(contentType);
 #pragma warning restore CS0618
+    }
+
+    private async Task<IDataType?> GetOrCreatePrismMobileNavDataTypeAsync()
+    {
+        const string dataTypeName = "Prism Mobile Nav Links";
+        const string editorAlias = "Umbraco.MultiUrlPicker";
+
+        // Look for an existing correct data type
+        var existingCorrect = (await dataTypeService.GetByEditorAliasAsync(editorAlias))
+            ?.FirstOrDefault(dt => dt.Name == dataTypeName);
+
+        if (existingCorrect != null)
+            return existingCorrect;
+
+        // Check if there's one with the WRONG editor (e.g. MultiNodeTreePicker created by mistake)
+        // and delete it so we can create the correct one
+        const string wrongEditorAlias = "Umbraco.MultiNodeTreePicker";
+        var wrongDataType = (await dataTypeService.GetByEditorAliasAsync(wrongEditorAlias))
+            ?.FirstOrDefault(dt => dt.Name == dataTypeName);
+
+        if (wrongDataType != null)
+        {
+            var deleteAttempt = await dataTypeService.DeleteAsync(wrongDataType.Key, Constants.Security.SuperUserKey);
+            // Continue even if delete fails — user may need to manually remove it
+        }
+
+        // Get the correct editor from the registry — do NOT use a GUID to clone from
+        var editor = propertyEditorCollection[editorAlias];
+        if (editor == null)
+            return null;
+
+        var newDataType = new DataType(editor, configurationEditorJsonSerializer)
+        {
+            Name = dataTypeName,
+            DatabaseType = ValueStorageType.Ntext,
+            ConfigurationData = new Dictionary<string, object> { { "maxNumber", 4 } }
+        };
+
+        await dataTypeService.CreateAsync(newDataType, Constants.Security.SuperUserKey);
+        return newDataType;
     }
 
     private async Task EnsureTemplateAsync(IContentType contentType, string templateName)

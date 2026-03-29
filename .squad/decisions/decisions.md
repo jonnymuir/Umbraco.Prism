@@ -486,3 +486,236 @@ We will use the **Settings Node Pattern** — a standard Umbraco community appro
 - New installations: Get Settings node automatically when `SeedStarterContent = true`
 - Editors: Configure mobile nav once in Settings node, not per-page
 - Developers: Extend Settings with new properties as needed (footer, social, etc.)
+
+---
+
+## Decision: Data Type Editor Lookup Pattern
+
+**Date:** 2026-03-29  
+**Agent:** Brewster (Umbraco Platform Specialist)  
+**Context:** Bug fix for incorrect data type editor creation in seeder
+
+### Pattern
+
+**DO NOT** use hard-coded GUIDs to look up or clone Umbraco property editors.  
+**ALWAYS** use `PropertyEditorCollection[alias]` to get editors by their string alias.
+
+```csharp
+public class MySeeder(PropertyEditorCollection propertyEditorCollection, ...) 
+{
+    private async Task<IDataType?> CreateDataTypeAsync()
+    {
+        const string editorAlias = "Umbraco.MultiUrlPicker";
+        
+        // ✅ CORRECT: Look up by alias
+        var editor = propertyEditorCollection[editorAlias];
+        if (editor == null) return null;
+        
+        var dataType = new DataType(editor, configurationEditorJsonSerializer)
+        {
+            Name = "My Custom Data Type",
+            DatabaseType = ValueStorageType.Ntext,
+            ConfigurationData = new Dictionary<string, object> { { "maxNumber", 4 } }
+        };
+        
+        await dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey);
+        return dataType;
+    }
+}
+```
+
+### Why
+
+1. **GUIDs are not self-documenting** — hard-coded GUIDs don't indicate what editor they reference
+2. **GUIDs are easy to get wrong** — the GUID `fd1e0da5-5606-4862-b679-5d0cf3a52a59` was assumed to be Multi URL Picker, but it's actually Multi Node Tree Picker
+3. **Aliases are self-documenting** — `propertyEditorCollection["Umbraco.MultiUrlPicker"]` clearly states intent
+4. **PropertyEditorCollection is the correct abstraction** — DI-injectable registry for all property editors
+5. **No compile-time safety with GUIDs** — errors only discovered at runtime
+
+### Technical Notes
+
+- **Injection:** Add `PropertyEditorCollection propertyEditorCollection` to constructor
+- **Lookup:** `propertyEditorCollection[alias]` returns `IDataEditor?` (null if not found)
+- **Common Aliases:**
+  - Multi URL Picker: `"Umbraco.MultiUrlPicker"`
+  - Multi Node Tree Picker: `"Umbraco.MultiNodeTreePicker"`
+  - Content Picker: `"Umbraco.ContentPicker"`
+  - Media Picker: `"Umbraco.MediaPicker3"`
+
+### Impact
+
+- All future data type creation in seeders should follow this pattern
+- If a data type is created incorrectly, use `IDataTypeService.DeleteAsync` to remove the old one before creating the correct one
+
+**Files Modified:**
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`
+
+---
+
+## Decision: Custom Data Type Creation with Configuration
+
+**Date:** 2026-03-29  
+**Agent:** Brewster (Umbraco Platform Specialist)  
+**Context:** Seeding Umbraco content types with custom property editor configuration
+
+### Pattern
+
+When seeding content types that require **property editors with custom configuration** (e.g., Multi URL Picker with `maxNumber: 4`):
+
+1. **Create custom data types** programmatically rather than using built-in ones with wrong configuration
+2. **Retrieve the built-in editor** via `PropertyEditorCollection[alias]`
+3. **Use proper v17 constructor:** `new DataType(IDataEditor, IConfigurationEditorJsonSerializer)`
+4. **Check for existing** data type by name before creating (idempotent)
+5. **Inject required services:** `IConfigurationEditorJsonSerializer` must be in seeder constructor
+
+```csharp
+private async Task<IDataType?> GetOrCreateCustomDataTypeAsync(
+    string dataTypeName, 
+    string editorAlias,
+    Dictionary<string, object> customConfig)
+{
+    // Check for existing
+    var existingDataTypes = await dataTypeService.GetByEditorAliasAsync(editorAlias);
+    var dataType = existingDataTypes?.FirstOrDefault(dt => dt.Name == dataTypeName);
+    if (dataType != null) return dataType;
+
+    // Get editor via PropertyEditorCollection
+    var editor = propertyEditorCollection[editorAlias];
+    if (editor == null) return null;
+
+    // Create with custom config
+    var newDataType = new DataType(editor, configurationEditorJsonSerializer)
+    {
+        Name = dataTypeName,
+        DatabaseType = ValueStorageType.Ntext,
+        ConfigurationData = customConfig
+    };
+    
+    await dataTypeService.CreateAsync(newDataType, Constants.Security.SuperUserKey);
+    return newDataType;
+}
+```
+
+### Why
+
+- Built-in data types have fixed configuration (e.g., Multi URL Picker defaults to single link)
+- Programmatic creation allows package to control editor experience without manual backoffice setup
+- Idempotent check prevents duplicate data types on app restarts
+
+### Conventions
+
+- Name custom data types with package prefix: `"Prism Mobile Nav Links"` (not generic names)
+- Use `Dictionary<string, object>` for `ConfigurationData` (not `object?`) to avoid nullability warnings
+- Always inject `IConfigurationEditorJsonSerializer` when creating DataType instances
+
+**Files Modified:**
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`
+
+---
+
+## Decision: Pre-Seeding Editor-Configurable Properties with Defaults
+
+**Date:** 2026-03-29  
+**Agent:** Brewster (Umbraco Platform Specialist)  
+**Context:** Settings node needs default mobile nav links on fresh installations
+
+### Pattern
+
+When seeding Settings nodes with **editor-configurable properties that need sensible defaults**:
+
+1. **Pre-seed values** immediately after creating the content node
+2. **Use simple, reliable formats** (external-type links, not content UDI) for nav links
+3. **Serialize with System.Text.Json** for Multi URL Picker JSON arrays
+4. **Set and Save before Publish** to ensure property values persist
+
+```csharp
+using System.Text.Json;
+
+// After creating content node:
+var navLinksJson = JsonSerializer.Serialize(new[]
+{
+    new { name = "Home", target = "", type = "external", url = "/" },
+    new { name = "Dashboard", target = "", type = "external", url = "/dashboard" }
+});
+settings.SetValue("mobileNavLinks", navLinksJson);
+contentService.Save(settings);
+contentService.Publish(settings, new[] { "*" });
+```
+
+### Why
+
+- Fresh installs should "just work" — editors see working examples, not empty properties
+- Reduces onboarding friction (editors can modify existing links rather than create from scratch)
+- External-type links are simpler than content UDI links and work before content tree exists
+
+**Files Modified:**
+- `src/UmbracoPrism.Core/PrismStarterContentSeeder.cs`
+
+---
+
+## Decision: Seeder Idempotency for Existing Installations
+
+**Date:** 2026-03-29  
+**Agent:** Brewster (Umbraco Platform Specialist)  
+**Context:** Fixing seeders to support both fresh installations and upgrades
+
+### Problem
+
+Initial seeder implementations assumed fresh installations (empty content tree). Two critical bugs emerged:
+
+1. **Property exists → assume correct:** `PrismContentTypeSeeder` early-returned if property existed, without checking if it used the correct data type. Existing properties remained stuck on old built-in data type instead of upgrading.
+
+2. **Tree not empty → skip everything:** `PrismStarterContentSeeder` exited completely if content tree wasn't empty, which prevented Settings node creation and default nav links population for existing installations.
+
+### Decision
+
+**Content Type Seeder Pattern:**
+- Always validate actual state, not just existence
+- Check if property's `DataTypeKey` matches expected data type
+- If wrong data type → update and save
+- Pattern: `if (existingProperty.DataTypeKey == newDataType.Key) return;`
+
+**Content Seeder Pattern:**
+- Separate tree-empty guard from configuration-empty guard
+- Home + Dashboard seeding → only runs on empty tree
+- Settings defaults → always runs, checks if values are empty
+- Pattern: Two methods with independent guards
+
+```csharp
+// Content Type Pattern
+var newDataType = await GetOrCreatePrismMobileNavDataTypeAsync();
+var existingProperty = contentType.PropertyTypes.FirstOrDefault(p => p.Alias == propertyAlias);
+
+if (existingProperty != null)
+{
+    if (existingProperty.DataTypeKey == newDataType.Key) return; // Already correct
+    existingProperty.DataTypeKey = newDataType.Key; // Wrong type → update
+    contentTypeService.Save(contentType);
+    return;
+}
+
+// Content Seeder Pattern
+if (!rootContent.Any())
+{
+    SeedHomeAndDashboard(); // Only for empty tree
+}
+
+EnsureSettingsDefaults(); // Always run (idempotent)
+```
+
+### Benefits
+
+✅ Existing installations auto-upgrade data types on next startup  
+✅ Settings node and defaults populate even on non-empty trees  
+✅ No manual backoffice edits required for upgrades  
+✅ Future seeders follow proven idempotency pattern  
+
+### Trade-offs
+
+⚠️ Slightly more complex seeder logic (separate methods, state validation)  
+⚠️ Settings defaults always checked on startup (minimal performance cost)  
+
+**Files Modified:**
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`
+- `src/UmbracoPrism.Core/PrismStarterContentSeeder.cs`
+

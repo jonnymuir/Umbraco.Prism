@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
@@ -26,63 +27,86 @@ public class PrismStarterContentSeeder(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
-        // Only run if Umbraco is fully running
         if (runtimeState.Level < RuntimeLevel.Run) return;
-
-        // Only seed if explicitly opted in
         if (!prismConfig.Value.SeedStarterContent) return;
 
         await Task.Run(() =>
         {
-            // Check if content tree is empty
-            var rootContent = contentService.GetRootContent();
-            if (rootContent.Any()) return; // Content already exists, do nothing
+            var rootContent = contentService.GetRootContent().ToList();
 
-            // Seed home page
-            var homePageType = contentTypeService.Get("homePage");
-            if (homePageType != null)
+            // Only seed Home + Dashboard on a completely empty tree
+            if (!rootContent.Any())
             {
-                var homePage = contentService.Create("Home", Constants.System.Root, homePageType.Alias);
-                var saveResult = contentService.Save(homePage);
-                if (saveResult.Success)
+                SeedHomeAndDashboard();
+            }
+
+            // Always ensure Settings node exists and has default nav links
+            // (idempotent — only sets values if currently empty)
+            EnsureSettingsDefaults();
+
+        }, cancellationToken);
+    }
+
+    private void SeedHomeAndDashboard()
+    {
+        // Seed home page
+        var homePageType = contentTypeService.Get("homePage");
+        if (homePageType != null)
+        {
+            var homePage = contentService.Create("Home", Constants.System.Root, homePageType.Alias);
+            var saveResult = contentService.Save(homePage);
+            if (saveResult.Success)
+            {
+                var publishResult = contentService.Publish(homePage, new[] { "*" });
+                
+                if (publishResult.Success)
                 {
-                    var publishResult = contentService.Publish(homePage, new[] { "*" });
-                    
-                    if (publishResult.Success)
+                    // Seed member dashboard as child of home
+                    var dashboardType = contentTypeService.Get("memberDashboard");
+                    if (dashboardType != null)
                     {
-                        // Seed member dashboard as child of home
-                        var dashboardType = contentTypeService.Get("memberDashboard");
-                        if (dashboardType != null)
+                        var dashboardPage = contentService.Create("Dashboard", homePage.Id, dashboardType.Alias);
+                        var saveDashResult = contentService.Save(dashboardPage);
+                        if (saveDashResult.Success)
                         {
-                            var dashboardPage = contentService.Create("Dashboard", homePage.Id, dashboardType.Alias);
-                            var saveDashResult = contentService.Save(dashboardPage);
-                            if (saveDashResult.Success)
-                            {
-                                contentService.Publish(dashboardPage, new[] { "*" });
-                            }
+                            contentService.Publish(dashboardPage, new[] { "*" });
                         }
                     }
                 }
             }
+        }
+    }
 
-            // Seed Settings node (independent of HomePage)
-            var settingsType = contentTypeService.Get("settings");
-            if (settingsType != null)
-            {
-                // Check if Settings already exists at root
-                var existingSettings = contentService.GetRootContent()
-                    .FirstOrDefault(c => c.ContentType.Alias == "settings");
-                
-                if (existingSettings == null)
-                {
-                    var settings = contentService.Create("Settings", Constants.System.Root, settingsType.Alias);
-                    var saveSettingsResult = contentService.Save(settings);
-                    if (saveSettingsResult.Success)
-                    {
-                        contentService.Publish(settings, new[] { "*" });
-                    }
-                }
-            }
-        }, cancellationToken);
+    private void EnsureSettingsDefaults()
+    {
+        var settingsType = contentTypeService.Get("settings");
+        if (settingsType == null) return;
+
+        // Find or create the Settings node
+        var settings = contentService.GetRootContent()
+            .FirstOrDefault(c => c.ContentType.Alias == "settings");
+
+        bool isNew = settings == null;
+        if (isNew)
+        {
+            settings = contentService.Create("Settings", Constants.System.Root, settingsType.Alias);
+        }
+
+        // Only set nav links if currently empty (don't overwrite user edits)
+        var existing = settings!.GetValue<string>("mobileNavLinks");
+        if (!string.IsNullOrWhiteSpace(existing)) return;
+
+        var navLinksJson = JsonSerializer.Serialize(new[]
+        {
+            new { name = "Home", target = "", type = "External", url = "/" },
+            new { name = "Dashboard", target = "", type = "External", url = "/dashboard" }
+        });
+        settings.SetValue("mobileNavLinks", navLinksJson);
+
+        var saveResult = contentService.Save(settings);
+        if (saveResult.Success)
+        {
+            contentService.Publish(settings, new[] { "*" });
+        }
     }
 }
