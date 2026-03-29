@@ -429,8 +429,10 @@ public class BiometricController(
         }
     }
 
+    // Use RemoteIpAddress as primary source — X-Forwarded-For is trivially spoofable
+    // and must only be trusted when ASP.NET Core's ForwardedHeadersMiddleware is configured
+    // with known proxy IPs, which rewrites RemoteIpAddress automatically.
     private string GetClientIp() =>
-        HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-            ?? HttpContext.Connection.RemoteIpAddress?.ToString()
+        HttpContext.Connection.RemoteIpAddress?.ToString()
             ?? "unknown";
 }
