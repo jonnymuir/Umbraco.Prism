@@ -75,8 +75,9 @@ class BiometricBridgeImpl implements BiometricBridge {
 
       return false;
     } catch (error) {
-      console.warn('Enrollment change check failed:', error);
-      return false;
+      // Fail closed: treat errors as enrollment change to force re-auth
+      console.warn('Enrollment change check failed, treating as changed:', error);
+      return true;
     }
   }
 
@@ -94,7 +95,8 @@ class BiometricBridgeImpl implements BiometricBridge {
   }
 
   private _buildEnrollmentFingerprint(result: CheckBiometryResult): string {
-    return `${result.biometryType}|${result.isAvailable}|${result.strongBiometryIsAvailable}`;
+    const types = [...(result.biometryTypes || [])].sort().join(',');
+    return `${result.biometryType}|${types}|${result.isAvailable}|${result.strongBiometryIsAvailable}|${result.deviceIsSecure}`;
   }
 
   async register(tenantHost: string, loginHint?: string): Promise<void> {
@@ -299,6 +301,7 @@ class BiometricBridgeImpl implements BiometricBridge {
 
     if (response.status === 204) {
       await SecureStorage.remove(`${this.BIOMETRIC_TOKEN_PREFIX}${tenantHostname}`);
+      await Preferences.remove({ key: `${this.ENROLLMENT_STATE_PREFIX}${tenantHostname}` });
       console.log('Biometric unenrolment successful for tenant:', tenantHostname);
       return;
     }
@@ -319,6 +322,12 @@ class BiometricBridgeImpl implements BiometricBridge {
         
         for (const key of tokenKeys) {
           await SecureStorage.remove(key);
+        }
+
+        // Extract tenant hosts from token keys to clean up matching enrollment state
+        for (const key of tokenKeys) {
+          const tenant = key.slice(this.BIOMETRIC_TOKEN_PREFIX.length);
+          await Preferences.remove({ key: `${this.ENROLLMENT_STATE_PREFIX}${tenant}` });
         }
 
         await Preferences.remove({ key: this.DEVICE_ID_KEY });
