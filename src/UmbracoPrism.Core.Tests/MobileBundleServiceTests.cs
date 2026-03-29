@@ -82,4 +82,188 @@ public class MobileBundleServiceTests
         using var reader = new StreamReader(entry!.Open());
         return reader.ReadToEnd();
     }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricDisabled_PackageJsonHasNoBiometricDeps()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = false
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().NotContain("@aparajita/capacitor-biometric-auth");
+        packageJson.Should().NotContain("@aparajita/capacitor-secure-storage");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricNull_PackageJsonHasNoBiometricDeps()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = null
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().NotContain("@aparajita/capacitor-biometric-auth");
+        packageJson.Should().NotContain("@aparajita/capacitor-secure-storage");
+
+        archive.GetEntry("resources/ios-info-plist-additions.xml").Should().BeNull();
+        archive.GetEntry("resources/android-manifest-additions.xml").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricEnabled_PackageJsonIncludesBiometricDeps()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().Contain("\"@aparajita/capacitor-biometric-auth\": \"^7.0.0\"");
+        packageJson.Should().Contain("\"@aparajita/capacitor-secure-storage\": \"^7.0.0\"");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricEnabled_ReadmeContainsBiometricSection()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var readme = ReadEntry(archive, "README.md");
+        readme.Should().Contain("## Biometric Login Setup");
+        readme.Should().Contain("NSFaceIDUsageDescription");
+        readme.Should().Contain("USE_BIOMETRIC");
+        readme.Should().Contain("isAvailable: false");
+        readme.Should().Contain("adb emu finger touch 1");
+        readme.Should().Contain("@aparajita/capacitor-biometric-auth");
+        readme.Should().Contain("@aparajita/capacitor-secure-storage");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricDisabled_ReadmeHasNoBiometricSection()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = false
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var readme = ReadEntry(archive, "README.md");
+        readme.Should().NotContain("## Biometric Login Setup");
+        readme.Should().NotContain("@aparajita/capacitor-biometric-auth");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricEnabled_IncludesResourceFiles()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosPlist = ReadEntry(archive, "resources/ios-info-plist-additions.xml");
+        iosPlist.Should().Contain("NSFaceIDUsageDescription");
+        iosPlist.Should().Contain("Test App");
+
+        var androidManifest = ReadEntry(archive, "resources/android-manifest-additions.xml");
+        androidManifest.Should().Contain("android.permission.USE_BIOMETRIC");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricEnabled_AgentPromptContainsBiometricContext()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var agentPrompt = ReadEntry(archive, "AGENT_PROMPT.md");
+        agentPrompt.Should().Contain("## Biometric authentication");
+        agentPrompt.Should().Contain("@aparajita/capacitor-biometric-auth");
+        agentPrompt.Should().Contain("adb emu finger touch 1");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_BiometricEnabled_BootstrapScriptsInjectEntitlements()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("NSFaceIDUsageDescription");
+        iosBootstrap.Should().Contain("plutil -insert NSFaceIDUsageDescription");
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().Contain("USE_BIOMETRIC");
+        androidBootstrap.Should().Contain("android.permission.USE_BIOMETRIC");
+    }
 }

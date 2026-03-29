@@ -44,9 +44,9 @@ public class MobileBundleService : IMobileBundleService
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
         {
-          AddEntry(archive, "README.md", BuildReadme(appName, startUrl, iconUrl, splashUrl));
+          AddEntry(archive, "README.md", BuildReadme(appName, startUrl, iconUrl, splashUrl, biometricAuthEnabled));
             AddEntry(archive, "package.json", BuildPackageJson(appName, biometricAuthEnabled));
-            AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl));
+            AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl, biometricAuthEnabled));
             AddEntry(archive, "capacitor.config.ts", BuildCapacitorConfig(tenant, appId, appName, version, startUrl, marker));
             AddEntry(archive, ".gitignore", "node_modules\nandroid\nios\n.DS_Store\n");
             AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
@@ -56,6 +56,12 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(biometricAuthEnabled));
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", BuildTrustIosLocalhostCertScript(startUrl));
           AddEntry(archive, "resources/mobile-assets.json", BuildAssetsManifest(iconUrl, splashUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
+
+            if (biometricAuthEnabled)
+            {
+                AddEntry(archive, "resources/ios-info-plist-additions.xml", BuildIosInfoPlistAdditions(appName));
+                AddEntry(archive, "resources/android-manifest-additions.xml", BuildAndroidManifestAdditions());
+            }
         }
 
         return Task.FromResult(memory.ToArray());
@@ -255,10 +261,44 @@ export default config;
     return builder.Uri.ToString().TrimEnd('/');
   }
 
-    private static string BuildReadme(string appName, string startUrl, string? iconUrl, string? splashUrl)
+    private static string BuildReadme(string appName, string startUrl, string? iconUrl, string? splashUrl, bool biometricAuthEnabled)
     {
       var iconLine = string.IsNullOrWhiteSpace(iconUrl) ? "(not provided)" : iconUrl;
       var splashLine = string.IsNullOrWhiteSpace(splashUrl) ? "(not provided)" : splashUrl;
+
+      var biometricSection = biometricAuthEnabled
+          ? """
+
+## Biometric Login Setup
+
+This bundle was generated with **biometric authentication enabled**. The bootstrap scripts automatically inject
+required platform entitlements, but you should verify the following prerequisites.
+
+### iOS
+
+- The `NSFaceIDUsageDescription` key is injected into `Info.plist` by `bootstrap-ios.sh`.
+- Face ID / Touch ID must be enrolled on the device or simulator.
+- **Simulator note:** `BiometricAuth.checkBiometry()` returns `isAvailable: false` on the iOS Simulator because
+  it has no biometric hardware. Test biometric flows on a physical device or use the Simulator's
+  *Features → Face ID → Enrolled* menu to enable a simulated match.
+
+### Android
+
+- The `USE_BIOMETRIC` permission is injected into `AndroidManifest.xml` by `bootstrap-android.sh`.
+- A fingerprint or biometric credential must be enrolled on the device/emulator.
+- **Emulator note:** enroll a simulated fingerprint via `adb emu finger touch 1`, then authenticate
+  with the same command when prompted.
+
+### Plugin packages
+
+The following Capacitor plugins are included in `package.json`:
+
+- `@aparajita/capacitor-biometric-auth` — biometric prompt and availability checks.
+- `@aparajita/capacitor-secure-storage` — hardware-backed secure storage for tokens.
+
+Both plugins auto-register via Capacitor's plugin discovery; no `capacitor.config.ts` changes are needed.
+"""
+          : string.Empty;
 
         return $$"""
 # {{appName}} Mobile Shell
@@ -379,7 +419,7 @@ Choose this explicitly per tenant/security policy. If strict in-WebView is manda
 ## Customize mobile-specific UI
 
 Use `www/mobile-overrides.css` as your starting point for mobile-scoped styles.
-
+{{biometricSection}}
 ## Icons & Splash
 
 - Icon source: {{iconLine}}
@@ -890,8 +930,27 @@ fi
 """;
     }
 
-    private static string BuildAgentPrompt(string appName, string startUrl)
+    private static string BuildAgentPrompt(string appName, string startUrl, bool biometricAuthEnabled)
     {
+        var biometricContext = biometricAuthEnabled
+            ? """
+
+## Biometric authentication
+
+This bundle has biometric auth enabled. The bootstrap scripts inject platform entitlements automatically:
+
+- **iOS:** `NSFaceIDUsageDescription` is added to `Info.plist`.
+- **Android:** `USE_BIOMETRIC` permission is added to `AndroidManifest.xml`.
+
+Plugins `@aparajita/capacitor-biometric-auth` and `@aparajita/capacitor-secure-storage` are in `package.json`
+and auto-register via Capacitor discovery.
+
+Simulator testing notes:
+- iOS Simulator: `BiometricAuth.checkBiometry()` returns `isAvailable: false`. Use *Features → Face ID → Enrolled* for simulated match.
+- Android Emulator: enroll a fingerprint with `adb emu finger touch 1`.
+"""
+            : string.Empty;
+
         return $$"""
 # Prism Mobile Agent Prompt
 
@@ -919,6 +978,36 @@ Get this app running in an emulator as quickly as possible.
 - iOS: verify Xcode + CocoaPods installed and simulator booted.
 - Android: verify Android SDK/adb and an active emulator/device.
 - Re-run `npm run doctor` after each fix.
+{{biometricContext}}
+""";
+    }
+
+    private static string BuildIosInfoPlistAdditions(string appName)
+    {
+        return $$"""
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  iOS Info.plist additions for biometric authentication.
+  The bootstrap-ios.sh script injects these automatically.
+  If you need to add them manually, merge these keys into ios/App/App/Info.plist.
+-->
+<dict>
+  <key>NSFaceIDUsageDescription</key>
+  <string>{{EscapeSingleQuotes(appName)}} uses Face ID to securely log you in without requiring your password each time.</string>
+</dict>
+""";
+    }
+
+    private static string BuildAndroidManifestAdditions()
+    {
+        return """
+<!--
+  Android manifest additions for biometric authentication.
+  The bootstrap-android.sh script injects these automatically.
+  If you need to add them manually, add this permission inside the <manifest> element
+  of android/app/src/main/AndroidManifest.xml.
+-->
+<uses-permission android:name="android.permission.USE_BIOMETRIC" />
 """;
     }
 
