@@ -255,3 +255,11 @@ Completed implementation of PrismContentTypeSeeder and PrismStarterContentSeeder
 **Package consumer impact:** With the seeder enabled via `"Prism:SeedStarterContent": true`, any consumer can install Prism and immediately get a working member portal with document types and starter content, no backoffice intervention required. This significantly reduces onboarding friction.
 
 **Documented in** `.squad/decisions/decisions.md` under "Decision: Content Type & Starter Content Seeders".
+
+## Learnings (2026-03-30 — Demo Controller Relocation)
+
+**DownstreamDemoController moved from Core → TestSite:**
+- Demo/example controllers have no place in the NuGet package. Core is for reusable utilities and platform services; TestSite is the correct home for demo/example code.
+- Namespace updated to `UmbracoPrism.TestSite.Controllers`; route attribute `[Route("api/prism/downstream-demo")]` unchanged — the view in MemberDashboard.cshtml continues to call `/api/prism/downstream-demo` with no modifications needed.
+- TestSite already references Core via ProjectReference, so `IPrismContext` and `UmbracoPrism.Core.Models` remain available without any new package references.
+- No explicit registration existed for the controller in Core (Umbraco's `AddComposers()` / `AddWebsite()` scans assemblies automatically).

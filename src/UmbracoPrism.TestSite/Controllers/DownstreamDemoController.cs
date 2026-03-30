@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Models;
 
-namespace UmbracoPrism.Core.Controllers;
+namespace UmbracoPrism.TestSite.Controllers;
 
 /// <summary>
 /// API endpoint used by the dashboard's downstream demo section.

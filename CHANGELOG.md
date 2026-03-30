@@ -2,6 +2,12 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.3.1] — 2026-03-30
+
+### Chores
+
+- Moved `DownstreamDemoController` from Core package to TestSite — demo code should not ship in the NuGet package.
+
 ## [v1.3.0] — 2026-04-02
 
 ### New Features
