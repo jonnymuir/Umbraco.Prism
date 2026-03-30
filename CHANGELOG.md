@@ -2,6 +2,33 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.3.0] — 2026-04-02
+
+### New Features
+
+- **Biometric authentication system:** Complete multiplatform biometric registration and login flow with per-tenant opt-in toggle. Includes Capacitor bridge for fingerprint/face recognition, secure credential storage, and Web Components (prism-biometric-register, prism-biometric-settings).
+- **Biometric enrollment change detection:** Automatically wipes credentials when device fingerprint changes, ensuring security across OS updates and enrollment modifications.
+- **Biometric rate limiting & audit logging:** Per-token and per-IP rate limiting on the `/exchange` endpoint with structured audit logging for compliance and security monitoring.
+- **Biometric multi-tenant validation:** Defence-in-depth boundary validation ensuring users cannot exchange credentials across tenant boundaries.
+- **Mobile navigation (Umbraco Settings node):** Configurable bottom navigation bar for mobile apps with support for up to 4 links, managed as a site-wide Umbraco Settings node without code changes.
+- **Downstream API demo (fetch-based):** Replaced mock downstream API demo with fetch-based inline result panel for cleaner development experience.
+- **Biometric admin controls:** Endpoints for users to unenrol biometric devices and admins to revoke user devices with proper DeviceId scoping.
+
+### Bug Fixes & Improvements
+
+- Resolves OIDC signing key cold-start 401 (IDX10500) errors with synchronous token warmup on MemberDashboardController.
+- Fixes biometric route path structure to include `/mobile/` segment for proper routing.
+- Prevents cross-user device hijacking in biometric registration through proper tenant and user isolation.
+- Scopes biometric unenrol endpoint by DeviceId to prevent wrong-device credential revocation.
+- Uses RemoteIpAddress for rate limiting instead of spoofable X-Forwarded-For header.
+- Fixes mobile navigation CSS visibility on standalone pages (Layout=null) via partial inclusion.
+- Corrects MobileNavLinks property type to use Link model for proper backoffice integration.
+- Fixes MultiUrlPicker data type EditorUiAlias for correct backoffice UI rendering.
+- Removes duplicate sign-in button from homepage hero section.
+- Adds aria-label to biometric toggle checkbox for improved accessibility.
+- Fixes deterministic GUID generation and property migration for mobile nav links.
+- Sets EditorUiAlias on MultiUrlPicker data type for backoffice UI consistency.
+
 ## [v1.2.2] — 2026-03-28
 
 ### Bug Fixes & Improvements
