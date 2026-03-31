@@ -166,3 +166,28 @@
 **Pentest checklist (#28) is a `type:spike`** — it produces a sign-off comment, not code. Closing it requires Copper's explicit go/no-go comment on the issue thread.
 
 **`biometric-auth` label created** with color `#7B68EE` for grouping all 17 issues.
+
+### v1.3.2 Release (2026-03-31)
+
+**Released biometric auto-login and token lifecycle hardening features.** Two significant milestones shipped:
+
+1. **Server-side biometric auto-login injection** — `PrismBrandingMiddleware` now injects an IIFE script into unauthenticated mobile HTML pages. Script checks SecureStorage for a biometric token, prompts Face ID/Touch ID, exchanges the token for a session cookie via `/exchange`, and reloads the page. Graceful fallback to normal login if no token or biometry is declined.
+
+2. **Token lifecycle hardening** — Stale token detection after reinstall (checks `localStorage.ENROLL_KEY` alongside Keychain token; clears stale tokens), credential clearing on logout (detects logout/signout navigation, clears SecureStorage token + enrollment state + device ID + calls new revoke endpoint), and new `DELETE /umbraco/prism/mobile/biometric/revoke` endpoint for soft-revoking credentials (per-device or all-for-user, idempotent 204).
+
+**Supporting changes:**
+- Fixed `context.User.Identity?.IsAuthenticated` always returning false in middleware — moved middleware to run after auth pipeline
+- Secure signing key pattern: `ILogger<PrismBrandingMiddleware>` in constructor, key via User Secrets (dev) / Azure Key Vault (prod)
+- Test fix: `PrismBrandingMiddlewareTests.cs` updated with `NullLogger<PrismBrandingMiddleware>`
+
+**Release process:**
+- Committed 2 existing commits from session (9026805 + new cc665bc)
+- Version bump 1.3.1 → 1.3.2 in `UmbracoPrism.Core.csproj`
+- Updated CHANGELOG.md with v1.3.2 section (features, fixes, upgrade notes)
+- Tagged v1.3.2 and pushed origin main + tags
+- Release notes prepared (gh auth issue prevented automated GitHub release creation; manual web UI creation needed or gh token setup)
+
+**Key learnings:**
+- Conventional commit format with Co-authored-by trailer enforced across all commits
+- Release notes should include upgrade instructions (e.g., signing key setup) alongside feature descriptions
+- GitHub Actions deploy workflow may need adjustment if gh CLI token is required for release creation in future

@@ -130,3 +130,13 @@ if (!info.isAvailable) {
 **Decision Record:** `.squad/decisions.md#2026-07-14-backdated-to-2026-03-29-biometric-client-side-flow-implementation`
 
 **Orchestration Log:** `.squad/orchestration-log/2026-03-29T160329-kicks.md`
+
+---
+
+## 2026-03-31 — v1.3.2 Release Context
+
+Copper implemented biometric token lifecycle hardening (stale-token detection + logout revocation) during this session. This work was released as v1.3.2 by Tom Nook. Kicks' biometric client-side flow implementation from earlier was the foundation for Copper's security hardening work.
+
+**Related:**
+- Copper work: `.squad/orchestration-log/2026-03-31T12:09:44Z-copper.md`
+- Session log: `.squad/log/2026-03-31T12:09:44Z-biometric-lifecycle-v132-release.md`

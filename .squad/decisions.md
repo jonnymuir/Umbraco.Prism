@@ -1308,3 +1308,66 @@ Added explicit CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allo
 
 **Status:** ✅ Implemented. Build clean. Tested on iOS device by Jonny (enrollment flow works, Face ID prompts appear after Entra login).
 
+
+---
+
+## 📌 2026-06-16 (backdated to 2026-03-31): Biometric Token Lifecycle Hardening (Copper)
+
+**Session Log:** `.squad/log/2026-03-31T12:09:44Z-biometric-lifecycle-v132-release.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copper-biometric-token-lifecycle.md`
+
+### Copper — Biometric Token Lifecycle Hardening
+
+**Decision:** Harden biometric token lifecycle against stale-token and logout-revocation attacks.
+
+**Context:** iOS Keychain persists across app deletion/reinstall, but localStorage does not. This asymmetry creates two security vulnerabilities:
+1. Stale reinstall: Keychain token exists but no enrollment fingerprint in localStorage — attacker could trigger auto-login with a token from the previous user.
+2. Missing logout revocation: Logout cleared the session cookie but left the Keychain token valid until expiry (90 days by default).
+
+**Decisions Adopted:**
+
+1. **Stale token detection via localStorage sentinel**
+   - The enrollment fingerprint key (`prism_biometric_enrollment_state_{tenantHost}`) in localStorage is the authoritative fresh-install indicator.
+   - Token-in-Keychain + no-fingerprint-in-localStorage = stale token from previous install.
+   - Stale tokens are cleared from Keychain.
+
+2. **Defence-in-depth: both auto-login and enroll scripts check independently**
+   - `BuildBiometricAutoLoginScriptTag`: clears stale token and returns (shows login page)
+   - `BuildBiometricEnrollScriptTag`: clears stale token and shows enrollment banner
+   - Rationale: Both scripts run independently on different page types; both must be hardened.
+
+3. **Logout must revoke biometric credentials client-side and server-side**
+   - Client-side: Enroll script attaches capture-phase click listener; on logout navigation, clears Keychain token + localStorage fingerprint.
+   - Server-side: Calls `DELETE /umbraco/prism/mobile/biometric/revoke` with `credentials: 'include'`.
+   - Revocation is best-effort; navigation proceeds regardless of success/failure.
+
+4. **New `DELETE /umbraco/prism/mobile/biometric/revoke` endpoint**
+   - Route: `DELETE umbraco/prism/mobile/biometric/revoke?deviceId={optional}`
+   - Requires `PrismMemberCookie` authentication (same as Register/Unenrol)
+   - Scoped by `TenantId` + `UserId` from authenticated cookie (prevents cross-user revocation)
+   - Optional `deviceId` param: revoke single device if provided, all devices if omitted (logout path)
+   - Soft-delete (sets `RevokedAt` timestamp); preserves audit trail; idempotent
+
+**Technical Rationale:**
+- **Soft-delete over hard-delete:** Preserves audit trail; consistent with existing `Unenrol` pattern.
+- **Event delegation for logout:** Uses capture-phase click listener + `e.target.closest(...)` for robustness; no hard dependency on specific element IDs.
+- **Both scripts must check:** Even though auto-login runs on login pages (before Keychain is populated), and enroll runs on authenticated pages, the defence-in-depth pattern ensures no edge case bypasses the check.
+- **localStorage is the source of truth:** Keychain state is not a reliable indicator of freshness on iOS (persists across app deletion), making localStorage the only reliable sentinel.
+
+**Alternatives Rejected:**
+- Server-side revocation list check in auto-login: Added network round-trip before biometric prompt; UX regression.
+- Clearing Keychain on every startup if localStorage empty: This is what we do — defence-in-depth.
+- Hard-delete credential on revoke: Soft-delete (`RevokedAt`) is correct for audit trail.
+
+**Files Changed:**
+- `src/UmbracoPrism.Core/Middleware/PrismBrandingMiddleware.cs`
+  - `BuildBiometricAutoLoginScriptTag()`: stale token check; clear Keychain if fingerprint missing
+  - `BuildBiometricEnrollScriptTag()`: stale token check; clear Keychain if fingerprint missing; logout listener
+- `src/UmbracoPrism.Core/Controllers/BiometricController.cs`
+  - New `[HttpDelete("revoke")]` endpoint
+
+**Build Status:** ✅ Clean (0 errors, 0 warnings)
+
+**Release:** v1.3.2

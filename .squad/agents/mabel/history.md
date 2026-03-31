@@ -169,3 +169,12 @@ Completed creation of dedicated Umbraco setup guide and positioned it prominentl
 
 **Documented in** `.squad/decisions/decisions.md` under "Decision: Umbraco Setup Documentation".
 
+### Release v1.3.1 (2026-03-30)
+
+- **Bump type:** Patch (1.3.0 → 1.3.1)
+- **Signal:** 1 commit; 1 `chore:` (code organization)
+- **Changes:** Refactored DownstreamDemoController out of Core package into TestSite — demo code should not ship in NuGet distribution
+- **Version sync:** Both csproj (1.3.0 → 1.3.1) and package.json (1.3.0 → 1.3.1) updated to reflect patch release
+- **Changelog entry:** Added Chores section documenting controller relocation and rationale
+- **Commit SHA:** 3c1e8b7
+

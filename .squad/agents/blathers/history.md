@@ -263,3 +263,85 @@ Completed implementation of PrismContentTypeSeeder and PrismStarterContentSeeder
 - Namespace updated to `UmbracoPrism.TestSite.Controllers`; route attribute `[Route("api/prism/downstream-demo")]` unchanged — the view in MemberDashboard.cshtml continues to call `/api/prism/downstream-demo` with no modifications needed.
 - TestSite already references Core via ProjectReference, so `IPrismContext` and `UmbracoPrism.Core.Models` remain available without any new package references.
 - No explicit registration existed for the controller in Core (Umbraco's `AddComposers()` / `AddWebsite()` scans assemblies automatically).
+
+## Learnings (2026-04-20 — Safari Web Inspector Biometric Enrollment Debug Fix)
+
+**Problem:** Safari Web Inspector reconnects to iOS page after SSO redirect with ~1-2 second delay. The `[Prism Enroll]` biometric enrollment script (injected by `PrismBrandingMiddleware.BuildBiometricEnrollScriptTag()`) fires immediately on page load, before Safari reconnects, causing all console.log messages to be lost.
+
+**Fix:** Wrapped the biometric enrollment IIFE invocation in a `setTimeout(..., 2500)` call to delay execution by 2.5 seconds, giving Safari Web Inspector time to reconnect after navigation. Added an immediate "heartbeat" console.log (`'[Prism Enroll] page loaded — enrollment script will run in 2.5s...'`) outside the setTimeout that fires instantly, confirming Safari is connected before the main logic runs.
+
+**Key Files:** `PrismBrandingMiddleware.cs` (`BuildBiometricEnrollScriptTag` method)
+
+**Impact:** This is a debug-only enhancement. Production behavior unchanged. Jonny can now see all enrollment console logs when debugging iOS biometric flows via USB-connected Safari Web Inspector.
+
+## Learnings (2026-04-20 — localStorage-based Debug Replay System)
+
+**Problem:** The `setTimeout(..., 2500)` hack from the previous fix was a speculative workaround. The real issue: WKWebView's `console.log` output can fire before Safari Web Inspector reconnects after navigation/redirect, causing logs from `[Prism Enroll]` and `[Prism Bio]` scripts to be lost.
+
+**Fix:** Implemented a localStorage-based debug replay system:
+1. Created `__prismDebug` helper that wraps `console.log` and also persists each log entry to localStorage (rolling 50-entry buffer)
+2. At the start of each script, call `__prismDebug.replay()` which reads the buffer, re-emits all stored logs to console, and clears the buffer
+3. Replaced all `console.log('[Prism Enroll]` and `console.log('[Prism Bio]` calls with `__prismDebug.log(...)`
+4. Reverted the `setTimeout(..., 2500)` wrapper — scripts now run immediately on page load
+
+**Result:** Even if logs fire before Safari connects, they're replayed on the next page where Safari is definitely connected. This gives Jonny full visibility into the enrollment and biometric startup flows without artificial delays.
+
+**Key Files:**
+- `PrismBrandingMiddleware.cs` (`BuildBiometricEnrollScriptTag` method) — enrollment script
+- `MobileBundleService.cs` (`BuildPlaceholderIndex` method) — biometric startup script in `www/index.html`
+
+**Impact:** Debug-only enhancement. Production behavior unchanged. The helper uses localStorage which persists within the same app origin — safe for debug purposes, no effect on authentication or app functionality.
+
+## Learnings (2026-04-20 — Authentication Timing Issue in PrismBrandingMiddleware Investigation)
+
+**Problem:** Jonny discovered that `context.User.Identity?.IsAuthenticated` is ALWAYS false inside `PrismBrandingMiddleware.InvokeAsync` (line 33), even after successful login. This prevents `injectBiometricEnroll` from ever being true, so the biometric enrollment script never gets injected into mobile app pages.
+
+**Root Cause — Pipeline Order Issue:**
+
+The `PrismBrandingMiddleware` is registered via `UmbracoPipelineFilter` in `PrismComposer.cs` (lines 44-54). This filter executes **BEFORE** ASP.NET Core's `UseAuthentication()` middleware runs.
+
+**Pipeline Execution Order:**
+1. `PrismTenantMiddleware` ← Runs FIRST (via UmbracoPipelineFilter)
+2. `PrismBrandingMiddleware` ← Runs SECOND (reads `context.User` at line 33)
+3. ASP.NET Core `UseAuthentication()` ← Added implicitly by Umbraco's `WithMiddleware()` builder
+4. ASP.NET Core `UseAuthorization()`
+5. Route handlers/Controllers
+
+**Why context.User Is Empty:**
+
+At step 2 (`PrismBrandingMiddleware.InvokeAsync`), the authentication middleware (step 3) has NOT YET RUN. Therefore:
+- `context.User` is not populated with the authenticated `ClaimsPrincipal`
+- `context.User.Identity?.IsAuthenticated` returns false even for valid logged-in users
+- The biometric enrollment script injection is gated by this check, so it never happens
+
+**Comparison with Other Code:**
+
+Other parts of the codebase handle this correctly by calling `context.AuthenticateAsync()` explicitly:
+- `PrismContext.GetAuthorizationHeaderAsync()` (line 40): `await context.AuthenticateAsync("PrismMemberCookie")`
+- `BiometricController.Register()` (line 72): `await HttpContext.AuthenticateAsync("PrismMemberCookie")`
+
+These explicit calls **force** the authentication middleware to run synchronously and return the authentication result, even if the middleware hasn't run yet in the pipeline.
+
+**Solution:**
+
+Replace the naive `context.User.Identity?.IsAuthenticated` check with an explicit call to `context.AuthenticateAsync("PrismMemberCookie")` to fetch the authentication result directly, similar to how `PrismContext` does it.
+
+**Key Files:**
+- `PrismBrandingMiddleware.cs` (line 33) — where the check fails
+- `PrismComposer.cs` (lines 44-54) — where the middleware is registered too early
+- `PrismContext.cs` (line 40) — example of correct pattern using `AuthenticateAsync()`
+
+**Impact:** Biometric enrollment banner never appears on mobile devices after login. Users cannot enroll their Face ID/Touch ID credentials because the enrollment script is never injected into the page HTML.
+
+**Notes:**
+- This is NOT a bug with Umbraco's pipeline — it's the expected behavior when custom middleware runs before `UseAuthentication()`
+- The `UmbracoPipelineFilter` is designed to run early (before auth) so tenant resolution can happen first
+- The fix should be in `PrismBrandingMiddleware.InvokeAsync()` to explicitly authenticate when checking if the user is logged in
+
+## Learnings (Middleware Authentication Fix)
+
+- **Middleware pipeline ordering issue**: `PrismBrandingMiddleware` runs inside `UmbracoPipelineFilter` (registered in `PrismComposer.cs`), which executes BEFORE Umbraco's `UseAuthentication()` middleware in the global pipeline. This means `context.User` is always the default unauthenticated principal at that point.
+- **Explicit authentication pattern**: When middleware needs to check authentication state before the authentication middleware runs, use `await context.AuthenticateAsync("PrismMemberCookie")` to explicitly resolve the user identity. This is the same pattern used in `PrismContext.cs` and `BiometricController.cs`.
+- **Performance optimization**: Guard the async authentication call with lightweight preconditions (`isPrismMobileRequest && AllowBiometricLogin`) to avoid unnecessary authentication attempts for non-mobile requests.
+- **AuthenticateResult pattern**: Always check both `authResult.Succeeded` AND `authResult.Principal?.Identity?.IsAuthenticated` to ensure the authentication fully completed with a valid authenticated identity.
+- **Fix location**: `PrismBrandingMiddleware.InvokeAsync` lines 32-37. Added `using Microsoft.AspNetCore.Authentication;` at line 2.

@@ -344,3 +344,87 @@ The synchronous blocking change is sound from a tenant isolation and fail-closed
 - Orchestration log: `.squad/orchestration-log/2026-03-29T13-53Z-copper.md`
 - Decision record: `.squad/decisions.md` → "OIDC Signing Key Cold-Start Fix"
 
+
+## 2026-06-16 — Biometric Token Lifecycle Hardening
+
+**Session:** Biometric security fixes — stale token + logout revocation
+**Work Type:** Implementation (middleware JS + controller endpoint)
+
+### Learnings
+
+1. **iOS Keychain persists across app deletion.** SecureStorage (Keychain) survives app deletion/reinstall on iOS. localStorage does NOT. The enrollment fingerprint key in localStorage (`prism_biometric_enrollment_state_{tenantHost}`) therefore serves as a fresh-install sentinel: token in Keychain but no fingerprint in localStorage = stale reinstall.
+
+2. **Two-script defence-in-depth pattern.** Both `BuildBiometricAutoLoginScriptTag` (unauthenticated pages) and `BuildBiometricEnrollScriptTag` (authenticated pages) must independently check for the stale reinstall condition. The auto-login script must not attempt exchange with a stale token; the enroll script must not skip the enrollment banner for a stale token.
+
+3. **Logout revocation requires both client-side and server-side work.** Client: clear Keychain token + localStorage fingerprint. Server: soft-delete credential row via `DELETE /umbraco/prism/mobile/biometric/revoke` (sets `RevokedAt`). Without server-side revocation, a Keychain token captured before logout remains valid until expiry.
+
+4. **Revoke endpoint ownership scoping.** The `Revoke` endpoint queries `WHERE TenantId = @0 AND UserId = @1` — the user OID from the authenticated cookie acts as the owner check, preventing one user revoking another user's credentials. DeviceId query param allows targeted single-device revocation; omitting it revokes all devices (logout path).
+
+5. **Event delegation for logout interception.** The logout listener uses `document.addEventListener('click', ..., true)` (capture phase) with `e.target.closest(...)` to handle Umbraco back-office logout links without requiring knowledge of specific element IDs. The revoke fetch is best-effort (wrapped in try/catch) — navigation will proceed regardless.
+
+6. **PrismDeviceCredentialSchema uses `db.Fetch<T>` for multi-row queries.** The existing `Unenrol` endpoint uses `FirstOrDefault` for single-device lookup. The new `Revoke` endpoint uses `db.Fetch<T>` for the all-devices case.
+
+### Files Changed
+- `src/UmbracoPrism.Core/Middleware/PrismBrandingMiddleware.cs` — stale token checks in both script builders + logout listener in enroll script
+- `src/UmbracoPrism.Core/Controllers/BiometricController.cs` — new `[HttpDelete("revoke")]` endpoint
+
+### Build Result
+✅ 0 errors, 0 warnings
+
+## 2026-03-31 — Biometric Token Lifecycle Hardening (v1.3.2 Release)
+
+**Session:** Biometric token lifecycle + v1.3.2 release
+**Work Type:** Security implementation + review
+
+### Session Summary
+
+Implemented biometric token lifecycle hardening to close two security vulnerabilities:
+
+1. **Stale Token on Reinstall:** iOS Keychain persists across app deletion, but localStorage doesn't. After deletion/reinstall, Keychain still contains a biometric JWT while localStorage has no enrollment fingerprint. Without detection, the enrollment script would skip the banner (seeing an existing token), locking the user out of re-enrolling, and allowing an attacker to auto-login with a stale token.
+
+2. **Missing Logout Revocation:** Logout cleared the session cookie but left the Keychain token active on the device. An attacker with post-logout device access could exchange the token for an access token until expiry (90 days).
+
+### Decisions Implemented
+
+**localStorage fingerprint is the source of truth for fresh-install detection:**
+- Enrollment fingerprint key (`prism_biometric_enrollment_state_{tenantHost}`) in localStorage is the authoritative sentinel
+- When token exists in Keychain but fingerprint missing in localStorage → treat as stale and clear
+
+**Defence-in-depth with two independent script checks:**
+- `BuildBiometricAutoLoginScriptTag` (unauthenticated pages): clears stale token, shows login page
+- `BuildBiometricEnrollScriptTag` (authenticated pages): clears stale token, shows enrollment banner
+- Both must check independently because scripts run on different page types
+
+**Logout revocation is both client-side and server-side:**
+- Client: Enroll script intercepts logout click (capture phase), clears Keychain token + localStorage
+- Server: Calls `DELETE /umbraco/prism/mobile/biometric/revoke` to soft-delete credential
+- Revocation is best-effort; navigation proceeds regardless
+
+**Revoke endpoint pattern:**
+- `DELETE umbraco/prism/mobile/biometric/revoke?deviceId={optional}`
+- Requires `PrismMemberCookie` authentication (owned by user)
+- Scoped by `TenantId` + `UserId` from cookie (prevents cross-user revocation)
+- Optional `deviceId`: revoke single device if provided, all devices if omitted
+- Soft-delete (sets `RevokedAt`); idempotent; returns 204 NoContent
+
+### Technical Learnings
+
+1. **Event delegation for logout:** Using `document.addEventListener('click', ..., true)` (capture phase) with `e.target.closest(...)` allows robust interception of logout/signout navigation without hardcoding specific element IDs.
+
+2. **Keychain state is not authoritative:** iOS Keychain persists across app deletion, making it an unreliable sentinel. localStorage is the sole reliable indicator of a fresh install.
+
+3. **Soft-delete over hard-delete:** Soft-delete (setting `RevokedAt` timestamp) preserves audit trail and is consistent with the existing `Unenrol` endpoint pattern.
+
+4. **Both endpoints scoped by authenticated user:** `Register`, `Unenrol`, and now `Revoke` all use the authenticated `PrismMemberCookie` to scope operations to the calling user, preventing cross-user attacks.
+
+### Files Changed
+- `src/UmbracoPrism.Core/Middleware/PrismBrandingMiddleware.cs` — stale token checks + logout listener
+- `src/UmbracoPrism.Core/Controllers/BiometricController.cs` — new `[HttpDelete("revoke")]` endpoint
+
+### Build Result
+✅ 0 errors, 0 warnings
+
+### Related
+- **Decision:** `.squad/decisions.md` → "Biometric Token Lifecycle Hardening"
+- **Orchestration:** `.squad/orchestration-log/2026-03-31T12:09:44Z-copper.md`
+- **Release:** v1.3.2 (cut by Tom Nook)
