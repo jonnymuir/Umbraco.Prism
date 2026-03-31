@@ -4,11 +4,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CompressionEnabled>false</CompressionEnabled> <!-- Disable compression. E.g. for umbraco backoffice files. These files should be precompressed by node and not let dotnet handle it -->
+    <UserSecretsId>882392cb-6c22-4ca1-9e7f-667d9e867262</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Umbraco.Cms" Version="17.2.2" />
     <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="17.2.2" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.3.2" />
   </ItemGroup>
 
   <ItemGroup>

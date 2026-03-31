@@ -382,12 +382,13 @@ public class PrismBrandingMiddlewareTests
 
     private static PrismBrandingMiddleware CreateMiddlewareWithHtmlResponse(string html)
     {
+        var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<PrismBrandingMiddleware>();
         return new PrismBrandingMiddleware(async context =>
         {
             context.Response.StatusCode = StatusCodes.Status200OK;
             context.Response.ContentType = "text/html; charset=utf-8";
             await context.Response.WriteAsync(html);
-        });
+        }, logger);
     }
 
     private static async Task<string> ReadResponseBodyAsync(HttpResponse response)
