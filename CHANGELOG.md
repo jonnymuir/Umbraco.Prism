@@ -2,6 +2,27 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.3.2] — 2026-03-31
+
+### New Features
+
+- **Biometric auto-login (server-side injection):** `PrismBrandingMiddleware` now injects an auto-login script into unauthenticated mobile HTML pages. The script checks SecureStorage for a biometric token, prompts Face ID/Touch ID, exchanges the token for a `PrismMemberCookie` session, and reloads the page. Falls back gracefully to the normal login page if no token exists or biometry is declined.
+- **Biometric credential revoke endpoint:** New `DELETE /umbraco/prism/mobile/biometric/revoke` endpoint soft-revokes credential records. Without a deviceId, revokes all credentials for the user on the current tenant (logout path). With a deviceId, revokes a specific device. Returns 204 idempotently.
+
+### Bug Fixes & Improvements
+
+- **Stale token detection after app reinstall:** iOS Keychain persists across app deletion. The enrollment and auto-login scripts now verify that `localStorage.ENROLL_KEY` exists alongside any Keychain token. If a token exists but no ENROLL_KEY (fresh install), the stale token is cleared and re-enrollment is triggered.
+- **Credential clearing on logout:** Implemented capture-phase click listener that detects navigation to logout/signout URLs and clears: SecureStorage token, biometric enrollment state, device ID from localStorage, plus calls the server-side revoke endpoint.
+- **Fixed missing `prism_device_id` logout:** `prism_device_id` is now properly cleared from localStorage on logout (was previously omitted).
+- **Fixed middleware auth check:** `context.User.Identity?.IsAuthenticated` was always returning false in `PrismBrandingMiddleware.InvokeAsync`. Corrected by ensuring middleware runs after the authentication middleware in the pipeline.
+- **Secure signing key pattern:** `PrismBrandingMiddleware` constructor now accepts `ILogger<PrismBrandingMiddleware>` for proper logging. Biometric signing key is now managed via .NET User Secrets (dev) and Azure Key Vault (production), configured as `Prism:Biometric:SigningKey` (minimum 32 characters).
+
+### Upgrade Notes
+
+If you are using biometric auto-login, ensure the signing key is set before deploying:
+- **Development:** Run `dotnet user-secrets set "Prism:Biometric:SigningKey" "<your-key>"` (minimum 32 characters).
+- **Production:** Store the signing key in Azure Key Vault and ensure `AddAzureKeyVault()` is called in your app startup.
+
 ## [v1.3.1] — 2026-03-30
 
 ### Chores
