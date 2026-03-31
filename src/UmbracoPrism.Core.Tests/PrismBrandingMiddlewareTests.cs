@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using UmbracoPrism.Core.Middleware;
 using UmbracoPrism.Core.Models;
 
@@ -31,6 +33,15 @@ public class PrismBrandingMiddlewareTests
         var context = new DefaultHttpContext();
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers.UserAgent = "Mozilla/5.0 PrismMobile";
+        // Ensure RequestServices is available for AuthenticateAsync used in middleware
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        // Provide a mocked IAuthenticationService to satisfy context.AuthenticateAsync calls in middleware tests
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        // Default AuthenticateAsync behavior: return AuthenticateResult.NoResult() wrapped in Task
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
 
         await middleware.InvokeAsync(context, prismContext);
@@ -70,6 +81,13 @@ public class PrismBrandingMiddlewareTests
         var context = new DefaultHttpContext();
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers.UserAgent = "Mozilla/5.0";
+        // Ensure RequestServices available for AuthenticateAsync
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
 
         await middleware.InvokeAsync(context, prismContext);
@@ -102,6 +120,13 @@ public class PrismBrandingMiddlewareTests
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers.UserAgent = "Mozilla/5.0";
         context.Request.Headers.Cookie = "prism.mobile=1";
+        // Ensure RequestServices available for AuthenticateAsync
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
 
         await middleware.InvokeAsync(context, prismContext);
@@ -133,6 +158,13 @@ public class PrismBrandingMiddlewareTests
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers.UserAgent = "Mozilla/5.0";
         context.Request.QueryString = new QueryString("?prismMobile=1");
+        // Ensure RequestServices available for AuthenticateAsync
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
 
         await middleware.InvokeAsync(context, prismContext);
@@ -199,6 +231,13 @@ public class PrismBrandingMiddlewareTests
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers.UserAgent = "Mozilla/5.0";
         context.Request.Headers["X-Prism-Platform"] = "mobile";
+        // Ensure RequestServices available for AuthenticateAsync
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
 
         await middleware.InvokeAsync(context, prismContext);
@@ -219,6 +258,13 @@ public class PrismBrandingMiddlewareTests
         var context = new DefaultHttpContext();
         context.Request.Method = HttpMethods.Get;
         context.Request.QueryString = new QueryString("?prismMobile=1");
+        // Ensure RequestServices available for AuthenticateAsync
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
 
         await middleware.InvokeAsync(context, prismContext);
@@ -376,6 +422,13 @@ public class PrismBrandingMiddlewareTests
         var context = new DefaultHttpContext();
         context.Request.Method = HttpMethods.Get;
         context.Request.Headers.UserAgent = "Mozilla/5.0";
+        // Provide a RequestServices with a mocked IAuthenticationService so AuthenticateAsync won't throw
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var authMock = new Moq.Mock<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authMock.Setup(s => s.AuthenticateAsync(Moq.It.IsAny<HttpContext>(), Moq.It.IsAny<string>()))
+                .ReturnsAsync(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        services.AddSingleton(authMock.Object);
+        context.RequestServices = services.BuildServiceProvider();
         context.Response.Body = new MemoryStream();
         return context;
     }
