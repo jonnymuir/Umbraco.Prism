@@ -383,6 +383,75 @@ public class BiometricController(
     }
 
     /// <summary>
+    /// Revokes biometric credentials for the authenticated user on the current tenant.
+    /// If a deviceId query parameter is provided, only that device's credential is revoked;
+    /// otherwise all active credentials for this user on the tenant are revoked (e.g. on logout).
+    /// Soft-deletes by setting RevokedAt; idempotent — returns 204 even if no active record exists.
+    /// </summary>
+    [HttpDelete("revoke")]
+    public IActionResult Revoke([FromQuery] string? deviceId = null)
+    {
+        // 1. Verify tenant context
+        var tenant = prismContext.CurrentTenant;
+        if (tenant == null)
+        {
+            logger.LogWarning("Biometric revoke: no tenant context resolved");
+            return BadRequest(new { error = "No tenant context available." });
+        }
+
+        // 2. Extract user OID from cookie claims
+        var userOid = User.FindFirst("oid")?.Value
+            ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+
+        if (string.IsNullOrWhiteSpace(userOid))
+        {
+            logger.LogWarning("Biometric revoke: user OID claim not found in principal");
+            return Unauthorized(new { error = "User identity could not be determined." });
+        }
+
+        var tenantId = tenant.Id.ToString();
+        using var db = databaseFactory.CreateDatabase();
+
+        List<PrismDeviceCredentialSchema> credentials;
+        if (!string.IsNullOrWhiteSpace(deviceId))
+        {
+            // Revoke a specific device credential (user must own it — scoped by TenantId + UserId)
+            var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(
+                "WHERE TenantId = @0 AND UserId = @1 AND DeviceId = @2 AND RevokedAt IS NULL",
+                tenantId, userOid, deviceId);
+            credentials = credential != null ? [credential] : [];
+        }
+        else
+        {
+            // Revoke all active credentials for this user on this tenant (logout path)
+            credentials = db.Fetch<PrismDeviceCredentialSchema>(
+                "WHERE TenantId = @0 AND UserId = @1 AND RevokedAt IS NULL", tenantId, userOid);
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var credential in credentials)
+        {
+            credential.RevokedAt = now;
+            db.Update(credential);
+        }
+
+        if (credentials.Count > 0)
+        {
+            logger.LogInformation(
+                "Biometric revoke: revoked {Count} credential(s) for user {UserOid} tenant {TenantId}",
+                credentials.Count, userOid, tenantId);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Biometric revoke: no active credentials found for user {UserOid} tenant {TenantId} (idempotent)",
+                userOid, tenantId);
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Removes the authenticated user's biometric credential for a specific device on the current tenant.
     /// Soft-deletes by setting RevokedAt; idempotent (returns 204 even if no active record exists).
     /// </summary>
