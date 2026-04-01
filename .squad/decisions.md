@@ -1371,3 +1371,43 @@ Added explicit CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allo
 **Build Status:** ✅ Clean (0 errors, 0 warnings)
 
 **Release:** v1.3.2
+
+---
+
+## 📌 2026-04-02: Isabelle — Frontend Directory Restructure + Mobile Boundary Guard
+
+**Session Log:** `.squad/log/2026-04-01T23-33-13Z-src-restructure.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-src-restructure.md`
+
+### Isabelle — Frontend Src Directory Restructure
+
+**Decision:** Split `src/UmbracoPrism.Client/src/` flat component directory into:
+- **`src/backoffice/`** — all Umbraco backoffice components + shared utilities (biometric-bridge, index.ts entry point, index.css)
+- **`src/mobile/`** — `prism-mobile-nav.ts` and its Storybook story
+
+Add an ESLint 9 flat config (`eslint.config.mjs`) with `no-restricted-imports` rule scoped to `src/mobile/**` to hard-error on any `@umbraco-cms/backoffice` import.
+
+**Rationale:**
+- **Architectural clarity:** The `mobile/` directory can never accidentally gain Umbraco dependencies
+- **Deployment efficiency:** `prism-mobile-nav.js` is loaded on every member-facing page view and must remain lean
+- **Safe refactoring:** `biometric-bridge.ts` is only consumed by backoffice biometric components (`prism-biometric-register`, `prism-biometric-settings`) — moves to `backoffice/` where it belongs
+- **Build output stability:** Vite entry points updated; output filenames (`prism-dashboard.js`, `prism-mobile-nav.js`) unchanged — Razor partials load by these exact names
+- **Storybook compatibility:** Existing glob `'../src/**/*.stories.@(ts|tsx)'` automatically covers nested subdirectories — no config change needed
+
+**Files Moved:**
+- 10 files → `src/backoffice/` (biometric-bridge, index.ts, index.css, prism-create-tenant-modal.ts/stories, prism-dashboard.ts/stories, prism-biometric-register.ts/stories, prism-biometric-settings.ts/stories)
+- 2 files → `src/mobile/` (prism-mobile-nav.ts, prism-mobile-nav.stories.ts)
+
+**Files Created/Updated:**
+- `eslint.config.mjs` (new) — ESLint 9 flat config with `no-restricted-imports` boundary guard
+- `vite.config.ts` — entry points updated to `src/backoffice/index.ts` and `src/mobile/prism-mobile-nav.ts`
+
+**Validation:**
+- Build clean: `tsc && vite build` → 0 errors
+- Output sizes unchanged: `prism-dashboard.js` 49.73 kB, `prism-mobile-nav.js` 5.84 kB
+- Relative imports between co-located files unaffected (same-directory moves preserve import paths)
+
+**Key Learning:** When splitting a flat directory into subdirectories, if related files move to the same target directory, relative import paths do not need updating — files' relative positions to each other remain unchanged, so imports stay correct.
+

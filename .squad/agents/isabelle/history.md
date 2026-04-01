@@ -125,3 +125,28 @@ The unauthenticated hero section rendered two "Sign In" buttons when running ins
 - Created `eslint.config.mjs` with `no-restricted-imports` rule blocking `@umbraco-cms/backoffice` in `src/mobile/**`
 
 **Decision Record:** `.squad/decisions/inbox/isabelle-src-restructure.md`
+
+**Decision Record:** `.squad/decisions.md#2026-04-02-isabelle--frontend-directory-restructure--mobile-boundary-guard`
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-01T23-33-13Z-isabelle.md`
+
+## Session: 2026-04-02 — Frontend Directory Restructure
+
+**Date:** 2026-04-02
+**Task:** Split flat `src/UmbracoPrism.Client/src/` into `backoffice/` and `mobile/` subdirectories with ESLint boundary guard.
+
+**Result:** ✅ Complete, build clean (`tsc && vite build` — 0 errors, outputs unchanged).
+
+### Learnings
+
+- 2026-04-02: When splitting a flat component directory into subdirectories, if all related files move to the same target directory, no relative import paths need updating — the imports stay correct because the files' relative positions to each other are unchanged.
+- 2026-04-02: ESLint 9 uses flat config (`eslint.config.mjs`). For a `"type":"module"` project with no prior ESLint setup, install `eslint` + `@typescript-eslint/parser` and scope `no-restricted-imports` to `src/mobile/**` to enforce architectural boundaries without affecting backoffice files.
+- 2026-04-02: Storybook's existing `stories` glob pattern `'../src/**/*.stories.@(ts|tsx)'` automatically covers nested subdirectories — no Storybook configuration change needed after moving stories into `src/backoffice/` and `src/mobile/`.
+
+### Changes
+
+- Moved 10 backoffice files → `src/UmbracoPrism.Client/src/backoffice/` (biometric-bridge, index.css, index.ts, all backoffice component .ts and .stories.ts files)
+- Moved 2 mobile files → `src/UmbracoPrism.Client/src/mobile/` (prism-mobile-nav.ts, prism-mobile-nav.stories.ts)
+- Updated `vite.config.ts` entry points to `src/backoffice/index.ts` and `src/mobile/prism-mobile-nav.ts`
+- Added boundary comment to `src/mobile/prism-mobile-nav.ts`
+- Created `eslint.config.mjs` with `no-restricted-imports` rule blocking `@umbraco-cms/backoffice` in `src/mobile/**`
