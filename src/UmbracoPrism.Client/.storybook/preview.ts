@@ -6,7 +6,7 @@ import '@umbraco-ui/uui-css/dist/uui-font.css';
 import '@umbraco-ui/uui-css/dist/uui-text.css';
 import '@umbraco-ui/uui-icon';
 import '@umbraco-ui/uui-icon-registry-essential';
-import '../src/index.css';
+import '../src/backoffice/index.css';
 
 const preview: Preview = {
   decorators: [
