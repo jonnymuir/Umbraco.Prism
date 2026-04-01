@@ -77,3 +77,51 @@ The unauthenticated hero section rendered two "Sign In" buttons when running ins
 **Decision Record:** `.squad/decisions.md#2026-03-30-remove-btn-mobile-signin-pattern`
 
 **Orchestration Log:** `.squad/orchestration-log/2026-03-29T160329-isabelle.md`
+
+## Session: 2026-03-31 — prism-mobile-nav Web Component
+
+**Task:** Convert `_MobileShellNav.cshtml` inline Razor nav to a Lit web component `<prism-mobile-nav>`.
+
+**Result:** ✅ Complete, build clean (`tsc && vite build` — 0 errors)
+
+### Learnings
+
+- 2026-03-31: Switching from `build.lib` to `rollupOptions.input` (multi-entry) in vite.config.ts lets you produce multiple standalone ES module bundles in one build. Use `entryFileNames: '[name].js'` to preserve friendly filenames. Rollup automatically creates shared chunks for common deps (e.g. Lit core → `property-[hash].js`); all files land in the same `outDir` so relative imports resolve correctly.
+- 2026-03-31: Shadow DOM `:host { display: none }` can be overridden by higher-specificity page-level CSS (e.g. `html.prism-mobile prism-mobile-nav { display: block }`). This is the correct cross-browser pattern when `:host-context()` is not available (WebKit/Safari does not support `:host-context()`).
+- 2026-03-31: Storybook `decorators` can be used at the story level to swap out the canvas context for themed variants — cleaner than duplicating story args just to change CSS custom properties.
+- 2026-03-31: Do NOT add frontend-only web components (no Umbraco backoffice imports) to `index.ts`. They should be separate Vite entries so they can be loaded independently from the test site without pulling in external Umbraco module references that would fail in a non-backoffice context.
+- 2026-03-31: For `ifDefined` from `lit/directives/if-defined.js` — pass `undefined` (not `null` or `false`) to remove the attribute. Pattern: `attr="${ifDefined(condition ? 'value' : undefined)}"`.
+
+### Changes
+
+- Created `src/prism-mobile-nav.ts` — Lit web component with glass-morphism dark default, full `--prism-mobile-nav-*` CSS custom property set, built-in SVG icons (home, dashboard, account, settings, transactions, notifications, more), `aria-current="page"` on active item, safe-area-inset bottom padding
+- Created `src/prism-mobile-nav.stories.ts` — 7 stories: Default, WithActiveItem, ManyItems(5), MaxItems(6), LightTheme, BrandColour, NoIcons, AccessibilityCheck
+- Updated `Views/Partials/_MobileShellNav.cshtml` — removed all inline `<style>`, serialises `Link[]` to JSON, renders `<prism-mobile-nav items="..." current-path="..." nav-label="...">`, loads `prism-mobile-nav.js` via `<script type="module">`
+- Updated `Views/Shared/Master.cshtml` — added `html.prism-mobile prism-mobile-nav { display: block; }` visibility rule
+- Updated `vite.config.ts` — replaced `build.lib` (single entry) with `rollupOptions.input` (multi-entry: `prism-dashboard` + `prism-mobile-nav`)
+
+**Decision Record:** `.squad/decisions/inbox/isabelle-mobile-nav-component.md`
+
+## Session: Src Directory Restructure
+
+**Date:** 2026-04-02
+**Task:** Split `src/UmbracoPrism.Client/src/` flat structure into `backoffice/` and `mobile/` subdirectories, add ESLint mobile boundary guard.
+
+**Result:** ✅ Complete, build clean (`tsc && vite build` — 0 errors, `prism-dashboard.js` 49.73 kB, `prism-mobile-nav.js` 5.84 kB)
+
+### Learnings
+
+- 2026-04-02: `git mv` was unavailable in the Copilot bash environment (permission error) — plain `mv` + `git add -A` produces identical rename detection in git history, so this is a safe workaround.
+- 2026-04-02: When splitting a flat component directory into subdirectories, if all related files move to the same target directory, no relative import paths need updating — the imports stay correct because the files' relative positions to each other are unchanged.
+- 2026-04-02: ESLint 9 uses flat config (`eslint.config.mjs`). For a `"type":"module"` project with no prior ESLint setup, install `eslint` + `@typescript-eslint/parser` and scope `no-restricted-imports` to `src/mobile/**` to enforce the Umbraco-free boundary without affecting backoffice files.
+- 2026-04-02: Storybook `stories` glob `'../src/**/*.stories.@(ts|tsx)'` automatically covers nested subdirectories — no Storybook config change needed after moving stories into `src/backoffice/` and `src/mobile/`.
+
+### Changes
+
+- Moved 10 backoffice files → `src/UmbracoPrism.Client/src/backoffice/` (biometric-bridge, index.css, index.ts, all backoffice component .ts and .stories.ts files)
+- Moved 2 mobile files → `src/UmbracoPrism.Client/src/mobile/` (prism-mobile-nav.ts, prism-mobile-nav.stories.ts)
+- Updated `vite.config.ts` entry points to `src/backoffice/index.ts` and `src/mobile/prism-mobile-nav.ts`
+- Added boundary comment to `src/mobile/prism-mobile-nav.ts`
+- Created `eslint.config.mjs` with `no-restricted-imports` rule blocking `@umbraco-cms/backoffice` in `src/mobile/**`
+
+**Decision Record:** `.squad/decisions/inbox/isabelle-src-restructure.md`
