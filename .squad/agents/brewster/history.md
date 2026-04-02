@@ -426,3 +426,20 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
 
 - **Seeder prerequisite:** `DemoMobileNavSeeder` requires the Settings content node (alias `settings`) to exist as root content. On a completely fresh database with no content, it logs a debug message and skips silently — developer must create the Settings node first, or the seeder fires on next app restart.
 - **Full solution build quirk:** `dotnet build UmbracoPrism.sln` fails with "Question build" in `UmbracoPrism.Core` due to MSBuild incremental build check. Build individual projects (`dotnet build src/<Project>/`) for clean results.
+
+## Session: 2026-04-02T20:18:48Z — Mobile Nav Seeder Restore
+
+**Commit:** `3e810ee`  
+**Status:** Completed
+
+**Task:** Restore `DemoMobileNavSeeder.cs` which was committed to feature branch after PR #35 was opened and never merged to main.
+
+**Changes:**
+- Recreated `src/UmbracoPrism.TestSite/DemoMobileNavSeeder.cs`
+- Seeds 4 demo mobile-nav links (Home, Account, Settings, Help) into Settings node
+- Development-only (`env.IsDevelopment()` + `RuntimeLevel.Run` guard), idempotent
+- Auto-discovered via `.AddComposers()` — no registration needed
+
+**Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings
+
+**Decision merged:** `brewster-mobile-nav-seeder.md` — Demo seeder pattern for TestSite established.

@@ -1411,3 +1411,51 @@ Add an ESLint 9 flat config (`eslint.config.mjs`) with `no-restricted-imports` r
 
 **Key Learning:** When splitting a flat directory into subdirectories, if related files move to the same target directory, relative import paths do not need updating — files' relative positions to each other remain unchanged, so imports stay correct.
 
+
+---
+
+## Decision: DemoMobileNavSeeder Recovery and Pattern
+
+**Date:** 2026-04-02  
+**Author:** Brewster  
+**Status:** Accepted
+
+`DemoMobileNavSeeder.cs` was lost from main (committed to a feature branch after PR opened, never merged). Mobile nav was silently not rendering because `_MobileShellNav.cshtml` guards on `Model != null && Model.Any()`.
+
+**Decision:** Keep `DemoMobileNavSeeder.cs` in `src/UmbracoPrism.TestSite/` as a permanent Development-only startup seeder. Auto-discovered via `.AddComposers()` — no manual registration.
+
+**Pattern:**
+- Demo seeders belong in the TestSite project root
+- Implement `INotificationAsyncHandler<UmbracoApplicationStartedNotification>`
+- Guard with `runtimeState.Level < RuntimeLevel.Run` and `env.IsDevelopment()`
+- Must be idempotent (check before write)
+- Log at Debug for skip cases, Information for success, Warning for failures
+- Requires Settings content node (alias `settings`) to exist; skips silently on fresh DB
+
+---
+
+## Decision: Always HTML-encode JSON in HTML Attributes (Razor)
+
+**Date:** 2026-04-02  
+**Author:** Isabelle  
+**Status:** Accepted
+
+`_MobileShellNav.cshtml` passed a `System.Text.Json`-serialised JSON string directly into a double-quoted HTML attribute (`items="@itemsJson"`). `System.Text.Json` produces `"` delimiters which terminate the attribute early — the component received truncated JSON, `JSON.parse` threw, and the nav rendered silently empty.
+
+**Decision:** When passing JSON from C# into a double-quoted HTML attribute in Razor views, always use `@Html.AttributeEncode()`:
+
+```razor
+<prism-mobile-nav items="@Html.AttributeEncode(itemsJson)" ...>
+```
+
+`AttributeEncode` replaces `"` → `&quot;`. Browsers decode `&quot;` → `"` before returning `getAttribute()`, so `JSON.parse` receives valid JSON. Single-quote attributes are unsafe if label text may contain single quotes.
+
+---
+
+## Decision: Solo-Contributor Workflow — Skip PRs
+
+**Date:** 2026-04-02  
+**Author:** Jonny (via Copilot)  
+**Status:** Accepted
+
+For solo-contributor work on this repo, skip pull requests. Commit directly to main (or short-lived branches merged immediately without formal PR review). PRs are unnecessary overhead for a single-contributor workflow.

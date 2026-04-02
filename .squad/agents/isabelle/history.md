@@ -222,3 +222,19 @@ The issue was subtle: page-level CSS *should* override Shadow DOM `:host` per sp
 ### Learnings
 
 - 2026-07-10: Always HTML-encode JSON passed as a double-quoted HTML attribute. `System.Text.Json` outputs `"` delimiters which break `attr="..."` syntax. `@Html.AttributeEncode()` is the Razor idiom to fix this — it encodes `"` → `&quot;`; the browser decodes `&quot;` back to `"` when returning `getAttribute()`, so `JSON.parse` sees correct input.
+
+## Session: 2026-04-02T20:18:48Z — Mobile Nav HTML Encoding Fix
+
+**Commit:** `3e810ee`  
+**Status:** Completed
+
+**Task:** Audit the full JS/CSS rendering chain for `prism-mobile-nav` and fix blank-nav bug.
+
+**Root cause found:** `_MobileShellNav.cshtml` used `items="@itemsJson"` — raw JSON with `"` delimiters inside a double-quoted HTML attribute. Browser truncated the attribute at the first inner `"`, `JSON.parse` threw, component returned `[]`, nav rendered empty.
+
+**Fix:** `src/UmbracoPrism.TestSite/Views/Partials/_MobileShellNav.cshtml`  
+`items="@Html.AttributeEncode(itemsJson)"` — encodes `"` → `&quot;`, browsers decode back before JS reads the attribute.
+
+**No other issues:** CSS `html.prism-mobile prism-mobile-nav { display: block !important; }`, script loading, and component lifecycle all correct.
+
+**Decision merged:** `isabelle-mobile-nav-audit.md` — Always `@Html.AttributeEncode()` for JSON in double-quoted Razor attributes.
