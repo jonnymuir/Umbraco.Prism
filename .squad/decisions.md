@@ -1452,10 +1452,100 @@ Add an ESLint 9 flat config (`eslint.config.mjs`) with `no-restricted-imports` r
 
 ---
 
-## Decision: Solo-Contributor Workflow — Skip PRs
+## 📌 2026-04-02: Solo-Contributor Workflow — Skip PRs
 
 **Date:** 2026-04-02  
 **Author:** Jonny (via Copilot)  
 **Status:** Accepted
 
 For solo-contributor work on this repo, skip pull requests. Commit directly to main (or short-lived branches merged immediately without formal PR review). PRs are unnecessary overhead for a single-contributor workflow.
+
+---
+
+## 📌 2026-04-02: Mobile Nav Icon Mapping Convention (Brewster)
+
+**Session Log:** `.squad/log/2026-04-02-mobile-nav-icons-and-styling.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/brewster-nav-icons.md`
+
+### Brewster — Icon Mapping Convention for Mobile Nav
+
+**Date:** 2025-07-18  
+**Status:** Accepted
+
+The `prism-mobile-nav` Lit component supports an `icon` property on each nav item, mapped to built-in SVG icons (`home`, `dashboard`, `account`, `settings`, `transactions`, `notifications`, `more`). The Razor partial `_MobileShellNav.cshtml` now populates this field using a **URL-first, label-fallback** convention.
+
+**Implementation:** Local function `IconForLink` in the partial:
+
+1. **URL matching takes priority** — checks lowercased, trailing-slash-trimmed href for known substrings.
+2. **Label fallback** — if the URL yields no match, checks the lowercased nav item label.
+3. **Null for unknowns** — items with no recognisable pattern receive `icon = null`, which is omitted from the serialised JSON. The component renders label-only gracefully.
+
+**Icon → URL/label keyword mapping:**
+
+| Icon           | URL keywords                          | Label keywords         |
+|----------------|---------------------------------------|------------------------|
+| `home`         | `""` or `"/"`                         | `home`                 |
+| `dashboard`    | `dashboard`                           | `dashboard`            |
+| `account`      | `account`, `profile`                  | `account`, `profile`   |
+| `settings`     | `setting`                             | `setting`              |
+| `transactions` | `transaction`, `payment`              | —                      |
+| `notifications`| `notification`, `alert`              | —                      |
+| `more`         | `help`, `support`, `more`             | —                      |
+
+**Why:** 
+- No CMS property changes needed — mapping is purely derived from existing URL and label data.
+- Easily extended: add new `if` branches to `IconForLink` as new icon names are added to the component.
+- Null-safe and gracefully degrading — no site breakage if a link doesn't match any rule.
+
+---
+
+## 📌 2026-04-02: Mobile Nav iOS White Style Defaults (Isabelle)
+
+**Session Log:** `.squad/log/2026-04-02-mobile-nav-icons-and-styling.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-white-nav.md`
+
+### Isabelle — prism-mobile-nav Defaults to Apple iOS White Style
+
+**Date:** 2026-03-30  
+**Status:** Accepted
+
+Changed `prism-mobile-nav` default styling from dark glass (navy `rgba(15,23,42,0.94)`) to Apple iOS-inspired white frosted glass (`rgba(255,255,255,0.95)`).
+
+**Rationale:** The white tab bar is the dominant pattern on iOS and matches the Umbraco Prism TestSite's light UI. Dark glass is still fully supported via CSS custom properties — just no longer the default.
+
+**Changes:**
+
+- **Component defaults** (`prism-mobile-nav.ts`): Updated all CSS `var()` fallback values to iOS palette. Active colour defaults to `#007aff` (iOS blue) rather than `#4f46e5` (indigo). Label weight dropped from 600 → 500 for iOS feel.
+- **Storybook** (`prism-mobile-nav.stories.ts`): `mobileDecorator` background changed to `#f2f2f7` (iOS system background). `LightTheme` story renamed `DarkTheme` with dark glass overrides.
+- **TestSite branding** (`prism-components.css`): Explicit white nav vars added to `prism-mobile-nav {}` block for documentation and tenant-override discoverability.
+
+**Implications:** Tenants relying on the previous dark defaults will need to add explicit CSS variable overrides. This is a visual breaking change for existing deployments without custom branding.
+
+---
+
+## 📌 2026-04-02: Mobile Nav Icon Strategy — Interim URL Convention (Copilot)
+
+**Session Log:** `.squad/log/2026-04-02-mobile-nav-icons-and-styling.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copilot-mobile-nav-icon-approach.md`
+
+### Copilot — Mobile Nav Icon Strategy Rationale
+
+**Date:** 2026-04-02  
+**Author:** Jonny Muir (via Copilot — autonomous decision)  
+**Status:** Accepted
+
+Icon mapping for `prism-mobile-nav` uses URL/label convention in `_MobileShellNav.cshtml` as a pragmatic first step. The proper Umbraco reference implementation should use a custom `MobileNavItem` Element Type (Block List property on the Settings doc type) with an explicit `icon` dropdown field — so backoffice editors can choose icons without relying on URL pattern inference.
+
+**Why URL Convention Is Interim:**
+- Umbraco's built-in `Link` type has no icon field. URL convention mapping is fragile for non-standard URLs.
+- For a reference implementation, a custom Element Type is the correct pattern.
+- The convention mapping is an acceptable intermediate state while the proper schema work is planned.
+
+**Next Step:**
+Create a `MobileNavItem` Element Type with `label`, `url`, `icon` (dropdown), `target` fields; change Settings doc type to use Block List; update partial + seeder + Master.cshtml accordingly.

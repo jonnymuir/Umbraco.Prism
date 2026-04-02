@@ -290,3 +290,68 @@ The issue was subtle: page-level CSS *should* override Shadow DOM `:host` per sp
 **Build:** ✅ Passed (`npm run build` — 42 modules, no errors)
 
 **Decision filed:** `.squad/decisions/inbox/isabelle-white-nav.md`
+
+---
+
+## Session: 2026-04-02 — iOS White Style Implementation (Finalized)
+
+**Commit:** `37e9975`  
+**Status:** Completed  
+**Decision merged:** `isabelle-white-nav.md` — prism-mobile-nav defaults to Apple iOS white style
+
+**Implementation Summary:**
+
+Updated `prism-mobile-nav` component default styling from dark glass (navy) to Apple iOS-inspired white frosted glass, matching the Umbraco Prism TestSite's light UI.
+
+**Component Defaults Changed (`prism-mobile-nav.ts`):**
+
+| Property | Before | After | Notes |
+|----------|--------|-------|-------|
+| Background | `rgba(15,23,42,0.94)` (dark navy) | `rgba(255,255,255,0.95)` (white) | Glass morphism effect maintained |
+| Active Icon Color | `#4f46e5` (indigo) | `#007aff` (iOS blue) | Follows iOS HIG |
+| Label Font Weight | `600` | `500` | Lighter weight for iOS feel |
+| Item Hover BG | `rgba(255,255,255,0.2)` | `rgba(255,255,255,0.1)` | Subtle contrast on white |
+| Item Active BG | `rgba(255,255,255,0.25)` | `rgba(255,255,255,0.15)` | Subtle contrast on white |
+
+All CSS custom property fallbacks updated. JSDoc CSS variables table synchronized.
+
+**Storybook Updated (`prism-mobile-nav.stories.ts`):**
+
+- `mobileDecorator` background → `#f2f2f7` (iOS system background, `UIColor.systemGroupedBackground`)
+- `LightTheme` story renamed to `DarkTheme` with explicit dark glass overrides:
+  - `--prism-mobile-nav-background: rgba(15,23,42,0.94)`
+  - `--prism-mobile-nav-item-color: rgba(255,255,255,0.6)`
+  - `--prism-mobile-nav-item-active-color: #4f46e5`
+  - Other dark-specific vars restored
+- All play/test functions preserved intact
+- 7 stories remain: Default (now white), DarkTheme (renamed), WithActiveItem, ManyItems, MaxItems, BrandColour, NoIcons
+
+**TestSite Branding (`prism-components.css`):**
+
+Added explicit white nav variable block for documentation and tenant-override discoverability:
+
+```css
+prism-mobile-nav {
+  --prism-mobile-nav-background: rgba(255,255,255,0.95);
+  --prism-mobile-nav-blur-px: 20;
+  --prism-mobile-nav-item-color: rgba(60,60,67,0.6);
+  --prism-mobile-nav-item-active-color: #007aff;
+  --prism-mobile-nav-label-weight: 500;
+}
+```
+
+**Breaking Change Notice:**
+
+- Tenants relying on the previous dark defaults will need to add explicit CSS variable overrides in their custom branding
+- Dark glass is still fully supported via CSS custom properties — just no longer the default
+- Migration: Add `--prism-mobile-nav-*` vars to tenant branding files or override via inline styles
+
+**Build:** ✅ Passed (`npm run build` — 42 modules, no errors)
+
+**Rationale:**
+
+- iOS white tab bar is the dominant navigation pattern on mobile devices
+- Matches the Umbraco Prism TestSite's light UI theme
+- Uses familiar iOS blue (`#007aff`) for active state — users instantly recognize it
+- Maintains glass morphism accessibility (blur + transparency for depth)
+- Component is theme-agnostic — CSS variables allow full customization

@@ -489,3 +489,71 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
    - Added `icon = IconForLink(link.Url, link.Name)` to the anonymous projection
 
 **Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings (2.10s)
+
+---
+
+## Session: 2026-04-02 — Mobile Nav Icon Mapping (Finalized)
+
+**Commit:** `37e9975`  
+**Status:** Completed  
+**Decision merged:** `brewster-nav-icons.md` — Icon mapping convention for mobile nav
+
+**Implementation Details:**
+
+The `_MobileShellNav.cshtml` partial now populates the `icon` property on `prism-mobile-nav` using a **URL-first, label-fallback** convention.
+
+**Local function `IconForLink`:**
+```csharp
+string? IconForLink(string? href, string? label)
+{
+    if (string.IsNullOrWhiteSpace(href) && string.IsNullOrWhiteSpace(label)) return null;
+    
+    var urlLower = (href ?? "").ToLowerInvariant().TrimEnd('/');
+    var labelLower = (label ?? "").ToLowerInvariant();
+    
+    // URL matching (priority)
+    if (urlLower == "" || urlLower == "/") return "home";
+    if (urlLower.Contains("dashboard")) return "dashboard";
+    if (urlLower.Contains("account") || urlLower.Contains("profile")) return "account";
+    if (urlLower.Contains("setting")) return "settings";
+    if (urlLower.Contains("transaction") || urlLower.Contains("payment")) return "transactions";
+    if (urlLower.Contains("notification") || urlLower.Contains("alert")) return "notifications";
+    if (urlLower.Contains("help") || urlLower.Contains("support") || urlLower.Contains("more")) return "more";
+    
+    // Label fallback
+    if (labelLower == "home") return "home";
+    if (labelLower == "dashboard") return "dashboard";
+    if (labelLower == "account" || labelLower == "profile") return "account";
+    if (labelLower == "setting") return "settings";
+    
+    return null;
+}
+```
+
+**Icon → URL/label mapping:**
+- `home` → URLs: `""`, `"/"` | Labels: `"home"`
+- `dashboard` → URLs containing `dashboard` | Labels: `dashboard`
+- `account` → URLs containing `account`, `profile` | Labels: `account`, `profile`
+- `settings` → URLs containing `setting` | Labels: `setting`
+- `transactions` → URLs containing `transaction`, `payment`
+- `notifications` → URLs containing `notification`, `alert`
+- `more` → URLs containing `help`, `support`, `more`
+
+**JSON projection:**
+```csharp
+icon = IconForLink(link.Url, link.Name)
+```
+
+Null icons are omitted from serialised JSON via `System.Text.Json.Serialization.WhenWritingNull`. The `prism-mobile-nav` component gracefully renders label-only for unrecognised links.
+
+**Rationale:**
+- No CMS schema changes required — mapping derived from existing Multi URL Picker link data
+- Easily extended: add new `if` branches for new icon types
+- Null-safe and gracefully degrading — no render failures
+
+**Decision notes:**
+- This is an **interim solution** using URL convention inference
+- **Future work:** Custom `MobileNavItem` Element Type with explicit `icon` dropdown field for editor control (proper Umbraco pattern)
+- See `copilot-mobile-nav-icon-approach.md` for context
+
+**Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings
