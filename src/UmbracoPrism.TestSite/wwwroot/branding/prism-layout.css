@@ -9,3 +9,56 @@
     --prism-hero-padding: 40px;
     --prism-grid-min: 240px;
 }
+
+body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    margin: 0;
+    background-color: var(--bg-offset);
+    color: #1a1a1a;
+}
+
+.header {
+    background-color: var(--tenant-primary);
+    color: var(--tenant-primary-contrast);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.container {
+    max-width: 1000px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.footer {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.prism-mobile .header {
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+    padding-right: calc(1rem + env(safe-area-inset-right));
+    padding-left: calc(1rem + env(safe-area-inset-left));
+    padding-bottom: 0.75rem;
+}
+
+.prism-mobile .container {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding-top: 1rem;
+    padding-right: calc(1rem + env(safe-area-inset-right));
+    padding-left: calc(1rem + env(safe-area-inset-left));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    box-sizing: border-box;
+}
+
+.prism-mobile .footer {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    margin-bottom: 0;
+}
