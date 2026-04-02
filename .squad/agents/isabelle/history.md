@@ -198,3 +198,27 @@ Checked:
 - ✅ Specificity: `html.prism-mobile prism-mobile-nav` should override `:host`, but `!important` guarantees it
 
 The issue was subtle: page-level CSS *should* override Shadow DOM `:host` per spec, but adding `!important` eliminates any browser-specific edge cases.
+
+## Session: 2026-07-10 — Mobile Nav Frontend Audit
+
+**Task:** Audit the full JS/CSS rendering chain for `prism-mobile-nav` in the live Umbraco test site.
+
+**Result:** ✅ Complete — one critical bug fixed, build clean.
+
+### Findings
+
+**CRITICAL BUG (fixed):** `_MobileShellNav.cshtml` used `items="@itemsJson"` to pass the serialised JSON as an HTML attribute delimited by double-quotes. `System.Text.Json` produces JSON with double-quote string delimiters (e.g. `[{"label":"Home",...}]`). Those inner `"` chars terminate the HTML attribute early, so the browser saw `items="[{"` — a truncated, invalid JSON fragment. The component's `_items` getter catches the `JSON.parse` exception and returns `[]`, so the nav renders silently empty. Fix: switched to `items="@Html.AttributeEncode(itemsJson)"` — encodes `"` → `&quot;`, which is valid inside double-quoted attributes and browsers decode back to `"` before the JS attribute read.
+
+**No other issues found:**
+- `:host { display: none }` default + `html.prism-mobile prism-mobile-nav { display: block !important; }` in `<head>` `<style>` block — correct pattern, `!important` present ✓
+- `<script type="module">` is auto-deferred — component upgrade happens after DOM parse, no timing issue ✓
+- Storybook bypasses CSS chain with inline `display: block !important` on host via decorator — this is expected but means Storybook doesn't exercise the `html.prism-mobile` path ✓
+- `_items` getter wraps `JSON.parse` in try/catch returning `[]` — silent failure is correct, but with the encoding fix the JSON will be valid ✓
+
+### Changes
+
+- Fixed `Views/Partials/_MobileShellNav.cshtml`: `items="@Html.AttributeEncode(itemsJson)"` (was `items="@itemsJson"`)
+
+### Learnings
+
+- 2026-07-10: Always HTML-encode JSON passed as a double-quoted HTML attribute. `System.Text.Json` outputs `"` delimiters which break `attr="..."` syntax. `@Html.AttributeEncode()` is the Razor idiom to fix this — it encodes `"` → `&quot;`; the browser decodes `&quot;` back to `"` when returning `getAttribute()`, so `JSON.parse` sees correct input.

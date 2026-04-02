@@ -399,3 +399,30 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
 
 **EditorUiAlias Confirmation (Brewster):** EditorUiAlias fix confirmed working on startup seeder. Decision merged and documented for future reference.
 
+
+## Session: 2026 — Mobile Nav Seeder Recovery
+
+**Status:** Completed
+
+**Problem:** `DemoMobileNavSeeder.cs` was committed to feature branch after PR opened, never merged to main. Mobile nav didn't appear in the running test site because `mobileNavLinks` was empty, and `_MobileShellNav.cshtml` guards rendering on `Model != null && Model.Any()`.
+
+**Changes made:**
+
+1. **`DemoMobileNavSeeder.cs`** (recreated) — `src/UmbracoPrism.TestSite/DemoMobileNavSeeder.cs` — seeds 4 demo links (Home, Account, Settings, Help) into Settings node on `UmbracoApplicationStartedNotification`. Development-only, idempotent.
+
+**Rendering chain verified:**
+- `Master.cshtml` line 12: reads `mobileNavLinks` from settings node via `IPublishedContent.Value<IEnumerable<Link>>()`
+- `Master.cshtml` ~line 87: `html.prism-mobile prism-mobile-nav { display: block !important; }` CSS rule present ✅
+- `Master.cshtml` bottom: `@Html.Partial("_MobileShellNav", mobileNavLinks)` ✅
+- `_MobileShellNav.cshtml`: guard `@if (Model != null && Model.Any())`, then renders `<prism-mobile-nav>` and loads `prism-mobile-nav.js` from `/App_Plugins/UmbracoPrism/dist/` ✅
+
+**Registration:** `.AddComposers()` in `Program.cs` auto-discovers `INotificationAsyncHandler<UmbracoApplicationStartedNotification>` — no manual registration needed.
+
+**Database:** Existing SQLite DB at `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`. Seeder is idempotent — skips if `mobileNavLinks` already set. Will also skip if Settings content node doesn't exist yet (fresh install pre-content-setup).
+
+**Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings. Full solution `dotnet build UmbracoPrism.sln` has a pre-existing "Question build" error in `UmbracoPrism.Core` (MSBuild out-of-date check, unrelated to this change).
+
+## Learnings
+
+- **Seeder prerequisite:** `DemoMobileNavSeeder` requires the Settings content node (alias `settings`) to exist as root content. On a completely fresh database with no content, it logs a debug message and skips silently — developer must create the Settings node first, or the seeder fires on next app restart.
+- **Full solution build quirk:** `dotnet build UmbracoPrism.sln` fails with "Question build" in `UmbracoPrism.Core` due to MSBuild incremental build check. Build individual projects (`dotnet build src/<Project>/`) for clean results.

@@ -21,7 +21,7 @@
     <script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-mobile-nav.js"></script>
 
     <prism-mobile-nav
-        items="@itemsJson"
+        items="@Html.AttributeEncode(itemsJson)"
         current-path="@currentPath"
         nav-label="Mobile app navigation">
     </prism-mobile-nav>
