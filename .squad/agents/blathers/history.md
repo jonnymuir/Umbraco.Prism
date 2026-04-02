@@ -345,3 +345,12 @@ Replace the naive `context.User.Identity?.IsAuthenticated` check with an explici
 - **Performance optimization**: Guard the async authentication call with lightweight preconditions (`isPrismMobileRequest && AllowBiometricLogin`) to avoid unnecessary authentication attempts for non-mobile requests.
 - **AuthenticateResult pattern**: Always check both `authResult.Succeeded` AND `authResult.Principal?.Identity?.IsAuthenticated` to ensure the authentication fully completed with a valid authenticated identity.
 - **Fix location**: `PrismBrandingMiddleware.InvokeAsync` lines 32-37. Added `using Microsoft.AspNetCore.Authentication;` at line 2.
+
+## Learnings (Issue — DemoMobileNavSeeder for mobileNavLinks)
+
+- Added `DemoMobileNavSeeder` to `src/UmbracoPrism.TestSite/` as an `INotificationAsyncHandler<UmbracoApplicationStartedNotification>`. Umbraco's `AddComposers()` auto-discovers it — no manual registration needed.
+- Dev-only guard: `IWebHostEnvironment.IsDevelopment()` check prevents seeding in staging/prod.
+- Idempotency: reads existing serialized value via `settings.GetValue<string>("mobileNavLinks")`; skips if non-empty. This works regardless of whether the Core seeder or the test site seeder runs first.
+- Intentionally skips the data type key validation guard present in `PrismStarterContentSeeder` — the test site seeder is relaxed (try/catch) and tolerates mismatches because the consequence is just no demo data, not a broken site.
+- Updated `PrismStarterContentSeeder.EnsureSettingsDefaults()` demo links from [Home /, Dashboard /dashboard] to [Home /, Account /account, Settings /settings, Help /help] so both seeders are consistent; whichever runs first on a fresh install seeds the same 4 canonical demo links.
+- MultiUrlPicker JSON wire format for `SetValue`: `[{"name":"...","target":"","type":"External","url":"..."}]`.
