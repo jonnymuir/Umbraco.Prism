@@ -29,3 +29,16 @@
 html.prism-mobile prism-mobile-nav {
     display: block !important;
 }
+
+/* Mobile navigation — Apple iOS tab bar style */
+prism-mobile-nav {
+  --prism-mobile-nav-bg: rgba(255, 255, 255, 0.95);
+  --prism-mobile-nav-border-color: rgba(0, 0, 0, 0.08);
+  --prism-mobile-nav-blur: 20px;
+  --prism-mobile-nav-item-color: rgba(60, 60, 67, 0.6);
+  --prism-mobile-nav-item-hover-color: rgba(60, 60, 67, 0.85);
+  --prism-mobile-nav-item-hover-bg: rgba(0, 0, 0, 0.05);
+  --prism-mobile-nav-item-active-bg: transparent;
+  --prism-mobile-nav-item-active-border: transparent;
+  --prism-mobile-nav-item-active-color: var(--prism-primary, #007aff);
+}

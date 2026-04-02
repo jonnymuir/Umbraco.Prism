@@ -49,9 +49,9 @@ const ICONS: Record<string, string> = {
  *   html.prism-mobile prism-mobile-nav { display: block; }
  *
  * CSS custom properties (all optional — sensible defaults ship out of the box):
- *   --prism-mobile-nav-bg               Background of the bar        (default: rgba(15,23,42,0.94))
- *   --prism-mobile-nav-border-color     Top-border colour             (default: rgba(148,163,184,0.3))
- *   --prism-mobile-nav-blur             Backdrop blur amount          (default: 8px)
+ *   --prism-mobile-nav-bg               Background of the bar        (default: rgba(255,255,255,0.95))
+ *   --prism-mobile-nav-border-color     Top-border colour             (default: rgba(0,0,0,0.08))
+ *   --prism-mobile-nav-blur             Backdrop blur amount          (default: 20px)
  *   --prism-mobile-nav-z-index          Stack order                   (default: 1000)
  *   --prism-mobile-nav-gap              Gap between items             (default: 6px)
  *   --prism-mobile-nav-padding-h        Horizontal padding            (default: 12px)
@@ -60,15 +60,15 @@ const ICONS: Record<string, string> = {
  *   --prism-mobile-nav-item-radius      Item border-radius            (default: 10px)
  *   --prism-mobile-nav-item-bg          Item background (inactive)    (default: transparent)
  *   --prism-mobile-nav-item-border      Item border colour (inactive) (default: transparent)
- *   --prism-mobile-nav-item-color       Item text/icon colour         (default: rgba(226,232,240,0.75))
- *   --prism-mobile-nav-item-hover-bg    Item hover background         (default: rgba(148,163,184,0.1))
- *   --prism-mobile-nav-item-hover-color Item hover colour             (default: #e2e8f0)
- *   --prism-mobile-nav-item-active-bg   Active item background        (default: rgba(79,70,229,0.2))
- *   --prism-mobile-nav-item-active-border Active item border colour   (default: rgba(129,140,248,0.4))
- *   --prism-mobile-nav-item-active-color  Active item text/icon color (default: var(--prism-primary,#4f46e5))
+ *   --prism-mobile-nav-item-color       Item text/icon colour         (default: rgba(60,60,67,0.6))
+ *   --prism-mobile-nav-item-hover-bg    Item hover background         (default: rgba(0,0,0,0.05))
+ *   --prism-mobile-nav-item-hover-color Item hover colour             (default: rgba(60,60,67,0.85))
+ *   --prism-mobile-nav-item-active-bg   Active item background        (default: transparent)
+ *   --prism-mobile-nav-item-active-border Active item border colour   (default: transparent)
+ *   --prism-mobile-nav-item-active-color  Active item text/icon color (default: var(--prism-primary,#007aff))
  *   --prism-mobile-nav-icon-size        SVG icon dimensions           (default: 22px)
  *   --prism-mobile-nav-label-size       Label font-size               (default: 11px)
- *   --prism-mobile-nav-label-weight     Label font-weight             (default: 600)
+ *   --prism-mobile-nav-label-weight     Label font-weight             (default: 500)
  *   --prism-mobile-nav-transition       Transition shorthand          (default: 200ms ease)
  */
 @customElement('prism-mobile-nav')
@@ -155,10 +155,10 @@ export class PrismMobileNavElement extends LitElement {
         var(--prism-mobile-nav-padding-v, 10px)
         var(--prism-mobile-nav-padding-h, 12px)
         calc(var(--prism-mobile-nav-padding-v, 10px) + env(safe-area-inset-bottom));
-      background: var(--prism-mobile-nav-bg, rgba(15, 23, 42, 0.94));
-      border-top: 1px solid var(--prism-mobile-nav-border-color, rgba(148, 163, 184, 0.3));
-      backdrop-filter: blur(var(--prism-mobile-nav-blur, 8px));
-      -webkit-backdrop-filter: blur(var(--prism-mobile-nav-blur, 8px));
+      background: var(--prism-mobile-nav-bg, rgba(255, 255, 255, 0.95));
+      border-top: 1px solid var(--prism-mobile-nav-border-color, rgba(0, 0, 0, 0.08));
+      backdrop-filter: blur(var(--prism-mobile-nav-blur, 20px));
+      -webkit-backdrop-filter: blur(var(--prism-mobile-nav-blur, 20px));
     }
 
     .nav-item {
@@ -171,7 +171,7 @@ export class PrismMobileNavElement extends LitElement {
       padding: 6px 4px;
       border-radius: var(--prism-mobile-nav-item-radius, 10px);
       text-decoration: none;
-      color: var(--prism-mobile-nav-item-color, rgba(226, 232, 240, 0.75));
+      color: var(--prism-mobile-nav-item-color, rgba(60, 60, 67, 0.6));
       background: var(--prism-mobile-nav-item-bg, transparent);
       border: 1px solid var(--prism-mobile-nav-item-border, transparent);
       transition:
@@ -184,18 +184,18 @@ export class PrismMobileNavElement extends LitElement {
     }
 
     .nav-item:hover {
-      color: var(--prism-mobile-nav-item-hover-color, #e2e8f0);
-      background: var(--prism-mobile-nav-item-hover-bg, rgba(148, 163, 184, 0.1));
+      color: var(--prism-mobile-nav-item-hover-color, rgba(60, 60, 67, 0.85));
+      background: var(--prism-mobile-nav-item-hover-bg, rgba(0, 0, 0, 0.05));
     }
 
     .nav-item:focus-visible {
-      outline: 2px solid var(--prism-mobile-nav-item-active-color, var(--prism-primary, #4f46e5));
+      outline: 2px solid var(--prism-mobile-nav-item-active-color, var(--prism-primary, #007aff));
     }
 
     .nav-item--active {
-      color: var(--prism-mobile-nav-item-active-color, var(--prism-primary, #4f46e5));
-      background: var(--prism-mobile-nav-item-active-bg, rgba(79, 70, 229, 0.2));
-      border-color: var(--prism-mobile-nav-item-active-border, rgba(129, 140, 248, 0.4));
+      color: var(--prism-mobile-nav-item-active-color, var(--prism-primary, #007aff));
+      background: var(--prism-mobile-nav-item-active-bg, transparent);
+      border-color: var(--prism-mobile-nav-item-active-border, transparent);
     }
 
     .nav-icon {
@@ -206,7 +206,7 @@ export class PrismMobileNavElement extends LitElement {
 
     .nav-label {
       font-size: var(--prism-mobile-nav-label-size, 11px);
-      font-weight: var(--prism-mobile-nav-label-weight, 600);
+      font-weight: var(--prism-mobile-nav-label-weight, 500);
       line-height: 1;
       letter-spacing: 0.01em;
       white-space: nowrap;

@@ -471,3 +471,21 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
 **Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings (3.76s)
 
 **Result:** Both views now route through Master.cshtml. Mobile nav, branding CSS, and shared chrome are automatically injected. No layout HTML is duplicated.
+
+---
+
+## Session: Mobile Nav Icon Mapping
+
+**Task:** Wire `icon` field into `_MobileShellNav.cshtml` so `prism-mobile-nav` renders icons on the live site.
+
+**Problem:** The `navItems` projection omitted the `icon` property, so the Lit component never received icon data.
+
+**Changes made:**
+
+1. **`src/UmbracoPrism.TestSite/Views/Partials/_MobileShellNav.cshtml`**
+   - Added `IconForLink(string? href, string? label)` local function inside the `@{ }` block
+   - Matches URL segments and label text to built-in icon names: `home`, `dashboard`, `account`, `settings`, `transactions`, `notifications`, `more`
+   - Returns `null` for unrecognised links — omitted from JSON via `WhenWritingNull`, component degrades to label-only
+   - Added `icon = IconForLink(link.Url, link.Name)` to the anonymous projection
+
+**Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings (2.10s)

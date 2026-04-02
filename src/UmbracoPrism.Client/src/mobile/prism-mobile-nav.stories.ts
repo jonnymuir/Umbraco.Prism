@@ -51,7 +51,7 @@ const mobileDecorator = (story: () => unknown) => html`
     style="
       position: relative;
       height: 160px;
-      background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+      background: #f2f2f7;
       border-radius: 16px;
       overflow: hidden;
     "
@@ -180,11 +180,11 @@ export const MaxItems: Story = {
 };
 
 /**
- * Light theme variant — override the dark glass defaults with CSS custom
- * properties to match a light-coloured tenant brand.
+ * Dark theme variant — override the white iOS defaults with CSS custom
+ * properties to show the original dark glass look.
  */
-export const LightTheme: Story = {
-  name: 'Light Theme',
+export const DarkTheme: Story = {
+  name: 'Dark Theme',
   decorators: [
     () => html`
       <style>
@@ -194,7 +194,7 @@ export const LightTheme: Story = {
         style="
           position: relative;
           height: 160px;
-          background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 100%);
+          background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
           border-radius: 16px;
           overflow: hidden;
         "
@@ -202,16 +202,16 @@ export const LightTheme: Story = {
         <prism-mobile-nav
           .items=${THREE_ITEMS}
           current-path="/"
-          nav-label="Mobile navigation (light)"
+          nav-label="Mobile navigation (dark)"
           style="
-            --prism-mobile-nav-bg: rgba(255, 255, 255, 0.92);
-            --prism-mobile-nav-border-color: rgba(0, 0, 0, 0.08);
-            --prism-mobile-nav-item-color: rgba(30, 41, 59, 0.6);
-            --prism-mobile-nav-item-hover-color: #1e293b;
-            --prism-mobile-nav-item-hover-bg: rgba(0, 0, 0, 0.06);
-            --prism-mobile-nav-item-active-bg: rgba(79, 70, 229, 0.1);
-            --prism-mobile-nav-item-active-border: rgba(79, 70, 229, 0.3);
-            --prism-mobile-nav-item-active-color: #4f46e5;
+            --prism-mobile-nav-bg: rgba(15, 23, 42, 0.94);
+            --prism-mobile-nav-border-color: rgba(148, 163, 184, 0.3);
+            --prism-mobile-nav-item-color: rgba(226, 232, 240, 0.75);
+            --prism-mobile-nav-item-hover-color: #e2e8f0;
+            --prism-mobile-nav-item-hover-bg: rgba(148, 163, 184, 0.1);
+            --prism-mobile-nav-item-active-bg: rgba(79, 70, 229, 0.2);
+            --prism-mobile-nav-item-active-border: rgba(129, 140, 248, 0.4);
+            --prism-mobile-nav-item-active-color: var(--prism-primary, #4f46e5);
           "
         ></prism-mobile-nav>
       </div>

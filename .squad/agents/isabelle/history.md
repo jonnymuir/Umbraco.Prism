@@ -238,3 +238,55 @@ The issue was subtle: page-level CSS *should* override Shadow DOM `:host` per sp
 **No other issues:** CSS `html.prism-mobile prism-mobile-nav { display: block !important; }`, script loading, and component lifecycle all correct.
 
 **Decision merged:** `isabelle-mobile-nav-audit.md` — Always `@Html.AttributeEncode()` for JSON in double-quoted Razor attributes.
+
+## Session: 2026-07-10 — Inline Style Extraction to Branding CSS Files
+
+**Task:** Move static inline `<style>` block from `Master.cshtml` to the appropriate `/branding/` CSS files so tenants can control styling through CSS variables.
+
+**Result:** ✅ Complete, build clean (0 errors, 0 warnings)
+
+### What Was Moved
+
+| Rule / Variable | Destination |
+|---|---|
+| `--tenant-primary-contrast: white` | `prism-colors.css` |
+| `--bg-offset: #f8f9fa` | `prism-colors.css` |
+| `body { font-family, margin, background-color, color }` | `prism-layout.css` |
+| `.header { ... }` | `prism-layout.css` |
+| `.container { ... }` | `prism-layout.css` |
+| `.footer { ... }` | `prism-layout.css` |
+| `.prism-mobile .header { safe-area padding }` | `prism-layout.css` |
+| `.prism-mobile .container { safe-area padding }` | `prism-layout.css` |
+| `.prism-mobile .footer { safe-area padding }` | `prism-layout.css` |
+| `.card { background, border-radius, padding, box-shadow }` | `prism-components.css` |
+| `html.prism-mobile prism-mobile-nav { display: block !important }` | `prism-components.css` |
+
+### What Stayed Inline (Razor dynamic)
+
+- `--tenant-primary: @brandColor;` — server-injected per-tenant colour, cannot be a static file.
+
+### Files Changed
+
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-colors.css` — added `--tenant-primary-contrast` + `--bg-offset`
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-layout.css` — added body, header, container, footer, and all `.prism-mobile` safe-area overrides
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-components.css` — added `.card` + mobile-nav visibility rule
+- `src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml` — replaced large static `<style>` block with `<link rel="stylesheet" href="/branding/prism-branding.css" />` + minimal dynamic `:root { --tenant-primary }` inline style
+- `prism-branding.css` — already had all 5 correct `@import` statements, no changes needed
+
+### Learnings
+
+- 2026-07-10: When a `:root {}` block contains both static and dynamic (Razor) variables, split them: static vars go to the appropriate branding CSS file; only the dynamic Razor expression stays inline. This keeps the inline `<style>` minimal while still allowing server-side per-tenant injection.
+- 2026-07-10: `html.prism-mobile prism-mobile-nav { display: block !important }` must live in `prism-components.css`, not in `Master.cshtml`. This is both semantically correct (it styles a component) and required so tenant overrides in branding files take effect.
+
+## Session: 2026-03-30 — iOS White Default for prism-mobile-nav
+
+**Task:** Switch `prism-mobile-nav` default styling from dark glass to Apple iOS-style white.
+
+**Changes made:**
+- `prism-mobile-nav.ts`: Updated all CSS `var()` fallbacks — bg to `rgba(255,255,255,0.95)`, blur to `20px`, item colour to `rgba(60,60,67,0.6)`, active colour to `#007aff`, label weight to `500`, hover/active backgrounds to near-transparent. Updated JSDoc CSS variables table to match.
+- `prism-mobile-nav.stories.ts`: `mobileDecorator` background → `#f2f2f7`. Renamed `LightTheme` → `DarkTheme` with dark glass overrides (`rgba(15,23,42,0.94)` etc). All play/test functions preserved intact.
+- `prism-components.css`: Added explicit `prism-mobile-nav { }` block with iOS white vars for TestSite documentation/discoverability.
+
+**Build:** ✅ Passed (`npm run build` — 42 modules, no errors)
+
+**Decision filed:** `.squad/decisions/inbox/isabelle-white-nav.md`
