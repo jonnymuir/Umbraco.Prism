@@ -150,3 +150,51 @@ The unauthenticated hero section rendered two "Sign In" buttons when running ins
 - Updated `vite.config.ts` entry points to `src/backoffice/index.ts` and `src/mobile/prism-mobile-nav.ts`
 - Added boundary comment to `src/mobile/prism-mobile-nav.ts`
 - Created `eslint.config.mjs` with `no-restricted-imports` rule blocking `@umbraco-cms/backoffice` in `src/mobile/**`
+
+## Session: 2026-04-02 — Mobile Nav Visibility Bug Investigation
+
+**Date:** 2026-04-02
+**Task:** Investigate why `prism-mobile-nav` buttons aren't appearing when simulating PrismMobile mode in browser.
+
+**Result:** ✅ Fixed — added `!important` to CSS rule in Master.cshtml to ensure reliable shadow DOM override.
+
+### Root Cause
+
+The `prism-mobile-nav` web component uses Shadow DOM with `:host { display: none }` as the default state. The TestSite's `Master.cshtml` had a CSS rule `html.prism-mobile prism-mobile-nav { display: block }` to make it visible when the `prism-mobile` class is present.
+
+While the CSS spec says that page-level element selectors should override `:host` styles, browser implementations vary. The Storybook stories use `display: block !important` in their decorators, which always works reliably.
+
+### Fix
+
+Changed `Master.cshtml` CSS rule from:
+```css
+html.prism-mobile prism-mobile-nav {
+    display: block;
+}
+```
+
+To:
+```css
+html.prism-mobile prism-mobile-nav {
+    display: block !important;
+}
+```
+
+This ensures the page-level CSS reliably overrides the shadow DOM `:host` style across all browsers.
+
+### Learnings
+
+- 2026-04-02: When overriding Shadow DOM `:host` styles from page-level CSS, use `!important` for reliable cross-browser behavior. While the spec says page-level element selectors override `:host`, browser implementations may vary. Storybook decorators should also use `!important` when forcing web component visibility for testing.
+- 2026-04-02: The `prism-mobile-nav` component was created as part of the directory restructure (commit `ee95358`), not before it. The old version used inline CSS/HTML in the `_MobileShellNav.cshtml` partial. The web component version requires CSS in `Master.cshtml` to control visibility via `html.prism-mobile prism-mobile-nav { display: block !important }`.
+
+### Investigation Notes
+
+Checked:
+- ✅ Component CSS: `:host { display: none }` is correct default
+- ✅ Storybook decorator: Uses `display: block !important` (works in stories)
+- ✅ Build output: `prism-mobile-nav.js` builds correctly to `dist/` (5.84 kB)
+- ✅ Script loading: Partial loads script via `<script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-mobile-nav.js">`
+- ✅ CSS rule location: Added in `Master.cshtml` `<head>` `<style>` block
+- ✅ Specificity: `html.prism-mobile prism-mobile-nav` should override `:host`, but `!important` guarantees it
+
+The issue was subtle: page-level CSS *should* override Shadow DOM `:host` per spec, but adding `!important` eliminates any browser-specific edge cases.
