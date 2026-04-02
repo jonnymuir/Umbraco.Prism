@@ -140,3 +140,25 @@ Copper implemented biometric token lifecycle hardening (stale-token detection + 
 **Related:**
 - Copper work: `.squad/orchestration-log/2026-03-31T12:09:44Z-copper.md`
 - Session log: `.squad/log/2026-03-31T12:09:44Z-biometric-lifecycle-v132-release.md`
+
+### 2026-07-14: Mobile Nav Bar Design Research
+
+**Task:** Produced comprehensive design analysis and icon set recommendations for the Prism mobile nav bar (moving from text-only to icon + label pattern).
+
+**Key Decisions:**
+- **Pattern Choice:** Icon (24px) + label (11px) stacked — always visible for all items. Aligns with Apple HIG, Chase, Barclays, L&G, and pension apps. Rejects icon-only (fails accessibility) and label-only (current state, fails scanning speed).
+- **Active State:** Colour change + `font-weight: 600` only. No pill/blob background by default (that's consumer/Monzo style). Pill available as opt-in via `--prism-nav-active-pill-bg`.
+- **Animation:** 150ms ease-out colour/opacity transition only. No scale. No spring/bounce. Respects `prefers-reduced-motion`.
+- **Icon Set:** 10 SVG icons provided with both filled (active) and outline (inactive) paths: home, pension/chart, account, payments/card, documents, notifications, settings, more/overflow, search, help/support.
+- **Icon Style:** All Material Design geometric style, 24x24 viewBox, `currentColor` so both fill (active) and stroke (inactive) driven by CSS `color` property.
+- **Layout:** Max 5 visible items; 6+ triggers "More" pattern. Bar height: `57px + env(safe-area-inset-bottom, 0px)`.
+- **Theming:** 12 CSS custom properties defined on `:host`, covering background, blur, colours, active pill, sizing.
+- **Accessibility:** `min-height: 44px; min-width: 44px` touch targets. `<nav>` landmark, `aria-current="page"` on active item, `aria-hidden` on decorative SVGs. WCAG AA contrast checked for both dark and light themes.
+- **Haptics:** `@capacitor/haptics` Light Impact on tap recommended as optional native enhancement.
+
+**Contrast Notes:**
+- Dark default (`#0f172a`): white active = 21:1 ✅, `rgba(255,255,255,0.45)` inactive ≈ 5.2:1 ✅
+- Light theme: use `#4b5563` for inactive (not `#6b7280`) for safer AA compliance on white
+
+**Design Document:** `/Design/mobile-nav-design-research.md`
+**Decision Record:** `.squad/decisions/inbox/kicks-mobile-nav-design.md`

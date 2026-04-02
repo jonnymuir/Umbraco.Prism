@@ -148,3 +148,57 @@
 - Orchestration log: `.squad/orchestration-log/2026-03-29T13-53Z-tangy.md`
 - Decision record: `.squad/decisions.md` → "OIDC Signing Key Cold-Start Fix"
 
+## 2025-04-02 — prism-mobile-nav Playwright Test Coverage
+
+**Session:** Mobile Nav Testing  
+**Work Type:** Playwright E2E test implementation
+
+**Context:** Created comprehensive Playwright test suite for the `prism-mobile-nav` Web Component to verify rendering, active states, accessibility, layout, and edge cases against Storybook stories.
+
+**Tests Implemented (prism-mobile-nav.spec.ts):**
+
+**Rendering Tests (7 tests):**
+1. Verifies correct number of items in Default story (3 items)
+2. Checks all nav items have labels and icons
+3. Confirms nav is visible in Storybook (display not none)
+4. Tests Many Items story renders 5 items
+5. Tests Max Items story renders 6 items  
+6. Tests No Icons story renders items without icons
+7. Validates Light Theme story renders correctly
+
+**Active State Tests (4 tests):**
+1. Confirms no active items in Default story (currentPath="")
+2. Validates correct item is highlighted in WithActiveItem story
+3. Ensures only one item is active at a time
+4. Checks inactive items lack aria-current and active class
+
+**Accessibility Tests (4 tests):**
+1. Verifies nav has correct ARIA role="navigation" and aria-label
+2. Confirms nav items are semantic anchor links (not divs/buttons)
+3. Validates icons have aria-hidden="true" and focusable="false"
+4. Tests custom nav-label is applied correctly
+
+**Structure & Layout Tests (3 tests):**
+1. Confirms nav uses CSS grid layout
+2. Validates nav items meet WCAG minimum tap target height (44px+)
+3. Verifies nav has fixed positioning at bottom
+
+**Edge Cases Tests (4 tests):**
+1. Handles empty items array gracefully (renders 0 items, no crash)
+2. Handles malformed JSON in items property (renders 0 items, no crash)
+3. Handles items with missing optional properties (icons, target)
+4. Tests case-insensitive path matching for active state
+
+**Test Results:** 22/22 passing (100%) in 9.8s
+
+**Learnings:**
+- Storybook story URL conversion: "Many Items (5)" → `--many-items` (kebab-case, drops parenthetical suffixes)
+- Shadow DOM piercing pattern: `nav.evaluate((el) => el.shadowRoot?.querySelector(...))` for querying inside shadow roots
+- Component visibility in Storybook: Story decorators apply `display: block !important` to override component's default `display: none`
+- Test pattern: Load story via iframe → pierce shadow DOM → assert observable behavior (not implementation details)
+- WCAG tap target minimum: 44px for mobile interactive elements
+
+**Coverage Gaps (intentionally skipped):**
+- Navigation event testing (click triggers navigation) — blocked by Storybook iframe navigation constraints
+- CSS custom property theming tests — covered by visual Storybook tests with axe integration
+
