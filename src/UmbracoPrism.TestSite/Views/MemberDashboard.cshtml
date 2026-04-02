@@ -1,26 +1,12 @@
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
 @{
-    Layout = null;
+    Layout = "Master";
 
     var tenant = PrismContext.CurrentTenant;
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
 }
-
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>@(tenant?.Name ?? "Prism") — Dashboard</title>
-
-    <link rel="stylesheet" href="/branding/prism-colors.css" />
-    <link rel="stylesheet" href="/branding/prism-typography.css" />
-    <link rel="stylesheet" href="/branding/prism-layout.css" />
-    <link rel="stylesheet" href="/branding/prism-imagery.css" />
-    <link rel="stylesheet" href="/branding/prism-components.css" />
 
     <style>
         body {
@@ -414,20 +400,8 @@
             color: #ffffff;
         }
     </style>
-</head>
 
-<body>
-    <prism-mobile-user-agent-demo />
-
-    <header class="dash-header">
-        <a href="/" class="dash-header__brand">@(tenant?.Name ?? "Prism Portal")</a>
-        <nav class="dash-header__nav">
-            <a href="/" class="dash-header__link">Home</a>
-            <a href="/auth/logout" class="dash-header__link">Sign Out</a>
-        </nav>
-    </header>
-
-    <main class="dash-page">
+<main class="dash-page">
         <div class="dash-welcome">
             <h1>Welcome back, @displayName</h1>
             <p>Manage your account, documents, and security settings.</p>
@@ -602,16 +576,3 @@
         </div>
     </main>
 
-    <footer class="dash-footer">
-        &copy; @DateTime.Now.Year @(tenant?.Name ?? "Prism") &mdash; Powered by Umbraco Prism
-    </footer>
-
-    @{
-        var navSettings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
-        var mobileNavLinks = navSettings?.Value<IEnumerable<Link>>("mobileNavLinks");
-    }
-    @Html.Partial("_MobileShellNav", mobileNavLinks)
-
-</body>
-
-</html>

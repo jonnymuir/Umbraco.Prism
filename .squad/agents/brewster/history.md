@@ -443,3 +443,31 @@ Umbraco v17 Multi URL Picker LinkType is serialized as string enum ("External", 
 **Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings
 
 **Decision merged:** `brewster-mobile-nav-seeder.md` — Demo seeder pattern for TestSite established.
+
+## Session: 2026 — Layout Refactor: Wire Views to Master
+
+**Status:** Completed
+
+**Problem:** `HomePage.cshtml` and `MemberDashboard.cshtml` both used `Layout = null`, making them fully standalone pages that never passed through `Master.cshtml`. This meant:
+- `prism-mobile-nav` was never injected on those pages
+- Mobile CSS rules never loaded
+- All layout/header/footer HTML was duplicated in every view
+- Isabelle's `prism-branding.css` (extracted from Master) was not picked up
+
+**Changes made:**
+
+1. **`Master.cshtml`** — Already had `prism-branding.css` link added (by Isabelle in parallel). Confirmed full structure intact: header, footer, `@RenderBody()`, `_MobileShellNav` partial.
+
+2. **`HomePage.cshtml`**
+   - Changed `Layout = null` → `Layout = "Master"`
+   - Removed: `<!DOCTYPE html>`, `<html>`, `<head>`, meta tags, title, 5 branding `<link>` tags, `</head>`, `<body>`, `<header class="portal-header">`, `<footer class="portal-footer">`, mobile nav code block, `</body>`
+   - Kept: `@using`, `@inherits`, all C# logic block, imagery CSS `<style>` (has Razor `@Html.Raw(...)` expressions), full page-specific CSS `<style>`, all page content (`<div class="page">` + hero + features + debug)
+
+3. **`MemberDashboard.cshtml`**
+   - Changed `Layout = null` → `Layout = "Master"`
+   - Removed: `<!DOCTYPE html>`, `<html>`, `<head>`, meta tags, title, 5 branding `<link>` tags, `</head>`, `<body>`, standalone `<prism-mobile-user-agent-demo />`, `<header class="dash-header">`, `<footer class="dash-footer">`, mobile nav code block, `</body>`, `</html>`
+   - Kept: `@inherits`, all C# ViewBag reading (`displayName`, `email`, `userOid`), full page-specific CSS `<style>`, all dashboard content (`<main class="dash-page">` + all sections + API demo script)
+
+**Build:** `dotnet build src/UmbracoPrism.TestSite/` → ✅ 0 errors, 0 warnings (3.76s)
+
+**Result:** Both views now route through Master.cshtml. Mobile nav, branding CSS, and shared chrome are automatically injected. No layout HTML is duplicated.

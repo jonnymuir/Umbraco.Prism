@@ -2,7 +2,7 @@
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 
 @{
-    Layout = null;
+    Layout = "Master";
 
     var heroImage = Model?.Value<IPublishedContent>("heroImage");
     var cardImage = Model?.Value<IPublishedContent>("cardImage");
@@ -30,19 +30,6 @@
     }
 }
 
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>@(PrismContext.CurrentTenant?.Name ?? "Prism") — Welcome</title>
-
-    <link rel="stylesheet" href="/branding/prism-colors.css" />
-    <link rel="stylesheet" href="/branding/prism-typography.css" />
-    <link rel="stylesheet" href="/branding/prism-layout.css" />
-    <link rel="stylesheet" href="/branding/prism-imagery.css" />
-    <link rel="stylesheet" href="/branding/prism-components.css" />
     @if (hasImageryOverrides)
     {
         <style>
@@ -373,27 +360,8 @@
             color: #ffffff;
         }
     </style>
-</head>
 
-<body>
-
-    <header class="portal-header">
-        <div class="portal-header__brand">@(PrismContext.CurrentTenant?.Name ?? "Prism Portal")</div>
-        <nav class="portal-header__nav">
-            @if (isAuthenticated)
-            {
-                <a href="/dashboard" class="portal-header__link">Dashboard</a>
-                <a href="/auth/logout" class="portal-header__link">Sign Out</a>
-            }
-            else
-            {
-                <a href="/auth/login" class="portal-header__link">Sign In</a>
-                <a href="/auth/register" class="portal-header__link">Register</a>
-            }
-        </nav>
-    </header>
-
-    <div class="page">
+<div class="page">
 
         @if (isAuthenticated)
         {
@@ -457,14 +425,3 @@
         </div>
     </div>
 
-    <footer class="portal-footer">
-        &copy; @DateTime.Now.Year @(PrismContext.CurrentTenant?.Name ?? "Prism") &mdash; Powered by Umbraco Prism
-    </footer>
-
-    @{
-        var navSettings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
-        var mobileNavLinks = navSettings?.Value<IEnumerable<Link>>("mobileNavLinks");
-    }
-    @Html.Partial("_MobileShellNav", mobileNavLinks)
-
-</body>
