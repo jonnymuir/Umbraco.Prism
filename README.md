@@ -450,6 +450,8 @@ Configure in `appsettings.json` under `"Prism": { "Biometric": { ... } }`:
 | `FailureWindowMinutes` | 10 | Sliding window for counting failed attempts. |
 | `PerIpRequestsPerMinute` | 20 | Maximum exchange requests per IP address per minute. |
 
+→ **Full guide:** See [docs/biometric-setup.md](docs/biometric-setup.md) for step-by-step instructions on generating and configuring `SigningKey` and `EncryptionKey` for local development and production.
+
 #### Revocation and Enrollment Management
 
 - **User-initiated:** Users can remove biometric login from in-app account settings. The stored credential is deleted from their device and marked as revoked server-side.
