@@ -580,3 +580,39 @@ All MANDATORY documentation constraints from Copper implemented:
 Bundle download on Safari was incorrectly opening a new tab instead of triggering download. Fixed by removing `target='_blank'` and `rel='noopener noreferrer'`. Also fixed SecurityError when Umbraco SPA router intercepted clicks on blob: URLs by switching from `anchor.click()` to non-bubbling `MouseEvent`.
 
 **Outcome:** Clean patch release with clear, actionable changelog entries.
+
+---
+
+## Release: v1.6.0 — Push Notifications Feature Release
+
+**Date:** 2026-07-24
+**Type:** Minor release (significant new feature)
+**Scope:** Push notification system for mobile apps via FCM + APNs
+
+**Changes made:**
+- Updated `UmbracoPrism.Core.csproj` version to 1.6.0
+- Updated `UmbracoPrism.Client/package.json` version to 1.6.0
+- Created comprehensive CHANGELOG.md entry with grouped sections: New Features, Improved
+- Added "Push Notifications (Mobile)" section to README.md as § 10, positioned right after Biometric Auth
+- Created v1.6.0 git tag with detailed commit message
+
+**CHANGELOG structure for v1.6.0:**
+- **New Features:** 8 bullet points covering FCM/APNs integration, device registration, genre subscriptions, Vinyl Vault demo, bundle option, Capacitor integration, drop notifier, back-in-stock API
+- **Improved:** 4 bullet points covering rate limiting, token validation, sanitization, stale token cleanup
+- Clear, developer-first language — no internal jargon or ticket refs
+
+**README section (Push Notifications):**
+- Positioned as § 10 (after Biometric Auth)
+- High-level narrative: "opt-in by default, content-triggered or API-triggered, tenant-scoped"
+- Configuration snippet: Firebase CredentialJson in appsettings.json
+- Member experience overview
+- Forward reference to docs/PUSH_SETUP.md for detailed setup (iOS/Android)
+- Consistent tone with existing sections (plain English, present tense, active voice)
+
+**Learnings:**
+1. **Push notifications decision context** — The feature was designed in phases across three team members (Blathers: backend, Kicks: mobile, Copilot: integration). CHANGELOG should surface the full feature scope, not just one phase.
+2. **Documentation cross-references** — PUSH_SETUP.md (created by Kicks) is the canonical source for native platform setup. README should guide readers *to* it, not duplicate setup steps.
+3. **Opt-in defaults matter for release notes** — v1.6.0 explicitly mentions "opt-in by default" in multiple places because it's a conscious design choice (keeps base bundle lean) — worth highlighting in both README and CHANGELOG.
+4. **Version sync checkpoint** — Before tagging, verified both .csproj (1.5.1 → 1.6.0) and package.json (1.5.1 → 1.6.0) updated in tandem. No version skew.
+
+**Outcome:** Complete minor release with clear narrative connecting backend API, mobile integration, and setup documentation.
