@@ -763,3 +763,67 @@ After removing a property type and saving, re-fetch the content type from the da
 ### Guard pattern prevents startup crash
 
 A GUID comparison guard in `EnsureSettingsDefaults` (`mobileNavProperty.DataTypeKey != expectedDataTypeKey`) allows the seeder to safely save/publish an empty Settings node rather than crashing with a JSON deserialization exception. The user can fill in nav links manually via the backoffice.
+
+---
+
+## Decision: TestSite Views Use Master.cshtml as Shared Layout
+
+**Date:** 2026  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Implemented
+
+### Decision
+
+All TestSite Razor views must use `Layout = "Master"` (not `Layout = null`). Views should contain only page-specific content, styles, and C# logic — never full HTML boilerplate.
+
+### Context
+
+`HomePage.cshtml` and `MemberDashboard.cshtml` were previously `Layout = null` standalone pages. This caused:
+- `prism-mobile-nav` web component never being injected on those pages
+- `prism-branding.css` (and other shared CSS) never loading
+- Duplicated `<header>`, `<footer>`, mobile nav partial in every view
+
+### Rules Going Forward
+
+1. **New views:** Always start with `Layout = "Master";` — never `Layout = null`.
+2. **Master.cshtml provides:** DOCTYPE, html/head/body shell, `<link>` tags for shared CSS (`prism-branding.css`), tenant-scoped `:root` CSS variables, shared header, shared footer, `_MobileShellNav` partial, `@RenderBody()`.
+3. **Child views provide:** Page-specific CSS `<style>` blocks (including any with Razor expressions like `@Html.Raw(...)` for imagery overrides), page-specific C# logic at top, and HTML content.
+4. **Imagery CSS overrides** (e.g. `--prism-hero-image: url('@heroImageUrl')`) must stay as inline `<style>` in child views — they are not static and cannot be extracted to a static CSS file.
+5. **Do not** add `<html>`, `<head>`, `<body>`, `<header>`, `<footer>`, or mobile nav partial invocations to child views — Master handles all of these.
+
+---
+
+## Decision: Extract Inline Styles from Master.cshtml to Branding CSS Files
+
+**Date:** 2026-07-10  
+**Author:** Isabelle (Frontend Dev)  
+**Status:** Implemented
+
+### Context
+
+`Master.cshtml` contained a large static `<style>` block with page-level rules. Because these rules were inline, tenants could not override them via CSS variables — the inline style always wins specificity. Extracting them to `/branding/` files lets tenant CSS variable overrides propagate correctly.
+
+### Decision
+
+All static CSS rules have been moved from the `Master.cshtml` inline `<style>` block to the appropriate branding CSS files:
+
+| Category | File |
+|---|---|
+| Colour variables (`--tenant-primary-contrast`, `--bg-offset`) | `prism-colors.css` |
+| Layout rules (`body`, `.header`, `.container`, `.footer`, `.prism-mobile` overrides) | `prism-layout.css` |
+| Component rules (`.card`, `html.prism-mobile prism-mobile-nav`) | `prism-components.css` |
+
+Only the dynamic Razor expression `--tenant-primary: @brandColor;` remains as an inline `<style>` in `Master.cshtml`.
+
+`prism-branding.css` is linked in the `<head>` via `<link rel="stylesheet" href="/branding/prism-branding.css" />`.
+
+### Rationale
+
+- Tenant branding overrides work through CSS custom properties declared in `/branding/` files; inline styles prevent those overrides from being effective.
+- `prism-branding.css` already aggregated all 5 branding files via `@import`; adding the `<link>` tag to `Master.cshtml` loads the full chain in one request.
+- The mobile nav visibility rule (`html.prism-mobile prism-mobile-nav { display: block !important }`) belongs in `prism-components.css` — it is a component styling concern, not a view-level concern.
+
+### Consequences
+
+- Any future page-level styles should be added to the appropriate `/branding/` CSS file, not as inline styles in Razor views.
+- Inline `<style>` blocks in Razor views should be reserved exclusively for dynamic server-injected values (Razor expressions).

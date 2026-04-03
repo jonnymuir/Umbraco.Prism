@@ -411,3 +411,15 @@ Added support for Umbraco media library URLs in the `icon` field of `prism-mobil
 - Component remains fully theme-agnostic via CSS variables
 
 **Paired with:** Brewster's Umbraco schema work (block list, element type, seeder updates)
+
+## Learnings (2026-03-24)
+
+**Removed Redundant Mobile Mode Banner:**
+- Found and removed the "Prism mobile mode active" notice from `src/UmbracoPrism.TestSite/Views/HomePage.cshtml`
+- Banner was redundant because the "Demo PrismMobile UserAgent" popup widget already shows mobile mode status
+- Removed:
+  - Two `<div class="mobile-mode-banner">` elements (one for authenticated, one for unauthenticated view)
+  - `.mobile-mode-banner` CSS rules (both base hidden state and `html.prism-mobile` visible state)
+- Build verified: ✅ Passed (no references to `mobile-mode-banner` remain)
+- This simplifies the demo site UI and eliminates visual redundancy
+
