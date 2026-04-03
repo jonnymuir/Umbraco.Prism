@@ -89,12 +89,12 @@ public class DemoMobileNavSeeder(
         var existing = settings.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing))
         {
-            // Only skip if already populated with a v14+ block list that has exposed blocks.
-            // If the value is a MultiUrlPicker JSON, old v13 block list, or missing the exposed
-            // flag (seeded before we added it), replace it.
+            // Only skip if already populated with a v14+ block list (contentKey + culture/segment-aware values).
+            // Replace if it's a MultiUrlPicker JSON, old v13 block list (contentUdi), or missing the
+            // culture/segment fields that v14+ requires to avoid the "not yet created for this variant" state.
             bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
                                && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal)
-                               && existing.Contains("\"exposed\":", StringComparison.Ordinal);
+                               && existing.Contains("\"culture\":", StringComparison.Ordinal);
             if (isV14BlockList)
             {
                 logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
@@ -237,8 +237,8 @@ public class DemoMobileNavSeeder(
             ["layout"] = new JsonObject
             {
                 ["Umbraco.BlockList"] = new JsonArray(
-                    new JsonObject { ["contentKey"] = homeKey, ["exposed"] = true },
-                    new JsonObject { ["contentKey"] = dashKey, ["exposed"] = true }
+                    new JsonObject { ["contentKey"] = homeKey },
+                    new JsonObject { ["contentKey"] = dashKey }
                 )
             },
             ["contentData"] = new JsonArray(
@@ -255,9 +255,9 @@ public class DemoMobileNavSeeder(
     {
         var values = new JsonArray
         {
-            new JsonObject { ["alias"] = "navLabel",    ["value"] = JsonValue.Create(label) },
-            new JsonObject { ["alias"] = "navUrl",      ["value"] = JsonValue.Create(url) },
-            new JsonObject { ["alias"] = "openInNewTab", ["value"] = JsonValue.Create(0) }
+            new JsonObject { ["alias"] = "navLabel",     ["culture"] = null, ["segment"] = null, ["value"] = JsonValue.Create(label) },
+            new JsonObject { ["alias"] = "navUrl",       ["culture"] = null, ["segment"] = null, ["value"] = JsonValue.Create(url) },
+            new JsonObject { ["alias"] = "openInNewTab", ["culture"] = null, ["segment"] = null, ["value"] = JsonValue.Create(0) }
         };
 
         if (mediaKey.HasValue)
@@ -271,11 +271,11 @@ public class DemoMobileNavSeeder(
                 ["focalPoint"] = JsonValue.Create((string?)null)
             });
 
-            values.Add(new JsonObject { ["alias"] = "navIcon", ["value"] = pickerItems });
+            values.Add(new JsonObject { ["alias"] = "navIcon", ["culture"] = null, ["segment"] = null, ["value"] = pickerItems });
         }
         else
         {
-            values.Add(new JsonObject { ["alias"] = "navIcon", ["value"] = JsonValue.Create((string?)null) });
+            values.Add(new JsonObject { ["alias"] = "navIcon", ["culture"] = null, ["segment"] = null, ["value"] = JsonValue.Create((string?)null) });
         }
 
         return new JsonObject
