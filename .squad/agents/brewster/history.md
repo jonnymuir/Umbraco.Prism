@@ -647,3 +647,18 @@ Null icons are omitted from serialised JSON via `System.Text.Json.Serialization.
 - Umbraco.BlockList UI alias: `Umb.PropertyEditorUi.BlockList`
 
 **Paired with:** Isabelle's media icon URL support in prism-mobile-nav (runtime type check, CSS transitions)
+
+---
+
+**Coordination Update:** Mobile Nav Seeder Enhancement (Commit 2f3483d)
+
+**Status:** ✅ Completed
+
+**Enhancement:** `DemoMobileNavSeeder.cs` now creates SVG media items in the media library and seeds the block list with Home/Dashboard navigation items. Seeder remains idempotent and dev-only guarded.
+
+**What Changed:**
+- SVG icons created in media library for nav items
+- Block list populated with Home/Dashboard nav entries
+- Maintains idempotent seeding pattern (safe for repeated startup)
+
+**Session Log:** `.squad/log/2026-04-03T06:59:36Z-seed-mobile-nav.md`
