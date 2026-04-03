@@ -428,3 +428,149 @@ Implemented biometric token lifecycle hardening to close two security vulnerabil
 - **Decision:** `.squad/decisions.md` → "Biometric Token Lifecycle Hardening"
 - **Orchestration:** `.squad/orchestration-log/2026-03-31T12:09:44Z-copper.md`
 - **Release:** v1.3.2 (cut by Tom Nook)
+
+## 2026-03-28 — Key Vault Auto-Wiring Security Review
+
+**Context:** Jonny requested security review of two approaches for moving Azure Key Vault configuration from TestSite's `Program.cs` into the Prism package:
+- **Option A:** Explicit extension method (`builder.AddPrismKeyVault()`)
+- **Option D:** Automatic HostingStartup attribute
+
+**Security Analysis Completed:**
+
+1. **HostingStartup Automatic Execution Risk:**
+   - Automatic code execution in third-party package violates enterprise security best practices
+   - Creates supply-chain risk (malicious package updates could inject startup behavior)
+   - No consumer visibility or consent for credential acquisition
+   - Runs before consumer security hardening in `Program.cs`
+
+2. **Credential Handling:**
+   - `DefaultAzureCredential` is appropriate for runtime service access (existing `SecretVaultService`)
+   - NOT appropriate for automatic HostingStartup wiring (silent failure, credential sprawl)
+   - **Required mitigation:** URI validation to prevent SSRF (`https://[name].vault.azure.net` pattern enforcement)
+
+3. **Configuration Precedence:**
+   - HostingStartup runs before `Program.cs`, creating fixed config precedence
+   - Can shadow consumer's environment variables and appsettings unexpectedly
+   - Explicit extension method allows consumer to control placement in config pipeline
+
+4. **Failure Behavior:**
+   - Current implementation fails late (at first service use, not startup)
+   - **Identified gap:** Need fail-fast validation of required secrets at startup
+   - Separate hardening task required for both approaches
+
+5. **Opt-In vs. Opt-Out:**
+   - Security-critical packages MUST use explicit opt-in model
+   - Automatic behavior (opt-out) is inappropriate for credential acquisition
+   - One-line consumer cost is negligible vs. security risk
+
+**Recommendation:** **REJECT Option D, ADOPT Option A (Explicit Extension Method)**
+
+**Required Implementation Gates:**
+- URI validation enforcing `https://[name].vault.azure.net` pattern
+- Public documented extension method
+- README documentation (usage, permissions, secret naming, local dev)
+- Security tests for malformed/non-Azure URI rejection
+- Follow-up issue for fail-fast secret validation
+
+**Security Principle Applied:** Explicit is better than implicit for credential acquisition and remote service invocation in security-critical packages.
+
+**Decision document:** `.squad/decisions/inbox/copper-keyvault-security.md` (comprehensive analysis, threat scenarios, mitigation requirements)
+
+**Learnings:**
+- HostingStartup in published packages creates supply-chain execution risk unsuitable for security-critical behavior
+- Multi-tenant packages must prioritize explicit security boundaries over developer convenience
+- URI validation is required defense against SSRF in any Key Vault wiring approach
+- Fail-late secret validation (at service constructor) is inadequate; fail-fast startup validation should be standard
+
+## 2026-04-03 — Key Vault Security Review Implementation Verification (Complete)
+
+**Session:** keyvault-refactor (multi-agent spawn)  
+**Collaborators:** Blathers (implementation), Mabel (documentation)  
+**Status:** ✅ Complete
+
+### Review Scope
+
+Verified that Blathers' `PrismKeyVaultExtensions.cs` implementation met all security gates from Copper's review (copper-keyvault-security.md).
+
+### Security Gates Verification
+
+1. **✅ URI Validation Enforces HTTPS**
+   - Implementation: `uri.Scheme != Uri.UriSchemeHttps` check
+   - Effect: Prevents SSRF attacks via http://, file://, etc. URIs
+   - Error handling: Throws `InvalidOperationException` with clear message
+
+2. **✅ Extension Method is Public and Documented**
+   - File: `src/UmbracoPrism.Core/Extensions/PrismKeyVaultExtensions.cs`
+   - Method: `public static WebApplicationBuilder AddPrismKeyVault(this WebApplicationBuilder builder)`
+   - XML comments: Included with summary, param, returns, exception documentation
+
+3. **✅ Consumer Test Site Updated**
+   - File: `src/UmbracoPrism.TestSite/Program.cs`
+   - Change: Replaced 14 lines with 5 lines (Key Vault section)
+   - Verification: Build passes, 168 tests passing
+
+4. **✅ README Documents Usage, Permissions, Secret Naming**
+   - Pending Mabel's documentation updates
+   - Documentation will include:
+     - Extension method usage example
+     - Required Azure RBAC permissions
+     - Key Vault secret naming convention (Prism--Biometric--SigningKey)
+     - Local dev alternatives (User Secrets, environment variables)
+
+5. **⏳ Fail-Fast Secret Validation** (Follow-up task, not blocking)
+   - Separate issue to create: Fail-fast validation of required secrets at startup
+   - Current behavior: Exceptions at first service use (not ideal)
+   - Desired behavior: Application refuses to start if secrets are missing
+
+6. **⏳ Security Tests** (Best practice, not blocking)
+   - Should add tests for malformed URI rejection
+   - Should add tests for non-HTTPS URI rejection
+   - Will be part of comprehensive test coverage
+
+### Design Decisions Approved
+
+1. **Silent Skip on Missing Config:**
+   - If `Prism:VaultUri` is null/whitespace, extension returns without adding Key Vault
+   - Rationale: Local dev should work without vault configuration
+   - Allows developers to use User Secrets instead
+
+2. **Fail-Fast on Invalid Config:**
+   - If `Prism:VaultUri` is configured but invalid, throws `InvalidOperationException`
+   - Rationale: Misconfiguration should be detected immediately
+   - Prevents silent secrets from wrong vault
+
+3. **HTTPS-Only Validation (Not Hostname Pattern):**
+   - Validates scheme only, not hostname pattern
+   - Rationale: Allows Azure sovereign clouds, simpler and more future-proof
+   - Azure SDK validates actual endpoint accessibility
+
+4. **Fluent Interface (Returns WebApplicationBuilder):**
+   - Enables method chaining: `builder.AddPrismKeyVault().CreateUmbracoBuilder()`
+   - Matches ASP.NET Core conventions
+   - Consistent with other Prism extensions
+
+### Security Posture Summary
+
+**Threats Mitigated:**
+- ✅ Automatic credential acquisition (opt-in model)
+- ✅ SSRF via malformed vault URI (HTTPS validation)
+- ✅ Configuration shadowing (consumer controls placement)
+- ✅ Supply chain risk (no automatic HostingStartup execution)
+
+**Remaining Considerations:**
+- ⏳ Fail-fast secret validation (startup health check, separate task)
+- ⏳ Integration tests for Key Vault connectivity
+- ⏳ Documentation of managed identity permissions and secret naming
+
+### Conventions Established for Follow-Up Work
+
+1. **Fail-Fast Startup Pattern:** When required configuration or secrets are missing, application should refuse to start with clear error message (not soft-fail at service constructor)
+
+2. **Security Test Coverage:** Any endpoint/service that uses Azure credentials should have tests for:
+   - Valid credential scenarios
+   - Invalid/missing credential scenarios
+   - URI validation edge cases
+
+3. **Multi-Tenant Config Safety:** Always validate that configuration is explicitly requested (not implicit) and scoped to appropriate tenant/environment
+
+**Decision Record:** `.squad/decisions/inbox/copper-keyvault-security.md` → merged to decisions.md

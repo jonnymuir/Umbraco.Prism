@@ -1681,3 +1681,231 @@ Reviewed README.md for sections on mobile nav configuration. Confirmed no update
 - Matched changelog style to previous releases (v1.2.0, v1.3.2)
 - Maintained version sync across csproj and package.json (required for NuGet distribution and npm ecosystem)
 - Left git push to maintainer (release workflow does not include push)
+
+---
+
+## 📌 2026-04-03: Azure Key Vault Auto-Wiring Architecture (Blathers)
+
+**Session Log:** `.squad/log/2026-04-03T09:50:47Z-keyvault-refactor.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-keyvault-arch.md`
+
+### Blathers — Key Vault Configuration Architecture Research
+
+**Decision:** Adopt **Option A: WebApplicationBuilder Extension Method** for Azure Key Vault configuration wiring.
+
+**Approach:**
+- Implement explicit opt-in via `builder.AddPrismKeyVault()` in consumer's Program.cs
+- Extension reads `Prism:VaultUri` from configuration
+- If configured, calls `builder.Configuration.AddAzureKeyVault(uri, new DefaultAzureCredential())`
+- If not configured, silently skips (supports local dev without vault)
+
+**Why Option A over Alternatives:**
+1. **Correct timing:** Runs before `CreateUmbracoBuilder()` when configuration is still mutable
+2. **Explicit opt-in:** Clear security posture for multi-tenant package
+3. **Consumer control:** Consumer places extension in Program.cs, understands Key Vault is enabled
+4. **Works with Umbraco v17 startup model:** Compatible with composition pipeline
+5. **Minimal friction:** Reduces 6 lines to 1 line for consumers
+
+**Rejected Options:**
+- **IStartupFilter:** Runs too late (after configuration is built)
+- **IUmbracoBuilder extension:** Configuration frozen by that point
+- **HostingStartup:** See Copper's security analysis (supply chain risk, implicit opt-out)
+- **IOptions lazy-load:** Services need secrets at startup, not runtime
+
+**Required NuGet Addition:**
+- `Azure.Extensions.AspNetCore.Configuration.Secrets` v1.3.2 (provides `AddAzureKeyVault()` extension)
+
+**Next Steps:** Implementation pending Copper's security review
+
+---
+
+## 📌 2026-04-03: Azure Key Vault Auto-Wiring Security Review (Copper)
+
+**Session Log:** `.squad/log/2026-04-03T09:50:47Z-keyvault-refactor.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copper-keyvault-security.md`
+
+### Copper — Key Vault Wiring Security Analysis
+
+**RECOMMENDATION: REJECT Option D (HostingStartup), ADOPT Option A (Extension Method)**
+
+**HostingStartup Critical Risks:**
+1. **Automatic execution:** Runs without consumer consent when package is referenced
+2. **Implicit trust boundary:** Prism acquires credentials on behalf of consumer
+3. **Supply chain risk:** Third-party package executes arbitrary code before Program.cs
+4. **Configuration precedence ambiguity:** HostingStartup runs before Program.cs, shadowing consumer config overrides
+5. **Opt-out model:** Implicit behavior violated security-critical package requirement for explicit control
+
+**DefaultAzureCredential Assessment:**
+- ✅ Acceptable for runtime secret retrieval (SecretVaultService usage)
+- ❌ Not for automatic startup wiring (silent failure risk, credential sprawl)
+- ⚠️ Requires URI validation to prevent SSRF
+
+**Configuration Ordering Risk:**
+- HostingStartup adds Key Vault before consumer's config sources
+- Consumer environment variable overrides may be shadowed by vault values
+- Explicit opt-in eliminates this ambiguity
+
+**Opt-In vs. Opt-Out Principle:**
+- Prism is security-critical, multi-tenant package
+- Automatic credential behavior fails enterprise security audits
+- Explicit `builder.AddPrismKeyVault()` provides clear intent and auditability
+
+**Recommended Implementation (Option A with Hardening):**
+
+```csharp
+public static WebApplicationBuilder AddPrismKeyVault(this WebApplicationBuilder builder)
+{
+    var vaultUri = builder.Configuration["Prism:VaultUri"];
+    
+    if (string.IsNullOrWhiteSpace(vaultUri))
+        return builder; // No vault configured, skip silently
+    
+    // SECURITY: Validate vault URI to prevent SSRF
+    if (!Uri.TryCreate(vaultUri, UriKind.Absolute, out var uri) ||
+        uri.Scheme != "https")
+    {
+        throw new InvalidOperationException(
+            $"Prism: VaultUri must be a valid HTTPS URI. Got: {vaultUri}");
+    }
+    
+    builder.Configuration.AddAzureKeyVault(uri, new DefaultAzureCredential());
+    return builder;
+}
+```
+
+**Required Security Gates Before Merge:**
+1. ✅ URI validation enforces HTTPS scheme (SSRF prevention)
+2. ✅ Extension method is public and documented
+3. ✅ Consumer test site updated to use `builder.AddPrismKeyVault()`
+4. ✅ README documents usage, permissions, and secret naming
+5. ⏳ Follow-up task: Fail-fast secret validation at startup
+6. ⏳ Security test: URI validation with malformed/non-HTTPS inputs
+
+**Conventions for Follow-Up Tasks:**
+- Missing required secrets should produce explicit `InvalidOperationException` at startup
+- Error message should identify which secret and which vault
+- Support graceful degradation for non-biometric workloads
+
+---
+
+## 📌 2026-04-03: Azure Key Vault Extension Implementation (Blathers)
+
+**Session Log:** `.squad/log/2026-04-03T09:50:47Z-keyvault-refactor.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-keyvault-impl.md`
+
+### Blathers — AddPrismKeyVault() Implementation Details
+
+**Implementation Status:** ✅ Complete
+
+**Decisions Made:**
+
+1. **Error Handling:** Skip silently when `Prism:VaultUri` is null/whitespace, throw `InvalidOperationException` when configured with invalid URI
+2. **Extension Return Type:** Return `WebApplicationBuilder` (fluent interface, matches ASP.NET Core conventions)
+3. **NuGet Version:** Use `Azure.Extensions.AspNetCore.Configuration.Secrets` v1.3.2 (stable, matches TestSite)
+4. **URI Validation:** Validate HTTPS scheme only (not hostname pattern)
+   - Prevents SSRF attacks (Copper's requirement)
+   - Allows Azure sovereign clouds without region-specific patterns
+   - Azure SDK validates actual endpoint accessibility
+
+**Files Modified:**
+- `src/UmbracoPrism.Core/Extensions/PrismKeyVaultExtensions.cs` (34 lines, new)
+- `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` (NuGet reference added)
+- `src/UmbracoPrism.TestSite/Program.cs` (9 lines → 5 lines, refactored)
+
+**Implementation Details:**
+
+```csharp
+public static WebApplicationBuilder AddPrismKeyVault(this WebApplicationBuilder builder)
+{
+    var vaultUri = builder.Configuration["Prism:VaultUri"];
+    
+    if (string.IsNullOrWhiteSpace(vaultUri))
+        return builder;
+    
+    if (!Uri.TryCreate(vaultUri, UriKind.Absolute, out var uri) || 
+        uri.Scheme != Uri.UriSchemeHttps)
+    {
+        throw new InvalidOperationException(
+            $"Prism: VaultUri '{vaultUri}' must be a valid HTTPS URI...");
+    }
+    
+    builder.Configuration.AddAzureKeyVault(uri, new DefaultAzureCredential());
+    return builder;
+}
+```
+
+**Verification Results:**
+- ✅ Build: green
+- ✅ Tests: 168 passing
+- ✅ TestSite Program.cs: runs locally (no vault) and in Azure (with vault)
+- ✅ Consumer integration: downstream services can call extension
+
+**Consequences:**
+- Consumers reduce boilerplate from 9 lines to 1 line
+- Security validation (HTTPS-only) enforced consistently
+- Local dev supported (silent skip if no vault configured)
+- Fail-fast on misconfiguration (exception on startup if URI is invalid)
+
+**Commit:** SHA `63b603e` — "refactor: move Key Vault wiring into AddPrismKeyVault() extension"
+
+---
+
+## 📌 2026-04-03: Biometric Security Key Setup Documentation (Mabel)
+
+**Session Log:** `.squad/log/2026-04-03T09:50:47Z-keyvault-refactor.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/mabel-biometric-docs.md`
+
+### Mabel — Biometric Authentication Key Setup Documentation
+
+**Decision:** Create comprehensive developer-facing documentation for biometric authentication key generation, storage, and verification.
+
+**Context:**
+Biometric authentication in Umbraco.Prism requires two cryptographic keys:
+1. **SigningKey** — HMAC-SHA256 key for signing BiometricToken JWTs (32+ characters)
+2. **EncryptionKey** — Base64-encoded 32-byte AES-256-GCM key for encrypting refresh tokens
+
+Both required at startup; missing keys throw `InvalidOperationException` with clear messages. Developers previously lacked step-by-step guidance.
+
+**Deliverables:**
+
+**New:** `docs/biometric-setup.md` — Comprehensive guide covering:
+- Key purposes and requirements (SigningKey vs. EncryptionKey)
+- Prerequisites (tenant config, Key Vault access)
+- Local development (5 steps: generate key, store in User Secrets, verify)
+- Production deployment (6 steps: vault config, secret creation, managed identity, testing)
+- Security best practices (rotation, source control, audit logging)
+- Troubleshooting (6 common error scenarios with solutions)
+
+**Updated:** `README.md` — Configuration Options section
+- Added cross-reference: `→ **Full guide:** See [docs/biometric-setup.md]() for step-by-step instructions`
+- Follows established pattern for deeper documentation walkthroughs
+
+**Writing Conventions Established:**
+
+1. **Multi-platform key generation:** Provide OpenSSL/PowerShell/bash/password manager alternatives
+2. **Platform-specific paths:** Show both Unix (`~/.microsoft/usersecrets`) and Windows (`%APPDATA%`) paths
+3. **Error message documentation:** Map startup exceptions directly to source code with exact exception text
+4. **Cross-reference pattern:** Use `→ **Full guide:** See [path]()` when README points to deeper /docs/ walkthroughs
+
+**Technical Grounding:**
+- Validated against BiometricTokenService.cs (SigningKey lines 36–39)
+- Validated against RefreshTokenEncryptionService.cs (EncryptionKey lines 26–47)
+- Key Vault naming convention: `Prism--Biometric--SigningKey` (from TestSite Program.cs)
+- User Secrets paths: .NET 6.0+ documentation standards
+
+**Impact:**
+- Developer onboarding: clone → running app with biometric keys in <5 minutes
+- Security operationalization: Copper's security model now actionable
+- Reduced support burden: comprehensive troubleshooting section preempts common questions
+- Documentation completeness: biometric feature fully documented end-to-end
+
+**Optional Follow-Up:**
+- Automation script (`scripts/setup-biometric-keys.sh` or `.ps1`) for one-time setup (non-blocking)

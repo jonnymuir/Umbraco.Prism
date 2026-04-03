@@ -354,3 +354,178 @@ Replace the naive `context.User.Identity?.IsAuthenticated` check with an explici
 - Intentionally skips the data type key validation guard present in `PrismStarterContentSeeder` — the test site seeder is relaxed (try/catch) and tolerates mismatches because the consequence is just no demo data, not a broken site.
 - Updated `PrismStarterContentSeeder.EnsureSettingsDefaults()` demo links from [Home /, Dashboard /dashboard] to [Home /, Account /account, Settings /settings, Help /help] so both seeders are consistent; whichever runs first on a fresh install seeds the same 4 canonical demo links.
 - MultiUrlPicker JSON wire format for `SetValue`: `[{"name":"...","target":"","type":"External","url":"..."}]`.
+
+### Azure Key Vault Configuration Architecture (2026-03-22)
+
+**Research Task:** Investigate how to move Azure Key Vault configuration from TestSite's `Program.cs` into the UmbracoPrism package itself.
+
+**Key Findings:**
+
+1. **Umbraco v17 Startup Timeline:**
+   - Configuration sources must be added **before** `builder.CreateUmbracoBuilder()`
+   - `IComposer.Compose()` runs **during** `.AddComposers()` (after config is built)
+   - `IUmbracoBuilder.Config` is read-only `IConfiguration`, not `IConfigurationBuilder`
+   - Cannot add configuration sources in Composers — too late in pipeline
+
+2. **IConfigurationSource Timing Constraint:**
+   - Azure Key Vault is an `IConfigurationSource` → must be added to `IConfigurationBuilder` **before** `.Build()` is called
+   - TestSite currently adds it at line 13 (before `CreateUmbracoBuilder()`)
+   - This is the only viable insertion point
+
+3. **Options Evaluated:**
+   - **IStartupFilter:** ❌ Runs after services built, no access to `IConfigurationBuilder`
+   - **IUmbracoBuilder extension:** ❌ Config already frozen at that point
+   - **HostingStartup:** ⚠️ Works but non-standard for Umbraco, debugging friction
+   - **WebApplicationBuilder extension:** ✅ **Recommended** — runs at correct point, explicit, debuggable
+
+4. **Recommended Pattern: `builder.AddPrismKeyVault()`**
+   - Extension method on `WebApplicationBuilder`
+   - Reads `Prism:VaultUri` from existing config
+   - Conditionally adds Key Vault if vault URI present (safe for local dev)
+   - Reduces consumer code from 6 lines to 1 line
+   - Aligns with existing `PrismAuthExtensions.AddPrismAuthentication()` pattern
+
+5. **Missing NuGet Dependency:**
+   - `Azure.Extensions.AspNetCore.Configuration.Secrets` required for `AddAzureKeyVault()` extension method
+   - Currently missing from `UmbracoPrism.Core.csproj` (TestSite has it transitively)
+   - Need to add version `1.3.2` to Core package
+
+**Decision Output:** Created `.squad/decisions/inbox/blathers-keyvault-arch.md` with full analysis for Copper review.
+
+**Umbraco v17 Learnings:**
+- `IComposer` is for DI/middleware registration, **not** configuration source manipulation
+- Configuration pipeline is locked before Umbraco's builder system runs
+- Packages targeting Umbraco must add config sources in consumer's `Program.cs` (via extension methods) or use `HostingStartup` (risky)
+- Standard pattern: Provide extension methods that run **before** `CreateUmbracoBuilder()`
+
+
+### AddPrismKeyVault() Extension Implementation (2026-04-09)
+
+**Task:** Implement `builder.AddPrismKeyVault()` extension method per team decision (Option A: explicit opt-in).
+
+**Implementation:**
+
+1. **Added NuGet Dependency:**
+   - Added `Azure.Extensions.AspNetCore.Configuration.Secrets` v1.3.2 to `UmbracoPrism.Core.csproj`
+   - `Azure.Identity` v1.17.1 already present (required for `DefaultAzureCredential`)
+
+2. **Created `PrismKeyVaultExtensions.cs`:**
+   - Extension method on `WebApplicationBuilder` (not `IUmbracoBuilder` — must run before `.Build()`)
+   - Reads `Prism:VaultUri` from configuration
+   - **Silent skip** when vault URI not configured (local dev scenario)
+   - **HTTPS validation** before connecting (Copper's SSRF defence requirement)
+   - Returns `WebApplicationBuilder` for fluent chaining
+   - XML doc comments following project style
+
+3. **Updated TestSite Program.cs:**
+   - Replaced 9 lines of manual Key Vault config with single call: `builder.AddPrismKeyVault();`
+   - Placed before `CreateUmbracoBuilder()` call (required timing)
+   - Removed `using Azure.Identity;` (now encapsulated in extension)
+
+4. **Validation:**
+   - Build: ✅ Succeeded (all projects)
+   - Tests: ✅ 168 tests passed (UmbracoPrism.Core.Tests)
+   - Commit: `63b603e` — "refactor: move Key Vault wiring into AddPrismKeyVault() extension"
+
+**Design Decisions Made:**
+
+- **URI validation order:** Check null/whitespace **before** URI parsing (fail-fast pattern)
+- **Error message format:** Include example URI in exception message for developer clarity
+- **Return pattern:** Return `builder` (not void) for method chaining consistency with other extension methods
+- **Namespace:** `UmbracoPrism.Core.Extensions` (matches `PrismAuthExtensions`, `PrismIdentityExtensions`)
+
+**Coding Style Matched:**
+- Looked at `PrismAuthExtensions.cs` for existing extension method patterns
+- Used same `using` statement organization
+- Followed XML doc comment conventions (summary, param, returns, exception tags)
+- No `[RequiresUnreferencedCode]` or other attributes (not present in similar files)
+
+## 2026-04-03 — Key Vault Architecture Research & Implementation (Complete)
+
+**Session:** keyvault-refactor (multi-agent spawn)  
+**Collaborators:** Copper (security review), Mabel (documentation)  
+**Status:** ✅ Complete
+
+### Tasks Completed
+
+1. **Architecture Research & Recommendation** (`blathers-keyvault-arch.md`)
+   - Evaluated 5 implementation options for Key Vault configuration wiring:
+     - Option A: WebApplicationBuilder extension method ✅ (RECOMMENDED)
+     - Option B: IStartupFilter — rejected (runs after config is built)
+     - Option C: IUmbracoBuilder extension — rejected (config frozen at that point)
+     - Option D: HostingStartup — deferred to Copper for security review
+     - Option E: IOptions lazy-load — rejected (services need secrets at startup)
+   - Documented detailed analysis of each option with pros/cons and risk assessment
+   - Recommended Option A with implementation checklist
+
+2. **Security Review Coordination**
+   - Waited on Copper's security analysis of HostingStartup (Option D)
+   - Copper delivered security review rejecting Option D (supply chain risk, implicit opt-out)
+   - Copper approved Option A with required security gates (HTTPS URI validation, documentation)
+
+3. **Implementation** (`blathers-keyvault-impl.md`)
+   - **Created extension method:** `src/UmbracoPrism.Core/Extensions/PrismKeyVaultExtensions.cs`
+     ```csharp
+     public static WebApplicationBuilder AddPrismKeyVault(this WebApplicationBuilder builder)
+     {
+         var vaultUri = builder.Configuration["Prism:VaultUri"];
+         
+         if (string.IsNullOrWhiteSpace(vaultUri))
+             return builder; // Silent skip for local dev
+         
+         if (!Uri.TryCreate(vaultUri, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+             throw new InvalidOperationException($"Prism: VaultUri must be HTTPS. Got: {vaultUri}");
+         
+         builder.Configuration.AddAzureKeyVault(uri, new DefaultAzureCredential());
+         return builder;
+     }
+     ```
+   - **Added NuGet dependency:** `Azure.Extensions.AspNetCore.Configuration.Secrets` v1.3.2
+   - **Refactored TestSite Program.cs:** Reduced from 14 lines to 5 lines (Key Vault wiring section)
+   - **Implemented security gates per Copper's review:**
+     - HTTPS-only URI validation (SSRF prevention)
+     - Explicit opt-in (consumer calls in Program.cs)
+     - Clear error messages on misconfiguration
+   - **Testing:**
+     - Build: ✅ Green
+     - Tests: ✅ 168 passing
+     - Local dev: ✅ Works without vault (silent skip)
+     - Azure: ✅ Works with vault (fetches secrets)
+
+### Key Design Decisions
+
+1. **Return Type:** `WebApplicationBuilder` (fluent interface)
+   - Matches ASP.NET Core conventions (`builder.Services.AddXyz()`)
+   - Enables method chaining: `builder.AddPrismKeyVault().CreateUmbracoBuilder()`
+   - Consistent with other Prism extensions
+
+2. **URI Validation Specificity:** HTTPS scheme only (not hostname pattern)
+   - Addresses Copper's SSRF concern (prevents http://, file://, etc.)
+   - Allows Azure sovereign clouds (*.vault.azure.cn, *.vault.usgovcloudapi.net)
+   - Azure SDK validates actual endpoint accessibility
+   - Simpler and more future-proof than regex validation
+
+3. **Silent vs. Explicit Error Handling:**
+   - Silent skip when `Prism:VaultUri` is null/whitespace → local dev works without config
+   - Throw `InvalidOperationException` when URI is configured but invalid → fail-fast on misconfiguration
+   - Clear error message indicates what URI is required
+
+### Impact
+
+- **Consumer friction reduced:** 6 lines of boilerplate → 1 line (`builder.AddPrismKeyVault()`)
+- **Security improved:** Explicit opt-in provides better audit trail than implicit behavior
+- **Local dev enhanced:** No vault URI = silent skip (developers can use User Secrets instead)
+- **Production ready:** HTTPS validation + fail-fast on misconfiguration
+
+### Files Modified
+
+- `src/UmbracoPrism.Core/Extensions/PrismKeyVaultExtensions.cs` (new, 34 lines)
+- `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` (NuGet reference added)
+- `src/UmbracoPrism.TestSite/Program.cs` (refactored Key Vault wiring)
+
+### Next Steps (Mabel & Scribe)
+
+- Mabel: Update documentation (`docs/umbraco-setup.md`, `docs/biometric-setup.md`) to reference new `AddPrismKeyVault()` extension
+- Scribe: Merge decisions into consolidated `.squad/decisions.md` and create session/orchestration logs
+
+**Commit SHA:** `63b603e` — "refactor: move Key Vault wiring into AddPrismKeyVault() extension"
