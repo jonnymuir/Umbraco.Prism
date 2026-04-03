@@ -2238,3 +2238,46 @@ protected override void DefinePlan()
 **Decision 2 — Push notifications are opt-in:** `PushNotificationsEnabled` defaults to `false` in `PrismMobileBundleRequest`. Consumers who don't need push pay zero bundle cost. Aligns with Kicks' recommendation.
 
 **Decision 3 — Demo theme is a record shop:** The demo for the notifications feature will be a vinyl record shop ("Vinyl Vault" or similar). Members subscribe to genres (or all genres). When new vinyl is stocked (content published), subscribed members receive a push notification. This covers Use Case 1 (content-driven, genre subscription) and can also demonstrate Use Case 2 (backend-triggered, e.g. a "back in stock" or "limited edition drop" alert).
+
+---
+
+## Blathers — Phase 1 Notifications Implementation Decisions
+
+**Author:** Blathers  
+**Date:** 2026-07-07  
+**Status:** Implemented  
+**PR:** feat(notifications): Phase 1
+
+### Decision 1: Subscription model uses `Genre` (not `Topic`)
+
+The design doc used `Topic` as the subscription field name; the task spec uses `Genre`. Implemented as `Genre` throughout (`prismNotificationSubscriptions.Genre`, `SubscribeToGenreAsync`, etc.) to match the task's method signatures and intent.
+
+### Decision 2: `IPrismNotificationService` follows task method signatures, not design doc interface
+
+The design doc specified a tenant-scoped, result-returning interface (`SendToUserAsync`, `BroadcastAsync`, etc.). The task spec defines a different, simpler set of methods. The task spec takes precedence as the authoritative deliverable.
+
+### Decision 3: FirebaseAdmin named instance (`prism-notifications`) guards against duplicate init
+
+`FirebaseApp.Create` throws on duplicate registration. Used `FirebaseApp.GetInstance(name)` with a named instance `"prism-notifications"` and a try/catch guard. This is safe for scoped service lifetime because `FirebaseApp` is a static singleton in the Firebase SDK.
+
+### Decision 4: `PrismNotificationService` registered as `Scoped` (not Singleton)
+
+Follows the task spec and is appropriate because `IUmbracoDatabaseFactory` is consumed per-request. `FirebaseMessaging` is obtained from a static Firebase SDK singleton so it is safely shared across scoped instances.
+
+### Decision 5: Device-only registration creates a minimal credential stub
+
+When `RegisterDeviceTokenAsync` is called for a user with no existing `prismDeviceCredentials` row (e.g. non-biometric user), a minimal stub row is inserted. This keeps push notifications independent of biometric auth — a user doesn't need biometric registration to receive push notifications. The stub has a 10-year expiry and an empty `TokenHash`.
+
+### Decision 6: `PrismContentPublishedHandler` reads `prismTenantId` property for tenant resolution
+
+The content publish pipeline has no ambient tenant context (`IPrismContext` is request-scoped and not available in background notification handlers). To resolve the target tenant, the handler reads a `prismTenantId` content property. Content without this property is silently skipped (logged at Debug level).
+
+### Decision 7: Notification handler uses `INotificationAsyncHandler<T>` pattern
+
+Consistent with all other Umbraco notification handlers in the codebase (`PrismMigrationHandler`, `PrismContentTypeSeeder`, etc.). Registered via `AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>()` in `PrismComposer`.
+
+### Decision 8: Stale FCM token cleanup is in-band (synchronous after each batch)
+
+Stale tokens flagged by FCM (`UNREGISTERED`) are nullified in `prismDeviceCredentials` immediately after each batch completes. No separate cleanup job needed for v1. Cleanup failures are swallowed with a warning log to avoid breaking the notification send.
+
+---
