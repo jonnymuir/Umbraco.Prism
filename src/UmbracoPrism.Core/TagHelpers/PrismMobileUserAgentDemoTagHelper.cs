@@ -83,7 +83,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         background: white;
         border: 1px solid #d1d5db;
         border-radius: 8px;
-        padding: 0.75rem;
+        padding: 0.75rem 2.25rem 0.75rem 0.75rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.12);
         font-size: 0.85rem;
         z-index: var(--prism-demo-widget-z-index, 1001);
@@ -92,7 +92,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
     }
 
     html.prism-mobile .prism-mobile-ua-demo {
-        bottom: calc(var(--prism-mobile-nav-height, 4.5rem) + 0.75rem);
+        bottom: calc(var(--prism-mobile-nav-height, 5rem) + 1.5rem);
     }
 
     .prism-mobile-ua-demo__row {
@@ -135,6 +135,34 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
 
     .prism-mobile-ua-demo--compact .prism-mobile-ua-demo__row {
         margin-bottom: 0;
+    }
+
+    .prism-mobile-ua-demo__close {
+        position: absolute;
+        top: 0.4rem;
+        right: 0.5rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        color: #6b7280;
+        padding: 0.15rem 0.3rem;
+        border-radius: 4px;
+    }
+
+    .prism-mobile-ua-demo__close:hover {
+        color: #111827;
+        background: rgba(0, 0, 0, 0.06);
+    }
+
+    .prism-mobile-ua-demo--inline .prism-mobile-ua-demo__close {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .prism-mobile-ua-demo--inline .prism-mobile-ua-demo__close:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.15);
     }
 </style>
 <script>
@@ -206,6 +234,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
 
     private const string ToggleTemplate = """
 <aside class="__CLASSES__" aria-live="polite">
+    <button class="prism-mobile-ua-demo__close" id="prism-mobile-ua-close" aria-label="Dismiss">&#x2715;</button>
     <div class="prism-mobile-ua-demo__row">
         <input type="checkbox" id="prism-mobile-ua-toggle" />
         <label for="prism-mobile-ua-toggle"><strong>__TITLE__</strong></label>
@@ -218,8 +247,11 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         const marker = '__MARKER__';
         const storageKey = '__STORAGE_KEY__';
         const cookieKey = '__COOKIE_KEY__';
+        const dismissKey = storageKey + '.dismissed';
         const toggle = document.getElementById('prism-mobile-ua-toggle');
         const status = document.getElementById('prism-mobile-ua-status');
+        const closeBtn = document.getElementById('prism-mobile-ua-close');
+        const widget = closeBtn?.closest('.prism-mobile-ua-demo');
 
         const writeServerCookie = (enabled) => {
             const maxAge = enabled ? '31536000' : '0';
@@ -229,6 +261,19 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         const readServerCookie = () => {
             return document.cookie.split(';').some((part) => part.trim() === cookieKey + '=1');
         };
+
+        try {
+            if (sessionStorage.getItem(dismissKey) === '1' && widget instanceof HTMLElement) {
+                widget.style.display = 'none';
+            }
+        } catch { }
+
+        if (closeBtn instanceof HTMLButtonElement && widget instanceof HTMLElement) {
+            closeBtn.addEventListener('click', () => {
+                widget.style.display = 'none';
+                try { sessionStorage.setItem(dismissKey, '1'); } catch { }
+            });
+        }
 
         if (!(toggle instanceof HTMLInputElement)) {
             return;
