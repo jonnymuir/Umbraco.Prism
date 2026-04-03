@@ -2,6 +2,23 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.4.0] — 2026-04-09
+
+### New Features
+
+- **Configurable media library icons for mobile navigation:** Mobile navigation items now support a `navIcon` property backed by a media picker. Icons are sourced from the Umbraco media library instead of being hardcoded, enabling backoffice control over nav appearance. Icons are seeded automatically into a "Prism Navigation Icons" media folder with sample SVG files on first run.
+
+### Bug Fixes & Improvements
+
+- **Mobile nav demo widget UX:** The "Demo PrismMobile UserAgent" popup widget now properly stacks above the mobile navigation bar (fixed z-index). It repositions itself automatically when mobile mode is activated, preventing overlap with nav items.
+- **Streamlined demo site:** Removed redundant inline "Simulate PrismMobile" checkbox from hero buttons (functionality now provided by popup widget). Removed the "Prism mobile mode active" banner notice (widget indicates mode state more intuitively).
+- **Block list draft state fixed:** Added the required `expose` array to seeded block list JSON, ensuring block items are immediately live in Umbraco v14+ without requiring manual "Create" button clicks to unpublish the draft state.
+- **Settings node persistence:** Fixed seeder not persisting the Settings node when the Block List data type was configured in the same run.
+- **Media key persistence:** Fixed media icon keys being regenerated across seeder runs; icons now correctly reuse existing media items and avoid duplication.
+- **Mobile Nav Item property descriptions:** Corrected `navLabel` and `navUrl` property descriptions that were showing as "null" in the backoffice.
+- **Block list label template:** Updated label template to use Umbraco v17+ syntax (`{=navLabel}`) instead of deprecated Angular-style `{{navLabel}}`.
+- **Code cleanup:** Removed unnecessary backwards-compatibility patching logic for block label formats (Prism targets v17+ exclusively, no legacy upgrade path).
+
 ## [v1.3.2] — 2026-03-31
 
 ### New Features
