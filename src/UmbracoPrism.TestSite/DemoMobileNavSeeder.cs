@@ -89,12 +89,11 @@ public class DemoMobileNavSeeder(
         var existing = settings.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing))
         {
-            // Only skip if already populated with a v14+ block list (contentKey + culture/segment-aware values).
-            // Replace if it's a MultiUrlPicker JSON, old v13 block list (contentUdi), or missing the
-            // culture/segment fields that v14+ requires to avoid the "not yet created for this variant" state.
+            // Only skip if already populated with a v14+ block list that includes the expose array.
+            // Without "expose", blocks show as draft. Replace any content missing it.
             bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
                                && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal)
-                               && existing.Contains("\"culture\":", StringComparison.Ordinal);
+                               && existing.Contains("\"expose\":", StringComparison.Ordinal);
             if (isV14BlockList)
             {
                 logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
@@ -245,7 +244,13 @@ public class DemoMobileNavSeeder(
                 BuildBlockItem(homeKey, "Home",      "/",          homeMediaKey),
                 BuildBlockItem(dashKey, "Dashboard", "/dashboard", dashMediaKey)
             ),
-            ["settingsData"] = new JsonArray()
+            ["settingsData"] = new JsonArray(),
+            // expose array: Umbraco v14+ requires an entry per block per culture/segment to mark
+            // the block as "created for this variant". Without it every block shows as draft.
+            ["expose"] = new JsonArray(
+                new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = dashKey, ["culture"] = null, ["segment"] = null }
+            )
         };
 
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
