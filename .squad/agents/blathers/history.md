@@ -942,3 +942,19 @@ All components implemented, tested via build, and ready for integration with mob
 - Security verdict: ✅ PASS (production-ready with Key Vault for credentials)
 
 ---
+
+## Learnings & Handoff (2026-06-19, Captive Dependency Fix — COMPLETE)
+
+**Issue:** App failed to start with `InvalidOperationException: Cannot consume scoped service 'IPrismNotificationService' from singleton 'IHostedService'`.
+
+**Root cause:** `LimitedEditionDropNotifier` (a `BackgroundService`, registered as singleton) was directly constructor-injecting `IPrismNotificationService` which is scoped — the classic "captive dependency" anti-pattern.
+
+**Fix applied:**
+- Replaced `IPrismNotificationService` constructor injection with `IServiceScopeFactory`
+- Added `using Microsoft.Extensions.DependencyInjection;`
+- `FireNotificationAsync` now creates an async scope via `_scopeFactory.CreateAsyncScope()` and resolves `IPrismNotificationService` from it for each notification cycle
+- Scope is disposed automatically via `await using`
+
+**Pattern for all future background services:** Never inject scoped services into `BackgroundService`. Always use `IServiceScopeFactory` and resolve scoped dependencies per-operation inside an `await using var scope = _scopeFactory.CreateAsyncScope()` block.
+
+**Verification:** 0 build errors, 206/206 tests passed.
