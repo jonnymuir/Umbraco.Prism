@@ -2,6 +2,13 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.5.1] — 2026-04-11
+
+### Bug Fixes
+
+- **Bundle download on Safari:** Removed `target='_blank'` and `rel='noopener noreferrer'` attributes from the download anchor. Safari was incorrectly opening a new tab instead of triggering the browser download dialog.
+- **Bundle download SecurityError fix:** Changed from `anchor.click()` to `dispatchEvent(new MouseEvent('click', { bubbles: false }))` to bypass Umbraco's SPA global click interceptor, which was throwing SecurityError when handling blob: URLs.
+
 ## [v1.5.0] — 2026-04-10
 
 ### What's new
