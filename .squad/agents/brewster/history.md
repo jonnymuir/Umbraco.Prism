@@ -592,3 +592,58 @@ Null icons are omitted from serialised JSON via `System.Text.Json.Serialization.
 - `MediaPicker3Configuration` ConfigurationData keys: `multiple` (bool), `validationLimit.{min,max}`
 - `ContentType.Key` can be set before `contentTypeService.Save()` to get deterministic GUIDs (same pattern as DataType)
 - `TestSiteComposer.cs` needed — `DemoMobileNavSeeder` had no registration previously (bug discovered and fixed)
+
+## Mobile Nav Block List Schema Setup (2026-04-03)
+
+**Sprint:** Mobile nav media icons integration  
+**Session Log:** `.squad/log/2026-04-03_07-39-08-mobile-nav-media-icons.md`  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03_07-39-08-brewster-mobile-nav-element-type.md`
+
+**Status:** Completed
+
+**Problem:** `Settings.mobileNavLinks` used Multi URL Picker (`IEnumerable<Link>`). No icon field; icons resolved by URL convention (fragile hack). Needed idiomatic Umbraco path: editors pick icons from media library per nav item.
+
+**Solution Implemented:**
+
+1. **`MobileNavSchemaSetup.cs`** — Idempotent startup handler:
+   - Creates `mobileNavItem` element type (`IsElement = true`)
+     - Property group "Navigation" with `navLabel` (Textstring), `navUrl` (Textstring), `navIcon` (Media Picker), `openInNewTab` (Toggle)
+   - Creates `Mobile Nav Icon Picker` data type (Umbraco.MediaPicker3, single, `Umb.PropertyEditorUi.MediaPicker`)
+   - Creates `Mobile Nav Block List` data type (Umbraco.BlockList, max 4, `Umb.PropertyEditorUi.BlockList`)
+   - Replaces `Settings.mobileNavLinks` property (removes Multi URL Picker, installs Block List)
+   - Development-only guard (`env.IsDevelopment()` + `RuntimeLevel >= Run`)
+   - Deterministic GUIDs for safe recreation across installs
+
+2. **`TestSiteComposer.cs`** — New composer:
+   - Registers `MobileNavSchemaSetup` and `DemoMobileNavSeeder` as notification handlers
+   - **Bug fix:** `DemoMobileNavSeeder` had no container registration — now wired up
+
+3. **`_MobileShellNav.cshtml`** — Updated partial:
+   - `@model` changed from `IEnumerable<Link>` to `IEnumerable<BlockListItem>`
+   - Removed URL-convention icon mapping hack
+   - Reads `navLabel`, `navUrl`, `navIcon.Url()`, `openInNewTab` from block content
+   - Serializes to JSON for `<prism-mobile-nav>` web component
+
+4. **`Master.cshtml`** — Updated layout:
+   - Changed property fetch to `BlockListModel` type
+   - Added null guard around `_MobileShellNav` partial call
+   - Added `@using Umbraco.Cms.Core.Models.Blocks`
+
+5. **`DemoMobileNavSeeder.cs`** — Updated seeder:
+   - Removed old Multi URL Picker seeding
+   - Added helpful message directing editors to backoffice for Block List item entry
+   - Code comment with Block List JSON format for future reference
+
+**Build:** ✅ Passed (0 errors, 0 warnings)
+
+**Breaking Change:** Old Multi URL Picker values NOT migrated (property fully replaced). Editors must re-enter nav items via backoffice.
+
+**Technical Learnings:**
+
+- `BlockListConfiguration` ConfigurationData keys: `blocks[].contentElementTypeKey`, `validationLimit.{min,max}`
+- `MediaPicker3Configuration` ConfigurationData keys: `multiple`, `validationLimit.{min,max}`
+- `ContentType.Key` can be set before `Save()` for deterministic GUIDs (same as DataType pattern)
+- Umbraco.MediaPicker3 UI alias: `Umb.PropertyEditorUi.MediaPicker`
+- Umbraco.BlockList UI alias: `Umb.PropertyEditorUi.BlockList`
+
+**Paired with:** Isabelle's media icon URL support in prism-mobile-nav (runtime type check, CSS transitions)

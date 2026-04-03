@@ -368,3 +368,46 @@ Added support for Umbraco media library URLs in the `icon` field of `prism-mobil
 - Updated JSDoc Usage example and `icon` field description to document both modes
 - Added `MediaIcons` Storybook story with data URI SVG placeholders
 - Build passed (tsc + vite, no errors)
+
+## Media URL Icons in prism-mobile-nav (2026-04-03)
+
+**Sprint:** Mobile nav media icons integration  
+**Session Log:** `.squad/log/2026-04-03_07-39-08-mobile-nav-media-icons.md`  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03_07-39-08-isabelle-media-icons.md`
+
+**Status:** Completed
+
+**Problem:** Umbraco editors need to pick nav icons from the media library (URLs), not just named keys.
+
+**Solution Implemented:**
+
+1. **Icon Type Detection (`_isIconUrl()`):**
+   - Checks for `/`, `http`, or `data:` prefixes
+   - Maintains backward compatibility — existing named icons unchanged
+
+2. **Rendering Branch (`_renderIcon()`):**
+   - Named keys → existing SVG path lookup (unchanged)
+   - URLs → `<img class="nav-icon nav-icon--img" aria-hidden="true">`
+
+3. **CSS for Media Icons (`.nav-icon--img`):**
+   - `opacity: 0.6` (inactive state)
+   - `opacity: 1` (active state)
+   - `opacity: 0.85` (hover state)
+   - Matches named icon `color` transition behavior
+
+4. **Storybook Story:**
+   - New `MediaIcons.stories.ts` story showcasing both named icons and media URLs
+   - Uses data URI SVG placeholders for demo
+
+5. **Accessibility:**
+   - `<img aria-hidden="true" alt="">` — decorative icon, label from sibling `<span>`
+   - No breaking changes to existing named icon behavior
+
+**Build:** ✅ Passed (tsc + vite, no errors)
+
+**Design Notes:**
+- Media icons use opacity (not `color`) because `<img>` cannot inherit CSS `currentColor`
+- Editors should upload neutral-color SVGs for best visual consistency with the iOS-style white tab bar theme
+- Component remains fully theme-agnostic via CSS variables
+
+**Paired with:** Brewster's Umbraco schema work (block list, element type, seeder updates)

@@ -1549,3 +1549,65 @@ Icon mapping for `prism-mobile-nav` uses URL/label convention in `_MobileShellNa
 
 **Next Step:**
 Create a `MobileNavItem` Element Type with `label`, `url`, `icon` (dropdown), `target` fields; change Settings doc type to use Block List; update partial + seeder + Master.cshtml accordingly.
+
+---
+
+## Decisions from Session 2026-04-03
+
+The following decisions were created during the mobile nav media icons integration sprint and are now merged into the shared decisions file.
+
+---
+
+# Decision: Replace Multi URL Picker with Block List for Mobile Nav Icons
+
+**Date:** 2025-07-17
+**Author:** Brewster (Umbraco Platform Specialist)
+**Status:** Implemented
+
+## Context
+
+`Settings.mobileNavLinks` used `Umbraco.MultiUrlPicker` → `IEnumerable<Link>`. The `Link` model has no icon field, so icons were resolved by URL pattern-matching in `_MobileShellNav.cshtml` — a fragile convention that breaks as soon as an editor uses a non-standard URL.
+
+## Decision
+
+Replace Multi URL Picker with a Block List backed by a new `MobileNavItem` element type. Editors can now pick icons directly from the Umbraco media library per nav item.
+
+## Implementation
+
+- **New element type:** `mobileNavItem` (`IsElement = true`) with `navLabel`, `navUrl`, `navIcon` (Media Picker), `openInNewTab` (Toggle).
+- **New data types:** `Mobile Nav Icon Picker` (MediaPicker3, single) and `Mobile Nav Block List` (BlockList, max 4).
+- **Schema setup:** `MobileNavSchemaSetup.cs` — idempotent startup handler, Development only.
+- **Registration:** `TestSiteComposer.cs` wires up both `MobileNavSchemaSetup` and `DemoMobileNavSeeder` (previously unregistered — bug fixed as a side effect).
+- **Partial:** `_MobileShellNav.cshtml` updated to `@model IEnumerable<BlockListItem>` reading block content properties.
+- **Master layout:** reads `BlockListModel` instead of `IEnumerable<Link>`.
+
+## Consequences
+
+- Editors must re-enter nav items via the backoffice (old Multi URL Picker values are not migrated — the property is replaced).
+- The URL-convention icon hack is removed permanently.
+- `BlockListModel` implements `IEnumerable<BlockListItem>` so the partial call is type-compatible.
+- Future nav items can include icons from SVG media items in the Umbraco library.
+
+# Decision: Media URL icons in prism-mobile-nav
+
+**Date:** 2025-07-14  
+**Author:** Isabelle (Frontend Dev)
+
+## Context
+
+The `icon` field on `NavItem` previously only accepted named built-in keys (`home`, `account`, etc.). Umbraco editors now need to pick icons from the media library, which produces URLs.
+
+## Decision
+
+Distinguish icon types at runtime using a prefix check (`/`, `http`, `data:`). Named keys use the existing SVG path lookup; URLs render as `<img aria-hidden="true">` elements.
+
+## Rationale
+
+- Zero breaking changes — existing named icons unchanged
+- No new dependencies
+- `<img>` with `aria-hidden="true"` and empty `alt` is accessible (decorative icon, label from sibling `<span>`)
+- Opacity transitions (0.6 inactive → 1 active → 0.85 hover) mirror named icon behaviour via `color` inheritance
+
+## CSS approach
+
+Added `.nav-icon--img` class. Named SVG icons use `currentColor` (inherits from `.nav-item` `color` transition). `<img>` elements can't use `currentColor`, so opacity is used instead. Editors should upload SVGs in a neutral colour for best results.
