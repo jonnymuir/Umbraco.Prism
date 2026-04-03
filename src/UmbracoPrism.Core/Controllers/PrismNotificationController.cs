@@ -16,6 +16,7 @@ namespace UmbracoPrism.Core.Controllers;
 public class PrismNotificationController(
     IPrismNotificationService notificationService,
     IPrismContext prismContext,
+    INotificationRateLimitService rateLimitService,
     ILogger<PrismNotificationController> logger) : Controller
 {
     // ── Device token registration ────────────────────────────────────────────
@@ -26,12 +27,26 @@ public class PrismNotificationController(
     [HttpPost("register")]
     public async Task<IActionResult> RegisterToken([FromBody] PrismPushRegisterRequest request)
     {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
         if (string.IsNullOrWhiteSpace(request?.PushToken))
             return BadRequest(new { error = "pushToken is required." });
+
+        if (request.PushToken.Length > 500)
+            return BadRequest(new { error = "pushToken must not exceed 500 characters." });
 
         var (userId, tenantId) = ResolveUserAndTenant();
         if (userId == null || tenantId == null)
             return Unauthorized(new { error = "User identity or tenant context could not be determined." });
+
+        // Rate limiting: 10 registrations per hour per user+tenant
+        var (isLimited, retryAfter) = rateLimitService.CheckTokenRegistrationLimit(userId, tenantId);
+        if (isLimited)
+        {
+            Response.Headers.Append("Retry-After", retryAfter.ToString());
+            return StatusCode(429, new { error = "rate_limited", retryAfterSeconds = retryAfter });
+        }
 
         await notificationService.RegisterDeviceTokenAsync(userId, tenantId, request.PushToken);
         logger.LogInformation("Push token registered for user {UserId} in tenant {TenantId}.", userId, tenantId);
@@ -61,12 +76,23 @@ public class PrismNotificationController(
     [HttpPost("subscribe")]
     public async Task<IActionResult> Subscribe([FromBody] PrismSubscribeRequest request)
     {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
         if (string.IsNullOrWhiteSpace(request?.Genre))
             return BadRequest(new { error = "genre is required." });
 
         var (userId, tenantId) = ResolveUserAndTenant();
         if (userId == null || tenantId == null)
             return Unauthorized(new { error = "User identity or tenant context could not be determined." });
+
+        // Rate limiting: 20 subscriptions per hour per user+tenant
+        var (isLimited, retryAfter) = rateLimitService.CheckSubscriptionLimit(userId, tenantId);
+        if (isLimited)
+        {
+            Response.Headers.Append("Retry-After", retryAfter.ToString());
+            return StatusCode(429, new { error = "rate_limited", retryAfterSeconds = retryAfter });
+        }
 
         await notificationService.SubscribeToGenreAsync(userId, tenantId, request.Genre);
         logger.LogInformation("User {UserId} subscribed to genre '{Genre}' in tenant {TenantId}.", userId, request.Genre, tenantId);
@@ -79,6 +105,9 @@ public class PrismNotificationController(
     [HttpDelete("subscribe")]
     public async Task<IActionResult> Unsubscribe([FromBody] PrismSubscribeRequest request)
     {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
         if (string.IsNullOrWhiteSpace(request?.Genre))
             return BadRequest(new { error = "genre is required." });
 

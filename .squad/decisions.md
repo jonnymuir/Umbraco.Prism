@@ -2268,3 +2268,203 @@ Next blocker: Backend endpoint implementation. Once `/umbraco/prism/push/registe
 
 **Approved for merge:** ✅ (pending backend Phase 4 implementation)
 
+---
+
+## 📌 2026-04-03: Phase 4 Background Notification Architecture (Blathers)
+
+**Session Log:** `.squad/log/2026-04-03T12:57:36Z-notifications-complete.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-phase4-limited-edition.md`
+
+### Blathers — Phase 4 Background Notification Architecture
+
+Phase 4 introduces background scheduled notifications and API-triggered notifications for vinyl records.
+
+**Background Service Pattern:**
+- **`LimitedEditionDropNotifier`** uses `BackgroundService` base class from `Microsoft.Extensions.Hosting`
+- Interval is configurable via `Prism:Notifications:LimitedEditionDropIntervalMinutes`
+- Service can be disabled by setting interval to 0 (logs info and exits early)
+- Tenant context is resolved from config (`Prism:Notifications:LimitedEditionTenantId`) rather than `IPrismContext` (which is request-scoped)
+- All exceptions are caught and logged; service never crashes the host
+
+**Controller Pattern for Vinyl Notifications:**
+- **`PrismVinylNotificationController`** follows the same auth pattern as `PrismNotificationController`
+- Uses `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` for authenticated-only access
+- Genre-aware routing: if genre provided, sends to genre subscribers; else broadcasts to all members
+- Request validation returns 400 for missing required fields
+
+**Service Registration:**
+- `LimitedEditionDropNotifier` registered as hosted service in `PrismComposer` via `AddHostedService<>()`
+- Follows existing composer pattern for service registration
+- `PrismContentPublishedHandler` was already registered in previous phase (no changes needed)
+
+**Rationale:**
+1. **BackgroundService over raw Task:** Provides built-in lifecycle management, graceful shutdown, and integration with ASP.NET Core hosting
+2. **Config-based tenant resolution:** Background services have no HTTP request context, so tenant must come from config
+3. **Interval = 0 disables:** Simple on/off switch without needing a separate boolean flag
+4. **Exception isolation:** Background service errors must never crash the host; each iteration is individually try/catch wrapped
+
+**Implications:**
+- **Configuration:** Production deployments must set `Prism:Notifications:LimitedEditionTenantId` for the notifier to fire
+- **Future work:** Multi-tenant iteration (reading all tenants) requires a tenant enumeration API (not implemented in Phase 4)
+- **Testing:** Background services are harder to unit test; integration tests should verify scheduled behavior
+- **Logging:** All lifecycle events (start, fire, skip, error) are logged at INFO or WARNING level for observability
+
+**Alternative Considered:**  
+**Hangfire/Quartz.NET:** More robust scheduling but adds dependencies and complexity. Simple `TimeSpan` interval is sufficient for v1.
+
+**Status:** ✅ Implemented and verified via `dotnet build`
+
+---
+
+## 📌 2026-04-03: Push Notification Test Strategy (Tangy)
+
+**Session Log:** `.squad/log/2026-04-03T12:57:36Z-notifications-complete.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tangy-notification-tests.md`
+
+### Tangy — Push Notification Test Strategy
+
+**Context:**  
+The push notification feature integrates Firebase Cloud Messaging (FCM) into the Umbraco.Prism package. The `PrismNotificationService` initializes Firebase directly in the constructor, making it difficult to mock for unit tests.
+
+**Decision:**  
+**Unit tests verify core logic and database interaction; FCM delivery is deferred to integration tests.**
+
+**Test Coverage Strategy:**
+
+**Unit Tests (implemented):**
+1. **Service Layer** — Database operations (token storage, subscription management), control flow, empty-case handling
+2. **Controller Layer** — Request validation, authentication/authorization checks, service method invocation
+3. **Event Handler** — Routing logic (genre vs. broadcast), content type filtering, exception swallowing
+
+**Integration Tests (future):**
+- Actual FCM multicast delivery
+- Stale token nullification after FCM response
+- Batch processing (500-token chunks)
+- End-to-end: content publish → notification delivery
+
+**Firebase Mocking Approach:**
+
+**Why not mock Firebase in unit tests?**
+- `PrismNotificationService` calls `FirebaseApp.Create()` and `FirebaseMessaging.GetMessaging()` directly in the constructor
+- These are static methods on sealed classes — cannot be mocked with Moq
+- Introducing an `IFirebaseMessaging` abstraction would add complexity for minimal unit test benefit
+
+**Chosen approach:**
+- Unit tests run with `Prism:Firebase:CredentialJson` **not configured**
+- Service constructor initializes `_messaging` as `null`
+- `FanOutAsync` logs a warning and returns early (graceful degradation)
+- Tests verify database queries run correctly; Firebase delivery is a no-op
+
+**Exception Handling Guarantees:**  
+**Critical requirement:** `PrismContentPublishedHandler` must **never throw** — exceptions must not break the Umbraco publish pipeline.
+
+**Tests verify:**
+- `Handle_ServiceThrows_DoesNotRethrow` — service exceptions are caught and logged
+- `Handle_GenreServiceThrows_DoesNotRethrow` — genre-specific failures are caught and logged
+
+**Alternatives Considered:**
+1. **Introduce `IFirebaseMessaging` abstraction** — Rejected: Adds complexity; Firebase SDK is already well-tested; integration tests are the right place for end-to-end validation.
+2. **Use Firebase emulator in unit tests** — Rejected: Emulator startup is slow; belongs in integration test suite, not fast unit tests.
+3. **Extract FCM delivery to a separate service** — Rejected: Over-engineering for current needs; can refactor later if FCM becomes a bottleneck.
+
+**Consequences:**
+
+**Pros:**
+- Fast unit tests (no external dependencies)
+- Clear separation: unit tests verify logic, integration tests verify delivery
+- Service degrades gracefully when Firebase is unavailable (useful for local dev)
+
+**Cons:**
+- FCM delivery path is not covered by unit tests (integration tests required)
+- Stale token cleanup logic is not exercised in unit tests (Firebase response simulation needed)
+
+**Status:** ✅ 38 new tests created, 206/206 total passing
+
+---
+
+## 📌 2026-04-03: Notifications Feature Security Review (Copper)
+
+**Session Log:** `.squad/log/2026-04-03T12:57:36Z-notifications-complete.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copper-notifications-security-review.md`
+
+### Copper — Notifications Feature Security Review
+
+**Reviewer:** Copper (Security Engineer)  
+**Date:** 2026-04-04  
+**Scope:** Push notification token registration, genre subscriptions, FCM delivery  
+**Status:** ✅ PASS (all Critical/High issues fixed)
+
+**Executive Summary:**  
+Conducted comprehensive security review of the notifications feature focusing on tenant isolation enforcement, device token security, FCM credential handling, input validation and injection risks, and authentication/authorization controls.
+
+**Findings:** 2 CRITICAL, 1 HIGH, 2 MEDIUM, 2 LOW, 2 INFO  
+**Fixed:** All CRITICAL, HIGH, and MEDIUM issues addressed in code  
+**Outcome:** PASS — feature is secure for production deployment
+
+**Critical Findings (All Fixed):**
+
+**C1: Push Token Length Validation Missing**
+- **Severity:** CRITICAL
+- **Fix Applied:** Added `[MaxLength(500)]` validation, server-side length check
+- **Verification:** Build passes; attribute-based validation enforced
+
+**C2: Genre Field Validation Missing**
+- **Severity:** CRITICAL
+- **Fix Applied:** Added `[MaxLength(50)]`, `[RegularExpression("^[a-z0-9_-]+$")]` validation
+- **Verification:** Regex prevents SQL injection, XSS, Unicode exploits
+
+**High Findings (All Fixed):**
+
+**H1: Rate Limiting Missing on Token/Subscription Endpoints**
+- **Severity:** HIGH
+- **Fix Applied:** Created `NotificationRateLimitService` (in-memory sliding-window)
+  - Token registration: 10 per hour per userId+tenantId
+  - Subscriptions: 20 per hour per userId+tenantId
+  - Returns `429 Too Many Requests` with `Retry-After` header
+- **Verification:** Build passes; tests updated with rate limit mocks
+
+**Medium Findings (All Fixed):**
+
+**M1: Firebase Initialization Error Logging**
+- **Severity:** MEDIUM
+- **Fix Applied:** Removed exception details from logs (no credential leakage)
+- **Generic error message:** `"Failed to initialise Firebase — push notifications disabled."`
+
+**M2: Stale Token Cleanup Not Tenant-Scoped**
+- **Severity:** MEDIUM
+- **Fix Applied:** Updated UPDATE query to include `TenantId` filter
+- **Prevents:** Cross-tenant stale token cleanup impact
+
+**Tenant Isolation Verification:** ✅ All database queries are tenant-scoped  
+**Device Token Security:** ✅ Token handling is secure (auth required, length validated, rate limited)  
+**FCM Credential Handling:** ✅ Credentials loaded safely (never logged, singleton pattern)  
+**Input Validation:** ✅ Token length, genre regex, ModelState enforcement  
+**Authentication & Authorization:** ✅ All endpoints protected, UserId from signed JWT, TenantId from middleware
+
+**Recommendations for Production Deployment:**
+1. Key Vault Integration (Required) — Set `Prism:Firebase:CredentialJson` to Key Vault reference
+2. Multi-Instance Rate Limiting (Optional) — Replace with Redis-backed implementation if multi-instance
+3. Data Retention Policy (Optional) — Define cleanup for unregistered devices (e.g., 90 days)
+4. Structured Logging (Optional) — Add Application Insights telemetry to `FanOutAsync()`
+5. Post-Deployment Smoke Test — Test token registration, subscriptions, and notification delivery
+
+**Security Verdict:** ✅ **PASS**
+
+All Critical and High severity issues have been fixed. The feature is **approved for production deployment** with Key Vault for credentials and optional Redis-backed rate limiting for multi-instance deployments.
+
+**Confidence Level:** HIGH — Implementation follows established Prism security patterns (tenant scoping, auth model, rate limiting). No cross-tenant leakage or credential exposure vectors found.
+
+**Files Modified (Security Fixes):**
+- Created: `INotificationRateLimitService.cs`, `NotificationRateLimitService.cs`
+- Modified: `PrismPushRegisterRequest.cs`, `PrismSubscribeRequest.cs`, `PrismNotificationController.cs`, `PrismNotificationService.cs`, `PrismComposer.cs`
+- **Build Status:** ✅ `dotnet build UmbracoPrism.sln` passes with no errors
+- **Test Status:** ✅ 206/206 tests passing
+
+---
+

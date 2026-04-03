@@ -136,7 +136,7 @@ public class PrismNotificationService : IPrismNotificationService
         // Collect push tokens for those users within the tenant
         var tokens = GetPushTokensForUsers(db, tenantId, userIds);
 
-        await FanOutAsync(db, tokens, title, body, ct);
+        await FanOutAsync(db, tenantId, tokens, title, body, ct);
     }
 
     /// <inheritdoc/>
@@ -152,7 +152,7 @@ public class PrismNotificationService : IPrismNotificationService
             "SELECT PushToken FROM prismDeviceCredentials WHERE TenantId = @0 AND PushToken IS NOT NULL",
             tenantId);
 
-        await FanOutAsync(db, tokens, title, body, ct);
+        await FanOutAsync(db, tenantId, tokens, title, body, ct);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -175,6 +175,7 @@ public class PrismNotificationService : IPrismNotificationService
 
     private async Task FanOutAsync(
         Umbraco.Cms.Infrastructure.Persistence.IUmbracoDatabase db,
+        string tenantId,
         IReadOnlyList<string> tokens,
         string title,
         string body,
@@ -228,14 +229,14 @@ public class PrismNotificationService : IPrismNotificationService
             }
         }
 
-        // Nullify stale tokens so they don't accumulate
+        // Nullify stale tokens so they don't accumulate (scoped to current tenant)
         foreach (var stale in staleTokens)
         {
             try
             {
                 db.Execute(
-                    "UPDATE prismDeviceCredentials SET PushToken = NULL WHERE PushToken = @0",
-                    stale);
+                    "UPDATE prismDeviceCredentials SET PushToken = NULL WHERE PushToken = @0 AND TenantId = @1",
+                    stale, tenantId);
             }
             catch (Exception ex)
             {
@@ -292,9 +293,10 @@ public class PrismNotificationService : IPrismNotificationService
 
             return FirebaseMessaging.GetMessaging(app);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            logger.LogError(ex, "Failed to initialise Firebase — push notifications disabled.");
+            // Security: do NOT log exception details (could leak credential paths or JSON structure)
+            logger.LogError("Failed to initialise Firebase — push notifications disabled.");
             return null;
         }
     }

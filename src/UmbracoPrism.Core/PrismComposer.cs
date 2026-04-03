@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
+using UmbracoPrism.Core.BackgroundServices;
 
 namespace UmbracoPrism.Core;
 
@@ -38,11 +39,13 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IBiometricTokenService, BiometricTokenService>();
         builder.Services.AddSingleton<IRefreshTokenEncryptionService, RefreshTokenEncryptionService>();
         builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
+        builder.Services.AddSingleton<INotificationRateLimitService, NotificationRateLimitService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
         builder.Services.AddScoped<IPrismNotificationService, PrismNotificationService>();
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
+        builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
         // 2. Middleware Registration
         builder.Services.Configure<UmbracoPipelineOptions>(options =>

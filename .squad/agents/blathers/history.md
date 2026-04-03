@@ -877,3 +877,68 @@ Provided documentation requirements:
 - **Phase 2+:** Unit tests, integration tests, backoffice UI, rate limiting, analytics/telemetry
 
 ---
+
+## Phase 4: Limited Edition Drop Notifier + Back-in-Stock API (2024-04-03)
+
+**Task:** Implement background scheduled notifications and vinyl back-in-stock API endpoint.
+
+**Implemented Components:**
+
+1. **`LimitedEditionDropNotifier`** (`BackgroundService`)
+   - Path: `src/UmbracoPrism.Core/BackgroundServices/LimitedEditionDropNotifier.cs`
+   - Config: `Prism:Notifications:LimitedEditionDropIntervalMinutes` (default: 60; 0 = disabled)
+   - Tenant config: `Prism:Notifications:LimitedEditionTenantId` (required; logged warning if missing)
+   - Behavior: Fires `SendNotificationToAllMembersAsync()` on configured interval with "Limited Edition Drop" message
+   - Error handling: All exceptions caught and logged; never crashes host
+   - Logging: Start, fire, skip (disabled/missing tenant), error
+
+2. **`PrismVinylNotificationController`**
+   - Path: `src/UmbracoPrism.Core/Controllers/PrismVinylNotificationController.cs`
+   - Route: `POST /umbraco/prism/vinyl/back-in-stock`
+   - Auth: `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` (same pattern as `PrismNotificationController`)
+   - Request model: `PrismVinylBackInStockRequest` (tenantId, vinylTitle, genre?)
+   - Logic: Calls `SendToGenreSubscribersAsync()` if genre provided, else `SendToAllMembersAsync()`
+   - Response: 200 OK on success, 400 on missing fields, 500 on exception
+
+3. **Wire-up**
+   - `LimitedEditionDropNotifier` registered as hosted service in `PrismComposer` via `AddHostedService<>()`
+   - `PrismContentPublishedHandler` already registered (line 127 of `PrismComposer.cs` — no changes needed)
+   - Added `using UmbracoPrism.Core.BackgroundServices;` to `PrismComposer.cs`
+
+**Build Status:** ✅ `dotnet build UmbracoPrism.sln` — 0 errors, 0 warnings
+
+### Learnings
+
+- **BackgroundService pattern:** Graceful shutdown via `CancellationToken`; outer try/catch for `OperationCanceledException` + fatal errors; inner try/catch per iteration
+- **Configuration-driven disable:** Check interval ≤ 0 and exit early from `ExecuteAsync`; logs info message
+- **Tenant-scoped background tasks:** Unlike request handlers, background services cannot rely on `IPrismContext`; must read tenantId from config
+- **Auth controller pattern:** `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` + `Controller` base class; consistent with existing controllers
+
+### Phase 4 Complete
+
+All components implemented, tested via build, and ready for integration with mobile app + Umbraco backoffice demo.
+
+---
+
+## 2026-04-03 — Phase 4 Complete (Notifications System)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03T12:57:36Z-blathers-phase4.md`  
+**Decision Merged:** `.squad/decisions.md` (Phase 4 Architecture)
+
+**Team Deliverables:**
+- **Blathers (Backend):** LimitedEditionDropNotifier + PrismVinylNotificationController implemented, 0 build errors
+- **Tangy (Tester):** 38 new tests across 3 test classes, 206/206 passing
+- **Copper (Security):** Comprehensive review, 2 CRITICAL + 1 HIGH + 2 MEDIUM issues identified and fixed, verdict: PASS
+
+**Key Accomplishments:**
+- Limited edition drop notifier: configurable interval, disabled by setting to 0
+- Back-in-stock API: Genre-aware routing, authenticated-only access
+- Rate limiting service: Sliding-window token registration (10/hr) + subscription (20/hr)
+- Security hardening: Token length validation, genre regex safety, Firebase credential sanitization, tenant-scoped stale token cleanup
+
+**Build & Test Status:**
+- `dotnet build UmbracoPrism.sln` → 0 errors
+- `dotnet test UmbracoPrism.sln` → 206/206 passing
+- Security verdict: ✅ PASS (production-ready with Key Vault for credentials)
+
+---
