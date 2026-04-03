@@ -115,9 +115,9 @@ public class PrismStarterContentSeeder(
 
         if (mobileNavProperty.DataTypeKey != expectedDataTypeKey)
         {
-            logger.LogWarning("PRISM: mobileNavLinks property uses unexpected data type {Key}. Saving without nav links to avoid validation error.", mobileNavProperty.DataTypeKey);
-            contentService.Save(settings!);
-            contentService.Publish(settings!, new[] { "*" });
+            // Another component (e.g. the TestSite) has configured mobileNavLinks with a different
+            // data type (e.g. Block List). Leave it alone — don't publish stale MultiUrlPicker content.
+            logger.LogDebug("PRISM: mobileNavLinks uses a custom data type {Key}. Skipping nav links seeding.", mobileNavProperty.DataTypeKey);
             return;
         }
 

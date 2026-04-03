@@ -27,12 +27,11 @@ public class DemoMobileNavSeeder(
     ILogger<DemoMobileNavSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    // Deterministic GUIDs so idempotency works across restarts.
-    private static readonly Guid MediaFolderKey   = new("b5c6d7e8-f9a0-1234-efab-345678901234");
-    private static readonly Guid HomeMediaKey     = new("d1e2f3a4-b5c6-7890-abcd-ef1234567890");
-    private static readonly Guid DashMediaKey     = new("e2f3a4b5-c6d7-8901-bcde-f12345678901");
-    private static readonly Guid HomeElementKey   = new("f3a4b5c6-d7e8-9012-cdef-123456789012");
-    private static readonly Guid DashElementKey   = new("a4b5c6d7-e8f9-0123-defa-234567890123");
+    // Deterministic GUIDs for idempotency. Only the folder uses a fixed key (reliable across restarts).
+    // Media items are looked up by name to avoid key-persistence issues with the deprecated Save API.
+    private static readonly Guid MediaFolderKey = new("b5c6d7e8-f9a0-1234-efab-345678901234");
+    private static readonly Guid HomeElementKey = new("f3a4b5c6-d7e8-4012-cdef-123456789012");
+    private static readonly Guid DashElementKey = new("a4b5c6d7-e8f9-4123-defa-234567890123");
 
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
@@ -81,17 +80,27 @@ public class DemoMobileNavSeeder(
             return Task.CompletedTask;
         }
 
+        // Always ensure SVG files and media library items exist, regardless of content state.
+        WriteSvgFiles();
+        var folderId = EnsureIconsFolder();
+        var homeKey = EnsureIconMedia("Nav Icon - Home",      folderId, "home.svg");
+        var dashKey = EnsureIconMedia("Nav Icon - Dashboard", folderId, "dashboard.svg");
+
         var existing = settings.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing))
         {
-            logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping.");
-            return Task.CompletedTask;
+            // Only skip if already populated with a v14+ block list.
+            // If the value is a MultiUrlPicker JSON or an old v13 block list, replace it.
+            bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
+                               && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal);
+            if (isV14BlockList)
+            {
+                logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
+                return Task.CompletedTask;
+            }
+
+            logger.LogInformation("DEMO SEEDER: Replacing non-block-list or old-format mobileNavLinks value with v14+ block list.");
         }
-
-        WriteSvgFiles();
-
-        var homeKey  = EnsureIconMedia("Nav Icon - Home",      HomeMediaKey, "home.svg");
-        var dashKey  = EnsureIconMedia("Nav Icon - Dashboard",  DashMediaKey, "dashboard.svg");
 
         var blockListJson = BuildBlockListJson(homeKey, dashKey);
 
@@ -119,25 +128,63 @@ public class DemoMobileNavSeeder(
         logger.LogDebug("DEMO SEEDER: SVG icon files written to {Path}.", iconDir);
     }
 
-    private Guid? EnsureIconMedia(string name, Guid key, string fileName)
+    private Guid? EnsureIconMedia(string name, int folderId, string fileName)
     {
-        // Check if a media item with this key already exists.
-        var existing = mediaService.GetById(key);
-        if (existing != null) return existing.Key;
+        var fileValue = $"{MediaBasePath}/{fileName}";
 
-        var folderId = EnsureIconsFolder();
+        // Find by name within the folder. Key-based lookup is unreliable because Umbraco's
+        // deprecated Save() API may not preserve a manually-assigned Key.
+        var existing = mediaService.GetPagedChildren(folderId, 0, 100, out _)
+            .FirstOrDefault(m => m.Name == name);
+
+        if (existing != null)
+        {
+            // Repair missing file reference if the item was created but never got its value set.
+            var currentFile = existing.GetValue<string>("umbracoFile");
+            if (string.IsNullOrEmpty(currentFile))
+            {
+                existing.SetValue("umbracoFile", fileValue);
+#pragma warning disable CS0618
+                mediaService.Save(existing, Constants.Security.SuperUserId);
+#pragma warning restore CS0618
+                logger.LogInformation("DEMO SEEDER: Repaired empty file reference on media item '{Name}'.", name);
+            }
+            return existing.Key;
+        }
 
         try
         {
-            var media = mediaService.CreateMedia(name, folderId, "umbracoMediaVectorGraphics");
-            media.Key = key;
-            media.SetValue("umbracoFile", $"{MediaBasePath}/{fileName}");
+            // Try the SVG media type first; fall back to Image if it is not installed.
+            IMedia? media = null;
+            foreach (var alias in new[] { "umbracoMediaVectorGraphics", "Image", "File" })
+            {
+                try
+                {
+                    media = mediaService.CreateMedia(name, folderId, alias);
+                    break;
+                }
+                catch (Exception innerEx)
+                {
+                    logger.LogDebug(innerEx, "DEMO SEEDER: Media type '{Alias}' unavailable for '{Name}', trying next.", alias, name);
+                }
+            }
+
+            if (media == null)
+            {
+                logger.LogWarning("DEMO SEEDER: No suitable media type found for '{Name}' — icon skipped.", name);
+                return null;
+            }
+
+            media.SetValue("umbracoFile", fileValue);
 #pragma warning disable CS0618
             mediaService.Save(media, Constants.Security.SuperUserId);
 #pragma warning restore CS0618
 
-            logger.LogInformation("DEMO SEEDER: Created media item '{Name}' (key: {Key}).", name, media.Key);
-            return media.Key;
+            // Re-fetch by integer ID to get the actual persisted key from the database.
+            var saved = mediaService.GetById(media.Id);
+            var actualKey = saved?.Key ?? media.Key;
+            logger.LogInformation("DEMO SEEDER: Created media item '{Name}' (key: {Key}).", name, actualKey);
+            return actualKey;
         }
         catch (Exception ex)
         {
@@ -150,9 +197,10 @@ public class DemoMobileNavSeeder(
     {
         try
         {
-            // Search existing media at the root for our folder.
+            // Search existing media at the root for our folder by key, then by name as fallback.
             var roots = mediaService.GetRootMedia();
-            var folder = roots.FirstOrDefault(m => m.Key == MediaFolderKey);
+            var folder = roots.FirstOrDefault(m => m.Key == MediaFolderKey)
+                      ?? roots.FirstOrDefault(m => m.Name == "Prism Navigation Icons");
             if (folder != null) return folder.Id;
 
             folder = mediaService.CreateMedia("Prism Navigation Icons", Constants.System.Root, "Folder");
@@ -172,28 +220,28 @@ public class DemoMobileNavSeeder(
     }
 
     /// <summary>
-    /// Builds the Block List JSON for two nav items.
-    /// The navIcon value uses the MediaPicker3 stored format:
-    /// <c>[{"key":"{guid}","mediaKey":"{media-guid}","crops":[],"focalPoint":null}]</c>
-    /// stored as an embedded JSON array inside contentData.
+    /// Builds the Block List JSON using the Umbraco v14+ format:
+    /// layout entries use <c>contentKey</c> (Guid), and contentData items use a <c>values</c> array
+    /// instead of flat properties. This allows the backoffice label template (e.g. <c>{{ navLabel }}</c>)
+    /// to resolve correctly, since the TypeScript interpolation reads from the <c>values</c> array.
     /// </summary>
     private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey)
     {
-        var homeUdi = $"umb://element/{HomeElementKey:N}";
-        var dashUdi = $"umb://element/{DashElementKey:N}";
+        var homeKey = HomeElementKey.ToString();
+        var dashKey = DashElementKey.ToString();
 
         var root = new JsonObject
         {
             ["layout"] = new JsonObject
             {
                 ["Umbraco.BlockList"] = new JsonArray(
-                    new JsonObject { ["contentUdi"] = homeUdi },
-                    new JsonObject { ["contentUdi"] = dashUdi }
+                    new JsonObject { ["contentKey"] = homeKey },
+                    new JsonObject { ["contentKey"] = dashKey }
                 )
             },
             ["contentData"] = new JsonArray(
-                BuildBlockItem(homeUdi, "Home",      "/",          homeMediaKey),
-                BuildBlockItem(dashUdi, "Dashboard", "/dashboard", dashMediaKey)
+                BuildBlockItem(homeKey, "Home",      "/",          homeMediaKey),
+                BuildBlockItem(dashKey, "Dashboard", "/dashboard", dashMediaKey)
             ),
             ["settingsData"] = new JsonArray()
         };
@@ -201,15 +249,13 @@ public class DemoMobileNavSeeder(
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
     }
 
-    private static JsonObject BuildBlockItem(string udi, string label, string url, Guid? mediaKey)
+    private static JsonObject BuildBlockItem(string key, string label, string url, Guid? mediaKey)
     {
-        var item = new JsonObject
+        var values = new JsonArray
         {
-            ["contentTypeKey"] = MobileNavItemTypeKey.ToString(),
-            ["udi"]            = udi,
-            ["navLabel"]       = label,
-            ["navUrl"]         = url,
-            ["openInNewTab"]   = "0"
+            new JsonObject { ["alias"] = "navLabel",    ["value"] = JsonValue.Create(label) },
+            new JsonObject { ["alias"] = "navUrl",      ["value"] = JsonValue.Create(url) },
+            new JsonObject { ["alias"] = "openInNewTab", ["value"] = JsonValue.Create(0) }
         };
 
         if (mediaKey.HasValue)
@@ -223,13 +269,18 @@ public class DemoMobileNavSeeder(
                 ["focalPoint"] = JsonValue.Create((string?)null)
             });
 
-            item["navIcon"] = pickerItems;
+            values.Add(new JsonObject { ["alias"] = "navIcon", ["value"] = pickerItems });
         }
         else
         {
-            item["navIcon"] = JsonValue.Create((string?)null);
+            values.Add(new JsonObject { ["alias"] = "navIcon", ["value"] = JsonValue.Create((string?)null) });
         }
 
-        return item;
+        return new JsonObject
+        {
+            ["contentTypeKey"] = MobileNavItemTypeKey.ToString(),
+            ["key"]            = key,
+            ["values"]         = values
+        };
     }
 }

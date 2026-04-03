@@ -72,8 +72,12 @@ public class PrismContentTypeSeeder(
 
         if (contentType != null)
         {
-            // Already exists - check if it has the correct property
-            contentType = await EnsureMobileNavPropertyAsync(contentType) ?? contentType;
+            // Already exists — only add the property if it's completely missing.
+            // Never replace an existing property; other components (e.g. the TestSite) may
+            // intentionally use a different data type (Block List, etc.) and we must not fight them.
+            var hasProperty = contentType.PropertyTypes.Any(p => p.Alias == "mobileNavLinks");
+            if (!hasProperty)
+                contentType = await EnsureMobileNavPropertyAsync(contentType) ?? contentType;
             return;
         }
 
