@@ -867,12 +867,10 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         anchor.href = url;
         anchor.download = fileName;
         anchor.style.display = 'none';
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 100);
         this._mobileBundleGenerated = true;
       } catch (error) {
         console.error('Failed to produce mobile bundle', error);
