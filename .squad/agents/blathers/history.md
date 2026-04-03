@@ -958,3 +958,25 @@ All components implemented, tested via build, and ready for integration with mob
 **Pattern for all future background services:** Never inject scoped services into `BackgroundService`. Always use `IServiceScopeFactory` and resolve scoped dependencies per-operation inside an `await using var scope = _scopeFactory.CreateAsyncScope()` block.
 
 **Verification:** 0 build errors, 206/206 tests passed.
+
+---
+
+## Cross-Agent Verification (2026-04-03, README Quick Start — Mabel + Blathers)
+
+**Agents:** Mabel (Technical Writer), Blathers (Test Lead)
+
+**Verification Task:** Confirm Quick Start guide accuracy regarding Umbraco.Prism service registration flow.
+
+**Finding:** Mabel identified and corrected inaccuracy in Quick Start documentation:
+- **Issue:** README Quick Start was documenting manual `AddPrism()` service registration (incorrect)
+- **Correct Flow:** Umbraco.Prism uses automatic composer registration via `AddComposers()`
+- **Root:** `PrismComposer` implements `IComposer` and is auto-registered by Umbraco framework
+- **Action:** Mabel removed incorrect AddPrism() step, rebalanced narrative, added dual web+mobile screenshots, cut ~77 lines
+- **Result:** Quick Start now accurately reflects actual Umbraco.Prism initialization pattern
+
+**Blathers Verification:**
+- ✅ Confirmed: No manual `AddPrism()` call path exists in codebase
+- ✅ Confirmed: `PrismComposer` (IComposer) enables automatic registration via `AddComposers()` in standard Umbraco startup
+- ✅ Documentation updated and pushed to main
+
+**Impact:** README Quick Start now provides accurate, concise guidance for developers initializing Umbraco.Prism without misleading manual service registration examples.

@@ -722,3 +722,32 @@ Bundle download on Safari was incorrectly opening a new tab instead of triggerin
 **Voice:** Developer-friendly, practical, code-focused. Scannable with working examples.
 
 **Outcome:** Developers can now set up maintenance pages at the edge in <5 minutes, with proper handling for both web and mobile users.
+
+### README Accuracy & Story Balance Pass (2026-03-29)
+
+**Context:** Jonny requested second pass on README for accuracy, story balance, and clarity.
+
+**Actual Service Registration Found:**
+- Checked `Program.cs` in TestSite — uses standard Umbraco builder pattern (`AddBackOffice()`, `AddWebsite()`, `AddComposers()`)
+- Found `PrismComposer.cs` implementing `IComposer` — Prism auto-registers via Umbraco's composer system
+- **No manual service registration needed** — the old README showed `builder.Services.AddPrism()` which doesn't exist
+- Services registered automatically in `PrismComposer.Compose()`: tenant resolution, branding, OIDC config, middleware, authorization
+
+**README Changes:**
+- **Quick Start fix:** Removed incorrect "Register Services" step. Now shows only: install package → configure VaultUri → run. Clarified composer handles registration.
+- **Story rebalance:** 
+  - Opening tagline now: "Multi-tenant website branding and identity at runtime. Add a mobile app with one click."
+  - Restructured "What You Get" with two equal pillars: Multi-Tenant Web (domain resolution, live branding, per-tenant OIDC) and Produce Mobile (biometric, push, offline)
+  - Added dual screenshots: `testsite.png` + `backoffice2.png` for web, `example-IOS.png` for mobile
+- **Cleanup:**
+  - Consolidated Features section (removed checkmark list, grouped by web/mobile/infrastructure)
+  - Tightened Architecture section (removed "two layers" prose, kept key services)
+  - Shortened Local Auth Walkthrough (phases 1-4 → steps 1-4, removed redundant explanations)
+  - Condensed tunnel section (Option A/B → No Domain / Stable Hostname)
+  - Renamed "Technical Stack" → "Stack" and cut verbose descriptions
+  - Overall: ~77 fewer lines, clearer hierarchy
+
+**Files Modified:**
+- `README.md` — 11 edits
+
+**Commit:** `46a0fb0` — docs: accuracy fix and story rebalance in README
