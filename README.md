@@ -9,77 +9,81 @@
 dotnet add package UmbracoPrism
 ```
 
-One Umbraco instance. Hundreds of branded client portals. Native mobile apps with one click.
+One Umbraco instance. Multiple branded portals. Native mobile app included.
+
+Multi-tenant website branding and identity at runtime. Add a mobile app with one click.
 
 ---
 
 ## What You Get
 
-### Generate Native Mobile Apps from the Backoffice
+### Multi-Tenant Web — One Instance, Hundreds of Brands
 
-Turn tenant settings into a production-ready iOS/Android app. No Xcode project setup. No Gradle config. Just click **Produce Mobile** in the backoffice.
+Serve distinct branded portals from one Umbraco instance. Runtime branding, domain resolution, tenant isolation.
 
-![iOS app with tenant branding applied](example-IOS.png)
+<div align="center">
+<img src="testsite.png" width="400" alt="Branded portal example">
+<img src="backoffice2.png" width="400" alt="Backoffice branding editor">
+</div>
 
-Run in simulator with one command:
+**Web features:**
+- Domain-based tenant resolution — each client gets their own hostname
+- Live branding editor — CSS variables update without deploy
+- Per-tenant OIDC — Entra ID integration, zero local Members
+- Downstream auth — propagate tenant identity to internal APIs
+- Tenant isolation — authorization policies enforce data boundaries
+
+→ [Umbraco Setup Guide](docs/umbraco-setup.md)
+
+### Produce Mobile — Generate Apps from Backoffice
+
+Turn tenant settings into iOS/Android apps. No Xcode. No Gradle. Click **Produce Mobile**.
+
+<div align="center">
+<img src="example-IOS.png" width="300" alt="iOS app with tenant branding">
+</div>
+
+**Mobile features:**
+- Biometric login (Face ID, fingerprint) — skip OIDC on return
+- Push notifications (FCM/APNs) — content or API triggered
+- Offline-ready layouts with safe-area handling
+- Tenant branding at runtime (colors, logo, splash)
+
+Run in simulator:
 
 ```bash
 npm run bootstrap:ios
 ```
 
-**Mobile-first features:**
-- Biometric login (fingerprint, Face ID) — skip OIDC on return visits
-- Push notifications (FCM/APNs) — content-triggered or API-triggered
-- Offline-ready with safe-area mobile layouts
-- Tenant branding applied at runtime (colors, logo, splash screen)
-
-→ [Mobile Setup Guide](docs/PUSH_SETUP.md) | [Biometric Auth Setup](docs/biometric-setup.md)
-
-### Live Backoffice Branding Editor
-
-Design your tenant's look in real time. No build step. No deploy.
-
-![Backoffice tenant branding editor](backoffice2.png)
-
-CSS variables update instantly across web and mobile:
-
-![Test site with branding overrides](testsite-overrides.png)
-
-→ [Umbraco Setup Guide](docs/umbraco-setup.md)
-
-### Multi-Tenant Identity Without the Mess
-
-One Umbraco site. Hundreds of clients. Each gets their own:
-- Domain name
-- Entra ID tenant
-- Branding theme
-- Member portal
-
-No local Member database. Identity deferred to Entra (CIAM). Secrets pulled from Azure Key Vault at runtime.
-
-![Downstream credential flow example](downstream.png)
-
-→ [Architecture Overview](#architecture)
+→ [Mobile Setup](docs/PUSH_SETUP.md) | [Biometric Auth](docs/biometric-setup.md)
 
 ---
 
 ## Quick Start
 
-### 1. Install the Package
+### 1. Install
 
 ```bash
 dotnet add package UmbracoPrism
 ```
 
-### 2. Register Services
+Prism registers automatically via `PrismComposer` — no manual service registration needed.
 
-In `Program.cs`:
+### 2. Configure
 
-```csharp
-builder.Services.AddPrism(builder.Configuration);
+Add to `appsettings.json`:
+
+```json
+{
+  "Prism": {
+    "VaultUri": "https://your-keyvault.vault.azure.net/"
+  }
+}
 ```
 
-### 3. Run Your Site
+For local dev without Azure Key Vault, see [Local Authentication Walkthrough](#local-authentication-walkthrough).
+
+### 3. Run
 
 ```bash
 dotnet run
@@ -87,42 +91,51 @@ dotnet run
 
 Prism auto-creates document types (`homePage`, `memberDashboard`) on first startup.
 
-### 4. Configure Your First Tenant
+### 4. Add Your First Tenant
 
-In Umbraco backoffice:
-1. Go to **Settings → Prism Dashboard**
-2. Add a tenant (name, hostname, Entra settings)
-3. Visit your site — see the branded homepage
+In backoffice:
+1. **Settings → Prism Dashboard**
+2. Add tenant (hostname, Entra ID settings, branding)
+3. Visit the hostname — see branded portal
 
-→ **Full guide:** [Umbraco Setup](docs/umbraco-setup.md)
+→ [Full Setup Guide](docs/umbraco-setup.md)
 
 ---
 
-## What It Does
+## How It Works
 
-**Multi-tenancy at runtime:** One content tree serves hundreds of client portals. Branding, identity, and content context resolve by hostname.
+**Multi-tenancy at runtime:** Middleware resolves hostname to tenant. One content tree serves hundreds of portals.
 
-**Stateless authentication:** No local Member records. Identity deferred to Entra ID. Secrets in Azure Key Vault.
+**Stateless auth:** No local Members. Identity deferred to Entra ID. Secrets in Azure Key Vault.
 
-**Mobile app generation:** Generate iOS/Android apps from backoffice tenant settings. Run in emulator immediately.
+**Mobile generation:** Tenant settings → iOS/Android app. Run in simulator immediately.
 
-**Downstream credential flow:** Pass tenant identity to internal APIs or microservices. No shared-state logic.
+**Downstream auth:** Pass tenant identity to internal APIs without shared state.
 
 ---
 
 ## Features
 
-- ✅ **Multi-tenant branding** — CSS variables update per hostname
-- ✅ **Entra ID authentication** — OIDC with dynamic tenant config
-- ✅ **Mobile app generation** — iOS/Android from backoffice
-- ✅ **Biometric login** — fingerprint/Face ID for mobile
-- ✅ **Push notifications** — content-triggered or API-triggered
-- ✅ **Azure Key Vault integration** — secrets pulled at runtime
-- ✅ **Downstream API auth** — propagate tenant identity to microservices
-- ✅ **Zero local Members** — identity stays in Entra
-- ✅ **Backoffice admin policy** — restrict tenant management to admins
+**Multi-tenant web:**
+- Domain-based tenant resolution
+- Live CSS variable branding
+- Per-tenant Entra ID (OIDC)
+- Tenant isolation policies
+- Downstream API auth
 
-→ See [docs/](docs/) for detailed guides on each feature.
+**Mobile:**
+- iOS/Android generation from backoffice
+- Biometric login (Face ID, fingerprint)
+- Push notifications (FCM/APNs)
+- Offline-ready layouts
+
+**Infrastructure:**
+- Azure Key Vault secrets at runtime
+- Zero local Member records
+- Managed Identity support
+- Admin-only backoffice policies
+
+→ [Full Documentation](docs/)
 
 ---
 
@@ -146,32 +159,28 @@ In Umbraco backoffice:
 
 ## Architecture
 
-Two layers work together:
+**Runtime layer:**
+* `PrismTenantMiddleware` — resolves hostname to tenant
+* `IPrismContext` — scoped service with tenant/theme data
 
-### The Runtime (Middleware)
-* **PrismTenantMiddleware** — resolves hostname to tenant
-* **IPrismContext** — scoped service with current tenant/theme data
+**Identity layer:**
+* Dynamic OIDC — swaps `ClientId`, `Authority`, `Issuer` per tenant
+* `IPrismUserContext` — current user claims and tenant
+* `SecretVaultService` — Azure Key Vault (Managed Identity in prod, Azure CLI local)
+* Downstream flow — propagate tenant identity to APIs
 
-### The Identity Engine (Stateless OIDC)
-* **Dynamic configuration** — OIDC pipeline swaps `ClientId`, `Authority`, `Issuer` per tenant
-* **IPrismUserContext** — access current user claims and tenant details
-* **SecretVaultService** — fetches secrets from Azure Key Vault (Managed Identity in production, Azure CLI in local dev)
-* **Downstream flow** — propagate tenant identity to internal APIs without shared state
-
-→ [Full Architecture Guide](docs/)
+→ [Architecture Docs](docs/)
 
 ---
 
 ## Prerequisites
 
-Before you begin:
-
 - **.NET 10.0** ([Download](https://dotnet.microsoft.com/download))
 - **Node.js 20+** ([Download](https://nodejs.org/))
-- **Azure Key Vault** (production only)
-- **Entra ID (Azure AD)** (for authentication)
+- **Azure Key Vault** (production) or local dev without vault (see setup guide)
+- **Entra ID** (for authentication)
 
-> **Important:** Install client dependencies before first build:
+> **Client dependencies:** Run before first build:
 > ```bash
 > cd src/UmbracoPrism.Client && npm install
 > ```
@@ -180,72 +189,23 @@ Before you begin:
 
 ## Setup & Development
 
-### Local Dev Tunnel Automation (trycloudflare + Entra + Prism DB)
+### Local Dev Tunnel (Mobile Testing)
 
-Use `scripts/dev/start-trycloudflare.sh` to automate local development setup when your local Umbraco site needs a public HTTPS callback.
-
-Purpose:
-
-- Start a Cloudflare quick tunnel for `https://localhost:<port>`
-- Update your Entra app redirect URI to `<tunnel-url>/signin-oidc` (Prism auth callback path)
-- Remove stale `*.trycloudflare.com/signin-oidc` redirect URIs before adding the current tunnel callback URI
-- Update the selected Prism tenant hostname in SQLite (`prismTenants.hostname`)
-
-Security notes:
-
-- Development use only. Do not run this script for production or shared environments.
-- The script changes Entra redirect URI configuration for the selected Entra Application (Client) ID. Use a dedicated dev Entra app registration.
-- The script writes a new hostname into your local Prism tenant record. Point it at a local/test database only.
-- Treat `.prism_tunnel.conf` as sensitive operational metadata and do not commit it.
-- Use least-privilege Azure access: identity running `az` should only manage the intended app registration.
-
-Prerequisites:
-
-- `cloudflared`
-- `az` (Azure CLI) with an authenticated session (`az login --allow-no-subscriptions` recommended when your dev Entra tenant has no active Azure subscription)
-- `sqlite3`
-- `grep` and `sed` (available by default on macOS)
-
-Run:
+For testing Entra sign-in on mobile devices, use `scripts/dev/start-trycloudflare.sh`:
 
 ```bash
 bash scripts/dev/start-trycloudflare.sh
 ```
 
-On first run, you will be prompted for:
+Automates:
+- Cloudflare tunnel for `https://localhost:<port>`
+- Entra redirect URI update
+- Prism tenant hostname sync
+- Cleanup on exit
 
-- `LOCAL_PORT` (default `44345`)
-- `ENTRA_APP_CLIENT_ID` (Entra Application (Client) ID GUID)
-- `TENANT_SELECTOR` (tenant name or numeric id; numeric id is the internal DB `prismTenants.id`)
-- `DB_PATH` (default `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`)
+**Security:** Dev use only. Mutates Entra app and local database.
 
-Tenant selector behavior:
-
-- If you provide a tenant name, the script resolves it to the canonical `TENANT_ID` before updating the database.
-- If no row matches that name, the script fails with a helpful message.
-- If multiple rows share that name, the script fails and prints matching ids so you can retry with a numeric id.
-- Summary output shows both tenant id and tenant name so you can confirm the updated record.
-
-Redirect URI rotation behavior:
-
-- Non-trycloudflare redirect URIs are preserved as-is.
-- Stale `*.trycloudflare.com/signin-oidc` entries are pruned. This prevents redirect URI sprawl accumulating in Entra over repeated dev sessions.
-- The current tunnel callback URI is ensured exactly once.
-- Script output includes a concise prune summary with the number of stale trycloudflare callback entries removed.
-
-Config storage:
-
-- Saved in `.prism_tunnel.conf` at repo root
-- Starter template is committed at `.prism_tunnel.conf.example`
-- Script enforces permissions `600` (owner read/write only)
-- Backward compatible: if legacy `ENTRA_APP_OBJECT_ID` exists and `ENTRA_APP_CLIENT_ID` is missing, the script reads the legacy value once and then saves only `ENTRA_APP_CLIENT_ID` going forward.
-
-Stop and cleanup:
-
-- Press `Ctrl+C`
-- Script creates tunnel temp logs by trying writable directories in order:
-  `artifacts/logs/trycloudflared`, `${TMPDIR:-/tmp}/prism-trycloudflared-logs`, `/tmp/prism-trycloudflared-logs`, then `$HOME/.cache/prism-trycloudflared-logs` (when `HOME` is set)
-- The script stops `cloudflared` and removes its temporary log file automatically
+→ [Full tunnel docs in README section below](#quick-start-phone-auth-via-cloudflare-tunnel-no-lan-ip-dependency)
 
 ### Storybook Tests (UmbracoPrism.Client)
 
@@ -346,27 +306,31 @@ export const MyStory = {
 
 ### Local Authentication Walkthrough
 
-#### Phase 1: Azure Setup
+#### 1. Azure Setup
 
-1. **Entra ID:** Create an **App Registration** (CIAM recommended). Set the Redirect URI to `https://localhost:[PORT]/signin-oidc`.
-2. **Key Vault:** Create an Azure Key Vault and add a secret (e.g., `tenant-b-secret`) containing the Client Secret.
-3. **Permissions:** Ensure your identity (or App Service) has the **Key Vault Secrets User** role.
+**Entra ID:** Create App Registration. Redirect URI: `https://localhost:[PORT]/signin-oidc`.
 
-#### Phase 2: Local Auth
+**Key Vault:** Add secret (e.g., `tenant-a-secret`) with Client Secret.
 
-Run `az login --allow-no-subscriptions` in your terminal to allow the `SecretVaultService` to access Azure during local development, especially when you need to select the correct Entra tenant but do not have an active Azure subscription in that directory.
+**Permissions:** Grant **Key Vault Secrets User** to your identity.
 
-#### Phase 3: Tenant Onboarding
+#### 2. Local Auth
 
-1. Navigate to the **Prism Dashboard** in the Umbraco Backoffice.
-2. Create a Tenant with the following Identity mapping:
-* **Hostname:** `localhost:[PORT]`
-* **Entra Tenant ID:** Your Directory (tenant) ID.
-* **Entra Client ID:** Your App Registration ID.
-* **Secret Key Name:** `tenant-a-secret`.
+```bash
+az login --allow-no-subscriptions
+```
 
+Allows `SecretVaultService` to access Key Vault in local dev.
 
-#### Phase 4: Downstream API Authentication
+#### 3. Tenant Setup
+
+In **Prism Dashboard** (backoffice):
+- **Hostname:** `localhost:[PORT]`
+- **Entra Tenant ID:** Directory ID
+- **Entra Client ID:** App Registration ID
+- **Secret Key Name:** `tenant-a-secret`
+
+#### 4. Downstream API Auth
 
 If your Prism frontend needs to call a secure backend (e.g., a "Member Dashboard" API), Prism can flow the current tenant’s identity and access token to that downstream system.
 
@@ -420,96 +384,56 @@ public async Task<string> GetMemberDataAsync()
 
 ### Sample Projects
 
-The repository includes two reference projects that demonstrate end-to-end multi-tenant authentication and configuration:
+**`UmbracoPrism.TestSite`** — Reference Umbraco v17 site. Shows OIDC setup, tenant branding, downstream API calls. Pre-configured tenant definitions for local auth.
 
-* **`UmbracoPrism.TestSite`**: A reference Umbraco v17 implementation showing how to configure the OIDC pipeline with Prism, set up tenant-specific branding, and call secure downstream services. Use this when setting up local Entra authentication — it includes pre-configured tenant definitions.
-* **`UmbracoPrism.MockBackOffice`**: A standalone minimal API project that demonstrates how to use `AddPrismAuthentication` and the `PrismTenantResolver` to isolate data across hundreds of tenants on the backend.
+**`UmbracoPrism.MockBackOffice`** — Minimal API. Shows `AddPrismAuthentication` and multi-tenant data isolation.
 
-These projects ship pre-configured OIDC settings and are referenced in the "[Local Authentication Walkthrough](#local-authentication-walkthrough)" section below.
+→ See [Local Authentication Walkthrough](#local-authentication-walkthrough)
 
 ---
 
-## Technical Stack
+## Stack
 
 * **Umbraco:** v17.0+
-* **Framework:** .NET 10.0
-* **Security:** Azure Key Vault, Managed Identity, Stateless OIDC (CIAM), **Multi-tenant JWT Bearer validation**
+* **.NET:** 10.0
+* **Auth:** Stateless OIDC (Entra), Azure Key Vault, Managed Identity
+* **Mobile:** Capacitor, TypeScript, Storybook
 
 ---
 
-## Quick Start: Phone Auth via Cloudflare Tunnel (No LAN IP Dependency)
+## Phone Auth via Cloudflare Tunnel
 
-If you need Entra sign-in on a phone, avoid using `http://192.168.x.x` redirect URIs.
-Entra requires redirect URIs to be `https://...` (or `http://localhost` only), so a tunnel is the easiest dev-safe approach.
+For Entra sign-in on mobile, use HTTPS tunnel (Entra requires `https://` or `http://localhost` only).
 
-### Do I need a domain?
-
-No. You can start with a temporary Cloudflare URL (`*.trycloudflare.com`) and no custom domain.
-
-- **No domain yet (fastest):** use `cloudflared tunnel --url https://localhost:44345`.
-- **Have a domain later (stable):** create a named tunnel + DNS record for a fixed hostname.
-
-### Option A — No domain (temporary URL)
-
-1. Install cloudflared:
+### No Domain (Temporary URL)
 
 ```bash
 brew install cloudflared
-```
-
-2. Start your local app on HTTPS localhost:
-
-```bash
-https://localhost:44345
-```
-
-3. Start temporary tunnel:
-
-```bash
 cloudflared tunnel --url https://localhost:44345
 ```
 
-Or use the helper script (prints the exact Entra redirect URI):
+Or use helper:
 
 ```bash
 bash scripts/dev/start-trycloudflare.sh
 ```
 
-4. Copy the generated `https://<random>.trycloudflare.com` URL.
-
-5. In Entra App Registration, add redirect URI:
-
-```text
+Add redirect URI in Entra:
+```
 https://<random>.trycloudflare.com/signin-oidc
 ```
 
-6. Use the same tunnel URL as your mobile Start URL.
+Helper script auto-rotates stale trycloudflare URIs.
 
-> Note: This URL changes each run. If you use `scripts/dev/start-trycloudflare.sh`, the script rotates trycloudflare `/signin-oidc` redirect URIs automatically and keeps only the current callback entry plus non-trycloudflare entries.
-
-### Option B — Stable hostname (custom domain)
-
-If you have a domain in Cloudflare, set up a named tunnel once and keep a fixed URL.
-
-1. Authenticate cloudflared:
+### Stable Hostname (Custom Domain)
 
 ```bash
 cloudflared tunnel login
-```
-
-2. Create tunnel:
-
-```bash
 cloudflared tunnel create prism-dev
-```
-
-3. Route DNS hostname:
-
-```bash
 cloudflared tunnel route dns prism-dev prism-dev.<your-domain>
 ```
 
-4. Create `~/.cloudflared/config.yml`:
+Create `~/.cloudflared/config.yml`:
 
 ```yml
 tunnel: <tunnel-id>
@@ -524,14 +448,13 @@ ingress:
   - service: http_status:404
 ```
 
-5. Run tunnel:
+Run:
 
 ```bash
 cloudflared tunnel run prism-dev
 ```
 
-6. In Entra, use:
-
-```text
+Redirect URI:
+```
 https://prism-dev.<your-domain>/signin-oidc
 ```
