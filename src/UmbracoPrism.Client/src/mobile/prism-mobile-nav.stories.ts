@@ -180,6 +180,37 @@ export const MaxItems: Story = {
 };
 
 /**
+ * Light theme variant — the default iOS-style light appearance with clean
+ * white background and subtle borders.
+ */
+export const LightTheme: Story = {
+  name: 'Light Theme',
+  decorators: [
+    () => html`
+      <style>
+        prism-mobile-nav { display: block !important; }
+      </style>
+      <div
+        style="
+          position: relative;
+          height: 160px;
+          background: #f2f2f7;
+          border-radius: 16px;
+          overflow: hidden;
+        "
+      >
+        <prism-mobile-nav
+          .items=${THREE_ITEMS}
+          current-path="/"
+          nav-label="Mobile navigation (light)"
+        ></prism-mobile-nav>
+      </div>
+    `,
+  ],
+  render: () => html``,
+};
+
+/**
  * Dark theme variant — override the white iOS defaults with CSS custom
  * properties to show the original dark glass look.
  */

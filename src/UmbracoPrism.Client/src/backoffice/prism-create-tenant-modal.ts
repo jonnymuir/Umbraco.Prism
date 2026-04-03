@@ -105,7 +105,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       errorTextColor: this._readMobileConfigValue(config, 'errorTextColor'),
       errorTitle: this._readMobileConfigValue(config, 'errorTitle'),
       errorMessage: this._readMobileConfigValue(config, 'errorMessage'),
-      showErrorDiagnostics: this._readMobileConfigValue(config, 'showErrorDiagnostics')
+      showErrorDiagnostics: this._readMobileConfigValue(config, 'showErrorDiagnostics'),
+      pushNotificationsEnabled: this._readMobileConfigValue(config, 'pushNotificationsEnabled')
     };
   }
 
@@ -142,6 +143,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       this._mobileErrorTitle = mobileConfig?.errorTitle ?? 'We’re having trouble connecting';
       this._mobileErrorMessage = mobileConfig?.errorMessage ?? 'Please check your connection and try again.';
       this._mobileShowErrorDiagnostics = mobileConfig?.showErrorDiagnostics ?? true;
+      this._pushNotificationsEnabled = mobileConfig?.pushNotificationsEnabled ?? false;
     }
   }
 
@@ -171,6 +173,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._mobileErrorTitle = mobileConfig?.errorTitle ?? 'We’re having trouble connecting';
         this._mobileErrorMessage = mobileConfig?.errorMessage ?? 'Please check your connection and try again.';
         this._mobileShowErrorDiagnostics = mobileConfig?.showErrorDiagnostics ?? true;
+        this._pushNotificationsEnabled = mobileConfig?.pushNotificationsEnabled ?? false;
         this._mobileBundleGenerated = false;
         this._allowBiometricLogin = t.allowBiometricLogin ?? true;
       } else {

@@ -198,3 +198,55 @@ test('Edit modal hydrates all Produce Mobile values from persisted config', asyn
     showDiagnostics: false
   });
 });
+
+test('Produce Mobile tab shows push notifications toggle', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Produce Mobile"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const pushToggle = await modal.evaluate((el) => {
+    const toggle = el.shadowRoot?.querySelector('input[aria-label="Push Notifications"]') as HTMLInputElement | null;
+    return toggle ? { visible: true, checked: toggle.checked } : { visible: false, checked: false };
+  });
+
+  expect(pushToggle.visible).toBe(true);
+  expect(pushToggle.checked).toBe(false);
+});
+
+test('Push notifications toggle can be enabled', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Produce Mobile"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const isChecked = await modal.evaluate((el) => {
+    const toggle = el.shadowRoot?.querySelector('input[aria-label="Push Notifications"]') as HTMLInputElement | null;
+    if (!toggle) return false;
+
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    return toggle.checked;
+  });
+
+  expect(isChecked).toBe(true);
+
+  const finalChecked = await modal.evaluate((el) => {
+    const toggle = el.shadowRoot?.querySelector('input[aria-label="Push Notifications"]') as HTMLInputElement | null;
+    return toggle?.checked ?? false;
+  });
+
+  expect(finalChecked).toBe(true);
+});
