@@ -13,6 +13,9 @@
     /* Portal navigation */
     --prism-nav-height: 56px;
 
+    /* Mobile nav — matches default padding-v (10px × 2) + item min-height (48px) */
+    --prism-mobile-nav-height: 68px;
+
     /* Dashboard cards */
     --prism-dash-icon-size: 48px;
     --prism-dash-icon-radius: 12px;

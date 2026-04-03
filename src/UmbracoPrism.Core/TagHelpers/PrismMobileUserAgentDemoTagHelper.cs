@@ -86,9 +86,13 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         padding: 0.75rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.12);
         font-size: 0.85rem;
-        z-index: 1000;
+        z-index: var(--prism-demo-widget-z-index, 1001);
         min-width: 260px;
         font-family: -apple-system, system-ui, sans-serif;
+    }
+
+    html.prism-mobile .prism-mobile-ua-demo {
+        bottom: calc(var(--prism-mobile-nav-height, 4.5rem) + 0.75rem);
     }
 
     .prism-mobile-ua-demo__row {
