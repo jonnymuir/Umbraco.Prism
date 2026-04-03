@@ -2468,3 +2468,60 @@ All Critical and High severity issues have been fixed. The feature is **approved
 
 ---
 
+
+## 📌 2026-04-03: Test Coverage & Hydration Decisions (Tangy)
+
+**Session Log:** `.squad/log/2026-04-03T13:21:41Z-tangy-playwright-fixes.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tangy-playwright-fixes.md`
+
+### Tangy — Push Notifications Toggle Must Be Hydrated
+
+**Decision:** All form fields in `prism-create-tenant-modal` MUST hydrate from persisted config in both:
+1. `connectedCallback` (initial load)
+2. `updated` lifecycle (when `data` prop changes)
+
+**Implementation:**
+- Added `pushNotificationsEnabled` to `_readMobileAppConfig` return value
+- Set `this._pushNotificationsEnabled = mobileConfig?.pushNotificationsEnabled ?? false;` in both lifecycle methods
+
+**Rationale:** Consistency with other mobile config fields. Data loss on edit is a critical UX bug.
+
+### Tangy — Test All New Form Controls
+
+**Decision:** Every new form control in a modal or component MUST have Playwright tests covering:
+1. **Visibility:** Control renders in the expected tab/section
+2. **Default state:** Control has correct initial value
+3. **Interaction:** Control responds to user input
+4. (Optional) **Hydration:** Control loads saved values correctly on edit
+
+**Implementation:**
+- Added `'Produce Mobile tab shows push notifications toggle'` — visibility + default state
+- Added `'Push notifications toggle can be enabled'` — interaction
+
+**Rationale:** Playwright is our contract for "this UI works." Untested controls are invisible to CI.
+
+### Tangy — Storybook Stories Must Match Playwright Test Expectations
+
+**Decision:** When writing Playwright tests that target specific Storybook stories:
+1. Story MUST exist before writing the test (or create both together)
+2. Story name (`name: 'Light Theme'`) must match kebab-case URL segment (`--light-theme`)
+3. Export name (`export const LightTheme`) must match kebab-case suffix
+
+**Implementation:**
+- Created `LightTheme` story matching test expectations
+
+**Rationale:** Storybook URL structure is deterministic. Tests should never reference non-existent stories.
+
+### Tangy — Shadow DOM Test Selectors Pattern
+
+**Pattern:** When testing Web Components with shadow DOM in Playwright:
+- Use `aria-label` for form controls: `el.shadowRoot?.querySelector('input[aria-label="Push Notifications"]')`
+- Access shadow root via `modal.evaluate((el) => el.shadowRoot?.querySelector(...))`
+- For tab navigation: `el.shadowRoot?.querySelector('uui-tab[label="Produce Mobile"]')`
+
+**Applied To:** All new tests in `prism-create-tenant-modal.spec.ts`
+
+**Rationale:** Shadow DOM is encapsulated. Standard Playwright locators can't pierce it. `aria-label` is semantic and stable.
+

@@ -430,3 +430,60 @@ All findings addressed. 168/168 tests passing. Error handling hardened per feedb
 
 ---
 
+
+## 2025-03-23 — Playwright Test Fixes (Mobile Nav & Push Notifications)
+
+**Context:**  
+Two test issues identified by Jonny Muir:
+1. Broken Playwright test referencing missing `LightTheme` story in `prism-mobile-nav.stories.ts`
+2. Missing test coverage for push notifications toggle in `prism-create-tenant-modal`
+3. Hydration bug: `pushNotificationsEnabled` not read from persisted config
+
+**Changes Made:**
+
+### Issue 1: Missing LightTheme Story
+**File:** `src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.stories.ts`
+- Added `LightTheme` story (export `LightTheme`, name `'Light Theme'`)
+- Modeled after `DarkTheme` but with light background (`#f2f2f7`)
+- Uses `THREE_ITEMS` fixture, `current-path="/"`, and `nav-label="Mobile navigation (light)"`
+- Fixes broken test at line 114-126 in `prism-mobile-nav.spec.ts`
+
+### Issue 2: Push Notifications Test Coverage
+**File:** `src/UmbracoPrism.Client/tests/prism-create-tenant-modal.spec.ts`
+- Added 2 new tests:
+  1. `'Produce Mobile tab shows push notifications toggle'` — Verifies toggle exists, defaults to unchecked
+  2. `'Push notifications toggle can be enabled'` — Enables toggle, verifies state change persists
+
+**Test Pattern Used:**
+- Navigate to `editStoryUrl`
+- Click "Produce Mobile" tab via `el.shadowRoot?.querySelector('uui-tab[label="Produce Mobile"]')`
+- Find toggle via `el.shadowRoot?.querySelector('input[aria-label="Push Notifications"]')`
+- Check `checked` property
+
+### Issue 3: Hydration Bug Fix
+**File:** `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts`
+
+**Changes:**
+1. Updated `_readMobileAppConfig` return value to include `pushNotificationsEnabled`
+2. Added hydration in `connectedCallback` (line 146): `this._pushNotificationsEnabled = mobileConfig?.pushNotificationsEnabled ?? false;`
+3. Added hydration in `updated` (line 175): `this._pushNotificationsEnabled = mobileConfig?.pushNotificationsEnabled ?? false;`
+
+**Before:** Toggle always defaulted to `false` on edit modal load, ignoring saved config  
+**After:** Toggle correctly hydrates from `mobileAppConfig.pushNotificationsEnabled`
+
+**Verification:**
+- ✅ TypeScript compilation: `npx tsc --noEmit` — 0 errors
+- ✅ All existing tests pass (no regressions)
+- ✅ New tests cover toggle visibility, default state, and interaction
+
+**Rationale:**
+- Push notifications toggle added by Kicks (previous commit) but had no test coverage
+- Hydration bug would cause data loss on every edit (toggle would reset to false)
+- Tests now enforce correct shadow DOM patterns (`aria-label` selectors, evaluate for shadow access)
+
+**Test Files Updated:**
+- `src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.stories.ts` (+28 lines, 1 new story)
+- `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts` (+3 lines hydration)
+- `src/UmbracoPrism.Client/tests/prism-create-tenant-modal.spec.ts` (+47 lines, 2 new tests)
+
+---
