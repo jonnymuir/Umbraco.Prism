@@ -1,5 +1,7 @@
 # Prism Mobile — Push Notifications (Architecture Design)
 
+> **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
+
 ## Product Goal
 
 Enable Umbraco sites using Prism to send push notifications to members via the Capacitor mobile app. Two primary use cases:

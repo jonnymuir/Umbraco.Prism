@@ -1,5 +1,7 @@
 # Prism Mobile — Push Notifications Design
 
+> **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
+
 **Author:** Kicks (Mobile Native Specialist)  
 **Date:** 2026-07-14  
 **Status:** Design Proposal  

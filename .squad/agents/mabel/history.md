@@ -616,3 +616,70 @@ Bundle download on Safari was incorrectly opening a new tab instead of triggerin
 4. **Version sync checkpoint** — Before tagging, verified both .csproj (1.5.1 → 1.6.0) and package.json (1.5.1 → 1.6.0) updated in tandem. No version skew.
 
 **Outcome:** Complete minor release with clear narrative connecting backend API, mobile integration, and setup documentation.
+
+### README Restructure & Mobile Showcase (2026-04-03)
+
+**Task:** Restructure documentation to showcase mobile functionality, make it punchy, and defer detailed content to subpages.
+
+**Changes Made:**
+
+1. **README.md restructure (928 → 536 lines, 42% reduction):**
+   - **New opening:** Visual showcase section leading with mobile (iOS app screenshot first, then backoffice). Mobile is now the hero feature.
+   - **Quick Start:** Compressed to 4 steps — install, register, run, configure. No explanations, just commands.
+   - **"What It Does" section:** 4 one-sentence bullets explaining value prop. No architecture details.
+   - **Features list:** Scannable checkmarks with brief descriptions. Links to docs for detail.
+   - **Documentation table:** Clean table of contents linking to all subpages with one-line descriptions.
+   - **Deferred to subpages:** Removed 390+ lines of detailed mobile workflow, biometric auth, push notifications, store readiness. Now brief "Developer Guide" section with links.
+   - **Punchy voice:** Lead with what it DOES, not what it IS. Short sentences. Code examples over prose.
+
+2. **Created docs/README.md (documentation index):**
+   - Table of contents for all docs, grouped logically (Setup, Mobile, Design Docs)
+   - One-line description for each doc
+   - Clear labeling: "Internal design" prefix for design docs
+   - Links to CHANGELOG, CONTRIBUTING, main README
+
+3. **Labeled design docs as internal:**
+   - Added blockquote intro to 5 design documents: `notifications-design.md`, `design/notifications-architecture.md`, `design/notifications-backend.md`, `design/notifications-mobile.md`, `design/notifications-umbraco-demo.md`
+   - Each intro: "Internal Design Document: For contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md]"
+   - Makes it clear these are not user-facing guides
+
+4. **Recorded Cloudflare maintenance decision:**
+   - Created `.squad/decisions/inbox/mabel-cloudflare-maintenance.md`
+   - Decision: 502/504/network maintenance handling at Cloudflare level only, no app or backend changes needed
+   - Rationale: Cloudflare already in request path, Custom Pages sufficient for user experience
+
+**Before vs After:**
+
+**Before:**
+- README: 878 lines, buried mobile features mid-document
+- No docs index — hard to navigate docs folder
+- Design docs mixed with user-facing guides
+- Mobile screenshots present but not showcased
+- Walls of text explaining every feature in README
+
+**After:**
+- README: 536 lines (-42%), mobile-first visual showcase at top
+- Clear docs/README.md index with descriptions
+- Design docs clearly labeled "Internal"
+- Screenshots used to sell the product immediately
+- README is a marketing page + navigation hub, detail deferred to subpages
+
+**Key Structural Decisions:**
+
+1. **Mobile is the killer feature** — put iOS app screenshot and "Generate Native Mobile Apps" section FIRST in "What You Get"
+2. **Show, don't tell** — screenshots + one-command examples before any explanation
+3. **Quick Start = commands only** — no "why," just "what"
+4. **Documentation table > inline docs** — replaced 400 lines of inline docs with a 10-row table linking to subpages
+5. **Design docs are internal reference** — clearly labeled so new users don't get confused
+
+**Voice Check:**
+- ✅ Lead with what it DOES: "Generate native mobile apps from the backoffice" (not "Prism is a system that...")
+- ✅ Short sentences: "One Umbraco instance. Hundreds of branded client portals. Native mobile apps with one click."
+- ✅ Mobile is exciting: "Run in simulator with one command" + prominent iOS screenshot
+- ✅ Scannable in 2 minutes: Visual showcase → Quick Start → Features list → Documentation index
+
+**Outcome:**
+- A new developer can now skim README in under 2 minutes and understand what Prism does
+- Mobile capability feels impressive and immediate
+- Documentation is navigable via docs/README.md
+- Design docs are clearly separated from user-facing guides

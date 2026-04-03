@@ -1,8 +1,10 @@
 # Push Notifications — Design Document
 
-**Author:** Tom Nook (Lead) / Kicks (Mobile Native Specialist)
-**Requested by:** Jonny Muir
-**Status:** Draft — Awaiting Jonny's review before implementation begins
+> **Note:** This is an **internal design document** for contributors and maintainers. For user-facing setup instructions, see [PUSH_SETUP.md](PUSH_SETUP.md).
+
+**Author:** Tom Nook (Lead) / Kicks (Mobile Native Specialist)  
+**Requested by:** Jonny Muir  
+**Status:** Draft — Awaiting Jonny's review before implementation begins  
 **Date:** 2026-07-14
 
 ---

@@ -1,5 +1,7 @@
 # Umbraco-Specific Notifications Integration & Demo Content Design
 
+> **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
+
 **Author:** Brewster (Umbraco Platform Specialist)  
 **Date:** 2026-04-03  
 **Updated:** 2026-04-03 (Vinyl Vault Demo Redesign)  

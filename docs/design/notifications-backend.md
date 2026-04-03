@@ -1,5 +1,7 @@
 # Prism Notification Service — Backend Design
 
+> **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
+
 **Author:** Blathers  
 **Date:** 2026-03-22  
 **Status:** Design Proposal  
