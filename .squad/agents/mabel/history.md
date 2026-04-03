@@ -178,3 +178,14 @@ Completed creation of dedicated Umbraco setup guide and positioned it prominentl
 - **Changelog entry:** Added Chores section documenting controller relocation and rationale
 - **Commit SHA:** 3c1e8b7
 
+### Release v1.4.0 (2026-04-09)
+
+- **Bump type:** Minor (1.3.2 → 1.4.0)
+- **Signal:** 23 commits; 1 major `feat:` (mobile nav media library icons), 7 `fix:` commits (demo UI, block list draft state, media persistence, property descriptions, template syntax), 2 `docs:` commits
+- **Key features:** Mobile navigation now supports configurable icons from Umbraco media library; demo widget UX improvements (z-index stacking, auto-repositioning)
+- **Bug fixes:** Block list items no longer appear as "draft" in v14+ (fixed expose array); Settings node persistence in seeder; media key reuse across runs; mobile nav property descriptions; block list label template updated to v17+ syntax
+- **Release impact:** Enables backoffice-driven mobile nav customization without code changes. Streamlines demo site by removing redundant UI elements
+- **Version sync:** Both csproj (1.3.2 → 1.4.0) and package.json (1.3.1 → 1.4.0) updated
+- **Commit SHA:** 4d6d193
+- **Tag:** v1.4.0
+

@@ -1611,3 +1611,73 @@ Distinguish icon types at runtime using a prefix check (`/`, `http`, `data:`). N
 ## CSS approach
 
 Added `.nav-icon--img` class. Named SVG icons use `currentColor` (inherits from `.nav-item` `color` transition). `<img>` elements can't use `currentColor`, so opacity is used instead. Editors should upload SVGs in a neutral colour for best results.
+
+---
+
+## 📌 2026-04-03: Release v1.4.0 (Mobile Nav Media Library Icons) (Mabel)
+
+**Session Log:** `.squad/log/2026-04-03T09:11:01Z-release-v1.4.0.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/mabel-release-v1.4.0.md`
+
+### Mabel — Release v1.4.0
+
+**Date:** 2026-04-09  
+**Agent:** Mabel (Technical Writer & Release Manager)  
+**Status:** ✅ Complete
+
+**Summary**
+
+Cut release **v1.4.0** of Umbraco Prism, bumping from v1.3.2 to v1.4.0 (minor version).
+
+**Rationale**
+
+The mobile navigation feature now supports **configurable icons sourced from the Umbraco media library**, enabling backoffice control over nav item appearance without code changes. This is a user-facing new capability (not a breaking change), warranting a minor version bump per semantic versioning.
+
+**Changes Included**
+
+**Features**
+- Mobile nav items now accept a `navIcon` media picker property
+- Icons are seeded automatically into "Prism Navigation Icons" media folder with sample SVG files
+
+**Bug Fixes & Improvements**
+- Fixed demo widget UX (z-index stacking above mobile nav, auto-repositioning)
+- Removed redundant "Simulate PrismMobile" checkbox from hero buttons
+- Removed "Prism mobile mode active" banner (widget now indicates state)
+- Fixed block list draft state in v14+ (added `expose` array)
+- Fixed Settings node persistence in seeder
+- Fixed media key persistence across seeder runs (icons reuse existing media)
+- Corrected mobile nav property descriptions (`navLabel`, `navUrl` null issue)
+- Updated block list label template to v17+ syntax (`{=navLabel}` instead of `{{navLabel}}`)
+- Removed backwards-compatibility patching code (v17+ only library)
+
+**Files Modified**
+- `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` — version 1.3.2 → 1.4.0
+- `src/UmbracoPrism.Client/package.json` — version 1.3.1 → 1.4.0
+- `CHANGELOG.md` — added v1.4.0 section with organized feature/fix/improvement entries
+
+**Commit & Tag**
+- **Commit:** `4d6d193` — chore: release v1.4.0
+- **Tag:** `v1.4.0` (light tag, not annotated)
+- **Not pushed** — per release workflow, push is left to maintainer
+
+**Changelog Pattern**
+
+Organized release notes into three sections:
+1. **New Features** — user-facing capabilities (media library icons)
+2. **Bug Fixes & Improvements** — stability and correctness fixes with rationale
+3. (Not included in v1.4.0: Upgrade Notes, which are reserved for breaking changes)
+
+Each entry is written in plain English, present tense, active voice, explaining what changed and why it matters to developers.
+
+**README Review**
+
+Reviewed README.md for sections on mobile nav configuration. Confirmed no updates needed — mobile nav feature is discoverable via Umbraco backoffice (Settings node with media picker), not requiring explicit documentation in README. Existing "Produce Mobile" and "Mobile Runtime Behavior" sections remain current.
+
+**Decisions Respected**
+
+- Followed semantic versioning per .squad/skills/conventional-commits/SKILL.md
+- Matched changelog style to previous releases (v1.2.0, v1.3.2)
+- Maintained version sync across csproj and package.json (required for NuGet distribution and npm ecosystem)
+- Left git push to maintainer (release workflow does not include push)
