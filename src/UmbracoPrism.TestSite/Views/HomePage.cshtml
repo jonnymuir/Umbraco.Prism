@@ -239,18 +239,6 @@
         }
 
         /* Mobile overrides */
-        .mobile-mode-banner {
-            display: none;
-            margin-top: 16px;
-            padding: 10px 14px;
-            border-radius: 12px;
-            background: rgba(15, 23, 42, 0.45);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            color: #ffffff;
-            font-size: var(--prism-text-size-sm, 13px);
-            font-weight: 600;
-        }
-
         html.prism-mobile body {
             background: #0f172a;
             color: #e2e8f0;
@@ -293,10 +281,6 @@
         html.prism-mobile .hero-actions .btn {
             width: 100%;
             box-sizing: border-box;
-        }
-
-        html.prism-mobile .mobile-mode-banner {
-            display: block;
         }
 
         html.prism-mobile .grid {
@@ -370,7 +354,6 @@
                 <span class="hero-badge">✓ Signed in</span>
                 <h1>Welcome back, @displayName</h1>
                 <p>Your secure portal is ready. Head to your dashboard to manage your account.</p>
-                <div class="mobile-mode-banner">Prism mobile mode active</div>
                 <div class="hero-actions">
                     <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
                     <a href="/auth/logout" class="btn btn-ghost">Sign Out</a>
@@ -387,7 +370,6 @@
                     Access your documents, manage your preferences, and stay in control — all
                     in one secure place.
                 </p>
-                <div class="mobile-mode-banner">Prism mobile mode active</div>
                 <div class="hero-actions">
                     <a href="/auth/login" class="btn btn-primary">Sign In</a>
                     <a href="/auth/register" class="btn btn-ghost">Create Account</a>
