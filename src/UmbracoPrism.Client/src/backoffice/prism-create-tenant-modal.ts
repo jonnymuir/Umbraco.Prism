@@ -57,6 +57,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _mobileErrorMessage = 'Please check your connection and try again.';
   @state() private _mobileShowErrorDiagnostics = true;
   @state() private _allowBiometricLogin = true;
+  @state() private _pushNotificationsEnabled = false;
   @state() private _isProducingMobileBundle = false;
   @state() private _mobileBundleGenerated = false;
   @state() private _copiedCommand = '';
@@ -570,6 +571,22 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             <small>When enabled, users can expand technical details (status, timeout, and last error) for debugging.</small>
           </div>
 
+          <div class="field">
+            <div class="toggle-label">
+              <span>Push Notifications</span>
+              <span class="toggle-hint">Enable push notifications support in the mobile bundle. Users will be prompted to allow notifications after their first biometric login.</span>
+            </div>
+            <label class="toggle-switch" title="${this._pushNotificationsEnabled ? 'Push notifications enabled' : 'Push notifications disabled'}">
+              <input
+                type="checkbox"
+                aria-label="Push Notifications"
+                .checked=${this._pushNotificationsEnabled}
+                @change=${(e: Event) => { this._pushNotificationsEnabled = (e.target as HTMLInputElement).checked; }}
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
           <div class="helper-actions">
             <uui-button look="outline" @click=${this._applyMobileDefaultsFromTenant}>Use tenant defaults</uui-button>
             <uui-button look="outline" @click=${this._suggestMobileAppId}>Suggest app id</uui-button>
@@ -839,7 +856,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           errorTitle: this._mobileErrorTitle,
           errorMessage: this._mobileErrorMessage,
           showErrorDiagnostics: this._mobileShowErrorDiagnostics,
-          biometricAuthEnabled: this._allowBiometricLogin
+          biometricAuthEnabled: this._allowBiometricLogin,
+          pushNotificationsEnabled: this._pushNotificationsEnabled
         };
         console.log('[Prism] Producing mobile bundle — request payload:', JSON.stringify(bundlePayload));
         const response = await fetch(`/umbraco/management/api/v1/prism/tenants/${this._id}/produce-mobile`, {

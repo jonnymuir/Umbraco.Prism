@@ -1,0 +1,159 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+    var genreName = Model.Value<string>("genre") ?? Model.Name;
+    var description = Model.Value<string>("description") ?? "";
+    
+    // Get all vinyl records in this genre
+    var vinyls = Model.Children?.Where(c => c.ContentType.Alias == "vinylRecord").ToList() ?? new List<IPublishedContent>();
+}
+
+<div class="genre-landing">
+    <div class="genre-header">
+        <h1>@genreName</h1>
+        @if (!string.IsNullOrWhiteSpace(description))
+        {
+            <p class="genre-description">@description</p>
+        }
+        
+        @* Subscription button - will be wired to notification API *@
+        <button class="btn-subscribe" data-genre="@genreName" onclick="toggleSubscription('@genreName')">
+            🔔 Subscribe to @genreName Notifications
+        </button>
+    </div>
+
+    <div class="vinyl-collection">
+        <h2>Available Records (@vinyls.Count)</h2>
+        <div class="vinyl-grid">
+            @foreach (var vinyl in vinyls)
+            {
+                var title = vinyl.Value<string>("title") ?? vinyl.Name;
+                var artist = vinyl.Value<string>("artist") ?? "";
+                var releaseYear = vinyl.Value<int?>("releaseYear");
+                var inStock = vinyl.Value<bool>("inStock");
+                var isLimitedEdition = vinyl.Value<bool>("isLimitedEdition");
+                
+                <a href="@vinyl.Url()" class="vinyl-card @(!inStock ? "out-of-stock" : "")">
+                    <div class="vinyl-cover">
+                        @* Cover image placeholder *@
+                        <div class="placeholder-cover">🎶</div>
+                    </div>
+                    <div class="vinyl-info">
+                        <h3>@artist</h3>
+                        <p class="vinyl-title">@title</p>
+                        @if (releaseYear.HasValue)
+                        {
+                            <p class="vinyl-year">@releaseYear.Value</p>
+                        }
+                        <div class="vinyl-badges">
+                            @if (!inStock)
+                            {
+                                <span class="badge badge-out-of-stock">Out of Stock</span>
+                            }
+                            else if (isLimitedEdition)
+                            {
+                                <span class="badge badge-limited">Limited Edition</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-in-stock">In Stock</span>
+                            }
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSubscription(genre) {
+        // This would call the Prism notification subscription API
+        // For now, just show an alert
+        alert('Subscription feature will be wired to /umbraco/api/prismnotification/subscribe endpoint');
+        console.log('Toggle subscription for genre:', genre);
+        
+        // TODO: Integrate with PrismNotificationController
+        // fetch('/umbraco/api/prismnotification/subscribe', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({ genre: genre })
+        // });
+    }
+</script>
+
+<style>
+    .genre-landing { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    
+    .genre-header { text-align: center; margin-bottom: 3rem; }
+    .genre-header h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+    .genre-description { font-size: 1.1rem; color: #666; margin-bottom: 1.5rem; }
+    
+    .btn-subscribe {
+        padding: 0.75rem 1.5rem;
+        background: #4299e1;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .btn-subscribe:hover { background: #3182ce; }
+    
+    .vinyl-collection h2 { margin-bottom: 1.5rem; }
+    .vinyl-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
+        gap: 2rem; 
+    }
+    
+    .vinyl-card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .vinyl-card:hover { transform: translateY(-4px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+    .vinyl-card.out-of-stock { opacity: 0.7; }
+    
+    .vinyl-cover {
+        aspect-ratio: 1;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .placeholder-cover { font-size: 5rem; }
+    
+    .vinyl-info h3 { 
+        margin: 0 0 0.25rem 0; 
+        font-size: 1.1rem; 
+        font-weight: 600; 
+    }
+    .vinyl-title { 
+        margin: 0 0 0.5rem 0; 
+        color: #666; 
+        font-size: 0.95rem; 
+    }
+    .vinyl-year { 
+        margin: 0 0 0.75rem 0; 
+        color: #999; 
+        font-size: 0.85rem; 
+    }
+    
+    .vinyl-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.75rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+    .badge-in-stock { background: #48bb78; color: white; }
+    .badge-out-of-stock { background: #e53e3e; color: white; }
+    .badge-limited { background: #ed8936; color: white; }
+</style>

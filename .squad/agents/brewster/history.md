@@ -917,3 +917,154 @@ Pre-seeded demo content:
 ✅ Coordination notes for Blathers
 
 **Decision Document:** `.squad/decisions/inbox/brewster-vinyl-demo.md`
+
+---
+
+## Session: 2026-04-03 — Vinyl Vault Demo (Phase 2: Content Types + Seeder)
+
+**Status:** Completed  
+**Build outcome:** Success, 0 errors.
+
+**Completed work:**
+
+### Content Types (Document Types)
+Created three Umbraco document types in code-first style using `INotificationAsyncHandler<UmbracoApplicationStartedNotification>`:
+
+1. **VinylVaultHome** (`vinylVaultHome`)
+   - Root node for Vinyl Vault shop
+   - Properties: `heroTitle` (textstring), `heroSubtitle` (textarea)
+   - Icon: `icon-store`
+   - Allows children: `vinylGenreLanding`
+
+2. **VinylGenreLanding** (`vinylGenreLanding`)
+   - Genre category landing page (Jazz, Rock, Electronic, etc.)
+   - Properties: `genre` (textstring, mandatory), `description` (textarea)
+   - Icon: `icon-folder-music`
+   - Allows children: `vinylRecord`
+
+3. **VinylRecord** (`vinylRecord`)
+   - Individual vinyl listing
+   - **Content tab:** `title`, `artist`, `genre`, `releaseYear`, `description` (rich text), `coverImage` (media picker)
+   - **Inventory tab:** `inStock` (bool), `stockCount` (int), `isLimitedEdition` (bool)
+   - **Notifications tab:** `notificationGenre` (textstring) — **critical property** used by `PrismContentPublishedHandler` to route notifications to subscribed users
+   - Icon: `icon-vinyl`
+
+### Content Seeder
+Created `VinylVaultSeeder.cs` that runs on startup in Development mode:
+- Creates Vinyl Vault Home node if not already present (idempotent)
+- Creates 7 genre landing pages: Jazz, Rock, Electronic, Hip-Hop, Classical, Techno, Nose Flute Jazz
+- Creates 28 sample vinyl records (3-4 per genre) with realistic album data
+- Sets `notificationGenre` property on each record to match the genre value (required for notification routing)
+
+### Razor Views
+Created strongly-typed views for all three document types:
+
+1. **VinylVaultHome.cshtml**
+   - Displays hero section with title/subtitle
+   - Genre tiles grid linking to each genre landing page
+   - Recent arrivals section showing 8 most recent vinyl records across all genres
+   - Responsive grid layouts with CSS embedded
+
+2. **VinylGenreLanding.cshtml**
+   - Genre header with description
+   - "Subscribe to [genre] notifications" button (placeholder for future API integration)
+   - Vinyl grid showing all records in the genre with stock badges (In Stock / Out of Stock / Limited Edition)
+
+3. **VinylRecord.cshtml**
+   - Large cover art placeholder
+   - Full vinyl metadata (artist, title, genre, release year, description)
+   - Stock availability and count
+   - "Subscribe to [genre] notifications" button
+   - "Join Waitlist" button for out-of-stock items (placeholder for future API)
+   - Breadcrumb navigation
+
+### Notification Handler
+Created `PrismContentPublishedHandler.cs`:
+- Implements `INotificationAsyncHandler<ContentPublishedNotification>`
+- Triggers when new vinyl records are published
+- Reads `notificationGenre` property from published content
+- Calls `IPrismNotificationService.SendNotificationToGenreSubscribersAsync()` to send push notifications
+- Notification format: Title = "🎵 New arrival in {genre}", Body = "{artist} '{title}' just landed at Vinyl Vault!"
+- Integrated with Core's `IPrismNotificationService` (implemented by Blathers)
+
+### Registration
+Updated `TestSiteComposer.cs` to register all handlers in correct order:
+1. `VinylVaultContentTypes` (creates document types)
+2. `VinylVaultSeeder` (seeds demo content)
+3. `PrismContentPublishedHandler` (listens for published content)
+
+### Learnings from This Session
+
+- **Umbraco v17 IContentService publish pattern:** Must call `Save()` then `Publish()` separately. No `SaveAndPublish()` extension method exists. Pattern: `_contentService.Save(content, null, null!); _contentService.Publish(content, Array.Empty<string>(), Constants.Security.SuperUserId);`
+- **AddPropertyGroup signature in v17:** Requires both `name` and `alias` parameters: `contentType.AddPropertyGroup("Content", "content");` — not just the name.
+- **Built-in data type GUIDs are stable:** Umbraco v14+ provides well-known GUIDs for built-in data types (TextBox, TextArea, TrueFalse, Numeric, RichTextEditor, MediaPicker3). Use `IDataTypeService.GetAsync(guid)` to retrieve them, avoiding the complexity of PropertyEditorCollection instantiation.
+- **Views without strongly-typed models:** When using `@inherits UmbracoViewPage` (non-generic), access properties via `Model.Value<T>("alias")` instead of `Model.PropertyName`. This avoids dependency on auto-generated models which don't exist until content types are scaffolded in backoffice.
+- **Master.cshtml is the layout file:** Not `_Layout.cshtml`. The test site uses `~/Views/Shared/Master.cshtml` as the standard layout file that includes tenant branding and mobile nav.
+- **Notification integration point:** The `notificationGenre` property on `vinylRecord` MUST match exactly what subscribers filter by (e.g., "Jazz", "Rock"). This is the contract between content and the notification system — no enum enforcement, just string matching.
+
+### Files Created/Modified
+
+**Created:**
+- `src/UmbracoPrism.TestSite/VinylVaultContentTypes.cs` — Content type schema setup
+- `src/UmbracoPrism.TestSite/VinylVaultSeeder.cs` — Demo content seeder
+- `src/UmbracoPrism.TestSite/PrismContentPublishedHandler.cs` — Notification handler
+- `src/UmbracoPrism.TestSite/Views/VinylVaultHome.cshtml` — Home page view
+- `src/UmbracoPrism.TestSite/Views/VinylGenreLanding.cshtml` — Genre landing view
+- `src/UmbracoPrism.TestSite/Views/VinylRecord.cshtml` — Record detail view
+
+**Modified:**
+- `src/UmbracoPrism.TestSite/TestSiteComposer.cs` — Registered Vinyl Vault handlers
+
+**Dependencies:**
+- Relies on `UmbracoPrism.Core.Services.IPrismNotificationService` (implemented by Blathers)
+- Notification API endpoints (`/umbraco/api/prismnotification/subscribe`) referenced in views but not yet implemented (Blathers' domain)
+
+### Design Decisions
+
+1. **No hardcoded routes:** All navigation uses Umbraco's content tree (`Model.Url()`, `Model.Children`, `Model.Parent`) following Umbraco v17 best practices.
+2. **Placeholder UI for subscription buttons:** JavaScript `alert()` placeholders for subscription features that will be wired to Blathers' API endpoints in Phase 3.
+3. **Development-only seeder:** Both content type creation and seeding only run in Development environment via `IWebHostEnvironment.IsDevelopment()` check.
+4. **Idempotent seeding:** Seeder checks if `vinylVaultHome` exists before creating any content, making it safe to run on every startup.
+5. **Content-first approach:** Document types and content created in code to avoid manual backoffice setup for demo purposes. In production, editors would use backoffice to manage content.
+
+### Next Steps (Out of Scope)
+
+These are Blathers' or Isabelle's responsibilities:
+- Implement subscription API endpoints in `PrismNotificationController`
+- Wire up JavaScript in views to call subscription endpoints
+- Implement "Join Waitlist" feature for out-of-stock items
+- Implement limited edition drop scheduled notifications
+- Add FCM device token registration flow for mobile apps
+
+---
+
+## 2026-04-03: Phase 2 Vinyl Vault Demo Content Completed
+
+**Status:** ✅ Completed & Merged
+
+**Deliverables:**
+- Document types: VinylVaultHome, VinylGenreLanding, VinylRecord
+- Idempotent seeder: `VinylVaultSeeder.cs` (7 genres, 28 records)
+- Razor views: VinylVaultHome.cshtml, VinylGenreLanding.cshtml, VinylRecord.cshtml
+- Event handler: ContentPublishedNotificationHandler.cs
+
+**Key Decisions:**
+1. Idempotent seeding — checks for existing content, safe to run repeatedly
+2. Deterministic data — hardcoded genres/records for reproducibility
+3. Event-driven demo — notification handler demonstrates Umbraco lifecycle
+
+**Build Status:** ✅ C# 0 errors, seeder runs on startup, content publishes cleanly
+
+**Documentation:**
+- Inline code comments
+- Seeder is self-documenting (genre names, record data hardcoded)
+- Orchestration log: `.squad/orchestration-log/2026-04-03T12:23:47Z-brewster.md`
+- Session log: `.squad/log/2026-04-03T12:23:47Z-phase2-phase3-notifications.md`
+
+**Future Considerations:**
+- Mobile bundle may reference Vinyl Vault as example content (no action needed)
+- Production UI would require CSS framework (Bootstrap/Tailwind)
+- Could expand genre/record data as needed
+
+**Team Dependencies:** None (self-contained)
+

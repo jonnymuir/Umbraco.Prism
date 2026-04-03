@@ -2121,3 +2121,150 @@ Both required at startup; missing keys throw `InvalidOperationException` with cl
 **Build:** ✅ Success  
 **Security Review:** ✅ Approved with constraints implemented
 
+
+---
+
+## Decision: Push Notifications Phase 3 — Capacitor Plugin Integration
+
+**Date:** 2026-08-15  
+**Author:** Kicks (Mobile Native Specialist)  
+**Status:** Implemented  
+**Phase:** 3 of Push Notifications Feature  
+
+---
+
+### Context
+
+Prism Mobile needs push notification support for mobile apps generated via the bundle generator. This is Phase 3 of a multi-phase push notifications feature. Backend design (Blathers) defined the server-side API endpoints and FCM/APNs integration strategy. Mobile design (Kicks) defined the Capacitor plugin architecture and native platform requirements.
+
+Phase 3 focuses on integrating the chosen Capacitor plugin (`@capacitor/push-notifications`) into the TypeScript client codebase and exposing it via the bundle generator UI.
+
+---
+
+### Decision
+
+#### 1. Use `@capacitor/push-notifications` v7.0.0
+
+**Plugin:** `@capacitor/push-notifications@^7.0.0`  
+**Rationale:** Official Ionic-maintained plugin, aligns with Capacitor 7.x ecosystem version used by Prism, lighter footprint than `@capacitor-firebase/messaging`, APNs-native on iOS.
+
+**Alternative Considered:** `@capacitor-firebase/messaging`  
+**Why Rejected:** Adds 20-50MB Firebase SDK overhead. Only needed if consumers require Firebase Analytics, data-only messages, or Firebase Topics. Prism's backend handles topic-like functionality server-side via genre subscriptions.
+
+#### 2. Make Push Notifications Opt-In (Default: `false`)
+
+**Bundle Request Field:** `pushNotificationsEnabled: boolean`  
+**Default Value:** `false`  
+**Rationale:**
+- Keeps base mobile bundle lean (no push dependencies if not needed)
+- Allows tenants to ship apps without push if they don't have a notification strategy
+- Reduces first-time setup friction for tenants experimenting with Prism Mobile
+- Aligns with Apple HIG "request permissions when needed" philosophy
+
+**Alternative Considered:** Default `true` (push notifications always included)  
+**Why Rejected:** Forces all tenants to configure FCM/APNs even if they never use notifications. Adds setup complexity to the already multi-step mobile bundle flow.
+
+#### 3. Defer Permission Request Timing to Consumers
+
+**Decision:** The `PrismPushNotifications.registerDevice()` method handles the full permission → registration flow, but does NOT auto-trigger on app launch or post-biometric-login.
+
+**Where Permission is Requested:** Left to bundle consumers to implement (or future Prism enhancement). The UI hint suggests "after first biometric login", which aligns with the mobile design spec recommendation (see `docs/design/notifications-mobile.md`).
+
+**Rationale:**
+- Different tenants may want different permission prompt timing (e.g., after first content view, after user subscribes to a content node, etc.)
+- Prism should provide the tools (`PrismPushNotifications` API) but not dictate UX flow
+- Avoids hard-coding permission logic into the bundle generator (keeps bundles flexible)
+
+**Team Decision Required:** Should Prism auto-inject a permission request hook into the bundle's biometric login success flow? Current implementation leaves this as a manual consumer task.
+
+#### 4. Align API Endpoints with Backend Design
+
+**Endpoints Used:**
+- `POST /umbraco/prism/push/register` — device token registration
+- `DELETE /umbraco/prism/push/register` — device unregistration
+- `POST /umbraco/prism/push/subscribe` — genre subscription
+- `DELETE /umbraco/prism/push/unsubscribe` — genre unsubscription
+
+**Payload Format (Register):**
+```json
+{
+  "token": "fcm-or-apns-token-here"
+}
+```
+
+**Authentication:** Bearer token via `Authorization` header (matches existing Prism API auth pattern)
+
+**Rationale:** These endpoints were defined by Blathers in `docs/design/notifications-backend.md`. Mobile client implementation strictly adheres to that contract.
+
+**Note:** Backend team (Blathers) must implement these endpoints for Phase 3 to be end-to-end functional.
+
+#### 5. Document Native Setup as Manual Steps
+
+**Decision:** iOS and Android native project configuration (APNs keys, `google-services.json`, entitlements, permissions) remains a manual consumer task documented in `docs/PUSH_SETUP.md`.
+
+**Why Not Automated?**
+- APNs key/certificate setup requires Apple Developer account credentials (cannot be automated by Prism)
+- Firebase project setup requires Firebase Console access and `google-services.json` download (external to Prism)
+- Xcode capability toggles and entitlement file edits are native IDE operations
+- Automating these would require Prism to parse/modify Xcode `.pbxproj` files and Android Gradle files (fragile, error-prone)
+
+**Future Consideration:** `MobileBundleService.cs` could inject placeholder comments or stub files (e.g., `resources/PUSH_SETUP.md`, `resources/ios-entitlements-snippet.xml`) into the bundle to guide consumers. This is out of scope for Phase 3.
+
+---
+
+### Implementation Summary
+
+**Files Created:**
+- `src/UmbracoPrism.Client/src/backoffice/push-notifications.ts` — `PrismPushNotifications` static class with 8 public methods
+- `docs/PUSH_SETUP.md` — comprehensive iOS/Android setup guide
+
+**Files Modified:**
+- `src/UmbracoPrism.Client/package.json` — added `@capacitor/push-notifications@^7.0.0`
+- `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts` — added `pushNotificationsEnabled` toggle and payload field
+- `src/UmbracoPrism.Client/src/backoffice/index.ts` — exported `PrismPushNotifications` and `PushPermissionState`
+
+**Build Status:** ✅ `npm run build` passes with no TypeScript errors
+
+---
+
+### Risks & Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| Backend endpoints not implemented yet | Phase 3 cannot be tested end-to-end | Tagged as "awaiting backend" in Kicks history. Blathers to implement in Phase 4. |
+| Consumers may not understand multi-step native setup | High friction, support burden | Created detailed `PUSH_SETUP.md` with troubleshooting section. Consider adding setup wizard in future. |
+| Permission prompt timing unclear | Tenants may implement inconsistent UX | Document recommended timing (post-biometric-login) in bundle README. Consider auto-injection in future Prism version. |
+| APNs p8 key vs p12 cert confusion | iOS push setup failures | `PUSH_SETUP.md` explicitly recommends p8 and explains why. |
+
+---
+
+### Team Dependencies
+
+- **Blathers (Backend):** Must implement `/umbraco/prism/push/*` endpoints per `docs/design/notifications-backend.md`
+- **Tom Nook (Services):** May need to update `MobileBundleService.cs` to conditionally include push notification scaffolding when `pushNotificationsEnabled: true`
+- **Isabelle (UI):** No action required (push notification UI is in the tenant modal, already implemented)
+
+---
+
+### Future Enhancements
+
+1. **Auto-Inject Permission Hook:** Modify bundle generator to inject `PrismPushNotifications.registerDevice()` call into the biometric login success flow when `pushNotificationsEnabled: true`.
+
+2. **Bundle Scaffolding:** Generate Android notification channel setup code in `www/index.html` when push is enabled (per mobile design spec recommendation).
+
+3. **Setup Wizard:** Create an interactive CLI tool (`npx prism-setup-push`) that walks consumers through Firebase/APNs setup and auto-updates native config files.
+
+4. **Testing UI:** Add a "Test Push" button to the tenant modal that sends a test notification to all registered devices for that tenant.
+
+5. **Firebase Option:** Provide a "Use Firebase Messaging" toggle in the tenant modal for consumers who want `@capacitor-firebase/messaging` instead of the default `@capacitor/push-notifications`.
+
+---
+
+### Conclusion
+
+Phase 3 is complete from the TypeScript/Capacitor integration perspective. The `PrismPushNotifications` API is production-ready and follows Capacitor best practices (graceful web degradation, permission-first flow, error logging). 
+
+Next blocker: Backend endpoint implementation. Once `/umbraco/prism/push/register` exists, we can test end-to-end token registration.
+
+**Approved for merge:** ✅ (pending backend Phase 4 implementation)
+

@@ -1,0 +1,232 @@
+@using Umbraco.Cms.Web.Common.PublishedModels
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+    
+    var title = Model.Value<string>("title") ?? Model.Name;
+    var artist = Model.Value<string>("artist") ?? "";
+    var genre = Model.Value<string>("genre") ?? "";
+    var releaseYear = Model.Value<int?>("releaseYear");
+    var description = Model.Value<string>("description") ?? "";
+    var inStock = Model.Value<bool>("inStock");
+    var stockCount = Model.Value<int?>("stockCount") ?? 0;
+    var isLimitedEdition = Model.Value<bool>("isLimitedEdition");
+    
+    // Get parent genre page
+    var genrePage = Model.Parent;
+    var genreName = genrePage?.Value<string>("genre") ?? genre;
+}
+
+<div class="vinyl-detail">
+    <div class="vinyl-header">
+        <div class="vinyl-cover-large">
+            @* Cover image placeholder - would use MediaPicker when fully set up *@
+            <div class="placeholder-cover">🎶</div>
+        </div>
+        
+        <div class="vinyl-meta">
+            <div class="breadcrumb">
+                <a href="@(Model.Root()?.Url())">Home</a> › 
+                <a href="@(Model.Root()?.Children?.FirstOrDefault(c => c.ContentType.Alias == "vinylVaultHome")?.Url())">Vinyl Vault</a> › 
+                @if (genrePage != null)
+                {
+                    <a href="@genrePage.Url()">@genreName</a> <text>›</text>
+                }
+                <span>@title</span>
+            </div>
+            
+            <h1>@title</h1>
+            <h2 class="artist">@artist</h2>
+            
+            <div class="vinyl-details">
+                @if (!string.IsNullOrWhiteSpace(genre))
+                {
+                    <p><strong>Genre:</strong> @genre</p>
+                }
+                @if (releaseYear.HasValue)
+                {
+                    <p><strong>Release Year:</strong> @releaseYear.Value</p>
+                }
+                <p><strong>Availability:</strong> 
+                    @if (inStock)
+                    {
+                        <span class="badge badge-in-stock">In Stock (@stockCount available)</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-out-of-stock">Out of Stock</span>
+                    }
+                </p>
+                @if (isLimitedEdition)
+                {
+                    <p><span class="badge badge-limited">⭐ Limited Edition</span></p>
+                }
+            </div>
+            
+            @* Subscription button for this genre *@
+            <div class="actions">
+                <button class="btn-subscribe" onclick="subscribeToGenre('@genreName')">
+                    🔔 Subscribe to @genreName Notifications
+                </button>
+                @if (!inStock)
+                {
+                    <button class="btn-waitlist" onclick="joinWaitlist('@Model.Key')">
+                        📬 Join Waitlist
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+    
+    @if (!string.IsNullOrWhiteSpace(description))
+    {
+        <div class="vinyl-description">
+            <h3>About This Album</h3>
+            @Html.Raw(description)
+        </div>
+    }
+    
+    <div class="back-link">
+        @if (genrePage != null)
+        {
+            <a href="@genrePage.Url()">← Back to @genreName</a>
+        }
+    </div>
+</div>
+
+<script>
+    function subscribeToGenre(genre) {
+        // TODO: Wire to PrismNotificationService API
+        alert('Subscribe to ' + genre + ' notifications - will call /umbraco/api/prismnotification/subscribe');
+        console.log('Subscribe to genre:', genre);
+        
+        // Example API call (to be implemented):
+        // fetch('/umbraco/api/prismnotification/subscribe', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({ 
+        //         userId: 'current-user-id',  // From auth context
+        //         tenantId: 'current-tenant',  // From tenant context
+        //         genre: genre 
+        //     })
+        // });
+    }
+    
+    function joinWaitlist(contentKey) {
+        // TODO: Wire to waitlist API (when Blathers implements it)
+        alert('Join waitlist for this vinyl - feature to be implemented');
+        console.log('Join waitlist for:', contentKey);
+    }
+</script>
+
+<style>
+    .vinyl-detail { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    
+    .breadcrumb { 
+        font-size: 0.85rem; 
+        color: #666; 
+        margin-bottom: 1rem; 
+    }
+    .breadcrumb a { color: #4299e1; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    
+    .vinyl-header {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 3rem;
+        margin-bottom: 3rem;
+    }
+    
+    .vinyl-cover-large {
+        aspect-ratio: 1;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .placeholder-cover { font-size: 8rem; }
+    
+    .vinyl-meta h1 {
+        font-size: 2.5rem;
+        margin: 0 0 0.5rem 0;
+    }
+    .artist {
+        font-size: 1.5rem;
+        color: #666;
+        font-weight: 400;
+        margin: 0 0 2rem 0;
+    }
+    
+    .vinyl-details {
+        margin-bottom: 2rem;
+        line-height: 1.8;
+    }
+    .vinyl-details p { margin: 0.5rem 0; }
+    
+    .badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.85rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+    .badge-in-stock { background: #48bb78; color: white; }
+    .badge-out-of-stock { background: #e53e3e; color: white; }
+    .badge-limited { background: #ed8936; color: white; }
+    
+    .actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .actions button {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-subscribe {
+        background: #4299e1;
+        color: white;
+    }
+    .btn-subscribe:hover { background: #3182ce; }
+    .btn-waitlist {
+        background: #ed8936;
+        color: white;
+    }
+    .btn-waitlist:hover { background: #dd6b20; }
+    
+    .vinyl-description {
+        background: #f7fafc;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+    .vinyl-description h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .back-link {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    .back-link a {
+        color: #4299e1;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .back-link a:hover { text-decoration: underline; }
+    
+    @media (max-width: 768px) {
+        .vinyl-header {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+    }
+</style>

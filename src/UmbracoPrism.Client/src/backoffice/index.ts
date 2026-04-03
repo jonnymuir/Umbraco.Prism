@@ -10,6 +10,8 @@ import { tryExecute } from '@umbraco-cms/backoffice/resources';
 // Export biometric bridge for mobile apps
 export { biometricBridge, BiometricError, initBiometricLoginListener } from './biometric-bridge';
 export type { BiometricBridge } from './biometric-bridge';
+export { PrismPushNotifications } from './push-notifications';
+export type { PushPermissionState } from './push-notifications';
 
 // Log the modal element for debugging
 console.log('Modal element loaded:', PrismCreateTenantModalElement);
