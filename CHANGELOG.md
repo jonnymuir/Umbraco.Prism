@@ -2,6 +2,18 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.6.1] — 2026-04-03
+
+### Fixed
+- **Android bootstrap**: Replaced GNU sed with `perl -i -pe` for biometric manifest injection to fix BSD sed incompatibility on macOS. Added automatic Gradle wrapper upgrade to 8.14 to support Java 25 (class file major version 69).
+- **DI scoped-in-singleton**: `LimitedEditionDropNotifier` now resolves `IPrismNotificationService` via `IServiceScopeFactory` per invocation, fixing an `InvalidOperationException` on app startup when scoped services were consumed from a singleton `BackgroundService`.
+- **Key Vault 404 fallback**: `PrismKeyVaultConfigureOptions` now distinguishes 404 (secret not found) from 403 (access denied). A 404 logs a warning and returns, allowing config-bound dev secrets to remain in effect. A 403 still throws.
+
+### Changed
+- **UA demo popup**: Moved the mobile user-agent demo widget higher above the navigation bar (increased bottom offset to `calc(5rem + 1.5rem)` in the `html.prism-mobile` context). Added a × close button that dismisses the widget for the remainder of the browser session.
+
+---
+
 ## [v1.6.0] — 2026-07-24
 
 ### New Features
