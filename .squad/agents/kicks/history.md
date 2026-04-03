@@ -162,3 +162,200 @@ Copper implemented biometric token lifecycle hardening (stale-token detection + 
 
 **Design Document:** `/Design/mobile-nav-design-research.md`
 **Decision Record:** `.squad/decisions/inbox/kicks-mobile-nav-design.md`
+
+---
+
+## 2026-07-14 — Push Notifications Design
+
+**Session type:** Design document
+**Role:** Lead + Mobile Native Specialist (Tom Nook + Kicks)
+**Requested by:** Jonny Muir
+
+**Task:** Produced comprehensive push notifications design document for Umbraco.Prism covering both use cases (content-subscribed + backend-triggered) and both platform targets (Capacitor iOS/Android).
+
+**Key Decisions:**
+- **Provider:** Firebase Cloud Messaging (FCM) via `FirebaseAdmin` .NET SDK + `@capacitor/push-notifications` Capacitor plugin. FCM chosen over OneSignal (third-party SaaS), Azure Notification Hubs (Azure lock-in), and direct APNs (two dispatch paths). FCM handles iOS via APNs automatically.
+- **Architecture split:** Core registration/dispatch/subscriptions in `UmbracoPrism.Core` NuGet package. Consumer configures `Prism:Push:FcmServiceAccountSecretName` → stored in Azure Key Vault (same pattern as OIDC secrets).
+- **Token storage:** `prismPushTokens` table, keyed by `DeviceId` (same pattern as `prismDeviceCredentials`). Linked to `MemberKey` (Umbraco member GUID).
+- **Subscription storage:** `prismPushSubscriptions` table with nullable `ContentNodeKey`, `ContentTypeAlias`, `Category` columns — allows multi-dimension matching.
+- **Scheduled notifications:** Custom `prismPushQueue` table + `IRecurringBackgroundTask` (60s interval). No Hangfire dependency to keep the NuGet package lean.
+- **Broadcast dashboard:** New Lit web component `<prism-push-broadcast>` in existing Prism backoffice section.
+- **Permission timing:** Never request on cold start — only after member is authenticated and has seen value.
+- **Demo 1 (content-subscribed):** "Prism Announcements" — Announcement document type, member subscribes on `/announcements` page, publish triggers push.
+- **Demo 2A (scheduled):** "Content Expiry Warning" — daily `IRecurringBackgroundTask` warns editors 7 days before content expires.
+- **Demo 2B (API-triggered):** "Member Welcome Notification" — T+1 minute after `MemberCreatedNotification`, member receives welcome push.
+- **Web push:** Deferred to Phase 5 — not in scope for MVP.
+- **Multi-tenancy for push tokens:** Q4 open — needs Jonny's decision before adding `TenantId` column.
+
+**Open Questions for Jonny:**
+- Q1: Are tokens keyed to Umbraco MemberKey or Entra OID?
+- Q2: Do editors use the mobile app? (affects content expiry demo target)
+- Q3: Web push in scope?
+- Q4: Multi-tenant token scoping?
+- Q5: Firebase project — one per Prism installation (yes, correct)?
+
+**Design Document:** `docs/notifications-design.md`
+**Decision Record:** `.squad/decisions/inbox/kicks-notifications-design.md`
+
+---
+
+## 2026-07-14 — Mobile Push Notifications Design (Mobile-Side Focus)
+
+**Task:** Produced mobile-side design document for push notifications in Prism Mobile Capacitor apps.
+
+**Context:** This complements the existing backend push notifications design (`docs/notifications-design.md` by Tom Nook + Kicks). That document covered FCM backend architecture, subscription management, and dispatch logic. This NEW document focuses exclusively on the mobile consumer side: Capacitor plugin selection, iOS/Android platform setup, token lifecycle, and consumer setup friction.
+
+**Key Decisions:**
+
+1. **Plugin Recommendation: `@capacitor/push-notifications` (official Capacitor plugin)**
+   - **Why:** Lighter bundle (+5-10MB vs +20-50MB for Firebase SDK), APNs-native on iOS (no Firebase proxy), sufficient for standard notification needs
+   - **Alternative:** `@capacitor-firebase/messaging` — only if consumer needs Firebase Analytics, data-only messages, or topic subscriptions
+   - **Rationale:** Most Prism tenants need basic "send notification when X happens" — not advanced Firebase features. Smaller footprint is critical for mobile bundles already including biometric plugins.
+
+2. **Permission Request Timing: POST-LOGIN (after biometric authentication)**
+   - **Why:** Aligns with Apple HIG (provide context before requesting), ties permission to authenticated user, reduces cold-start permission walls
+   - **Flow:** App launch → biometric unlock (or OIDC fallback) → check if push permission granted → if not determined, show pre-permission explainer → request OS permission
+   - **Rejection of alternatives:** NOT on first app launch (too early, no context), NOT before login (creates orphaned tokens)
+
+3. **Architecture: Consumer Configuration (Scaffolding), NOT a Prism Plugin**
+   - **Why:** Push notifications are relatively simple; wrapping `@capacitor/push-notifications` in a Prism plugin adds little value. Consumers want to customize notification handling (banners, deep linking, analytics).
+   - **What Prism provides:** When `PushNotificationsEnabled: true` in `PrismMobileBundleRequest`, generate:
+     - `package.json` with `@capacitor/push-notifications` dependency
+     - `www/index.html` with token registration logic
+     - `README.md` with 10-step setup guide
+     - `resources/ios-entitlements-push.xml` template
+     - `resources/android-firebase-setup.md` walkthrough
+     - `scripts/bootstrap-ios.sh` — auto-inject entitlements
+     - `scripts/bootstrap-android.sh` — auto-inject `POST_NOTIFICATIONS` permission
+   - **Consumer owns:** APNs p8 key generation, Firebase Console setup, Xcode capability enablement, customization of notification UI
+
+4. **iOS Setup: APNs p8 Key (preferred over p12 cert)**
+   - **Why:** p8 keys never expire (p12 certs expire annually), one key for all apps, simpler renewal
+   - **Requirements:** APNs Authentication Key from Apple Developer Console, `aps-environment` entitlement, Push Notifications + Background Modes capabilities in Xcode
+   - **Auto-injection:** `bootstrap-ios.sh` creates `App.entitlements` from template if missing, warns if manual Xcode setup needed
+
+5. **Android Setup: FCM via `google-services.json` + `POST_NOTIFICATIONS` Permission**
+   - **Requirements:** Firebase project, `google-services.json` in `android/app/`, `POST_NOTIFICATIONS` permission for Android 13+ (API 33+)
+   - **Auto-injection:** `bootstrap-android.sh` injects `POST_NOTIFICATIONS` if `targetSdkVersion >= 33`
+   - **Notification channels:** Auto-create default channel (`prism-default`) at app startup
+
+6. **Token Lifecycle:**
+   - **Registration:** On permission grant → `POST /umbraco/prism/mobile/push/register` with `deviceToken`, `platform`, `deviceId`, `tenantHostname`
+   - **Backend storage:** `prismPushTokens` table with hashed token (security), linked to `UserOid` (Entra) and `TenantId`
+   - **Refresh:** Android FCM tokens rotate ~every 60 days. Listen for `registration` event, compare to stored token, update backend if changed.
+   - **Revocation:** On logout → `DELETE /umbraco/prism/mobile/push/revoke` → mark all user tokens as `Revoked = true`
+
+7. **Notification Handling:**
+   - **Foreground:** Custom in-app banner (injected into WebView) — system notification NOT shown by default
+   - **Background/killed:** System notification banner → tap launches app → `pushNotificationActionPerformed` listener → deep link to `data.page`
+   - **Deep linking:** Simple `page + id` pattern in `data` payload (e.g., `{"page": "orders", "id": "12345"}`) → navigate to `/orders/12345`
+   - **Silent notifications:** Data-only messages for background sync — ADVANCED, not included in v1 scaffolding
+
+8. **Permission Denied Handling:**
+   - **Behavior:** Store denial timestamp, DO NOT block app functionality, show "Open Settings" deep link if user changes mind
+   - **Re-prompt strategy:** Only if user explicitly taps "Enable Notifications" in app settings, OR wait 14+ days before showing pre-permission explainer again (with "Don't ask again" option)
+   - **Compliance:** Respect "Not Now" decisions to avoid Apple App Store rejection for nagging
+
+9. **Consumer Setup Friction: 40-50 Minutes (First-Time), 15 Minutes (Repeat)**
+   - **iOS setup:** 15-20 minutes (APNs key + Xcode config)
+   - **Android setup:** 10-15 minutes (Firebase + manifest)
+   - **Testing:** 10-15 minutes (device testing + backend verification)
+   - **Repeat setup for new app:** ~15 minutes (reuse APNs key, new Firebase project)
+
+10. **Opt-In Model: `PushNotificationsEnabled` Boolean in `PrismMobileBundleRequest`**
+    - **Why:** Keeps base Prism Mobile bundle lean; only consumers who need push get the scaffolding
+    - **Default:** `false` (opt-in, not opt-out)
+    - **Impact:** No push code generated if disabled; consumers can always add later by regenerating bundle
+
+**Technical Learnings:**
+
+- **`@capacitor/push-notifications` capabilities:**
+  - Automatic device token registration (APNs for iOS, FCM for Android)
+  - Foreground + background notification handling
+  - Permission request UI
+  - Basic notification channel management (Android)
+  - Listeners for `registration`, `pushNotificationReceived`, `pushNotificationActionPerformed`
+  - **Does NOT handle:** Server-side delivery, rich media (requires native Notification Service Extension), advanced analytics
+
+- **Platform Differences:**
+  - **iOS:** Requires explicit permission prompt (no default grant), APNs key/cert needed, background mode for silent push, permission cannot be re-requested after denial (must use Settings deep link)
+  - **Android:** Auto-grants permission for <API 33, requires `POST_NOTIFICATIONS` permission for API 33+, supports notification channels (API 26+), FCM tokens rotate periodically
+  - **iOS Simulator:** Does NOT support push notifications (must use physical device)
+  - **Android Emulator:** Supports push notifications if Google Play Services installed (use Google Play system image, not AOSP)
+
+- **Token Refresh Patterns:**
+  - **Android FCM:** Tokens rotate every ~60 days OR on app reinstall → listen for `registration` event, compare to stored token, update backend if changed
+  - **iOS APNs:** Tokens are stable unless app is reinstalled OR device is restored → re-register on app launch to ensure token is current
+  - **Idempotent registration:** Backend `POST /umbraco/prism/mobile/push/register` should update existing record if `DeviceId + UserOid + TenantId` match
+
+- **Security Best Practices:**
+  - **Hash device tokens:** Store SHA256 hash in database, not plaintext (if database is compromised, attacker cannot use tokens)
+  - **Link to device ID:** Prevent token reuse across devices; allows revoking specific device tokens
+  - **Revoke on logout:** Mark all user tokens as `Revoked = true` to prevent push after logout
+  - **Validate token on backend:** Check JWT signature, expiry, tenant match before exchanging for session
+
+**MobileBundleService Integration:**
+
+When `PushNotificationsEnabled: true`:
+1. Add `@capacitor/push-notifications: ^8.0.0` to generated `package.json`
+2. Inject push permission request logic into `www/index.html` (after biometric enrollment flow)
+3. Add "Push Notifications Setup" section to `README.md` with 10-step guide
+4. Add "Configuring Push Notifications" to `AGENT_PROMPT.md`
+5. Generate `resources/ios-entitlements-push.xml` template
+6. Generate `resources/android-firebase-setup.md` walkthrough
+7. Update `scripts/bootstrap-ios.sh` to check/inject entitlements
+8. Update `scripts/bootstrap-android.sh` to inject `POST_NOTIFICATIONS` permission
+
+**Backend API Requirements:**
+
+New endpoints needed (separate design/implementation by Blathers):
+- `POST /umbraco/prism/mobile/push/register` — register/update device token
+- `DELETE /umbraco/prism/mobile/push/revoke` — revoke all user tokens
+- `POST /umbraco/prism/mobile/push/send` — admin-side notification dispatch (optional)
+
+**Database Schema:**
+
+```sql
+CREATE TABLE prismPushTokens (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    DeviceTokenHash TEXT NOT NULL, -- SHA256 hash
+    Platform TEXT NOT NULL, -- 'ios' or 'android'
+    DeviceId TEXT NOT NULL,
+    UserOid TEXT NOT NULL,
+    TenantId TEXT NOT NULL,
+    CreatedAt TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL,
+    LastSeenAt TEXT,
+    Revoked INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(DeviceId, UserOid, TenantId)
+);
+```
+
+**Open Questions for Team:**
+
+1. Should push notifications be opt-in (default `PushNotificationsEnabled: false`) or opt-out? — **Recommendation: opt-in** to keep base bundle lean
+2. Should Prism provide a "Test Push" UI in the backoffice tenant management screen? — **Defer to backend design**
+3. Should we support admin-initiated push broadcasts (send to all users of a tenant) in v1? — **Defer to backend design**
+
+**Design Document:** `docs/design/notifications-mobile.md`
+**Decision Record:** `.squad/decisions/inbox/kicks-notifications-mobile.md` (to be created)
+
+**Comparison to Existing Backend Design:**
+
+This mobile-side design complements the existing backend push notifications design (`docs/notifications-design.md` by Tom Nook + Kicks, 2026-07-14). That document covered:
+- FCM backend architecture (FirebaseAdmin SDK)
+- Subscription management (content-subscribed vs backend-triggered)
+- Push dispatch service (send to FCM)
+- Scheduled notifications (`prismPushQueue` table + `IRecurringBackgroundTask`)
+- Broadcast dashboard UI (`<prism-push-broadcast>` web component)
+
+This NEW mobile-side design focuses exclusively on:
+- Capacitor plugin selection (`@capacitor/push-notifications` vs `@capacitor-firebase/messaging`)
+- iOS/Android platform setup (APNs keys, FCM config, entitlements, permissions)
+- Device token lifecycle (registration, refresh, revocation)
+- Notification handling in the app (foreground banners, deep linking)
+- Consumer setup friction (10-step guide, 40-50 minute first-time setup)
+- MobileBundleService scaffolding generation
+
+The two designs are complementary and should be read together for a complete picture of Prism push notifications.
+

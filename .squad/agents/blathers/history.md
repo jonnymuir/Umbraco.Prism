@@ -673,3 +673,131 @@ Provided documentation requirements:
 
 **Key Learning:** Atomic assignment pattern prevents half-configured state in options graph — valuable pattern for multi-secret retrieval flows. Retry policy must be explicit in code, not implicit in SDK defaults.
 
+
+## Learnings & Handoff (2026-03-22, Notification Service Backend Design)
+
+**Task:** Design-only task for C# backend notification service using Firebase Cloud Messaging.
+
+**Design Document:** `docs/design/notifications-backend.md`
+
+### Key Design Decisions
+
+1. **Service Interface** — `IPrismNotificationService` with 4 primary methods:
+   - `SendToUserAsync` (single user by Entra OID)
+   - `SendToUsersAsync` (batch users)
+   - `SendToSubscribersAsync` (content-node subscribers)
+   - `BroadcastAsync` (all tenant users)
+   - Returns `NotificationResult` with delivered/failed counts + stale token list for cleanup
+
+2. **FCM Integration**
+   - SDK: `FirebaseAdmin` NuGet (Google official, v3.x+)
+   - Credentials: Azure Key Vault via new `PrismNotificationKeyVaultConfigureOptions` (mirrors biometric pattern)
+   - Secret name: `Prism--Notifications--FcmServiceAccountJson` (full Firebase service account JSON)
+   - Config: New `PrismNotificationOptions` class under `Prism:Notifications` section (separate from `PrismBiometricOptions`)
+   - Zero-config path: Service checks if FCM credentials are null; logs warning + returns no-op results if unconfigured (graceful degradation)
+
+3. **Device Token Storage**
+   - Custom table: `prismDeviceTokens` (not Umbraco Member properties)
+   - Schema: `TenantId`, `UserId` (Entra OID), `DeviceToken` (FCM token, 512 char), `Platform`, `DeviceName`, `RegisteredAt`, `LastNotifiedAt`
+   - Indexes: `(TenantId, UserId)`, `(TenantId, DeviceToken)` composite
+   - Multi-device: One row per device; users can have multiple registered devices
+   - Rationale: Umbraco Members optional in Prism (stateless OIDC = Entra-only); custom table allows relational joins for subscriptions
+
+4. **Subscription Model**
+   - Custom table: `prismNotificationSubscriptions`
+   - Schema: `TenantId`, `UserId`, `ContentKey` (Umbraco content node GUID), `SubscribedAt`
+   - Unique constraint: `(TenantId, UserId, ContentKey)` — one subscription per user per content node per tenant
+   - Query pattern: Fetch all `UserId` where `ContentKey = X`, then join to `prismDeviceTokens` for delivery
+   - Global notifications: No subscription table needed; broadcast queries all device tokens for tenant
+
+5. **Content Event Integration**
+   - Umbraco pattern: `INotificationAsyncHandler<ContentPublishedNotification>`
+   - Handler: `PrismContentPublishedNotificationHandler` (checks content property `sendPushNotification` boolean)
+   - Notification metadata: Custom content properties (`notificationTitle`, `notificationBody`, `notificationImage`)
+   - Non-blocking: Try/catch wrapper ensures notification failures don't block content publishing
+   - Tenant-scoped: Uses `IPrismContext.CurrentTenant`
+
+6. **Scheduled Notifications**
+   - Umbraco pattern: `IRecurringBackgroundTask` (e.g., `PrismDailyDigestTask`)
+   - Period: Configurable (daily = 24 hours)
+   - Tenant iteration: Background tasks have no `IPrismContext` (no HTTP request); must explicitly iterate tenants or use tenant-aware service overloads
+   - Scoped service resolution: `IServiceProvider.CreateScope()` inside task (tasks are singleton)
+
+7. **API Endpoints** (`NotificationController`)
+   - `POST /umbraco/prism/notifications/register` — register FCM device token (upsert)
+   - `POST /umbraco/prism/notifications/subscribe` — subscribe to content node
+   - `POST /umbraco/prism/notifications/unsubscribe` — unsubscribe from content node
+   - `GET /umbraco/prism/notifications/subscriptions` — list user's subscriptions
+   - Auth: `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` — biometric JWT required
+   - Tenant-scoped: All queries filter by `IPrismContext.CurrentTenant.Id`
+
+8. **Error Handling & Resilience**
+   - Polly pipeline: Retry (3 attempts, exponential backoff) + Circuit Breaker (0.5 failure ratio, 2 min sampling, 1 min break)
+   - Transient FCM errors: `MessagingErrorCode.Unavailable`, `MessagingErrorCode.Internal` (retried)
+   - Stale tokens: FCM returns `MessagingErrorCode.Unregistered` → auto-delete from `prismDeviceTokens`
+   - Delivery model: Fire-and-forget with resilience (no queue infrastructure for MVP)
+   - Circuit breaker placement: Outer layer (samples ONE failure per exhausted retry sequence, not per HTTP attempt)
+
+9. **Composer Registration**
+   - Services: `IPrismNotificationService` / `PrismNotificationService` (singleton)
+   - Config: `PrismNotificationOptions` + `PrismNotificationKeyVaultConfigureOptions`
+   - Handlers: `PrismContentPublishedNotificationHandler` (registered via `AddNotificationAsyncHandler`)
+   - Optional: Scheduled tasks (commented out by default; opt-in)
+
+### Patterns Applied
+
+- **Key Vault Integration:** Mirrored `PrismKeyVaultConfigureOptions` for biometric keys; consistent credential retrieval pattern
+- **Custom Tables + Migrations:** Followed `prismDeviceCredentials` schema pattern (NPoco annotations, auto-increment PK, indexes)
+- **Tenant Isolation:** All tables have `TenantId` column; all queries filter by `IPrismContext.CurrentTenant.Id`
+- **Polly Resilience:** Circuit breaker outer / retry inner ordering (consistent with `PrismTokenRefreshService`)
+- **Zero-Config Degradation:** Service initializes even if FCM not configured; returns no-op results with clear error messages
+
+### Open Questions for Product Owner
+
+1. **Content Type Seeding:** Auto-add notification properties to existing content types, or document manual setup?
+2. **Subscription UI:** Backoffice UI for viewing/managing user subscriptions, or API-only sufficient?
+3. **Rate Limiting:** Per-tenant send limits (e.g., max 1000/hour)?
+4. **Analytics:** Delivery metrics (dashboard, logs, telemetry)?
+5. **Multi-language:** Notification content localization (Umbraco variants, custom logic)?
+
+### Implementation Phases (Suggested)
+
+1. **Phase 1:** Foundation (options, tables, core service, composer registration)
+2. **Phase 2:** API endpoints (controller + request/response models)
+3. **Phase 3:** Content integration (published notification handler)
+4. **Phase 4:** Scheduled tasks (optional digest/cron tasks)
+5. **Phase 5:** Testing & docs (unit tests, README updates)
+
+### Handoff Notes
+
+- Design document covers all requested aspects (service interface, FCM integration, storage, subscriptions, events, scheduling, API surface, error handling, composer registration).
+- No implementation code written (design-only task).
+- Decision document written to `.squad/decisions/inbox/blathers-notifications-backend.md` for Scribe review.
+- Implementation will require `FirebaseAdmin` NuGet package + new migrations for device token/subscription tables.
+
+---
+
+**Key Learning:** Custom table storage for device tokens is superior to Umbraco Member properties when multi-device support and relational queries (subscriptions) are needed. Zero-config graceful degradation (missing FCM credentials = no-op service) prevents package installation from blocking sites that don't use notifications.
+
+---
+
+## 2026-04-03: Device Token Architecture Decision — Confirmed & Updated
+
+**Context:** Tom Nook completed alignment pass on 4 notification design documents and identified a conflict in device token storage design.
+
+**Decision Confirmed:** Extend existing `prismDeviceCredentials` table with nullable `PushToken` column (not separate `prismDeviceTokens` table).
+
+**Rationale:** 
+- One unified row per device, whether it has biometric, push, or both
+- Reuses tenant isolation, user binding, and credential lifecycle from existing table
+- Simpler schema, fewer joins
+
+**Action Taken:**
+- Updated `docs/design/notifications-backend.md`:
+  - Removed `prismDeviceTokens` table definition
+  - Added `PushToken` property to existing `prismDeviceCredentials` schema
+  - Updated migration from create-table → add-column pattern
+  - Fixed stale token cleanup: `UPDATE ... SET PushToken = NULL` instead of DELETE
+  - Updated Phase 1 checklist to reflect corrected schema
+
+**Impact:** Backend implementation will now extend credential table rather than create a parallel table. Aligns with architecture decision.

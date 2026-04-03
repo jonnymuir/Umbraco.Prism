@@ -191,3 +191,62 @@
 - Conventional commit format with Co-authored-by trailer enforced across all commits
 - Release notes should include upgrade instructions (e.g., signing key setup) alongside feature descriptions
 - GitHub Actions deploy workflow may need adjustment if gh CLI token is required for release creation in future
+
+### Push Notifications Architecture Design (2026-07-14)
+
+**What was designed:** End-to-end push notification feature for Prism Mobile, covering content-driven notifications (Umbraco backoffice events) and backend-triggered notifications (developer API).
+
+**Design doc:** `docs/design/notifications-architecture.md`
+
+**Key architectural decisions made:**
+
+1. **FCM as default provider behind `IPrismPushGateway` interface.** Firebase Cloud Messaging (HTTP v1 API) is the shipped default. Interface exists from v1 so consumers can swap providers. FCM is free, cross-platform, and has native Capacitor plugin support.
+
+2. **Extend `prismDeviceCredentials` with `PushToken` column.** Reuse the existing device credential row rather than creating a separate table. The device concept stays unified — one row per device per tenant, whether it has biometric auth, push, or both.
+
+3. **Prism-managed subscriptions over FCM topics.** New `prismNotificationSubscriptions` table stores per-user (not per-device), per-tenant topic subscriptions. Gives full control: queryable, tenant-isolated, admin-visible. FCM topics are device-scoped and not tenant-aware — wrong abstraction.
+
+4. **`IPrismNotificationService` is the developer-facing API.** Four methods: `SendToTopicAsync`, `SendToUserAsync`, `SendToAllAsync`, `SendToDevicesAsync`. Simple, injectable, Umbraco-idiomatic. Payload model is `PrismPushPayload` (title, body, image, deep-link, data, category).
+
+5. **Content event hook via `PrismContentNotificationHandler`.** Listens to `ContentPublishedNotification` (Umbraco's built-in notification system). Resolves tenant, builds payload, sends to `content:{nodeId}` and `contentType:{alias}` topics. Opt-in via config.
+
+6. **Synchronous delivery for v1.** In-process sending with async batching (500 tokens per FCM request). Queue-based delivery deferred to v2. Interface stays the same — queueing is an internal detail.
+
+7. **MobileBundleService generates `notifications-bridge.ts`.** Same conditional generation pattern as `biometric-bridge.ts`. Consumer gets push scaffolding (permission, registration, deep-link handling) without writing Capacitor code.
+
+8. **"Content Expiry Watchdog" as backend-triggered demo.** Hourly `IRecurringBackgroundTask` checks for expiring content and pushes notifications. Real-world value, demonstrates the scheduled-task pattern, ships as example code.
+
+**Decisions file:** `.squad/decisions/inbox/tom-nook-notifications-design.md` (6 decisions needing team review)
+
+**Open questions for team:**
+- Should `PushToken` extend `prismDeviceCredentials` or get its own table? (Decision 1 — needs agreement)
+- FCM service account key storage: file path vs. Key Vault secret? (Design doc recommends supporting both via `keyvault:` prefix)
+- Single-tenant vs. multi-tenant content event resolution: default to single-tenant, opt-in domain-based for multi-tenant?
+- v1 scope boundary: is the Content Expiry Watchdog shipped as auto-registered or example-only?
+
+### Notifications Design Pre-Implementation Alignment (2026-07-14)
+
+**Task:** Cross-cutting consistency check across all four notification design documents before implementation begins.
+
+**What was done:** Read architecture, backend, mobile, and demo docs; checked 8 consistency points (device token storage, API surface, contracts, triggers, flags, credential location, subscriptions, permissions timing).
+
+**Findings:**
+1. **Device token storage conflict resolved:** Backend doc still described separate `prismDeviceTokens` table; updated it to match confirmed decision of extending `prismDeviceCredentials` with `PushToken` column.
+2. **API endpoints consistent:** Mobile and backend both define `POST /umbraco/prism/mobile/push/register` with identical contract.
+3. **Mobile ↔ Backend contract clear:** Token registration flow is well-aligned; no rework needed.
+4. **Demo ↔ Backend triggers aligned:** Vinyl Vault's `ContentPublishedNotification` scenarios match backend handler.
+5. **`PushNotificationsEnabled` consistently applied:** Mobile-layer opt-in flag; backend doesn't need to know about it (generation-time decision).
+6. **FCM credential storage consistent:** Both docs recommend Azure Key Vault with optional `keyvault:` prefix pattern.
+7. **Subscription table schema identical:** Same `prismNotificationSubscriptions` schema in both architecture and backend.
+8. **Permission timing not blocked:** Mobile requests after biometric login; no conflicts in other layers.
+
+**Action taken:** Updated `docs/design/notifications-backend.md`:
+- Removed `PrismDeviceTokenSchema` class and `CreatePrismDeviceTokensTable` migration
+- Added `PushToken` property to existing `prismDeviceCredentials` extension pattern
+- Replaced stale token cleanup: `UPDATE ... SET PushToken = NULL` instead of DELETE
+- Updated Phase 1 checklist
+
+**Go/No-Go:** ✅ **GO FOR IMPLEMENTATION** — All cross-cutting concerns resolved. No documentation rework needed during implementation.
+
+**Key insight for team:** Extending the device credential row (rather than creating a new table) keeps the device model unified and future-proof. A device may have biometric auth without notifications (legacy biometric-only deployments), or notifications without biometric (push-only tenants), or both — the schema supports all three cleanly.
+

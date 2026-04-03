@@ -559,3 +559,24 @@ All MANDATORY documentation constraints from Copper implemented:
 
 **Key Learning:** Zero-config integrations require explicit documentation of fail-late vs. fail-fast trade-off. Production teams need clear smoke test guidance to validate deployment safety. Security documentation should be separate from setup (not embedded) to ensure readers understand implications.
 
+
+---
+
+## Release: v1.5.1 — Bundle Download Bug Fixes
+
+**Date:** 2026-04-11
+**Type:** Patch release (bug fixes)
+**Commits included:**
+- `fix(client): remove target='_blank' from bundle download anchor` — removed attributes causing Safari to open new tab
+- `fix(client): use non-bubbling MouseEvent to bypass Umbraco SPA router` — fixed SecurityError on blob: URLs
+
+**Changes made:**
+- Updated `UmbracoPrism.Core.csproj` version to 1.5.1
+- Updated `UmbracoPrism.Client/package.json` version to 1.5.1
+- Created CHANGELOG.md entry with developer-first language
+- Created v1.5.1 git tag
+
+**Release notes (published in CHANGELOG.md):**
+Bundle download on Safari was incorrectly opening a new tab instead of triggering download. Fixed by removing `target='_blank'` and `rel='noopener noreferrer'`. Also fixed SecurityError when Umbraco SPA router intercepted clicks on blob: URLs by switching from `anchor.click()` to non-bubbling `MouseEvent`.
+
+**Outcome:** Clean patch release with clear, actionable changelog entries.

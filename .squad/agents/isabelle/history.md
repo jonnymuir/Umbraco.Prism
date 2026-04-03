@@ -423,3 +423,18 @@ Added support for Umbraco media library URLs in the `icon` field of `prism-mobil
 - Build verified: ✅ Passed (no references to `mobile-mode-banner` remain)
 - This simplifies the demo site UI and eliminates visual redundancy
 
+
+---
+
+## Fix: Download handler — "unknown folder" bug (surgical fix)
+
+**Date:** 2025-07-15
+**File:** `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts`
+
+**Changes made (lines ~869–875):**
+
+1. **Removed** `anchor.target = '_blank';` — conflicted with `anchor.download`, causing Safari/macOS to navigate to the blob URL and auto-extract the zip as a folder instead of saving it.
+2. **Removed** `anchor.rel = 'noopener noreferrer';` — only meaningful alongside `target='_blank'`, now irrelevant.
+3. **Changed** `URL.revokeObjectURL(url);` → `setTimeout(() => URL.revokeObjectURL(url), 100);` — prevents race condition where synchronous revocation could abort the download before it initiated.
+
+No other changes made. Download flow verified correct.

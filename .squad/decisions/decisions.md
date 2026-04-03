@@ -827,3 +827,1414 @@ Only the dynamic Razor expression `--tenant-primary: @brandColor;` remains as an
 
 - Any future page-level styles should be added to the appropriate `/branding/` CSS file, not as inline styles in Razor views.
 - Inline `<style>` blocks in Razor views should be reserved exclusively for dynamic server-injected values (Razor expressions).
+# Notifications Design Pre-Implementation Alignment Pass
+
+**Date:** 2026-07-14  
+**Reviewer:** Tom Nook (Lead)  
+**Task:** Cross-cutting consistency check across four notification design documents before implementation begins
+
+## Summary
+
+**Status:** ✅ **READY FOR IMPLEMENTATION**
+
+All critical cross-cutting issues resolved. One document update required (backend).
+
+---
+
+## Issues Found & Resolved
+
+### 1. 🔴 **Device Token Storage Conflict**
+
+**What:** Architecture doc says "extend `prismDeviceCredentials`" but backend doc still defined a separate `prismDeviceTokens` table.
+
+**Where:** 
+- Architecture: `docs/design/notifications-architecture.md` (line 171: "extend `prismDeviceCredentials` with `PushToken` column")
+- Backend: `docs/design/notifications-backend.md` (lines 314–397: full `prismDeviceTokens` schema + migration)
+
+**Resolution:** ✅ **Extended `prismDeviceCredentials` (user-confirmed decision)**
+- One unified row per device, whether it has biometric, push, or both
+- Reuses tenant isolation, user binding, and credential lifecycle from existing table
+- Migration: add `PushToken` nullable string column (512 chars)
+- Stale token cleanup: NULL out `PushToken` rather than delete row (preserves device audit trail)
+
+**Action Taken:** ✅ Updated `notifications-backend.md`:
+- Removed `PrismDeviceTokenSchema` class and separate table definition
+- Added `PushToken` property to existing `prismDeviceCredentials` schema
+- Replaced migration from `CreatePrismDeviceTokensTable` → `AddPushTokenColumn`
+- Fixed stale token cleanup logic: `UPDATE ... SET PushToken = NULL` instead of DELETE
+- Updated Phase 1 checklist: "Add `PushToken` column to `prismDeviceCredentials`" (not separate table)
+
+---
+
+### 2. ✅ **API Surface Consistency — Device Token Registration**
+
+**What:** Mobile doc specifies `POST /umbraco/prism/mobile/push/register`. Checking backend alignment.
+
+**Where:**
+- Mobile: `docs/design/notifications-mobile.md` (lines 284–383: register endpoint + payload)
+- Backend: `docs/design/notifications-backend.md` (lines 762–800: endpoints defined with same path)
+
+**Finding:** ✅ **Consistent**
+- Both docs agree on `POST /umbraco/prism/mobile/push/register`
+- Both expect `{token: string}` payload
+- Both upsert by `(TenantId, DeviceId, UserId)`
+- Backend doc correctly references this endpoint in controller definition
+
+**Action:** None needed.
+
+---
+
+### 3. ✅ **Mobile ↔ Backend Contract — Push Token Registration Flow**
+
+**What:** Does the Capacitor plugin (Kicks) register tokens the way Blathers' backend expects?
+
+**Where:**
+- Mobile: Capacitor plugin fires `registration` event with `PushToken`, calls `POST /register` with token
+- Backend: Controller accepts token, upserts device credential with `PushToken` column
+
+**Finding:** ✅ **Consistent**
+- Kicks' plugin registration event → triggers `registerPushToken()` → sends token to `/register`
+- Blathers' backend receives token, upserts `prismDeviceCredentials.PushToken`
+- No contract mismatches
+
+**Action:** None needed.
+
+---
+
+### 4. ✅ **Demo ↔ Backend Trigger Alignment**
+
+**What:** Does Vinyl Vault demo's content types and publish scenarios align with backend's `ContentPublishedNotification` handler?
+
+**Where:**
+- Demo: `docs/design/notifications-umbraco-demo.md` (content types: `VinylRecord`, `genre`; trigger: publish)
+- Backend: `docs/design/notifications-backend.md` (handler: `PrismContentPublishedNotificationHandler` on `ContentPublishedNotification`)
+
+**Finding:** ✅ **Fully Consistent**
+- Demo publishes `VinylRecord` → fires `ContentPublishedNotification`
+- Backend handler listens to same notification
+- Demo expects notifications to fire on `ContentPublishedNotification` → backend delivers exactly that
+- Content type aliases referenced in demo (`VinylRecord`, `genre`) are arbitrary developer choices — no hardcoding in backend
+
+**Action:** None needed.
+
+---
+
+### 5. ✅ **Opt-In Flag (`PushNotificationsEnabled`) Consistency**
+
+**What:** Is the opt-in flag consistently named and applied across docs?
+
+**Where:**
+- Mobile: `docs/design/notifications-mobile.md` (lines 20, 115, 211, 736: `PushNotificationsEnabled` on `PrismMobileBundleRequest`)
+- Architecture: `docs/design/notifications-architecture.md` (line 199: brief mention of notifications as independent of biometric)
+- Backend: No direct mention of `PushNotificationsEnabled` (backend receives already-generated bundle)
+
+**Finding:** ✅ **Consistent**
+- Mobile layer controls `PushNotificationsEnabled` boolean in bundle request
+- When true: generates `notifications-bridge.ts` + permission manifest updates
+- When false: bundle ships without push scaffolding
+- Backend doesn't need to know about this flag — it's a generation-time decision in MobileBundleService
+- Architecture doc confirms notifications are independent feature (doesn't block biometric-only deployments)
+
+**Action:** None needed.
+
+---
+
+### 6. ✅ **FCM Credential Storage Location**
+
+**What:** Is the Firebase service account credential stored consistently?
+
+**Where:**
+- Architecture: `docs/design/notifications-architecture.md` (line 140: "Store FCM key in Azure Key Vault or config with `keyvault:` prefix")
+- Backend: `docs/design/notifications-backend.md` (line 274: "Credential Storage: Azure Key Vault via `PrismNotificationKeyVaultConfigureOptions`")
+
+**Finding:** ✅ **Consistent**
+- Both recommend Azure Key Vault storage
+- Architecture mentions optional `keyvault:` prefix pattern (same as existing Prism secrets pattern)
+- Backend implements via dedicated `PrismNotificationKeyVaultConfigureOptions`
+- Graceful degradation: if not configured, service logs warning and returns no-op
+
+**Action:** None needed.
+
+---
+
+### 7. ✅ **Subscription Model Consistency**
+
+**What:** Is the `prismNotificationSubscriptions` table design consistent across docs?
+
+**Where:**
+- Architecture: `docs/design/notifications-architecture.md` (lines 250–273: schema + index definition)
+- Backend: `docs/design/notifications-backend.md` (lines 423–483: same schema)
+- Demo: `docs/design/notifications-umbraco-demo.md` (implies subscription model; user subscribes to genre)
+
+**Finding:** ✅ **Fully Consistent**
+- Both define same table: `(Id, TenantId, UserId, Topic, SubscribedAt)`
+- Both include index on `(TenantId, Topic)` for efficient lookups
+- Demo user flow (subscribe to "Jazz" genre) maps to topic subscription (topic = `contentType:VinylRecord` or `genre:jazz`)
+- Table name is consistent: `prismNotificationSubscriptions`
+
+**Action:** None needed.
+
+---
+
+### 8. ✅ **Permission Request Timing**
+
+**What:** Kicks said "after first biometric login". Do architecture and backend docs conflict with this?
+
+**Where:**
+- Mobile: `docs/design/notifications-mobile.md` (line 18: "Request permission AFTER first biometric login")
+- Architecture: `docs/design/notifications-architecture.md` (no mention of timing)
+- Backend: `docs/design/notifications-backend.md` (no mention of timing)
+
+**Finding:** ✅ **No Conflicts**
+- Mobile layer specifies permission request timing (after biometric enrollment)
+- Backend doesn't care about timing — it's a mobile UX decision
+- Architecture doesn't prescribe timing — aligns with Kicks' design
+- No blocking issues
+
+**Action:** None needed.
+
+---
+
+## Final Verification Checklist
+
+| Item | Status | Details |
+|------|--------|---------|
+| Device token storage | ✅ Updated | Backend doc now matches architecture decision |
+| API surface (register endpoint) | ✅ Consistent | Both docs agree on `/umbraco/prism/mobile/push/register` |
+| Mobile ↔ Backend contract | ✅ Consistent | Token registration flow is clear and aligned |
+| Demo ↔ Backend triggers | ✅ Consistent | `ContentPublishedNotification` triggers match demo scenarios |
+| `PushNotificationsEnabled` flag | ✅ Consistent | Opt-in is well-defined in mobile layer; backend doesn't need it |
+| FCM credential location | ✅ Consistent | Both recommend Azure Key Vault |
+| Subscription table schema | ✅ Consistent | Same design in both architecture and backend docs |
+| Permission timing | ✅ Aligned | No conflicts; mobile layer defines, backend is agnostic |
+
+---
+
+## Documents Updated
+
+1. **`docs/design/notifications-backend.md`**
+   - Removed separate `prismDeviceTokens` table definition (lines 314–397)
+   - Added `PushToken` property to existing `prismDeviceCredentials` schema
+   - Updated migration from create-table → add-column pattern
+   - Fixed stale token cleanup: NULL instead of DELETE
+   - Updated Phase 1 implementation checklist
+
+---
+
+## Go/No-Go Decision
+
+**✅ GO FOR IMPLEMENTATION**
+
+All cross-cutting concerns are resolved. The four design documents are now aligned and internally consistent. Implementation can proceed with confidence that:
+
+- Database schema is unified and efficient
+- API contracts are agreed across mobile, backend, and architecture layers
+- Demo scenarios will work as designed
+- No rework needed due to documentation conflicts
+
+**Recommendation:** Begin with Phase 1 (database schema, service interfaces) and Phase 2 (API endpoints) as outlined in the backend doc.
+
+---
+
+## Notes for Implementation Team
+
+1. **PushToken nullability:** Devices may have push without biometric (or vice versa). The `PushToken` column should be nullable and independent from biometric fields.
+
+2. **Stale token handling:** When FCM returns `Unregistered`, null out the `PushToken` column rather than deleting the row. This preserves the device credential record for audit and future reuse.
+
+3. **Tenant isolation:** All push operations are scoped to the current tenant context via `IPrismContext` — enforce this consistently in the service layer.
+
+4. **Optional permissions on demo app:** The Vinyl Vault demo should have `PushNotificationsEnabled: true` in its bundle request so the demo showcases the full notification flow.
+---
+# Tom Nook — Notifications Architecture Design Decisions
+
+**Date:** 2026-07-14
+**Design Doc:** `docs/design/notifications-architecture.md`
+**Status:** Proposal — needs team review before implementation
+
+---
+
+## Decision 1: Extend `prismDeviceCredentials` with `PushToken` column
+
+**Decision:** Add a nullable `PushToken NVARCHAR(512)` column to the existing `prismDeviceCredentials` table rather than creating a separate push token table.
+
+**Rationale:** The device credential row already contains `DeviceId`, `TenantId`, `UserId`, and `Platform` — exactly the fields needed for push routing. Avoids join overhead and keeps the "device" concept unified. Devices without biometric auth create a minimal credential row with only push-relevant fields populated.
+
+**Trade-off:** Couples notifications to the biometric credential schema. If the team prefers separation, a `prismPushTokens` table with FK to `prismDeviceCredentials.Id` is the alternative.
+
+**Status:** Needs team agreement.
+
+---
+
+## Decision 2: FCM as default provider behind `IPrismPushGateway` interface
+
+**Decision:** Ship Firebase Cloud Messaging (HTTP v1 API) as the sole provider. Expose `IPrismPushGateway` interface so consumers can swap in their own provider (APNs direct, Azure Notification Hubs, OneSignal).
+
+**Rationale:** FCM is free, cross-platform (iOS via APNs-through-FCM + Android native), has excellent Capacitor plugin support, and adds no cost to Marketplace consumers. Building multiple providers without demand violates YAGNI.
+
+**Status:** Recommended — low risk.
+
+---
+
+## Decision 3: Prism-managed subscriptions (database) over FCM topic subscriptions
+
+**Decision:** Store notification subscriptions in a new `prismNotificationSubscriptions` table, scoped per-user (not per-device) and per-tenant. Do not use FCM's built-in topic subscription feature.
+
+**Rationale:** FCM topics are device-scoped, not user-scoped, and not tenant-aware. Prism-managed subscriptions give full control: queryable, tenant-isolated, per-user (all devices receive), and visible in admin API. Trade-off is more DB queries on send, mitigated by indexing and batching.
+
+**Status:** Strongly recommended.
+
+---
+
+## Decision 4: Synchronous delivery for v1, optional queue for v2
+
+**Decision:** v1 sends notifications in-process with async batching (500 tokens per FCM request, max 3 concurrent batches). v2 adds optional `IBackgroundTaskQueue` decoupling. The `IPrismNotificationService` interface is the same either way.
+
+**Rationale:** Avoids infrastructure dependency (no Redis, no message bus) for v1. Most Marketplace consumers are small-to-medium sites where in-process delivery is fine. The interface abstraction means v2 queueing is a non-breaking internal change.
+
+**Status:** Recommended for v1 simplicity.
+
+---
+
+## Decision 5: MobileBundleService generates push notification scaffolding
+
+**Decision:** `MobileBundleService` conditionally generates `notifications-bridge.ts` in the Capacitor bundle when `NotificationsEnabled` is true in tenant's `MobileAppConfig`. Same pattern as biometric auth's `biometric-bridge.ts`.
+
+**Rationale:** Consumer doesn't need to write any Capacitor push code. Permission request, token registration, notification received handling, and deep-link navigation are all generated. Follows the established biometric bridge pattern.
+
+**Status:** Recommended — follows established pattern.
+
+---
+
+## Decision 6: "Content Expiry Watchdog" as Use Case 2 demo
+
+**Decision:** The backend-triggered notification demo is a `ContentExpiryWatchdog` that runs hourly via `IRecurringBackgroundTask`, checks for content expiring within 24 hours, and pushes notifications to subscribers.
+
+**Rationale:** Content expiry is a real Umbraco feature that nobody monitors proactively. It demonstrates the scheduled-task + `IPrismNotificationService` pattern that developers would actually use. Ships as example code, not auto-registered.
+
+**Status:** Recommended.
+---
+# Push Notifications Design — Key Decisions (Kicks / Tom Nook)
+
+**Date:** 2026-07-14
+**Author:** Tom Nook (Lead) + Kicks (Mobile Native Specialist)
+**Design document:** `docs/notifications-design.md`
+
+---
+
+## Decisions Made
+
+### 1. Push provider: FCM via FirebaseAdmin + @capacitor/push-notifications
+
+**Decision:** Use Firebase Cloud Messaging as the sole push transport. .NET dispatch via `FirebaseAdmin` NuGet package (HTTP v1 API, service account auth). Mobile receipt via `@capacitor/push-notifications`.
+
+**Rationale:** Covers both iOS (via APNs relay) and Android in one integration. Avoids maintaining two dispatch paths. Capacitor push plugin has first-class FCM support. Rejected: OneSignal (third-party SaaS), Azure Notification Hubs (Azure lock-in), direct APNs (two paths).
+
+### 2. FCM credentials via Azure Key Vault (existing pattern)
+
+**Decision:** Consumer stores Firebase service account JSON as a Key Vault secret. Config: `Prism:Push:FcmServiceAccountSecretName`. Resolution uses existing `ISecretVaultService`. `FirebaseApp` initialised lazily on first dispatch call.
+
+**Rationale:** Consistent with existing Prism credential management pattern. No new secret management surface.
+
+### 3. Token storage: `prismPushTokens` custom table
+
+**Decision:** FCM device tokens stored in `prismPushTokens`, keyed by client-generated `DeviceId` (same as `prismDeviceCredentials` pattern). Linked to `MemberKey` (Umbraco member GUID). `IsActive` flag for soft-deactivation.
+
+**Rationale:** Consistent schema pattern. Allows upsert on token refresh. Supports multiple devices per member.
+
+### 4. Subscription storage: `prismPushSubscriptions` custom table
+
+**Decision:** Subscriptions stored with nullable `ContentNodeKey`, `ContentTypeAlias`, `Category` columns. Null = "any". Unique constraint on the full (MemberKey, ContentNodeKey, ContentTypeAlias, Category) tuple.
+
+**Rationale:** Flexible multi-dimension matching without needing a complex EAV schema.
+
+### 5. Scheduled notifications: `prismPushQueue` + `IRecurringBackgroundTask`
+
+**Decision:** No Hangfire dependency. Delayed/scheduled notifications use a `prismPushQueue` table polled every 60 seconds by `PrismPushQueueRunner` (`IRecurringBackgroundTask`).
+
+**Rationale:** Keeps NuGet package lean. 60-second precision is sufficient for all planned use cases. Consumers who need cron precision can add Hangfire and implement `IPrismPushNotificationService` themselves.
+
+### 6. Permission request timing (iOS)
+
+**Decision:** Never request push permission on app cold start. Request after member is authenticated and has seen app value (post-login screen). Surface a native-style in-app prompt before the OS prompt to improve grant rate.
+
+**Rationale:** iOS cold-start permission requests have ~40-60% rejection rates. Contextual prompts significantly improve grant rates.
+
+### 7. Public API surface: `IPrismPushNotificationService`
+
+**Decision:** Prism exposes `IPrismPushNotificationService` with `SendToMemberAsync`, `SendToMembersAsync`, `BroadcastAsync`, `ScheduleForMemberAsync`. Consuming apps call this from their own notification handlers.
+
+**Rationale:** Enables Use Case 2 (API-triggered) without Prism needing to know about consumer business logic.
+
+### 8. Demo scenarios
+
+**Demo 1:** "Prism Announcements" — Announcement content type, member subscribes on `/announcements` page, content publish triggers push, editor can broadcast from backoffice Notifications dashboard.
+
+**Demo 2A:** "Content Expiry Warning" — daily `IRecurringBackgroundTask` sends push to editors 7 days before content expires.
+
+**Demo 2B:** "Member Welcome Notification" — `MemberCreatedNotification` → `ScheduleForMemberAsync` T+1 minute.
+
+### 9. Implementation phases
+
+- **Phase 1:** Device registration + FCM dispatch plumbing (no UI)
+- **Phase 2:** Content subscriptions + subscribe Lit component + Announcements demo
+- **Phase 3:** Broadcast dashboard + backoffice UI
+- **Phase 4:** Scheduled queue + welcome notification + content expiry demo
+- **Phase 5:** Web push (deferred), foreground notification banner, token cleanup
+
+---
+
+## Open Questions (Blocking for Phase 1)
+
+| # | Question | Decision needed |
+|---|---|---|
+| Q1 | Are push tokens keyed to Umbraco `MemberKey` or Entra OID? | Architecture of token↔member link |
+| Q2 | Do editors/admins use the mobile app shell? | Whether content expiry warning is mobile push or email |
+| Q3 | Is web push (in-browser PWA notifications) in scope? | Phase 5 scope |
+| Q4 | Should push tokens be multi-tenant scoped (add `TenantId` column)? | Schema decision before migration runs |
+| Q5 | Is one Firebase project per Prism installation correct? | Confirmed expected — document clearly |
+---
+# Kicks — Mobile Push Notifications Design Decisions
+
+**Session:** 2026-07-14  
+**Task:** Mobile-side push notification implementation design for Prism Mobile Capacitor apps  
+**Requested by:** Jonny Muir
+
+---
+
+## Decision 1: Capacitor Plugin Selection
+
+**Choice:** `@capacitor/push-notifications` (official Capacitor plugin)
+
+**Alternatives Considered:**
+- `@capacitor-firebase/messaging` (Capacitor Community Firebase plugin)
+- Direct native implementation (no Capacitor plugin)
+
+**Rationale:**
+- **Smaller bundle:** `@capacitor/push-notifications` adds 5-10MB vs 20-50MB for full Firebase SDK
+- **APNs-native on iOS:** Direct APNs integration is simpler than Firebase proxy layer
+- **Sufficient for standard use cases:** Most Prism tenants need basic notification delivery, not advanced Firebase Analytics or topic-based targeting
+- **Official Ionic plugin:** Stronger long-term maintenance guarantees
+
+**When to use alternative:**
+- Use `@capacitor-firebase/messaging` if backend is Firebase-first, or consumer needs data-only messages, Firebase Analytics, or topic subscriptions
+
+**Impact:**
+- MobileBundleService generates `@capacitor/push-notifications` dependency by default when `PushNotificationsEnabled: true`
+- README documents Firebase alternative for advanced consumers
+
+---
+
+## Decision 2: Permission Request Timing
+
+**Choice:** Request push permission AFTER first biometric login (post-authentication)
+
+**Alternatives Considered:**
+- On first app launch (cold start)
+- On first page navigation
+- Explicit user-initiated only (settings screen)
+
+**Rationale:**
+- **Contextual permission:** Apple HIG strongly discourages permission prompts on cold app launch; post-login provides clear context ("Get notified about your account activity")
+- **User is authenticated:** Push token can immediately be associated with a `PrismMemberCookie` session; no orphaned tokens
+- **Reduces friction:** New users see one permission at a time (biometric first, then push), not a wall of prompts
+- **Consistent with biometric flow:** Biometric enrollment already happens post-OIDC; push follows same timing
+
+**Impact:**
+- `www/index.html` includes push permission request logic AFTER biometric enrollment flow
+- Pre-permission explainer UI shown before calling `PushNotifications.requestPermissions()`
+- Permission state stored in `Preferences` to avoid re-prompting
+
+---
+
+## Decision 3: Architecture — Consumer Configuration vs Prism Plugin
+
+**Choice:** Consumer configuration (scaffolding in generated bundle), NOT a new Prism plugin
+
+**Alternatives Considered:**
+- `@umbracoprism/capacitor-push` plugin (encapsulates Prism-specific logic)
+- Hybrid: Prism Web Component + official plugin
+
+**Rationale:**
+- **Minimal abstraction:** Push notifications are simple; `@capacitor/push-notifications` handles 90% of the work. Wrapping it in a Prism plugin adds little value.
+- **Consumer ownership:** Many consumers will customize notification handling (banners, deep linking, analytics). Giving them scaffolding code directly makes customization trivial.
+- **No version lock-in:** If Capacitor updates the push-notifications API, consumers can update `package.json` independently without waiting for Prism plugin release.
+- **Prism backend integration is backend-side:** Prism-specific logic (token registration, revocation) lives in backend (`PushNotificationController`). Client just calls standard REST endpoints.
+
+**Impact:**
+- MobileBundleService generates push notification scaffolding when `PushNotificationsEnabled: true`
+- No new NPM package to maintain
+- Consumer owns and can customize all push notification code
+
+---
+
+## Decision 4: iOS APNs Setup — p8 Key vs p12 Certificate
+
+**Choice:** Recommend APNs p8 Authentication Key (prefer over p12 certificate)
+
+**Rationale:**
+- **Never expires:** p8 keys are permanent; p12 certs expire annually
+- **One key for all apps:** Single p8 key can be used across multiple apps
+- **Simpler renewal:** No annual certificate regeneration workflow
+
+**Impact:**
+- README setup guide documents p8 key generation as primary method
+- p12 certificate documented as alternative for teams with existing certs
+- Backend configuration uses p8 key by default
+
+---
+
+## Decision 5: Foreground Notification UX
+
+**Choice:** Custom in-app banner (injected into WebView), NOT system notification
+
+**Alternatives Considered:**
+- Let iOS/Android show system notification banner in foreground (requires native code)
+- No foreground notification (silent)
+
+**Rationale:**
+- **Consistent UX:** In-app banner matches Prism Mobile branding and theme
+- **No native code required:** Can be implemented entirely in generated `www/index.html` + CSS
+- **User control:** Banner auto-dismisses after 5 seconds; system notification requires manual dismiss
+- **Simplicity:** Avoids consumer needing to add native code to `AppDelegate.swift` or `MainActivity.kt`
+
+**Impact:**
+- `www/mobile-overrides.css` includes `.prism-notification-banner` styles
+- `www/index.html` includes `showInAppNotificationBanner()` function
+- System notification only shown when app is in background/killed
+
+---
+
+## Decision 6: Token Storage & Security
+
+**Choice:** Store SHA256 hash of device token in database, not plaintext
+
+**Rationale:**
+- **Security:** If database is compromised, attacker cannot use raw tokens to send push notifications
+- **Privacy:** Device tokens are sensitive and should be treated like passwords
+- **Compliance:** Aligns with data minimization principles
+
+**Impact:**
+- Backend `POST /umbraco/prism/mobile/push/register` hashes token before storage
+- `prismPushTokens` table has `DeviceTokenHash` column, not `DeviceToken`
+- Token comparison uses hash equality check
+
+---
+
+## Decision 7: Token Lifecycle — Refresh Strategy
+
+**Choice:** Listen for `registration` event, compare to stored token, update backend if changed
+
+**Rationale:**
+- **Android FCM tokens rotate:** Typically every 60 days or on app reinstall; must detect and update
+- **iOS APNs tokens stable:** Rarely change, but should re-register on app launch to ensure currency
+- **Idempotent registration:** Backend `POST /umbraco/prism/mobile/push/register` updates existing record if `DeviceId + UserOid + TenantId` match
+
+**Impact:**
+- `www/index.html` includes token refresh listener
+- `Preferences` stores last-known token for comparison
+- Backend supports idempotent registration (update vs insert)
+
+---
+
+## Decision 8: Permission Denied Handling
+
+**Choice:** Store denial state, DO NOT block app functionality, show "Open Settings" deep link
+
+**Rationale:**
+- **Graceful degradation:** Prism Mobile must remain fully functional without push notifications
+- **Respect user choice:** Avoid nagging; only re-prompt if user explicitly opts in
+- **App Store compliance:** Repeatedly requesting denied permissions risks rejection
+
+**Impact:**
+- Permission denial stored in `Preferences` with timestamp
+- No re-prompt until user taps "Enable Notifications" in app settings, OR 14+ days elapsed
+- "Open Settings" button uses `App.openUrl({ url: 'app-settings:' })` deep link
+
+---
+
+## Decision 9: Opt-In Model for Push Notifications
+
+**Choice:** `PushNotificationsEnabled` boolean in `PrismMobileBundleRequest`, default `false`
+
+**Rationale:**
+- **Keeps base bundle lean:** Consumers who don't need push don't get the scaffolding
+- **Consumer choice:** Tenants can ship mobile app without push if not needed
+- **Easier to add later:** Consumer can regenerate bundle with push enabled at any time
+
+**Impact:**
+- MobileBundleService only generates push scaffolding when `PushNotificationsEnabled: true`
+- Default Prism Mobile bundle has no push notification code
+- README documents how to enable push when regenerating bundle
+
+---
+
+## Decision 10: Consumer Setup Friction Target
+
+**Choice:** 40-50 minutes for first-time setup, 15 minutes for repeat apps
+
+**Breakdown:**
+- iOS APNs key generation: 5 minutes
+- iOS Xcode setup: 10-15 minutes
+- Android Firebase setup: 10-15 minutes
+- Testing: 10-15 minutes
+- Repeat app setup: 15 minutes (reuse APNs key, new Firebase project)
+
+**Rationale:**
+- **Comparable to industry standard:** Other push notification SDKs (OneSignal, Pusher Beams) have similar setup times
+- **Most time is platform setup:** Apple Developer Console + Firebase Console are external; we can't reduce that
+- **Auto-injection reduces friction:** `bootstrap-ios.sh` and `bootstrap-android.sh` eliminate manual file editing where possible
+
+**Impact:**
+- README includes 10-step setup guide with estimated time per step
+- `AGENT_PROMPT.md` provides AI-friendly instructions for setup assistance
+- Auto-injection scripts reduce manual config steps by ~50%
+
+---
+
+## Conventions Established
+
+1. **Mobile push scaffolding location:** Generated in mobile bundle root when `PushNotificationsEnabled: true`
+2. **Permission state storage key:** `prism-push-permission-state` (values: `'granted'`, `'denied'`, `'prompt'`)
+3. **Token storage key:** `prism-push-token` (stores device token for comparison on refresh)
+4. **Backend API prefix:** `/umbraco/prism/mobile/push/*` (consistent with `/umbraco/prism/mobile/biometric/*`)
+5. **Database table naming:** `prismPushTokens` (consistent with `prismBiometricTokens`, `prismDeviceCredentials`)
+6. **Device token hashing:** SHA256 (same as biometric token hashing)
+7. **Android notification channel ID:** `prism-default` (auto-created at app startup)
+8. **Pre-permission explainer timing:** After biometric enrollment, before system permission prompt
+9. **In-app notification banner class:** `.prism-notification-banner` (styled in `mobile-overrides.css`)
+10. **Deep linking payload pattern:** `{ "data": { "page": "string", "id": "string", "params": "json-string" } }`
+
+---
+
+## Open Questions for Team
+
+1. **Opt-in vs opt-out:** Should push be opt-in (default `false`) or opt-out (default `true`)?  
+   **Recommendation:** Opt-in to keep base bundle lean.
+
+2. **Test push UI in backoffice:** Should Prism provide a "Test Push" button in tenant management screen?  
+   **Recommendation:** Defer to backend design; not critical for mobile-side implementation.
+
+3. **Admin push broadcasts:** Support sending to all users of a tenant in v1?  
+   **Recommendation:** Defer to backend design; mobile-side is agnostic to dispatch strategy.
+
+4. **Silent notifications in v1:** Include data-only message scaffolding?  
+   **Recommendation:** No, this is advanced functionality; document as "Future Enhancement."
+
+5. **Multi-tenant token scoping:** Should tokens be scoped to `TenantId`?  
+   **Recommendation:** Yes, align with biometric token pattern; prevents cross-tenant token reuse.
+
+---
+
+## Follow-Up Actions
+
+1. **Backend implementation (Blathers):**
+   - Implement `POST /umbraco/prism/mobile/push/register` endpoint
+   - Implement `DELETE /umbraco/prism/mobile/push/revoke` endpoint
+   - Create `prismPushTokens` database table migration
+   - Integrate with existing FCM backend design from `docs/notifications-design.md`
+
+2. **Security review (Copper):**
+   - Audit token hashing strategy
+   - Review CORS headers for push registration endpoints
+   - Validate token storage encryption at rest
+
+3. **MobileBundleService implementation (Kicks or Blathers):**
+   - Add `PushNotificationsEnabled` property to `PrismMobileBundleRequest`
+   - Generate push scaffolding files when enabled
+   - Update `bootstrap-ios.sh` and `bootstrap-android.sh` for auto-injection
+
+4. **Testing:**
+   - Create test tenant with push enabled
+   - Verify iOS + Android permission flows
+   - Test token registration, refresh, and revocation
+   - Validate foreground + background notification handling
+
+5. **Documentation:**
+   - Add push notifications section to main README
+   - Update `AGENT_PROMPT.md` with setup instructions
+   - Create Firebase Console walkthrough with screenshots
+
+---
+
+**Design Document:** `docs/design/notifications-mobile.md`  
+**History Entry:** `.squad/agents/kicks/history.md` (2026-07-14 — Mobile Push Notifications Design)
+---
+# Brewster — Umbraco Notifications Integration Design Decisions
+
+**Date:** 2026-04-03  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Design Document:** `docs/design/notifications-umbraco-demo.md`
+
+---
+
+## Decision 1: Content Notification Hook — Opt-In via Document Type Composition
+
+**Decision:** Use Document Type composition (`notifiableContent`) with editor-controlled toggles for content-triggered notifications.
+
+**Pattern:**
+- Create `notifiableContent` composition with properties:
+  - `notifyOnPublish` (boolean toggle, default: false)
+  - `notificationTitle` (text override)
+  - `notificationBody` (textarea, max 200 chars)
+  - `notificationGroups` (Member Group Picker, multi-select)
+- Apply composition to any document types that should support notifications (e.g., Event, News, Offer)
+- Register `PrismContentPublishedHandler : INotificationAsyncHandler<ContentPublishedNotification>`
+- Handler checks for composition + toggle, then calls `IPrismNotificationService.SendToMemberGroupsAsync()`
+
+**Why:**
+- **Opt-in by default:** Not all content changes should trigger push notifications — editors must explicitly enable
+- **Backoffice control:** Editors can customize notification text and target groups without code deployment
+- **Flexible composition:** Can add notification capability to any document type without schema rebuild
+- **Umbraco-native pattern:** Composition is the recommended v13+ approach for reusable property sets
+
+**Alternative considered:** Code-first attributes (e.g., `[NotifyOnPublish]`) — rejected because it removes editor control and requires code deployment for changes.
+
+**Consumer hook:** Provide `IPrismContentNotificationHandler` interface for advanced scenarios where consumers want custom notification logic (e.g., "only notify if price increased by >10%").
+
+---
+
+## Decision 2: Member Group Integration — Groups as Notification Topics (v1)
+
+**Decision:** Use Umbraco Member Groups as notification audiences. Member Group = Notification Topic.
+
+**Pattern:**
+- Create member groups: "Event Subscribers", "News Subscribers", "Offer Subscribers"
+- Members join/leave groups via custom controller (`NotificationsHubController`) or backoffice
+- `IPrismNotificationService.SendToMemberGroupsAsync()` resolves groups to member IDs, then device tokens
+- No additional database tables required — leverages existing `IMemberService.AssignRole()` / `DissociateRole()`
+
+**Why:**
+- **Zero schema changes:** Works immediately with existing Umbraco infrastructure
+- **Backoffice-editable:** Admins can manage groups via standard Umbraco Members section
+- **Familiar pattern:** Umbraco developers already understand member groups
+- **Natural fit:** "Subscribe to Event Updates" maps cleanly to "Join Event Subscribers group"
+
+**Alternative considered (v2 candidate):** Custom subscription table with topic keys for fine-grained control (e.g., subscribe to "Sports Events" only, not all events). Deferred to v2 for simplicity.
+
+**Implementation:** `NotificationsHubController` provides member-facing UI to toggle group membership. Route-hijacked controller with checkboxes for each notification category.
+
+---
+
+## Decision 3: Backoffice Integration — Defer to v2
+
+**Decision:** Do NOT implement backoffice notification sending UI in v1. Defer to v2.
+
+**Rationale:**
+- **v1 scope:** Focus on developer-triggered notifications (content publish hooks, API endpoints, scheduled tasks)
+- **Complexity:** Backoffice extension requires Umbraco v14+ Lit Web Components + permission checks + rate limiting
+- **Immediate value:** Automatic content-triggered notifications and backend scheduled tasks cover 80% of use cases
+- **v2 design ready:** Provided design sketch for Lit Web Component dashboard in Members section with "Send Notification" form
+
+**v1 Alternatives:**
+- Content publish hook with `notifyOnPublish` toggle (automatic)
+- Test API endpoint (`/umbraco/prism/notification/test`) for development testing
+- Scheduled tasks (e.g., membership expiry notifications)
+
+**v2 Design:**
+- Dashboard in Members section
+- Lit Web Component form: title, body, member group picker, send button
+- Permission model: require `PrismConfiguration.AdminGroups` membership
+- Rate limiting to prevent accidental mass notifications
+
+---
+
+## Decision 4: Scheduled Task Pattern — IHostedService with Runtime Level Check
+
+**Decision:** Use ASP.NET Core `IHostedService` with Umbraco `IRuntimeState.Level` check for scheduled notifications.
+
+**Pattern:**
+```csharp
+public class NotificationTask : IHostedService, IDisposable
+{
+    private readonly IRuntimeState _runtimeState;
+    
+    public Task StartAsync(CancellationToken ct)
+    {
+        if (_runtimeState.Level != RuntimeLevel.Run)
+            return Task.CompletedTask; // Don't run during install/upgrade
+        
+        _timer = new Timer(DoWork, null, initialDelay, period);
+        return Task.CompletedTask;
+    }
+    
+    private void DoWork(object? state)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IMemberService>();
+        // Use scoped services here
+    }
+}
+```
+
+**Why:**
+- **Umbraco-aware:** `RuntimeLevel.Run` check prevents tasks from running during install/upgrade
+- **ASP.NET Core standard:** No custom Umbraco abstractions (pre-v13 `IRecurringBackgroundTask` removed)
+- **Scoped service access:** Correctly creates scoped service provider for `IMemberService`, `IContentService`, etc.
+- **Simpler than Hangfire:** For daily/hourly tasks, `IHostedService` is sufficient (no external dependencies)
+
+**Registration:** `builder.Services.AddHostedService<NotificationTask>()` in Composer
+
+**Use cases:**
+- Daily membership expiry notifications (9 AM daily)
+- Auto-approve form submissions after 48 hours
+- Weekly digest notifications
+
+---
+
+## Decision 5: Demo Scenario — Form Review Notification (Recommended)
+
+**Decision:** Recommend "Form Review Notification" as primary backend-triggered notification demo.
+
+**Scenario:**
+1. Member submits document access request via form
+2. Form submission saved to `PrismFormSubmissions` table with status "Pending"
+3. (Simulated) Admin reviews request via API endpoint → updates status → sends notification "Request Approved ✓"
+4. (Bonus) Scheduled task auto-approves requests older than 48 hours → sends notification
+
+**Why this wins:**
+- **Realistic enterprise scenario:** Form workflow with member notification is extremely common in Umbraco
+- **Demonstrates both triggers:** API-triggered (admin approval) AND scheduled (auto-approval after 48 hours)
+- **Fits member portal architecture:** TestSite already has Member Dashboard; "My Requests" page fits naturally
+- **Self-contained demo:** No external dependencies, easy to demonstrate
+
+**Document Types:**
+- `requestsHub` — displays member's form submissions with status badges
+- `requestForm` — form UI for submitting document access request
+- `membershipHub` (runner-up scenario) — membership status page
+
+**API Endpoint:**
+- `POST /umbraco/prism/requests/{id}/review` — admin-only endpoint to approve/reject
+- `[Authorize(AuthenticationSchemes = "PrismBackoffice")]` — requires backoffice auth
+
+**Scheduled Task:**
+- `AutoApproveRequestsTask : IHostedService` — runs every 6 hours, auto-approves old requests
+
+**Runner-up:** "Membership Expiry Notification" (simpler, pure scheduled task demo). Recommended if Jonny wants minimal complexity.
+
+---
+
+## Decision 6: Demo Site Document Type Schema
+
+**Decision:** Create document types using Umbraco v13+ patterns (compositions, strongly-typed models).
+
+**New Document Types:**
+- `notificationsHub` — member subscription management page
+- `requestsHub` — view member's form submissions
+- `requestForm` — submit document access request
+- `membershipHub` — membership status + renewal (runner-up scenario)
+- `eventPage` — example notifiable content
+
+**Compositions:**
+- `notifiableContent` — adds notification properties to any document type (opt-in pattern)
+- `contentBase` (if exists) — SEO fields, shared properties
+
+**Member Type Properties:**
+- `membershipExpiry` (DateTime) — for expiry notification demo
+- `notificationPreferences` (CheckBoxList) — visual display of group membership (read-only)
+
+**Member Groups:**
+- "Event Subscribers"
+- "News Subscribers"
+- "Offer Subscribers"
+
+**Content Tree:**
+```
+Home
+├── Member Dashboard (existing)
+├── Notifications (new)
+├── My Requests (new)
+├── Membership (new)
+└── Settings (existing)
+```
+
+**Controllers:**
+- `NotificationsHubController` — route-hijacked, handles subscription toggle POST
+- `RequestsHubController` — displays member's submissions
+- `RequestFormController` — handles form submission POST
+- `RequestReviewController` — API endpoint for admin approval
+- `MembershipHubController` — displays membership status + expiry
+
+**Seeders:**
+- `NotificationSchemaSetup` — creates document types, compositions, member groups (dev-only, idempotent)
+- `DemoNotificationContentSeeder` — creates sample events/news with `notifiableContent` composition
+
+---
+
+## Technical Conventions Established
+
+1. **Route hijacking for member pages:** `{DocumentTypeAlias}Controller : RenderController` with `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`
+
+2. **Notification handler registration:** `builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>()`
+
+3. **Member group resolution:** Use `IMemberService.GetAllMembersOfGroup(groupId)` to find member IDs, then `IPrismDeviceCredentialRepository.GetByMemberIdsAsync()` to get device tokens
+
+4. **Scheduled task lifecycle:** `StartAsync()` checks `IRuntimeState.Level`, `DoWork()` creates scoped service provider, `Dispose()` cleans up timer
+
+5. **Document Type composition naming:** Use `-able` suffix (e.g., `notifiableContent`) to indicate composable behavior
+
+6. **Notification service interface:** Three send methods (member groups, individual member, broadcast) + audit log query method
+
+---
+
+## Follow-Up Tasks for Other Squad Members
+
+**Blathers (Core Library):**
+- Implement `IPrismNotificationService` interface
+- Implement `IPushNotificationProvider` (APNs/FCM adapters)
+- Create `PrismNotificationLog` database table (audit trail)
+- Create `PrismFormSubmissions` database table (for demo)
+- Register services in `PrismComposer`
+
+**Isabelle (Frontend):**
+- Update `prism-mobile-nav` to handle notification deep links (if needed)
+- Consider adding notification badge/count to nav icon (future enhancement)
+
+**Celeste (Documentation):**
+- Document `IPrismNotificationService` API once implemented
+- Write consumer guide: "Adding notifications to your content types"
+- Document scheduled task pattern with code examples
+
+**Copper (Security Review):**
+- Review notification service rate limiting (prevent spam)
+- Review admin API endpoint permissions (`RequestReviewController`)
+- Review notification payload sanitization (prevent XSS in notification text)
+
+---
+
+**End of Decision Document**
+---
+# Brewster — Vinyl Vault Demo Design Decisions
+
+**Date:** 2026-04-03  
+**Session:** Vinyl Vault Demo Redesign  
+**Author:** Brewster (Umbraco Platform Specialist)
+
+---
+
+## Decision: Vinyl Record Shop Theme for Notifications Demo
+
+**Context:**
+
+The previous notifications demo design (document access requests + membership expiry) was deemed less engaging and harder to relate to for developers evaluating the package. A new demo theme was requested that would be fun, relatable, and immediately understandable.
+
+**Decision:**
+
+Adopt "Vinyl Vault" — a vintage vinyl record shop — as the demo theme for showcasing push notifications in UmbracoPrism.TestSite.
+
+**Rationale:**
+
+1. **Instant relatability:** Everyone understands "new stock arriving" and "limited edition drops" without explanation
+2. **Content-driven:** Vinyl records are rich content nodes (artist, album, genre, cover art, year) that showcase Umbraco's content modeling
+3. **Natural subscription model:** Genre-based subscriptions (Jazz, Rock, Electronic) mirror real-world preferences and are easy to explain
+4. **Visual appeal:** Album cover art makes notifications more engaging than plain text
+5. **Multiple notification triggers:** Demonstrates all three use cases naturally:
+   - Content publish → new arrival notification
+   - API trigger → back-in-stock waitlist alert
+   - Scheduled task → limited edition drop advance warning
+
+**Implications:**
+
+- Replace existing demo document types with `vinylRecord`, `genre`, `vinylVaultHub`, `notificationSubscriptions`
+- Seed demo content with real artists/albums for authentic feel (Miles Davis, Pink Floyd, Daft Punk, etc.)
+- Design member subscription UX around genre preferences
+- Create 5-minute walkthrough script for comprehensive demo
+- Create 2-minute quick demo for evaluators with limited time
+
+---
+
+## Decision: Genre-Based Member Groups for Subscriptions
+
+**Context:**
+
+Members need to subscribe to notification categories. Two options:
+- Option A: Use Umbraco member groups (e.g., "Jazz Subscribers")
+- Option B: Custom subscription table with fine-grained topic control
+
+**Decision:**
+
+Use Umbraco member groups for v1 demo (Option A).
+
+**Rationale:**
+
+1. **Zero schema changes:** Leverages existing Umbraco member group infrastructure
+2. **Backoffice-editable:** Editors can manage groups via Umbraco UI
+3. **Familiar pattern:** Umbraco developers already understand member groups
+4. **Simpler implementation:** No additional database tables or migrations
+5. **Sufficient for demo:** Genre-level subscriptions adequately showcase the notification system
+
+**Member groups created:**
+- Jazz Subscribers
+- Rock Subscribers
+- Electronic Subscribers
+- Hip-Hop Subscribers
+- Classical Subscribers
+- All New Stock Subscribers
+- VIP Members
+
+**Alternative (future):**
+
+For production use cases requiring fine-grained control (e.g., subscribe to specific artists, price ranges, or content tags), consider adding a custom `PrismMemberSubscriptions` table. But for demo purposes, member groups are ideal.
+
+---
+
+## Decision: Three Notification Use Cases in One Demo
+
+**Context:**
+
+The demo needs to showcase different notification trigger patterns to demonstrate the full capability of the system.
+
+**Decision:**
+
+Implement all three use cases in the Vinyl Vault demo:
+
+1. **Content subscription notifications** (automatic, content-driven)
+   - Editor publishes vinyl → subscribers notified
+   - Trigger: `ContentPublishedNotification`
+   
+2. **Back-in-stock alerts** (manual/API-triggered, business logic-driven)
+   - Member joins waitlist → stock restored → waitlist notified
+   - Trigger: API endpoint `/umbraco/api/vinylvault/notify-back-in-stock/{id}`
+   
+3. **Limited edition drop alerts** (scheduled, time-based)
+   - Background task detects upcoming drop → advance notice sent
+   - Trigger: `IRecurringBackgroundTask` (runs every 5 minutes)
+
+**Rationale:**
+
+1. **Comprehensive showcase:** Demonstrates notifications aren't limited to content publish events
+2. **Real-world patterns:** All three patterns are common in e-commerce and membership scenarios
+3. **Developer education:** Shows when to use each trigger mechanism
+4. **Single demo walkthrough:** All three can be demonstrated in under 15 minutes
+
+**Implementation notes:**
+
+- Use Case 1 is the primary focus (easiest to demonstrate)
+- Use Cases 2 and 3 can be explained verbally in quick demo version
+- All three are fully functional and testable in the 5-minute comprehensive demo
+
+---
+
+## Decision: Pre-Seeded Demo Content with Real Artists
+
+**Context:**
+
+Demo content can be either generic/placeholder (e.g., "Vinyl 1", "Vinyl 2") or use real artist/album names.
+
+**Decision:**
+
+Seed demo with real, recognizable artists and albums (Miles Davis "Kind of Blue", Pink Floyd "Dark Side of the Moon", Daft Punk "Random Access Memories", etc.).
+
+**Rationale:**
+
+1. **Authentic feel:** Makes the demo feel like a real application, not a toy example
+2. **Instant recognition:** Evaluators immediately understand the content without explanation
+3. **Visual appeal:** Real album covers are more engaging than placeholder images
+4. **Conversation starter:** Music preferences create natural engagement during demos
+5. **Professionalism:** Shows attention to detail in demo design
+
+**Copyright consideration:**
+
+Album cover art used for demo purposes under fair use (non-commercial, educational, demonstration). If test site is publicly deployed, consider:
+- Using placeholder covers
+- Or licensing album art from music databases
+- Or using public domain/Creative Commons album art
+
+For local development and evaluation purposes, fair use applies.
+
+---
+
+## Decision: Flat Content Tree Structure
+
+**Context:**
+
+Vinyl records could be organized as:
+- Option A: Flat — `/vinyl-vault/{genre}/` directly under hub
+- Option B: Nested — `/vinyl-vault/catalog/{genre}/` with intermediate catalog node
+
+**Decision:**
+
+Use flat structure (Option A).
+
+**Rationale:**
+
+1. **Simpler URLs:** `/vinyl-vault/jazz` instead of `/vinyl-vault/catalog/jazz`
+2. **Fewer clicks in backoffice:** Editors navigate directly to genre nodes
+3. **No added value from catalog node:** Intermediate node serves no functional purpose
+4. **Faster demo setup:** One less document type to create
+
+**Content tree:**
+```
+Home
+└── Vinyl Vault [vinylVaultHub]
+    ├── Notifications [notificationSubscriptions]
+    ├── Jazz [genre]
+    │   └── ... vinyl records ...
+    ├── Rock [genre]
+    │   └── ... vinyl records ...
+    └── ... other genres ...
+```
+
+---
+
+## Decision: Waitlist Storage via Member Property (Not Custom Table)
+
+**Context:**
+
+"Back in Stock" waitlist needs to track which members are waiting for which vinyl. Two options:
+- Option A: Member property `vinylWaitlist` (comma-separated vinyl IDs)
+- Option B: Custom database table `VinylWaitlist`
+
+**Decision:**
+
+Use member property approach for demo (Option A). Leave custom table option documented for production implementations.
+
+**Rationale:**
+
+1. **No migrations needed:** Uses existing Umbraco member infrastructure
+2. **Simpler seeder:** Can set member properties directly in seeder code
+3. **Adequate for demo:** Limited number of waitlist entries in demo scenario
+4. **Quick implementation:** No custom repository or EF models needed
+
+**Implementation:**
+
+- Add `vinylWaitlist` property to Member type (Textarea or Textstring)
+- Store as comma-separated vinyl content IDs: "1234,5678,9012"
+- Parse and filter when checking waitlist
+- Clear specific vinyl ID when back-in-stock notification sent
+
+**Production alternative:**
+
+For production use, recommend custom table with:
+- Proper foreign keys (MemberId, VinylContentId)
+- Timestamp tracking (CreatedAt)
+- Unique constraint (prevent duplicate waitlist entries)
+- Better query performance for large datasets
+
+---
+
+## Summary
+
+**Vinyl Vault** demo design decisions prioritize:
+- **Relatability:** Vinyl record shop is universally understood
+- **Simplicity:** Leverage Umbraco built-in features (member groups, member properties)
+- **Completeness:** Showcase all three notification trigger patterns
+- **Authenticity:** Real artists/albums for professional feel
+- **Developer experience:** 2-minute quick demo + 5-minute comprehensive walkthrough
+
+These decisions balance demo simplicity with production-readiness guidance, allowing developers to quickly evaluate the package while understanding how to scale for real-world use.
+---
+# Blathers — Notification Service Backend Design Decisions
+
+**Date:** 2026-03-22  
+**Author:** Blathers (Backend Developer)  
+**Design Document:** `docs/design/notifications-backend.md`  
+
+---
+
+## Decision: Push Notification Service Architecture
+
+**Context:**  
+Umbraco.Prism is adding push notification support for mobile apps. Firebase Cloud Messaging (FCM) is the chosen provider. Backend needs to support device token registration, content-node subscriptions, event-triggered notifications, and scheduled notifications.
+
+---
+
+## Key Architectural Decisions
+
+### 1. Service Interface Design
+
+**Decision:** Create `IPrismNotificationService` with four user-centric methods:
+- `SendToUserAsync(userOid, payload)` — single user by Entra Object ID
+- `SendToUsersAsync(userOids, payload)` — batch users
+- `SendToSubscribersAsync(contentKey, payload)` — all subscribers to a content node
+- `BroadcastAsync(payload)` — all registered users in current tenant
+
+**Why:**
+- Developers think in terms of users (Entra OIDs), not device tokens.
+- Service abstracts FCM complexity (token resolution, batching, error handling).
+- Tenant-scoped by default (uses `IPrismContext.CurrentTenant` implicitly).
+- `NotificationResult` returns delivered/failed counts + stale tokens for cleanup.
+
+---
+
+### 2. FCM Integration & Credential Management
+
+**Decision:**
+- SDK: `FirebaseAdmin` NuGet package (Google official, v3.x+)
+- Credentials: Azure Key Vault via new `PrismNotificationKeyVaultConfigureOptions`
+- Secret name: `Prism--Notifications--FcmServiceAccountJson` (Firebase service account JSON)
+- Config: New `PrismNotificationOptions` class under `Prism:Notifications` section (separate from biometric options)
+
+**Why:**
+- `FirebaseAdmin` is the official, best-supported SDK for server-side FCM.
+- Key Vault pattern mirrors existing `PrismKeyVaultConfigureOptions` for biometric keys (consistency).
+- Separate config section (`Prism:Notifications`) allows independent management of notification settings.
+- Zero-config path: If FCM secret is missing, service logs warning + returns no-op results (graceful degradation).
+
+---
+
+### 3. Device Token Storage
+
+**Decision:** Custom database table `prismDeviceTokens` (not Umbraco Member properties).
+
+**Schema:**
+- Columns: `TenantId`, `UserId` (Entra OID), `DeviceToken`, `Platform`, `DeviceName`, `RegisteredAt`, `LastNotifiedAt`
+- Indexes: `(TenantId, UserId)`, `(TenantId, DeviceToken)` composite
+- Multi-device: One row per device; users can have multiple registered devices
+
+**Why NOT Umbraco Member properties:**
+- ❌ Umbraco Members are optional in Prism (stateless OIDC = Entra-only users)
+- ❌ Multi-device support awkward (one property = one value; arrays in JSON = brittle)
+- ❌ No relational querying (subscription joins would require JSON deserialization)
+
+**Why custom table:**
+- ✅ Mirrors existing `prismDeviceCredentials` pattern (familiar to developers)
+- ✅ First-class multi-device support (one row per device token)
+- ✅ Efficient relational queries (join with subscriptions table)
+- ✅ No dependency on Umbraco Member model
+
+---
+
+### 4. Subscription Model
+
+**Decision:** Custom table `prismNotificationSubscriptions` for user opt-in to content nodes.
+
+**Schema:**
+- Columns: `TenantId`, `UserId`, `ContentKey` (Umbraco content GUID), `SubscribedAt`
+- Unique constraint: `(TenantId, UserId, ContentKey)` — prevents duplicate subscriptions
+- Indexes: `(TenantId, ContentKey)` for fast subscriber lookups
+
+**Query Pattern:**
+1. Fetch all `UserId` where `ContentKey = X` AND `TenantId = Y`
+2. Join to `prismDeviceTokens` to resolve device tokens
+3. Send to all tokens
+
+**Global Notifications:**
+- No subscription table needed
+- `BroadcastAsync` queries all device tokens for tenant
+
+**Why:**
+- Subscription table enables **opt-in granularity** (user controls which content nodes they follow)
+- Unique constraint prevents duplicate subscriptions
+- Efficient lookups via `(TenantId, ContentKey)` composite index
+
+---
+
+### 5. Content Event Integration
+
+**Decision:** Use Umbraco's `INotificationAsyncHandler<ContentPublishedNotification>` pattern.
+
+**Handler:** `PrismContentPublishedNotificationHandler`
+- Checks content property: `sendPushNotification` (boolean)
+- Extracts metadata: `notificationTitle`, `notificationBody`, `notificationImage`
+- Sends to subscribers via `IPrismNotificationService.SendToSubscribersAsync()`
+- Non-blocking: Try/catch wrapper ensures notification failures don't block publishing
+
+**Why:**
+- Standard Umbraco pattern for content lifecycle events
+- Non-blocking (publish succeeds even if notification fails)
+- Opt-in per content item (editor controls via checkbox)
+- Tenant-scoped via `IPrismContext.CurrentTenant`
+
+---
+
+### 6. Scheduled Notifications
+
+**Decision:** Use `IRecurringBackgroundTask` for scheduled/digest notifications.
+
+**Example:** `PrismDailyDigestTask` (runs every 24 hours)
+- Explicitly iterates tenants (no `IPrismContext` in background tasks)
+- Uses `IServiceProvider.CreateScope()` for scoped service resolution
+- Calls `BroadcastAsync` or subscription-based send
+
+**Why:**
+- Standard Umbraco pattern for scheduled tasks
+- Decoupled from HTTP request lifecycle
+- Scoped service resolution ensures proper DI lifetime management
+
+---
+
+### 7. API Endpoints
+
+**Decision:** `NotificationController` with 4 endpoints:
+
+| Endpoint                                  | Method | Purpose                                |
+|-------------------------------------------|--------|----------------------------------------|
+| `/umbraco/prism/notifications/register`   | POST   | Register FCM device token (upsert)     |
+| `/umbraco/prism/notifications/subscribe`  | POST   | Subscribe to content node              |
+| `/umbraco/prism/notifications/unsubscribe`| POST   | Unsubscribe from content node          |
+| `/umbraco/prism/notifications/subscriptions` | GET | List user's subscriptions              |
+
+**Authentication:** `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` (biometric JWT required)
+
+**Tenant Isolation:** All queries filter by `IPrismContext.CurrentTenant.Id`
+
+**Why:**
+- RESTful design; simple CRUD operations
+- Idempotent (register upserts; subscribe checks duplicates)
+- Consistent with existing `BiometricController` auth pattern
+
+---
+
+### 8. Error Handling & Resilience
+
+**Decision:** Polly resilience pipeline with retry + circuit breaker.
+
+**Configuration:**
+- Retry: 3 attempts, exponential backoff (1s initial delay)
+- Circuit Breaker: 0.5 failure ratio, 2 min sampling, 1 min break duration
+- Pipeline order: Circuit Breaker (outer) → Retry (inner) → FCM call
+
+**Stale Token Handling:**
+- FCM returns `MessagingErrorCode.Unregistered` → auto-delete from `prismDeviceTokens`
+- `NotificationResult.StaleTokens` list returned to caller for tracking
+
+**Delivery Model:** Fire-and-forget with resilience (no queue infrastructure for MVP)
+
+**Why:**
+- Consistent with existing `PrismTokenRefreshService` pattern
+- Circuit breaker placement (outer) samples ONE failure per exhausted retry sequence (not per HTTP attempt)
+- Stale token cleanup prevents wasted sends to dead tokens
+- Fire-and-forget simpler than queueing; sufficient for most use cases
+
+---
+
+### 9. Composer Registration
+
+**Decision:** Register all services in `PrismComposer.Compose`:
+
+```csharp
+// Notification Services
+builder.Services.Configure<PrismNotificationOptions>(
+    builder.Config.GetSection(PrismNotificationOptions.SectionName));
+builder.Services.ConfigureOptions<PrismNotificationKeyVaultConfigureOptions>();
+builder.Services.AddSingleton<IPrismNotificationService, PrismNotificationService>();
+
+// Notification Event Handlers
+builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedNotificationHandler>();
+
+// Optional: Scheduled Tasks (commented out by default)
+// builder.Services.AddHostedService<RecurringBackgroundTaskHostedService<PrismDailyDigestTask>>();
+```
+
+**Zero-Config Path:**
+- If `Prism--Notifications--FcmServiceAccountJson` secret is missing in Key Vault:
+  - Service logs warning: `"FCM credentials not configured. Notification methods will return no-op results."`
+  - All send methods return `NotificationResult { IsSuccess = false, ErrorMessage = "...not configured..." }`
+  - Package installation doesn't crash
+
+**Why:**
+- Centralized DI registration (follows existing pattern)
+- Zero-config graceful degradation (sites without notifications don't break)
+- Clear warning messages guide developers to configuration steps
+
+---
+
+## Database Schema Changes
+
+### New Tables (Migrations Required)
+
+1. **`prismDeviceTokens`**
+   - Migration: `CreatePrismDeviceTokensTable`
+   - Columns: `id`, `TenantId`, `UserId`, `DeviceToken`, `Platform`, `DeviceName`, `RegisteredAt`, `LastNotifiedAt`
+   - Indexes: `IX_PrismDeviceTokens_TenantId`, `IX_PrismDeviceTokens_UserId`, `IX_PrismDeviceTokens_DeviceToken` (composite)
+
+2. **`prismNotificationSubscriptions`**
+   - Migration: `CreatePrismNotificationSubscriptionsTable`
+   - Columns: `id`, `TenantId`, `UserId`, `ContentKey`, `SubscribedAt`
+   - Unique Constraint: `UX_PrismSubscriptions_UserContent` (`TenantId`, `UserId`, `ContentKey`)
+   - Indexes: `IX_PrismSubscriptions_TenantId`, `IX_PrismSubscriptions_UserId`, `IX_PrismSubscriptions_ContentKey` (composite)
+
+**Migration Plan Update:**
+
+```csharp
+protected override void DefinePlan()
+{
+    To<CreatePrismTables>("initial-state")
+    // ... existing migrations ...
+    .To<AddAllowBiometricLoginColumn>("add-allow-biometric-login")
+    .To<CreatePrismDeviceTokensTable>("add-device-tokens")
+    .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions");
+}
+```
+
+---
+
+## Configuration Example
+
+### appsettings.json (Local Dev)
+
+```json
+{
+  "Prism": {
+    "VaultUri": null,
+    "Notifications": {
+      "FcmProjectId": "umbraco-prism-dev",
+      "FcmServiceAccountJson": "{...Firebase service account JSON...}",
+      "DryRun": true,
+      "BatchSize": 500,
+      "MaxRetryAttempts": 3,
+      "RetryDelaySeconds": 1.0,
+      "CircuitBreakerFailureRatio": 0.5
+    }
+  }
+}
+```
+
+### appsettings.Production.json
+
+```json
+{
+  "Prism": {
+    "VaultUri": "https://myprismvault.vault.azure.net/",
+    "Notifications": {
+      "FcmProjectId": "umbraco-prism-prod"
+    }
+  }
+}
+```
+
+**Note:** Production credentials fetched from Key Vault; local dev uses inline JSON (never commit to source control).
+
+---
+
+## Implementation Phases (Recommendation)
+
+1. **Phase 1: Foundation** — Options, tables, core service, composer registration
+2. **Phase 2: API Endpoints** — Controller + request/response models
+3. **Phase 3: Content Integration** — Published notification handler
+4. **Phase 4: Scheduled Tasks** — Optional digest/cron tasks (commented out by default)
+5. **Phase 5: Testing & Docs** — Unit tests, README updates, Firebase setup guide
+
+---
+
+## Open Questions for Product Owner
+
+1. **Content Type Seeding:** Auto-add notification properties to existing content types, or document manual setup?
+2. **Subscription UI:** Backoffice UI for viewing/managing user subscriptions, or API-only sufficient?
+3. **Rate Limiting:** Per-tenant send limits (e.g., max 1000/hour)?
+4. **Analytics:** Delivery metrics (dashboard, logs, telemetry)?
+5. **Multi-language:** Notification content localization (Umbraco variants, custom logic)?
+
+---
+
+## Impact on Other Squad Members
+
+- **Isabelle (Web Components):** May need mobile app components for subscription UI (if product owner decides to build backoffice UI).
+- **Tangy (Testing):** Will need to write unit tests for service logic (mock FCM client), integration tests for API endpoints.
+- **Mabel (Documentation):** Will need to document Firebase Console setup, Key Vault secret creation, appsettings configuration.
+- **Copper (Security):** Should review FCM credential storage pattern, API authorization model, stale token cleanup logic.
+- **Celeste (Documentation):** Should add XML docs to new service interfaces and public methods.
+
+---
+
+**Handoff:** Design document complete at `docs/design/notifications-backend.md`. Ready for product owner review and team feedback before implementation begins.
+---
+### 2026-04-03: Notifications feature decisions
+**By:** Jonny Muir (via Copilot)
+
+**Decision 1 — Device token storage:** Extend existing `prismDeviceCredentials` table with a `PushToken` column. Do not create a separate `prismDeviceTokens` table. One device = one row, whether it has biometrics, push, or both. Aligns with Tom Nook's recommendation (simpler, leaner).
+
+**Decision 2 — Push notifications are opt-in:** `PushNotificationsEnabled` defaults to `false` in `PrismMobileBundleRequest`. Consumers who don't need push pay zero bundle cost. Aligns with Kicks' recommendation.
+
+**Decision 3 — Demo theme is a record shop:** The demo for the notifications feature will be a vinyl record shop ("Vinyl Vault" or similar). Members subscribe to genres (or all genres). When new vinyl is stocked (content published), subscribed members receive a push notification. This covers Use Case 1 (content-driven, genre subscription) and can also demonstrate Use Case 2 (backend-triggered, e.g. a "back in stock" or "limited edition drop" alert).

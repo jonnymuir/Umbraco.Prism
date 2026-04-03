@@ -662,3 +662,258 @@ Null icons are omitted from serialised JSON via `System.Text.Json.Serialization.
 - Maintains idempotent seeding pattern (safe for repeated startup)
 
 **Session Log:** `.squad/log/2026-04-03T06:59:36Z-seed-mobile-nav.md`
+
+---
+
+**Design Task:** Umbraco-Specific Notifications Integration & Demo Content
+
+**Status:** ✅ Completed
+
+**Deliverable:** `docs/design/notifications-umbraco-demo.md`
+
+**What I Designed:**
+
+**Part 1: Umbraco Platform Integration**
+
+1. **Content Notification Hooks:**
+   - Recommended `ContentPublishedNotification` as primary hook
+   - Designed opt-in pattern using Document Type composition (`notifiableContent`)
+   - Properties: `notifyOnPublish` (toggle), `notificationTitle`, `notificationBody`, `notificationGroups` (Member Group Picker)
+   - Allows editors to control notifications per content item without code changes
+   - Consumer hook interface (`IPrismContentNotificationHandler`) for advanced customization
+
+2. **Member Group Integration:**
+   - Recommended Member Groups as notification audiences (v1 approach)
+   - Groups = Topics pattern: "Event Subscribers", "News Subscribers", etc.
+   - Zero schema changes — leverages existing `IMemberGroupService` and `IMemberService.AssociateRole()`
+   - Noted that custom subscription table (Option B) could be added later for fine-grained topic control
+
+3. **Backoffice Integration:**
+   - Recommended deferring to v2 (correct scoping decision)
+   - Provided v2 design sketch: Lit Web Component dashboard in Members section
+   - Permission model: reuse existing `PrismConfiguration.AdminGroups` or add `NotificationSenderGroups`
+   - Rationale: v1 should focus on developer-triggered notifications (content hooks, API endpoints)
+
+4. **Scheduled Task Pattern:**
+   - Recommended `IHostedService` with Umbraco Runtime Level checks
+   - Pattern: Create scoped service provider to access `IMemberService`, etc.
+   - Example: Daily membership expiry notification task
+   - Avoids pre-v13 `IRecurringBackgroundTask` (removed pattern)
+   - Simpler than Hangfire/Quartz for daily/hourly tasks
+
+**Part 2: Demo Site Design**
+
+**Demo #1: Content Subscription Notifications**
+
+- Document Types: `notificationsHub` (subscription management page)
+- Route-hijacked controller: `NotificationsHubController`
+- UI: Checkboxes for "Event Updates", "News Alerts", "Offers"
+- Backend: `IMemberService.AssignRole()` / `DissociateRole()` to manage group membership
+- Trigger: Editor publishes content with `notifiableContent` composition + `notifyOnPublish` enabled
+
+**Demo #2: Backend-Triggered Notification**
+
+**Top Two Recommendations:**
+
+1. **Option A: "Form Review Notification" (Recommended)**
+   - Member submits document access request
+   - Admin reviews via API endpoint → sends notification "Request Approved ✓"
+   - BONUS: Scheduled task auto-approves after 48 hours
+   - Document Types: `requestsHub`, `requestForm`
+   - Database: `PrismFormSubmissions` table
+   - **Why best:** Shows API-triggered AND scheduled notifications, realistic enterprise scenario, fits member portal
+
+2. **Option B: "Membership Expiry Notification" (Runner-up)**
+   - Scheduled task finds members expiring in 7 days
+   - Sends notification "Your membership expires soon!"
+   - Member Type property: `membershipExpiry` (DateTime)
+   - Document Type: `membershipHub`
+   - **Why strong:** Simplest demo, pure scheduled notification, zero dependencies
+
+**Recommended to Jonny:** Pick Option A for comprehensive demo, or Option B for simplicity.
+
+**Document Type Schema:**
+
+- `notificationsHub` — subscription management page
+- `requestsHub` — view member's form submissions
+- `requestForm` — submit document access request
+- `membershipHub` — membership status + renewal
+- `eventPage` — example notifiable content with composition
+- `notifiableContent` (composition) — adds notification properties to any content type
+
+**Member Groups Required:**
+- "Event Subscribers"
+- "News Subscribers"
+- "Offer Subscribers"
+
+**Demo Content Tree:**
+```
+Home
+├── Member Dashboard (existing)
+├── Notifications (new)
+├── My Requests (new)
+├── Membership (new)
+└── Settings (existing)
+```
+
+**Technical Learnings:**
+
+- Umbraco v14+ uses `INotificationAsyncHandler<T>` for content lifecycle events
+- Member Groups are backoffice-editable and work via `IMemberGroupService.GetAllMembersOfGroup()`
+- Composition pattern allows adding notification capability to any document type without schema rebuild
+- `IHostedService` + `IRuntimeState.Level` check is correct pattern for Umbraco-aware background tasks
+- Route hijacking + `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` is correct pattern for member-only pages
+
+**Service Interfaces Designed:**
+
+```csharp
+IPrismNotificationService
+  - SendToMemberGroupsAsync()
+  - SendToMemberAsync()
+  - SendToAllMembersAsync()
+  - GetNotificationLogAsync()
+
+IPushNotificationProvider
+  - SendBatchAsync() → PushNotificationBatchResult
+
+IPrismContentNotificationHandler
+  - OnContentPublishedAsync() → PrismNotificationPayload?
+```
+
+**Implementation Phasing:**
+
+1. **Phase 1:** Blathers implements Core notification services + APNs/FCM providers
+2. **Phase 2:** Brewster creates `notifiableContent` composition + content notification handler
+3. **Phase 3:** Brewster builds demo site (document types, controllers, views, seeders)
+4. **Phase 4:** Testing + documentation
+
+**Coordination Notes:**
+
+- Blathers will implement `IPrismNotificationService` in Core library
+- I will consume this service in TestSite controllers + notification handler
+- Isabelle may need to update `prism-mobile-nav` to handle deep link navigation (e.g., `/dashboard/requests/{id}`)
+- Celeste will document consumer API once implemented
+
+**Session Log:** This entry (appended to history)
+
+**Decision Document:** `.squad/decisions/inbox/brewster-notifications-umbraco.md`
+
+---
+
+## 2026-04-03: Vinyl Vault Demo Redesign
+
+**Task:** Redesign the notifications demo around a vinyl record shop theme.
+
+**Request from:** Jonny Muir
+
+**Previous Design:** Document access requests + membership expiry notifications
+
+**New Design: "Vinyl Vault"** — A vintage vinyl record shop showcasing three notification use cases:
+
+### Concept
+
+A vinyl record shop built into the test site demonstrating:
+1. **Content subscription notifications** — Members subscribe to genres (Jazz, Rock, Electronic, etc.); when editors publish new vinyl, subscribers get notified
+2. **API-triggered notifications** — "Back in Stock" waitlist alerts when out-of-stock vinyl becomes available
+3. **Scheduled notifications** — "Limited Edition Drop" alerts sent 30 minutes before a limited vinyl release
+
+### Document Types Created (Design)
+
+1. **`vinylRecord`** — Individual vinyl record content node
+   - Properties: artist, albumTitle, genre (MNTP), coverArt, releaseYear, description, inStock, limitedEdition, limitedDropTime, price, catalogNumber
+   - Compositions: `notifiableContent`, `seoBase`
+   - Route: `/vinyl-vault/{genre}/{vinyl-name}`
+
+2. **`genre`** — Genre category node (Jazz, Rock, Electronic, Hip-Hop, Classical)
+   - Properties: genreName, description, genreIcon
+   - Lists child vinyl records + subscription toggle
+
+3. **`vinylVaultHub`** — Shop landing page
+   - Properties: heroTitle, heroSubtitle, featuredVinyls
+   - Route: `/vinyl-vault`
+
+4. **`notificationSubscriptions`** — Member subscription management page
+   - Route: `/vinyl-vault/notifications`
+   - Protected route (requires `PrismMemberCookie` auth)
+
+5. **`notifiableContent`** (Composition) — Adds notification capability
+   - Properties: notifyOnPublish, notificationTitle, notificationBody, notificationGroups, notificationImageUrl
+
+### Seeder Design
+
+Pre-seeded demo content:
+- **5 genres:** Jazz, Rock, Electronic, Hip-Hop, Classical
+- **12 vinyl records:** Real artists/albums (Miles Davis, Pink Floyd, Daft Punk, Kendrick Lamar, etc.)
+- **3 demo members:**
+  - `demo@vinylvault.local` (subscribed to Jazz + All New Stock)
+  - `vip@vinylvault.local` (subscribed to VIP + Electronic + Hip-Hop)
+  - `rock@vinylvault.local` (subscribed to Rock)
+- **7 member groups:** Genre-specific subscribers + "All New Stock Subscribers" + "VIP Members"
+
+### Demo Script
+
+**5-minute walkthrough:**
+1. Subscribe to Jazz genre
+2. Publish new vinyl in backoffice → notification appears on device
+3. Join waitlist for out-of-stock vinyl → mark back in stock → waitlist notification
+4. Limited edition drop scheduled → notification sent 30 minutes in advance
+
+**2-minute quick demo:**
+1. Subscribe to genre (20 sec)
+2. Publish vinyl (60 sec)
+3. Show notification (10 sec)
+4. Navigate to content (10 sec)
+5. Explain other scenarios verbally (20 sec)
+
+### Why Vinyl Records?
+
+- **Instantly relatable:** Everyone understands new stock arrivals and limited drops
+- **Content-driven:** Each vinyl is a rich content node (artist, cover art, genre, year)
+- **Natural subscription model:** Genre subscriptions mirror real preferences
+- **Visual appeal:** Album cover art in notifications
+- **Multiple triggers:** Content publish, API calls, scheduled tasks
+
+### Coordination with Blathers
+
+**Backend requirements:**
+- `IPrismNotificationService` with:
+  - `SendToMemberAsync(memberId, notification, ct)`
+  - `SendToMemberGroupsAsync(groupNames, notification, ct)`
+  - `SendToMemberGroupAsync(groupName, notification, ct)`
+- `PrismContentPublishedHandler` for `ContentPublishedNotification`
+- `VinylVaultApiController` endpoints:
+  - `/umbraco/api/vinylvault/toggle-subscription`
+  - `/umbraco/api/vinylvault/join-waitlist`
+  - `/umbraco/api/vinylvault/notify-back-in-stock/{contentId}`
+- `LimitedEditionDropNotifier` background task (`IRecurringBackgroundTask`)
+- Database: Either member properties or custom `VinylWaitlist` table
+
+**Handoff plan:**
+1. Blathers provides `IPrismNotificationService` interface (stub OK initially)
+2. I build document types, templates, and controllers against interface
+3. Blathers implements FCM sending logic
+4. Integration testing together
+
+### Deliverable
+
+**Updated:** `docs/design/notifications-umbraco-demo.md`
+- Part 1 unchanged (Platform Integration Design)
+- **Part 2 rewritten:** Complete Vinyl Vault specification
+- **Part 3 updated:** Implementation guidance with effort estimates
+
+**Estimated effort:**
+- Brewster: 5-7 days (document types, templates, controllers, seeder, background task)
+- Blathers: 2-3 days (notification service, API endpoints)
+- Total: 7-10 days
+
+### Session Outcome
+
+✅ Complete Vinyl Vault demo design documented  
+✅ Document Types schemas defined  
+✅ Content tree structure specified  
+✅ Member subscription flow designed  
+✅ Demo script created (5-min + 2-min versions)  
+✅ Seeder plan with realistic content  
+✅ Coordination notes for Blathers
+
+**Decision Document:** `.squad/decisions/inbox/brewster-vinyl-demo.md`
