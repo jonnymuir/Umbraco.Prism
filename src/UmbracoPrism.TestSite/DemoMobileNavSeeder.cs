@@ -89,10 +89,12 @@ public class DemoMobileNavSeeder(
         var existing = settings.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing))
         {
-            // Only skip if already populated with a v14+ block list.
-            // If the value is a MultiUrlPicker JSON or an old v13 block list, replace it.
+            // Only skip if already populated with a v14+ block list that has exposed blocks.
+            // If the value is a MultiUrlPicker JSON, old v13 block list, or missing the exposed
+            // flag (seeded before we added it), replace it.
             bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
-                               && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal);
+                               && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal)
+                               && existing.Contains("\"exposed\":", StringComparison.Ordinal);
             if (isV14BlockList)
             {
                 logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
@@ -235,8 +237,8 @@ public class DemoMobileNavSeeder(
             ["layout"] = new JsonObject
             {
                 ["Umbraco.BlockList"] = new JsonArray(
-                    new JsonObject { ["contentKey"] = homeKey },
-                    new JsonObject { ["contentKey"] = dashKey }
+                    new JsonObject { ["contentKey"] = homeKey, ["exposed"] = true },
+                    new JsonObject { ["contentKey"] = dashKey, ["exposed"] = true }
                 )
             },
             ["contentData"] = new JsonArray(

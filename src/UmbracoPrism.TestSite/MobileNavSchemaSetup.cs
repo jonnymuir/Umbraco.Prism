@@ -53,11 +53,12 @@ public class MobileNavSchemaSetup(
     {
         try
         {
-            // Idempotency guard — if element type already exists, still patch the block list label
-            // and ensure Settings is wired up.
-            if (contentTypeService.Get("mobileNavItem") != null)
+            // Idempotency guard — if element type already exists, still patch the block list label,
+            // update property descriptions, and ensure Settings is wired up.
+            if (contentTypeService.Get("mobileNavItem") is { } existingElementType)
             {
-                logger.LogDebug("MOBILE NAV SCHEMA: mobileNavItem element type already exists — patching block list and checking Settings.");
+                logger.LogDebug("MOBILE NAV SCHEMA: mobileNavItem element type already exists — patching.");
+                PatchPropertyDescriptions(existingElementType);
                 await GetOrCreateBlockListAsync(MobileNavItemTypeKey);
                 await EnsureSettingsMobileNavPropertyAsync();
                 return;
@@ -96,6 +97,7 @@ public class MobileNavSchemaSetup(
             elementType.AddPropertyType(new PropertyType(shortStringHelper, textBox, "navLabel")
             {
                 Name = "Label",
+                Description = "The text label shown below the icon in the mobile navigation bar",
                 Mandatory = false,
                 SortOrder = 0
             }, groupName);
@@ -103,6 +105,7 @@ public class MobileNavSchemaSetup(
             elementType.AddPropertyType(new PropertyType(shortStringHelper, textBox, "navUrl")
             {
                 Name = "URL",
+                Description = "The path this navigation item links to (e.g. / or /dashboard)",
                 Mandatory = false,
                 SortOrder = 1
             }, groupName);
@@ -142,6 +145,33 @@ public class MobileNavSchemaSetup(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "MOBILE NAV SCHEMA: Unexpected error during setup — safe to ignore.");
+        }
+    }
+
+    private void PatchPropertyDescriptions(IContentType elementType)
+    {
+        bool dirty = false;
+
+        var labelProp = elementType.PropertyTypes.FirstOrDefault(p => p.Alias == "navLabel");
+        if (labelProp != null && string.IsNullOrWhiteSpace(labelProp.Description))
+        {
+            labelProp.Description = "The text label shown below the icon in the mobile navigation bar";
+            dirty = true;
+        }
+
+        var urlProp = elementType.PropertyTypes.FirstOrDefault(p => p.Alias == "navUrl");
+        if (urlProp != null && string.IsNullOrWhiteSpace(urlProp.Description))
+        {
+            urlProp.Description = "The path this navigation item links to (e.g. / or /dashboard)";
+            dirty = true;
+        }
+
+        if (dirty)
+        {
+#pragma warning disable CS0618
+            contentTypeService.Save(elementType);
+#pragma warning restore CS0618
+            logger.LogInformation("MOBILE NAV SCHEMA: Patched navLabel/navUrl property descriptions.");
         }
     }
 
@@ -215,7 +245,7 @@ public class MobileNavSchemaSetup(
                         new Dictionary<string, object>
                         {
                             { "contentElementTypeKey", mobileNavItemKey },
-                            { "label", "{{ navLabel }}" }
+                            { "label", "{=navLabel}" }
                         }
                     }
                 },
@@ -230,7 +260,7 @@ public class MobileNavSchemaSetup(
 
     private async Task MaybePatchBlockLabelAsync(IDataType dataType, Guid mobileNavItemKey)
     {
-        const string correctLabel = "{{ navLabel }}";
+        const string correctLabel = "{=navLabel}";
 
         try
         {
