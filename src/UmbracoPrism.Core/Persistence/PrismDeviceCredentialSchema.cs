@@ -108,4 +108,12 @@ public class PrismDeviceCredentialSchema
     [Length(50)]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? Platform { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Firebase Cloud Messaging push token for this device. Null when unregistered.
+    /// </summary>
+    [Column("PushToken")]
+    [Length(500)]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? PushToken { get; set; }
 }

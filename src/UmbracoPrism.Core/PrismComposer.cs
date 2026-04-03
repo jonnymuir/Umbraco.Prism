@@ -12,6 +12,7 @@ using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using UmbracoPrism.Core.Configuration;
+using UmbracoPrism.Core.Notifications;
 
 namespace UmbracoPrism.Core;
 
@@ -39,6 +40,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
+        builder.Services.AddScoped<IPrismNotificationService, PrismNotificationService>();
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
 
@@ -122,6 +124,7 @@ public class PrismComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
+        builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
         builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
     }
 }
