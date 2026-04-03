@@ -1909,3 +1909,215 @@ Both required at startup; missing keys throw `InvalidOperationException` with cl
 
 **Optional Follow-Up:**
 - Automation script (`scripts/setup-biometric-keys.sh` or `.ps1`) for one-time setup (non-blocking)
+
+## 📌 2026-04-03: v1.5.0 Release — Zero-Config Key Vault Integration (Blathers + Copper + Tangy + Mabel)
+
+**Session Log:** `.squad/log/2026-04-03-v150-release.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-iconfigureoptions-approach.md`
+- `.squad/decisions/inbox/blathers-keyvault-errmsgs.md`
+- `.squad/decisions/inbox/blathers-version-bump.md`
+- `.squad/decisions/inbox/copper-health-security-review.md`
+- `.squad/decisions/inbox/tangy-keyvault-review.md`
+- `.squad/decisions/inbox/mabel-community-files.md`
+- `.squad/decisions/inbox/mabel-docs-update.md`
+
+### Blathers — IConfigureOptions for Azure Key Vault Integration
+
+**Decision:** Adopt `IConfigureOptions<PrismBiometricOptions>` for Azure Key Vault integration, replacing the consumer-facing `builder.AddPrismKeyVault()` extension call requirement.
+
+**Convention:**
+- **PrismKeyVaultConfigureOptions** implements `IConfigureOptions<PrismBiometricOptions>` and is registered in `PrismComposer` via `ConfigureOptions<>()`
+- Runs at options-resolution time (lazy), not at IConfigurationBuilder time (eager)
+- If `Prism:VaultUri` is null/empty → silent skip (local dev, no vault)
+- If `Prism:VaultUri` is set but not HTTPS → throw `InvalidOperationException` (fail-fast)
+- Fetches `Prism--Biometric--SigningKey` and `Prism--Biometric--EncryptionKey` directly from Key Vault using `SecretClient`
+- Azure SDK retry policy explicitly configured: 3 retries, exponential backoff, 0.8s base delay, 8s max delay
+- On `RequestFailedException` with 404/403 status → throw `InvalidOperationException` with config-error message (no retry)
+- On other exceptions → throw `InvalidOperationException` with "temporarily unavailable" message (SDK already retried)
+
+**Rationale:**
+- `IConfigurationBuilder.AddAzureKeyVault()` eagerly fetches **all** secrets at startup, blocking app boot on Key Vault availability
+- `IConfigureOptions` is lazy — only fetches secrets when `IOptions<PrismBiometricOptions>` is first resolved (typically first auth request)
+- Allows test sites and local dev to skip Key Vault entirely by omitting `Prism:VaultUri`
+- Reduces package consumer friction: no explicit Program.cs call required
+
+**Health Check:**
+- **PrismKeyVaultHealthCheck** registered in `PrismComposer` with tag `"prism"`
+- Caches result for 30 seconds (lock-protected) to prevent DoS amplification
+- Returns `Healthy("Key Vault not configured")` when VaultUri is null/empty
+- Returns `Healthy()` when secrets fetched successfully
+- Returns `Degraded()` on failure — NEVER exposes secret names, vault URI, or error details in response body
+- Exception details logged to `ILogger` at Warning level only
+
+**Files Affected:**
+- `src/UmbracoPrism.Core/Configuration/PrismKeyVaultConfigureOptions.cs` (new)
+- `src/UmbracoPrism.Core/HealthChecks/PrismKeyVaultHealthCheck.cs` (new)
+- `src/UmbracoPrism.Core/PrismComposer.cs` (ConfigureOptions + health check registration)
+- `src/UmbracoPrism.TestSite/Program.cs` (removed `builder.AddPrismKeyVault()` call)
+- `src/UmbracoPrism.Core/Extensions/PrismKeyVaultExtensions.cs` (unchanged; remains as optional)
+
+### Blathers — KeyVault Error Message Improvements
+
+**Context:** `PrismKeyVaultConfigureOptions.Configure()` had four quality issues:
+1. HTTP 401 fell through to the generic "transient" catch, giving a misleading message.
+2. 403/404 message named internal vault secret names, a minor info-leak in logs.
+3. Secret name strings were magic literals duplicated in two `GetSecret()` calls.
+4. Non-atomic assignment: `options.SigningKey` could be set while `options.EncryptionKey` remained null if the second fetch threw.
+
+**Decisions Made:**
+- **401 = configuration error, not transient** — wrong/missing Managed Identity or wrong tenant treated as non-retryable `InvalidOperationException`
+- **No secret key names in error messages** — reference "required Prism biometric secrets" or config section instead
+- **Secret names extracted to constants** — `SigningKeySecretName` and `EncryptionKeySecretName` for single source of truth
+- **Atomic options assignment** — both secrets fetched to local variables before either is written to options
+
+**What was NOT changed:**
+- Fail-late design (no IHostedService warm-up — intentionally rejected)
+- Retry policy (3× exponential, 0.8–8 s)
+- HTTPS validation
+- `AddPrismKeyVault()` extension method
+
+**Build Status:** ✅ Passed; 168/168 tests passed
+
+### Blathers — Version Bump from 1.4.0 to 1.5.0
+
+**Rationale:** Release includes meaningful feature additions warranting a **minor version bump**:
+1. **Zero-config Azure Key Vault Integration** via `IConfigureOptions<PrismBiometricOptions>`
+2. **Improved Key Vault Error Handling** with distinct 401/403/404/transient distinction
+3. **Documentation & Community** (CONTRIBUTING.md, FUNDING.yml)
+4. **Backwards Compatibility** — `AddPrismKeyVault()` retained as optional explicit opt-in
+
+**Files Updated:**
+- `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` (1.4.0 → 1.5.0)
+- `package.json` (1.4.0 → 1.5.0)
+- `umbraco-marketplace.json` (1.4.0 → 1.5.0)
+- `CHANGELOG.md` (v1.5.0 section with comprehensive release notes)
+
+### Copper — Security Review: IConfigureOptions + /health Endpoint
+
+**Verdict:** ✅ **APPROVED WITH CONSTRAINTS**
+
+**Threat Model Coverage:**
+1. **Credential Exposure** (LOW) — DefaultAzureCredential instantiation location carries no additional risk; no credential chain details in error messages
+2. **Fail-Late Implications** (MEDIUM → LOW) — Biometric auth is optional; OIDC fallback remains; post-deployment smoke test bridges gap
+3. **Retry Amplification** (MINIMAL) — IOptions singleton caches result for app lifetime; SecretClient.GetSecret() called once per resolution
+4. **Secrets in Memory** (ACCEPTED) — Identical risk to previous `builder.Configuration.AddAzureKeyVault()` pattern
+5. **Dependency Chain** (LOW) — Path 1 (IConfigurationBuilder) and Path 2 (IConfigureOptions) are independent; no conflicts if both used
+
+**Health Check Constraints (Implemented by Blathers):**
+- Response body MUST use generic failure reasons only (no secret names, vault URIs, or stack traces)
+- MUST cache result for minimum 30 seconds (recommend 60 seconds for production)
+- MUST be registered with `tags: ["prism"]` for consumer filtering
+- MUST NOT implement endpoint auth in package (consumer's choice via middleware/access control)
+
+**Documentation Constraints (Implemented by Mabel):**
+- MUST document endpoint access control options (internal-only endpoint pattern recommended)
+- MUST warn that `/health` should NOT be publicly accessible without rate limiting
+- MUST include example of tag-based filtered endpoints
+- MUST document post-deployment smoke test recommendation
+- MUST document secrets remain in memory for app lifetime (recommend process-level isolation for high-security scenarios)
+
+**Risk Assessment:**
+- Change 1 (IConfigureOptions): LOW risk with constraints
+- Change 2 (Health Check): MEDIUM → LOW risk with caching and access control guidance
+- **Overall:** ✅ PASS
+
+### Tangy — Code Review: PrismKeyVaultConfigureOptions
+
+**Verdict:** ⚠️ FINDINGS — 2 blockers identified
+
+**Blocker 1: IHostedService Warm-Up** — REJECTED BY DESIGN
+- **Finding:** Fail-late approach questioned; IHostedService warm-up suggested for early validation
+- **Response:** Jonny explicitly rejected warm-up pattern; fail-late is intentional design choice
+- **Resolution:** No action required; documented as intentional
+
+**Blocker 2: 401 Error Message Handling** — ACCEPTED AS FIX
+- **Finding:** 401 responses fell through to generic "transient" message
+- **Status:** Fixed; 401 now correctly identified as configuration error
+- **Resolution:** Approved and merged
+
+**Test Status:** ✅ 168/168 passed
+
+### Mabel — Community Health Files for Umbraco.Prism
+
+**Context:** Jonny asked if Umbraco.Prism should add `CONTRIBUTING.md` and `FUNDING.yml` to signal professional maturity.
+
+**Existing Maturity Signals:**
+- 4 versioned releases (v1.2.2–v1.4.0)
+- Detailed CHANGELOG with semantic versioning
+- GitHub Actions CI/CD and squad automation
+- Marketplace listing (Umbraco)
+- Professional README with architecture, mobile feature docs, examples
+- MIT license
+- Squad AI team infrastructure
+
+**Decision:** ✅ **YES — add both CONTRIBUTING.md and FUNDING.yml**
+
+**CONTRIBUTING.md (Root):**
+- Clarifies expectations for bug reports, PRs, code standards
+- Flags biometric/security code as requiring extra scrutiny
+- Directs security issues to private channels
+- Acknowledges solo maintainer reality while respecting squad team structure
+- Professional tone: direct, useful, no clichés
+
+**FUNDING.yml (.github/):**
+- Signals confidence and sustainability
+- GitHub Sponsors link (even without active funding goal) is a legitimacy signal
+- Appropriate for versioned, marketplace-distributed packages with enterprise scope
+- Low overhead; no management burden upfront
+
+**Files Created:**
+- `CONTRIBUTING.md` ✅
+- `.github/FUNDING.yml` ✅
+
+### Mabel — Key Vault Documentation Update (Zero-Consumer-Code Approach)
+
+**Decision:** Update Key Vault integration documentation to reflect new zero-consumer-code setup and fail-late default behavior.
+
+**docs/biometric-setup.md Changes:**
+- `Prism:VaultUri` in appsettings.json is now the primary (and only required) configuration step
+- No Program.cs changes needed for zero-config setup
+- `builder.AddPrismKeyVault()` documented as optional for fail-fast startup validation
+- Clear explanation of fail-late behavior: "Key Vault config errors will surface on the first biometric login"
+- Recommendation for smoke testing after production deployment
+- New section detailing error codes (401, 403, 404, transient) and what each means
+
+**docs/umbraco-setup.md Changes:**
+- Clarified that only `builder.Services.AddPrism()` is required
+- `builder.AddPrismKeyVault()` is optional and only needed for fail-fast behavior
+- Provided two code examples: minimal (no Key Vault) and with optional fail-fast
+- Updated Next Steps to remove implication that `AddPrismKeyVault()` is required
+
+**Rationale:**
+- Implementation now supports automatic Key Vault integration via `PrismKeyVaultConfigureOptions`
+- Zero consumer code: if `Prism:VaultUri` is in appsettings.json, Key Vault loads automatically
+- Fail-late default more graceful for development/staging
+- Optional fail-fast bridge for teams needing startup validation
+
+**Added Security Considerations Section:**
+- Per Copper's constraints documentation
+- Endpoint access control options (internal-only endpoint pattern recommended)
+- Rate limiting guidance for public `/health` exposure
+- Post-deployment smoke test recommendation
+
+---
+
+## Impact Summary
+
+**What Changed for Consumers:**
+- ✅ **Simpler on-boarding:** Add `Prism:VaultUri` to appsettings; no Program.cs changes needed
+- ✅ **Better error messages:** Distinct 401/403/404/transient guidance
+- ✅ **Optional backward compatibility:** `AddPrismKeyVault()` still available for explicit control
+- ✅ **Better documentation:** Clear fail-late vs. fail-fast trade-offs
+
+**What Shipped (Non-Breaking):**
+- `PrismKeyVaultConfigureOptions` (automatic, no code change needed)
+- `PrismKeyVaultHealthCheck` (available via `/health` with tag filtering)
+- CONTRIBUTING.md and FUNDING.yml (governance signals)
+- Improved docs (setup guides, error reference, security considerations)
+
+**Test Results:** ✅ 168/168 tests passed  
+**Build:** ✅ Success  
+**Security Review:** ✅ Approved with constraints implemented
+

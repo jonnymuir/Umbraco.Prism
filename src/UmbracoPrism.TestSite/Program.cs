@@ -1,8 +1,4 @@
-using UmbracoPrism.Core.Extensions;
-
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-
-builder.AddPrismKeyVault();
 
 builder.CreateUmbracoBuilder()
     .AddBackOffice()

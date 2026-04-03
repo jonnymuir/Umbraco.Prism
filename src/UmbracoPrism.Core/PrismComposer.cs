@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using UmbracoPrism.Core.Configuration;
 
 namespace UmbracoPrism.Core;
 
@@ -32,6 +33,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IPrismTokenRefreshService, PrismTokenRefreshService>();
         builder.Services.Configure<PrismBiometricOptions>(
             builder.Config.GetSection(PrismBiometricOptions.SectionName));
+        builder.Services.ConfigureOptions<PrismKeyVaultConfigureOptions>();
         builder.Services.AddSingleton<IBiometricTokenService, BiometricTokenService>();
         builder.Services.AddSingleton<IRefreshTokenEncryptionService, RefreshTokenEncryptionService>();
         builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();

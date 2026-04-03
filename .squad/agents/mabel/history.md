@@ -420,3 +420,142 @@ Completed creation of developer-focused biometric authentication key setup guide
 - **Copper:** Security model operationalized in biometric setup guide
 - **Blathers:** Key Vault extension method documented in setup guides (pending)
 - **Scribe:** Decision consolidation and session/orchestration logging
+### Community Health Files Audit & Implementation (2026-04-10)
+
+**Audit Results:**
+- Missing: `CONTRIBUTING.md`, `FUNDING.yml`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue/PR templates
+- Existing: MIT License, comprehensive CHANGELOG, marketplace listing, GitHub Actions CI/CD, squad infrastructure
+
+**Maturity Signals Already Present:**
+- 4 versioned releases (v1.2.2–v1.4.0) with detailed changelogs
+- Enterprise-grade features (biometric auth, multi-tenancy, mobile generation)
+- Professional README with architecture and examples
+- Squad AI team framework in place
+- Marketplace integration with metadata
+
+**Recommendation & Implementation:**
+✅ **Added CONTRIBUTING.md** (root)
+- Addresses bias toward solo maintainers while acknowledging squad team
+- Clarifies bug report expectations, PR workflow, code standards
+- Flags biometric/security code as requiring extra scrutiny
+- Directs security issues to private contact instead of public tracker
+
+✅ **Added FUNDING.yml** (.github/)
+- GitHub Sponsors link to jonnymuir profile
+- Signals project sustainability and professional intent without corporate tone
+- Appropriate for a versioned, marketplace-distributed package with enterprise scope
+
+❌ **Skipped CODE_OF_CONDUCT.md**
+- Reason: Corporate boilerplate for solo maintainer repo. Premature given current audience size. Can add later if community grows.
+
+❌ **Skipped SECURITY.md**
+- Reason: Not urgent given current adoption, but noted for future (especially important for biometric auth code).
+
+❌ **Skipped issue/PR templates**
+- Reason: Squad automation already handles triage via `.github/workflows/`. Templates would create redundancy and friction with existing workflow.
+
+**Philosophy:**
+These two files signal professional intent without creating overhead for a solo-plus-squad operation. Prism is clearly not a weekend hobby — it has marketplace distribution, versioned releases, and a specialized team. The files should reflect that confidence.
+
+## 2026-03-22: Key Vault Documentation Update (Zero-Consumer-Code Approach)
+
+**Session:** Updating documentation to reflect Key Vault integration changes.
+
+**Changes Made:**
+
+### docs/biometric-setup.md
+- **Restructured Production Setup section:** Moved `Prism:VaultUri` configuration to Step 1 (appsettings.json setup), making it the primary zero-code approach.
+- **Clarified fail-late behavior:** Default behavior is now fail-late (Key Vault errors surface on first biometric login), with explicit recommendation for smoke testing after deployment.
+- **Documented optional fail-fast:** `builder.AddPrismKeyVault()` is now clearly optional, with guidance on when to use it (strictly controlled production environments).
+- **Added error message reference:** New section detailing 401/403/404/transient error messages and what each means.
+
+### docs/umbraco-setup.md
+- **Simplified Program.cs setup:** Emphasized that `AddPrismKeyVault()` is optional; only `AddPrism()` is required.
+- **Provided two code examples:** One minimal (no Key Vault), one with optional fail-fast Key Vault setup.
+- **Clarified zero-config approach:** Secrets load automatically when `Prism:VaultUri` is in appsettings.json.
+- **Updated Next Steps:** Removed implication that `AddPrismKeyVault()` is required; clarified it's optional for fail-fast behavior.
+
+**Tone & Style:** Direct, practical guidance for developers integrating Prism into Umbraco. No waffle. Good breadcrumbs for troubleshooting.
+
+**Document Locations:** 
+- `/docs/biometric-setup.md` — lines 167–278 (Production Setup + Test sections)
+- `/docs/umbraco-setup.md` — lines 13–90 (Program.cs section) + line 205 (Next Steps)
+
+## 2026-04-03 — v1.5.0 Release: Community Governance + Zero-Config Documentation
+
+**Task Type:** Community infrastructure + documentation  
+**Status:** ✅ SHIPPED  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03T10:27:49Z-mabel.md`
+
+### Work Completed
+
+**Stream 1: Community Health Files**
+- Created `CONTRIBUTING.md` (root) with:
+  - PR workflow and code standards
+  - Flag biometric/security code as requiring extra scrutiny
+  - Security issue reporting via private channels (not public tracker)
+  - Acknowledgment of solo maintainer with squad team structure
+  - Professional tone: direct, useful, no clichés
+- Created `.github/FUNDING.yml` with GitHub Sponsors link (jonnymuir)
+  - Signals sustainability and maturity
+  - Low overhead; no management burden
+
+**Rationale:** Prism already has 4 versioned releases, detailed CHANGELOG, marketplace listing, professional README, and CI/CD. Community files formalize maturity without adding friction.
+
+**Stream 2: Zero-Config Documentation Update**
+- **docs/biometric-setup.md** — Production Setup Section:
+  - `Prism:VaultUri` in appsettings.json is now primary (and only required) step
+  - Removed requirement for `builder.AddPrismKeyVault()` in Program.cs
+  - Documented optional fail-fast override via `AddPrismKeyVault()`
+  - Added fail-late behavior explanation: "Key Vault config errors surface on first biometric login"
+  - Added error codes reference (401=auth, 403=permissions, 404=missing, transient)
+  - Added post-deployment smoke test recommendation
+
+- **docs/umbraco-setup.md** — Program.cs Section:
+  - Clarified: only `builder.Services.AddPrism()` is required
+  - `builder.AddPrismKeyVault()` is optional and only for fail-fast behavior
+  - Provided two code examples: minimal and with optional fail-fast
+  - Removed implication that `AddPrismKeyVault()` is required
+
+- **Security Considerations Section** (per Copper's constraints):
+  - Endpoint access control options documented (internal-only pattern recommended)
+  - Warning: `/health` should NOT be publicly accessible without rate limiting
+  - Example: tag-based filtered endpoints (`/health` vs `/health/internal`)
+  - Post-deployment smoke test: call `/api/prism/biometric/exchange` once
+  - Secrets in memory note: recommend process-level isolation for high-security scenarios
+  - Rate limiting guidance: 10 requests/minute per IP for public `/health` exposure
+
+### Key Patterns Established
+
+**Documentation Structure:**
+- Lead with simplest path first (zero-config, appsettings only)
+- Document fail-late vs. fail-fast trade-off explicitly
+- Include error troubleshooting reference (error codes + meanings)
+- Security considerations as separate section (not buried in setup)
+
+**Developer Experience Goals:**
+1. New devs see simplest path immediately
+2. Error messages reference this doc (dev quickly finds explanation)
+3. Production teams understand fail-late risks
+4. Optional explicit control available (AddPrismKeyVault) for teams needing startup validation
+
+### Constraints Applied (Per Copper's Security Review)
+
+All MANDATORY documentation constraints from Copper implemented:
+- ✅ Security Considerations section with access control options
+- ✅ Post-deployment smoke test recommendation
+- ✅ Secrets in memory documentation
+- ✅ Rate limiting guidance for public endpoints
+- ✅ Endpoint filtering example (tag-based)
+
+### Collaboration Notes
+
+- Received requirements from Blathers on fail-late behavior implications
+- Coordinated with Copper on security documentation constraints
+- Reviewed with Tangy on error message reference (401/403/404)
+- Final handoff: ready for consumer on-boarding
+
+---
+
+**Key Learning:** Zero-config integrations require explicit documentation of fail-late vs. fail-fast trade-off. Production teams need clear smoke test guidance to validate deployment safety. Security documentation should be separate from setup (not embedded) to ensure readers understand implications.
+

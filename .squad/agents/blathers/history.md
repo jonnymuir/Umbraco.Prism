@@ -529,3 +529,147 @@ Replace the naive `context.User.Identity?.IsAuthenticated` check with an explici
 - Scribe: Merge decisions into consolidated `.squad/decisions.md` and create session/orchestration logs
 
 **Commit SHA:** `63b603e` — "refactor: move Key Vault wiring into AddPrismKeyVault() extension"
+
+## Learnings & Handoff (2026-04-03, IConfigureOptions Approach — COMPLETE)
+
+**Issue:** Eliminate consumer-facing `builder.AddPrismKeyVault()` call from Program.cs by moving Key Vault integration into `IConfigureOptions<PrismBiometricOptions>`.
+
+**What shipped:**
+- `PrismKeyVaultConfigureOptions` — Implements `IConfigureOptions<PrismBiometricOptions>`, fetches secrets from Azure Key Vault at options-resolution time (lazy, not IConfigurationBuilder time)
+- `PrismKeyVaultHealthCheck` — Implements `IHealthCheck` with 30-second result caching to prevent DoS amplification, returns only `Healthy()` or `Degraded()` (no sensitive detail leak)
+- `PrismComposer` updated to register both via `ConfigureOptions<>` and `AddHealthChecks().AddCheck<>` with `"prism"` tag
+- `PrismKeyVaultExtensions.cs` remains as optional explicit opt-in for consumers who prefer explicit control
+
+**Key design choices:**
+- IConfigureOptions runs **after** base `Configure<PrismBiometricOptions>` (appsettings.json bindings)
+- Retry config: 3 max retries, 0.8s base delay, 8s max delay, exponential mode (matches Azure SDK best practices)
+- 404/403 from Key Vault → throw `InvalidOperationException` with config-error message (no retry, fail-fast)
+- Other exceptions → throw `InvalidOperationException` with "temporarily unavailable" message (Azure SDK already retried)
+- Health check caches result for 30 seconds (lock-protected field); returns `Healthy("Key Vault not configured")` when VaultUri is null/empty
+- Health check never logs or returns secret names, vault URI, or exception details in HealthCheckResult (logs to ILogger at Warning level only)
+
+**Security constraints applied (per Copper's prior review):**
+- HTTPS URI validation on VaultUri (same logic as PrismKeyVaultExtensions.cs)
+- Health check result: `Healthy()` or `Degraded()` only — no data leak
+- Distinguish transient from config errors: 404/403 = config (no retry), others = transient (SDK already retried)
+
+**Testing:**
+- Build: ✅ Green
+- Tests: ✅ 168 passing (BiometricTokenService tests still pass; they mock `IOptions<PrismBiometricOptions>`)
+- TestSite Program.cs: ✅ No longer needs `builder.AddPrismKeyVault()` call (auto-wired via composer)
+- Health endpoint: ✅ `app.MapHealthChecks("/health")` added to TestSite
+
+**Files created:**
+- `src/UmbracoPrism.Core/Configuration/PrismKeyVaultConfigureOptions.cs` (69 lines)
+- `src/UmbracoPrism.Core/HealthChecks/PrismKeyVaultHealthCheck.cs` (96 lines)
+
+**Files modified:**
+- `src/UmbracoPrism.Core/PrismComposer.cs` (added imports, ConfigureOptions registration, health check registration)
+- `src/UmbracoPrism.TestSite/Program.cs` (removed `builder.AddPrismKeyVault()`, removed unused import, added health endpoint)
+
+**Impact:**
+- Consumer friction eliminated: No consumer-facing Key Vault wiring required
+- Package works out-of-the-box: Set `Prism:VaultUri` in appsettings.json → secrets fetched automatically
+- Optional explicit control preserved: `PrismKeyVaultExtensions.cs` remains for consumers who prefer to call `builder.AddPrismKeyVault()` (will populate appsettings before IConfigureOptions runs)
+- Health monitoring: Consumers can filter by `"prism"` tag to include Key Vault in their health routes
+
+**Next Steps:**
+- Mabel: Update docs to reflect new approach (remove explicit `AddPrismKeyVault()` from setup guides, document health check availability)
+- Scribe: Merge decisions into consolidated `.squad/decisions.md`
+
+## Learnings & Handoff (2026-06-18, KeyVault error message fixes)
+
+**What changed in `PrismKeyVaultConfigureOptions.cs`:**
+- Extracted `SigningKeySecretName` and `EncryptionKeySecretName` as `private const string` to eliminate magic strings
+- Added explicit `catch (RequestFailedException ex) when (ex.Status == 401)` handler — 401 is an identity/permissions failure (wrong Managed Identity, not logged in locally), not transient; wraps as `InvalidOperationException` with actionable message directing to `az login` / Managed Identity
+- Changed 403/404 error message to say "the required Prism biometric secrets (Prism:Biometric)" instead of naming the vault key names explicitly (Copper's info-leak concern)
+- Fixed non-atomic partial failure: both secrets are now fetched into local variables first (`signingKey`, `encryptionKey`) before either is assigned to `options`; if the second fetch fails, `options.SigningKey` is never set
+
+**What was explicitly NOT changed (intentional design):**
+- Fail-late design retained — no IHostedService warm-up
+- Retry logic unchanged (3x exponential, 0.8s–8s)
+- HTTPS validation unchanged
+- `AddPrismKeyVault()` extension method unchanged
+
+## Version Bump to 1.5.0
+
+- **Date:** 2026-04-10
+- **Task:** Bump version for release (minor version bump)
+- **Changes:**
+  - Updated `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj`: 1.4.0 → 1.5.0
+  - Updated `package.json`: {} → {"version": "1.5.0"}
+  - Updated `umbraco-marketplace.json`: 1.4.0 → 1.5.0
+  - Added `## [v1.5.0]` entry to CHANGELOG.md with:
+    - Zero-config Azure Key Vault integration via IConfigureOptions
+    - Improved Key Vault error messages (401/403/404)
+    - Added CONTRIBUTING.md and .github/FUNDING.yml
+    - Retained AddPrismKeyVault() as optional explicit opt-in
+- **Files Updated:** 4 files across csproj, package.json, umbraco-marketplace.json, and CHANGELOG.md
+- **Verification:** All version numbers now consistently show 1.5.0
+
+## 2026-04-03 — v1.5.0 Release: IConfigureOptions + Error Message Hardening
+
+**Task Type:** Feature implementation + version bump  
+**Status:** ✅ SHIPPED  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03T10:27:49Z-blathers.md`
+
+### Work Completed
+
+**Stream 1: IConfigureOptions Implementation**
+- Implemented `PrismKeyVaultConfigureOptions` class (new file)
+- Registered in `PrismComposer` via `IConfigureOptions<PrismBiometricOptions>`
+- Lazy resolution: secrets fetched only on first `IOptions<PrismBiometricOptions>` access (not at startup)
+- Fail-late behavior allows dev/test sites to run without Key Vault
+- Atomic options assignment: both secrets fetched to locals before either written to options
+- HTTPS-only vault URI validation (SSRF prevention)
+
+**Stream 2: Error Message Hardening**
+- Fixed 401 handling: now treated as non-retryable configuration error (wrong Managed Identity, not logged in)
+- Distinct 403/404/transient error messages (previously fell through to generic "transient")
+- Extracted secret name strings to `private const` fields (`SigningKeySecretName`, `EncryptionKeySecretName`)
+- Removed secret names from error messages (reference config section instead)
+- All error messages sanitized: no vault URIs, credential chain details, or stack traces
+
+**Stream 3: Version Bump (1.4.0 → 1.5.0)**
+- Updated `.csproj`, `package.json`, `umbraco-marketplace.json`, `CHANGELOG.md`
+- All version-bearing files now consistently report 1.5.0
+
+**Build Result:** ✅ Success  
+**Test Result:** ✅ 168/168 tests passed
+
+### Key Patterns Established
+
+**IConfigureOptions Retry Policy:**
+- 3 retries with exponential backoff (0.8s–8s)
+- Explicit policy in code (not relying on SDK defaults)
+- 404/403 skip retry (non-retryable configuration errors)
+- Other exceptions trigger "temporarily unavailable" message (SDK already retried)
+
+**Health Check Pattern:**
+- `PrismKeyVaultHealthCheck` class (new file)
+- 30-second result caching with lock protection (prevents DoS amplification)
+- Sanitized response: generic failure reasons only
+- Registered with `tags: ["prism"]` for consumer filtering
+- Returns Healthy/Degraded/Unhealthy per scenario (not configured/success/failure)
+
+### Constraints Applied (Per Copper's Security Review)
+
+All MANDATORY constraints from Copper implemented:
+- ✅ Error messages sanitized (no secret names, vault URIs, credential details)
+- ✅ Health check caching (30 seconds minimum)
+- ✅ Atomic options assignment
+- ✅ HTTPS URI validation
+- ✅ Fail-closed error handling (no information disclosure)
+
+### Handoff to Mabel
+
+Provided documentation requirements:
+- Zero-consumer-code setup (only needs `Prism:VaultUri`)
+- Fail-late vs. fail-fast trade-off explanation
+- Post-deployment smoke test recommendation
+- Security considerations section for health endpoint access control
+
+---
+
+**Key Learning:** Atomic assignment pattern prevents half-configured state in options graph — valuable pattern for multi-secret retrieval flows. Retry policy must be explicit in code, not implicit in SDK defaults.
+

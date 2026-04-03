@@ -2,6 +2,25 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.5.0] — 2026-04-10
+
+### What's new
+
+- **Zero-config Azure Key Vault integration:** `PrismKeyVaultConfigureOptions` provides automatic Key Vault integration via `IConfigureOptions<PrismBiometricOptions>`. Consumers no longer need `builder.AddPrismKeyVault()` in Program.cs.
+
+### Improved
+
+- **Key Vault error messages:** Now distinguish 401 (identity/auth), 403 (permissions), 404 (missing secrets), and transient errors with actionable guidance.
+
+### Added
+
+- `CONTRIBUTING.md` — contributor guidelines for the project.
+- `.github/FUNDING.yml` — sponsorship information.
+
+### Internal
+
+- `PrismKeyVaultExtensions.AddPrismKeyVault()` retained as optional explicit opt-in for fail-fast startup behaviour.
+
 ## [v1.4.0] — 2026-04-09
 
 ### New Features

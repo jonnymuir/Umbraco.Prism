@@ -574,3 +574,200 @@ Verified that Blathers' `PrismKeyVaultExtensions.cs` implementation met all secu
 3. **Multi-Tenant Config Safety:** Always validate that configuration is explicitly requested (not implicit) and scoped to appropriate tenant/environment
 
 **Decision Record:** `.squad/decisions/inbox/copper-keyvault-security.md` → merged to decisions.md
+
+## 2026-04-03 — Security Review: IConfigureOptions + /health Endpoint
+
+**Context:** Jonny requested security review of two proposed changes:
+1. Moving from `builder.AddPrismKeyVault()` config provider to `IConfigureOptions<PrismBiometricOptions>` that fetches signing/encryption keys directly from Key Vault at first use
+2. Adding `/health` endpoint with `PrismKeyVaultHealthCheck` to verify Key Vault connectivity
+
+**Threat Model Completed:**
+
+### Change 1 — IConfigureOptions<PrismBiometricOptions>
+- **Verdict:** Approved with constraints
+- **Credential exposure:** No additional risk vs config provider. DefaultAzureCredential behavior identical regardless of instantiation location. Production uses Managed Identity, dev uses Azure CLI/VS credential.
+- **Fail-late implications:** Config errors surface at first biometric exchange (not startup). Acceptable degradation — OIDC remains available. Required post-deployment smoke test guidance.
+- **Retry amplification:** Not applicable — IOptions<T> resolves once per app lifetime, no re-resolution.
+- **Secrets in memory:** Same risk as config provider pattern (cached for app lifetime). Acceptable trade-off; documented for high-security scenarios.
+- **Dependency chain:** Two paths (AddPrismKeyVault + IConfigureOptions) are independent. Path 2 always wins if both present. No conflict risk.
+
+**Constraints:**
+- Error messages MUST NOT log credential chain details or vault URI
+- Documentation MUST include post-deployment smoke test recommendation
+- Documentation MUST note secrets remain in memory for app lifetime
+
+### Change 2 — /health Endpoint (PrismKeyVaultHealthCheck)
+- **Verdict:** Approved with mandatory constraints
+- **Information disclosure:** Response body MUST use generic failure reasons only. No secret names, vault URI, or stack traces.
+- **DoS amplification:** Cluster polling could generate 120+ Key Vault ops/minute. MANDATORY 30s minimum cache TTL (60s recommended). Cache key must include vault URI hash.
+- **Endpoint access control:** HIGH RISK if exposed publicly. MUST document internal-only endpoint pattern using tag-based filtering (`tags: ["prism"]`). Do NOT hard-code RequireAuthorization() in package (breaks infra monitoring).
+- **Tag-based filtering:** Use `tags: ["prism"]` to enable separate public vs internal endpoints.
+- **Probe abuse:** Attacker can infer biometric feature status. LOW RISK — not confidential info. Mitigated by access control.
+- **Rate limiting:** Do NOT implement in package. Document consumer-side edge rate limiting if public exposure (10 req/min per IP suggested).
+
+**MANDATORY Constraints for Blathers:**
+1. Health check response: generic errors only (no secret names/vault URI)
+2. Caching: 30s minimum TTL, vault-URI-keyed, use IMemoryCache
+3. Tagging: `tags: ["prism"]` registration
+4. IConfigureOptions error handling: no credential/vault details in exceptions
+
+**Documentation Requirements for Mabel:**
+1. Security Considerations section with access control options
+2. Tag-based filtered endpoint example (`/health` vs `/health/internal`)
+3. Post-deployment smoke test guidance
+4. Secrets-in-memory lifetime note
+5. Optional rate limiting guidance for public exposure
+
+**Rejected Patterns:**
+- Hard-coded RequireAuthorization() (breaks monitoring)
+- Logging vault URI/secret names (info disclosure)
+- IOptionsSnapshot/IOptionsMonitor (retry amplification)
+- No caching (DoS amplification)
+- Package-provided rate limiting (interferes with monitoring)
+
+**Follow-up Recommendations (not blocking):**
+- Separate liveness vs readiness checks (Kubernetes alignment)
+- Circuit breaker for health check Key Vault calls
+- Application Insights telemetry for Key Vault fetch latency
+
+**Security Gate Outcome:** Both changes PASS with constraints implemented.
+
+**Confidence:** HIGH — patterns are sound with specified constraints. Fail-late risk acceptable (biometric is optional enhancement). Attack surface well-mitigated by caching and access control guidance.
+
+**Deliverable:** `.squad/decisions/inbox/copper-health-security-review.md`
+
+## 2026-04-03 — v1.5.0 Release: IConfigureOptions + Health Check Security Review
+
+**Task Type:** Comprehensive threat model + constraint documentation  
+**Status:** ✅ APPROVED WITH CONSTRAINTS  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03T10:27:49Z-copper.md`
+
+### Scope
+
+Reviewed two related changes for v1.5.0:
+1. `PrismKeyVaultConfigureOptions` — IConfigureOptions pattern for lazy Key Vault integration
+2. `PrismKeyVaultHealthCheck` — Health check with Key Vault API calls
+
+### Threat Model Coverage
+
+**Change 1: IConfigureOptions<PrismBiometricOptions>**
+
+**Threat: Credential Exposure**
+- Risk: LOW (acceptable with constraints)
+- Analysis: DefaultAzureCredential instantiation location (class lib vs. Program.cs) carries no additional risk
+- Mitigation: No credential chain details in error messages; fail-closed with generic error
+- Verdict: ✅ PASS
+
+**Threat: Fail-Late Implications**
+- Risk: MEDIUM → LOW with post-deployment monitoring
+- Analysis: Config errors surface at first biometric request, not startup; worst-case is hours/days before detection
+- Failure mode: Biometric auth unavailable; OIDC fallback remains (not an outage, graceful degradation)
+- Mitigation: Health check with 30-60s cache TTL; post-deployment smoke test recommendation
+- Verdict: ✅ PASS (acceptable given biometric auth is optional)
+
+**Threat: Retry Amplification**
+- Risk: MINIMAL
+- Analysis: IOptions singleton caches result for app lifetime; SecretClient.GetSecret() called once per resolution
+- IOptionsSnapshot/IOptionsMonitor were NOT proposed (correct decision)
+- Verdict: ✅ PASS
+
+**Threat: Secrets in Memory**
+- Risk: ACCEPTED (no new risk)
+- Analysis: Identical to previous `builder.Configuration.AddAzureKeyVault()` pattern
+- Both approaches cache secret values in memory for app lifetime
+- Note: Recommend process-level isolation for multi-tenant SaaS (not needed for Prism's single-org model)
+- Verdict: ✅ PASS
+
+**Threat: Dependency Chain (Two Paths)**
+- Risk: LOW
+- Analysis: Path 1 (IConfigurationBuilder.AddAzureKeyVault) and Path 2 (IConfigureOptions) are independent
+- No conflicts if both present; Path 2 overwrites Path 1 (deterministic)
+- Verdict: ✅ PASS
+
+**Change 2: PrismKeyVaultHealthCheck**
+
+**Threat: Information Disclosure**
+- Risk: MEDIUM → LOW (with constraints)
+- Analysis: Health check response could leak secret names, vault URIs, timing info
+- MANDATORY Constraint: Generic failure reasons only ("Key Vault connectivity check failed", "Required secrets unavailable")
+- No secret names, vault URIs, or stack traces in response body or HTTP headers
+- Verdict: ✅ PASS
+
+**Threat: DoS Amplification via Health Checks**
+- Risk: HIGH → LOW (with caching)
+- Analysis: Load balancer polling /health every 5s × 10 instances = 120 Key Vault ops/minute
+- Azure Key Vault limit: 2,000 ops per 10 seconds = 12,000 ops/minute (not threatened by typical deployments)
+- Risk arises when: Multiple apps share vault OR monitoring polls < 5s intervals
+- MANDATORY Constraint: Cache result for minimum 30 seconds (recommend 60s for production)
+- Cache key MUST include vault URI hash (prevent cross-vault poisoning in multi-tenant SaaS)
+- Verdict: ✅ PASS
+
+**Threat: Endpoint Access Control**
+- Risk: HIGH → MEDIUM (requires consumer action)
+- Issue: This is a published NuGet package; consumers may expose /health publicly without auth
+- MANDATORY Documentation Constraint: Mabel MUST document access control options
+  - Option 1: RequireAuthorization() — breaks infra monitoring (not recommended)
+  - Option 2: Separate internal endpoint with tag filtering (recommended)
+  - Option 3: IP allowlist middleware
+- Rejected pattern: Do NOT implement RequireAuthorization() in package
+- Verdict: ✅ PASS (with consumer-side responsibility)
+
+**Threat: Tag-Based Filtering**
+- Risk: LOW
+- Recommendation: Register health check with `tags: ["prism"]` (not "ready"/"live")
+- Allows consumers to create filtered endpoints (/health vs /health/prism)
+- Documented in Mabel's security section with example
+- Verdict: ✅ PASS
+
+**Threat: Probe Abuse (Feature Detection)**
+- Risk: LOW (acceptable information leak)
+- Issue: Attackers can poll /health to infer if biometric auth is enabled
+- Inference: Check present + Healthy = biometric likely active
+- Assessment: Low-sensitivity info (biometric is visible in login UI anyway)
+- Mitigation: Endpoint access control (see Threat 3)
+- Verdict: ✅ PASS
+
+**Threat: Rate Limiting**
+- Risk: LOW (caching sufficient)
+- Recommendation: Do NOT implement rate limiting in package
+- Rationale: Load balancers/monitoring tools poll frequently; package rate limiting causes false negatives
+- Proper mitigation: Caching (done) + consumer-side rate limiting if exposed publicly (documented)
+- Verdict: ✅ PASS
+
+### Mandatory Constraints Delivered
+
+**For Blathers (Implementation):**
+1. ✅ Health check response sanitization (generic failure reasons only)
+2. ✅ Health check caching (30s minimum with vault URI hash in cache key)
+3. ✅ Health check tagging (`["prism"]`)
+4. ✅ IConfigureOptions error sanitization (no credential details)
+
+**For Mabel (Documentation):**
+5. ✅ Security Considerations section with access control options
+6. ✅ Post-deployment smoke test recommendation
+7. ✅ Secrets in memory note with process-isolation guidance
+8. ✅ Rate limiting guidance for public /health exposure
+
+### Risk Assessment
+
+- **Change 1 (IConfigureOptions):** LOW risk with constraints
+- **Change 2 (Health Check):** MEDIUM → LOW risk with caching + access control guidance
+- **Overall:** ✅ Both PASS; ready for release
+
+### Key Decision Points
+
+1. **Fail-late acceptable** — Biometric auth is optional feature; OIDC fallback remains functional
+2. **Caching is critical** — 30s minimum prevents DoS amplification; vault URI hash in cache key needed
+3. **Endpoint security is consumer responsibility** — Package should NOT hard-code authorization; consumers own filtering
+4. **Post-deployment validation is essential** — Smoke test bridges gap between fail-late default and deployment safety
+
+---
+
+**Confidence Level:** HIGH  
+Both patterns are sound with specified constraints. Fail-late implications of Change 1 are well-mitigated by health check + smoke test guidance. Change 2's attack surface is effectively controlled by caching and consumer-side access control.
+
+**Applicable to Future Reviews:**
+- When shipping lazy-initialization patterns, document fail-late implications and post-deployment monitoring
+- For shared infrastructure endpoints (like /health), always include caching to prevent amplification attacks
+- When publishing NuGet packages, avoid hard-coding auth in package; document consumer-side responsibility
+

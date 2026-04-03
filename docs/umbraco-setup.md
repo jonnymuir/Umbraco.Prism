@@ -12,20 +12,7 @@ dotnet add package UmbracoPrism
 
 ## 2. Configure Program.cs
 
-Your `Program.cs` needs two lines: one to configure Key Vault and one to register Prism services.
-
-### Set Up Key Vault (Optional for Production)
-
-If using Azure Key Vault in production, add this line **before** `builder.AddUmbraco()`:
-
-```csharp
-builder.AddPrismKeyVault();
-```
-
-This single line handles Key Vault setup:
-- Reads `Prism:VaultUri` from `appsettings.json` automatically
-- Skips silently if `Prism:VaultUri` is not set (no changes needed for local dev)
-- Validates the URI is HTTPS before connecting
+Your `Program.cs` needs just one line to register Prism services. Key Vault setup is optional.
 
 ### Register Prism Services
 
@@ -42,13 +29,52 @@ builder.Services.AddUmbraco(env, builder.Configuration)
 builder.Services.AddPrism(builder.Configuration);
 ```
 
-**Full example `Program.cs`:**
+### Optional: Key Vault for Production
+
+If using Azure Key Vault in production, Prism loads secrets automatically when you add `Prism:VaultUri` to your `appsettings.json`:
+
+```json
+{
+  "Prism": {
+    "VaultUri": "https://prismvault.vault.azure.net/"
+  }
+}
+```
+
+That's all you need. Secrets load automatically on first use (fail-late, the default). 
+
+For fail-fast behavior (validate Key Vault at startup), optionally add this line to `Program.cs` **before** `builder.AddUmbraco()`:
+
+```csharp
+builder.AddPrismKeyVault();
+```
+
+**Full example `Program.cs` (with optional Key Vault fail-fast):**
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Key Vault for production (reads Prism:VaultUri from appsettings)
+// Optional: Configure Key Vault for fail-fast validation at startup
+// (Key Vault loads automatically if Prism:VaultUri is in appsettings)
 builder.AddPrismKeyVault();
+
+// Register Umbraco and Prism services
+builder.Services.AddUmbraco(env, builder.Configuration)
+    .AddBackOffice()
+    .AddWebsite()
+    .AddComposers()
+    .Build();
+
+builder.Services.AddPrism(builder.Configuration);
+
+var app = builder.Build();
+// ... rest of Program.cs
+```
+
+**Minimal example `Program.cs` (no Key Vault line needed for local dev):**
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
 
 // Register Umbraco and Prism services
 builder.Services.AddUmbraco(env, builder.Configuration)
@@ -176,7 +202,7 @@ After setup, you should see:
 
 Once Prism is running:
 
-- **Configure Key Vault (production only):** Add your `Prism:VaultUri` to `appsettings.Production.json` and call `builder.AddPrismKeyVault()` in Program.cs. Secrets are loaded automatically from Azure Key Vault.
+- **Configure Key Vault (production only):** Add `Prism:VaultUri` to `appsettings.Production.json`. Secrets load automatically. Optionally call `builder.AddPrismKeyVault()` in `Program.cs` for fail-fast validation at startup.
 - **Configure Entra authentication** by providing your Entra app registration details in `appsettings.json` (Client ID, Tenant ID, etc.).
 - **Customize the dashboard** by editing the Dashboard Razor template (`memberDashboard.cshtml`).
 - **Add more pages** under Dashboard by creating new documents and assigning the `memberDashboard` type (or custom subtypes).

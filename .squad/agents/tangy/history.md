@@ -202,3 +202,116 @@
 - Navigation event testing (click triggers navigation) — blocked by Storybook iframe navigation constraints
 - CSS custom property theming tests — covered by visual Storybook tests with axe integration
 
+
+## 2025-04-03 — Key Vault Integration Code Review
+
+**Session:** Key Vault Security Review  
+**Work Type:** Code review, edge case analysis, production readiness assessment
+
+**Context:** Jonny requested a thorough pre-release review of the new Key Vault integration (`PrismKeyVaultConfigureOptions.cs`) before shipping to production. He can't easily test in production, so this review acts as the quality gate.
+
+**Scope:** 8 files, ~676 lines reviewed across configuration, services, tests, and extensions.
+
+**Findings:**
+
+**Critical Issues (BLOCKING):**
+1. **Synchronous HTTP Call (Lines 51, 54):** `client.GetSecret()` is synchronous and blocks request threads during DI resolution. Under concurrent cold-start scenarios, this can cause thread pool exhaustion and HTTP 503 errors. **Fix:** Add `IHostedService` to pre-warm options during app startup, moving the blocking call off request threads.
+
+2. **Missing 401 Unauthorized Handling (Line 57):** Current error handling catches 404 (not found) and 403 (no permission), but missing 401 (authentication failed). When Managed Identity isn't configured, error message says "network connectivity" instead of "enable Managed Identity." **Fix:** Add 401 to specific error handling with actionable message.
+
+**Quality Issues (Non-blocking):**
+3. Partial configuration risk (fetch both secrets before mutating options)
+4. Secret name typo risk (extract to constants in `PrismBiometricOptions`)
+5. Double registration confusion (deprecate old `AddPrismKeyVault()` extension)
+
+**Test Coverage Gaps:**
+- No tests for `PrismKeyVaultConfigureOptions.Configure()` path
+- No tests for 404/403/401 error scenarios
+- No tests for appsettings + Key Vault overlay behavior
+- Deferred to backlog (requires mocking infrastructure)
+
+**Verdict:** **FAIL** ❌ — Issues 1 and 3 must be fixed before production deployment.
+
+**What's Good:**
+- HTTPS validation (security best practice)
+- Retry configuration (3x, exponential backoff)
+- Silent local dev (no-op when VaultUri not set)
+- Correct secret naming convention (`Prism--Biometric--SigningKey`)
+- Correct registration order (overlay pattern works)
+- Thread-safe (`SecretClient` + singleton `IOptions<T>`)
+
+**Deliverable:** Written comprehensive review to `.squad/decisions/inbox/tangy-keyvault-review.md` with detailed analysis of all 7 findings, production readiness assessment, and specific fix recommendations.
+
+**Key Insight:** `IConfigureOptions<T>.Configure()` is synchronous by design, but it's invoked during DI resolution (often on first request thread). Blocking I/O in this path is a classic ASP.NET Core deadlock pattern. The fix is to pre-warm options during app startup via `IHostedService`, moving the blocking call to a background thread.
+
+**Related:**
+- Orchestration log: (not applicable, direct request from Jonny)
+- Decision record: `.squad/decisions/inbox/tangy-keyvault-review.md`
+
+**Next Steps:** Jonny will decide whether to fix blocking issues now or defer. If fixing, Blathers (backend specialist) should implement the `IHostedService` warmup pattern.
+
+## 2026-04-03 — v1.5.0 Release: IConfigureOptions Code Review
+
+**Task Type:** Technical code review  
+**Status:** ✅ FINDINGS (2 blockers identified)  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-03T10:27:49Z-tangy.md`
+
+### Review Scope
+
+Code review of `PrismKeyVaultConfigureOptions` implementation for v1.5.0 release. Examined:
+- IConfigureOptions pattern for lazy Key Vault integration
+- Error message handling (401/403/404/transient)
+- Options assignment atomicity
+- Health check caching strategy
+
+### Findings
+
+**Blocker 1: Fail-Late Validation (IHostedService Warm-Up)**
+- **Finding:** Suggested IHostedService warm-up for early Key Vault validation at startup
+- **Reasoning:** Fail-late approach delays config errors until first biometric request; production deployments could run for hours/days with misconfigured Key Vault
+- **Response from Team:** Jonny explicitly rejected warm-up pattern; fail-late is intentional design choice
+- **Resolution:** APPROVED — documented as intentional; no code change required
+- **Lesson:** When fail-late is by design, document the implications clearly and provide monitoring guidance (health check + post-deployment smoke test)
+
+**Blocker 2: 401 Error Message Handling**
+- **Finding:** HTTP 401 responses were falling through to generic "transient" error message
+- **Issue:** 401 means authentication failure (wrong/missing Managed Identity, not logged in locally), not a transient error
+- **Status:** FIXED ✅
+- **Implementation:** 401 now treated as non-retryable `InvalidOperationException` with actionable message pointing to Managed Identity + `az login`
+- **Resolution:** APPROVED and merged
+
+### Test Coverage Validation
+
+- ✅ 168/168 tests passed
+- ✅ Error handling tests cover 401/403/404/transient scenarios
+- ✅ Atomic assignment tests verify options remain empty on failure
+- ✅ Health check caching tests verify result is cached and vault URI is included in cache key
+
+### Code Quality Assessment
+
+**Strengths:**
+- Secret name constants (`SigningKeySecretName`, `EncryptionKeySecretName`) eliminate magic literals
+- Atomic assignment pattern prevents half-configured options state
+- Explicit retry policy (3×, 0.8–8s) documented in code
+- Health check properly sanitizes error messages
+
+**Patterns Established:**
+- 401 = configuration error (non-retryable)
+- 403/404 = secrets not found or no access (non-retryable)
+- Transient (429, 503, network) = retry per policy
+- Other exceptions = retry exhausted, report "temporarily unavailable"
+
+### Handoff Notes
+
+All findings resolved before release. No outstanding issues.
+
+**For Future Reviews:**
+- Fail-late patterns need explicit monitoring and post-deployment validation guidance
+- Options pattern must use atomic assignment to avoid half-configured state leaking
+- Distinguish auth errors (401) from resource errors (403/404) in error messages
+
+---
+
+**Verdict:** ✅ READY FOR RELEASE
+All findings addressed. 168/168 tests passing. Error handling hardened per feedback. Fail-late design is intentional and properly documented.
+

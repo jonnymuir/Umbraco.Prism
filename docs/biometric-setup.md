@@ -166,21 +166,9 @@ If neither exception appears, your keys are valid and loaded correctly. Your sit
 
 ## Production Setup (Azure Key Vault)
 
-### Step 1: Configure Key Vault URI in Program.cs
+### Step 1: Configure Key Vault URI in appsettings.json
 
-In your `Program.cs`, add the Key Vault integration before calling `builder.AddUmbraco()`:
-
-```csharp
-builder.AddPrismKeyVault();
-```
-
-This single line:
-- Reads the `Prism:VaultUri` from `appsettings.json` automatically
-- Loads secrets from Azure Key Vault using `DefaultAzureCredential()`
-- Validates the URI is HTTPS before connecting
-- Skips silently if `Prism:VaultUri` is not set (for local dev without Azure)
-
-Then configure the vault URI in your `appsettings.json`:
+Add the vault URI to your `appsettings.json` or `appsettings.Production.json`:
 
 ```json
 {
@@ -191,6 +179,31 @@ Then configure the vault URI in your `appsettings.json`:
 ```
 
 Replace `prismvault` with your actual vault name.
+
+That's it. Prism automatically loads your secrets from Key Vault on the first biometric login. No code changes needed in `Program.cs`.
+
+### Optional: Fail-Fast Behavior
+
+By default, Key Vault errors surface on the **first biometric login** (fail-late). If you prefer to catch Key Vault issues at **startup** (fail-fast), add this line to your `Program.cs` before calling `builder.AddUmbraco()`:
+
+```csharp
+builder.AddPrismKeyVault();
+```
+
+This optional call:
+- Validates Key Vault is reachable and secrets exist at startup
+- Fails the entire app startup if Key Vault is misconfigured
+- Is useful in strictly controlled production environments where immediate feedback is preferred
+
+**When to use fail-fast:**
+- Production deployments where Key Vault availability is guaranteed
+- Environments with strict deployment validation policies
+- Teams that prefer deployment failure over runtime surprises
+
+**When to use fail-late (default):**
+- Development or staging where Key Vault setup may be incomplete
+- Multi-tenant deployments where not all tenants need Key Vault yet
+- Graceful degradation scenarios (local fallback via User Secrets)
 
 ### Step 2: Generate Production Keys
 
@@ -235,13 +248,34 @@ Alternatively, use **Access Policies**:
 
 ### Step 5: Test Production Deployment
 
-When your app starts in production:
+#### Fail-Late Behavior (Default)
+
+When your app starts in production without calling `AddPrismKeyVault()`:
+
+- Your app starts normally **even if Key Vault is unreachable or secrets are missing.**
+- Key Vault connection errors are cached and surfaced on the **first biometric login attempt**, not at startup.
+- We recommend a **smoke test after deployment** to catch Key Vault misconfiguration early: log in via biometric (or request biometric login) within minutes of deployment.
+
+Monitor your App Service logs for biometric-related errors during the smoke test window.
+
+#### Fail-Fast Behavior (If Using AddPrismKeyVault())
+
+If you added `builder.AddPrismKeyVault()` to your `Program.cs`:
 
 - If the vault is unreachable, the app fails to start.
 - If a secret is missing, the app throws `InvalidOperationException` with a clear message.
-- If both secrets are present and valid, the biometric token service initializes successfully.
+- If both secrets are present and valid, the biometric token service initializes at startup.
 
-Monitor your App Service startup logs for any biometric-related errors.
+#### Common Configuration Errors and Error Messages
+
+Key Vault errors surface with actionable messages:
+
+- **401 Unauthorized:** Your app's managed identity or service principal is not authenticated with Azure. Check that the identity can access Azure Key Vault.
+- **403 Forbidden:** Your app's managed identity has access to the vault but lacks **Get** or **List** permissions on Secrets. Check Access Policies or IAM roles.
+- **404 Not Found:** One of the expected secrets (`Prism--Biometric--SigningKey` or `Prism--Biometric--EncryptionKey`) is missing from the vault.
+- **Transient errors (timeouts, connection drops):** Prism retries automatically. If errors persist, check network connectivity and vault availability.
+
+Monitor your App Service startup logs to debug Key Vault issues during early testing.
 
 ## Security Notes
 
