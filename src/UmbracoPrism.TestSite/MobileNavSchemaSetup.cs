@@ -53,11 +53,11 @@ public class MobileNavSchemaSetup(
     {
         try
         {
-            // Idempotency guard — if element type already exists, still patch the block list label,
-            // update property descriptions, and ensure Settings is wired up.
+            // Idempotency guard — if element type already exists, patch property descriptions
+            // and ensure the block list data type and Settings property are wired up.
             if (contentTypeService.Get("mobileNavItem") is { } existingElementType)
             {
-                logger.LogDebug("MOBILE NAV SCHEMA: mobileNavItem element type already exists — patching.");
+                logger.LogDebug("MOBILE NAV SCHEMA: mobileNavItem element type already exists — patching descriptions.");
                 PatchPropertyDescriptions(existingElementType);
                 await GetOrCreateBlockListAsync(MobileNavItemTypeKey);
                 await EnsureSettingsMobileNavPropertyAsync();
@@ -215,8 +215,7 @@ public class MobileNavSchemaSetup(
         var existing = await dataTypeService.GetAsync(MobileNavBlockListKey);
         if (existing != null)
         {
-            // Patch the label template if it was created with the old {{navLabel}} format.
-            await MaybePatchBlockLabelAsync(existing, mobileNavItemKey);
+            logger.LogDebug("MOBILE NAV SCHEMA: Block List data type already exists.");
             return existing;
         }
 
@@ -227,10 +226,6 @@ public class MobileNavSchemaSetup(
             return null;
         }
 
-        // ConfigurationData keys match Umbraco's BlockListConfiguration JSON shape:
-        //   blocks[].contentElementTypeKey  — the element type allowed in this list
-        //   blocks[].label                  — handlebars template shown in the block catalogue
-        //   validationLimit                 — min/max block count enforced in the backoffice
         var dataType = new DataType(editor, configurationEditorJsonSerializer)
         {
             Key = MobileNavBlockListKey,
@@ -256,32 +251,6 @@ public class MobileNavSchemaSetup(
         await dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey);
         logger.LogInformation("MOBILE NAV SCHEMA: Created Mobile Nav Block List data type.");
         return dataType;
-    }
-
-    private async Task MaybePatchBlockLabelAsync(IDataType dataType, Guid mobileNavItemKey)
-    {
-        const string correctLabel = "{=navLabel}";
-
-        try
-        {
-            // Always rebuild the blocks array with the known-correct label.
-            // This is idempotent — harmless to run on every startup.
-            dataType.ConfigurationData["blocks"] = new[]
-            {
-                new Dictionary<string, object>
-                {
-                    { "contentElementTypeKey", mobileNavItemKey },
-                    { "label", correctLabel }
-                }
-            };
-
-            await dataTypeService.UpdateAsync(dataType, Constants.Security.SuperUserKey);
-            logger.LogInformation("MOBILE NAV SCHEMA: Ensured block list label template is '{Label}'.", correctLabel);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "MOBILE NAV SCHEMA: Could not update block list label template — safe to ignore.");
-        }
     }
 
     private async Task EnsureSettingsMobileNavPropertyAsync(IDataType? blockListDataType = null)
