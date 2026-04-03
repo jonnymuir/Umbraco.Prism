@@ -69,3 +69,37 @@ Agent Scribe initialized and ready for work.
 - Mabel (Release Management): v1.0.0 notation pending (Phase 2+ release cycle)
 
 ---
+
+## Documentation Restructure Session (2026-04-03T15:41:14Z)
+
+### Summary
+
+Processed Mabel's documentation restructuring work. Merged 3 pending decisions from inbox → decisions.md. Cleaned up decision tracking.
+
+### Actions Completed
+
+1. ✅ **Decision Inbox Merge:** 3 files processed
+   - `mabel-cloudflare-maintenance.md` → decisions.md (Cloudflare-only maintenance handling)
+   - `blathers-di-scopefactory.md` → decisions.md (IServiceScopeFactory pattern for BackgroundService)
+   - `kicks-android-bootstrap-fix.md` → decisions.md (perl for manifest injection, Gradle 8.14 upgrade)
+   - No duplicates found
+   - Inbox files deleted
+
+2. ✅ **Logs Written:**
+   - Session log: `/squad/log/2026-04-03T15:41:14Z-docs-restructure.md`
+   - Orchestration log: `/squad/orchestration-log/2026-04-03T15:41:14Z-mabel.md`
+
+3. ✅ **Agent Histories Updated:**
+   - Mabel: Appended README restructure and docs index work with context
+   - Scribe: This entry
+
+### Decision Impact
+
+These three decisions span different domains:
+- **Blathers (Backend):** DI ScopeFactory pattern applies to BackgroundService usage
+- **Kicks (Mobile):** Android bootstrap improvements for cross-platform scripting
+- **Jonny/Cloudflare:** Clarifies maintenance responsibility boundary (no app code changes)
+
+All decisions are orthogonal and improve long-term project hygiene.
+
+---

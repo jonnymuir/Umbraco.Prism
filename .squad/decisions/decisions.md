@@ -2281,3 +2281,79 @@ Consistent with all other Umbraco notification handlers in the codebase (`PrismM
 Stale tokens flagged by FCM (`UNREGISTERED`) are nullified in `prismDeviceCredentials` immediately after each batch completes. No separate cleanup job needed for v1. Cleanup failures are swallowed with a warning log to avoid breaking the notification send.
 
 ---
+
+## Decision: Use IServiceScopeFactory in BackgroundService Implementations
+
+**Author:** Blathers  
+**Date:** 2026-06-19  
+**Status:** Accepted
+
+### Context
+
+`LimitedEditionDropNotifier` (a `BackgroundService`) was directly injecting `IPrismNotificationService` (scoped) into its constructor. Because `BackgroundService` is registered as a singleton, this creates a captive dependency that causes `System.InvalidOperationException` at startup.
+
+### Decision
+
+**All `BackgroundService` implementations in UmbracoPrism.Core MUST use `IServiceScopeFactory` to consume scoped services.** Scoped services must never be constructor-injected into singletons.
+
+The pattern to follow:
+
+```csharp
+public MyBackgroundService(IServiceScopeFactory scopeFactory, ...)
+{
+    _scopeFactory = scopeFactory;
+}
+
+private async Task DoWorkAsync(CancellationToken ct)
+{
+    await using var scope = _scopeFactory.CreateAsyncScope();
+    var svc = scope.ServiceProvider.GetRequiredService<IScopedService>();
+    await svc.DoSomethingAsync(ct);
+}
+```
+
+### Consequences
+
+- Scoped services (including EF DbContext, per-request caches, etc.) are properly lifetime-managed per background operation
+- No risk of stale state leaking across background task invocations
+- Consistent with Microsoft's recommended pattern for hosted services
+
+### Applies To
+
+Any current or future `BackgroundService` or `IHostedService` implementation in this codebase.
+
+---
+
+## Decision: Android Bootstrap Script Fixes
+
+**Date:** 2026-06-21
+**Author:** Kicks (Mobile Native Specialist)
+
+### 1. Use `perl` for AndroidManifest.xml INSERT operations
+
+**Rule:** Never use `sed -i 'addr\i\text'` (INSERT command) in generated shell scripts. Use `perl -i -pe 's|pattern|replacement\noriginal|'` instead.
+
+**Why:** BSD sed (macOS) requires a literal newline after `\i`, so the GNU inline form `i\text` causes a fatal parse error. `perl` behaves identically on macOS and Linux for this pattern.
+
+**Applies to:** Any future manifest/plist injection in generated bootstrap scripts.
+
+### 2. Upgrade Gradle wrapper to 8.14 in Android bootstrap
+
+**Rule:** After `npx cap add android`, always upgrade `android/gradle/wrapper/gradle-wrapper.properties` to Gradle 8.14 before running `npx cap sync android`.
+
+**Why:** `@capacitor/android@7.0.0` ships Gradle 8.11.1, which only supports Java up to version 23. Gradle 8.14 supports Java 25. Developers on modern JDKs (Java 25+) will hit a fatal Groovy compilation error otherwise.
+
+**Note:** `sed -i.bak 's/pattern/replacement/'` (substitution) is safe on both macOS and Linux — only the INSERT command `i\` was problematic.
+
+---
+
+## Decision: Cloudflare-only Maintenance Handling
+
+**Date:** 2025-01-23  
+**By:** Jonny (via Copilot)
+
+**What:** Maintenance/error handling (502/504/network down) for the mobile app is handled solely at the Cloudflare level. No changes required in the Capacitor app or ASP.NET backend.  
+
+**Why:** Cloudflare is already in the request path for all mobile traffic. Adding app-level or backend-level maintenance detection would add complexity without meaningful benefit. Cloudflare Custom Pages handle the user-facing experience.
+
+---

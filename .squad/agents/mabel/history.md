@@ -683,3 +683,17 @@ Bundle download on Safari was incorrectly opening a new tab instead of triggerin
 - Mobile capability feels impressive and immediate
 - Documentation is navigable via docs/README.md
 - Design docs are clearly separated from user-facing guides
+
+### README Restructure & Documentation Index (2026-04-03)
+
+**Manifest Summary:**
+- Restructured README.md: 928 → 536 lines (removed redundancy, improved navigation)
+- Created `docs/README.md`: Documentation index for easier discovery
+- Added internal design doc labels to `docs/design/` files
+- Recorded Cloudflare maintenance decision to decisions.md
+
+**Key Changes:**
+- Consolidated related sections (e.g., multiple setup guides merged)
+- Moved architecture details to docs/ to avoid overwhelming new readers
+- Established clear front-matter in top-level README
+- Documented that maintenance handling (502/504/network) is Cloudflare-only (no app changes needed)
