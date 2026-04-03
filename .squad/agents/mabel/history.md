@@ -697,3 +697,28 @@ Bundle download on Safari was incorrectly opening a new tab instead of triggerin
 - Moved architecture details to docs/ to avoid overwhelming new readers
 - Established clear front-matter in top-level README
 - Documented that maintenance handling (502/504/network) is Cloudflare-only (no app changes needed)
+
+### Cloudflare Maintenance Guide (2026-04-XX)
+
+**Created:** `docs/cloudflare-maintenance.md`
+
+**Manifest Summary:**
+- New guide: Cloudflare maintenance page setup for backend downtime (502/504/network errors)
+- Updated `docs/README.md`: Added "Operations & Deployment" section linking to the guide
+- Documented two approaches: Custom Error Pages (simple) and Cloudflare Worker (recommended for Prism)
+
+**Key Content:**
+- Option A (Custom Pages): Inline HTML snippet, self-contained, simple setup
+- Option B (Worker): Full JavaScript example, handles Accept headers, returns JSON to mobile apps, HTML to browsers
+- Testing commands and mobile app integration example (Capacitor)
+- Troubleshooting section
+- Covers both planned and unexpected downtime scenarios
+
+**Design Decision:**
+- Maintenance/error handling is Cloudflare-only (team decision: no app or backend changes needed)
+- Worker approach recommended for Prism because it returns structured JSON to Capacitor mobile apps (iOS/Android) while serving branded HTML to browsers
+- No dependencies or external resources required
+
+**Voice:** Developer-friendly, practical, code-focused. Scannable with working examples.
+
+**Outcome:** Developers can now set up maintenance pages at the edge in <5 minutes, with proper handling for both web and mobile users.

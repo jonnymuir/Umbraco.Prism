@@ -17,6 +17,13 @@ Configure Firebase Cloud Messaging (Android) and Apple Push Notification service
 
 ---
 
+## Operations & Deployment
+
+### [Cloudflare Maintenance Pages](cloudflare-maintenance.md)
+Handle backend downtime at the edge. Custom error pages or Workers for branded maintenance pages. Separate responses for browser vs mobile app users.
+
+---
+
 ## Mobile & Notifications
 
 ### [Notifications Design Overview](notifications-design.md)
