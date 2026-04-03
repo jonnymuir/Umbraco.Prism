@@ -3,6 +3,7 @@ using Azure.Core;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using UmbracoPrism.Core.Services;
 
@@ -12,6 +13,8 @@ namespace UmbracoPrism.Core.Configuration;
 /// Configures <see cref="PrismBiometricOptions"/> by fetching signing and encryption keys 
 /// from Azure Key Vault at options-resolution time (lazy, not during IConfigurationBuilder).
 /// If Prism:VaultUri is not configured, this becomes a no-op (local development scenario).
+/// If the secrets are not found in the vault (404), falls back to values already bound from
+/// configuration (e.g. local user secrets or environment variables).
 /// </summary>
 public class PrismKeyVaultConfigureOptions : IConfigureOptions<PrismBiometricOptions>
 {
@@ -19,10 +22,12 @@ public class PrismKeyVaultConfigureOptions : IConfigureOptions<PrismBiometricOpt
     private const string EncryptionKeySecretName = "Prism--Biometric--EncryptionKey";
 
     private readonly IConfiguration _configuration;
+    private readonly ILogger<PrismKeyVaultConfigureOptions> _logger;
 
-    public PrismKeyVaultConfigureOptions(IConfiguration configuration)
+    public PrismKeyVaultConfigureOptions(IConfiguration configuration, ILogger<PrismKeyVaultConfigureOptions> logger)
     {
         _configuration = configuration;
+        _logger = logger;
     }
 
     public void Configure(PrismBiometricOptions options)
@@ -64,12 +69,20 @@ public class PrismKeyVaultConfigureOptions : IConfigureOptions<PrismBiometricOpt
                 "In production, enable Managed Identity. Locally, ensure you are signed in to Azure CLI (`az login`).",
                 ex);
         }
-        catch (RequestFailedException ex) when (ex.Status == 404 || ex.Status == 403)
+        catch (RequestFailedException ex) when (ex.Status == 403)
         {
             throw new InvalidOperationException(
-                $"Prism: Key Vault secret not found or access denied (status {ex.Status}). " +
-                "Ensure the required Prism biometric secrets (Prism:Biometric) exist in the vault and the identity has 'Get' permission.",
+                $"Prism: Key Vault access denied (status 403). " +
+                "Ensure the application identity has 'Get' permission on secrets in the vault.",
                 ex);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            _logger.LogWarning(
+                "Prism: Biometric secrets not found in Key Vault ({VaultUri}). " +
+                "Falling back to configuration-bound values (user secrets / environment variables). " +
+                "Add '{SigningKey}' and '{EncryptionKey}' to the vault for production use.",
+                vaultUri, SigningKeySecretName, EncryptionKeySecretName);
         }
         catch (Exception ex)
         {
