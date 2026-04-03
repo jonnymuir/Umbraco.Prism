@@ -189,3 +189,76 @@ Completed creation of dedicated Umbraco setup guide and positioned it prominentl
 - **Commit SHA:** 4d6d193
 - **Tag:** v1.4.0
 
+### Biometric Security Key Setup Documentation (2026-04-20)
+
+**Task:** Create comprehensive developer-facing documentation for biometric authentication key configuration.
+
+**Context:** Copper (Security Engineer) identified two cryptographic keys required for biometric auth:
+- **SigningKey** (HMAC-SHA256): Signs BiometricToken JWTs, minimum 32 characters, required at startup
+- **EncryptionKey** (Base64-encoded 32-byte): AES-256-GCM encryption for Entra refresh tokens at rest, required at startup
+
+**Deliverables:**
+
+1. **Created `/docs/biometric-setup.md`** (320 lines):
+   - **Overview (2-3 sentences):** Explains the two keys and their purposes
+   - **Prerequisites:** Biometric tenant config, User Secrets/Key Vault access, local/production assumptions
+   - **Local Development (5 subsections):**
+     - Signing key generation: OpenSSL (macOS/Linux), PowerShell (Windows), password manager fallback
+     - Encryption key generation: PowerShell one-liner, bash/dotnet snippet with fallback to `csi`
+     - User Secrets storage: exact `dotnet user-secrets set` commands with key names
+     - Verification: platform-specific paths (~/.microsoft/usersecrets on Unix, %APPDATA% on Windows)
+     - Testing: startup verification and error messages
+   - **Production Setup (6 subsections):**
+     - Vault URI configuration in appsettings.json
+     - Key generation (emphasizing fresh keys, not reusing local)
+     - Azure Key Vault secrets with `--` naming convention (Prism--Biometric--SigningKey, etc.)
+     - Managed identity access verification (roles, access policies)
+     - How `DefaultAzureCredential()` loads secrets automatically
+     - Deployment testing and error handling
+   - **Security Notes (4 subsections):**
+     - Key rotation strategy (signing vs. encryption implications)
+     - Never commit to source control (User Secrets and vault best practices)
+     - Separate key values to minimize blast radius
+     - Audit logging and monitoring recommendations
+   - **Troubleshooting (6 scenarios):**
+     - Missing/short signing key (32 character minimum)
+     - Missing encryption key
+     - Invalid Base64 or wrong byte length for encryption key
+     - Key Vault access denied (managed identity permissions)
+     - Key Vault unreachable (network/URI validation)
+     - Each scenario includes cause, solution, and verification steps
+
+2. **Updated `README.md`** (Configuration Options section):
+   - Added cross-reference to new guide: `→ **Full guide:** See [docs/biometric-setup.md](docs/biometric-setup.md) ...`
+   - Follows existing documentation pattern (same as Umbraco Setup reference)
+
+**Key Writing Choices:**
+- **Audience:** Developers new to the project who don't yet know Entra/Azure Key Vault
+- **Active voice, present tense:** "Generate using...", "Verify it worked..."
+- **Multiple generation methods:** Acknowledges different developer environments (Mac/Linux/Windows) with no single tool requirement
+- **Security-first language:** Emphasizes separation of keys, non-reuse, audit trails
+- **Concrete examples:** Exact command syntax, Base64 sample lengths, error message text from source code
+- **Links not duplication:** Points to Azure docs rather than repeating managed identity concepts
+- **Fail-closed messaging:** Startup exceptions are clear and actionable
+
+**Technical Accuracy:**
+- SigningKey validation from BiometricTokenService.cs: minimum 32 characters, UTF-8 string, HMAC-SHA256
+- EncryptionKey validation from RefreshTokenEncryptionService.cs: Base64-encoded 32-byte, AES-256-GCM, with exact error messages
+- Key Vault naming convention confirmed from TestSite Program.cs: `Prism--Biometric--SigningKey` and `Prism--Biometric--EncryptionKey`
+- DefaultAzureCredential usage pattern verified from TestSite wiring
+- User Secrets paths verified from .NET documentation (correct for v6.0+)
+
+**Files modified:**
+- Created: `/docs/biometric-setup.md` (11,239 characters)
+- Modified: `README.md` (3 lines added to Configuration Options section)
+
+**Commit:** `docs: add biometric security key setup guide` with Copilot co-author trailer
+
+## Work Summary (2026-04-20)
+
+Completed creation of developer-focused biometric authentication key setup guide. New `/docs/biometric-setup.md` provides step-by-step instructions for both local development (User Secrets) and production (Azure Key Vault), with multiple key generation methods, platform-specific verification paths, and comprehensive troubleshooting.
+
+**Impact:** Developers can now confidently generate, store, and verify cryptographic keys without guessing. Guide emphasizes security boundaries (key rotation, separation, source control) and provides fallback generation methods for different environments. README cross-reference ensures discoverability.
+
+**Cross-team alignment:** Documentation directly references BiometricTokenService and RefreshTokenEncryptionService implementation details, ensuring technical accuracy. Copper's security findings are operationalized as actionable steps for developers.
+
