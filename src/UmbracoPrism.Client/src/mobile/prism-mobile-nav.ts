@@ -41,9 +41,16 @@ const ICONS: Record<string, string> = {
  *
  * Usage:
  *   <prism-mobile-nav
- *     items='[{"label":"Home","href":"/","icon":"home"},{"label":"Account","href":"/account","icon":"account"}]'
+ *     items='[{"label":"Home","href":"/","icon":"home"},
+ *             {"label":"Account","href":"/account","icon":"/media/abc/account.svg"}]'
  *     current-path="/account">
  *   </prism-mobile-nav>
+ *
+ * The `icon` field accepts either:
+ *   - A named built-in key: `home`, `dashboard`, `account`, `settings`,
+ *     `transactions`, `notifications`, `more`
+ *   - Any URL path: `/media/...`, `https://...`, `data:...`
+ *     (renders as an `<img>` element)
  *
  * By default the host is `display:none`. The parent page is expected to apply:
  *   html.prism-mobile prism-mobile-nav { display: block; }
@@ -99,8 +106,26 @@ export class PrismMobileNavElement extends LitElement {
     return href.toLowerCase() === this.currentPath.toLowerCase();
   }
 
+  private _isIconUrl(icon: string): boolean {
+    return icon.startsWith('/') || icon.startsWith('http') || icon.startsWith('data:');
+  }
+
   private _renderIcon(iconName: string | undefined) {
     if (!iconName) return nothing;
+
+    // Media library URL — render as <img>
+    if (this._isIconUrl(iconName)) {
+      return html`
+        <img class="nav-icon nav-icon--img"
+             src="${iconName}"
+             alt=""
+             aria-hidden="true"
+             width="22"
+             height="22" />
+      `;
+    }
+
+    // Named built-in icon — look up SVG path
     const path = ICONS[iconName];
     if (!path) return nothing;
     return svg`
@@ -202,6 +227,25 @@ export class PrismMobileNavElement extends LitElement {
       width: var(--prism-mobile-nav-icon-size, 22px);
       height: var(--prism-mobile-nav-icon-size, 22px);
       flex-shrink: 0;
+    }
+
+    .nav-icon--img {
+      width: var(--prism-mobile-nav-icon-size, 22px);
+      height: var(--prism-mobile-nav-icon-size, 22px);
+      object-fit: contain;
+      flex-shrink: 0;
+      /* Apply the same colour treatment for inactive state via CSS filter where possible.
+         For SVG media files, editors should upload them in a neutral colour. */
+      opacity: 0.6;
+      transition: opacity var(--prism-mobile-nav-transition, 200ms ease);
+    }
+
+    .nav-item--active .nav-icon--img {
+      opacity: 1;
+    }
+
+    .nav-item:hover .nav-icon--img {
+      opacity: 0.85;
     }
 
     .nav-label {

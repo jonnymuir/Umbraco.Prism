@@ -280,6 +280,20 @@ export const NoIcons: Story = {
   },
 };
 
+/** Media library icons — icon field accepts a URL from the Umbraco media library. */
+export const MediaIcons: Story = {
+  name: 'Media Icons (URL)',
+  args: {
+    items: JSON.stringify([
+      { label: 'Home', href: '/', icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%23666" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>' },
+      { label: 'Account', href: '/account', icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%23666" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>' },
+      { label: 'Settings', href: '/settings', icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle fill="%23666" cx="12" cy="12" r="3"/></svg>' },
+    ]),
+    currentPath: '/account',
+    navLabel: 'Mobile navigation (media icons)',
+  },
+};
+
 /** Accessibility smoke-test: nav landmark present with correct label. */
 export const AccessibilityCheck: Story = {
   name: 'Accessibility Check',

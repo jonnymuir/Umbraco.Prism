@@ -355,3 +355,16 @@ prism-mobile-nav {
 - Uses familiar iOS blue (`#007aff`) for active state — users instantly recognize it
 - Maintains glass morphism accessibility (blur + transparency for depth)
 - Component is theme-agnostic — CSS variables allow full customization
+
+## Media URL Icons in prism-mobile-nav
+
+**Date:** 2025-07-14
+
+Added support for Umbraco media library URLs in the `icon` field of `prism-mobile-nav`:
+
+- Added `_isIconUrl(icon: string): boolean` — detects `/`, `http`, or `data:` prefixes
+- Updated `_renderIcon` to branch: URLs render `<img class="nav-icon nav-icon--img">`, named keys use existing SVG path lookup
+- Added `.nav-icon--img` CSS with `opacity: 0.6` inactive / `1` active / `0.85` hover transitions, matching named icon behaviour
+- Updated JSDoc Usage example and `icon` field description to document both modes
+- Added `MediaIcons` Storybook story with data URI SVG placeholders
+- Build passed (tsc + vite, no errors)
