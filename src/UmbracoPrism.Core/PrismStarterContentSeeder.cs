@@ -106,6 +106,7 @@ public class PrismStarterContentSeeder(
         {
             logger.LogWarning("PRISM: mobileNavLinks property not found on settings doc type. Saving without nav links.");
             contentService.Save(settings!);
+            contentService.Publish(settings!, new[] { "*" });
             return;
         }
 
@@ -116,8 +117,13 @@ public class PrismStarterContentSeeder(
         if (mobileNavProperty.DataTypeKey != expectedDataTypeKey)
         {
             // Another component (e.g. the TestSite) has configured mobileNavLinks with a different
-            // data type (e.g. Block List). Leave it alone — don't publish stale MultiUrlPicker content.
+            // data type (e.g. Block List). Leave nav links alone — but still persist the node if new.
             logger.LogDebug("PRISM: mobileNavLinks uses a custom data type {Key}. Skipping nav links seeding.", mobileNavProperty.DataTypeKey);
+            if (isNew)
+            {
+                contentService.Save(settings!);
+                contentService.Publish(settings!, new[] { "*" });
+            }
             return;
         }
 
