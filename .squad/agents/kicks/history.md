@@ -499,3 +499,20 @@ The two designs are complementary and should be read together for a complete pic
 4. Test Push button in tenant modal
 5. Optional Firebase Messaging toggle
 
+
+### 2026-06-21: Android Bootstrap Script Bug Fixes
+
+**Task:** Fixed two bugs in `BuildBootstrapAndroidScript` in `MobileBundleService.cs` that caused `bootstrap-android.sh` to fail on macOS/Java 25 environments.
+
+**Bug 1 — BSD sed INSERT syntax (macOS crash):**
+- The generated script used `sed -i.bak '/<application/i\...'` which is GNU sed syntax. BSD sed (macOS) requires a newline after `\i`, not inline text.
+- **Fix:** Replaced with `perl -i -pe 's|(<application)|    <uses-permission.../>\n$1|'` which works identically on macOS and Linux. Removed the now-unnecessary `.bak` cleanup line.
+
+**Bug 2 — Gradle 8.11.1 / Java 25 incompatibility:**
+- `@capacitor/android@7.0.0` ships Gradle 8.11.1, which only supports up to Java 23. Class file major version 69 (Java 25) causes a fatal Groovy compilation error during `npx cap sync android`.
+- **Fix:** Added a Gradle wrapper upgrade step after `npx cap add android` and before `npx cap sync android`. Upgrades `gradle-wrapper.properties` to Gradle 8.14 (supports Java 25). Uses `sed -i.bak 's/.../.../'` substitution (safe on both platforms — only INSERT was problematic).
+
+**Note on doctor-mobile.sh:** Checked `BuildDoctorScript` — no sed usage, no BSD-specific issues.
+
+**Files changed:**
+- `src/UmbracoPrism.Core/Services/MobileBundleService.cs` — `BuildBootstrapAndroidScript` method only

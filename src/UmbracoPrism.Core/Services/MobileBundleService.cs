@@ -1041,9 +1041,8 @@ echo "Injecting USE_BIOMETRIC permission into AndroidManifest.xml..."
 MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
 if [ -f "$MANIFEST_PATH" ]; then
   if ! grep -q "android.permission.USE_BIOMETRIC" "$MANIFEST_PATH"; then
-    # Insert USE_BIOMETRIC permission before the <application> tag
-    sed -i.bak '/<application/i\    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' "$MANIFEST_PATH"
-    rm -f "$MANIFEST_PATH.bak"
+    # Insert USE_BIOMETRIC permission before the <application> tag (perl for macOS/Linux compat)
+    perl -i -pe 's|(<application)|    <uses-permission android:name="android.permission.USE_BIOMETRIC" />\n$1|' "$MANIFEST_PATH"
     echo "✓ USE_BIOMETRIC permission added to AndroidManifest.xml"
   else
     echo "✓ USE_BIOMETRIC permission already present in AndroidManifest.xml"
@@ -1067,6 +1066,15 @@ bash scripts/doctor-mobile.sh android
 if ! npx cap ls | grep -qi "android"; then
   echo "Adding Android platform..."
   npx cap add android
+fi
+
+# Upgrade Gradle wrapper to 8.14 for Java 25+ compatibility
+GRADLE_WRAPPER="android/gradle/wrapper/gradle-wrapper.properties"
+if [ -f "$GRADLE_WRAPPER" ]; then
+  echo "Upgrading Gradle wrapper to 8.14 (Java 25 compatible)..."
+  sed -i.bak 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14-all.zip|' "$GRADLE_WRAPPER"
+  rm -f "$GRADLE_WRAPPER.bak"
+  echo "✓ Gradle wrapper upgraded to 8.14"
 fi
 
 npx cap sync android
