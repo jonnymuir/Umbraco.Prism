@@ -166,9 +166,21 @@ If neither exception appears, your keys are valid and loaded correctly. Your sit
 
 ## Production Setup (Azure Key Vault)
 
-### Step 1: Set Vault URI
+### Step 1: Configure Key Vault URI in Program.cs
 
-In your production `appsettings.json`, add the Azure Key Vault URI:
+In your `Program.cs`, add the Key Vault integration before calling `builder.AddUmbraco()`:
+
+```csharp
+builder.AddPrismKeyVault();
+```
+
+This single line:
+- Reads the `Prism:VaultUri` from `appsettings.json` automatically
+- Loads secrets from Azure Key Vault using `DefaultAzureCredential()`
+- Validates the URI is HTTPS before connecting
+- Skips silently if `Prism:VaultUri` is not set (for local dev without Azure)
+
+Then configure the vault URI in your `appsettings.json`:
 
 ```json
 {
@@ -221,21 +233,7 @@ Alternatively, use **Access Policies**:
 1. Click **Access Policies**.
 2. Ensure your managed identity has **Get** and **List** permissions on Secrets.
 
-### Step 5: How Secrets Are Loaded
-
-At startup, the TestSite `Program.cs` checks for `Prism:VaultUri`:
-
-```csharp
-var vaultUri = builder.Configuration["Prism:VaultUri"];
-if (!string.IsNullOrEmpty(vaultUri))
-{
-    builder.Configuration.AddAzureKeyVault(new Uri(vaultUri), new DefaultAzureCredential());
-}
-```
-
-`DefaultAzureCredential()` automatically picks up the managed identity of your App Service. Secrets from the vault are then merged into your configuration, and `PrismBiometricOptions` binds them from the config hierarchy.
-
-### Step 6: Test Production Deployment
+### Step 5: Test Production Deployment
 
 When your app starts in production:
 

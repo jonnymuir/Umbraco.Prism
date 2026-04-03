@@ -10,9 +10,26 @@ In your Umbraco project:
 dotnet add package UmbracoPrism
 ```
 
-## 2. Register Prism Services
+## 2. Configure Program.cs
 
-In your `Program.cs`, add Prism services after Umbraco setup:
+Your `Program.cs` needs two lines: one to configure Key Vault and one to register Prism services.
+
+### Set Up Key Vault (Optional for Production)
+
+If using Azure Key Vault in production, add this line **before** `builder.AddUmbraco()`:
+
+```csharp
+builder.AddPrismKeyVault();
+```
+
+This single line handles Key Vault setup:
+- Reads `Prism:VaultUri` from `appsettings.json` automatically
+- Skips silently if `Prism:VaultUri` is not set (no changes needed for local dev)
+- Validates the URI is HTTPS before connecting
+
+### Register Prism Services
+
+Add Prism services after Umbraco setup:
 
 ```csharp
 builder.Services.AddUmbraco(env, builder.Configuration)
@@ -23,6 +40,27 @@ builder.Services.AddUmbraco(env, builder.Configuration)
 
 // Add this line:
 builder.Services.AddPrism(builder.Configuration);
+```
+
+**Full example `Program.cs`:**
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure Key Vault for production (reads Prism:VaultUri from appsettings)
+builder.AddPrismKeyVault();
+
+// Register Umbraco and Prism services
+builder.Services.AddUmbraco(env, builder.Configuration)
+    .AddBackOffice()
+    .AddWebsite()
+    .AddComposers()
+    .Build();
+
+builder.Services.AddPrism(builder.Configuration);
+
+var app = builder.Build();
+// ... rest of Program.cs
 ```
 
 ## 3. What Happens Automatically on First Startup
@@ -138,10 +176,11 @@ After setup, you should see:
 
 Once Prism is running:
 
-- **Configure Entra authentication** by providing your Azure Key Vault URI and Entra app registration details in `appsettings.json`.
+- **Configure Key Vault (production only):** Add your `Prism:VaultUri` to `appsettings.Production.json` and call `builder.AddPrismKeyVault()` in Program.cs. Secrets are loaded automatically from Azure Key Vault.
+- **Configure Entra authentication** by providing your Entra app registration details in `appsettings.json` (Client ID, Tenant ID, etc.).
 - **Customize the dashboard** by editing the Dashboard Razor template (`memberDashboard.cshtml`).
 - **Add more pages** under Dashboard by creating new documents and assigning the `memberDashboard` type (or custom subtypes).
 - **Generate a mobile app** from the Prism backoffice tenant editor to ship native iOS/Android apps for your portal.
-- **Enable biometric auth** (optional) for returning users to skip OIDC on subsequent app launches.
+- **Enable biometric auth** (optional) for returning users to skip OIDC on subsequent app launches. See `/docs/biometric-setup.md` for key configuration details.
 
 For detailed feature walkthroughs, see the main [README.md](../README.md).
