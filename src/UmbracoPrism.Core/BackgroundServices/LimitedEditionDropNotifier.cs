@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Services;
@@ -15,16 +16,16 @@ public class LimitedEditionDropNotifier : BackgroundService
     private const string IntervalConfigKey = "Prism:Notifications:LimitedEditionDropIntervalMinutes";
     private const string TenantIdConfigKey = "Prism:Notifications:LimitedEditionTenantId";
 
-    private readonly IPrismNotificationService _notificationService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<LimitedEditionDropNotifier> _logger;
 
     public LimitedEditionDropNotifier(
-        IPrismNotificationService notificationService,
+        IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
         ILogger<LimitedEditionDropNotifier> logger)
     {
-        _notificationService = notificationService;
+        _scopeFactory = scopeFactory;
         _configuration = configuration;
         _logger = logger;
     }
@@ -93,6 +94,8 @@ public class LimitedEditionDropNotifier : BackgroundService
             "LimitedEditionDropNotifier: Sending notification to tenant {TenantId}",
             tenantId);
 
-        await _notificationService.SendNotificationToAllMembersAsync(tenantId, title, body, cancellationToken);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var notificationService = scope.ServiceProvider.GetRequiredService<IPrismNotificationService>();
+        await notificationService.SendNotificationToAllMembersAsync(tenantId, title, body, cancellationToken);
     }
 }
