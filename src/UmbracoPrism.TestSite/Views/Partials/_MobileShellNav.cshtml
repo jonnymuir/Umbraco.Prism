@@ -1,37 +1,17 @@
-@using Umbraco.Cms.Core.Models
+@using Umbraco.Cms.Core.Models.Blocks
 @using System.Text.Json
-@model IEnumerable<Link>
+@model IEnumerable<BlockListItem>
 
 @if (Model != null && Model.Any())
 {
     var currentPath = Context.Request.Path.Value ?? "/";
 
-    string? IconForLink(string? href, string? label)
+    var navItems = Model.Select(block => new
     {
-        var url = (href ?? "/").ToLowerInvariant().TrimEnd('/');
-        var lbl = (label ?? "").ToLowerInvariant();
-
-        if (url == "" || url == "/") return "home";
-        if (url.Contains("dashboard")) return "dashboard";
-        if (url.Contains("account") || url.Contains("profile")) return "account";
-        if (url.Contains("setting")) return "settings";
-        if (url.Contains("transaction") || url.Contains("payment")) return "transactions";
-        if (url.Contains("notification") || url.Contains("alert")) return "notifications";
-        if (url.Contains("help") || url.Contains("support") || url.Contains("more")) return "more";
-        // fallback: try label
-        if (lbl.Contains("home")) return "home";
-        if (lbl.Contains("dashboard")) return "dashboard";
-        if (lbl.Contains("account") || lbl.Contains("profile")) return "account";
-        if (lbl.Contains("setting")) return "settings";
-        return null; // no icon — component gracefully renders label-only
-    }
-
-    var navItems = Model.Select(link => new
-    {
-        label = link.Name ?? string.Empty,
-        href = link.Url ?? "/",
-        icon = IconForLink(link.Url, link.Name),
-        target = string.IsNullOrEmpty(link.Target) ? null : link.Target,
+        label  = block.Content.Value<string>("navLabel") ?? string.Empty,
+        href   = block.Content.Value<string>("navUrl") ?? "/",
+        icon   = block.Content.Value<IPublishedContent?>("navIcon")?.Url(),
+        target = block.Content.Value<bool>("openInNewTab") ? "_blank" : (string?)null,
     });
 
     var itemsJson = JsonSerializer.Serialize(navItems, new JsonSerializerOptions
@@ -40,7 +20,6 @@
     });
 
     <script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-mobile-nav.js"></script>
-
     <prism-mobile-nav
         items='@itemsJson'
         current-path="@currentPath"

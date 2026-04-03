@@ -1,5 +1,6 @@
 @using UmbracoPrism.Core.Models
 @using Umbraco.Cms.Core.Models
+@using Umbraco.Cms.Core.Models.Blocks
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @inject IPrismContext PrismContext
 @{
@@ -9,7 +10,7 @@
     
     // 2. Resolve site-wide Settings node (Paul Seal pattern)
     var settings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
-    var mobileNavLinks = settings?.Value<IEnumerable<Link>>("mobileNavLinks");
+    var mobileNavLinks = settings?.Value<BlockListModel>("mobileNavLinks");
 }
 
 <!DOCTYPE html>
@@ -49,7 +50,10 @@
         &copy; @DateTime.Now.Year - Managed by Prism Multi-Tenant Engine
     </footer>
 
-    @Html.Partial("_MobileShellNav", mobileNavLinks)
+    @if (mobileNavLinks != null)
+    {
+        @Html.Partial("_MobileShellNav", mobileNavLinks)
+    }
 
 </body>
 </html>

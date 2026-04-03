@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,9 +9,27 @@ using Umbraco.Cms.Core.Services;
 namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Seeds demo <c>mobileNavLinks</c> into the Umbraco Settings content node on startup
-/// so developers can immediately see the mobile nav without manual backoffice setup.
-/// Only runs in Development; idempotent — skips if values are already present.
+/// Validates the Settings content node exists on startup so other startup work can rely on it.
+/// mobileNavLinks now uses a Block List backed by the MobileNavItem element type — editors
+/// add navigation items via the backoffice rather than via a seeder.
+///
+/// Block List JSON format (for reference if manual seeding is ever needed):
+/// <code>
+/// {
+///   "layout": { "Umbraco.BlockList": [ { "contentUdi": "umb://element/{guid}" } ] },
+///   "contentData": [
+///     {
+///       "contentTypeKey": "{mobileNavItem-key}",
+///       "udi": "umb://element/{guid}",
+///       "navLabel": "Home",
+///       "navUrl": "/",
+///       "navIcon": null,
+///       "openInNewTab": "0"
+///     }
+///   ],
+///   "settingsData": []
+/// }
+/// </code>
 /// </summary>
 public class DemoMobileNavSeeder(
     IWebHostEnvironment env,
@@ -21,14 +38,6 @@ public class DemoMobileNavSeeder(
     ILogger<DemoMobileNavSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    private static readonly object[] DemoLinks =
-    [
-        new { name = "Home",     target = "", type = "External", url = "/" },
-        new { name = "Account",  target = "", type = "External", url = "/account" },
-        new { name = "Settings", target = "", type = "External", url = "/settings" },
-        new { name = "Help",     target = "", type = "External", url = "/help" },
-    ];
-
     public async Task HandleAsync(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
@@ -36,10 +45,10 @@ public class DemoMobileNavSeeder(
         if (runtimeState.Level < RuntimeLevel.Run) return;
         if (!env.IsDevelopment()) return;
 
-        await Task.Run(() => SeedMobileNavLinks(), cancellationToken);
+        await Task.Run(CheckSettingsNode, cancellationToken);
     }
 
-    private void SeedMobileNavLinks()
+    private void CheckSettingsNode()
     {
         try
         {
@@ -49,33 +58,16 @@ public class DemoMobileNavSeeder(
 
             if (settings == null)
             {
-                logger.LogDebug("DEMO SEEDER: Settings node not found — skipping mobileNavLinks seed.");
+                logger.LogDebug("DEMO SEEDER: Settings node not found — skipping.");
                 return;
             }
 
-            var existing = settings.GetValue<string>("mobileNavLinks");
-            if (!string.IsNullOrWhiteSpace(existing))
-            {
-                logger.LogDebug("DEMO SEEDER: mobileNavLinks already configured — skipping.");
-                return;
-            }
-
-            var json = JsonSerializer.Serialize(DemoLinks);
-            settings.SetValue("mobileNavLinks", json);
-
-            var saveResult = contentService.Save(settings);
-            if (!saveResult.Success)
-            {
-                logger.LogWarning("DEMO SEEDER: Failed to save Settings node: {Status}", saveResult.Result);
-                return;
-            }
-
-            contentService.Publish(settings, ["*"]);
-            logger.LogInformation("DEMO SEEDER: Seeded 4 demo mobileNavLinks into Settings node.");
+            logger.LogInformation(
+                "DEMO SEEDER: mobileNavLinks now uses Block List — add nav items via the backoffice Settings node.");
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "DEMO SEEDER: Unexpected error seeding mobileNavLinks — safe to ignore.");
+            logger.LogWarning(ex, "DEMO SEEDER: Unexpected error checking Settings node — safe to ignore.");
         }
     }
 }
