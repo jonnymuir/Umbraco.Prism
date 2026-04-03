@@ -37,7 +37,7 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
 
 ### Produce Mobile — Generate Apps from Backoffice
 
-Turn tenant settings into iOS/Android apps. No Xcode. No Gradle. Click **Produce Mobile**.
+Turn tenant settings into iOS/Android apps. No complex native coding, just click **Produce Mobile**.
 
 <div align="center">
 <img src="example-IOS.png" width="300" alt="iOS app with tenant branding">
