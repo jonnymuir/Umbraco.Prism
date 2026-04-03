@@ -868,7 +868,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         anchor.download = fileName;
         anchor.style.display = 'none';
         document.body.appendChild(anchor);
-        anchor.click();
+        anchor.dispatchEvent(new MouseEvent('click', { bubbles: false, cancelable: true }));
         document.body.removeChild(anchor);
         setTimeout(() => URL.revokeObjectURL(url), 100);
         this._mobileBundleGenerated = true;
