@@ -471,6 +471,55 @@ To test locally: configure your test site tenant with biometric enabled, generat
 
 ---
 
+### 10. Push Notifications (Mobile)
+
+Send real-time push notifications to members on their mobile devices. Prism integrates with Firebase Cloud Messaging (FCM) on Android and Apple Push Notification service (APNs) on iOS, enabling both content-triggered and API-triggered notifications.
+
+#### How It Works
+
+Push notifications in Prism are **opt-in by default** for mobile bundles. When enabled, members can register their devices and subscribe to notification topics (e.g., genres, product categories). You can then:
+
+- **Content-triggered:** Publish a notification automatically when members subscribe to a content node or genre.
+- **API-triggered:** Call the Prism notification API from your backend code to send notifications on-demand (e.g., back-in-stock alerts, limited edition drops).
+
+Each notification is tenant-scoped — notifications sent by one tenant never reach another tenant's members.
+
+#### Configuration
+
+To enable push notifications in your generated mobile app bundles, set the `pushNotificationsEnabled` flag when generating a new app from the Backoffice tenant editor.
+
+On the backend, configure Firebase credentials in `appsettings.json`:
+
+```json
+{
+  "Prism": {
+    "Firebase": {
+      "CredentialJson": "<path-to-json-key-file-or-json-string>"
+    }
+  }
+}
+```
+
+The `CredentialJson` value can be either a file path to your Firebase service account JSON or the JSON string itself. This credential is used to authenticate all FCM push requests on Android.
+
+For iOS (APNs), you'll provide Apple-issued credentials during native app setup — see the iOS setup guide below.
+
+#### Mobile Member Experience
+
+After login, members can subscribe to notification topics via your app UI. When a notification is sent to their subscribed topics, they receive a native push notification on their device.
+
+Members can also opt out of notifications at any time, and subscription preferences are saved per tenant.
+
+#### Testing & Setup
+
+→ **Full setup guide:** See [docs/PUSH_SETUP.md](docs/PUSH_SETUP.md) for step-by-step instructions on:
+- Configuring Firebase credentials and Android setup
+- Setting up Apple Developer Account and APNs credentials for iOS
+- Testing on physical devices and emulators
+- Troubleshooting certificate and permission issues
+
+---
+
 ## Setup & Development
 
 ### Local Dev Tunnel Automation (trycloudflare + Entra + Prism DB)

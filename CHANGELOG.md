@@ -2,6 +2,28 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.6.0] — 2026-07-24
+
+### New Features
+
+- **Push notification system:** Send push notifications to mobile app members via Firebase Cloud Messaging (FCM) and Apple Push Notification service (APNs). Includes device token registration, subscription management, and topic-based routing.
+- **Device token registration API:** Endpoints for members to register and manage push tokens (`POST /umbraco/prism/push/register`, `DELETE /umbraco/prism/push/register`).
+- **Genre-based subscriptions:** Members can subscribe to content-based notifications by genre or topic (`POST /umbraco/prism/push/subscribe`, `DELETE /umbraco/prism/push/subscribe`).
+- **Vinyl Vault demo content:** Test site now includes a fully-seeded product catalog with 7 music genres and 28 vinyl records for showcasing notifications in a realistic e-commerce scenario.
+- **Push notifications bundle option:** Added `pushNotificationsEnabled` flag to mobile app generation. When enabled, the generated Capacitor app includes the `@capacitor/push-notifications` plugin and native iOS/Android push setup instructions.
+- **Capacitor push plugin integration:** Mobile apps now support `@capacitor/push-notifications` plugin for native push delivery on both iOS (APNs) and Android (FCM).
+- **Limited edition drop notifier:** Background scheduled service that monitors limited edition releases and triggers push notifications to interested members.
+- **Back-in-stock notification API:** Endpoint for triggering back-in-stock alerts (`POST /umbraco/prism/vinyl/back-in-stock`).
+
+### Improved
+
+- **Rate limiting on notification endpoints:** Notification registration and subscription endpoints are rate-limited (10 registrations, 20 subscriptions per hour per user) to prevent abuse.
+- **Push token validation:** Device tokens are validated for length and format before storage; invalid tokens are rejected with clear error messages.
+- **Genre input sanitization:** Subscription topics are sanitized and validated to prevent injection attacks.
+- **Stale token cleanup:** Tenant-scoped background job automatically removes expired or invalid push tokens from the database, keeping the notification queue clean and efficient.
+
+---
+
 ## [v1.5.1] — 2026-04-11
 
 ### Bug Fixes
