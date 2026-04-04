@@ -27,6 +27,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   };
 
   @state() private _activeTab = 'general';
+  @state() private _maximized = false;
   @state() private _brandingTabs: Array<{
     label: string;
     variables: Array<{
@@ -119,6 +120,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
    */
   connectedCallback() {
     super.connectedCallback();
+    document.addEventListener('keydown', this._handleKeyDown, true);
     
     if (this.data?.tenant) {
       const t = this.data.tenant;
@@ -147,8 +149,17 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('keydown', this._handleKeyDown, true);
+  }
+
   protected updated(changedProperties: Map<string, unknown>) {
     super.updated(changedProperties);
+
+    if (changedProperties.has('_maximized')) {
+      this.classList.toggle('maximized', this._maximized);
+    }
 
     if (changedProperties.has('data')) {
       if (this.data?.tenant) {
@@ -243,6 +254,17 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
   private _brandingTabKey(index: number) {
     return `branding-${index}`;
+  }
+
+  private _handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && this._maximized) {
+      event.stopPropagation();
+      this._maximized = false;
+    }
+  };
+
+  private _toggleMaximize() {
+    this._maximized = !this._maximized;
   }
 
   private _handleTabGroupClick(event: MouseEvent) {
@@ -909,7 +931,29 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }));
 
     return html`
-      <uui-dialog-layout headline="${isUpdate ? 'Edit' : 'Register New'} Tenant">
+      <uui-dialog-layout>
+        <div slot="headline" class="dialog-headline">
+          <span class="dialog-headline-title">${isUpdate ? 'Edit' : 'Register New'} Tenant</span>
+          <div class="dialog-headline-actions">
+            <button
+              class="dialog-icon-btn"
+              aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
+              title="${this._maximized ? 'Restore' : 'Maximize'}"
+              @click=${this._toggleMaximize}>
+              ${this._maximized
+                ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
+                : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
+              }
+            </button>
+            <button
+              class="dialog-icon-btn"
+              aria-label="Close"
+              title="Close"
+              @click=${() => this.modalContext?.reject()}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
         
         <uui-tab-group @click=${this._handleTabGroupClick}>
           <uui-tab 
@@ -978,6 +1022,58 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       overflow: auto;
       max-width: 95vw;
       max-height: 90vh;
+    }
+    :host(.maximized) {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      resize: none !important;
+      z-index: 10000;
+      border-radius: 0;
+      overflow: auto;
+    }
+    .dialog-headline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: var(--uui-size-space-3);
+    }
+    .dialog-headline-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dialog-headline-actions {
+      display: flex;
+      gap: var(--uui-size-space-2, 6px);
+      flex-shrink: 0;
+    }
+    .dialog-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: var(--uui-color-text-alt, #605e5c);
+      border-radius: var(--uui-border-radius, 3px);
+      line-height: 0;
+      transition: background-color 0.1s, color 0.1s;
+    }
+    .dialog-icon-btn:hover {
+      background-color: var(--uui-color-surface-emphasis, rgba(0, 0, 0, 0.06));
+      color: var(--uui-color-text, #060606);
+    }
+    .dialog-icon-btn:focus-visible {
+      outline: 2px solid var(--uui-color-focus, #3879d9);
+      outline-offset: 1px;
     }
     .container { 
       min-height: 350px;
