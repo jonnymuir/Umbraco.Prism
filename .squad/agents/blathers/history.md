@@ -1005,3 +1005,73 @@ All components implemented, tested via build, and ready for integration with mob
 - Session log: `.squad/log/2026-04-04T08:05:10Z-build-race-fix.md`
 - Decision merged into `.squad/decisions.md` from inbox.
 - Inbox file `.squad/decisions/inbox/blathers-build-race-fix.md` deleted.
+
+---
+
+## 2026-06-19 — ThemeColor Removal (Backend Cleanup)
+
+**Task:** Remove unused `ThemeColor` property from tenant backend system.
+
+**Rationale:** ThemeColor was a half-baked feature never wired into the tenant editor UI (hardcoded to '#3544b1' with a comment "could be a color picker later"). Tenant branding is now fully handled through the CSS variable override system (`wwwroot/branding/` files).
+
+**Changes:**
+1. Removed `ThemeColor` from `PrismTenant.cs` model (lines 24-26)
+2. Removed `ThemeColor` from `PrismTenantSchema.cs` database schema (lines 34-38)
+3. Removed `ThemeColor` mapping from `TenantManagementController.cs` (lines 56, 93)
+4. Removed `ThemeColor` from `PrismTenantRequest.cs` DTO (line 8)
+5. Removed `ThemeColor` mapping from `TenantService.cs` (line 76)
+6. Removed `ThemeColor` from test helper `CloneSchema()` in `TenantServiceCacheStrategyTests.cs` (line 308)
+7. Added migration `DropThemeColorColumn.cs` to drop column from existing installations
+8. Updated `PrismMigrationPlan.cs` to include drop-theme-color migration step
+
+**Migration Strategy:** Since `CreatePrismTables` migration creates the table using `PrismTenantSchema`, the column was originally created. Added `DropThemeColorColumn` migration to drop the column from existing installations (checks for column existence before dropping).
+
+**Build Status:** ✅ `dotnet build UmbracoPrism.sln -c Debug` — 0 errors, 0 warnings
+
+**Git Commit:** `6ae0aab` — "refactor: remove ThemeColor — replaced by CSS variable branding system"
+
+## Learnings
+
+- **Database column removal pattern:** When removing a column from a schema, always add a migration to drop it from existing installations, not just remove it from the schema class. Use `ColumnExists()` check before dropping to handle both fresh installs and upgrades gracefully.
+- **CSS variable branding system:** Tenant branding is now entirely handled through CSS variable overrides stored in `BrandingOverrides` and `MobileBrandingOverrides` dictionaries, which are precomputed into `BrandingCssDeclarations` and `MobileBrandingCssDeclarations` strings for request-time injection.
+
+## Learnings (2026-04-08, Branding Metadata API)
+
+**Feature:** CSS Branding Metadata Parser + API endpoint for dynamic tenant editor UI
+
+**What shipped:**
+- Created `BrandingVariableMetadata` and `BrandingSection` models in `Models/Branding/`
+- Added `IPrismBrandingMetadataService` / `PrismBrandingMetadataService` in `Services/`
+  - Parses CSS files from `wwwroot/branding/*.css` (excludes `prism-branding.css` aggregator file)
+  - Extracts `@property --{name} { syntax: '...'; }` declarations
+  - Extracts `/* @prism section | label | description | type */` annotations
+  - Infers type from `@property syntax` when not explicitly set (e.g., `<color>` → `"color"`, `<url>` → `"url"`)
+  - Groups variables by `section` key, maintains first-appearance order
+  - Caches result in `IMemoryCache` (1-hour sliding expiration)
+- Added `GET /umbraco/api/prism/branding/metadata` endpoint in `TenantManagementController`
+  - Auth: `[Authorize(Policy = AuthorizationPolicies.BackOfficeAccess)]`
+  - Returns JSON: `{ sections: [{ name, variables: [{ variable, label, description, type, syntax, currentValue }] }] }`
+- Registered `IPrismBrandingMetadataService` as singleton in `PrismComposer.cs`
+- Added comprehensive unit tests in `PrismBrandingMetadataServiceTests.cs` (12 tests)
+  - Tests for annotation parsing, type inference, section grouping, caching, property syntax extraction
+
+**Key Patterns:**
+- CSS annotation format: `/* @prism section: Brand Colours | label: Primary | description: ... | type: color */`
+- Type resolution priority: explicit `@prism type:` override > inferred from `@property syntax` > default `"text"`
+- Section ordering: by first-appearance in files (not alphabetical)
+- Default section: "General" when no `section:` key present
+- Regex patterns for parsing:
+  - Property: `@property\s+(--[\w-]+)\s*\{[^}]*syntax:\s*['""]([^'""]+)['""]`
+  - Variable with annotation: `/\*\s*@prism\s+([^*]+)\*/\s*\n\s*(--[\w-]+)\s*:\s*([^;]+);`
+
+**Testing Notes:**
+- All 218 tests pass (including 12 new metadata parser tests)
+- Tests use temp directories with in-memory test CSS files (no disk dependencies)
+- Test coverage: annotation parsing, type inference, section grouping, caching, multi-file parsing
+
+**Build Status:** ✅ `dotnet build UmbracoPrism.sln -c Debug` — 0 errors, 0 warnings
+✅ `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests` — 218 passed
+
+**Git Commit:** `be4e066` — "feat: add CSS branding metadata parser and API endpoint"
+
+**Coordination:** This backend API provides metadata for Isabelle's dynamic tenant editor UI. She is simultaneously annotating the CSS files with `@prism` comments and consuming this endpoint to build the form.
