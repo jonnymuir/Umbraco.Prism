@@ -151,7 +151,7 @@ export class PrismDashboardElement extends UmbElementMixin(LitElement) {
         <uui-box headline="Prism Multi-Tenant Manager">
           
           <div slot="header-actions">
-             <uui-button look="primary" color="positive" @click=${this._openCreateModal}>
+             <uui-button look="primary" color="positive" label="Add New Tenant" @click=${this._openCreateModal}>
                 <uui-icon name="add"></uui-icon> Add New Tenant
              </uui-button>
           </div>
