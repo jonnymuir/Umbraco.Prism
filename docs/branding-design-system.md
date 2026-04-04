@@ -10,6 +10,11 @@ The system uses a hybrid approach:
 
 Together, they create a seamless bridge between CSS design and the backoffice branding editor.
 
+<div align="center">
+<img src="images/branding-editor-overview.png" alt="Prism Branding Editor showing design-system-style sections and fields">
+<p><em>The Prism tenant editor — CSS variables become typed, labelled form fields organised into design system sections</em></p>
+</div>
+
 ---
 
 ## Why This Matters
@@ -269,6 +274,16 @@ The backoffice editor uses the metadata to render a design-system-style form.
 - **Types** — The `type` determines the widget (color picker, text input, slider)
 - **Descriptions** — Help text below each field
 
+<div align="center">
+<img src="images/branding-editor-sections.png" alt="Branding editor showing section tabs: Brand Colours, Typography, Imagery, Components, Layout">
+<p><em>Sections derived from the <code>section:</code> annotation — each tab groups related variables</em></p>
+</div>
+
+<div align="center">
+<img src="images/branding-editor-color-picker.png" alt="Branding editor with a colour picker open for Primary Brand Colour">
+<p><em>Color variables render as native color pickers — no manual hex entry needed</em></p>
+</div>
+
 ### Example: Editing Primary Brand Colour
 
 1. Open **Prism Dashboard → Branding Editor**
@@ -344,6 +359,11 @@ On next page load (or after cache expires), the tenant editor will show:
 
 Tenant updates the value → CSS variable updates → styles rerender instantly.
 
+<div align="center">
+<img src="images/branding-editor-new-variable.png" alt="Tenant editor showing a newly added Card Border Radius field in the Components section">
+<p><em>The new variable appears automatically — no UI code needed</em></p>
+</div>
+
 ---
 
 ## Best Practices
@@ -413,6 +433,11 @@ This is safe for production — CSS file changes are rare and typically go throu
 ---
 
 ## Real-World Examples
+
+<div align="center">
+<img src="images/branding-before-after.png" alt="Side-by-side: test site with default branding vs a customised tenant with different primary colour and typography">
+<p><em>One codebase, two completely different brands — live-edited with no deploy</em></p>
+</div>
 
 ### Example 1: Dark Mode Brand Colors
 
