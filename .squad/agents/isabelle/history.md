@@ -438,3 +438,29 @@ Added support for Umbraco media library URLs in the `icon` field of `prism-mobil
 3. **Changed** `URL.revokeObjectURL(url);` → `setTimeout(() => URL.revokeObjectURL(url), 100);` — prevents race condition where synchronous revocation could abort the download before it initiated.
 
 No other changes made. Download flow verified correct.
+
+## Session: Edit Tenant Dialog — Maximize & Close QoL
+
+**Date:** 2026-04-04
+**Task:** Add Maximize and Close (×) buttons to the Edit/Create Tenant dialog title bar.
+
+**Result:** ✅ Complete, build clean (`tsc && vite build` — 0 errors, `prism-dashboard.js` 54.35 kB)
+
+### Learnings
+
+- The `prism-create-tenant-modal` component serves BOTH create and edit modes — `_id !== null` means edit mode. The "Edit Tenant" dialog IS `prism-create-tenant-modal`.
+- `uui-dialog-layout` has a `slot="headline"` that renders inside the `<h3>` element. By omitting the `headline` attribute and using `slot="headline"` with custom content, you can inject a full flex row (title + action buttons) into the header area.
+- To maximize a dialog from inside a `uui-modal-dialog` container: toggle a `maximized` class on `:host` and apply `position: fixed !important; inset: 0; width: 100vw; height: 100vh; z-index: 10000` — this breaks out of the native `<dialog>` stacking context cleanly.
+- Apply the host class via `this.classList.toggle('maximized', this._maximized)` inside `updated()` when `changedProperties.has('_maximized')`.
+- Intercept Escape key for the "restore from maximized" case using a capture-phase `document.addEventListener('keydown', handler, true)` with `stopPropagation()` — prevents the modal from closing when in maximized state. Always remove in `disconnectedCallback`.
+
+### Changes
+
+- `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts`:
+  - Added `@state() private _maximized = false`
+  - Added `_handleKeyDown` capture-phase listener (Escape restores if maximized)
+  - Added `_toggleMaximize()` method
+  - Added `disconnectedCallback` to clean up the keydown listener
+  - Changed `render()`: replaced `headline="..."` attribute with `slot="headline"` custom content containing flex title + Maximize/Restore + Close icon buttons
+  - Added CSS: `:host(.maximized)` fullscreen override, `.dialog-headline`, `.dialog-headline-actions`, `.dialog-icon-btn` with UUI variable colours + focus-visible ring
+  - Added `updated()` hook to sync `_maximized` state → host `maximized` class
