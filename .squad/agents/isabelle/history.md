@@ -464,3 +464,69 @@ No other changes made. Download flow verified correct.
   - Changed `render()`: replaced `headline="..."` attribute with `slot="headline"` custom content containing flex title + Maximize/Restore + Close icon buttons
   - Added CSS: `:host(.maximized)` fullscreen override, `.dialog-headline`, `.dialog-headline-actions`, `.dialog-icon-btn` with UUI variable colours + focus-visible ring
   - Added `updated()` hook to sync `_maximized` state → host `maximized` class
+
+## Session: 2026-04-04 — Test Site CSS Refactor
+
+**Task:** Extract all inline CSS from test site views into organised, separate CSS files.
+
+**Result:** ✅ Complete, all inline styles extracted (except dynamic server-side CSS variable injections)
+
+### Context
+
+The test site had CSS embedded as `<style>` blocks directly in `.cshtml` view files (HomePage, MemberDashboard, VinylGenreLanding, VinylRecord, VinylVaultHome). This made the codebase harder to maintain and didn't showcase good practice. The goal was to extract all CSS into well-organised files using ITCSS (Inverted Triangle CSS) principles while keeping it as clean and simple as possible (this is a demo/test site, not production).
+
+### CSS File Structure Created
+
+**wwwroot/css/** (ITCSS layer order):
+- `base.css` — HTML element defaults (body styles, mobile body override)
+- `layout.css` — Page structure, grid systems, containers (portal header, page containers, grids, footer, vinyl vault layouts, mobile overrides)
+- `components.css` — Reusable UI patterns (hero, buttons, cards, features, dashboard sections, biometric card, profile card, API card, mobile nav, vinyl vault components)
+- `utilities.css` — State/modifier classes (prism-debug visibility, mobile web component visibility)
+
+### Patterns Consolidated
+
+- Portal header & dashboard header → unified in `layout.css`
+- All button variants (btn-primary, btn-ghost, btn-secondary, btn-outline, btn-subscribe, btn-waitlist) → `components.css`
+- Card patterns from HomePage and MemberDashboard → unified `.card` and `.dash-card` in `components.css`
+- Vinyl Vault components (vinyl-card, vinyl-cover, badges, breadcrumb, genre-tile) → `components.css`
+- Mobile overrides for hero, grid, cards → `components.css` and `layout.css`
+
+### What Stayed Inline
+
+Dynamic server-side CSS variable injections (these are runtime values, not static styles):
+- `Master.cshtml`: `--tenant-primary` (dynamic brand color from tenant data)
+- `HomePage.cshtml`: `--prism-hero-image`, `--prism-card-image` (dynamic imagery URLs from Umbraco media)
+
+### Branding CSS (Intentionally Separate)
+
+The `wwwroot/branding/` directory was **not touched** — it contains deliberately structured CSS files that are a key feature of Umbraco.Prism, showcasing how CSS variable overrides work for tenant-specific branding:
+- `prism-colors.css`
+- `prism-typography.css`
+- `prism-layout.css`
+- `prism-components.css`
+- `prism-imagery.css`
+- `prism-branding.css`
+
+### Changes
+
+- Created `wwwroot/css/base.css` (358 bytes)
+- Created `wwwroot/css/layout.css` (2.9 KB)
+- Created `wwwroot/css/components.css` (14 KB)
+- Created `wwwroot/css/utilities.css` (308 bytes)
+- Updated `Master.cshtml` to link the new CSS files in ITCSS order
+- Removed 346-line style block from `HomePage.cshtml`
+- Removed 391-line style block from `MemberDashboard.cshtml`
+- Removed 73-line style block from `VinylGenreLanding.cshtml`
+- Removed 110-line style block from `VinylRecord.cshtml`
+- Removed 51-line style block from `VinylVaultHome.cshtml`
+
+### Decision Record
+
+`.squad/decisions/inbox/isabelle-css-structure.md` — Documents the chosen CSS layer structure and rationale.
+
+### Learnings
+
+- ITCSS works well for demo/test sites when kept minimal — don't create empty layers for the sake of the pattern
+- Consolidating duplicate patterns (e.g., .card vs .dash-card) reduces CSS size but requires careful naming
+- Inline `<style>` for dynamic server-side values (CSS variables) is the correct pattern — don't extract runtime values to static files
+- Branding CSS should stay separate when it's a key feature showcase, not just project organization

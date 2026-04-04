@@ -6,7 +6,6 @@
 @{
     // 1. Resolve the Tenant once at the top level
     var tenant = PrismContext.CurrentTenant;
-    var brandColor = tenant?.ThemeColor ?? "#3544b1";
     
     // 2. Resolve site-wide Settings node (Paul Seal pattern)
     var settings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
@@ -28,13 +27,6 @@
     <link rel="stylesheet" href="/css/layout.css" />
     <link rel="stylesheet" href="/css/components.css" />
     <link rel="stylesheet" href="/css/utilities.css" />
-
-    <style>
-        :root {
-            /* --tenant-primary is set by the Prism Dashboard and injected server-side */
-            --tenant-primary: @brandColor;
-        }
-    </style>
 </head>
 <body>
 

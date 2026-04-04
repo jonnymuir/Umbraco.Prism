@@ -18,8 +18,8 @@ body {
 }
 
 .header {
-    background-color: var(--tenant-primary);
-    color: var(--tenant-primary-contrast);
+    background-color: var(--prism-primary);
+    color: var(--prism-primary-contrast);
     padding: 1rem 2rem;
     display: flex;
     justify-content: space-between;

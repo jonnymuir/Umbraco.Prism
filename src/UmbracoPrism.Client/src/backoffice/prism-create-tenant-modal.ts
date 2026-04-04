@@ -306,7 +306,6 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       id: this._id,
       name: this._name,
       hostname: this._hostname,
-      themeColor: '#3544b1', // Defaulting for now, could be a color picker later
       entraTenantId: this._entraTenantId,
       entraClientId: this._entraClientId,
       secretKeyName: this._secretKeyName,
