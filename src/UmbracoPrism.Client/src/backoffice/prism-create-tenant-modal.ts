@@ -845,9 +845,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     );
 
     const sectionsToShow = tabVariableNames.size > 0
-      ? this._brandingMetadata.sections.filter(section =>
-          section.variables.some(v => tabVariableNames.has(v.variable))
-        )
+      ? this._brandingMetadata.sections
+          .map(section => ({
+            ...section,
+            variables: section.variables.filter(v => tabVariableNames.has(v.variable))
+          }))
+          .filter(section => section.variables.length > 0)
       : this._brandingMetadata.sections;
 
     const displaySections = sectionsToShow.length > 0 ? sectionsToShow : this._brandingMetadata.sections;
