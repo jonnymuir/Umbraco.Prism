@@ -286,7 +286,17 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     this._brandingMetadataError = null;
 
     try {
-      const response = await fetch('/umbraco/management/api/v1/prism/branding/metadata');
+      let token: string | undefined;
+      await new Promise<void>(resolve => {
+        this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+          if (authContext) token = await authContext.getLatestToken();
+          resolve();
+        });
+      });
+
+      const response = await fetch('/umbraco/management/api/v1/prism/branding/metadata', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch branding metadata: ${response.status}`);
