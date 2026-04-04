@@ -82,23 +82,6 @@
   initial-value: #ef4444;
 }
 
-@property --prism-hero-bg {
-  syntax: '*';
-  inherits: true;
-  initial-value: linear-gradient(135deg, #4f46e5, #22d3ee);
-}
-
-@property --prism-hero-text {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #ffffff;
-}
-
-@property --prism-hero-badge {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: rgba(255, 255, 255, 0.2);
-}
 
 :root {
     /* @prism section: Brand Colours | label: Background Offset | description: Subtle background tint used for page backgrounds */
@@ -134,10 +117,4 @@
     /* @prism section: Brand Colours | label: Danger Colour | description: Colour indicating errors or destructive actions */
     --prism-danger: #ef4444;
 
-    /* @prism section: Hero Section | label: Hero Background | description: Gradient background for hero sections and headers */
-    --prism-hero-bg: linear-gradient(135deg, #4f46e5, #22d3ee);
-    /* @prism section: Hero Section | label: Hero Text Colour | description: Text colour for content in hero sections */
-    --prism-hero-text: #ffffff;
-    /* @prism section: Hero Section | label: Hero Badge Background | description: Semi-transparent background for badges in hero sections */
-    --prism-hero-badge: rgba(255, 255, 255, 0.2);
 }

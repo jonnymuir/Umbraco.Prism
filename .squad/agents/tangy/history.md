@@ -487,3 +487,25 @@ Two test issues identified by Jonny Muir:
 - `src/UmbracoPrism.Client/tests/prism-create-tenant-modal.spec.ts` (+47 lines, 2 new tests)
 
 ---
+
+---
+
+## 2025-07-15 — Branding Tab Test Fixes & Test Philosophy
+
+**Context:** Three Playwright tests were failing due to `_fetchBrandingMetadata` blocking on `consumeContext(UMB_AUTH_CONTEXT, ...)` which never resolves in Storybook. The component got stuck in loading state indefinitely.
+
+**Component Changes (`prism-create-tenant-modal.ts`):**
+1. **`_fetchBrandingMetadata` early return** — added `_brandingMetadataError` to guard so retries don't loop after a failure
+2. **Context timeout** — wrapped `consumeContext` call in `Promise.race` with 500ms timeout; in Storybook the timeout fires, fetch proceeds, gets 404, sets `_brandingMetadataError`, static fallback renders (~600ms total)
+3. **`data-variable` attribute** — added `data-variable="${variable.name}"` to each `<uui-table-row>` in `_renderStaticBrandingContent` for stable semantic test targeting
+4. **Duplicate-ID bug fix** — extracted `_renderStaticBrandingContent(tabIndex)` (table only) from `_renderStaticBrandingTab(tabIndex)` (full panel wrapper); error state now calls content method only, preventing two `div[id=branding-panel-N]` elements in the DOM
+
+**Test Changes (`prism-create-tenant-modal.spec.ts`):**
+- **Test 2** (`Edit modal branding table shows mobile override column and value`): replaced fragile positional selector `#branding-panel-0 uui-table-row:first-of-type uui-table-cell:nth-of-type(4) uui-input` with semantic `uui-table-row[data-variable="--color-primary"] uui-table-cell:nth-of-type(4) uui-input`
+- **Test 3** (`Edit modal allows editing mobile override value`): added `await expect(frame.getByRole('columnheader', { name: 'Mobile' })).toBeVisible()` wait gate before `modal.evaluate(...)` (synchronous DOM query can't wait for async renders); also updated selector to `data-variable` form
+
+**Test Philosophy Decision:** Written to `.squad/decisions/inbox/tangy-test-philosophy.md` — tests are behavioural contracts, not implementation snapshots. Semantic selectors (`data-variable`, `aria-label`, `role`) over structural ones (`:nth-of-type`, `:first-of-type`). Always gate `modal.evaluate()` calls with a visible-state assertion.
+
+**Verification:**
+- ✅ TypeScript + Vite build: 0 errors
+- ✅ All 8 Playwright tests pass (7.6s)

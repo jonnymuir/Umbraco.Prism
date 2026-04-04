@@ -46,17 +46,6 @@
   initial-value: #34d399;
 }
 
-@property --prism-nav-height {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 56px;
-}
-
-@property --prism-mobile-nav-height {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 68px;
-}
 
 @property --prism-dash-icon-size {
   syntax: '<length>';
@@ -144,10 +133,10 @@
     /* @prism section: Components | label: Graph Colour 3 | description: Third colour for charts and data visualizations */
     --prism-graph-3: #34d399;
 
-    /* @prism section: Components | label: Navigation Height | description: Height of the desktop navigation bar | type: length */
+    /* @prism section: Layout | label: Navigation Height | description: Height of the desktop navigation bar | type: length */
     --prism-nav-height: 56px;
 
-    /* @prism section: Components | label: Mobile Navigation Height | description: Height of the mobile navigation bar | type: length */
+    /* @prism section: Layout | label: Mobile Navigation Height | description: Height of the mobile navigation bar | type: length */
     --prism-mobile-nav-height: 68px;
 
     /* @prism section: Components | label: Dashboard Icon Size | description: Size of icons in dashboard cards | type: length */

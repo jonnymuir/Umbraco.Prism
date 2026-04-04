@@ -1038,27 +1038,26 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     const unique = result.selection[0];
     if (!unique) return;
 
-    this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
-      if (!authContext) return;
-      const token = await authContext.getLatestToken();
-      try {
-        const res = await fetch(`/umbraco/management/api/v1/media/${unique}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const rawUrl: string = data.urls?.[0]?.url ?? data.url ?? '';
-        if (!rawUrl) return;
-        const wrappedUrl = `url('${rawUrl}')`;
-        if (isMobile) {
-          this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: wrappedUrl };
-        } else {
-          this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: wrappedUrl };
-        }
-      } catch (err) {
-        console.error('[Prism] Failed to fetch media URL', err);
+    try {
+      const authContext = await this.getContext(UMB_AUTH_CONTEXT);
+      const token = authContext ? await authContext.getLatestToken() : undefined;
+
+      const res = await fetch(`/umbraco/management/api/v1/media/${unique}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rawUrl: string = data.urls?.[0]?.url ?? data.url ?? '';
+      if (!rawUrl) return;
+      const wrappedUrl = `url('${rawUrl}')`;
+      if (isMobile) {
+        this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: wrappedUrl };
+      } else {
+        this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: wrappedUrl };
       }
-    });
+    } catch (err) {
+      console.error('[Prism] Failed to fetch media URL', err);
+    }
   }
 
   private _updateBrandingOverride(tabIndex: number, variableIndex: number, value: string) {

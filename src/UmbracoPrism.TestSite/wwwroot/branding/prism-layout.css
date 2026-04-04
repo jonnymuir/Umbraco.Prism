@@ -1,3 +1,15 @@
+@property --prism-nav-height {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 56px;
+}
+
+@property --prism-mobile-nav-height {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 68px;
+}
+
 @property --prism-page-max {
   syntax: '<length>';
   inherits: true;
@@ -41,6 +53,11 @@
 }
 
 :root {
+    /* @prism section: Layout | label: Navigation Height | description: Height of the desktop navigation bar | type: length */
+    --prism-nav-height: 56px;
+    /* @prism section: Layout | label: Mobile Navigation Height | description: Height of the mobile navigation bar | type: length */
+    --prism-mobile-nav-height: 68px;
+
     /* @prism section: Layout | label: Page Maximum Width | description: Maximum width for page content containers | type: length */
     --prism-page-max: 1100px;
     /* @prism section: Layout | label: Page Gutter | description: Horizontal padding for page edges and margins | type: length */
