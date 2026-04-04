@@ -1039,7 +1039,6 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      width: 100%;
       gap: var(--uui-size-space-3);
     }
     .dialog-headline-title {
@@ -1077,6 +1076,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .container { 
       min-height: 350px;
+      overflow: auto;
     }
     .override-input {
       width: 100%;
