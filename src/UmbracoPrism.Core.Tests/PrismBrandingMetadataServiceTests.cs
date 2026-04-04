@@ -294,7 +294,7 @@ public class PrismBrandingMetadataServiceTests
         var variable = result[0].Variables[0];
         variable.Variable.Should().Be("--prism-accent");
         variable.Label.Should().Be("Accent Color");
-        variable.Description.Should().Contain("description: Used for highlights and call-to-actions");
+        variable.Description.Should().Be("Used for highlights and call-to-actions");
         variable.Type.Should().Be("color");
     }
 

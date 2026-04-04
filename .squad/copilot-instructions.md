@@ -37,6 +37,20 @@ When opening a PR:
 - If this is a 🟡 needs-review task, add to the PR description: `⚠️ This task was flagged as "needs review" — please have a squad member review before merging.`
 - Follow any project conventions in `.squad/decisions.md`
 
+## Test Hygiene
+
+Before starting work on any code change, establish a **passing baseline**:
+
+```
+dotnet test src/UmbracoPrism.Core.Tests/
+```
+
+Note any pre-existing failures. After making changes, run the tests again and ensure:
+- You have not introduced **any new failures**
+- Any pre-existing failures you encountered are either fixed or explicitly noted as out-of-scope in your PR
+
+If the baseline is already red, fix the failing tests as part of your work (they indicate a real regression introduced by a prior change). Never leave tests in a worse state than you found them.
+
 ## Decisions
 
 If you make a decision that affects other team members, write it to:

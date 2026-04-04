@@ -53,9 +53,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
             
             foreach (var variable in variables)
             {
-                var section = variable.metadata.Description?.Contains("section:") == true 
-                    ? ExtractMetadataValue(variable.metadata.Description, "section") 
-                    : "General";
+                var section = variable.metadata.Section;
                 
                 if (!sectionOrder.ContainsKey(section))
                 {
@@ -68,12 +66,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
 
         // Group by section and maintain order
         var sections = allVariables
-            .GroupBy(v => {
-                var desc = v.metadata.Description;
-                return desc?.Contains("section:") == true 
-                    ? ExtractMetadataValue(desc, "section") 
-                    : "General";
-            })
+            .GroupBy(v => v.metadata.Section)
             .OrderBy(g => sectionOrder.GetValueOrDefault(g.Key, int.MaxValue))
             .Select(g => new BrandingSection
             {
@@ -162,7 +155,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
             switch (key.ToLowerInvariant())
             {
                 case "section":
-                    // Section is handled separately in the calling code
+                    metadata.Section = value;
                     break;
                 case "label":
                     metadata.Label = value;

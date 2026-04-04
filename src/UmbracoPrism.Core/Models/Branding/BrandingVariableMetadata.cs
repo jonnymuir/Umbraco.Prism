@@ -16,6 +16,11 @@ public class BrandingVariableMetadata
     public string Label { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the section name from @prism annotation (e.g., "Brand Colours").
+    /// </summary>
+    public string Section { get; set; } = "General";
+
+    /// <summary>
     /// Gets or sets the description text from @prism annotation.
     /// </summary>
     public string? Description { get; set; }
