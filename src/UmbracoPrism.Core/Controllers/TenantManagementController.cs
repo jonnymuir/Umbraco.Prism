@@ -25,7 +25,8 @@ public class TenantManagementController(
     IUmbracoDatabaseFactory databaseFactory,
     ITenantService tenantService,
     IBrandingService brandingService,
-    IMobileBundleService mobileBundleService) : ManagementApiControllerBase
+    IMobileBundleService mobileBundleService,
+    IPrismBrandingMetadataService brandingMetadataService) : ManagementApiControllerBase
 {
     /// <summary>
     /// Gets all registered tenants.
@@ -180,6 +181,17 @@ public class TenantManagementController(
         tenantService.InvalidateDomain(tenant.Hostname, "tenant-delete");
         
         return Ok();
+    }
+
+    /// <summary>
+    /// Gets branding variable metadata from CSS files for dynamic form generation.
+    /// </summary>
+    [HttpGet("branding/metadata")]
+    [Authorize(Policy = AuthorizationPolicies.BackOfficeAccess)]
+    public IActionResult GetBrandingMetadata()
+    {
+        var sections = brandingMetadataService.GetBrandingMetadata();
+        return Ok(new { sections });
     }
 
     private static string? SerializeBrandingOverrides(Dictionary<string, string>? overrides)
