@@ -20,7 +20,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>@(tenant?.Name ?? "Prism") - @Model.Name</title>
 
+    <!-- Branding CSS (feature showcase - tenant-specific CSS variable overrides) -->
     <link rel="stylesheet" href="/branding/prism-branding.css" />
+
+    <!-- Site CSS (ITCSS layer order) -->
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+    <link rel="stylesheet" href="/css/utilities.css" />
 
     <style>
         :root {

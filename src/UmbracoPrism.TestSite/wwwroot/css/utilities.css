@@ -1,0 +1,15 @@
+/* Utilities — State and modifier classes */
+
+/* Prism debug visibility */
+.prism-debug-section {
+    margin-top: var(--prism-section-gap, 28px);
+}
+
+html.prism-mobile .prism-debug-root {
+    display: none;
+}
+
+/* Mobile web component visibility */
+html.prism-mobile prism-mobile-nav {
+    display: block;
+}

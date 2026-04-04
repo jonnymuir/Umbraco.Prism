@@ -1,0 +1,154 @@
+/* Layout — Page structure and containers */
+
+/* Portal header */
+.portal-header,
+.dash-header {
+    background: var(--prism-primary, #4f46e5);
+    color: var(--prism-primary-contrast, #ffffff);
+    padding: 0 var(--prism-page-gutter, 24px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 56px;
+}
+
+.portal-header__brand,
+.dash-header__brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.dash-header__brand {
+    text-decoration: none;
+    color: inherit;
+}
+
+.portal-header__nav,
+.dash-header__nav {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.portal-header__link,
+.dash-header__link {
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    font-size: var(--prism-text-size-sm, 13px);
+    font-weight: 600;
+}
+
+.portal-header__link:hover,
+.dash-header__link:hover {
+    color: #ffffff;
+}
+
+/* Page containers */
+.page,
+.dash-page {
+    max-width: var(--prism-page-max, 1100px);
+    margin: 0 auto;
+    padding: 0 var(--prism-page-gutter, 24px) 60px;
+}
+
+.dash-page {
+    padding: 32px var(--prism-page-gutter, 24px) 60px;
+}
+
+/* Grids */
+.grid,
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--prism-grid-min, 240px), 1fr));
+    gap: 20px;
+}
+
+.dash-grid {
+    margin-bottom: 32px;
+}
+
+/* Footer */
+.portal-footer,
+.dash-footer {
+    text-align: center;
+    padding: 32px var(--prism-page-gutter, 24px);
+    color: var(--prism-muted, #64748b);
+    font-size: var(--prism-text-size-sm, 13px);
+}
+
+/* Vinyl Vault layouts */
+.genre-landing,
+.vinyl-detail,
+.vinyl-vault-home {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.genre-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.vinyl-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 3rem;
+    margin-bottom: 3rem;
+}
+
+.vinyl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 2rem;
+}
+
+.genre-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.genres-grid {
+    margin-bottom: 3rem;
+}
+
+.vinyl-vault-home .vinyl-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Mobile layout overrides */
+html.prism-mobile .portal-header,
+html.prism-mobile .dash-header {
+    padding-top: env(safe-area-inset-top);
+    height: calc(56px + env(safe-area-inset-top));
+}
+
+html.prism-mobile .page {
+    max-width: 460px;
+    padding: 16px 12px 88px;
+}
+
+html.prism-mobile .dash-page {
+    max-width: none;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+html.prism-mobile .grid,
+html.prism-mobile .dash-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+html.prism-mobile .dash-grid {
+    grid-template-columns: 1fr;
+}
+
+@media (max-width: 768px) {
+    .vinyl-header {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}

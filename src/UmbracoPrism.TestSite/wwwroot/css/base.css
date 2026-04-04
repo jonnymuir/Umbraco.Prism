@@ -1,0 +1,16 @@
+/* Base — HTML element defaults */
+
+body {
+    font-family: var(--prism-font-body, -apple-system, sans-serif);
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    color: var(--prism-text, #0f172a);
+    background: var(--prism-surface-alt, #f8fafc);
+}
+
+/* Mobile body override */
+html.prism-mobile body {
+    background: #0f172a;
+    color: #e2e8f0;
+}
