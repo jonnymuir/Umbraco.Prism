@@ -1,14 +1,84 @@
+@property --prism-font-body {
+  syntax: '<string>';
+  inherits: true;
+  initial-value: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@property --prism-font-display {
+  syntax: '<string>';
+  inherits: true;
+  initial-value: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@property --prism-font-mono {
+  syntax: '<string>';
+  inherits: true;
+  initial-value: "SFMono-Regular", "Courier New", monospace;
+}
+
+@property --prism-heading-weight {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 700;
+}
+
+@property --prism-body-weight {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 500;
+}
+
+@property --prism-letter-spacing-caps {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0.08em;
+}
+
+@property --prism-text-size-xl {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 40px;
+}
+
+@property --prism-text-size-lg {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 22px;
+}
+
+@property --prism-text-size-md {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 16px;
+}
+
+@property --prism-text-size-sm {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 13px;
+}
+
 :root {
+    /* @prism section: Typography | label: Body Font Family | description: Primary font family for body text and UI elements | type: font */
     --prism-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    /* @prism section: Typography | label: Display Font Family | description: Font family for headings and prominent text | type: font */
     --prism-font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    /* @prism section: Typography | label: Monospace Font Family | description: Font family for code and technical content | type: font */
     --prism-font-mono: "SFMono-Regular", "Courier New", monospace;
 
+    /* @prism section: Typography | label: Heading Font Weight | description: Font weight for headings and titles | type: text */
     --prism-heading-weight: 700;
+    /* @prism section: Typography | label: Body Font Weight | description: Font weight for regular body text | type: text */
     --prism-body-weight: 500;
+    /* @prism section: Typography | label: Caps Letter Spacing | description: Letter spacing for uppercase and small-caps text | type: length */
     --prism-letter-spacing-caps: 0.08em;
 
+    /* @prism section: Typography | label: Extra Large Text Size | description: Text size for hero headings and large display text | type: length */
     --prism-text-size-xl: 40px;
+    /* @prism section: Typography | label: Large Text Size | description: Text size for subheadings and section titles | type: length */
     --prism-text-size-lg: 22px;
+    /* @prism section: Typography | label: Medium Text Size | description: Standard text size for body content | type: length */
     --prism-text-size-md: 16px;
+    /* @prism section: Typography | label: Small Text Size | description: Text size for captions and secondary content | type: length */
     --prism-text-size-sm: 13px;
 }

@@ -1,24 +1,143 @@
+@property --bg-offset {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f8f9fa;
+}
+
+@property --prism-text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0f172a;
+}
+
+@property --prism-muted {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #64748b;
+}
+
+@property --prism-primary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4f46e5;
+}
+
+@property --prism-primary-contrast {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --prism-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #22c55e;
+}
+
+@property --prism-link {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #2563eb;
+}
+
+@property --prism-focus {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f59e0b;
+}
+
+@property --prism-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --prism-surface-alt {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f8fafc;
+}
+
+@property --prism-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e2e8f0;
+}
+
+@property --prism-success {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #16a34a;
+}
+
+@property --prism-warning {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f59e0b;
+}
+
+@property --prism-danger {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ef4444;
+}
+
+@property --prism-hero-bg {
+  syntax: '*';
+  inherits: true;
+  initial-value: linear-gradient(135deg, #4f46e5, #22d3ee);
+}
+
+@property --prism-hero-text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --prism-hero-badge {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.2);
+}
+
 :root {
+    /* @prism section: Brand Colours | label: Background Offset | description: Subtle background tint used for page backgrounds */
     --bg-offset: #f8f9fa;
 
+    /* @prism section: Brand Colours | label: Body Text | description: Primary text colour for body content */
     --prism-text: #0f172a;
+    /* @prism section: Brand Colours | label: Muted Text | description: Secondary text colour for less prominent content */
     --prism-muted: #64748b;
 
+    /* @prism section: Brand Colours | label: Primary Brand Colour | description: Main brand colour used for buttons, links, and key highlights */
     --prism-primary: #4f46e5;
+    /* @prism section: Brand Colours | label: Primary Contrast Text | description: Text colour that contrasts with the primary brand colour */
     --prism-primary-contrast: #ffffff;
+    /* @prism section: Brand Colours | label: Accent Colour | description: Secondary accent colour for highlights and call-to-actions */
     --prism-accent: #22c55e;
+    /* @prism section: Brand Colours | label: Link Colour | description: Colour for hyperlinks and interactive text */
     --prism-link: #2563eb;
+    /* @prism section: Brand Colours | label: Focus Indicator | description: Colour for focus rings and accessibility indicators */
     --prism-focus: #f59e0b;
 
+    /* @prism section: Brand Colours | label: Surface Background | description: Background colour for cards and elevated surfaces */
     --prism-surface: #ffffff;
+    /* @prism section: Brand Colours | label: Alternate Surface | description: Alternate background colour for subtle contrast */
     --prism-surface-alt: #f8fafc;
+    /* @prism section: Brand Colours | label: Border Colour | description: Colour for borders and dividers */
     --prism-border: #e2e8f0;
 
+    /* @prism section: Brand Colours | label: Success Colour | description: Colour indicating successful actions or positive states */
     --prism-success: #16a34a;
+    /* @prism section: Brand Colours | label: Warning Colour | description: Colour indicating warnings or caution states */
     --prism-warning: #f59e0b;
+    /* @prism section: Brand Colours | label: Danger Colour | description: Colour indicating errors or destructive actions */
     --prism-danger: #ef4444;
 
+    /* @prism section: Hero Section | label: Hero Background | description: Gradient background for hero sections and headers */
     --prism-hero-bg: linear-gradient(135deg, #4f46e5, #22d3ee);
+    /* @prism section: Hero Section | label: Hero Text Colour | description: Text colour for content in hero sections */
     --prism-hero-text: #ffffff;
+    /* @prism section: Hero Section | label: Hero Badge Background | description: Semi-transparent background for badges in hero sections */
     --prism-hero-badge: rgba(255, 255, 255, 0.2);
 }

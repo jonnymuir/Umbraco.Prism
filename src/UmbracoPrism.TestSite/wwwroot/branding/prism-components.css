@@ -1,23 +1,158 @@
+@property --prism-button-bg {
+  syntax: '*';
+  inherits: true;
+  initial-value: var(--prism-primary);
+}
+
+@property --prism-button-hover {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4338ca;
+}
+
+@property --prism-button-text {
+  syntax: '*';
+  inherits: true;
+  initial-value: var(--prism-primary-contrast);
+}
+
+@property --prism-chip-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(79, 70, 229, 0.12);
+}
+
+@property --prism-chip-text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3730a3;
+}
+
+@property --prism-graph-1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #38bdf8;
+}
+
+@property --prism-graph-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a78bfa;
+}
+
+@property --prism-graph-3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #34d399;
+}
+
+@property --prism-nav-height {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 56px;
+}
+
+@property --prism-mobile-nav-height {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 68px;
+}
+
+@property --prism-dash-icon-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 48px;
+}
+
+@property --prism-dash-icon-radius {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 12px;
+}
+
+@property --prism-mobile-nav-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.95);
+}
+
+@property --prism-mobile-nav-border-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(0, 0, 0, 0.08);
+}
+
+@property --prism-mobile-nav-blur {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 20px;
+}
+
+@property --prism-mobile-nav-item-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(60, 60, 67, 0.6);
+}
+
+@property --prism-mobile-nav-item-hover-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(60, 60, 67, 0.85);
+}
+
+@property --prism-mobile-nav-item-hover-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(0, 0, 0, 0.05);
+}
+
+@property --prism-mobile-nav-item-active-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
+@property --prism-mobile-nav-item-active-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
+@property --prism-mobile-nav-item-active-color {
+  syntax: '*';
+  inherits: true;
+  initial-value: var(--prism-primary, #007aff);
+}
+
 :root {
+    /* @prism section: Components | label: Button Background | description: Background colour for primary buttons */
     --prism-button-bg: var(--prism-primary);
+    /* @prism section: Components | label: Button Hover | description: Button background colour on hover state */
     --prism-button-hover: #4338ca;
+    /* @prism section: Components | label: Button Text | description: Text colour for primary buttons */
     --prism-button-text: var(--prism-primary-contrast);
 
+    /* @prism section: Components | label: Chip Background | description: Background colour for chips and tags */
     --prism-chip-bg: rgba(79, 70, 229, 0.12);
+    /* @prism section: Components | label: Chip Text | description: Text colour for chips and tags */
     --prism-chip-text: #3730a3;
 
+    /* @prism section: Components | label: Graph Colour 1 | description: First colour for charts and data visualizations */
     --prism-graph-1: #38bdf8;
+    /* @prism section: Components | label: Graph Colour 2 | description: Second colour for charts and data visualizations */
     --prism-graph-2: #a78bfa;
+    /* @prism section: Components | label: Graph Colour 3 | description: Third colour for charts and data visualizations */
     --prism-graph-3: #34d399;
 
-    /* Portal navigation */
+    /* @prism section: Components | label: Navigation Height | description: Height of the desktop navigation bar | type: length */
     --prism-nav-height: 56px;
 
-    /* Mobile nav — matches default padding-v (10px × 2) + item min-height (48px) */
+    /* @prism section: Components | label: Mobile Navigation Height | description: Height of the mobile navigation bar | type: length */
     --prism-mobile-nav-height: 68px;
 
-    /* Dashboard cards */
+    /* @prism section: Components | label: Dashboard Icon Size | description: Size of icons in dashboard cards | type: length */
     --prism-dash-icon-size: 48px;
+    /* @prism section: Components | label: Dashboard Icon Radius | description: Border radius for dashboard icon backgrounds | type: length */
     --prism-dash-icon-radius: 12px;
 }
 
@@ -35,13 +170,22 @@ html.prism-mobile prism-mobile-nav {
 
 /* Mobile navigation — Apple iOS tab bar style */
 prism-mobile-nav {
+  /* @prism section: Mobile Navigation | label: Mobile Nav Background | description: Background colour for mobile navigation bar */
   --prism-mobile-nav-bg: rgba(255, 255, 255, 0.95);
+  /* @prism section: Mobile Navigation | label: Mobile Nav Border | description: Border colour for mobile navigation bar */
   --prism-mobile-nav-border-color: rgba(0, 0, 0, 0.08);
+  /* @prism section: Mobile Navigation | label: Mobile Nav Blur | description: Backdrop blur amount for mobile navigation | type: length */
   --prism-mobile-nav-blur: 20px;
+  /* @prism section: Mobile Navigation | label: Mobile Nav Item Colour | description: Default text colour for mobile navigation items */
   --prism-mobile-nav-item-color: rgba(60, 60, 67, 0.6);
+  /* @prism section: Mobile Navigation | label: Mobile Nav Item Hover Colour | description: Text colour for hovered mobile navigation items */
   --prism-mobile-nav-item-hover-color: rgba(60, 60, 67, 0.85);
+  /* @prism section: Mobile Navigation | label: Mobile Nav Item Hover Background | description: Background colour for hovered mobile navigation items */
   --prism-mobile-nav-item-hover-bg: rgba(0, 0, 0, 0.05);
+  /* @prism section: Mobile Navigation | label: Mobile Nav Active Background | description: Background colour for active mobile navigation item */
   --prism-mobile-nav-item-active-bg: transparent;
+  /* @prism section: Mobile Navigation | label: Mobile Nav Active Border | description: Border colour for active mobile navigation item */
   --prism-mobile-nav-item-active-border: transparent;
+  /* @prism section: Mobile Navigation | label: Mobile Nav Active Colour | description: Text colour for active mobile navigation item */
   --prism-mobile-nav-item-active-color: var(--prism-primary, #007aff);
 }

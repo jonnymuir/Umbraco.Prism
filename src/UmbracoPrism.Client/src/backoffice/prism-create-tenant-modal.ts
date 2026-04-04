@@ -5,6 +5,20 @@ import { umbHttpClient } from '@umbraco-cms/backoffice/http-client';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
 
+interface BrandingMetadata {
+  sections: Array<{
+    name: string;
+    variables: Array<{
+      variable: string;
+      label: string;
+      description: string;
+      type: string;
+      syntax: string;
+      currentValue: string;
+    }>;
+  }>;
+}
+
 @customElement('prism-create-tenant-modal')
 export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   
@@ -37,6 +51,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       mobileOverrideValue?: string;
     }>;
   }> = [];
+  @state() private _brandingMetadata: BrandingMetadata | null = null;
+  @state() private _brandingMetadataLoading = false;
+  @state() private _brandingMetadataError: string | null = null;
+  @state() private _dynamicBrandingValues: Record<string, string> = {};
+  @state() private _dynamicMobileBrandingValues: Record<string, string> = {};
   
   // Form State
   @state() private _id: number | null = null;
@@ -256,6 +275,46 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return `branding-${index}`;
   }
 
+  private async _fetchBrandingMetadata() {
+    if (this._brandingMetadata || this._brandingMetadataLoading) {
+      return;
+    }
+
+    this._brandingMetadataLoading = true;
+    this._brandingMetadataError = null;
+
+    try {
+      const response = await fetch('/umbraco/api/prism/branding/metadata');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch branding metadata: ${response.status}`);
+      }
+
+      const data = await response.json() as BrandingMetadata;
+      this._brandingMetadata = data;
+
+      // Initialize dynamic values from current tenant overrides
+      const tenantOverrides = this._toOverrideMap(this.data?.tenant?.brandingOverrides);
+      const tenantMobileOverrides = this._toOverrideMap(this.data?.tenant?.mobileBrandingOverrides);
+
+      this._dynamicBrandingValues = {};
+      this._dynamicMobileBrandingValues = {};
+
+      data.sections.forEach(section => {
+        section.variables.forEach(variable => {
+          const varName = variable.variable;
+          this._dynamicBrandingValues[varName] = tenantOverrides[varName] ?? variable.currentValue;
+          this._dynamicMobileBrandingValues[varName] = tenantMobileOverrides[varName] ?? variable.currentValue;
+        });
+      });
+    } catch (error) {
+      console.error('Error fetching branding metadata:', error);
+      this._brandingMetadataError = error instanceof Error ? error.message : 'Unknown error';
+    } finally {
+      this._brandingMetadataLoading = false;
+    }
+  }
+
   private _handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && this._maximized) {
       event.stopPropagation();
@@ -276,6 +335,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     const nextTab = tab.dataset.tabKey;
     if (nextTab && nextTab !== this._activeTab) {
       this._activeTab = nextTab;
+      
+      // Fetch branding metadata when switching to a branding tab
+      if (nextTab.startsWith('branding-')) {
+        this._fetchBrandingMetadata();
+      }
     }
   }
 
@@ -664,6 +728,51 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderBrandingTab(tabIndex: number) {
+    // Try to use dynamic branding metadata first
+    if (this._brandingMetadata) {
+      return this._renderDynamicBrandingTab();
+    }
+
+    // Show loading state if fetching
+    if (this._brandingMetadataLoading) {
+      return html`
+        <div
+          role="tabpanel"
+          id="branding-panel-${tabIndex}"
+          aria-labelledby="branding-tab-${tabIndex}"
+          class="tab-content">
+          <uui-box style="padding: 2rem; text-align: center;">
+            <uui-loader></uui-loader>
+            <p style="margin-top: 1rem;">Loading branding configuration...</p>
+          </uui-box>
+        </div>
+      `;
+    }
+
+    // Show error state if fetch failed
+    if (this._brandingMetadataError) {
+      return html`
+        <div
+          role="tabpanel"
+          id="branding-panel-${tabIndex}"
+          aria-labelledby="branding-tab-${tabIndex}"
+          class="tab-content">
+          <uui-box>
+            <p style="color: var(--uui-color-danger); margin-bottom: 1rem;">
+              Failed to load dynamic branding configuration: ${this._brandingMetadataError}
+            </p>
+            <p style="margin-bottom: 1rem;">Falling back to static fields:</p>
+            ${this._renderStaticBrandingTab(tabIndex)}
+          </uui-box>
+        </div>
+      `;
+    }
+
+    // Fallback to static branding tab
+    return this._renderStaticBrandingTab(tabIndex);
+  }
+
+  private _renderStaticBrandingTab(tabIndex: number) {
     const tab = this._brandingTabs[tabIndex];
     if (!tab) return html``;
 
@@ -715,6 +824,109 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  private _renderDynamicBrandingTab() {
+    if (!this._brandingMetadata) return html``;
+
+    return html`
+      <div role="tabpanel" class="tab-content">
+        ${this._brandingMetadata.sections.map(section => html`
+          <uui-box headline="${section.name}" style="margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+              ${section.variables.map(variable => this._renderDynamicField(variable))}
+            </div>
+          </uui-box>
+        `)}
+      </div>
+    `;
+  }
+
+  private _renderDynamicField(variable: BrandingMetadata['sections'][0]['variables'][0]) {
+    const varName = variable.variable;
+    const currentValue = this._dynamicBrandingValues[varName] ?? variable.currentValue;
+    const mobileValue = this._dynamicMobileBrandingValues[varName] ?? variable.currentValue;
+
+    const renderField = (value: string, isMobile: boolean) => {
+      const updateHandler = (e: Event) => {
+        const newValue = (e.target as HTMLInputElement).value;
+        if (isMobile) {
+          this._dynamicMobileBrandingValues = {
+            ...this._dynamicMobileBrandingValues,
+            [varName]: newValue
+          };
+        } else {
+          this._dynamicBrandingValues = {
+            ...this._dynamicBrandingValues,
+            [varName]: newValue
+          };
+        }
+      };
+
+      // Render color picker for color types
+      if (variable.type === 'color') {
+        return html`
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input
+              type="color"
+              .value=${value}
+              @input=${updateHandler}
+              style="width: 48px; height: 32px; border: 1px solid var(--uui-color-border); border-radius: 4px; cursor: pointer;">
+            <uui-input
+              .value=${value}
+              @input=${updateHandler}
+              style="flex: 1;">
+            </uui-input>
+          </div>
+        `;
+      }
+
+      // Render image input with preview hint
+      if (variable.type === 'image') {
+        return html`
+          <uui-input
+            .value=${value}
+            @input=${updateHandler}
+            placeholder="/media/... or https://...">
+          </uui-input>
+          ${value && (value.startsWith('http') || value.startsWith('/')) ? html`
+            <small style="color: var(--uui-color-text-alt); display: block; margin-top: 0.25rem;">
+              Preview: ${value}
+            </small>
+          ` : ''}
+        `;
+      }
+
+      // Default to text input for all other types
+      return html`
+        <uui-input
+          .value=${value}
+          @input=${updateHandler}
+          placeholder=${variable.description}>
+        </uui-input>
+      `;
+    };
+
+    return html`
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div>
+          <label style="font-weight: 600; font-size: 0.875rem; display: block; margin-bottom: 0.25rem;">
+            ${variable.label}
+          </label>
+          <small style="color: var(--uui-color-text-alt); display: block; margin-bottom: 0.5rem;">
+            ${variable.description}
+          </small>
+          <div style="margin-bottom: 0.5rem;">
+            <small style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Desktop</small>
+            ${renderField(currentValue, false)}
+          </div>
+          <div>
+            <small style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Mobile</small>
+            ${renderField(mobileValue, true)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   private _updateBrandingOverride(tabIndex: number, variableIndex: number, value: string) {
     this._brandingTabs = this._brandingTabs.map((tab, index) => {
       if (index !== tabIndex) return tab;
@@ -741,26 +953,48 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
   private _collectBrandingOverrides() {
     const overrides: Record<string, string> = {};
-    this._brandingTabs.forEach(tab => {
-      tab.variables.forEach(variable => {
-        if (variable.overrideValue && variable.overrideValue.trim().length > 0) {
-          overrides[variable.name] = variable.overrideValue.trim();
+    
+    // Use dynamic values if available (from metadata API)
+    if (this._brandingMetadata) {
+      Object.entries(this._dynamicBrandingValues).forEach(([varName, value]) => {
+        if (value && value.trim().length > 0) {
+          overrides[varName] = value.trim();
         }
       });
-    });
+    } else {
+      // Fallback to static branding tabs
+      this._brandingTabs.forEach(tab => {
+        tab.variables.forEach(variable => {
+          if (variable.overrideValue && variable.overrideValue.trim().length > 0) {
+            overrides[variable.name] = variable.overrideValue.trim();
+          }
+        });
+      });
+    }
 
     return overrides;
   }
 
   private _collectMobileBrandingOverrides() {
     const overrides: Record<string, string> = {};
-    this._brandingTabs.forEach(tab => {
-      tab.variables.forEach(variable => {
-        if (variable.mobileOverrideValue && variable.mobileOverrideValue.trim().length > 0) {
-          overrides[variable.name] = variable.mobileOverrideValue.trim();
+    
+    // Use dynamic values if available (from metadata API)
+    if (this._brandingMetadata) {
+      Object.entries(this._dynamicMobileBrandingValues).forEach(([varName, value]) => {
+        if (value && value.trim().length > 0) {
+          overrides[varName] = value.trim();
         }
       });
-    });
+    } else {
+      // Fallback to static branding tabs
+      this._brandingTabs.forEach(tab => {
+        tab.variables.forEach(variable => {
+          if (variable.mobileOverrideValue && variable.mobileOverrideValue.trim().length > 0) {
+            overrides[variable.name] = variable.mobileOverrideValue.trim();
+          }
+        });
+      });
+    }
 
     return overrides;
   }

@@ -17,6 +17,13 @@ Configure Firebase Cloud Messaging (Android) and Apple Push Notification service
 
 ---
 
+## Branding & Design System
+
+### [Branding Design System](branding-design-system.md)
+Comprehensive guide to the CSS variable annotation system. Learn the `@property` + `@prism` format, file structure, type inference, and how to add tenant-editable variables without code changes.
+
+---
+
 ## Operations & Deployment
 
 ### [Cloudflare Maintenance Pages](cloudflare-maintenance.md)

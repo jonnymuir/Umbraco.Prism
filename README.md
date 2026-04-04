@@ -29,6 +29,23 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
 **Web features:**
 - Domain-based tenant resolution — each client gets their own hostname
 - Live branding editor — CSS variables update without deploy
+- **Branding as a Design System** — annotated CSS variables become labeled form fields, grouped into sections (Colors, Typography, Components), with type-aware editors (color pickers, sliders, text inputs)
+  
+  ```css
+  @property --prism-primary {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #4f46e5;
+  }
+  
+  :root {
+    /* @prism section: Brand Colours | label: Primary Brand Colour | description: Main brand colour used for buttons and links */
+    --prism-primary: #4f46e5;
+  }
+  ```
+  
+  → [Branding Design System →](docs/branding-design-system.md)
+
 - Per-tenant OIDC — Entra ID integration, zero local Members
 - Downstream auth — propagate tenant identity to internal APIs
 - Tenant isolation — authorization policies enforce data boundaries

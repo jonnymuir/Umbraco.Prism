@@ -1,12 +1,61 @@
+@property --prism-page-max {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1100px;
+}
+
+@property --prism-page-gutter {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 24px;
+}
+
+@property --prism-section-gap {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 28px;
+}
+
+@property --prism-radius {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 16px;
+}
+
+@property --prism-card-shadow {
+  syntax: '*';
+  inherits: true;
+  initial-value: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+@property --prism-hero-padding {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 40px;
+}
+
+@property --prism-grid-min {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 240px;
+}
+
 :root {
+    /* @prism section: Layout | label: Page Maximum Width | description: Maximum width for page content containers | type: length */
     --prism-page-max: 1100px;
+    /* @prism section: Layout | label: Page Gutter | description: Horizontal padding for page edges and margins | type: length */
     --prism-page-gutter: 24px;
+    /* @prism section: Layout | label: Section Gap | description: Vertical spacing between content sections | type: length */
     --prism-section-gap: 28px;
 
+    /* @prism section: Layout | label: Border Radius | description: Corner rounding for cards and UI elements | type: length */
     --prism-radius: 16px;
+    /* @prism section: Layout | label: Card Shadow | description: Box shadow for elevated cards and panels | type: text */
     --prism-card-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
 
+    /* @prism section: Layout | label: Hero Section Padding | description: Internal padding for hero sections | type: length */
     --prism-hero-padding: 40px;
+    /* @prism section: Layout | label: Grid Minimum Column Width | description: Minimum width for responsive grid columns | type: length */
     --prism-grid-min: 240px;
 }
 
