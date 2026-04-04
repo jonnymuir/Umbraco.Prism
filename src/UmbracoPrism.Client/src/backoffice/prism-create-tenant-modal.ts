@@ -814,6 +814,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <uui-input
                 class="override-input"
                 placeholder="e.g. #0d6efd"
+                label="${variable.name} (desktop override)"
                 .value=${variable.overrideValue ?? ''}
                 @input=${(e: InputEvent) => this._updateBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
               </uui-input>
@@ -822,6 +823,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <uui-input
                 class="override-input"
                 placeholder="e.g. #0d6efd"
+                label="${variable.name} (mobile override)"
                 .value=${variable.mobileOverrideValue ?? ''}
                 @input=${(e: InputEvent) => this._updateMobileBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
               </uui-input>
@@ -921,6 +923,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             <uui-input
               .value=${value}
               @input=${updateHandler}
+              label=${variable.label}
               style="flex: 1;">
             </uui-input>
           </div>
@@ -973,6 +976,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             <uui-input
               .value=${value}
               @input=${updateHandler}
+              label=${variable.label}
               placeholder="/media/... or https://... or url('/media/...')"
               style="width: 100%;">
             </uui-input>
@@ -985,6 +989,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         <uui-input
           .value=${value}
           @input=${updateHandler}
+          label=${variable.label}
           placeholder=${variable.description}>
         </uui-input>
       `;
