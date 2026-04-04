@@ -1047,13 +1047,17 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       const authContext = await this.getContext(UMB_AUTH_CONTEXT);
       const token = authContext ? await authContext.getLatestToken() : undefined;
 
-      const res = await fetch(`/umbraco/management/api/v1/media/${unique}`, {
+      const res = await fetch(`/umbraco/management/api/v1/media/urls?id=${unique}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!res.ok) return;
       const data = await res.json();
-      const rawUrl: string = data.urls?.[0]?.url ?? data.url ?? '';
-      if (!rawUrl) return;
+      const items: Array<{ id: string; urlInfos: Array<{ culture: string | null; url: string | null }> }> = Array.isArray(data) ? data : [data];
+      const rawUrl: string = items[0]?.urlInfos?.[0]?.url ?? '';
+      if (!rawUrl) {
+        console.warn('[Prism] Media URL response had no URL', data);
+        return;
+      }
       const wrappedUrl = `url('${rawUrl}')`;
       if (isMobile) {
         this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: wrappedUrl };
