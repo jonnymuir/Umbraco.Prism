@@ -688,13 +688,14 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           </div>
 
           <div class="helper-actions">
-            <uui-button look="outline" @click=${this._applyMobileDefaultsFromTenant}>Use tenant defaults</uui-button>
-            <uui-button look="outline" @click=${this._suggestMobileAppId}>Suggest app id</uui-button>
+            <uui-button look="outline" label="Use tenant defaults" @click=${this._applyMobileDefaultsFromTenant}>Use tenant defaults</uui-button>
+            <uui-button look="outline" label="Suggest app id" @click=${this._suggestMobileAppId}>Suggest app id</uui-button>
           </div>
 
           <uui-button
             look="primary"
             color="positive"
+            label="Generate & Download App Bundle"
             ?disabled=${!canProduce}
             @click=${this._handleProduceMobile}>
             ${this._isProducingMobileBundle ? 'Generating…' : 'Generate & Download App Bundle'}
@@ -705,19 +706,19 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <small><strong>Bundle ready.</strong> From the extracted folder, run:</small>
               <div class="command-row">
                 <code>npm install && npm run doctor</code>
-                <uui-button look="outline" @click=${() => this._copyCommand('npm install && npm run doctor')}>
+                <uui-button look="outline" label="Copy npm install && npm run doctor" @click=${() => this._copyCommand('npm install && npm run doctor')}>
                   ${this._copiedCommand === 'npm install && npm run doctor' ? 'Copied' : 'Copy'}
                 </uui-button>
               </div>
               <div class="command-row">
                 <code>npm run bootstrap:ios</code>
-                <uui-button look="outline" @click=${() => this._copyCommand('npm run bootstrap:ios')}>
+                <uui-button look="outline" label="Copy npm run bootstrap:ios" @click=${() => this._copyCommand('npm run bootstrap:ios')}>
                   ${this._copiedCommand === 'npm run bootstrap:ios' ? 'Copied' : 'Copy'}
                 </uui-button>
               </div>
               <div class="command-row">
                 <code>npm run bootstrap:android</code>
-                <uui-button look="outline" @click=${() => this._copyCommand('npm run bootstrap:android')}>
+                <uui-button look="outline" label="Copy npm run bootstrap:android" @click=${() => this._copyCommand('npm run bootstrap:android')}>
                   ${this._copiedCommand === 'npm run bootstrap:android' ? 'Copied' : 'Copy'}
                 </uui-button>
               </div>
@@ -726,7 +727,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                     <small>Localhost tip: if iOS trust prompts appear, run:</small>
                     <div class="command-row">
                       <code>bash scripts/trust-ios-localhost-cert.sh && npm run run:ios</code>
-                      <uui-button look="outline" @click=${() => this._copyCommand('bash scripts/trust-ios-localhost-cert.sh && npm run run:ios')}>
+                      <uui-button look="outline" label="Copy trust-ios-localhost-cert && run:ios" @click=${() => this._copyCommand('bash scripts/trust-ios-localhost-cert.sh && npm run run:ios')}>
                         ${this._copiedCommand === 'bash scripts/trust-ios-localhost-cert.sh && npm run run:ios' ? 'Copied' : 'Copy'}
                       </uui-button>
                     </div>
@@ -742,7 +743,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   private _renderBrandingTab(tabIndex: number) {
     // Try to use dynamic branding metadata first
     if (this._brandingMetadata) {
-      return this._renderDynamicBrandingTab();
+      return this._renderDynamicBrandingTab(tabIndex);
     }
 
     // Show loading state if fetching
@@ -836,12 +837,24 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  private _renderDynamicBrandingTab() {
+  private _renderDynamicBrandingTab(tabIndex: number) {
     if (!this._brandingMetadata) return html``;
+
+    const tabVariableNames = new Set(
+      this._brandingTabs[tabIndex]?.variables.map(v => v.name) ?? []
+    );
+
+    const sectionsToShow = tabVariableNames.size > 0
+      ? this._brandingMetadata.sections.filter(section =>
+          section.variables.some(v => tabVariableNames.has(v.variable))
+        )
+      : this._brandingMetadata.sections;
+
+    const displaySections = sectionsToShow.length > 0 ? sectionsToShow : this._brandingMetadata.sections;
 
     return html`
       <div role="tabpanel" class="tab-content">
-        ${this._brandingMetadata.sections.map(section => html`
+        ${displaySections.map(section => html`
           <uui-box headline="${section.name}" style="margin-bottom: 1.5rem;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
               ${section.variables.map(variable => this._renderDynamicField(variable))}
@@ -924,6 +937,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <uui-button
                 look="secondary"
                 compact
+                label="Pick from Media Library"
                 @click=${() => this._pickMediaForVariable(varName, isMobile)}>
                 📷 Pick from Media Library
               </uui-button>
@@ -932,6 +946,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                   look="secondary"
                   compact
                   color="danger"
+                  label="Clear image"
                   @click=${() => {
                     if (isMobile) {
                       this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: '' };
@@ -977,7 +992,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <small style="font-weight: 600;">Desktop</small>
               ${isDesktopOverridden ? html`
                 <span style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">modified</span>
-                <uui-button look="placeholder" compact style="font-size: 0.7rem;" @click=${() => resetValue(false)}>↺ Reset</uui-button>
+                <uui-button look="placeholder" compact style="font-size: 0.7rem;" label="Reset to default" @click=${() => resetValue(false)}>↺ Reset</uui-button>
               ` : ''}
             </div>
             ${renderField(currentValue, false)}
@@ -987,7 +1002,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <small style="font-weight: 600;">Mobile</small>
               ${isMobileOverridden ? html`
                 <span style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">modified</span>
-                <uui-button look="placeholder" compact style="font-size: 0.7rem;" @click=${() => resetValue(true)}>↺ Reset</uui-button>
+                <uui-button look="placeholder" compact style="font-size: 0.7rem;" label="Reset to default" @click=${() => resetValue(true)}>↺ Reset</uui-button>
               ` : ''}
             </div>
             ${renderField(mobileValue, true)}
@@ -1338,11 +1353,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                 )}
         </div>
         
-        <uui-button slot="actions" @click=${() => this.modalContext?.reject()}>Cancel</uui-button>
+        <uui-button slot="actions" label="Cancel" @click=${() => this.modalContext?.reject()}>Cancel</uui-button>
         <uui-button 
             slot="actions" 
             look="primary" 
-            color="positive" 
+            color="positive"
+            label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
             @click=${this._handleSubmit}>
             ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
         </uui-button>
