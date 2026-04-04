@@ -2525,3 +2525,28 @@ All Critical and High severity issues have been fixed. The feature is **approved
 
 **Rationale:** Shadow DOM is encapsulated. Standard Playwright locators can't pierce it. `aria-label` is semantic and stable.
 
+---
+
+## 📌 2026-04-04: VS Code Parallel Launch Race Condition Fix (Blathers)
+
+**Session Log:** `.squad/log/2026-04-04T08:05:10Z-build-race-fix.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-build-race-fix.md`
+
+### Blathers — VS Code Parallel Build Race Condition Fix
+
+**Decision:** Fix the intermittent `System.IO.IOException` on Static Web Assets cache files (`*.dswa.cache.json`) caused by parallel MSBuild builds of `UmbracoPrism.Core` via VS Code task pre-build rather than MSBuild `ReferenceOutputAssembly="false"`.
+
+**Rejected approach:** `ReferenceOutputAssembly="false"` on MockBackOffice's `ProjectReference` to Core — not viable because MockBackOffice has genuine compile-time dependencies on Core types (`UmbracoPrism.Core.Extensions`). Removing the assembly reference breaks compilation.
+
+**Chosen approach:** Add a `"dotnet: build Core"` VS Code task that pre-builds Core before either consumer project's dotnet launch adapter runs:
+- `"Client: build"` task gains `dependsOn: ["dotnet: build Core"]` — ensures Core is built before TestSite launches.
+- `"C#: Mock Back-Office Debug"` gains `preLaunchTask: "dotnet: build Core"` — ensures Core is built before MockBackOffice's dotnet launch adapter (which then finds Core up-to-date and skips it, making it a fast no-op).
+
+**Why:** No changes to production `.csproj` files — this is a developer tooling concern only. Core is built exactly once per compound launch; the second invocation is an MSBuild no-op.
+
+**Affected Files:**
+- `.vscode/tasks.json` — new `"dotnet: build Core"` task; `"Client: build"` gains `dependsOn`
+- `.vscode/launch.json` — `"C#: Mock Back-Office Debug"` gains `preLaunchTask`
+

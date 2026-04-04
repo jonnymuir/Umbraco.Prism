@@ -980,3 +980,28 @@ All components implemented, tested via build, and ready for integration with mob
 - ✅ Documentation updated and pushed to main
 
 **Impact:** README Quick Start now provides accurate, concise guidance for developers initializing Umbraco.Prism without misleading manual service registration examples.
+
+---
+
+## Learnings
+
+### VS Code Parallel Launch Race Condition on Shared MSBuild Cache (2026-04-03)
+
+**Pattern:** When a VS Code compound launch config starts two projects simultaneously, and both have a `ProjectReference` to the same shared project, both `dotnet run` processes trigger independent MSBuild builds. If the shared project has Static Web Assets (MSBuild.Sdk.Web), both builds race to write `*.dswa.cache.json` files, causing `System.IO.IOException: The process cannot access the file`.
+
+**Root Cause:** `ReferenceOutputAssembly="false"` was the suggested fix (build-order-only reference), but it is not viable when the referencing project has genuine code/type dependencies on the shared project. Removing the assembly output reference breaks compilation.
+
+**Actual Fix:** Add a VS Code `preLaunchTask` that explicitly runs `dotnet build` on the shared project (UmbracoPrism.Core) *before* either consumer's dotnet launch adapter triggers its own build. Since VS Code compound `"dependsOrder": "sequence"` launches configurations one at a time, by the time MockBackOffice's launch starts, Core is already fully built (built as preLaunchTask for TestSite via its "Client: build" chain, and again as direct preLaunchTask for MockBackOffice — which becomes a fast no-op). Both dotnet launch adapters then skip Core's build step entirely, eliminating the race.
+
+**Files changed:** `.vscode/tasks.json` (new "dotnet: build Core" task; chained into "Client: build"), `.vscode/launch.json` (added `preLaunchTask: "dotnet: build Core"` to MockBackOffice config).
+
+---
+
+## Cross-Agent Update (2026-04-04, Build Race Fix — Scribe)
+
+**Scribe logged and committed Blathers' parallel build race condition fix.**
+
+- Orchestration log: `.squad/orchestration-log/2026-04-04T08:05:10Z-blathers.md`
+- Session log: `.squad/log/2026-04-04T08:05:10Z-build-race-fix.md`
+- Decision merged into `.squad/decisions.md` from inbox.
+- Inbox file `.squad/decisions/inbox/blathers-build-race-fix.md` deleted.
