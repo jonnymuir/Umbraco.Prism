@@ -19,12 +19,6 @@ public class PrismTenant
     /// Gets or sets the hostname associated with the tenant.
     /// </summary>
     public string Hostname { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// Gets or sets the theme color for the tenant's branding.
-    /// </summary>
-    public string ThemeColor { get; set; } = "#3490dc";
-    // Add other brand-specific properties here (Logo URL, etc.)
 
     /// <summary>
     /// Gets or sets the Entra Tenant ID for the tenant.

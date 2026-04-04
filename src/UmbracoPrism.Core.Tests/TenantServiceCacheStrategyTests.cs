@@ -305,7 +305,6 @@ public class TenantServiceCacheStrategyTests
             Id = schema.Id,
             Name = schema.Name,
             Hostname = schema.Hostname,
-            ThemeColor = schema.ThemeColor,
             EntraTenantId = schema.EntraTenantId,
             EntraClientId = schema.EntraClientId,
             SecretKeyName = schema.SecretKeyName,

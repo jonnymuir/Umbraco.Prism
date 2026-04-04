@@ -530,3 +530,7 @@ The `wwwroot/branding/` directory was **not touched** — it contains deliberate
 - Consolidating duplicate patterns (e.g., .card vs .dash-card) reduces CSS size but requires careful naming
 - Inline `<style>` for dynamic server-side values (CSS variables) is the correct pattern — don't extract runtime values to static files
 - Branding CSS should stay separate when it's a key feature showcase, not just project organization
+- Removed legacy `--tenant-primary` and `--tenant-primary-contrast` CSS variables — these were server-injected from `ThemeColor` property (never exposed in UI)
+- The proper tenant colour system is `--prism-primary` and `--prism-primary-contrast`, managed through the CSS variable override files in `wwwroot/branding/`
+- This removed the last server-injected `<style>` block from `Master.cshtml` (the only remaining inline styles are for dynamic Umbraco media URLs)
+- Also removed `themeColor: '#3544b1'` from the tenant creation modal in the backoffice — that property no longer exists on the backend

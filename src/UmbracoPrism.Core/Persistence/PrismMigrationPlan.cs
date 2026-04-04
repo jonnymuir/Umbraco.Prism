@@ -28,6 +28,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddRefreshTokenEncColumn>("add-refresh-token-enc")
         .To<AddAllowBiometricLoginColumn>("add-allow-biometric-login")
         .To<AddPushTokenColumn>("add-push-token")
-        .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions");
+        .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions")
+        .To<DropThemeColorColumn>("drop-theme-color");
     }
 }

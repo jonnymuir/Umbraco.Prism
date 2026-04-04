@@ -32,12 +32,6 @@ public class PrismTenantSchema
     public string Hostname { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the theme color for the tenant's branding.
-    /// </summary>
-    [Column("themeColor")]
-    public string ThemeColor { get; set; } = "#3490dc";
-
-    /// <summary>
     /// Gets or sets the Entra Tenant ID for the tenant.
     /// </summary>
     [Column("EntraTenantId")]

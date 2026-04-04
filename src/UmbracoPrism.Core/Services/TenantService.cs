@@ -73,7 +73,6 @@ public class TenantService : ITenantService
                 Id = tenantSchema.Id,
                 Name = tenantSchema.Name,
                 Hostname = tenantSchema.Hostname,
-                ThemeColor = tenantSchema.ThemeColor ?? "#3490dc",
                 EntraTenantId = tenantSchema.EntraTenantId,
                 EntraClientId = tenantSchema.EntraClientId,
                 SecretKeyName = tenantSchema.SecretKeyName,

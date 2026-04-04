@@ -53,7 +53,6 @@ public class TenantManagementController(
             Id = 0,
             Name = tenant.Name,
             Hostname = tenant.Hostname,
-            ThemeColor = tenant.ThemeColor,
             EntraTenantId = tenant.EntraTenantId,
             EntraClientId = tenant.EntraClientId,
             SecretKeyName = tenant.SecretKeyName,
@@ -90,7 +89,6 @@ public class TenantManagementController(
         // 2. Map updated values
         existing.Name = updatedTenant.Name;
         existing.Hostname = updatedTenant.Hostname;
-        existing.ThemeColor = updatedTenant.ThemeColor;
         existing.EntraTenantId = updatedTenant.EntraTenantId;
         existing.EntraClientId = updatedTenant.EntraClientId;
         existing.SecretKeyName = updatedTenant.SecretKeyName;
