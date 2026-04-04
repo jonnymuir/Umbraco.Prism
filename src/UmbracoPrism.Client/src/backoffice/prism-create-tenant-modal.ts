@@ -278,7 +278,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   }
 
   private async _fetchBrandingMetadata() {
-    if (this._brandingMetadata || this._brandingMetadataLoading) {
+    if (this._brandingMetadata || this._brandingMetadataLoading || this._brandingMetadataError) {
       return;
     }
 
@@ -287,12 +287,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
     try {
       let token: string | undefined;
-      await new Promise<void>(resolve => {
-        this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
-          if (authContext) token = await authContext.getLatestToken();
-          resolve();
-        });
-      });
+      await Promise.race([
+        new Promise<void>(resolve => {
+          this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+            if (authContext) token = await authContext.getLatestToken();
+            resolve();
+          });
+        }),
+        new Promise<void>(resolve => setTimeout(resolve, 500))
+      ]);
 
       const response = await fetch('/umbraco/management/api/v1/prism/branding/metadata', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -775,7 +778,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               Failed to load dynamic branding configuration: ${this._brandingMetadataError}
             </p>
             <p style="margin-bottom: 1rem;">Falling back to static fields:</p>
-            ${this._renderStaticBrandingTab(tabIndex)}
+            ${this._renderStaticBrandingContent(tabIndex)}
           </uui-box>
         </div>
       `;
@@ -785,10 +788,51 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return this._renderStaticBrandingTab(tabIndex);
   }
 
-  private _renderStaticBrandingTab(tabIndex: number) {
+  private _renderStaticBrandingContent(tabIndex: number) {
     const tab = this._brandingTabs[tabIndex];
     if (!tab) return html``;
 
+    return html`
+      <uui-table>
+        <uui-table-column style="width: 20%"></uui-table-column>
+        <uui-table-column style="width: 20%"></uui-table-column>
+        <uui-table-column style="width: 30%"></uui-table-column>
+        <uui-table-column style="width: 30%"></uui-table-column>
+
+        <uui-table-head>
+          <uui-table-head-cell>Variable</uui-table-head-cell>
+          <uui-table-head-cell>Default</uui-table-head-cell>
+          <uui-table-head-cell>Override</uui-table-head-cell>
+          <uui-table-head-cell>Mobile</uui-table-head-cell>
+        </uui-table-head>
+
+        ${tab.variables.map((variable, variableIndex) => html`
+          <uui-table-row data-variable="${variable.name}">
+            <uui-table-cell><code>${variable.name}</code></uui-table-cell>
+            <uui-table-cell><code>${variable.defaultValue ?? '—'}</code></uui-table-cell>
+            <uui-table-cell>
+              <uui-input
+                class="override-input"
+                placeholder="e.g. #0d6efd"
+                .value=${variable.overrideValue ?? ''}
+                @input=${(e: InputEvent) => this._updateBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
+              </uui-input>
+            </uui-table-cell>
+            <uui-table-cell>
+              <uui-input
+                class="override-input"
+                placeholder="e.g. #0d6efd"
+                .value=${variable.mobileOverrideValue ?? ''}
+                @input=${(e: InputEvent) => this._updateMobileBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
+              </uui-input>
+            </uui-table-cell>
+          </uui-table-row>
+        `)}
+      </uui-table>
+    `;
+  }
+
+  private _renderStaticBrandingTab(tabIndex: number) {
     return html`
       <div
         role="tabpanel"
@@ -796,42 +840,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         aria-labelledby="branding-tab-${tabIndex}"
         class="tab-content">
         <uui-box>
-          <uui-table>
-            <uui-table-column style="width: 20%"></uui-table-column>
-            <uui-table-column style="width: 20%"></uui-table-column>
-            <uui-table-column style="width: 30%"></uui-table-column>
-            <uui-table-column style="width: 30%"></uui-table-column>
-
-            <uui-table-head>
-              <uui-table-head-cell>Variable</uui-table-head-cell>
-              <uui-table-head-cell>Default</uui-table-head-cell>
-              <uui-table-head-cell>Override</uui-table-head-cell>
-              <uui-table-head-cell>Mobile</uui-table-head-cell>
-            </uui-table-head>
-
-            ${tab.variables.map((variable, variableIndex) => html`
-              <uui-table-row>
-                <uui-table-cell><code>${variable.name}</code></uui-table-cell>
-                <uui-table-cell><code>${variable.defaultValue ?? '—'}</code></uui-table-cell>
-                <uui-table-cell>
-                  <uui-input
-                    class="override-input"
-                    placeholder="e.g. #0d6efd"
-                    .value=${variable.overrideValue ?? ''}
-                    @input=${(e: InputEvent) => this._updateBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
-                  </uui-input>
-                </uui-table-cell>
-                <uui-table-cell>
-                  <uui-input
-                    class="override-input"
-                    placeholder="e.g. #0d6efd"
-                    .value=${variable.mobileOverrideValue ?? ''}
-                    @input=${(e: InputEvent) => this._updateMobileBrandingOverride(tabIndex, variableIndex, (e.target as HTMLInputElement).value)}>
-                  </uui-input>
-                </uui-table-cell>
-              </uui-table-row>
-            `)}
-          </uui-table>
+          ${this._renderStaticBrandingContent(tabIndex)}
         </uui-box>
       </div>
     `;

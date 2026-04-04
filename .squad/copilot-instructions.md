@@ -39,17 +39,30 @@ When opening a PR:
 
 ## Test Hygiene
 
-Before starting work on any code change, establish a **passing baseline**:
+Tests are **behavioural contracts** — they describe what the product should do, not how it does it. A failing test means a desired behaviour is broken. A passing test on wrong code means the test is poorly written.
 
-```
+### Running the full test suite
+
+Before starting any code change, establish a **passing baseline** across all suites:
+
+```bash
+# Backend unit tests
 dotnet test src/UmbracoPrism.Core.Tests/
+
+# Playwright E2E (requires Storybook — starts automatically)
+cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test --reporter=line
 ```
 
-Note any pre-existing failures. After making changes, run the tests again and ensure:
-- You have not introduced **any new failures**
-- Any pre-existing failures you encountered are either fixed or explicitly noted as out-of-scope in your PR
+After making changes, run both suites again. **All tests must still pass.** If the baseline was already red, fix those failures as part of your work — they represent regressions from a prior change.
 
-If the baseline is already red, fix the failing tests as part of your work (they indicate a real regression introduced by a prior change). Never leave tests in a worse state than you found them.
+### Writing tests
+
+- **Test desired behaviour, not implementation details.** Ask: "Would a product owner care if this changed?" If a test would break purely because you renamed a CSS class or restructured a DOM element — without changing what the user sees or can do — it is testing implementation, not behaviour. Rewrite it.
+- **Use semantic selectors.** Prefer `data-variable`, `role`, `label`, `aria-*`, and visible text over positional selectors like `:first-of-type` or `:nth-child`.
+- **Wait for async state.** If a component loads data asynchronously, wait for the loaded state (e.g., `await expect(header).toBeVisible()`) before querying DOM values.
+- **Name tests as behaviours.** "Mobile override value is shown for each branding variable" is better than "test branding table row 1 cell 4".
+
+Never leave tests in a worse state than you found them. Never silence a failing test without understanding and documenting why it fails.
 
 ## Decisions
 

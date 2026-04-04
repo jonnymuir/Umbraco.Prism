@@ -115,7 +115,7 @@ test('Edit modal branding table shows mobile override column and value', async (
 
   const mobileValue = await modal.evaluate((el) => {
     const mobileInput = el.shadowRoot?.querySelector(
-      '#branding-panel-0 uui-table-row:first-of-type uui-table-cell:nth-of-type(4) uui-input'
+      'uui-table-row[data-variable="--color-primary"] uui-table-cell:nth-of-type(4) uui-input'
     ) as HTMLInputElement | null;
     return mobileInput?.value ?? '';
   });
@@ -135,10 +135,12 @@ test('Edit modal allows editing mobile override value', async ({ page }) => {
     tab?.click();
   });
 
+  await expect(frame.getByRole('columnheader', { name: 'Mobile' })).toBeVisible();
+
   const updatedValue = '#111111';
   const mobileValue = await modal.evaluate((el, nextValue) => {
     const mobileInput = el.shadowRoot?.querySelector(
-      '#branding-panel-0 uui-table-row:first-of-type uui-table-cell:nth-of-type(4) uui-input'
+      'uui-table-row[data-variable="--color-primary"] uui-table-cell:nth-of-type(4) uui-input'
     ) as HTMLInputElement | null;
 
     if (!mobileInput) return '';
