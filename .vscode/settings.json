@@ -1,0 +1,6 @@
+{
+  // Limit background analysis to open files only.
+  // Prevents the C# language server from running a full solution build in the background
+  // which races with manual builds over the .dswa.cache.json lock file (intermittent MSB4018).
+  "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "openFiles"
+}
