@@ -579,3 +579,28 @@ Updated `prism-create-tenant-modal.ts` to:
 **Build Status:** ✅ TypeScript compiled clean, Vite build succeeded
 
 This completes the branding-as-design-system feature. The tenant editor now dynamically reflects the annotated CSS structure, giving operators a polished, section-organized UI for live branding edits.
+
+---
+
+## Session: Media Library Picker for Image Variables
+
+**Date:** 2025-07
+
+**Task:** Add proper Umbraco media library picker for `type: image` CSS variables in the tenant branding editor.
+
+**What Was Built:**
+- Replaced plain URL text input for `type: image` variables with a polished picker UI
+- **Thumbnail preview** — strips `url('...')` wrapper to show an `<img>` preview (max-height 60px, object-fit: cover), with graceful `@error` hide if image fails to load
+- **"Pick from Media Library" button** — opens `UMB_MEDIA_PICKER_MODAL` via `UMB_MODAL_MANAGER_CONTEXT.open()`, fetches media URL from `/umbraco/management/api/v1/media/{unique}`, wraps in `url('...')` CSS format
+- **Free-text URL input** — always visible, pre-filled with current value; user can type/paste any URL directly
+- **Clear button** — shown only when a value is set; removes the current value
+
+**Key Implementation Details:**
+- Imports: `UMB_MODAL_MANAGER_CONTEXT` from `@umbraco-cms/backoffice/modal`, `UMB_MEDIA_PICKER_MODAL` from `@umbraco-cms/backoffice/media`
+- Auth token: follows existing `consumeContext(UMB_AUTH_CONTEXT, ...)` / `authContext.getLatestToken()` pattern for the media URL fetch
+- CSS value format: picker writes `url('/media/...')` for proper CSS background-image usage; free-text input stored as-is
+- Selection returns `Array<string | null>` (GUIDs), fetched via management API
+- New `_pickMediaForVariable(varName: string, isMobile: boolean)` async method added to class
+- CSS classes: `.image-picker`, `.image-picker__preview`, `.image-picker__actions` added to component styles
+
+**Build Status:** ✅ TypeScript + Vite build clean, 0 errors

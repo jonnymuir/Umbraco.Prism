@@ -2357,3 +2357,62 @@ Any current or future `BackgroundService` or `IHostedService` implementation in 
 **Why:** Cloudflare is already in the request path for all mobile traffic. Adding app-level or backend-level maintenance detection would add complexity without meaningful benefit. Cloudflare Custom Pages handle the user-facing experience.
 
 ---
+
+---
+
+## Decision: Media Library Picker — Image Variable CSS Format
+
+**Author:** Isabelle (Frontend Dev)  
+**Date:** 2025-07  
+**Status:** Implemented
+
+### Decision
+
+When a user picks an image from the Umbraco media library for a `type: image` CSS variable in the tenant branding editor, the stored value is wrapped in CSS `url('...')` format (e.g. `url('/media/abc.jpg')`).
+
+When the user types a URL directly in the free-text input, the value is stored as-is (no wrapping applied). Users who need CSS `url()` format can type it themselves.
+
+### Rationale
+
+- CSS custom properties used for `background-image` require `url('...')` syntax to work correctly
+- Picker-selected media is always intended for CSS background usage, so auto-wrapping is correct
+- Free-text input is for advanced users who may want plain URLs (e.g. for `<img src>`) or already-formatted `url(...)` values — leave it unmodified
+
+### Implications
+
+- Any code consuming these branding override values for background-image CSS should expect `url('...')` wrapped values from the picker path
+- Preview thumbnail strips the wrapper before setting `<img src>` to avoid broken images
+- Future image picker improvements should preserve this distinction (picker = CSS url(), free-text = as-is)
+
+---
+
+## Decision: Static wwwroot Seed Assets for Umbraco Media Library
+
+**Author:** Blathers (Backend Dev)  
+**Date:** 2026-06-26
+
+### Context
+
+The branding editor needs a hero image seeded into the Umbraco media library for Isabelle's tenant branding image picker to have content on first run.
+
+### Decision
+
+Commit a small static seed image under `src/UmbracoPrism.TestSite/wwwroot/media/branding/`. The `PrismStarterContentSeeder` references this static path when creating the Umbraco `IMedia` record. The `umbracoFile` property is set to a JSON blob `{"src": "/media/branding/prism-hero.jpg"}` pointing to the static asset.
+
+### Conventions Adopted
+
+- Seed media assets live under `wwwroot/media/branding/` (gitignore exception carved out with `!/wwwroot/media/branding/**`)
+- All media seeding is idempotent: check `GetRootMedia()` for the folder before creating
+- Use `GetPagedChildren(parentId, 0, 100, out _)` — `GetChildren()` is not available on `IMediaService` in Umbraco 17
+- Deterministic GUID keys for seeded data types (`PrismMediaPickerDataTypeKey = a2b3c4d5-...`) so re-runs find the same record
+
+### Why
+
+Avoids requiring a live Unsplash/external download at startup, keeps the repo self-contained for CI and offline dev, and follows the existing pattern established by `DemoMobileNavSeeder`.
+
+### Impact
+
+- `PrismStarterContentSeeder` now depends on `IMediaService` (added to primary constructor)
+- `PrismContentTypeSeeder` now seeds a `heroImage` (Media Picker 3) property on the `homePage` doc type
+- The Management API endpoint `GET /umbraco/management/api/v1/media/{id}` is the standard Umbraco 17 built-in; no auth policy changes needed (it is not blocked by `PrismAdmins` or `PrismStrictIsolation`)
+

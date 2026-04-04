@@ -1075,3 +1075,20 @@ All components implemented, tested via build, and ready for integration with mob
 **Git Commit:** `be4e066` — "feat: add CSS branding metadata parser and API endpoint"
 
 **Coordination:** This backend API provides metadata for Isabelle's dynamic tenant editor UI. She is simultaneously annotating the CSS files with `@prism` comments and consuming this endpoint to build the form.
+
+## Learnings & Handoff (Media Seeding — heroImage support)
+
+**What shipped:**
+- `PrismStarterContentSeeder` now injects `IMediaService` via primary constructor
+- `SeedBrandingMedia()`: idempotent — checks `GetRootMedia()` for "Prism Branding" folder before creating; uses `GetPagedChildren` (not `GetChildren` — not available in v17) to locate "Hero Background"
+- `PrismContentTypeSeeder.EnsureHeroImagePropertyAsync()`: adds `heroImage` (Media Picker 3) to `homePage` content type with deterministic data type key `a2b3c4d5-...`; skips if property already exists (idempotent)
+- Seed image committed at `src/UmbracoPrism.TestSite/wwwroot/media/branding/prism-hero.jpg` (minimal valid JPEG placeholder — network unavailable at dev time)
+- `.gitignore` pattern updated from `/wwwroot/media/` (directory-level) to `/wwwroot/media/**` + `!/wwwroot/media/branding/**` (file-level with whitelist) so seed assets are tracked
+
+**Umbraco 17 patterns to remember:**
+- `IMediaService.GetChildren()` does NOT exist — use `GetPagedChildren(id, 0, N, out _)` instead
+- `umbracoFile` property value must be JSON: `{"src": "/media/path/file.jpg"}`
+- `.gitignore` directory-level ignore (`/dir/`) blocks all negation rules for children; must use `/**` wildcard + explicit `!` exceptions
+
+**Isabelle dependency:**
+- Frontend branding editor picker (in progress) expects `GET /umbraco/management/api/v1/media/{id}` — built-in Umbraco 17 Management API endpoint, no auth changes required (verified not blocked by PrismAdmins or PrismStrictIsolation policies)
