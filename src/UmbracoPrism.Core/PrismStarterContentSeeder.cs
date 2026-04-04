@@ -21,6 +21,7 @@ public class PrismStarterContentSeeder(
     IOptions<PrismConfiguration> prismConfig,
     IContentService contentService,
     IContentTypeService contentTypeService,
+    IMediaService mediaService,
     IRuntimeState runtimeState,
     ILogger<PrismStarterContentSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -34,6 +35,9 @@ public class PrismStarterContentSeeder(
 
         await Task.Run(() =>
         {
+            // Seed branding media before content (idempotent)
+            SeedBrandingMedia();
+
             var rootContent = contentService.GetRootContent().ToList();
 
             // Only seed Home + Dashboard on a completely empty tree
@@ -49,6 +53,41 @@ public class PrismStarterContentSeeder(
         }, cancellationToken);
     }
 
+    private void SeedBrandingMedia()
+    {
+        // Idempotent — skip if "Prism Branding" folder already exists
+        var existing = mediaService.GetRootMedia()
+            .FirstOrDefault(m => m.Name == "Prism Branding");
+        if (existing != null) return;
+
+        logger.LogInformation("PRISM StarterSeeder: Creating Prism Branding media folder");
+
+        var folder = mediaService.CreateMedia("Prism Branding", Constants.System.Root, Constants.Conventions.MediaTypes.Folder);
+        var folderResult = mediaService.Save(folder);
+        if (!folderResult.Success)
+        {
+            logger.LogWarning("PRISM StarterSeeder: Failed to create Prism Branding media folder");
+            return;
+        }
+
+        var image = mediaService.CreateMedia("Hero Background", folder.Id, Constants.Conventions.MediaTypes.Image);
+        image.SetValue("umbracoFile", JsonSerializer.Serialize(new { src = "/media/branding/prism-hero.jpg" }));
+        image.SetValue("umbracoWidth", 1200);
+        image.SetValue("umbracoHeight", 630);
+        image.SetValue("umbracoExtension", "jpg");
+        image.SetValue("umbracoBytes", 0L);
+
+        var imageResult = mediaService.Save(image);
+        if (!imageResult.Success)
+        {
+            logger.LogWarning("PRISM StarterSeeder: Failed to save Hero Background media item");
+        }
+        else
+        {
+            logger.LogInformation("PRISM StarterSeeder: Hero Background media item created (id={Id})", image.Id);
+        }
+    }
+
     private void SeedHomeAndDashboard()
     {
         // Seed home page
@@ -56,6 +95,19 @@ public class PrismStarterContentSeeder(
         if (homePageType != null)
         {
             var homePage = contentService.Create("Home", Constants.System.Root, homePageType.Alias);
+
+            // Set heroImage from seeded branding media (if available)
+            var brandingFolder = mediaService.GetRootMedia()
+                .FirstOrDefault(m => m.Name == "Prism Branding");
+            var heroMedia = brandingFolder != null
+                ? mediaService.GetPagedChildren(brandingFolder.Id, 0, 100, out _).FirstOrDefault(m => m.Name == "Hero Background")
+                : null;
+
+            if (heroMedia != null)
+            {
+                homePage.SetValue("heroImage", heroMedia.GetUdi().ToString());
+            }
+
             var saveResult = contentService.Save(homePage);
             if (saveResult.Success)
             {

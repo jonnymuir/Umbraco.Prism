@@ -62,7 +62,72 @@ public class PrismContentTypeSeeder(
 #pragma warning restore CS0618
         }
 
+        if (alias == "homePage")
+        {
+            await EnsureHeroImagePropertyAsync(contentType);
+        }
+
         await EnsureTemplateAsync(contentType, name);
+    }
+
+    private static readonly Guid PrismMediaPickerDataTypeKey = new Guid("a2b3c4d5-e6f7-8901-a2b3-c4d5e6f78901");
+
+    private async Task EnsureHeroImagePropertyAsync(IContentType contentType)
+    {
+        const string propertyAlias = "heroImage";
+        if (contentType.PropertyTypes.Any(p => p.Alias == propertyAlias)) return;
+
+        const string editorAlias = "Umbraco.MediaPicker3";
+        const string dataTypeName = "Prism Hero Image Picker";
+
+        var dataType = await dataTypeService.GetAsync(PrismMediaPickerDataTypeKey);
+        if (dataType == null)
+        {
+            var editor = propertyEditorCollection[editorAlias];
+            if (editor == null)
+            {
+                logger.LogWarning("PRISM: Editor '{EditorAlias}' not found; skipping heroImage property", editorAlias);
+                return;
+            }
+
+            dataType = new DataType(editor, configurationEditorJsonSerializer)
+            {
+                Key = PrismMediaPickerDataTypeKey,
+                Name = dataTypeName,
+                DatabaseType = ValueStorageType.Ntext,
+                EditorUiAlias = "Umb.PropertyEditorUi.MediaPicker",
+                ConfigurationData = new Dictionary<string, object>
+                {
+                    { "multiple", false },
+                    { "onlyImages", true }
+                }
+            };
+
+            await dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey);
+        }
+
+        const string groupName = "Content";
+        const string groupKey = "content";
+        if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
+        {
+            contentType.AddPropertyGroup(groupName, groupKey);
+        }
+
+        var propertyType = new PropertyType(shortStringHelper, dataType, propertyAlias)
+        {
+            Name = "Hero Image",
+            Description = "Background image for the hero section. Pick from the media library.",
+            Mandatory = false,
+            SortOrder = 0
+        };
+
+        contentType.AddPropertyType(propertyType, groupName);
+
+#pragma warning disable CS0618
+        contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+
+        logger.LogInformation("PRISM: heroImage property added to homePage content type");
     }
 
     private async Task EnsureSettingsDocumentTypeAsync()

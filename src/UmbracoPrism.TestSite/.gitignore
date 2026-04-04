@@ -478,5 +478,9 @@ umbraco-package-schema.json
 # Log files
 /umbraco/Logs/
 
-# Media files
-/wwwroot/media/
+# Media files (Umbraco runtime uploads — exclude from source control)
+# Use a file-level ignore rather than directory-level so we can whitelist seed assets
+/wwwroot/media/**
+# Except seed branding assets committed to the repo
+!/wwwroot/media/branding/
+!/wwwroot/media/branding/**
