@@ -904,14 +904,16 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
       // Render media picker for image types
       if (variable.type === 'image') {
-        const previewUrl = value
-          ? value.startsWith('url(')
-            ? value.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '')
-            : value
+        const isGradient = value && value.includes('gradient');
+        const isUrl = value && !isGradient && (value.startsWith('url(') || value.startsWith('/') || value.startsWith('http'));
+        const previewUrl = isUrl
+          ? (value.startsWith('url(') ? value.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '') : value)
           : '';
         return html`
           <div class="image-picker">
-            ${previewUrl ? html`
+            ${isGradient ? html`
+              <div style="width: 100%; height: 40px; background: ${value}; border-radius: 4px; border: 1px solid var(--uui-color-border); margin-bottom: 0.5rem;"></div>
+            ` : isUrl && previewUrl ? html`
               <img
                 src=${previewUrl}
                 alt="Preview"
