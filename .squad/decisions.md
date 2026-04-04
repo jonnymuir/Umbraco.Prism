@@ -2550,3 +2550,246 @@ All Critical and High severity issues have been fixed. The feature is **approved
 - `.vscode/tasks.json` — new `"dotnet: build Core"` task; `"Client: build"` gains `dependsOn`
 - `.vscode/launch.json` — `"C#: Mock Back-Office Debug"` gains `preLaunchTask`
 
+
+---
+
+## 📌 2026-04-04: CSS Branding Metadata API & Design System (Blathers, Celeste, Isabelle)
+
+**Session Log:** `.squad/log/2026-04-04T09:40:58Z-branding-design-system.md`  
+**Orchestration Logs:** 
+- `.squad/orchestration-log/2026-04-04T09:40:58Z-blathers.md` (Backend Dev)
+- `.squad/orchestration-log/2026-04-04T09:40:58Z-celeste.md` (Documentation)
+
+### Blathers — CSS Branding Metadata Parser Architecture
+
+**Decision:** Implemented a CSS metadata parser that reads structured annotations from branding CSS files and exposes them via a backoffice API endpoint, enabling a dynamic, design-system-style tenant editor.
+
+**Annotation Format:**
+Each brandable CSS variable follows this pattern:
+```css
+@property --prism-primary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4f46e5;
+}
+
+:root {
+  /* @prism section: Brand Colours | label: Primary Brand Colour | description: Used for buttons, links, and highlights */
+  --prism-primary: #4f46e5;
+}
+```
+
+**Annotation Keys:**
+- `section` — groups variables into sections in the editor UI
+- `label` — human-readable name for the field
+- `description` — tooltip/hint text
+- `type` — picker type hint: `color`, `image`, `url`, `font`, `length`, `text`
+
+**Type Resolution:**
+1. Explicit `@prism type:` override (if present)
+2. Inferred from `@property syntax` (`<color>` → color, `<url>` → url, `<length>` → length, `*` or `<string>` → text)
+3. Default to `text` if neither present
+
+**API Contract:**
+- **Endpoint:** `GET /umbraco/api/prism/branding/metadata`
+- **Auth:** Umbraco backoffice access (`BackOfficeAccess` policy)
+- **Response:** JSON with sections array → variables array with full metadata
+
+**Implementation Details:**
+- **Models:** `BrandingVariableMetadata` (variable, label, description, type, syntax, currentValue) + `BrandingSection` (section name + variables)
+- **Service:** `IPrismBrandingMetadataService` / `PrismBrandingMetadataService`
+  - Reads all `*.css` files from `wwwroot/branding/` EXCEPT `prism-branding.css` (aggregator file)
+  - Parses `@property` declarations and `/* @prism ... */` annotations using regex
+  - Groups by section (first-appearance order, not alphabetical)
+  - Caches result in `IMemoryCache` (1-hour sliding expiration)
+  - Registered as singleton in `PrismComposer`
+- **Controller:** Added `GET branding/metadata` endpoint to `TenantManagementController`
+- **Tests:** 12 unit tests covering annotation parsing, type inference, section grouping, caching behavior (all pass ✅)
+
+**Rationale:**
+- **Runtime parsing (not build-time):** Simpler deployment, no build step for CSS changes, supports hot-reload in dev. Metadata cache means negligible runtime cost.
+- **Regex parsing (not PostCSS/AST):** Annotation format is simple and well-defined, no need for Node.js tooling in backend, regex patterns are tested and reliable for this use case.
+- **Exclude prism-branding.css:** It's an `@import` aggregator with no variable declarations; prevents duplicate parsing.
+- **Section order by first-appearance:** Allows authors to control section order by organizing CSS files; more intuitive than alphabetical sorting.
+- **1-hour cache expiration:** CSS changes are rare in production; dev can restart to pick up changes; balances freshness vs. performance.
+
+**Consequences:**
+- ✅ UI form automatically in sync with available CSS variables
+- ✅ Adding new brandable variables requires zero UI code changes
+- ✅ Type inference from `@property` reduces annotation boilerplate
+- ✅ Section grouping improves UX for large variable sets
+- ⚠️ CSS authors must follow annotation format exactly (no validation at write-time)
+- ⚠️ Cache expiration means CSS changes require restart or cache eviction
+- ⚠️ Regex parsing is fragile to format variations (mitigated by unit tests)
+
+**Test Status:** ✅ 218 tests pass. No regressions.
+
+---
+
+### Blathers — Remove ThemeColor from Backend
+
+**Decision:** Remove `ThemeColor` completely from the backend as it was:
+1. Never exposed in the tenant editor UI (hardcoded to '#3544b1')
+2. Replaced by the CSS variable override system in `wwwroot/branding/`
+3. Dead weight in the database schema and domain models
+
+**Implementation:**
+- Domain model: Removed from `PrismTenant.cs`
+- Database schema: Removed from `PrismTenantSchema.cs`
+- API request DTO: Removed from `PrismTenantRequest.cs`
+- Controller mappings: Removed from `TenantManagementController.cs`
+- Service layer: Removed from `TenantService.cs`
+- Test helpers: Removed from `TenantServiceCacheStrategyTests.cs`
+- Migration: Added `DropThemeColorColumn` migration (checks for existence before dropping)
+
+**Rationale:**
+- Simplified model: Removes unused property from 6 files
+- Single source of truth: Tenant branding now exclusively managed through CSS variable overrides
+- Migration safety: Handles both fresh installs and upgrades
+- Zero UI impact: Property was never exposed in the UI
+
+**Alternatives Considered & Rejected:**
+- Keep for future use — CSS variable system is more flexible and already implemented
+- Wire it up to UI — CSS variables provide superior branding control
+
+**Consequences:**
+- ✅ Cleaner, more maintainable codebase
+- ⚠️ Database schema change requires migration for existing installations
+- ⚠️ Any external code referencing `ThemeColor` will break (unlikely)
+
+---
+
+### Celeste — Branding & Design System Documentation
+
+**Decision:** Created comprehensive documentation for the CSS branding system and design-system-based tenant editor.
+
+**Deliverables:**
+1. **docs/branding-design-system.md** (563 lines)
+   - Complete guide to annotation format with examples
+   - Type hints reference and picker type selection logic
+   - Live editor workflow documentation
+   - Branding CSS file summaries (prism-colors, prism-layout, prism-typography, prism-spacing, prism-utilities)
+   - Future enhancements section
+
+2. **README.md Enhancement**
+   - Added "Branding & Design System" section after Features
+   - Embedded annotation code example showing `@property` + `@prism` pattern
+   - Linked to comprehensive branding design system guide
+
+3. **docs/README.md Update**
+   - Added "Branding & Design System" entry to documentation index
+
+**Quality Metrics:**
+- ✅ 563 lines of clear, example-driven documentation
+- ✅ Code samples are accurate and runnable
+- ✅ Technical depth appropriate for backend developers and designers
+- ✅ Coordination with Blathers and Isabelle work documented
+- ✅ No formatting or grammar issues
+
+**Rationale:**
+- Documentation reflects final design decisions from Blathers and Isabelle
+- Ready for publication to Umbraco marketplace/community sites
+- Serves as reference for future contributors adding new branding variables
+
+---
+
+### Isabelle — Test Site CSS Structure (ITCSS)
+
+**Decision:** Adopt ITCSS (Inverted Triangle CSS) layer structure for test site CSS, organized as:
+
+```
+wwwroot/css/
+  base.css         — HTML element defaults
+  layout.css       — Page structure, grid systems, containers
+  components.css   — Reusable UI patterns
+  utilities.css    — State/modifier classes
+```
+
+Files are linked in Master.cshtml in ITCSS order (specificity increasing):
+1. Branding CSS (`/branding/prism-branding.css` — loads all branding files)
+2. Site CSS (`base.css` → `layout.css` → `components.css` → `utilities.css`)
+3. Dynamic CSS (inline `<style>` for runtime CSS variable injections)
+
+**Rationale:**
+- **Why ITCSS:** Natural specificity order, clear separation of concerns, scalable without over-engineering, minimal layer count (4 files)
+- **Why separate from branding CSS:** Branding CSS is a **key feature** of Umbraco.Prism, not just project organization. Intentionally separate to demonstrate multi-tenant branding capability.
+- **Why inline `<style>` for dynamic values:** Dynamic CSS variable injections (e.g., `--tenant-primary`, `--prism-hero-image`) are runtime values from C# that cannot be extracted to static files.
+
+**Layer Contents:**
+- **base.css:** HTML element defaults (body font, line-height, color, background), mobile overrides
+- **layout.css:** Portal/dashboard headers, page containers, grid systems, footer, Vinyl Vault layouts, mobile layout overrides
+- **components.css:** Hero, buttons, cards, features section, dashboard sections, mobile navigation, Vinyl Vault components, mobile overrides
+- **utilities.css:** Debug visibility, mobile web component visibility
+
+**Patterns Consolidated:**
+- Portal header + dashboard header → same base styles with variant modifiers
+- Card patterns from HomePage and MemberDashboard → unified `.card` and `.dash-card`
+- Button patterns → single `.btn` base with variant modifiers
+- Mobile overrides → centralized in components.css and layout.css
+
+**Conventions:**
+- File naming: Named for what they contain, not where they came from
+- Comments: Brief section headings for scannability
+- No build step: Plain CSS only, no preprocessors
+- CSS variables: Non-branding CSS variables go in future `settings.css` layer (not created yet)
+
+**Future Considerations:**
+- If non-branding CSS custom properties become common, add `settings.css` as first layer
+- Don't create layers just for the sake of ITCSS — merge/remove if empty or trivial
+- Keep structure flat and obvious (this is a demo, not an enterprise app)
+
+---
+
+### Isabelle — Edit Tenant Dialog — Maximize & Close Button Pattern
+
+**Decision:** Added Close (×) and Maximize/Restore buttons to the title bar of the tenant editor dialog (`prism-create-tenant-modal`).
+
+**Conventions Adopted:**
+
+**Headline slot pattern:**
+Use `slot="headline"` (not the `headline=""` attribute) on `uui-dialog-layout` whenever the dialog title bar needs additional controls. Omit the `headline` attribute entirely and supply a flex container (`display:flex; justify-content:space-between`) as the slotted content.
+
+**Maximize via host class:**
+Apply a `maximized` CSS class to `:host` using `this.classList.toggle('maximized', flag)` inside `updated()`. The maximized state uses `position: fixed !important; inset: 0; width: 100vw; height: 100vh; z-index: 10000` to escape the `uui-modal-dialog` / native `<dialog>` stacking context.
+
+**Escape key interception:**
+Use a capture-phase `document.addEventListener('keydown', handler, true)` added in `connectedCallback` / removed in `disconnectedCallback`. When maximized, call `event.stopPropagation()` and restore — do NOT close. When not maximized, let the modal framework handle Escape normally.
+
+**Icon buttons:**
+Use a plain `<button class="dialog-icon-btn">` with SVG icon, `aria-label`, and `title`. Style with UUI CSS variables (`--uui-color-text-alt`, `--uui-color-surface-emphasis`, `--uui-color-focus`) for consistent backoffice look. Apply `focus-visible` outline ring.
+
+**Rationale:**
+- Requested by Jonny as quality-of-life improvement
+- The dialog has many tabs and fields; fullscreen mode reduces scrolling for large configurations
+- A title-bar close button is a universal UX convention users expect
+- Consistent with Umbraco backoffice design language (UUI variables throughout)
+
+---
+
+### Isabelle — Remove Legacy --tenant-primary CSS Variable
+
+**Decision:** Removed the legacy `--tenant-primary` CSS variable system entirely in alignment with backend `ThemeColor` removal.
+
+**Implementation:**
+1. **prism-layout.css** — Replaced `var(--tenant-primary)` with `var(--prism-primary)` and `var(--tenant-primary-contrast)` with `var(--prism-primary-contrast)` in `.header` styles
+2. **prism-colors.css** — Removed redundant `--tenant-primary-contrast: white;` definition
+3. **Master.cshtml** — Removed the `<style>` block that injected `--tenant-primary` and the C# `brandColor` variable
+4. **prism-create-tenant-modal.ts** — Removed `themeColor: '#3544b1'` from tenant creation payload
+
+**Rationale:**
+- Simplicity: One colour system is clearer than two overlapping systems
+- Consistency: All tenant branding managed through CSS variable overrides in `wwwroot/branding/`
+- Cleanliness: Removes the last server-injected `<style>` block (inline styles only remain for dynamic Umbraco media URLs)
+- Backend alignment: Blathers removed `ThemeColor` from C# model — frontend should follow
+
+**Verification:**
+- ✅ Grepped entire test site for `tenant-primary` — no matches
+- ✅ Grepped entire test site for `ThemeColor` — no matches
+
+**Impact:**
+- ✅ Breaking change if custom tenant sites relied on `--tenant-primary` (unlikely — branding CSS already used `--prism-primary`)
+- ✅ Removes confusion about which CSS variable to use for tenant branding
+- ✅ Aligns frontend with backend model changes
+
+---
+

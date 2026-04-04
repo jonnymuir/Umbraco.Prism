@@ -534,3 +534,48 @@ The `wwwroot/branding/` directory was **not touched** — it contains deliberate
 - The proper tenant colour system is `--prism-primary` and `--prism-primary-contrast`, managed through the CSS variable override files in `wwwroot/branding/`
 - This removed the last server-injected `<style>` block from `Master.cshtml` (the only remaining inline styles are for dynamic Umbraco media URLs)
 - Also removed `themeColor: '#3544b1'` from the tenant creation modal in the backoffice — that property no longer exists on the backend
+
+### 2026-03-22: CSS Branding Annotations + Dynamic Tenant Editor
+
+Implemented the branding design system feature in two parts:
+
+**Part 1: CSS Annotations**
+Added `@property` declarations and `/* @prism section | label | description */` comments to all CSS variables in:
+- `prism-colors.css` — Brand Colours (18 variables)
+- `prism-typography.css` — Typography (11 variables)
+- `prism-layout.css` — Layout (7 variables)
+- `prism-components.css` — Components + Mobile Navigation (22 variables)
+- `prism-imagery.css` — Imagery (3 variables)
+
+Each variable now has:
+- Native `@property` syntax declaration for browser validation
+- Structured metadata comment for editor UI generation
+- Organized into semantic sections (Brand Colours, Typography, Layout, Components, Mobile Navigation, Hero Section, Imagery)
+- Type-aware annotations (color, font, length, image, url, text)
+
+**Part 2: Dynamic Tenant Editor UI**
+Updated `prism-create-tenant-modal.ts` to:
+- Fetch branding metadata from `/umbraco/api/prism/branding/metadata` API
+- Render dynamic form fields based on metadata (color pickers, text inputs, image fields)
+- Group fields by section with `<uui-box>` containers
+- Show separate Desktop/Mobile inputs for each variable
+- Gracefully degrade to static fields if API fetch fails
+- Display loading spinner while fetching metadata
+- Collect dynamic values on save and map to tenant branding overrides
+
+**Key Technical Decisions:**
+- Chose native `<input type="color">` for color pickers (simple, accessible)
+- Kept fallback to static table-based branding editor for error resilience
+- Used Record<string, string> state objects for dynamic value tracking
+- Triggered metadata fetch on first branding tab click
+- Maintained backward compatibility with existing `_brandingTabs` static structure
+
+**Integration Notes:**
+- Works in parallel with Blathers' CSS parser and metadata API endpoint
+- Respects existing branding override save flow
+- UI adapts to whatever sections/variables the CSS parser discovers
+- No hardcoded field definitions — completely driven by CSS annotations
+
+**Build Status:** ✅ TypeScript compiled clean, Vite build succeeded
+
+This completes the branding-as-design-system feature. The tenant editor now dynamically reflects the annotated CSS structure, giving operators a polished, section-organized UI for live branding edits.
