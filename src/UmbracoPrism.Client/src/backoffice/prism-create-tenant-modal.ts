@@ -1414,9 +1414,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       outline: 2px solid var(--uui-color-focus, #3879d9);
       outline-offset: 1px;
     }
+    uui-tab-group {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--uui-color-surface);
+      border-bottom: 1px solid var(--uui-color-border-standalone);
+    }
     .container { 
       min-height: 350px;
-      overflow: auto;
     }
     .override-input {
       width: 100%;
