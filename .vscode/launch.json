@@ -19,6 +19,7 @@
             "name": "C#: Mock Back-Office Debug",
             "type": "dotnet",
             "request": "launch",
+            "preLaunchTask": "dotnet: build Core",
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.MockBackOffice/UmbracoPrism.MockBackOffice.csproj"
         }
     ],

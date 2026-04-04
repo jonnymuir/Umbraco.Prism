@@ -2,6 +2,13 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "dotnet: build Core",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/src/UmbracoPrism.Core/UmbracoPrism.Core.csproj"],
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "Client: build",
       "type": "shell",
       "command": "npm",
@@ -9,6 +16,8 @@
       "options": {
         "cwd": "${workspaceFolder}/src/UmbracoPrism.Client"
       },
+      "dependsOn": ["dotnet: build Core"],
+      "dependsOrder": "sequence",
       "problemMatcher": []
     },
     {
