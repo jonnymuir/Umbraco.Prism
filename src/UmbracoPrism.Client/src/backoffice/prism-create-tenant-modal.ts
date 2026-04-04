@@ -286,7 +286,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     this._brandingMetadataError = null;
 
     try {
-      const response = await fetch('/umbraco/api/prism/branding/metadata');
+      const response = await fetch('/umbraco/management/api/v1/prism/branding/metadata');
       
       if (!response.ok) {
         throw new Error(`Failed to fetch branding metadata: ${response.status}`);
