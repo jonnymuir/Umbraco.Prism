@@ -4,6 +4,8 @@ import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { umbHttpClient } from '@umbraco-cms/backoffice/http-client';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
+import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { UMB_MEDIA_PICKER_MODAL } from '@umbraco-cms/backoffice/media';
 
 interface BrandingMetadata {
   sections: Array<{
@@ -879,19 +881,52 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         `;
       }
 
-      // Render image input with preview hint
+      // Render media picker for image types
       if (variable.type === 'image') {
+        const previewUrl = value
+          ? value.startsWith('url(')
+            ? value.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '')
+            : value
+          : '';
         return html`
-          <uui-input
-            .value=${value}
-            @input=${updateHandler}
-            placeholder="/media/... or https://...">
-          </uui-input>
-          ${value && (value.startsWith('http') || value.startsWith('/')) ? html`
-            <small style="color: var(--uui-color-text-alt); display: block; margin-top: 0.25rem;">
-              Preview: ${value}
-            </small>
-          ` : ''}
+          <div class="image-picker">
+            ${previewUrl ? html`
+              <img
+                src=${previewUrl}
+                alt="Preview"
+                class="image-picker__preview"
+                @error=${(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')}>
+            ` : ''}
+            <div class="image-picker__actions">
+              <uui-button
+                look="secondary"
+                compact
+                @click=${() => this._pickMediaForVariable(varName, isMobile)}>
+                📷 Pick from Media Library
+              </uui-button>
+              ${value ? html`
+                <uui-button
+                  look="secondary"
+                  compact
+                  color="danger"
+                  @click=${() => {
+                    if (isMobile) {
+                      this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: '' };
+                    } else {
+                      this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: '' };
+                    }
+                  }}>
+                  Clear
+                </uui-button>
+              ` : ''}
+            </div>
+            <uui-input
+              .value=${value}
+              @input=${updateHandler}
+              placeholder="/media/... or https://... or url('/media/...')"
+              style="width: 100%;">
+            </uui-input>
+          </div>
         `;
       }
 
@@ -925,6 +960,43 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         </div>
       </div>
     `;
+  }
+
+  private async _pickMediaForVariable(varName: string, isMobile: boolean) {
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const modal = modalManager.open(this, UMB_MEDIA_PICKER_MODAL, {
+      data: { multiple: false }
+    });
+
+    const result = await modal.onSubmit().catch(() => null);
+    if (!result?.selection?.length) return;
+
+    const unique = result.selection[0];
+    if (!unique) return;
+
+    this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+      if (!authContext) return;
+      const token = await authContext.getLatestToken();
+      try {
+        const res = await fetch(`/umbraco/management/api/v1/media/${unique}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const rawUrl: string = data.urls?.[0]?.url ?? data.url ?? '';
+        if (!rawUrl) return;
+        const wrappedUrl = `url('${rawUrl}')`;
+        if (isMobile) {
+          this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: wrappedUrl };
+        } else {
+          this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: wrappedUrl };
+        }
+      } catch (err) {
+        console.error('[Prism] Failed to fetch media URL', err);
+      }
+    });
   }
 
   private _updateBrandingOverride(tabIndex: number, variableIndex: number, value: string) {
@@ -1313,6 +1385,24 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .override-input {
       width: 100%;
+    }
+    .image-picker {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .image-picker__preview {
+      max-height: 60px;
+      max-width: 100%;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid var(--uui-color-border);
+    }
+    .image-picker__actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
     }
     .field { 
       display: flex;
