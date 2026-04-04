@@ -162,16 +162,13 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
             switch (key.ToLowerInvariant())
             {
                 case "section":
-                    // Section is handled separately, but store in description for reference
-                    metadata.Description = part;
+                    // Section is handled separately in the calling code
                     break;
                 case "label":
                     metadata.Label = value;
                     break;
                 case "description":
-                    metadata.Description = metadata.Description == null 
-                        ? part 
-                        : metadata.Description + " | " + part;
+                    metadata.Description = value;
                     break;
                 case "type":
                     metadata.Type = value.ToLowerInvariant();

@@ -857,6 +857,17 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     const currentValue = this._dynamicBrandingValues[varName] ?? variable.currentValue;
     const mobileValue = this._dynamicMobileBrandingValues[varName] ?? variable.currentValue;
 
+    const isDesktopOverridden = currentValue !== variable.currentValue;
+    const isMobileOverridden = mobileValue !== variable.currentValue;
+
+    const resetValue = (isMobile: boolean) => {
+      if (isMobile) {
+        this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: variable.currentValue };
+      } else {
+        this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: variable.currentValue };
+      }
+    };
+
     const renderField = (value: string, isMobile: boolean) => {
       const updateHandler = (e: Event) => {
         const newValue = (e.target as HTMLInputElement).value;
@@ -960,11 +971,23 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             ${variable.description}
           </small>
           <div style="margin-bottom: 0.5rem;">
-            <small style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Desktop</small>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+              <small style="font-weight: 600;">Desktop</small>
+              ${isDesktopOverridden ? html`
+                <span style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">modified</span>
+                <uui-button look="placeholder" compact style="font-size: 0.7rem;" @click=${() => resetValue(false)}>↺ Reset</uui-button>
+              ` : ''}
+            </div>
             ${renderField(currentValue, false)}
           </div>
           <div>
-            <small style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Mobile</small>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+              <small style="font-weight: 600;">Mobile</small>
+              ${isMobileOverridden ? html`
+                <span style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">modified</span>
+                <uui-button look="placeholder" compact style="font-size: 0.7rem;" @click=${() => resetValue(true)}>↺ Reset</uui-button>
+              ` : ''}
+            </div>
             ${renderField(mobileValue, true)}
           </div>
         </div>
