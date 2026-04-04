@@ -2793,3 +2793,54 @@ Use a plain `<button class="dialog-icon-btn">` with SVG icon, `aria-label`, and 
 
 ---
 
+
+## 📌 2025-07-22: uui-input Accessibility Label Pattern (Isabelle)
+
+Every `uui-input` element must have a `label` attribute, regardless of whether a visible `<label>` element already wraps or precedes it. The UUI component library requires the attribute on the element itself for its internal accessibility wiring.
+
+- **Dynamic fields** (`_renderDynamicField`): use `label=${variable.label}` (in scope from `BrandingMetadata` variable object).
+- **Table loop inputs** (`_renderStaticBrandingContent`): use template literals for uniqueness, e.g. `"${variable.name} (desktop override)"`.
+
+Visible labels do not satisfy the UUI component's internal label requirement. Omitting the `label` attribute causes console noise and screen-reader issues.
+
+---
+
+## 📌 2026-07-10: Media Picker URL Endpoint (Isabelle)
+
+Use `/umbraco/management/api/v1/media/urls?id={unique}` to resolve a media item's public URL in the backoffice, **not** `/umbraco/management/api/v1/media/{id}`.
+
+- `/media/{id}` returns a full `MediaResponseModel` with no `urls` property.
+- `/media/urls?id={id}` returns `MediaUrlInfoResponseModel[]` — each item has `id` and `urlInfos: Array<{ culture, url }>`.
+
+Response parsing pattern:
+```typescript
+const items: Array<{ id: string; urlInfos: Array<{ culture: string | null; url: string | null }> }>
+  = Array.isArray(data) ? data : [data];
+const rawUrl: string = items[0]?.urlInfos?.[0]?.url ?? '';
+```
+
+Affects `prism-create-tenant-modal.ts` → `_pickMediaForVariable` and any future code resolving media URLs from the Umbraco Management API.
+
+---
+
+## 📌 CSS Variable Organisation Principles (Isabelle)
+
+Hero-section presentation variables (bg, text, badge) live in `prism-imagery.css` alongside other hero/card imagery. Nav height dimensions live in `prism-layout.css` alongside other layout dimensions. `prism-colors.css` contains only the raw brand colour palette. Keeps each file cohesive by concern — images/gradients in imagery, dimensions in layout, raw colours in colors.
+
+---
+
+## 📌 2025-07-15: Test Philosophy — Behavioural Contracts (Tangy)
+
+Tests are **behavioural contracts** — they express what the product should *do* from a user/product-owner perspective, not *how* it does it. Tests must remain green after any refactor that preserves observable behaviour.
+
+**Key principles:**
+
+1. **Prefer semantic selectors over structural selectors.** `data-variable="--color-primary"` expresses intent. `uui-table-row:first-of-type` expresses position and breaks if rows are reordered.
+
+2. **Wait for visible state before querying shadow DOM.** Always add `await expect(...).toBeVisible()` before any `evaluate` that depends on async-rendered content.
+
+3. **Follow named-ID patterns** for stable assertions (`#mobile-app-name`, `#mobile-app-id`) with real semantic values.
+
+Additional fixes made alongside: `_fetchBrandingMetadata` fixed with `Promise.race` + 500ms timeout so fetch fires in test environments; duplicate-ID bug fixed by extracting `_renderStaticBrandingContent` from `_renderStaticBrandingTab`.
+
+---

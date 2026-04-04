@@ -604,3 +604,26 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 - CSS classes: `.image-picker`, `.image-picker__preview`, `.image-picker__actions` added to component styles
 
 **Build Status:** ✅ TypeScript + Vite build clean, 0 errors
+
+## Learnings
+
+### UUI Component Accessibility (uui-input label attribute)
+- `uui-input` requires its own `label` attribute for accessibility, even when a visible `<label>` element is already present in the DOM nearby.
+- In `_renderDynamicField`, use `label=${variable.label}` for dynamic fields; in static table loops, use template literals like `"${variable.name} (desktop override)"` for unique per-row labels.
+- The `uui-button` component also needs a `label` attribute — audit all button instances when resolving these warnings.
+
+## Session: 2026-07-10 — Media Picker Endpoint Fix
+
+**Task:** Fix media picker not updating input box (wrong API endpoint)
+
+**Result:** ✅ Complete, build clean, all 34 tests pass
+
+**Root Cause:** `_pickMediaForVariable` called `/media/{id}` which returns full item details with no `urls` property. Correct endpoint is `/media/urls?id={id}` which returns an array of `MediaUrlInfoResponseModel`.
+
+**Fix:** Updated fetch URL and response parsing in `prism-create-tenant-modal.ts`. Added `console.warn` for empty URL responses.
+
+**Test:** Created `tests/media-url-extraction.spec.ts` — 4 pure logic tests (no browser needed) covering happy path, empty urlInfos, null url, and empty array.
+
+## Learnings
+
+- 2026-07-10: The Umbraco Management API `/media/{id}` returns full item details (no `urls` property). Use `/media/urls?id={id}` to get a `MediaUrlInfoResponseModel[]` with `urlInfos[].url`. Always check the Umbraco Management API docs for the correct URL resolution endpoint.
