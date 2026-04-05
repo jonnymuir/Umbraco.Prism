@@ -1092,3 +1092,11 @@ All components implemented, tested via build, and ready for integration with mob
 
 **Isabelle dependency:**
 - Frontend branding editor picker (in progress) expects `GET /umbraco/management/api/v1/media/{id}` — built-in Umbraco 17 Management API endpoint, no auth changes required (verified not blocked by PrismAdmins or PrismStrictIsolation policies)
+
+## Learnings & Handoff (2026-07-15, Description Display Bug Fix)
+
+**Bug:** `PrismBrandingMetadataService.ParsePrismAnnotation` had a fallback at the end of the method that stored the full raw annotation string as `metadata.Description` when no `description:` key was present in the annotation. This caused variables without a `description:` annotation to show the entire annotation text (e.g., `section: Components | description: Background colour for primary buttons`) in the description field instead of just the parsed value.
+
+**Fix:** Removed the fallback block (lines 172–176). If no `description:` key is found during parsing, `Description` remains `null`/empty — which is correct. The `ParsePrismAnnotation` method already correctly sets `metadata.Description = value` when a `description:` key is found.
+
+**Lesson:** Defensive "store raw input as fallback" patterns in parsers are often wrong — they silently propagate garbage data rather than leaving the field unset. Prefer explicit nullability over raw-data fallbacks.

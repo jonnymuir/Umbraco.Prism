@@ -58,6 +58,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _brandingMetadataError: string | null = null;
   @state() private _dynamicBrandingValues: Record<string, string> = {};
   @state() private _dynamicMobileBrandingValues: Record<string, string> = {};
+  @state() private _mobileInherited: Record<string, boolean> = {};
   
   // Form State
   @state() private _id: number | null = null;
@@ -314,12 +315,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
       this._dynamicBrandingValues = {};
       this._dynamicMobileBrandingValues = {};
+      this._mobileInherited = {};
 
       data.sections.forEach(section => {
         section.variables.forEach(variable => {
           const varName = variable.variable;
           this._dynamicBrandingValues[varName] = tenantOverrides[varName] ?? variable.currentValue;
-          this._dynamicMobileBrandingValues[varName] = tenantMobileOverrides[varName] ?? variable.currentValue;
+          const explicitMobileOverride = tenantMobileOverrides[varName];
+          this._mobileInherited[varName] = !explicitMobileOverride;
+          this._dynamicMobileBrandingValues[varName] = explicitMobileOverride ?? variable.currentValue;
         });
       });
     } catch (error) {
@@ -882,17 +886,13 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   private _renderDynamicField(variable: BrandingMetadata['sections'][0]['variables'][0]) {
     const varName = variable.variable;
     const currentValue = this._dynamicBrandingValues[varName] ?? variable.currentValue;
-    const mobileValue = this._dynamicMobileBrandingValues[varName] ?? variable.currentValue;
+    const isInherited = this._mobileInherited[varName] !== false;
+    const effectiveMobileValue = isInherited ? currentValue : (this._dynamicMobileBrandingValues[varName] ?? variable.currentValue);
 
     const isDesktopOverridden = currentValue !== variable.currentValue;
-    const isMobileOverridden = mobileValue !== variable.currentValue;
 
-    const resetValue = (isMobile: boolean) => {
-      if (isMobile) {
-        this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: variable.currentValue };
-      } else {
-        this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: variable.currentValue };
-      }
+    const resetValue = () => {
+      this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: variable.currentValue };
     };
 
     const renderField = (value: string, isMobile: boolean) => {
@@ -1009,7 +1009,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               <small style="font-weight: 600;">Desktop</small>
               ${isDesktopOverridden ? html`
                 <span style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">modified</span>
-                <uui-button look="placeholder" compact style="font-size: 0.7rem;" label="Reset to default" @click=${() => resetValue(false)}>↺ Reset</uui-button>
+                <uui-button look="placeholder" compact style="font-size: 0.7rem;" label="Reset to default" @click=${() => resetValue()}>↺ Reset</uui-button>
               ` : ''}
             </div>
             ${renderField(currentValue, false)}
@@ -1017,12 +1017,29 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           <div>
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
               <small style="font-weight: 600;">Mobile</small>
-              ${isMobileOverridden ? html`
-                <span style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">modified</span>
-                <uui-button look="placeholder" compact style="font-size: 0.7rem;" label="Reset to default" @click=${() => resetValue(true)}>↺ Reset</uui-button>
-              ` : ''}
+              <uui-button
+                look="placeholder"
+                compact
+                label="${isInherited ? 'Break mobile inheritance' : 'Restore mobile inheritance'}"
+                data-testid="mobile-inherit-toggle-${varName}"
+                @click=${() => {
+                  if (isInherited) {
+                    this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: currentValue };
+                    this._mobileInherited = { ...this._mobileInherited, [varName]: false };
+                  } else {
+                    this._mobileInherited = { ...this._mobileInherited, [varName]: true };
+                  }
+                }}>
+                ${isInherited ? '🔗' : '⛓️'}
+              </uui-button>
+              ${isInherited
+                ? html`<span data-testid="mobile-inherit-label-${varName}" style="font-size: 0.7rem; color: var(--uui-color-text-alt); font-style: italic;">inheriting from desktop</span>`
+                : html`<span data-testid="mobile-custom-badge-${varName}" style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">custom</span>`
+              }
             </div>
-            ${renderField(mobileValue, true)}
+            <div data-testid="mobile-field-${varName}" style="${isInherited ? 'opacity: 0.5; pointer-events: none;' : ''}">
+              ${renderField(effectiveMobileValue, true)}
+            </div>
           </div>
         </div>
       </div>
@@ -1120,10 +1137,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   private _collectMobileBrandingOverrides() {
     const overrides: Record<string, string> = {};
     
-    // Use dynamic values if available (from metadata API)
     if (this._brandingMetadata) {
       Object.entries(this._dynamicMobileBrandingValues).forEach(([varName, value]) => {
-        if (value && value.trim().length > 0) {
+        if (!this._mobileInherited[varName] && value && value.trim().length > 0) {
           overrides[varName] = value.trim();
         }
       });

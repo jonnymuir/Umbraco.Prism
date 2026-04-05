@@ -169,11 +169,6 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
             }
         }
 
-        // Store full annotation in description if not already set
-        if (string.IsNullOrEmpty(metadata.Description))
-        {
-            metadata.Description = annotation;
-        }
     }
 
     private string ExtractMetadataValue(string annotation, string key)

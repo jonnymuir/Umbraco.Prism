@@ -509,3 +509,12 @@ Two test issues identified by Jonny Muir:
 **Verification:**
 - ✅ TypeScript + Vite build: 0 errors
 - ✅ All 8 Playwright tests pass (7.6s)
+
+## Learnings — 2026-03-28 (Mobile branding inheritance tests)
+
+- Wrote `prism-mobile-branding-inheritance.spec.ts` covering 4 behaviours: default chain-intact state, breaking inheritance, restoring inheritance, and loading a tenant with saved mobile overrides.
+- All 4 tests fail at time of writing (Isabelle's `data-testid` hooks not yet present). This is expected — they define the behavioural contract.
+- Tests use shadow DOM queries via `modal.evaluate()` with `el.shadowRoot?.querySelector('[data-testid="..."]')`. The testid format for CSS variables uses the full name including leading dashes: `mobile-inherit-toggle---color-primary`.
+- "Disabled" state for inherited mobile inputs can be implemented as either `pointer-events: none` or the `disabled` attribute — tests check both to remain implementation-agnostic.
+- The Edit Storybook story provides ideal mock data: `--color-primary` has a `mobileOverrideValue` (chain broken on load) and `--color-surface` does not (chain intact on load).
+- Edge case worth noting: `--color-surface` has neither `overrideValue` nor `mobileOverrideValue` — pre-population on break will yield an empty string, not a colour value. Tests avoid asserting the pre-populated value for this variable to prevent fragility.

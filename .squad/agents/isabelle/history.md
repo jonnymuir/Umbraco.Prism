@@ -627,3 +627,42 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 ## Learnings
 
 - 2026-07-10: The Umbraco Management API `/media/{id}` returns full item details (no `urls` property). Use `/media/urls?id={id}` to get a `MediaUrlInfoResponseModel[]` with `urlInfos[].url`. Always check the Umbraco Management API docs for the correct URL resolution endpoint.
+
+## Session: 2026-07-11 — Mobile Branding Inheritance System
+
+**Task:** Fix phantom mobile overrides bug + add chain/broken-chain inheritance UI for mobile branding variables
+
+**Result:** ✅ Complete, build clean (TypeScript + Vite, 0 errors)
+
+**What Was Fixed:**
+
+**Problem 1 — Phantom mobile overrides (core bug):**
+- `_dynamicMobileBrandingValues` was initialised to `variable.currentValue` for every variable, even those without explicit mobile overrides
+- `_collectMobileBrandingOverrides` saved all non-empty values, creating phantom overrides for every variable at CSS defaults
+- These phantom overrides won in the CSS cascade over desktop changes
+- **Fix:** Added `_mobileInherited: Record<string, boolean>` state. On init, set `_mobileInherited[varName] = !explicitMobileOverride`. In collect, only write override if `!_mobileInherited[varName]`
+
+**Problem 2 — Chain/broken-chain inheritance UI:**
+- Added `@state() private _mobileInherited: Record<string, boolean> = {}` near other `@state()` declarations
+- Mobile row now shows 🔗 (chained/inheriting) or ⛓️ (unchained/custom) toggle button
+- Chained: shows desktop value grayed out (opacity 0.5, pointer-events: none), "inheriting from desktop" label
+- Unchained: shows editable input pre-populated from desktop value, "custom" badge
+- Clicking 🔗 breaks chain: copies current desktop value as starting point, sets `_mobileInherited[varName] = false`
+- Clicking ⛓️ restores chain: sets `_mobileInherited[varName] = true` (no override saved)
+- Removed old mobile "Reset to default" button (was resetting to CSS default — wrong)
+- Desktop `resetValue(isMobile)` simplified to `resetValue()` (desktop only)
+
+**Problem 3 — Description display bug (backend):**
+- `PrismBrandingMetadataService.ParsePrismAnnotation` (line 172-175) falls back to storing the full raw annotation string as `Description` when no `description:` key is present in the `@prism` annotation
+- e.g. if a CSS var has `@prism section: Components | label: Background colour` (no description field), the entire annotation string becomes the displayed description
+- This is a backend issue — noted for Blathers, not fixed here
+
+**Key Implementation Details:**
+- `_mobileInherited` defaults to `{}` (empty) — `!== false` check used so that any key not yet set defaults to inherited
+- `effectiveMobileValue` derived in render: if inherited, use current desktop value; else use stored mobile value
+- `data-testid` attributes added: `mobile-inherit-toggle-${varName}`, `mobile-inherit-label-${varName}`, `mobile-field-${varName}`
+
+## Learnings
+
+- 2026-07-11: Mobile inheritance state should be stored separately from the value itself. Using `_mobileInherited[varName] !== false` (rather than a strict `=== true`) means newly-added variables default to inherited without needing explicit initialisation.
+- 2026-07-11: Backend `PrismBrandingMetadataService.ParsePrismAnnotation` falls back to storing the full `@prism` annotation string as description when no `description:` key is present. Any CSS variable without a `description:` field in its annotation will leak the full annotation into the UI.
