@@ -888,3 +888,40 @@ Moved the Cancel and Save/Update Tenant buttons from `slot="actions"` (bottom fo
 - 2026-04-01: `uui-button` elements placed inside a named slot (`slot="headline"`) of `uui-dialog-layout` are NOT reliably keyboard-navigatable — the shadow DOM slot context can intercept or skip tab order for custom elements. Fix: replace with native `<button>` elements styled to match UUI look (border, background, focus-visible ring, font-family inherit). Native buttons always participate in tab order correctly regardless of slot context.
 - 2026-04-01: Modal headline area redesign — removed title text (redundant when primary action button is labelled), collapsed two-row layout to single flex row `[primary action] [cancel] · · · [maximize][close]`, removed `.dialog-headline-top`, `.dialog-headline-buttons`, `.dialog-headline-title` classes, added `.dialog-headline-actions` (left) and `.dialog-headline-icons` (right). Primary action comes first (left), Cancel second (right of primary, left of icons) — primary goal first, escape hatch second.
 - 2026-04-01: When replacing `uui-button` with native `<button>` for accessibility, use `height`, `padding`, `font-family: inherit`, `font-size`, and `transition` to match UUI visual parity. For primary variant: `background-color: var(--uui-color-positive)` + `color: var(--uui-color-positive-contrast)`. Always add `:focus-visible` outline rule.
+
+## Session: 2026-04-08 — Accessibility Audit + Fixes for prism-create-tenant-modal
+
+**Task:** Full WCAG 2.1 AA audit + fix two confirmed bugs (keyboard focus, sticky headline) + broader ARIA pass on `prism-create-tenant-modal.ts`.
+
+**Result:** ✅ Complete, build clean (`tsc --noEmit` 0 errors)
+
+### Learnings
+
+- 2026-04-08: `uui-dialog-layout` renders `slot="headline"` content AND the default slot inside the same shadow-root scroll region. Buttons in `slot="headline"` may not receive keyboard focus in all browsers because the shadow DOM tab sequence doesn't reliably propagate into named slots. The headline also scrolls with the content rather than staying fixed. **Fix:** Remove `uui-dialog-layout`; own the full layout with `:host { display:flex; flex-direction:column; overflow:hidden }` and make `.container` the sole scroll region (`flex:1; overflow-y:auto; min-height:0`).
+
+- 2026-04-08: Shadow DOM focus-seeding pattern for modals: use `firstUpdated()` + `requestAnimationFrame(() => shadowRoot.querySelector('.primary-btn').focus())`. Direct calls in `connectedCallback` fire before the shadow root is painted. Add `autofocus` on the button as a belt-and-suspenders fallback.
+
+- 2026-04-08: `aria-labelledby` referencing an `id` inside the shadow root does NOT work cross-tree. For `role="dialog"` hosts, use `aria-label` set in `connectedCallback` and kept in sync in `updated()`.
+
+- 2026-04-08: `min-height:0` is required on flex children with `overflow-y:auto`. Without it, flex sets the minimum height to `auto` (content height), so the child expands to fit its content and never scrolls.
+
+- 2026-04-08: Keyboard tab switching via arrow keys in `uui-tab-group` does NOT fire click events. Our `_handleTabGroupClick` uses `@click`, so arrow-key navigation is visual-only (the panel doesn't update). This is a pre-existing bug; needs a `@change` or `@tab-change` event handler.
+
+### Changes
+
+- `render()`: Removed `<uui-dialog-layout>` wrapper and `slot="headline"`. Headline div, tab group, and container are now direct shadow-DOM children of `:host`.
+- Added `firstUpdated()`: seeds focus on `.dialog-action-btn--primary` via `requestAnimationFrame`.
+- Added `autofocus` to primary action button.
+- Added `role="dialog"`, `aria-modal="true"`, `aria-label` (synced in `updated()`) to host.
+- Added `id="general-tab"`, `id="identity-tab"` to fix broken `aria-labelledby` on tab panels.
+- Fixed `_renderDynamicBrandingTab` missing `id` and `aria-labelledby` on tabpanel div.
+- Added `aria-required="true"` to Tenant Name and Hostname.
+- Added `aria-describedby="secret-hint"` to Key Vault Secret Name.
+- Added `aria-invalid` to mobile App ID, Start URL, Icon URL, Splash URL.
+- Added `aria-label` to `<input type="color">` in `_renderDynamicField`.
+- Added `:focus-visible` ring on `.toggle-switch input` (was invisible).
+- Added `@media (prefers-reduced-motion:reduce)` for all transitions.
+- CSS: `:host` → `display:flex; flex-direction:column; overflow:hidden`. `.container` → `flex:1; overflow-y:auto; min-height:0`. `uui-tab-group` → removed `position:sticky`. `.dialog-headline` → added `flex-shrink:0; padding`.
+
+**Skill written:** `.squad/skills/shadow-dom-focus/SKILL.md`
+**Decision written:** `.squad/decisions/inbox/isabelle-a11y-modal-findings.md`
