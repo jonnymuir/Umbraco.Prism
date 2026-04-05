@@ -142,6 +142,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
    */
   connectedCallback() {
     super.connectedCallback();
+    this.setAttribute('role', 'dialog');
+    this.setAttribute('aria-modal', 'true');
+    this.setAttribute('aria-label', this.data?.tenant ? 'Edit Tenant' : 'Create Tenant');
     document.addEventListener('keydown', this._handleKeyDown, true);
     
     if (this.data?.tenant) {
@@ -176,6 +179,14 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     document.removeEventListener('keydown', this._handleKeyDown, true);
   }
 
+  protected firstUpdated() {
+    // Seed focus on open so keyboard users enter the focus trap at the primary
+    // action button — this is the Shadow DOM focus-seeding pattern for modals.
+    requestAnimationFrame(() => {
+      this.shadowRoot?.querySelector<HTMLButtonElement>('.dialog-action-btn--primary')?.focus();
+    });
+  }
+
   protected updated(changedProperties: Map<string, unknown>) {
     super.updated(changedProperties);
 
@@ -184,6 +195,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
 
     if (changedProperties.has('data')) {
+      this.setAttribute('aria-label', this.data?.tenant ? 'Edit Tenant' : 'Create Tenant');
       if (this.data?.tenant) {
         const t = this.data.tenant;
         this._id = t.id ?? null;
@@ -436,7 +448,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               label="Tenant Name" 
               .value=${this._name} 
               @input=${(e: any) => this._name = e.target.value}
-              required>
+              required
+              aria-required="true">
             </uui-input>
           </div>
           
@@ -448,7 +461,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               placeholder="e.g. tenant-a.com" 
               .value=${this._hostname} 
               @input=${(e: any) => this._hostname = e.target.value}
-              required>
+              required
+              aria-required="true">
             </uui-input>
           </div>
 
@@ -504,7 +518,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               id="secret-name" 
               label="Secret Name" 
               .value=${this._secretKeyName} 
-              @input=${(e: any) => this._secretKeyName = e.target.value}>
+              @input=${(e: any) => this._secretKeyName = e.target.value}
+              aria-describedby="secret-hint">
             </uui-input>
             <small id="secret-hint">Must match the secret identifier in your configured Azure Key Vault.</small>
           </div>
@@ -552,7 +567,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               label="App ID"
               .value=${this._mobileAppId}
               @input=${(e: any) => this._mobileAppId = e.target.value}
-              placeholder="com.example.portal">
+              placeholder="com.example.portal"
+              aria-invalid=${!appIdValid ? 'true' : 'false'}>
             </uui-input>
             <small>Reverse-domain format. Example: <code>com.acme.portal</code></small>
             ${appIdValid ? html`` : html`<small class="error-text">App ID must be reverse-domain style (e.g. <code>com.example.portal</code>).</small>`}
@@ -576,7 +592,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               label="Start URL"
               .value=${this._mobileStartUrl}
               @input=${(e: any) => this._mobileStartUrl = e.target.value}
-              placeholder="https://tenant.example.com">
+              placeholder="https://tenant.example.com"
+              aria-invalid=${!startUrlValid ? 'true' : 'false'}>
             </uui-input>
             ${startUrlValid ? html`` : html`<small class="error-text">Start URL must be an absolute URL, e.g. <code>https://tenant.example.com</code>.</small>`}
             ${localhostStartUrl ? html`<small class="error-text">Localhost is supported for simulator/device testing, but iOS requires trusting your HTTPS cert first (or use a LAN/tunnel/public URL).</small>` : html``}
@@ -600,7 +617,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               label="Icon URL"
               .value=${this._mobileIconUrl}
               @input=${(e: any) => this._mobileIconUrl = e.target.value}
-              placeholder="https://tenant.example.com/favicon.ico">
+              placeholder="https://tenant.example.com/favicon.ico"
+              aria-invalid=${!iconUrlValid ? 'true' : 'false'}>
             </uui-input>
             <small>Recommended square icon source, ideally 1024x1024 PNG.</small>
             ${iconUrlValid ? html`` : html`<small class="error-text">Icon URL must be an absolute URL.</small>`}
@@ -614,7 +632,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               label="Splash URL"
               .value=${this._mobileSplashUrl}
               @input=${(e: any) => this._mobileSplashUrl = e.target.value}
-              placeholder="https://tenant.example.com/media/splash.png">
+              placeholder="https://tenant.example.com/media/splash.png"
+              aria-invalid=${!splashUrlValid ? 'true' : 'false'}>
             </uui-input>
             <small>Optional splash image source for your generated app assets.</small>
             ${splashUrlValid ? html`` : html`<small class="error-text">Splash URL must be an absolute URL.</small>`}
@@ -871,7 +890,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     const displaySections = sectionsToShow.length > 0 ? sectionsToShow : this._brandingMetadata.sections;
 
     return html`
-      <div role="tabpanel" class="tab-content">
+      <div role="tabpanel" id="branding-panel-${tabIndex}" aria-labelledby="branding-tab-${tabIndex}" class="tab-content">
         ${displaySections.map(section => html`
           <uui-box headline="${section.name}" style="margin-bottom: 1.5rem;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
@@ -919,6 +938,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               type="color"
               .value=${value}
               @input=${updateHandler}
+              aria-label=${`${variable.label}${isMobile ? ' (mobile)' : ''} colour picker`}
               style="width: 48px; height: 32px; border: 1px solid var(--uui-color-border); border-radius: 4px; cursor: pointer;">
             <uui-input
               .value=${value}
@@ -1334,102 +1354,103 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }));
 
     return html`
-      <uui-dialog-layout>
-        <div slot="headline" class="dialog-headline">
-          <div class="dialog-headline-actions">
-            <button
-              class="dialog-action-btn dialog-action-btn--primary"
-              data-testid="modal-submit-btn"
-              aria-label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
-              @click=${this._handleSubmit}>
-              ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
-            </button>
-            <button
-              class="dialog-action-btn"
-              data-testid="modal-cancel-btn"
-              aria-label="Cancel"
-              @click=${() => this.modalContext?.reject()}>
-              Cancel
-            </button>
-          </div>
-          <div class="dialog-headline-icons">
-            <button
-              class="dialog-icon-btn"
-              aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
-              title="${this._maximized ? 'Restore' : 'Maximize'}"
-              @click=${this._toggleMaximize}>
-              ${this._maximized
-                ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
-                : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
-              }
-            </button>
-            <button
-              class="dialog-icon-btn"
-              aria-label="Close"
-              title="Close"
-              @click=${() => this.modalContext?.reject()}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-            </button>
-          </div>
+      <div class="dialog-headline">
+        <div class="dialog-headline-actions">
+          <button
+            class="dialog-action-btn dialog-action-btn--primary"
+            data-testid="modal-submit-btn"
+            aria-label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
+            autofocus
+            @click=${this._handleSubmit}>
+            ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
+          </button>
+          <button
+            class="dialog-action-btn"
+            data-testid="modal-cancel-btn"
+            aria-label="Cancel"
+            @click=${() => this.modalContext?.reject()}>
+            Cancel
+          </button>
         </div>
-        
-        <uui-tab-group @click=${this._handleTabGroupClick}>
-          <uui-tab 
-            label="General" 
-            data-tab-key="general"
-            ?active=${this._activeTab === 'general'}>
-            General
-          </uui-tab>
-          <uui-tab 
-            label="Identity" 
-            data-tab-key="identity"
-            ?active=${this._activeTab === 'identity'}>
-            Identity
-          </uui-tab>
-          <uui-tab
-            label="Produce Mobile"
-            id="mobile-tab"
-            data-tab-key="mobile"
-            ?active=${this._activeTab === 'mobile'}>
-            Produce Mobile
-          </uui-tab>
-          ${brandingTabs.map(({ tab, key }, index) => html`
-            <uui-tab
-              label=${tab.label}
-              id="branding-tab-${index}"
-              data-tab-key=${key}
-              ?active=${this._activeTab === key}>
-              ${tab.label}
-            </uui-tab>
-          `)}
-        </uui-tab-group>
+        <div class="dialog-headline-icons">
+          <button
+            class="dialog-icon-btn"
+            aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
+            title="${this._maximized ? 'Restore' : 'Maximize'}"
+            @click=${this._toggleMaximize}>
+            ${this._maximized
+              ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
+              : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
+            }
+          </button>
+          <button
+            class="dialog-icon-btn"
+            aria-label="Close"
+            title="Close"
+            @click=${() => this.modalContext?.reject()}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
 
-        <div class="container">
-          ${this._activeTab === 'general'
-            ? this._renderGeneralTab()
-            : this._activeTab === 'identity'
-              ? this._renderIdentityTab()
-              : this._activeTab === 'mobile'
-                ? this._renderMobileTab()
-              : brandingTabs.map(({ key }, index) =>
-                  this._activeTab === key ? this._renderBrandingTab(index) : ''
-                )}
-        </div>
-        
-      </uui-dialog-layout>
+      <uui-tab-group @click=${this._handleTabGroupClick} aria-label="Tenant settings sections">
+        <uui-tab
+          id="general-tab"
+          label="General"
+          data-tab-key="general"
+          ?active=${this._activeTab === 'general'}>
+          General
+        </uui-tab>
+        <uui-tab
+          id="identity-tab"
+          label="Identity"
+          data-tab-key="identity"
+          ?active=${this._activeTab === 'identity'}>
+          Identity
+        </uui-tab>
+        <uui-tab
+          label="Produce Mobile"
+          id="mobile-tab"
+          data-tab-key="mobile"
+          ?active=${this._activeTab === 'mobile'}>
+          Produce Mobile
+        </uui-tab>
+        ${brandingTabs.map(({ tab, key }, index) => html`
+          <uui-tab
+            label=${tab.label}
+            id="branding-tab-${index}"
+            data-tab-key=${key}
+            ?active=${this._activeTab === key}>
+            ${tab.label}
+          </uui-tab>
+        `)}
+      </uui-tab-group>
+
+      <div class="container" role="region" aria-label="Tenant settings content">
+        ${this._activeTab === 'general'
+          ? this._renderGeneralTab()
+          : this._activeTab === 'identity'
+            ? this._renderIdentityTab()
+            : this._activeTab === 'mobile'
+              ? this._renderMobileTab()
+            : brandingTabs.map(({ key }, index) =>
+                this._activeTab === key ? this._renderBrandingTab(index) : ''
+              )}
+      </div>
     `;
   }
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
       width: 700px;
       height: 100%;
       min-height: 550px;
       background-color: var(--uui-color-surface);
       position: relative;
       resize: both;
-      overflow: auto;
+      overflow: hidden;
       max-width: 95vw;
       max-height: 90vh;
     }
@@ -1443,7 +1464,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       resize: none !important;
       z-index: 10000;
       border-radius: 0;
-      overflow: auto;
+      overflow: hidden;
     }
     .dialog-headline {
       display: flex;
@@ -1451,6 +1472,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       align-items: center;
       justify-content: space-between;
       gap: var(--uui-size-space-3, 9px);
+      flex-shrink: 0;
+      padding: var(--uui-size-space-3, 9px) var(--uui-size-space-4, 12px);
+      background: var(--uui-color-surface);
     }
     .dialog-headline-actions {
       display: flex;
@@ -1518,14 +1542,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       outline-offset: 1px;
     }
     uui-tab-group {
-      position: sticky;
-      top: 0;
+      flex-shrink: 0;
       z-index: 10;
       background: var(--uui-color-surface);
       border-bottom: 1px solid var(--uui-color-border-standalone);
     }
     .container { 
-      min-height: 350px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
     }
     .override-input {
       width: 100%;
@@ -1655,6 +1680,18 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .toggle-switch input:checked + .toggle-slider::before {
       transform: translateX(22px);
+    }
+    .toggle-switch input:focus-visible + .toggle-slider {
+      outline: 2px solid var(--uui-color-focus, #3879d9);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dialog-action-btn,
+      .dialog-icon-btn,
+      .toggle-slider,
+      .toggle-slider::before {
+        transition: none;
+      }
     }
   `;
 }
