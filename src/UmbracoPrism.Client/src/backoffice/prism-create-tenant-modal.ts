@@ -1336,38 +1336,40 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return html`
       <uui-dialog-layout>
         <div slot="headline" class="dialog-headline">
-          <div class="dialog-headline-top">
-            <span class="dialog-headline-title">${isUpdate ? 'Edit' : 'Register New'} Tenant</span>
-            <div class="dialog-headline-actions">
-              <button
-                class="dialog-icon-btn"
-                aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
-                title="${this._maximized ? 'Restore' : 'Maximize'}"
-                @click=${this._toggleMaximize}>
-                ${this._maximized
-                  ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
-                  : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
-                }
-              </button>
-              <button
-                class="dialog-icon-btn"
-                aria-label="Close"
-                title="Close"
-                @click=${() => this.modalContext?.reject()}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-              </button>
-            </div>
+          <div class="dialog-headline-actions">
+            <button
+              class="dialog-action-btn dialog-action-btn--primary"
+              data-testid="modal-submit-btn"
+              aria-label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
+              @click=${this._handleSubmit}>
+              ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
+            </button>
+            <button
+              class="dialog-action-btn"
+              data-testid="modal-cancel-btn"
+              aria-label="Cancel"
+              @click=${() => this.modalContext?.reject()}>
+              Cancel
+            </button>
           </div>
-          <div class="dialog-headline-buttons">
-            <uui-button compact label="Cancel" @click=${() => this.modalContext?.reject()}>Cancel</uui-button>
-            <uui-button
-                compact
-                look="primary"
-                color="positive"
-                label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
-                @click=${this._handleSubmit}>
-                ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
-            </uui-button>
+          <div class="dialog-headline-icons">
+            <button
+              class="dialog-icon-btn"
+              aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
+              title="${this._maximized ? 'Restore' : 'Maximize'}"
+              @click=${this._toggleMaximize}>
+              ${this._maximized
+                ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
+                : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
+              }
+            </button>
+            <button
+              class="dialog-icon-btn"
+              aria-label="Close"
+              title="Close"
+              @click=${() => this.modalContext?.reject()}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
           </div>
         </div>
         
@@ -1445,32 +1447,54 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .dialog-headline {
       display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-2, 6px);
-    }
-    .dialog-headline-top {
-      display: flex;
+      flex-direction: row;
       align-items: center;
       justify-content: space-between;
-      gap: var(--uui-size-space-3);
+      gap: var(--uui-size-space-3, 9px);
     }
-    .dialog-headline-buttons {
+    .dialog-headline-actions {
       display: flex;
       flex-direction: row;
       gap: 8px;
       align-items: center;
     }
-    .dialog-headline-title {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .dialog-headline-actions {
+    .dialog-headline-icons {
       display: flex;
-      gap: var(--uui-size-space-2, 6px);
+      flex-direction: row;
+      gap: 6px;
+      align-items: center;
       flex-shrink: 0;
+    }
+    .dialog-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: 1px solid var(--uui-color-border-standalone, #c2c2c2);
+      cursor: pointer;
+      padding: 0 var(--uui-size-space-4, 12px);
+      height: 30px;
+      font-size: var(--uui-type-small-size, 13px);
+      font-family: inherit;
+      color: var(--uui-color-text, #060606);
+      border-radius: var(--uui-border-radius, 3px);
+      transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+    }
+    .dialog-action-btn:hover {
+      background-color: var(--uui-color-surface-emphasis, rgba(0, 0, 0, 0.06));
+    }
+    .dialog-action-btn:focus-visible {
+      outline: 2px solid var(--uui-color-focus, #3879d9);
+      outline-offset: 1px;
+    }
+    .dialog-action-btn--primary {
+      background-color: var(--uui-color-positive, #2bc37b);
+      border-color: var(--uui-color-positive, #2bc37b);
+      color: var(--uui-color-positive-contrast, #fff);
+    }
+    .dialog-action-btn--primary:hover {
+      background-color: var(--uui-color-positive-emphasis, #27a96b);
+      border-color: var(--uui-color-positive-emphasis, #27a96b);
     }
     .dialog-icon-btn {
       display: inline-flex;

@@ -882,3 +882,9 @@ Moved the Cancel and Save/Update Tenant buttons from `slot="actions"` (bottom fo
 - `.dialog-headline-buttons` → new rule, flex row, gap 8px, align-items center
 
 **Why:** Long multi-tab forms meant users had to scroll to the bottom to save. Since `slot="headline"` never scrolls, placing buttons there gives always-visible access without any sticky/fixed CSS hackery. The `uui-tab-group` sticky-top behaviour is unaffected (it sticks to the top of the scrollable default-slot area, not the headline).
+
+## Learnings
+
+- 2026-04-01: `uui-button` elements placed inside a named slot (`slot="headline"`) of `uui-dialog-layout` are NOT reliably keyboard-navigatable — the shadow DOM slot context can intercept or skip tab order for custom elements. Fix: replace with native `<button>` elements styled to match UUI look (border, background, focus-visible ring, font-family inherit). Native buttons always participate in tab order correctly regardless of slot context.
+- 2026-04-01: Modal headline area redesign — removed title text (redundant when primary action button is labelled), collapsed two-row layout to single flex row `[primary action] [cancel] · · · [maximize][close]`, removed `.dialog-headline-top`, `.dialog-headline-buttons`, `.dialog-headline-title` classes, added `.dialog-headline-actions` (left) and `.dialog-headline-icons` (right). Primary action comes first (left), Cancel second (right of primary, left of icons) — primary goal first, escape hatch second.
+- 2026-04-01: When replacing `uui-button` with native `<button>` for accessibility, use `height`, `padding`, `font-family: inherit`, `font-size`, and `transition` to match UUI visual parity. For primary variant: `background-color: var(--uui-color-positive)` + `color: var(--uui-color-positive-contrast)`. Always add `:focus-visible` outline rule.

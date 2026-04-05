@@ -53,7 +53,7 @@ test('Edit modal tabs switch and content has height', async ({ page }) => {
     }, label);
   };
 
-  await expect(frame.getByText('Edit Tenant')).toBeVisible();
+  await expect(frame.getByText('Update Tenant')).toBeVisible();
 
   const container = modal.locator('.container');
   await expect(container).toBeVisible();
