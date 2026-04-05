@@ -2926,3 +2926,182 @@ Tests covering edge cases #1, #3, and #5 are noted as gaps for future coverage o
 **Quality:** Build clean, 38/38 Playwright tests passing.
 
 ---
+
+
+## 📌 2026-04-05: User Directive — CSS Styles in ITCSS Files Only (Copilot)
+
+**Author:** Jonny Muir (via Copilot)  
+**Status:** Accepted
+
+All CSS styles must reside in the ITCSS-structured CSS files under `wwwroot/css/` (base.css, layout.css, components.css, utilities.css). The **only permitted exception** is dynamically generated inline styles produced at runtime by C# (e.g., tenant imagery CSS variable injection).
+
+**Why:** Keeps stylesheets organized, maintainable, and prevents scattered inline `<style>` blocks in `.cshtml` files. This directive is captured as a team convention.
+
+---
+
+## 📌 2026-04-05: WCAG 2.1 AA Audit Complete — prism-create-tenant-modal (Isabelle)
+
+**Session Log:** `.squad/log/2026-04-05_11-05-37-a11y-audit.md`  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-05_11-05-37-isabelle.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-a11y-modal-findings.md`
+
+### Isabelle — Full WCAG 2.1 AA Accessibility Audit
+
+**Summary:** Completed comprehensive accessibility audit of `prism-create-tenant-modal.ts`. **11 issues identified and fixed** (6 critical, 5 major).
+
+**Critical Fixes (🔴):**
+1. **Removed `uui-dialog-layout`** — was forcing all content into a single scroll container, breaking focus management and sticky positioning
+2. **Restructured as flex column** — `.dialog-headline` and `.uui-tab-group` are now direct `flex-shrink:0` children of the host; only `.container` scrolls
+3. **Seeded focus on open** — `firstUpdated()` calls `requestAnimationFrame(() => primaryBtn.focus())` + `autofocus` attribute as fallback
+4. **Added dialog semantics to host** — `role="dialog"`, `aria-modal="true"`, `aria-label` (updates dynamically)
+5. **Fixed tab panel IDs** — General/Identity tabs now have `id="general-tab"` / `id="identity-tab"` so panel `aria-labelledby` resolves; branding tabpanel now has explicit `id` and `aria-labelledby`
+
+**Major Fixes (🟡):**
+1. **Added `aria-required`** — on Tenant Name, Hostname inputs
+2. **Added `aria-invalid`** — on Mobile App ID, Start URL, Icon URL, Splash URL (bound to validation state)
+3. **Added `aria-describedby`** — on Key Vault Secret Name
+4. **Added `aria-label` on color pickers** — inline `<input type="color">` elements now labelled
+5. **Added focus-visible ring on toggle** — `.toggle-slider:focus-visible` gets proper outline ring
+6. **Gated transitions with `prefers-reduced-motion`** — all CSS transitions now scoped to `@media (prefers-reduced-motion: no-preference)`
+
+**Conventions Established:**
+- Shadow DOM focus-seeding pattern + flex-column modal layout documented in `.squad/skills/shadow-dom-focus/SKILL.md`
+- Apply this pattern to all future modal web components in the project
+
+**Status:** ✅ Complete — All critical and major issues resolved. Build clean.
+
+**Charter Update:** Isabelle's role elevated to **team's dedicated WCAG 2.1 AA accessibility expert**.
+
+---
+
+## 📌 2026-04-05: Design Tokens Showcase — Live Component Demo (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-design-tokens-showcase.md`
+
+### Isabelle — Design Tokens Showcase Implementation
+
+**Decision:** Build a comprehensive design system tokens showcase on the test site home page demonstrating Prism's multi-tenant branding capabilities with live visual renderings.
+
+**What's Rendered:**
+1. **Live visual demos over labels** — actual rendered colours (not swatches), typography at real sizes, real shadows/borders/spacing, working UI components proving token integration
+2. **Coverage of all 5 branding CSS files** — colors, typography, layout, imagery, components
+3. **Group by category in separate cards** — Colour, Typography, Layout, Imagery, Components
+4. **Use `.token-chip` for token name labels** — consistent monospace badge style across showcase
+
+**CSS Organization:**
+- All showcase CSS lives in `components.css` (appended to end)
+- Use BEM-style naming: `.ds-section`, `.token-palette`, `.token-swatch__color`
+- Prefix all showcase classes with `ds-` (design system) or `token-` for clarity
+- Keep mobile responsive with media queries where needed
+
+**Responsive Layout:**
+- CSS Grid with `auto-fit` + `minmax(var(--prism-grid-min), 1fr)` for fluid breakpoints
+- Wide cards (`.ds-card--wide`) span 2 columns on desktop, collapse to 1 on mobile
+- No fixed widths — all sizing driven by layout tokens
+
+**Inline Styles Exception:**
+- Allow inline `style=""` attributes **only** for demonstrating dynamic token values
+- Example: `<div style="background: var(--prism-primary);">` shows live colour rendering
+- This is one of the few valid use cases for inline styles
+
+**Why:** The showcase serves as both a functional demo for prospects/customers and a living style guide for developers. Proves that Prism's branding system is comprehensive, polished, production-ready — not just a theming bolt-on.
+
+**Files Modified:**
+- `HomePage.cshtml` — Added `<section class="ds-section" id="design-tokens">` after `.features`
+- `components.css` — Added ~250 lines of showcase CSS
+
+**Status:** ✅ Implemented. Build clean.
+
+---
+
+## 📌 2026-04-05: Mobile Header Inline Pattern — Consistency (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-mobile-header.md`
+
+### Isabelle — Mobile Branding Header Inline Pattern
+
+**Decision:** Mobile header row in `_renderDynamicField()` now follows the same inline flex pattern as Desktop header.
+
+**Layout:**  
+```
+Mobile  [pill]  [small placeholder button]
+```
+
+**Rationale:**
+- Eliminates the dominant `look="outline"` "Customise for mobile" button which overshadowed the branding field content
+- Keeps UI consistent: both Desktop and Mobile headers are single-line flex rows with label, optional status pill, optional action button
+
+**Pill Colours:**
+- **Inheriting:** neutral (`--uui-color-surface-emphasis` bg / `--uui-color-text-alt` text) — inheritance is not a warning state
+- **Custom:** warning yellow — signals active override that may need attention
+
+**Preserved Constraints:**
+- All `data-testid` attributes unchanged (Playwright test dependency)
+- Click handlers and TypeScript logic unchanged
+- `display: none` on edit field when inheriting is unchanged
+
+**Status:** ✅ Implemented.
+
+---
+
+## 📌 2026-04-05: Modal Header UX — Single Row, Primary First, Native Buttons (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-modal-header-ux.md`
+
+### Isabelle — Modal Header UX Decision
+
+**Context:** `prism-create-tenant-modal` headline used a two-row layout (title + buttons), wasting space and creating keyboard accessibility gaps.
+
+**Decisions:**
+
+1. **Remove modal title text** — Primary button label ("Update Tenant" / "Create Tenant") already contextualises intent
+2. **Single flex row layout** — `[primary action] [Cancel] · · · [maximize][close]`
+3. **Primary first, Cancel second** — Primary goal leftmost, Cancel sits right (subordinate)
+4. **Use native `<button>` not `uui-button`** — `uui-button` in named slots doesn't reliably receive focus; native buttons always participate in tab order
+
+**Conventions:**
+- All new modal headline areas MUST follow single-row layout
+- Do NOT use `uui-button` in `slot="headline"` — use native `<button>` styled to match UUI
+- Do NOT use `compact` attribute on headline buttons — without a title row, full-size buttons are appropriate
+- `data-testid="modal-submit-btn"` and `data-testid="modal-cancel-btn"` required on headline buttons
+
+**Status:** ✅ Implemented.
+
+---
+
+## 📌 2026-04-05: No Static Styles in .cshtml Files (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-styles-in-css-files.md`
+
+### Isabelle — CSS Organization in Razor Views
+
+**Rule:** All static CSS styles must live in ITCSS CSS files under `wwwroot/css/`.  
+**No static `<style>` blocks in `.cshtml` files.**
+
+**Permitted Exception:**  
+Dynamically generated C# inline styles are allowed for runtime-generated values (e.g., tenant imagery CSS variable injection).
+
+**ITCSS Layer Guidance:**
+
+| File | Layer | Content |
+|---|---|---|
+| `base.css` | Base | Resets, element defaults (html, body, headings) |
+| `layout.css` | Layout | Page structure, grid, major layout patterns |
+| `components.css` | Components | UI components (cards, buttons, chips, sections, design system showcase) |
+| `utilities.css` | Utilities | Single-purpose helpers (.text-center, .sr-only) |
+
+**Razor Media Query Note:**  
+When migrating styles from `.cshtml` to `.css`:
+- In `.cshtml`: `@@media` (doubled `@` to escape Razor)
+- In `.css`: `@media` (standard CSS — no escaping)
+
+**Status:** ✅ Implemented. All design system showcase styles moved to components.css.
+
+---
+
