@@ -85,9 +85,9 @@ Types are inferred from `@property` syntax, but can be overridden with `type:` i
 
 ---
 
-## File Structure
+## File Structure (test client example)
 
-Branding is organized across five focused CSS files, aggregated by a single entry point:
+Branding is organized across five (or how ever many you choose) focused CSS files, aggregated by a single entry point:
 
 ### **`prism-branding.css`** (Aggregator)
 
@@ -359,11 +359,6 @@ On next page load (or after cache expires), the tenant editor will show:
 
 Tenant updates the value → CSS variable updates → styles rerender instantly.
 
-<div align="center">
-<img src="images/branding-editor-new-variable.png" alt="Tenant editor showing a newly added Card Border Radius field in the Components section">
-<p><em>The new variable appears automatically — no UI code needed</em></p>
-</div>
-
 ---
 
 ## Best Practices
@@ -433,11 +428,6 @@ This is safe for production — CSS file changes are rare and typically go throu
 ---
 
 ## Real-World Examples
-
-<div align="center">
-<img src="images/branding-before-after.png" alt="Side-by-side: test site with default branding vs a customised tenant with different primary colour and typography">
-<p><em>One codebase, two completely different brands — live-edited with no deploy</em></p>
-</div>
 
 ### Example 1: Dark Mode Brand Colors
 

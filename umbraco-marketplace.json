@@ -26,10 +26,6 @@
       "Caption": "Prism backoffice tenant management"
     },
     {
-      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/debug-info.png",
-      "Caption": "Prism debug panel"
-    },
-    {
       "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/downstream.png",
       "Caption": "Downstream API flow"
     }
