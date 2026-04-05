@@ -2844,3 +2844,40 @@ Tests are **behavioural contracts** — they express what the product should *do
 Additional fixes made alongside: `_fetchBrandingMetadata` fixed with `Promise.race` + 500ms timeout so fetch fires in test environments; duplicate-ID bug fixed by extracting `_renderStaticBrandingContent` from `_renderStaticBrandingTab`.
 
 ---
+
+## 📌 2026-07-11: Mobile Branding Inheritance Model (Isabelle)
+
+Mobile branding variables follow a **chain/inheritance model**:
+
+1. **Chained (default):** Mobile inherits from desktop. No mobile override is saved. `_mobileInherited[varName] === true`.
+2. **Unchained (explicit):** Mobile has an independent value. The override IS saved. `_mobileInherited[varName] === false`.
+
+`_collectMobileBrandingOverrides` only writes an override for variables where `!_mobileInherited[varName]`. On load, `_mobileInherited[varName]` is set to `!explicitMobileOverride` — variables with a saved mobile override start unchained; all others start chained.
+
+`data-testid` hooks: `mobile-inherit-toggle-{varName}`, `mobile-field-{varName}`, `mobile-inherit-label-{varName}`, `mobile-custom-badge-{varName}`.
+
+**Note from Isabelle:** `PrismBrandingMetadataService.ParsePrismAnnotation` previously fell back to storing the full raw `@prism` annotation string as `Description`. Blathers fixed this — see below.
+
+---
+
+## 📌 2026-07-15: Remove Raw Annotation Fallback from ParsePrismAnnotation (Blathers)
+
+Removed the fallback in `ParsePrismAnnotation` that stored the full raw annotation string in `metadata.Description` when no `description:` key was found. `Description` is now `null`/empty when no `description:` annotation is present.
+
+**Convention going forward:** In annotation parsers, leave optional fields as `null`/empty when not present. Do not use raw input strings as fallback values for structured fields.
+
+---
+
+## 📌 2026-07-11: Mobile Inheritance Edge Cases to Address (Tangy)
+
+Edge cases identified during test authoring for `prism-mobile-branding-inheritance.spec.ts`:
+
+1. **Pre-population on break:** Pre-populate mobile input with `overrideValue ?? defaultValue ?? ''` when breaking inheritance — not with an empty string.
+2. **Restore clears value:** On restore, set `mobileOverrideValue = undefined` so the save payload genuinely omits it.
+3. **Tab switch persistence:** `_mobileInherited` state must survive tab switches — verify it is not re-initialised on tab render.
+4. **Desktop changes don't follow mobile:** Once the chain is broken, desktop value changes must not propagate to the mobile input.
+5. **Submit payload:** Only variables with the chain broken and a non-empty mobile value should appear in `mobileBrandingOverrides`.
+
+Tests covering edge cases #1, #3, and #5 are noted as gaps for future coverage once implementation is confirmed.
+
+---

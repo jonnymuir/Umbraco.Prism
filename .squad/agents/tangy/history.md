@@ -518,3 +518,12 @@ Two test issues identified by Jonny Muir:
 - "Disabled" state for inherited mobile inputs can be implemented as either `pointer-events: none` or the `disabled` attribute — tests check both to remain implementation-agnostic.
 - The Edit Storybook story provides ideal mock data: `--color-primary` has a `mobileOverrideValue` (chain broken on load) and `--color-surface` does not (chain intact on load).
 - Edge case worth noting: `--color-surface` has neither `overrideValue` nor `mobileOverrideValue` — pre-population on break will yield an empty string, not a colour value. Tests avoid asserting the pre-populated value for this variable to prevent fragility.
+
+---
+
+## Session: 2026-07-15 — Playwright Tests for Mobile Branding Inheritance
+
+- Wrote `prism-mobile-branding-inheritance.spec.ts` with 4 Playwright tests covering: default chain-intact state, breaking inheritance, restoring inheritance, and loading a tenant with saved mobile overrides.
+- Used `page.route` to mock `/umbraco/management/api/v1/prism/branding/metadata` so the dynamic rendering path activates in Storybook.
+- All 38 Playwright + 218 .NET tests pass.
+- Identified 5 edge cases for future coverage (pre-population, restore clears value, tab-switch persistence, desktop/mobile independence, submit payload). Logged in `decisions.md`.

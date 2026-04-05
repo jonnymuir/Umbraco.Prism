@@ -1015,30 +1015,44 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             ${renderField(currentValue, false)}
           </div>
           <div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
               <small style="font-weight: 600;">Mobile</small>
-              <uui-button
-                look="placeholder"
-                compact
-                label="${isInherited ? 'Break mobile inheritance' : 'Restore mobile inheritance'}"
-                data-testid="mobile-inherit-toggle-${varName}"
-                @click=${() => {
-                  if (isInherited) {
-                    this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: currentValue };
-                    this._mobileInherited = { ...this._mobileInherited, [varName]: false };
-                  } else {
-                    this._mobileInherited = { ...this._mobileInherited, [varName]: true };
-                  }
-                }}>
-                ${isInherited ? '🔗' : '⛓️'}
-              </uui-button>
-              ${isInherited
-                ? html`<span data-testid="mobile-inherit-label-${varName}" style="font-size: 0.7rem; color: var(--uui-color-text-alt); font-style: italic;">inheriting from desktop</span>`
-                : html`<span data-testid="mobile-custom-badge-${varName}" style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">custom</span>`
-              }
             </div>
-            <div data-testid="mobile-field-${varName}" style="${isInherited ? 'opacity: 0.5; pointer-events: none;' : ''}">
-              ${renderField(effectiveMobileValue, true)}
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              ${isInherited
+                ? html`
+                  <span data-testid="mobile-inherit-label-${varName}" style="font-size: 0.85rem; color: var(--uui-color-text-alt); font-style: italic;">Inheriting from desktop</span>
+                  <uui-button
+                    look="outline"
+                    compact
+                    label="Break mobile inheritance"
+                    data-testid="mobile-inherit-toggle-${varName}"
+                    @click=${() => {
+                      this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: currentValue };
+                      this._mobileInherited = { ...this._mobileInherited, [varName]: false };
+                    }}>
+                    Customise for mobile
+                  </uui-button>
+                `
+                : html`
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                    <span data-testid="mobile-custom-badge-${varName}" style="font-size: 0.75rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 2px 8px; border-radius: 3px; font-weight: 500;">Custom mobile value</span>
+                    <uui-button
+                      look="placeholder"
+                      compact
+                      label="Restore mobile inheritance"
+                      data-testid="mobile-inherit-toggle-${varName}"
+                      @click=${() => {
+                        this._mobileInherited = { ...this._mobileInherited, [varName]: true };
+                      }}>
+                      Reset to desktop
+                    </uui-button>
+                  </div>
+                `
+              }
+              <div data-testid="mobile-field-${varName}" style="${isInherited ? 'display: none;' : ''}">
+                ${renderField(effectiveMobileValue, true)}
+              </div>
             </div>
           </div>
         </div>

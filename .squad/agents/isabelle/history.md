@@ -666,3 +666,53 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 
 - 2026-07-11: Mobile inheritance state should be stored separately from the value itself. Using `_mobileInherited[varName] !== false` (rather than a strict `=== true`) means newly-added variables default to inherited without needing explicit initialisation.
 - 2026-07-11: Backend `PrismBrandingMetadataService.ParsePrismAnnotation` falls back to storing the full `@prism` annotation string as description when no `description:` key is present. Any CSS variable without a `description:` field in its annotation will leak the full annotation into the UI.
+
+---
+
+## Session: 2026-07-15 — Mobile Branding Inheritance
+
+- Added `_mobileInherited: Record<string, boolean>` state to `prism-create-tenant-modal.ts`.
+- Fixed phantom mobile override bug: `_collectMobileBrandingOverrides` now only saves explicitly unchained variables.
+- Fixed initialisation: `_mobileInherited[varName] = !tenantMobileOverrides[varName]` on load.
+- Added chain/broken-chain toggle UI (🔗/⛓️) per variable in `_renderDynamicField`.
+- On break: copies current desktop value as mobile starting point. On restore: clears mobile override.
+- Added `data-testid` hooks: `mobile-inherit-toggle-{varName}`, `mobile-field-{varName}`, `mobile-inherit-label-{varName}`, `mobile-custom-badge-{varName}`.
+- Decision logged: mobile inheritance model. See `decisions.md`.
+
+---
+
+## Session: 2026-XX-XX — Mobile Inheritance UI Cleanup
+
+**Task:** Remove emoji icons from mobile inheritance UI and implement clean, accessible toggle buttons
+
+**Result:** ✅ Complete, build clean (TypeScript + Vite, 0 errors)
+
+**Changes Made:**
+
+1. **Removed emoji icons (🔗/⛓️)** from toggle buttons entirely
+2. **Inheriting state UI:**
+   - Shows "Inheriting from desktop" label (font-size: 0.85rem, muted color, italic)
+   - Shows "Customise for mobile" button (uui-button, look="outline")
+   - Mobile input field **completely hidden** via `display: none`
+   - Keeps `label="Break mobile inheritance"` for accessibility
+3. **Custom (non-inheriting) state UI:**
+   - Shows "Custom mobile value" badge (warning color, font-size: 0.75rem, more padding)
+   - Shows "Reset to desktop" button (uui-button, look="placeholder")
+   - Mobile input field **fully visible and interactive**
+   - Keeps `label="Restore mobile inheritance"` for accessibility
+4. **Test updates:**
+   - Updated `prism-mobile-branding-inheritance.spec.ts` to check for `mobileFieldDisplay === 'none'` (in addition to `pointerEvents === 'none'` or `isDisabled`)
+   - Tests now handle both old opacity-based hiding and new `display: none` approach
+   - All test data-testid selectors and label attributes remain unchanged
+
+**Key Implementation Details:**
+- Mobile field container (`data-testid="mobile-field-${varName}"`) stays in DOM even when hidden (for test compatibility)
+- Used `display: none` instead of `opacity + pointer-events: none` for cleaner hiding
+- Button text is now descriptive actions ("Customise for mobile" / "Reset to desktop") instead of emoji
+- Accessibility: `label` attribute on buttons clearly describes the action ("Break mobile inheritance" / "Restore mobile inheritance")
+
+## Learnings
+
+- 2026-XX-XX: When hiding UI elements, `display: none` is cleaner than `opacity + pointer-events` but requires test updates to check `getComputedStyle(element).display` rather than just `pointerEvents`. Tests should be flexible to handle multiple hiding strategies.
+- 2026-XX-XX: UUI buttons support `label` attribute for accessibility (used by screen readers). This is separate from the button's text content. Both should be clear and descriptive.
+- 2026-XX-XX: Emoji in UI can be inaccessible and feel hacky. Prefer clear English text for action buttons, especially for important interactions like toggling inheritance state.

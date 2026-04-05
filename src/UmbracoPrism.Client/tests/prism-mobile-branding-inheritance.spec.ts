@@ -58,17 +58,18 @@ test.describe('Mobile branding inheritance', () => {
         : false;
 
       const mobileInput = mobileField?.querySelector('uui-input') as HTMLElement | null;
+      const mobileFieldDisplay = mobileField ? window.getComputedStyle(mobileField).display : null;
       const pointerEvents = mobileInput ? window.getComputedStyle(mobileInput).pointerEvents : null;
       const isDisabled = mobileInput?.hasAttribute('disabled') ?? false;
 
-      return { toggleLabel, inheritLabelPresent, inheritLabelVisible, pointerEvents, isDisabled };
+      return { toggleLabel, inheritLabelPresent, inheritLabelVisible, mobileFieldDisplay, pointerEvents, isDisabled };
     });
 
     expect(result.toggleLabel).toBe('Break mobile inheritance');
     expect(result.inheritLabelPresent).toBe(true);
     expect(result.inheritLabelVisible).toBe(true);
-    // Mobile input must be non-interactive while inheriting
-    expect(result.pointerEvents === 'none' || result.isDisabled).toBe(true);
+    // Mobile field must be hidden while inheriting
+    expect(result.mobileFieldDisplay === 'none' || result.pointerEvents === 'none' || result.isDisabled).toBe(true);
   });
 
   test('Breaking inheritance enables independent mobile input', async ({ page }) => {
@@ -106,6 +107,7 @@ test.describe('Mobile branding inheritance', () => {
       const customBadgeVisible = customBadge !== null;
 
       const mobileInput = mobileField?.querySelector('uui-input') as HTMLElement | null;
+      const mobileFieldDisplay = mobileField ? window.getComputedStyle(mobileField).display : null;
       const pointerEvents = mobileInput ? window.getComputedStyle(mobileInput).pointerEvents : null;
       const isDisabled = mobileInput?.hasAttribute('disabled') ?? false;
 
@@ -113,13 +115,14 @@ test.describe('Mobile branding inheritance', () => {
       // (no desktop override = '' or the defaultValue '#ffffff')
       const mobileInputValue = (mobileInput as HTMLInputElement | null)?.value ?? null;
 
-      return { toggleLabel, inheritLabelVisible, customBadgeVisible, pointerEvents, isDisabled, mobileInputValue };
+      return { toggleLabel, inheritLabelVisible, customBadgeVisible, mobileFieldDisplay, pointerEvents, isDisabled, mobileInputValue };
     });
 
     expect(result.toggleLabel).toBe('Restore mobile inheritance');
     expect(result.inheritLabelVisible).toBe(false);
     expect(result.customBadgeVisible).toBe(true);
-    // Mobile input must now be interactive
+    // Mobile field must now be visible and interactive
+    expect(result.mobileFieldDisplay !== 'none').toBe(true);
     expect(result.pointerEvents !== 'none' && !result.isDisabled).toBe(true);
   });
 
@@ -159,15 +162,16 @@ test.describe('Mobile branding inheritance', () => {
         : false;
 
       const mobileInput = mobileField?.querySelector('uui-input') as HTMLElement | null;
+      const mobileFieldDisplay = mobileField ? window.getComputedStyle(mobileField).display : null;
       const pointerEvents = mobileInput ? window.getComputedStyle(mobileInput).pointerEvents : null;
       const isDisabled = mobileInput?.hasAttribute('disabled') ?? false;
 
-      return { toggleLabel, inheritLabelVisible, pointerEvents, isDisabled };
+      return { toggleLabel, inheritLabelVisible, mobileFieldDisplay, pointerEvents, isDisabled };
     });
 
     expect(result.toggleLabel).toBe('Break mobile inheritance');
     expect(result.inheritLabelVisible).toBe(true);
-    expect(result.pointerEvents === 'none' || result.isDisabled).toBe(true);
+    expect(result.mobileFieldDisplay === 'none' || result.pointerEvents === 'none' || result.isDisabled).toBe(true);
   });
 
   test('Tenant with saved mobile overrides loads with those variables showing as custom', async ({ page }) => {

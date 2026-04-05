@@ -1100,3 +1100,12 @@ All components implemented, tested via build, and ready for integration with mob
 **Fix:** Removed the fallback block (lines 172–176). If no `description:` key is found during parsing, `Description` remains `null`/empty — which is correct. The `ParsePrismAnnotation` method already correctly sets `metadata.Description = value` when a `description:` key is found.
 
 **Lesson:** Defensive "store raw input as fallback" patterns in parsers are often wrong — they silently propagate garbage data rather than leaving the field unset. Prefer explicit nullability over raw-data fallbacks.
+
+---
+
+## Session: 2026-07-15 — ParsePrismAnnotation Description Fallback Fix
+
+- Removed faulty fallback in `PrismBrandingMetadataService.ParsePrismAnnotation` that stored the full raw `@prism` annotation string as `Description` when no `description:` key was found.
+- `Description` is now `null`/empty when no `description:` annotation is present.
+- Convention established: annotation parsers leave optional fields as `null`/empty rather than falling back to raw input strings.
+- Decision logged. See `decisions.md`.
