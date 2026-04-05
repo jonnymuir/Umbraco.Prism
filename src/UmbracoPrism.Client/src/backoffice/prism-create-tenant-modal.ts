@@ -1354,8 +1354,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }));
 
     return html`
-      <div class="dialog-headline">
-        <div class="dialog-headline-actions">
+      <uui-dialog-layout>
+        <div slot="headline" class="dialog-headline">
+          <div class="dialog-headline-actions">
           <button
             class="dialog-action-btn dialog-action-btn--primary"
             data-testid="modal-submit-btn"
@@ -1437,20 +1438,20 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                 this._activeTab === key ? this._renderBrandingTab(index) : ''
               )}
       </div>
+      </uui-dialog-layout>
     `;
   }
 
   static styles = css`
     :host {
-      display: flex;
-      flex-direction: column;
+      display: block;
       width: 700px;
       height: 100%;
       min-height: 550px;
       background-color: var(--uui-color-surface);
       position: relative;
       resize: both;
-      overflow: hidden;
+      overflow: auto;
       max-width: 95vw;
       max-height: 90vh;
     }
@@ -1542,15 +1543,14 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       outline-offset: 1px;
     }
     uui-tab-group {
-      flex-shrink: 0;
+      position: sticky;
+      top: 0;
       z-index: 10;
       background: var(--uui-color-surface);
       border-bottom: 1px solid var(--uui-color-border-standalone);
     }
     .container { 
-      flex: 1;
-      overflow-y: auto;
-      min-height: 0;
+      min-height: 350px;
     }
     .override-input {
       width: 100%;
