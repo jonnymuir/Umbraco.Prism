@@ -1474,7 +1474,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       justify-content: space-between;
       gap: var(--uui-size-space-3, 9px);
       flex-shrink: 0;
-      padding: var(--uui-size-space-3, 9px) var(--uui-size-space-4, 12px);
+      padding: var(--uui-size-space-3, 9px) 0;
       background: var(--uui-color-surface);
     }
     .dialog-headline-actions {
