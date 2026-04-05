@@ -22,8 +22,8 @@ Multi-tenant website branding and identity at runtime. Add a mobile app with one
 Serve distinct branded portals from one Umbraco instance. Runtime branding, domain resolution, tenant isolation.
 
 <div align="center">
-<img src="testsite.png" width="400" alt="Branded portal example">
-<img src="backoffice2.png" width="400" alt="Backoffice branding editor">
+<img src="screenshots/testsite.png" width="400" alt="Branded portal example">
+<img src="screenshots/backoffice2.png" width="400" alt="Backoffice branding editor">
 </div>
 
 **Web features:**
@@ -57,7 +57,7 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
 Turn tenant settings into iOS/Android apps. No complex native coding, just click **Produce Mobile**.
 
 <div align="center">
-<img src="example-IOS.png" width="300" alt="iOS app with tenant branding">
+<img src="screenshots/example-IOS.png" width="300" alt="iOS app with tenant branding">
 </div>
 
 **Mobile features:**

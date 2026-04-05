@@ -22,6 +22,12 @@
   initial-value: linear-gradient(120deg, rgba(15, 23, 42, 0.1), rgba(15, 23, 42, 0.4));
 }
 
+@property --prism-hero-image-blend {
+  syntax: '*';
+  inherits: true;
+  initial-value: normal;
+}
+
 @property --prism-card-image {
   syntax: '*';
   inherits: true;
@@ -43,6 +49,8 @@
     --prism-hero-badge: rgba(255, 255, 255, 0.2);
     /* @prism section: Imagery | label: Hero Background Image | description: Background image or gradient overlay for hero sections | type: image */
     --prism-hero-image: linear-gradient(120deg, rgba(15, 23, 42, 0.1), rgba(15, 23, 42, 0.4));
+    /* @prism section: Imagery | label: Hero Background Image Blend | description: Blend type for hero sections */
+    --prism-hero-image-blend: normal;
     /* @prism section: Imagery | label: Card Background Image | description: Background image or gradient overlay for feature cards | type: image */
     --prism-card-image: linear-gradient(130deg, rgba(79, 70, 229, 0.45), rgba(14, 165, 233, 0.45));
     /* @prism section: Imagery | label: Image Border Radius | description: Corner rounding for images and media elements | type: length */
