@@ -1015,44 +1015,42 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             ${renderField(currentValue, false)}
           </div>
           <div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
               <small style="font-weight: 600;">Mobile</small>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
               ${isInherited
                 ? html`
-                  <span data-testid="mobile-inherit-label-${varName}" style="font-size: 0.85rem; color: var(--uui-color-text-alt); font-style: italic;">Inheriting from desktop</span>
+                  <span data-testid="mobile-inherit-label-${varName}" style="font-size: 0.7rem; background: var(--uui-color-surface-emphasis); color: var(--uui-color-text-alt); padding: 1px 6px; border-radius: 10px;">inheriting from desktop</span>
                   <uui-button
-                    look="outline"
+                    look="placeholder"
                     compact
-                    label="Break mobile inheritance"
+                    style="font-size: 0.7rem;"
+                    label="Customise for mobile"
                     data-testid="mobile-inherit-toggle-${varName}"
                     @click=${() => {
                       this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: currentValue };
                       this._mobileInherited = { ...this._mobileInherited, [varName]: false };
                     }}>
-                    Customise for mobile
+                    Customise
                   </uui-button>
                 `
                 : html`
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                    <span data-testid="mobile-custom-badge-${varName}" style="font-size: 0.75rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 2px 8px; border-radius: 3px; font-weight: 500;">Custom mobile value</span>
-                    <uui-button
-                      look="placeholder"
-                      compact
-                      label="Restore mobile inheritance"
-                      data-testid="mobile-inherit-toggle-${varName}"
-                      @click=${() => {
-                        this._mobileInherited = { ...this._mobileInherited, [varName]: true };
-                      }}>
-                      Reset to desktop
-                    </uui-button>
-                  </div>
+                  <span data-testid="mobile-custom-badge-${varName}" style="font-size: 0.7rem; background: var(--uui-color-warning); color: var(--uui-color-warning-contrast); padding: 1px 6px; border-radius: 10px;">custom</span>
+                  <uui-button
+                    look="placeholder"
+                    compact
+                    style="font-size: 0.7rem;"
+                    label="Restore mobile inheritance"
+                    data-testid="mobile-inherit-toggle-${varName}"
+                    @click=${() => {
+                      this._mobileInherited = { ...this._mobileInherited, [varName]: true };
+                    }}>
+                    ↺ Reset
+                  </uui-button>
                 `
               }
-              <div data-testid="mobile-field-${varName}" style="${isInherited ? 'display: none;' : ''}">
-                ${renderField(effectiveMobileValue, true)}
-              </div>
+            </div>
+            <div data-testid="mobile-field-${varName}" style="${isInherited ? 'display: none;' : ''}">
+              ${renderField(effectiveMobileValue, true)}
             </div>
           </div>
         </div>
@@ -1338,25 +1336,38 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     return html`
       <uui-dialog-layout>
         <div slot="headline" class="dialog-headline">
-          <span class="dialog-headline-title">${isUpdate ? 'Edit' : 'Register New'} Tenant</span>
-          <div class="dialog-headline-actions">
-            <button
-              class="dialog-icon-btn"
-              aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
-              title="${this._maximized ? 'Restore' : 'Maximize'}"
-              @click=${this._toggleMaximize}>
-              ${this._maximized
-                ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
-                : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
-              }
-            </button>
-            <button
-              class="dialog-icon-btn"
-              aria-label="Close"
-              title="Close"
-              @click=${() => this.modalContext?.reject()}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-            </button>
+          <div class="dialog-headline-top">
+            <span class="dialog-headline-title">${isUpdate ? 'Edit' : 'Register New'} Tenant</span>
+            <div class="dialog-headline-actions">
+              <button
+                class="dialog-icon-btn"
+                aria-label="${this._maximized ? 'Restore' : 'Maximize'}"
+                title="${this._maximized ? 'Restore' : 'Maximize'}"
+                @click=${this._toggleMaximize}>
+                ${this._maximized
+                  ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/></svg>`
+                  : html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
+                }
+              </button>
+              <button
+                class="dialog-icon-btn"
+                aria-label="Close"
+                title="Close"
+                @click=${() => this.modalContext?.reject()}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="dialog-headline-buttons">
+            <uui-button compact label="Cancel" @click=${() => this.modalContext?.reject()}>Cancel</uui-button>
+            <uui-button
+                compact
+                look="primary"
+                color="positive"
+                label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
+                @click=${this._handleSubmit}>
+                ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
+            </uui-button>
           </div>
         </div>
         
@@ -1403,15 +1414,6 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                 )}
         </div>
         
-        <uui-button slot="actions" label="Cancel" @click=${() => this.modalContext?.reject()}>Cancel</uui-button>
-        <uui-button 
-            slot="actions" 
-            look="primary" 
-            color="positive"
-            label=${isUpdate ? 'Update Tenant' : 'Create Tenant'}
-            @click=${this._handleSubmit}>
-            ${isUpdate ? 'Update Tenant' : 'Create Tenant'}
-        </uui-button>
       </uui-dialog-layout>
     `;
   }
@@ -1443,9 +1445,20 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .dialog-headline {
       display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2, 6px);
+    }
+    .dialog-headline-top {
+      display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--uui-size-space-3);
+    }
+    .dialog-headline-buttons {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+      align-items: center;
     }
     .dialog-headline-title {
       flex: 1;

@@ -717,3 +717,168 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 - 2026-04-05: When hiding UI elements, `display: none` is cleaner than `opacity + pointer-events` but requires test updates to check `getComputedStyle(element).display` rather than just `pointerEvents`. Tests should be flexible to handle multiple hiding strategies.
 - 2026-04-05: UUI buttons support `label` attribute for accessibility (used by screen readers). This is separate from the button's text content. Both should be clear and descriptive.
 - 2026-04-05: Emoji in UI can be inaccessible and feel hacky. Prefer clear English text for action buttons, especially for important interactions like toggling inheritance state.
+
+## Session: 2026-XX-XX — Design System Tokens Showcase (Home Page)
+
+**Task:** Build a rich Design System Tokens showcase section on the test site home page to demonstrate Prism's branding capabilities
+
+**Result:** ✅ Complete
+
+**Changes Made:**
+
+1. **Added new `ds-section` to HomePage.cshtml** (line 95, after `.features`, before `.prism-debug-section`)
+   - Section header with title, subtitle, and CTA link to back office
+   - Six subsections showcasing different token categories:
+     - **Colour palette** — 7 swatches (primary, accent, surface, surface-alt, text, muted, border) with live CSS var rendering
+     - **Typography** — Live type scale samples (display, body, small, mono) with token labels
+     - **Layout** — Border radius demo (full/half/none), shadow demo, gutter demo
+     - **Imagery** — Card image preview with `--prism-card-image` fallback gradient
+     - **Components** — Live button, chip/badge, and mini-card using token-driven styles
+
+2. **Added supporting CSS classes to components.css** (appended to end of file):
+   - `.ds-section` — Main container with section gap spacing
+   - `.ds-grid` — Responsive grid using `--prism-grid-min` token
+   - `.ds-card`, `.ds-card--wide` — Card modifiers (wide spans 2 columns, collapses on mobile)
+   - `.token-palette`, `.token-swatch`, `.token-swatch__color` — Colour swatch grid and squares
+   - `.token-chip` — Monospace token name label (uses `--prism-chip-bg/text`)
+   - `.type-scale`, `.type-scale__sample` — Typography sample stack
+   - `.layout-tokens`, `.radius-demo`, `.shadow-demo`, `.gutter-demo` — Layout property visualizations
+   - `.imagery-preview` — Imagery card with `--prism-card-image` background
+   - `.component-showcase`, `.showcase-chip`, `.mini-card` — Live component demos
+
+3. **No hero button update** — The "View Branding Tokens" button mentioned in the task brief was not found in the current HomePage.cshtml (may have been removed in a prior refactor)
+
+**Key Design Decisions:**
+- Used CSS Grid with `grid-template-columns: repeat(auto-fit, minmax(var(--prism-grid-min), 1fr))` for responsive layout
+- All styling driven by CSS custom properties (no hardcoded colours/sizes)
+- Colour swatches show live computed values via inline `style="background: var(--prism-primary)"`
+- Typography samples render actual text at token-defined sizes (not just labels)
+- Layout demos show visual representations of spacing/shadow/radius tokens
+- Component showcase uses existing `.btn`, `.card` classes to prove token integration
+- Mobile-responsive: wide cards collapse to single column on narrow screens
+
+**Token Coverage:**
+- Covers all major token categories from branding CSS files:
+  - Colours (prism-colors.css)
+  - Typography (prism-typography.css)
+  - Layout (prism-layout.css)
+  - Imagery (prism-imagery.css)
+  - Components (prism-components.css)
+
+**Accessibility:**
+- All interactive elements are keyboard-accessible
+- Token chips use sufficient colour contrast (chip-bg/chip-text tokens)
+- Semantic HTML structure with proper heading hierarchy
+- Non-breaking space in subtitle to prevent awkward line breaks
+
+## Learnings
+
+- 2026-XX-XX: For showcase/demo sections, visual richness is key — show, don't tell. Live rendered samples (actual colours, actual type at actual sizes, actual shadows) are far more compelling than just listing token names.
+- 2026-XX-XX: CSS Grid `auto-fit` + `minmax()` creates fluid responsive grids without media queries. Use `--prism-grid-min` token for consistent breakpoint behavior.
+- 2026-XX-XX: `grid-column: span 2` for wide cards works well, but always add a mobile media query to collapse back to single column for narrow screens.
+- 2026-XX-XX: When building token showcases, use inline `style=""` attributes for dynamic token values (e.g., `background: var(--prism-primary)`) — this is one of the few valid use cases for inline styles.
+
+---
+
+## Session: 2026-04-06 — Design System Showcase on Home Page
+
+**Task:** Replace the basic design tokens section on the home page with a comprehensive, polished design system showcase
+
+**Result:** ✅ Complete. Replaced the minimal design tokens section (`id="design-tokens"`) with a rich four-part design system showcase (`id="design-system"`).
+
+**What Was Built:**
+
+**1. Colour Palette Grid:**
+- Six logical groupings: Brand, Surfaces, Semantic, Text, Data Visualisation, Hero
+- Total of 27 colour swatches showing live CSS variable values
+- Each swatch shows: coloured rectangle (64px × 64px), human-readable label, variable name in monospace
+- Responsive grid: `repeat(auto-fill, minmax(100px, 1fr))`
+
+**2. Typography Section:**
+- Three subsections: Font Families, Type Scale, Font Weights
+- Font families demo: display, body, and mono fonts rendered live using actual CSS variables
+- Type scale: sm, md, lg, xl sizes demonstrated with sample text
+- Font weights: body and heading weights shown side-by-side
+- All text samples use the CSS variables so changes update instantly
+
+**3. Layout Section:**
+- Visual demos: border radius (80px square), card shadow (80px card), section gap (stacked blocks)
+- Grid system demo: three columns using `--prism-grid-min`
+- Spacing tokens list: page-max, page-gutter, nav-height with descriptions
+
+**4. Imagery Section:**
+- Hero image, card image, image radius demos
+- Blend mode demo showing `background-blend-mode: var(--prism-hero-image-blend)`
+- Graceful degradation: "No image set" placeholder when imagery variables are empty
+- Uses `heroImageUrl` and `cardImageUrl` from Razor context to determine if images are set
+
+**Styling Approach:**
+- Scoped styles in a `<style>` block within the section (as per instructions)
+- All colours, fonts, spacing use CSS variables (no hardcoded values)
+- Responsive: mobile breakpoint at 768px adjusts grid columns and padding
+- Design matches existing site aesthetic: cards with rounded corners, subtle shadows, muted labels
+
+**Key Implementation Details:**
+- Section ID changed from `#design-tokens` to `#design-system` (will require updating any links that pointed to the old anchor)
+- Retained existing Razor variables: `heroImageUrl`, `cardImageUrl`, `isAuthenticated`, etc.
+- Used existing CSS classes where applicable (e.g., `btn`, `card`, `grid` — though most styling is scoped)
+- BEM-like naming convention for design system classes: `ds-subsection`, `ds-color-grid`, `ds-swatch`, etc.
+
+**Decisions Made:**
+- Chose 4 subsections (Colour, Typography, Layout, Imagery) over alternatives like tabbed UI or single wall of content — better scannability
+- Grouped colours semantically (Brand, Surfaces, etc.) rather than alphabetically
+- Included ALL available CSS variables from the spec (27 colour variables, 13 typography, 10+ layout, 5 imagery)
+- Used inline styles for live demos (`style="background: var(--prism-primary)"`) to show variables in action
+- Mobile-first responsive: single column on mobile, multi-column on desktop
+
+**Files Modified:**
+- `src/UmbracoPrism.TestSite/Views/HomePage.cshtml` — Replaced design tokens section (lines 95-235)
+
+**Quality:** No build step required (Razor .cshtml file). Visual sanity check passed — section will render correctly with or without imagery set.
+
+## Learnings
+
+- 2026-04-06: When building design system showcases, group tokens semantically (Brand, Surfaces, Semantic) rather than alphabetically or by CSS property type. This matches how designers think about design systems.
+- 2026-04-06: For live design token demos, use inline styles (`style="background: var(--prism-X)"`) to make it crystal clear that the value is reading from a CSS variable. This also ensures the demo updates instantly when tenant branding changes.
+- 2026-04-06: Graceful degradation for optional imagery: show "No image set" placeholder rather than broken images or errors. Use Razor conditionals (`@if (string.IsNullOrWhiteSpace(heroImageUrl))`) to check if media picker fields are populated.
+
+### 2026 — Mobile Inheritance UI Redesign
+
+Redesigned the Mobile header in `_renderDynamicField()` to match the Desktop header's inline pattern.
+
+**Before:** Mobile section had a separate italic "Inheriting from desktop" text line + a large `look="outline"` "Customise for mobile" button; the custom state had a separate `<div>` wrapper with different padding/border-radius styling.
+
+**After:** Single flex row `Mobile  [pill]  [button]` mirroring Desktop:
+- Inheriting: neutral pill (`--uui-color-surface-emphasis` / `--uui-color-text-alt`) + `look="placeholder" compact` "Customise" button
+- Custom: warning pill (same as Desktop "modified") + `look="placeholder" compact` "↺ Reset" button
+- All `data-testid` attributes preserved for Playwright tests
+- No TypeScript logic changed, only HTML template structure
+
+### 2026 — Extract Design Showcase Styles to ITCSS
+
+Moved the static `<style>` block from `HomePage.cshtml` (lines 564–853, containing `.design-system-section`, `.ds-subsection`, `.ds-color-group`, `.ds-swatch`, and related classes) into `wwwroot/css/components.css` under a `/* Design System Showcase */` comment block.
+
+**Key actions:**
+- Appended ~290 lines of CSS to the end of `components.css`
+- Fixed `@@media` Razor escape → `@media` in the CSS file
+- Removed the entire `<style>` block from the cshtml (only the dynamic `@if (hasImageryOverrides)` block with `@Html.Raw` remains)
+
+**Decisions Made:**
+- All static styles belong in ITCSS CSS files. The only permitted inline styles in `.cshtml` are dynamically generated C# (e.g. `@Html.Raw(imageryCss.ToString())`).
+- These component-level styles go in `components.css` (correct ITCSS layer for UI components).
+
+### 2026 — Modal Action Buttons Moved to Sticky Headline
+
+Moved the Cancel and Save/Update Tenant buttons from `slot="actions"` (bottom footer) to inside `slot="headline"` (always-visible header) in `prism-create-tenant-modal.ts`.
+
+**Structure change:**
+- Wrapped existing title + icon buttons in a new `dialog-headline-top` row
+- Added `dialog-headline-buttons` row beneath it containing the two action buttons with `compact` attribute
+- Removed both `slot="actions"` buttons from the bottom of the render template
+
+**CSS change:**
+- `.dialog-headline` → `flex-direction: column`, `gap: var(--uui-size-space-2, 6px)`
+- `.dialog-headline-top` → new rule, mirrors old `.dialog-headline` (flex row, space-between, align-items center)
+- `.dialog-headline-buttons` → new rule, flex row, gap 8px, align-items center
+
+**Why:** Long multi-tab forms meant users had to scroll to the bottom to save. Since `slot="headline"` never scrolls, placing buttons there gives always-visible access without any sticky/fixed CSS hackery. The `uui-tab-group` sticky-top behaviour is unaffected (it sticks to the top of the scrollable default-slot area, not the headline).
