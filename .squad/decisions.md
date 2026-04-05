@@ -3105,3 +3105,36 @@ When migrating styles from `.cshtml` to `.css`:
 
 ---
 
+
+---
+
+## 📌 2026-04-05: Always Use uui-dialog-layout as Outer Shell (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-keep-uui-dialog-layout.md`
+
+### Decision: Always use uui-dialog-layout as the outer shell
+
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)
+
+**Decision Statement:** `uui-dialog-layout` must always be used as the outermost wrapper in `render()` for all modal components in this project. It must never be removed in the name of accessibility fixes.
+
+**Why This Matters:**
+
+`uui-dialog-layout` provides:
+1. The visual dialog shell and bounded dimensions
+2. The scroll boundary — content inside its default slot scrolls; the headline slot is sticky
+3. Proper sizing constraints so the flex layout does not collapse
+
+**A11y Approach:**
+
+ARIA attributes (`role="dialog"`, `aria-modal="true"`, `aria-label`) belong on the **host element**, set in `connectedCallback()` and updated in `updated()`. They are entirely independent of the template structure and coexist with `uui-dialog-layout` without conflict.
+
+**Anti-pattern (Do Not Use):**
+
+Do NOT remove `uui-dialog-layout` and replace it with `:host { display: flex; flex-direction: column }` — this collapses tab panels and breaks the scroll boundary.
+
+**Applied:** prism-create-tenant-modal.ts (a11y restoration 2026-04-05)
+
+**Test Coverage:** 38/38 Playwright tests pass; no regressions.
+

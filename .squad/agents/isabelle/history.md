@@ -925,3 +925,12 @@ Moved the Cancel and Save/Update Tenant buttons from `slot="actions"` (bottom fo
 
 **Skill written:** `.squad/skills/shadow-dom-focus/SKILL.md`
 **Decision written:** `.squad/decisions/inbox/isabelle-a11y-modal-findings.md`
+
+## uui-dialog-layout must NOT be removed
+
+`uui-dialog-layout` is the scroll boundary and visual shell of the modal. Removing it causes:
+- Huge gap between headline and tabs
+- Tab panel content not rendering
+- Unbounded height/flex collapse
+
+A11y attributes (`role="dialog"`, `aria-modal`, `aria-label`) go on the **host element** in `connectedCallback`/`updated()` — they do not require restructuring the dialog shell. Always keep `uui-dialog-layout` as the outermost wrapper in `render()`.

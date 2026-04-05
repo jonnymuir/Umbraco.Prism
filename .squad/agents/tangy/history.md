@@ -539,3 +539,17 @@ Two test issues identified by Jonny Muir:
 - Also updated the inline comment at line 220 to match the new wording.
 - All 38 Playwright tests pass after the fix.
 - Lesson: when component UX copy changes (button labels, aria-labels), check all test files for string assertions matching those labels — they are behavioural contracts and must stay in sync.
+
+---
+
+## Learnings — 2025-01-20 — Regression validation after uui-dialog-layout restoration
+
+- Ran full Playwright test suite (38 tests) to validate no regressions after Isabelle restored `uui-dialog-layout` in the tenant modal following Storybook 9 upgrade.
+- All 38 tests passed in 11.0s, confirming:
+  - Modal tab switching and content height (create/edit flows)
+  - Mobile branding inheritance behaviour (default, breaking, restoring)
+  - Mobile navigation component (rendering, active state, accessibility, structure, edge cases)
+  - Media URL extraction utilities
+  - Produce Mobile push notification toggle
+- Playwright's `webServer` config auto-starts Storybook — no need to manually start it in background.
+- Lesson: After component refactoring or library upgrades, run the full suite even if the change seems isolated. UI components are tightly coupled and a CSS class change or layout wrapper can affect selector stability.
