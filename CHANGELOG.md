@@ -2,6 +2,25 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.7.0] — 2026-04-05
+
+### New Features
+
+- **Mobile/desktop CSS variable inheritance:** Responsive design system with `chain` and `broken-chain` UI indicators showing inheritance state across device breakpoints.
+- **Design system showcase:** New interactive demo of design tokens, styles, and component library. Sticky action buttons for improved UX in long-form documentation.
+- **ITCSS style organization:** Refactored stylesheets using Inverted Triangle CSS methodology for cleaner cascade management and maintainability.
+- **Accessibility audit fixes:** Enhanced keyboard focus management, sticky dialog headers, and comprehensive ARIA improvements for better screen reader support.
+
+### Bug Fixes & Improvements
+
+- **Modal scrolling:** Restored vertical scrolling in maximized modals with `overflow-y: auto` on host element.
+- **Dialog layout preservation:** Restored `uui-dialog-layout` component while preserving accessibility fixes without breaking layout.
+- **Dialog headline padding:** Removed unnecessary left/right padding from dialog headlines for improved visual hierarchy.
+- **Mobile inheritance toggle:** Synced test assertions with mobile inheritance UI refactor.
+- **Modal header UX:** Updated header styling, accessibility attributes, and test coverage for better visual consistency and usability.
+
+---
+
 ## [v1.6.1] — 2026-04-03
 
 ### Fixed
