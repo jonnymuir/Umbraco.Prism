@@ -681,11 +681,11 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 
 ---
 
-## Session: 2026-XX-XX — Mobile Inheritance UI Cleanup
+## Session: 2026-04-05 — Mobile Inheritance UI Cleanup & Accessibility
 
 **Task:** Remove emoji icons from mobile inheritance UI and implement clean, accessible toggle buttons
 
-**Result:** ✅ Complete, build clean (TypeScript + Vite, 0 errors)
+**Result:** ✅ Complete, build clean (TypeScript + Vite, 0 errors), 38/38 Playwright tests passing. Committed as d661c53.
 
 **Changes Made:**
 
@@ -693,7 +693,7 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 2. **Inheriting state UI:**
    - Shows "Inheriting from desktop" label (font-size: 0.85rem, muted color, italic)
    - Shows "Customise for mobile" button (uui-button, look="outline")
-   - Mobile input field **completely hidden** via `display: none`
+   - Mobile input field **completely hidden** via `display: none` (not dimmed with opacity)
    - Keeps `label="Break mobile inheritance"` for accessibility
 3. **Custom (non-inheriting) state UI:**
    - Shows "Custom mobile value" badge (warning color, font-size: 0.75rem, more padding)
@@ -701,8 +701,7 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
    - Mobile input field **fully visible and interactive**
    - Keeps `label="Restore mobile inheritance"` for accessibility
 4. **Test updates:**
-   - Updated `prism-mobile-branding-inheritance.spec.ts` to check for `mobileFieldDisplay === 'none'` (in addition to `pointerEvents === 'none'` or `isDisabled`)
-   - Tests now handle both old opacity-based hiding and new `display: none` approach
+   - Updated `prism-mobile-branding-inheritance.spec.ts` to check for `display: none` in addition to `pointerEvents: none`
    - All test data-testid selectors and label attributes remain unchanged
 
 **Key Implementation Details:**
@@ -711,8 +710,10 @@ This completes the branding-as-design-system feature. The tenant editor now dyna
 - Button text is now descriptive actions ("Customise for mobile" / "Reset to desktop") instead of emoji
 - Accessibility: `label` attribute on buttons clearly describes the action ("Break mobile inheritance" / "Restore mobile inheritance")
 
+**Decision Logged:** `.squad/decisions.md#2026-04-05-mobile-inheritance-ui-cleanup--accessibility`
+
 ## Learnings
 
-- 2026-XX-XX: When hiding UI elements, `display: none` is cleaner than `opacity + pointer-events` but requires test updates to check `getComputedStyle(element).display` rather than just `pointerEvents`. Tests should be flexible to handle multiple hiding strategies.
-- 2026-XX-XX: UUI buttons support `label` attribute for accessibility (used by screen readers). This is separate from the button's text content. Both should be clear and descriptive.
-- 2026-XX-XX: Emoji in UI can be inaccessible and feel hacky. Prefer clear English text for action buttons, especially for important interactions like toggling inheritance state.
+- 2026-04-05: When hiding UI elements, `display: none` is cleaner than `opacity + pointer-events` but requires test updates to check `getComputedStyle(element).display` rather than just `pointerEvents`. Tests should be flexible to handle multiple hiding strategies.
+- 2026-04-05: UUI buttons support `label` attribute for accessibility (used by screen readers). This is separate from the button's text content. Both should be clear and descriptive.
+- 2026-04-05: Emoji in UI can be inaccessible and feel hacky. Prefer clear English text for action buttons, especially for important interactions like toggling inheritance state.

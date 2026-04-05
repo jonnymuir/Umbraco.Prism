@@ -2881,3 +2881,48 @@ Edge cases identified during test authoring for `prism-mobile-branding-inheritan
 Tests covering edge cases #1, #3, and #5 are noted as gaps for future coverage once implementation is confirmed.
 
 ---
+
+## 📌 2026-04-05: Mobile Inheritance UI Cleanup & Accessibility (Isabelle)
+
+**Session Log:** `.squad/log/2026-04-05T09:54:52Z-mobile-inheritance-ui-cleanup.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-mobile-inheritance-ui-cleanup.md`
+
+### Isabelle — Mobile Inheritance UI Cleanup
+
+**Decision:** Replace emoji-based mobile inheritance toggles with clean, accessible text buttons and completely hide mobile inputs when inheriting.
+
+**What Changed:**
+
+**Inheriting State:**
+- Clear text label: "Inheriting from desktop" (0.85rem, muted, italic)
+- Action button: "Customise for mobile" (outline style, proper label attribute)
+- Mobile input **completely hidden** (`display: none`) — not dimmed with opacity
+- Proper `label="Break mobile inheritance"` on button for screen readers
+
+**Custom State:**
+- Badge: "Custom mobile value" (warning color, professional styling)
+- Action button: "Reset to desktop" (placeholder style, proper label attribute)
+- Mobile input **visible and fully interactive**
+- Proper `label="Restore mobile inheritance"` on button
+
+**Conventions Established:**
+- When hiding UI elements that need to stay in DOM for tests, use `display: none` for clean hiding
+- Action buttons should use descriptive English text, not emoji
+- Always provide proper `label` attributes on UI buttons for accessibility
+- Test assertions should verify UI visibility state, flexible to handle `display: none`, `pointerEvents: none`, or `disabled`
+
+**Why:**
+- Emoji are not accessible and can feel unprofessional
+- `display: none` is cleaner than opacity tricks for hidden content
+- Clear button text ("Customise for mobile" / "Reset to desktop") makes the action obvious
+- Proper accessibility attributes prevent console warnings and help screen reader users
+
+**Files Modified:**
+- `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts` — Updated mobile field rendering logic, button labels, badge styling
+- `src/UmbracoPrism.Client/tests/prism-mobile-branding-inheritance.spec.ts` — Updated test assertions
+
+**Quality:** Build clean, 38/38 Playwright tests passing.
+
+---
