@@ -1467,6 +1467,16 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       border-radius: 0;
       overflow: hidden;
     }
+    :host(.maximized) uui-dialog-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    :host(.maximized) .container {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
     .dialog-headline {
       display: flex;
       flex-direction: row;
