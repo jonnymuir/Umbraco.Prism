@@ -65,7 +65,7 @@ test.describe('Mobile branding inheritance', () => {
       return { toggleLabel, inheritLabelPresent, inheritLabelVisible, mobileFieldDisplay, pointerEvents, isDisabled };
     });
 
-    expect(result.toggleLabel).toBe('Break mobile inheritance');
+    expect(result.toggleLabel).toBe('Customise for mobile');
     expect(result.inheritLabelPresent).toBe(true);
     expect(result.inheritLabelVisible).toBe(true);
     // Mobile field must be hidden while inheriting
@@ -169,7 +169,7 @@ test.describe('Mobile branding inheritance', () => {
       return { toggleLabel, inheritLabelVisible, mobileFieldDisplay, pointerEvents, isDisabled };
     });
 
-    expect(result.toggleLabel).toBe('Break mobile inheritance');
+    expect(result.toggleLabel).toBe('Customise for mobile');
     expect(result.inheritLabelVisible).toBe(true);
     expect(result.mobileFieldDisplay === 'none' || result.pointerEvents === 'none' || result.isDisabled).toBe(true);
   });
@@ -217,8 +217,8 @@ test.describe('Mobile branding inheritance', () => {
     expect(result.primaryToggleLabel).toBe('Restore mobile inheritance');
     expect(result.primaryInheritVisible).toBe(false);
 
-    // Variable WITHOUT saved mobile override → chain intact, shows 🔗 "Break"
-    expect(result.surfaceToggleLabel).toBe('Break mobile inheritance');
+    // Variable WITHOUT saved mobile override → chain intact, shows 🔗 "Customise"
+    expect(result.surfaceToggleLabel).toBe('Customise for mobile');
     expect(result.surfaceInheritVisible).toBe(true);
   });
 });

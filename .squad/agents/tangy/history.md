@@ -527,3 +527,15 @@ Two test issues identified by Jonny Muir:
 - Used `page.route` to mock `/umbraco/management/api/v1/prism/branding/metadata` so the dynamic rendering path activates in Storybook.
 - All 38 Playwright + 218 .NET tests pass.
 - Identified 5 edge cases for future coverage (pre-population, restore clears value, tab-switch persistence, desktop/mobile independence, submit payload). Logged in `decisions.md`.
+
+---
+
+## Learnings — 2026-07-16 — Mobile inheritance toggle label sync
+
+- Fixed 3 failing tests in `prism-mobile-branding-inheritance.spec.ts` caused by a button label change in the component.
+- The "break inheritance" toggle's `label` attribute was renamed from `"Break mobile inheritance"` to `"Customise for mobile"` (British spelling) in the component, but the tests hadn't been updated to match.
+- The "restore" label (`"Restore mobile inheritance"`) was unchanged and remained correct.
+- Tests updated at lines 68, 172, and 221 to expect `'Customise for mobile'` instead of `'Break mobile inheritance'`.
+- Also updated the inline comment at line 220 to match the new wording.
+- All 38 Playwright tests pass after the fix.
+- Lesson: when component UX copy changes (button labels, aria-labels), check all test files for string assertions matching those labels — they are behavioural contracts and must stay in sync.
