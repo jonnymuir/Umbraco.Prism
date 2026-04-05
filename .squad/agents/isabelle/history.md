@@ -934,3 +934,54 @@ Moved the Cancel and Save/Update Tenant buttons from `slot="actions"` (bottom fo
 - Unbounded height/flex collapse
 
 A11y attributes (`role="dialog"`, `aria-modal`, `aria-label`) go on the **host element** in `connectedCallback`/`updated()` — they do not require restructuring the dialog shell. Always keep `uui-dialog-layout` as the outermost wrapper in `render()`.
+
+## Dialog headline padding with uui-dialog-layout
+
+When using `uui-dialog-layout` with a custom headline slot, **do not** apply horizontal padding to the slotted content itself. The `uui-dialog-layout` component manages its own internal spacing for headline slots.
+
+**What I fixed:**
+- The `.dialog-headline` div in `prism-create-tenant-modal.ts` had `padding: 9px 12px` (top/bottom + left/right).
+- Changed to `padding: 9px 0` to remove the left/right padding while preserving the vertical spacing.
+- This prevents double padding and makes the headline content sit flush with the dialog edges as intended.
+
+**Pattern for custom headline content:**
+```css
+.custom-headline-wrapper {
+  padding: var(--uui-size-space-3) 0; /* Vertical padding only */
+}
+```
+
+The `uui-dialog-layout` component handles horizontal spacing internally, so slotted headline elements should only define vertical padding if needed.
+
+## Maximized modal scroll container (2026-07-10)
+
+When a dialog has a maximized mode that fills the viewport, the scroll boundary must move from the host element to an internal flex container.
+
+**Problem:**
+- In normal state: `:host` has `overflow: auto` + `max-height: 90vh` — this creates the scroll boundary
+- In maximized state: `:host(.maximized)` has `overflow: hidden` + `height: 100vh` — fills viewport but blocks scrolling
+- `uui-dialog-layout` and `.container` have no height constraints or flex layout, so content tries to grow beyond viewport with no scroll
+
+**Solution:**
+Apply flex layout in maximized mode so the scroll container (`.container`) has a bounded height:
+
+```css
+:host(.maximized) uui-dialog-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+:host(.maximized) .container {
+  flex: 1;           /* Fill available space */
+  min-height: 0;     /* Allow flex shrinking below content size */
+  overflow-y: auto;  /* Enable scroll */
+}
+```
+
+**Key principles:**
+- Normal mode: host-level `overflow` + `max-height` creates scroll boundary (unchanged)
+- Maximized mode: host has `overflow: hidden`, internal flex layout + `overflow-y: auto` on `.container` creates scroll boundary
+- `min-height: 0` is critical — without it, flex items default to `min-height: auto` which prevents shrinking below content size
+- Sticky elements (like `uui-tab-group { position: sticky; top: 0 }`) remain sticky within the scroll container
+
+**Fixed:** `prism-create-tenant-modal.ts` vertical scrolling when dialog is maximized
