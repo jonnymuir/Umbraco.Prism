@@ -27,8 +27,8 @@ public class MobileBundleService : IMobileBundleService
         var version = string.IsNullOrWhiteSpace(request.Version) ? "1.0.0" : request.Version.Trim();
         var marker = string.IsNullOrWhiteSpace(request.UserAgentMarker) ? "PrismMobile" : request.UserAgentMarker.Trim();
         var startUrl = BuildStartUrl(request.StartUrl, tenant.Hostname);
-        var iconUrl = request.IconUrl?.Trim();
-        var splashUrl = request.SplashUrl?.Trim();
+        var iconUrl = RewriteMediaHost(request.IconUrl?.Trim(), startUrl);
+        var splashUrl = RewriteMediaHost(request.SplashUrl?.Trim(), startUrl);
         var errorBackgroundColor = string.IsNullOrWhiteSpace(request.ErrorBackgroundColor) ? "#0f172a" : request.ErrorBackgroundColor.Trim();
         var errorTextColor = string.IsNullOrWhiteSpace(request.ErrorTextColor) ? "#f8fafc" : request.ErrorTextColor.Trim();
         var errorTitle = string.IsNullOrWhiteSpace(request.ErrorTitle) ? "We’re having trouble connecting" : request.ErrorTitle.Trim();
@@ -39,6 +39,11 @@ public class MobileBundleService : IMobileBundleService
         if (!IsValidAppId(appId))
         {
             throw new ArgumentException("App ID must be a reverse-domain identifier, e.g. com.example.portal");
+        }
+
+        if (!string.IsNullOrWhiteSpace(iconUrl) && iconUrl.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Icon URL must point to a raster image (PNG or JPG). SVG files cannot be converted by the image pipeline. Please export your icon as a 1024×1024 PNG.");
         }
 
         using var memory = new MemoryStream();
@@ -87,6 +92,24 @@ public class MobileBundleService : IMobileBundleService
         }
 
         return $"https://{host}";
+    }
+
+    private static string? RewriteMediaHost(string? mediaUrl, string resolvedStartUrl)
+    {
+        if (string.IsNullOrEmpty(mediaUrl)) return mediaUrl;
+        if (!Uri.TryCreate(mediaUrl, UriKind.Absolute, out var mediaUri)) return mediaUrl;
+        if (!mediaUri.IsLoopback) return mediaUrl;
+
+        if (!Uri.TryCreate(resolvedStartUrl, UriKind.Absolute, out var originUri)) return mediaUrl;
+
+        var builder = new UriBuilder(mediaUri)
+        {
+            Scheme = originUri.Scheme,
+            Host = originUri.Host,
+            Port = originUri.IsDefaultPort ? -1 : originUri.Port
+        };
+
+        return builder.Uri.ToString().TrimEnd('/');
     }
 
     private static bool IsValidAppId(string appId)
@@ -439,6 +462,13 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
     string errorMessage,
     bool showErrorDiagnostics)
   {
+    var splashWarning = !string.IsNullOrWhiteSpace(splashUrl) && splashUrl.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+        ? """
+,
+  "splashWarning": "SVG format detected — convert to a high-resolution PNG before running @capacitor/assets"
+"""
+        : string.Empty;
+
     return $$"""
 {
   "iconUrl": {{ToJsonStringOrNull(iconUrl)}},
@@ -450,7 +480,7 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
     "message": {{ToJsonStringOrNull(errorMessage)}},
     "showDiagnostics": {{ToJsonBoolean(showErrorDiagnostics)}}
   },
-  "notes": "Download and convert to final app assets (recommended 1024x1024 icon and high-resolution splash)"
+  "notes": "Download and convert to final app assets (recommended 1024x1024 icon and high-resolution splash)"{{splashWarning}}
 }
 """;
   }
