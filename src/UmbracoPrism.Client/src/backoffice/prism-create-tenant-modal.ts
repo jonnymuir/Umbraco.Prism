@@ -615,33 +615,79 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           </div>
 
           <div class="field">
-            <uui-label for="mobile-icon-url">Icon URL</uui-label>
+            <uui-label for="mobile-icon-url">App Icon</uui-label>
+            <small id="mobile-icon-desc">Square PNG, ideally 1024×1024px. Used to generate all device icon sizes.</small>
+            ${this._mobileIconUrl ? html`
+              <img class="mobile-asset-preview"
+                src=${this._mobileIconUrl}
+                alt="App icon preview"
+                @error=${(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')}>
+            ` : ''}
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+              <uui-button
+                look="secondary"
+                compact
+                label="Pick app icon from Media Library"
+                aria-describedby="mobile-icon-desc"
+                @click=${() => this._pickMobileMedia('icon')}>
+                Pick from Media Library
+              </uui-button>
+              ${this._mobileIconUrl ? html`
+                <uui-button look="secondary" compact color="danger"
+                  label="Clear app icon"
+                  @click=${() => { this._mobileIconUrl = ''; }}>
+                  Clear
+                </uui-button>
+              ` : ''}
+            </div>
             <uui-input
               id="mobile-icon-url"
               label="Icon URL"
               .value=${this._mobileIconUrl}
               @input=${(e: any) => this._mobileIconUrl = e.target.value}
               placeholder="https://tenant.example.com/favicon.ico"
-              aria-invalid=${!iconUrlValid ? 'true' : 'false'}>
+              aria-invalid=${!iconUrlValid ? 'true' : 'false'}
+              aria-describedby="mobile-icon-desc">
             </uui-input>
-            <small>Recommended square icon source, ideally 1024x1024 PNG.</small>
             ${iconUrlValid ? html`` : html`<small class="error-text">Icon URL must be an absolute URL.</small>`}
-            ${this._mobileIconUrl ? html`<img class="mobile-asset-preview" src=${this._mobileIconUrl} alt="Icon preview" />` : html``}
           </div>
 
           <div class="field">
-            <uui-label for="mobile-splash-url">Splash URL</uui-label>
+            <uui-label for="mobile-splash-url">Splash Screen</uui-label>
+            <small id="mobile-splash-desc">Full-screen image shown while the app loads. Recommended 2732×2732px PNG.</small>
+            ${this._mobileSplashUrl ? html`
+              <img class="mobile-asset-preview"
+                src=${this._mobileSplashUrl}
+                alt="Splash screen preview"
+                @error=${(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')}>
+            ` : ''}
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+              <uui-button
+                look="secondary"
+                compact
+                label="Pick splash screen from Media Library"
+                aria-describedby="mobile-splash-desc"
+                @click=${() => this._pickMobileMedia('splash')}>
+                Pick from Media Library
+              </uui-button>
+              ${this._mobileSplashUrl ? html`
+                <uui-button look="secondary" compact color="danger"
+                  label="Clear splash screen"
+                  @click=${() => { this._mobileSplashUrl = ''; }}>
+                  Clear
+                </uui-button>
+              ` : ''}
+            </div>
             <uui-input
               id="mobile-splash-url"
               label="Splash URL"
               .value=${this._mobileSplashUrl}
               @input=${(e: any) => this._mobileSplashUrl = e.target.value}
-              placeholder="https://tenant.example.com/media/splash.png"
-              aria-invalid=${!splashUrlValid ? 'true' : 'false'}>
+              placeholder="https://tenant.example.com/splash.png"
+              aria-invalid=${!splashUrlValid ? 'true' : 'false'}
+              aria-describedby="mobile-splash-desc">
             </uui-input>
-            <small>Optional splash image source for your generated app assets.</small>
             ${splashUrlValid ? html`` : html`<small class="error-text">Splash URL must be an absolute URL.</small>`}
-            ${this._mobileSplashUrl ? html`<img class="mobile-asset-preview" src=${this._mobileSplashUrl} alt="Splash preview" />` : html``}
           </div>
 
           <h5 class="section-title">Startup Error Screen</h5>
@@ -1119,6 +1165,49 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       }
     } catch (err) {
       console.error('[Prism] Failed to fetch media URL', err);
+    }
+  }
+
+  private async _pickMobileMedia(field: 'icon' | 'splash') {
+    const modalManager = await this.getContext(UMB_MODAL_MANAGER_CONTEXT);
+    if (!modalManager) return;
+
+    const modal = modalManager.open(this, UMB_MEDIA_PICKER_MODAL, {
+      data: { multiple: false }
+    });
+
+    const result = await modal.onSubmit().catch(() => null);
+    if (!result?.selection?.length) return;
+
+    const unique = result.selection[0];
+    if (!unique) return;
+
+    try {
+      const authContext = await this.getContext(UMB_AUTH_CONTEXT);
+      const token = authContext ? await authContext.getLatestToken() : undefined;
+
+      const res = await fetch(`/umbraco/management/api/v1/media/urls?id=${unique}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const items: Array<{ id: string; urlInfos: Array<{ culture: string | null; url: string | null }> }> = Array.isArray(data) ? data : [data];
+      const rawUrl: string = items[0]?.urlInfos?.[0]?.url ?? '';
+      if (!rawUrl) {
+        console.warn('[Prism] Mobile media URL response had no URL', data);
+        return;
+      }
+      const absoluteUrl = rawUrl.startsWith('http')
+        ? rawUrl
+        : `${window.location.origin}${rawUrl}`;
+
+      if (field === 'icon') {
+        this._mobileIconUrl = absoluteUrl;
+      } else {
+        this._mobileSplashUrl = absoluteUrl;
+      }
+    } catch (err) {
+      console.error('[Prism] Failed to fetch mobile media URL', err);
     }
   }
 
