@@ -121,8 +121,7 @@ export const Edit: Story = {
     if (!modal.shadowRoot) throw new Error('Shadow root not found');
     const shadow = modal.shadowRoot;
     await expect(shadow.textContent ?? '').toContain('Update Tenant');
-    const dialogLayout = shadow.querySelector('uui-dialog-layout') as HTMLElement;
-    await waitFor(() => expect(dialogLayout?.getAttribute('headline') ?? '').toContain('Edit Tenant'));
+    await expect(modal.getAttribute('aria-label') ?? '').toContain('Edit Tenant');
 
     const container = shadow.querySelector('.container') as HTMLElement;
     const generalPanel = shadow.querySelector('#general-panel') as HTMLElement;
