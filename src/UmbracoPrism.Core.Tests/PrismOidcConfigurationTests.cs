@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
 using UmbracoPrism.Core.Auth;
@@ -165,7 +166,7 @@ public class PrismOidcConfigurationTests
 
         var httpContext = new DefaultHttpContext { RequestServices = services };
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
-        var configuration = new PrismOidcConfiguration(httpContextAccessor, signingKeyCache);
+        var configuration = new PrismOidcConfiguration(httpContextAccessor, signingKeyCache, NullLogger<PrismOidcConfiguration>.Instance);
         var options = new OpenIdConnectOptions();
 
         configuration.PostConfigure("PrismEntraID", options);
