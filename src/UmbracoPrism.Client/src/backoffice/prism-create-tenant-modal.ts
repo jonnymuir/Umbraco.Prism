@@ -74,6 +74,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _mobileUserAgentMarker = 'PrismMobile';
   @state() private _mobileIconUrl = '';
   @state() private _mobileSplashUrl = '';
+  @state() private _mobileIconPickerError = '';
+  @state() private _mobileSplashPickerError = '';
   @state() private _mobileErrorBackgroundColor = '#0f172a';
   @state() private _mobileErrorTextColor = '#f8fafc';
   @state() private _mobileErrorTitle = 'We’re having trouble connecting';
@@ -650,6 +652,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               aria-describedby="mobile-icon-desc">
             </uui-input>
             ${iconUrlValid ? html`` : html`<small class="error-text">Icon URL must be an absolute URL.</small>`}
+            ${this._mobileIconPickerError ? html`<small class="error-text">${this._mobileIconPickerError}</small>` : html``}
           </div>
 
           <div class="field">
@@ -688,6 +691,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               aria-describedby="mobile-splash-desc">
             </uui-input>
             ${splashUrlValid ? html`` : html`<small class="error-text">Splash URL must be an absolute URL.</small>`}
+            ${this._mobileSplashPickerError ? html`<small class="error-text">${this._mobileSplashPickerError}</small>` : html``}
           </div>
 
           <h5 class="section-title">Startup Error Screen</h5>
@@ -1201,9 +1205,20 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         ? rawUrl
         : `${window.location.origin}${rawUrl}`;
 
+      if (absoluteUrl.toLowerCase().endsWith('.svg')) {
+        if (field === 'icon') {
+          this._mobileIconPickerError = 'SVG files are not supported for app icons. Please pick a PNG or JPG image.';
+        } else {
+          this._mobileSplashPickerError = 'SVG files are not recommended for splash screens. Please pick a PNG or JPG image.';
+        }
+        return;
+      }
+
       if (field === 'icon') {
+        this._mobileIconPickerError = '';
         this._mobileIconUrl = absoluteUrl;
       } else {
+        this._mobileSplashPickerError = '';
         this._mobileSplashUrl = absoluteUrl;
       }
     } catch (err) {
