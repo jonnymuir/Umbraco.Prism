@@ -108,20 +108,22 @@ public class VinylVaultSeeder : INotificationAsyncHandler<UmbracoApplicationStar
 
     private void SeedContent()
     {
-        // Check if Vinyl Vault already exists
-        var rootContent = _contentService.GetRootContent();
-        var existingVinylVault = rootContent.FirstOrDefault(c => c.ContentType.Alias == "vinylVaultHome");
-        
-        if (existingVinylVault != null)
-        {
-            _logger.LogDebug("VINYL VAULT SEEDER: Content already exists — skipping");
-            return;
-        }
+        var rootContent = _contentService.GetRootContent().ToList();
 
         var root = rootContent.FirstOrDefault();
         if (root == null)
         {
             _logger.LogWarning("VINYL VAULT SEEDER: No root content found — skipping");
+            return;
+        }
+
+        // Check if Vinyl Vault already exists as a child of root (not at root level)
+#pragma warning disable CS0618
+        var children = _contentService.GetPagedChildren(root.Id, 0, 100, out _);
+#pragma warning restore CS0618
+        if (children.Any(c => c.ContentType.Alias == "vinylVaultHome"))
+        {
+            _logger.LogDebug("VINYL VAULT SEEDER: Content already exists — skipping");
             return;
         }
 
