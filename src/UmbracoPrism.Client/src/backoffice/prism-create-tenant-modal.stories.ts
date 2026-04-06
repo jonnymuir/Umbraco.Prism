@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
 import { html } from 'lit';
-import { expect } from '@storybook/test';
+import { expect, waitFor } from '@storybook/test';
 import './prism-create-tenant-modal';
 import { PrismCreateTenantModalElement } from './prism-create-tenant-modal';
 
@@ -122,7 +122,7 @@ export const Edit: Story = {
     const shadow = modal.shadowRoot;
     await expect(shadow.textContent ?? '').toContain('Update Tenant');
     const dialogLayout = shadow.querySelector('uui-dialog-layout') as HTMLElement;
-    await expect(dialogLayout?.getAttribute('headline') ?? '').toContain('Edit Tenant');
+    await waitFor(() => expect(dialogLayout?.getAttribute('headline') ?? '').toContain('Edit Tenant'));
 
     const container = shadow.querySelector('.container') as HTMLElement;
     const generalPanel = shadow.querySelector('#general-panel') as HTMLElement;
@@ -209,6 +209,6 @@ export const OverflowTabs: Story = {
     hiddenTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;
 
-    await expect(shadow.textContent ?? '').toContain('--prism-font-display');
+    await waitFor(() => expect(shadow.textContent ?? '').toContain('--prism-font-display'));
   }
 };

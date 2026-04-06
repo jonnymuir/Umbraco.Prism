@@ -187,12 +187,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  protected updated(changedProperties: Map<string, unknown>) {
-    super.updated(changedProperties);
-
-    if (changedProperties.has('_maximized')) {
-      this.classList.toggle('maximized', this._maximized);
-    }
+  protected willUpdate(changedProperties: Map<string, unknown>) {
+    super.willUpdate(changedProperties);
 
     if (changedProperties.has('data')) {
       this.setAttribute('aria-label', this.data?.tenant ? 'Edit Tenant' : 'Create Tenant');
@@ -253,6 +249,14 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         }))
       }));
       this._ensureActiveTab();
+    }
+  }
+
+  protected updated(changedProperties: Map<string, unknown>) {
+    super.updated(changedProperties);
+
+    if (changedProperties.has('_maximized')) {
+      this.classList.toggle('maximized', this._maximized);
     }
   }
 
