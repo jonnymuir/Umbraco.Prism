@@ -751,3 +751,28 @@ Bundle download on Safari was incorrectly opening a new tab instead of triggerin
 - `README.md` — 11 edits
 
 **Commit:** `46a0fb0` — docs: accuracy fix and story rebalance in README
+
+### v1.7.1 Security Patch Release (2026-04-06)
+
+**Context:** Critical security fix landed from F-12 (ID token signature validation & nonce enforcement). Patch release required to communicate security improvements clearly to users.
+
+**Manifest Summary:**
+- Version bumped: 1.7.0 → 1.7.1 (patch)
+- Updated 3 version files: Core csproj, Client package.json, root package.json
+- Created CHANGELOG.md entry with security-focused language
+- Committed and tagged: `git tag v1.7.1`
+
+**CHANGELOG Entry Philosophy:**
+The changelog emphasizes what the fix *does*, not the commit message. Target audience: developers reviewing release notes to decide if they should deploy.
+
+- **ID token signature validation:** Per-tenant JWKS validation (cryptographic assurance that tokens haven't been forged or tampered with)
+- **Nonce validation enforcement:** Hard rejection on mismatch (closes the replay attack window)
+- **Structured logging:** Replaced console debug output with proper logging (avoids leaking tenant info to stdout)
+
+**Key Decision:** Did NOT mention the screenshots commit (`fc63e37 chore: screenshots`) — internal housekeeping doesn't belong in public release notes.
+
+**Learnings:**
+- Security release notes should explain *security implications* (what you're protected from), not just *what changed*
+- Release notes are not commit logs — filter for user-facing content only
+- Nonce validation is a "hard failure" pattern worth calling out (replay attacks are serious; enforcement is noteworthy)
+- Structured logging is a best practice, but only mention it in release notes if you're replacing visible behavior (console leaks are user-visible; worth noting)
