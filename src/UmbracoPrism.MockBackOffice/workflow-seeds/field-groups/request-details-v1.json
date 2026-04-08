@@ -1,0 +1,39 @@
+{
+  "groupKey": "request-details",
+  "displayName": "Your request",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "requestType",
+      "label": "What type of request is this?",
+      "hint": "",
+      "fieldType": "select",
+      "required": true,
+      "options": [
+        "General enquiry",
+        "Data subject access request",
+        "Complaint",
+        "Technical support"
+      ]
+    },
+    {
+      "fieldKey": "description",
+      "label": "Tell us more about your request",
+      "hint": "Include as much detail as possible. Maximum 1000 characters.",
+      "fieldType": "textarea",
+      "required": true
+    },
+    {
+      "fieldKey": "urgency",
+      "label": "How urgent is this?",
+      "hint": "",
+      "fieldType": "radio",
+      "required": true,
+      "options": [
+        "Standard (5-7 working days)",
+        "Urgent (2 working days)",
+        "Critical (same day)"
+      ]
+    }
+  ]
+}

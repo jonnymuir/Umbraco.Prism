@@ -11,11 +11,15 @@ builder.Services.AddPrismAuthentication(builder.Configuration);
 
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapControllers();
 
 
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =>

@@ -45,4 +45,9 @@
     <Content Update="wwwroot/**" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="workflow-seeds\*.json" />
+    <EmbeddedResource Include="workflow-seeds\field-groups\*.json" />
+  </ItemGroup>
+
 </Project>

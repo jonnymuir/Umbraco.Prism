@@ -39,6 +39,7 @@ public class PrismContentTypeSeeder(
 
         await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
+        await EnsureWorkflowDemoPageAsync();
         await EnsureSettingsDocumentTypeAsync();
 
         logger.LogInformation("PRISM ContentTypeSeeder: Complete");
@@ -68,6 +69,162 @@ public class PrismContentTypeSeeder(
         }
 
         await EnsureTemplateAsync(contentType, name);
+    }
+
+    private async Task EnsureWorkflowDemoPageAsync()
+    {
+        const string alias = "workflowDemoPage";
+        const string name = "Workflow Demo Page";
+        
+        var contentType = contentTypeService.Get(alias);
+
+        if (contentType == null)
+        {
+            contentType = new ContentType(shortStringHelper, -1)
+            {
+                Alias = alias,
+                Name = name,
+                AllowedAsRoot = true,
+                Icon = "icon-activity"
+            };
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
+
+        // Add properties for workflow demo page
+        await EnsureWorkflowDemoPropertiesAsync(contentType);
+        await EnsureTemplateAsync(contentType, name);
+    }
+
+    private async Task EnsureWorkflowDemoPropertiesAsync(IContentType contentType)
+    {
+        const string groupName = "Workflow Configuration";
+        const string groupKey = "workflowConfiguration";
+        
+        if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
+        {
+            contentType.AddPropertyGroup(groupName, groupKey);
+        }
+
+        // Create data types for workflow demo properties
+        var textboxDataType = await GetOrCreateTextboxDataTypeAsync();
+        var textareaDataType = await GetOrCreateTextareaDataTypeAsync();
+
+        if (textboxDataType == null || textareaDataType == null)
+        {
+            logger.LogWarning("PRISM: Could not create textbox or textarea data types");
+            return;
+        }
+
+        bool modified = false;
+
+        // Add workflowDefinitionKey property
+        if (!contentType.PropertyTypes.Any(p => p.Alias == "workflowDefinitionKey"))
+        {
+            var propertyType = new PropertyType(shortStringHelper, textboxDataType, "workflowDefinitionKey")
+            {
+                Name = "Workflow Definition Key",
+                Description = "The key of the workflow to render (e.g., 'information-request')",
+                Mandatory = false,
+                SortOrder = 0
+            };
+            contentType.AddPropertyType(propertyType, groupName);
+            modified = true;
+        }
+
+        // Add pageTitle property
+        if (!contentType.PropertyTypes.Any(p => p.Alias == "pageTitle"))
+        {
+            var propertyType = new PropertyType(shortStringHelper, textboxDataType, "pageTitle")
+            {
+                Name = "Page Title",
+                Description = "H1 heading displayed on the page",
+                Mandatory = false,
+                SortOrder = 1
+            };
+            contentType.AddPropertyType(propertyType, groupName);
+            modified = true;
+        }
+
+        // Add pageIntro property
+        if (!contentType.PropertyTypes.Any(p => p.Alias == "pageIntro"))
+        {
+            var propertyType = new PropertyType(shortStringHelper, textareaDataType, "pageIntro")
+            {
+                Name = "Page Introduction",
+                Description = "Introductory text displayed above the workflow form",
+                Mandatory = false,
+                SortOrder = 2
+            };
+            contentType.AddPropertyType(propertyType, groupName);
+            modified = true;
+        }
+
+        if (modified)
+        {
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+            logger.LogInformation("PRISM: Workflow demo page properties added");
+        }
+    }
+
+    private static readonly Guid PrismTextboxDataTypeKey = new Guid("5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b");
+    private static readonly Guid PrismTextareaDataTypeKey = new Guid("6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c");
+
+    private async Task<IDataType?> GetOrCreateTextboxDataTypeAsync()
+    {
+        const string editorAlias = "Umbraco.TextBox";
+        const string dataTypeName = "Prism Textbox";
+
+        var existing = await dataTypeService.GetAsync(PrismTextboxDataTypeKey);
+        if (existing != null) return existing;
+
+        var editor = propertyEditorCollection[editorAlias];
+        if (editor == null)
+        {
+            logger.LogError("PRISM: Editor '{EditorAlias}' not found", editorAlias);
+            return null;
+        }
+
+        var newDataType = new DataType(editor, configurationEditorJsonSerializer)
+        {
+            Key = PrismTextboxDataTypeKey,
+            Name = dataTypeName,
+            DatabaseType = ValueStorageType.Nvarchar,
+            EditorUiAlias = "Umb.PropertyEditorUi.TextBox"
+        };
+
+        await dataTypeService.CreateAsync(newDataType, Constants.Security.SuperUserKey);
+        return newDataType;
+    }
+
+    private async Task<IDataType?> GetOrCreateTextareaDataTypeAsync()
+    {
+        const string editorAlias = "Umbraco.TextArea";
+        const string dataTypeName = "Prism Textarea";
+
+        var existing = await dataTypeService.GetAsync(PrismTextareaDataTypeKey);
+        if (existing != null) return existing;
+
+        var editor = propertyEditorCollection[editorAlias];
+        if (editor == null)
+        {
+            logger.LogError("PRISM: Editor '{EditorAlias}' not found", editorAlias);
+            return null;
+        }
+
+        var newDataType = new DataType(editor, configurationEditorJsonSerializer)
+        {
+            Key = PrismTextareaDataTypeKey,
+            Name = dataTypeName,
+            DatabaseType = ValueStorageType.Ntext,
+            EditorUiAlias = "Umb.PropertyEditorUi.TextArea"
+        };
+
+        await dataTypeService.CreateAsync(newDataType, Constants.Security.SuperUserKey);
+        return newDataType;
     }
 
     private static readonly Guid PrismMediaPickerDataTypeKey = new Guid("a2b3c4d5-e6f7-8901-a2b3-c4d5e6f78901");

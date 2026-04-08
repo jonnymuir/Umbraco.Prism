@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
 using UmbracoPrism.Core.BackgroundServices;
+using UmbracoPrism.Core.Extensions;
 
 namespace UmbracoPrism.Core;
 
@@ -48,7 +49,10 @@ public class PrismComposer : IComposer
             builder.Config.GetSection(PrismConfiguration.SectionName));
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
-        // 2. Middleware Registration
+        // 2. Workflow Engine
+        builder.AddPrismWorkflowEngine();
+
+        // 3. Middleware Registration
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
             options.AddFilter(new UmbracoPipelineFilter(
@@ -61,16 +65,16 @@ public class PrismComposer : IComposer
             ));
         });
 
-        // 3. Authorization Handler
+        // 4. Authorization Handler
         builder.Services.AddSingleton<IAuthorizationHandler, PrismTenantHandler>();
         builder.Services.AddSingleton<IAuthorizationHandler, PrismAdminHandler>();
 
-        // 4. Dynamic OIDC Config & Credential Provider
+        // 5. Dynamic OIDC Config & Credential Provider
         // Registering our custom PostConfigure logic as a Singleton is fine because 
         // it acts on the 'options' object passed in per-request.
         builder.Services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
         
-        // 5. Authentication & Cookie Setup
+        // 6. Authentication & Cookie Setup
         var vaultUri = builder.Config["Prism:VaultUri"];
         bool isAuthEnabled = !string.IsNullOrEmpty(vaultUri);
 
@@ -106,7 +110,7 @@ public class PrismComposer : IComposer
         .EnableTokenAcquisitionToCallDownstreamApi()
         .AddInMemoryTokenCaches();
 
-        // 6. Authorization Policy
+        // 7. Authorization Policy
         builder.Services.Configure<AuthorizationOptions>(options =>
         {
             options.AddPolicy("PrismStrictIsolation", policy =>
@@ -124,7 +128,7 @@ public class PrismComposer : IComposer
 
         builder.Services.Configure<PrismAdminOptions>(builder.Config.GetSection("Prism:AdminGroups"));
 
-        // 7. Management API & Notifications
+        // 8. Management API & Notifications
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, PrismMigrationHandler>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();

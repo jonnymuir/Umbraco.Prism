@@ -54,6 +54,9 @@ These documents describe internal architecture and implementation details for co
 ### [Notifications Umbraco Integration](design/notifications-umbraco-demo.md)
 **Internal design:** Umbraco content hooks, notification handlers, and Vinyl Vault demo site architecture.
 
+### [Workflow Forms Engine Demo Proposal](design/workflow-forms-engine-demo.md)
+**Internal design:** Workflow-as-source-of-truth forms architecture, emulator integration plan, field-group versioning, and phased implementation.
+
 ---
 
 ## Need Help?
