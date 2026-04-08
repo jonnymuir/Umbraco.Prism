@@ -250,3 +250,61 @@
 
 **Key insight for team:** Extending the device credential row (rather than creating a new table) keeps the device model unified and future-proof. A device may have biometric auth without notifications (legacy biometric-only deployments), or notifications without biometric (push-only tenants), or both — the schema supports all three cleanly.
 
+### Workflow Forms Engine Architecture (2026-04-08)
+
+**What was designed:** End-to-end Prism Workflow Forms Engine as a demonstration framework where workflow configuration is the source of truth and channels are renderers of workflow state.
+
+**Key architectural decisions made:**
+
+1. **Scope boundary: Demo framework, not production BPM.** Prism provides the runtime execution contract, state machine semantics, and reference archetypes. Implementors provide specific workflow definitions and business logic. Ships with one canonical example workflow (Information Request: Draft → Submitted → UnderReview → [Approved|Rejected]) to demonstrate the framework.
+
+2. **Storage model: Hybrid NPoco + JSON fixtures.** Workflow instance state (live runtime data) uses NPoco tables (`prismWorkflowInstances`, `prismWorkflowEvents`, `prismWorkflowTasks`) for transactional integrity and querying. Workflow definitions (versioned configuration) seed from JSON fixtures with optional table storage in v2. Umbraco content storage is inappropriate because workflows are system configuration, not content.
+
+3. **Actor model: Role-based only for v1.** Task routing uses Umbraco backoffice group aliases (e.g., `backoffice-reviewers`). User assignment deferred to v2 to avoid claim/release/reassignment complexity. `WorkflowTask` schema includes `AssignedToUserId` column (nullable) reserved for future use.
+
+4. **Optimistic concurrency: Required from day one.** All mutating endpoints (`/submit/{fieldGroupKey}`, `/actions/{actionKey}`) require `stateVersion` in payload. Validation enforces `submitted == current` or returns 409 Conflict. Adding concurrency control retroactively is a breaking API change; ship it now.
+
+5. **Audit trail: Strictly transactional.** State transitions and audit events (`prismWorkflowEvents`) are written in the same NPoco transaction. No eventual consistency complexity for demo/framework use case. Implementors can add async audit projection separately if needed.
+
+6. **Accessibility: WCAG 2.1 AA baseline.** All shipped archetypes (Collect, Review, TaskQueue, Decision, RequestChanges, StatusTimeline, Completion) must meet WCAG 2.1 AA before sign-off. Enforced via Playwright axe-core tests + manual keyboard/screen reader testing. GDS design system aesthetic (progressive disclosure, plain language, mobile-first responsive).
+
+7. **Prism integration: Tenant isolation + IPrismContext + NPoco migrations.** All workflow instances scoped by `TenantId` (same pattern as `prismDeviceCredentials`). Workflow runtime services consume `IPrismContext` for tenant/user resolution. Migrations use `AsyncMigrationBase` in `PrismMigrationPlan` (NOT EF Core). MockBackOffice extended under `/api/backoffice/workflows/*` namespace.
+
+8. **Contract-driven rendering: Response envelope + archetype mapping.** All workflow endpoints return consistent envelope with `responseState` (`ask_now`, `wait`, `complete`, `error`), `stateVersion`, `correlationId`, and `render` payload. HTTP status maps to transport outcome; `responseState` maps to workflow meaning. Channels consume only render payload contract; never interpret raw transition graph.
+
+**Design doc:** `docs/design/workflow-forms-engine.md` (authoritative)
+
+**Phase 0 deliverable shipped:** JSON fixture for Information Request workflow + field groups (personal-details, request-details).
+
+**Companion design docs required:**
+- **Blathers:** Backend contracts (`docs/design/workflow-forms-backend.md`) — endpoint contracts, validation rules, error codes.
+- **Isabelle:** Client archetypes (`docs/design/workflow-forms-client.md`) — component API, props, events, Storybook fixtures.
+- **Brewster:** TestSite integration (`docs/design/workflow-forms-testsite.md`) — seeding strategy, emulator endpoints, demo personas.
+- **Copper:** Security review (`docs/design/workflow-forms-security.md`) — tenant isolation, authorization checks, CSRF/rate limiting.
+
+**Open questions for team:**
+- None. All five open questions from proposal resolved with rationale in design doc.
+
+**Risk flagged:** Over-scoping into full BPM product. Mitigated with strict non-goals and demo-first implementation phases.
+
+## Workflow Forms Engine Design — Architecture Lead (2026-04-08)
+
+**Decision Set:** `📌 2026-04-08: Workflow Forms Engine Architecture (Tom Nook)` in `.squad/decisions.md`
+
+**Role:** Lead architect for Workflow Forms Engine design phase. Resolved all 5 open questions from proposal (`docs/design/workflow-forms-engine-demo.md`). Set authoritative architecture foundation for downstream Backend (Blathers), Client (Isabelle), Umbraco (Brewster), and Security (Copper) teams.
+
+**Decisions Produced:** 8 core architectural decisions
+1. Scope Boundary — Demo Framework (not production BPM)
+2. Storage Model — Hybrid NPoco + JSON Fixtures
+3. Actor Model — Role-Based Only for v1
+4. Optimistic Concurrency — Required from Day One
+5. Audit Trail — Strictly Transactional
+6. Accessibility — WCAG 2.1 AA Baseline
+7. Prism Integration — Tenant Isolation + IPrismContext + NPoco Migrations
+8. Contract-Driven Rendering — Response Envelope + Archetype Mapping
+
+**Cascading Decisions for Team:** All downstream decisions (backend models, client components, Umbraco integration, security controls) derived from these 8 architectural pillars.
+
+**Design Phase Status:** ✅ Complete (design docs: 2 of 5 completed; Blathers/Isabelle/Brewster/Copper to produce companion specs)
+
+

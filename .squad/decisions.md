@@ -2386,6 +2386,582 @@ The push notification feature integrates Firebase Cloud Messaging (FCM) into the
 
 ---
 
+## 📌 2026-04-08: Workflow Forms Engine Architecture (Tom Nook)
+
+**Session Log:** `.squad/log/2026-04-08T22:15:50Z-workflow-forms-engine-design.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-workflow-forms-architecture.md`
+
+### Tom Nook — Workflow Forms Engine Architecture Decisions
+
+**Decision Overview:** Eight architectural decisions establish the Prism Workflow Forms Engine as a **demonstration framework** (not production-grade BPM), with state machine semantics, tenant-isolated persistence, and 7 interaction pattern archetypes.
+
+#### 1. Scope Boundary — Demo Framework, Not Production BPM
+
+**Decision:** The Prism Workflow Forms Engine is a **demonstration framework**, not a production-grade BPM/low-code designer.
+
+**What Prism Provides:**
+- Runtime execution contract
+- State machine semantics
+- Tenant-isolated persistence
+- Reference archetypes (7 interaction patterns)
+- One canonical example workflow (Information Request)
+
+**What Implementors Provide:**
+- Specific workflow definitions
+- Business domain logic
+- Custom field groups
+- External integrations
+
+**Non-Goals Explicitly Flagged:**
+- Production-grade low-code designer
+- Executable scripts in workflow definitions
+- Cross-tenant shared workflow execution
+- External integration connectors (email/SMS/webhook)
+- Advanced SLA/escalation rules
+
+**Rationale:** Keeps Prism scope manageable and maintainable. Demonstrates the framework contract without authoring UI complexity. Allows implementors to build domain-specific workflows without framework bloat.
+
+#### 2. Storage Model — Hybrid NPoco + JSON Fixtures
+
+**Decision:** Use dedicated NPoco tables for live workflow instances/events/tasks. Use JSON fixtures (with optional table storage in v2) for workflow definitions and field-group definitions.
+
+**Storage Breakdown:**
+- **Live State (NPoco tables):**
+  - `prismWorkflowInstances`: Current state, tenant/user metadata, optimistic concurrency token.
+  - `prismWorkflowEvents`: Append-only audit stream (state changes, submissions, decisions).
+  - `prismWorkflowTasks`: Queueable work items for reviewers/approvers.
+
+- **Configuration (JSON fixtures in v1):**
+  - Workflow definitions: `src/UmbracoPrism.MockBackOffice/Fixtures/workflows/information-request.json`
+  - Field-group definitions: `src/UmbracoPrism.MockBackOffice/Fixtures/field-groups/personal-details.json`
+
+**Rationale:** Live state requires transactional integrity, optimistic concurrency, and efficient querying. Workflow definitions need import/export, version control, and easy seeding. Hybrid approach balances runtime needs with authoring/versioning needs.
+
+**Future Enhancement (v2):** Optional `prismWorkflowDefinitions` table for storing published definitions at runtime with migration tooling to upgrade running instances to new workflow versions.
+
+#### 3. Actor Model — Role-Based Only for v1
+
+**Decision:** Workflow task routing uses **role-based assignment only** in v1. User assignment deferred to v2.
+
+**v1 Model:**
+- Tasks route to Umbraco backoffice group alias (e.g., `backoffice-reviewers`).
+- Any user in that role can claim and complete the task.
+- Schema includes `AssignedToUserId` column (nullable) reserved for v2; always NULL in v1.
+
+**Rationale:** Role-based routing covers 80% of demo scenarios with minimal complexity. User assignment requires claim/release/reassignment/escalation logic — unnecessary for a demo framework.
+
+#### 4. Optimistic Concurrency — Required from Day One
+
+**Decision:** All mutating workflow endpoints require `stateVersion` enforcement from day one. No exceptions.
+
+**Enforcement:**
+- `prismWorkflowInstances.StateVersion` (integer, default 1, increments on every state change).
+- All `POST /submit/{fieldGroupKey}` and `POST /actions/{actionKey}` require `stateVersion` in payload.
+- Validation: `if (submitted != current) return 409 Conflict`.
+
+**Rationale:** Concurrent submissions (double-click, mobile retry, multi-device) are realistic even in demo scenarios. Adding concurrency control retroactively is a breaking API change. Implementation cost is minimal; HTTP 409 Conflict is a clear, recoverable error for clients.
+
+#### 5. Audit Trail — Strictly Transactional
+
+**Decision:** State transitions and audit events (`prismWorkflowEvents`) are written in the **same NPoco transaction**. No eventual consistency.
+
+**Implementation:**
+- Single database transaction for: Update state + increment StateVersion → Append audit event → Insert/update tasks
+
+**Rationale:** Demo/framework use case does not justify eventual consistency complexity. Event-sourced audit requires append-only guarantees: state transitions and events MUST succeed or fail together.
+
+#### 6. Accessibility — WCAG 2.1 AA Baseline
+
+**Decision:** All shipped archetypes MUST meet **WCAG 2.1 Level AA** before demo sign-off.
+
+**Acceptance Criteria:**
+- Keyboard navigation (all interactive elements reachable via keyboard only)
+- Screen reader support (semantic HTML, ARIA labels/descriptions)
+- Color contrast (4.5:1 for body text, 3:1 for large text)
+- Focus indicators visible on all interactive elements
+- Error identification (validation errors associated with specific fields)
+- Form labels properly associated with inputs
+
+**Testing:** Playwright accessibility tests using `axe-core`, manual keyboard-only testing, manual screen reader spot-check.
+
+**Rationale:** WCAG 2.1 AA is the baseline for modern web applications. Retrofitting accessibility is expensive; build it in from the start.
+
+#### 7. Prism Integration — Tenant Isolation + IPrismContext + NPoco Migrations
+
+**Decision:** Workflow runtime integrates with established Prism patterns.
+
+**Tenant Isolation (Non-Negotiable):**
+- ALL workflow instances scoped by `TenantId` (same pattern as `prismDeviceCredentials`).
+- All queries filter by `TenantId` from `IPrismContext.CurrentTenant.Id`. No cross-tenant visibility.
+
+**IPrismContext Integration:**
+- Workflow services consume `IPrismContext` (scoped per HTTP request) for tenant and user resolution.
+- User identity: `_prismContext.User.FindFirstValue("oid")` for Entra Object ID.
+- Role checks: `_prismContext.User.IsInRole("backoffice-reviewers")` for task filtering.
+
+**NPoco Migration Pattern:**
+- Use `AsyncMigrationBase` in `PrismMigrationPlan`, NOT EF Core.
+- Migrations: `CreatePrismWorkflowInstancesTable`, `CreatePrismWorkflowEventsTable`, `CreatePrismWorkflowTasksTable`.
+
+**Rationale:** Consistency with established Prism architecture reduces learning curve and maintenance burden. Tenant isolation is a hard requirement for multi-tenant SaaS products.
+
+#### 8. Contract-Driven Rendering — Response Envelope + Archetype Mapping
+
+**Decision:** All workflow endpoints return a consistent envelope with `responseState`, `stateVersion`, `correlationId`, and `render` payload.
+
+**Response Envelope Shape:**
+```json
+{
+  "instanceId": "wf_123",
+  "responseState": "ask_now",
+  "stateVersion": 7,
+  "correlationId": "...",
+  "serverTimeUtc": "2026-04-08T10:30:00Z",
+  "pollAfterMs": null,
+  "render": { "archetype": "Collect", "fieldGroups": [...], "availableActions": [...] },
+  "problems": []
+}
+```
+
+**Response States:**
+- `ask_now`: Backend has questions to render immediately.
+- `wait`: Instance not ready yet (async guard, queue, reviewer decision). Show pending UI; poll after `pollAfterMs`.
+- `complete`: Workflow reached terminal outcome. Show completion payload.
+- `error`: Non-happy-path result with typed failures in `problems`.
+
+**HTTP Status Mapping:**
+- Transport status for protocol category (200/202/401/403/404/409/422/500/503).
+- `responseState` for workflow meaning.
+
+**Archetype Catalog (7 Interaction Patterns):**
+1. `Collect`: Gather user input (form sections, validation summary, save-draft)
+2. `Review`: Read-only confirmation before transition (grouped answers, change links)
+3. `TaskQueue`: Present pending tasks for operators (sortable table, filters, claim button)
+4. `Decision`: Approve/reject/request-changes with reason capture
+5. `RequestChanges`: Route instance back with targeted remediation
+6. `StatusTimeline`: Visualize instance progress and audit events
+7. `Completion`: Final outcome with next-step guidance
+
+**Rationale:** Consistent envelope simplifies client implementation. Archetype mapping allows channel-specific rendering without coupling to workflow internals.
+
+---
+
+## 📌 2026-04-08: Workflow Forms Engine Backend Design (Blathers)
+
+**Session Log:** `.squad/log/2026-04-08T22:15:50Z-workflow-forms-engine-design.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-workflow-backend-design.md`
+
+### Blathers — Workflow Forms Engine Backend Design Decisions
+
+**Decision Overview:** Ten backend design decisions define C# models, database schema, service interfaces, API contracts, and response envelopes.
+
+#### 1. Multi-Tenant Isolation Pattern
+
+**Decision:** ALL workflow entities include `TenantId` column with composite indexes placing `TenantId` first.
+
+**Rationale:** Consistent with existing Prism patterns (`prismDeviceCredentials`, `prismNotificationSubscriptions`). Database can efficiently filter by tenant first, then by other criteria. Security: Tenant isolation enforced at the data layer.
+
+**Impact:** All workflow queries filter by `TenantId` from `IPrismUserContext`.
+
+#### 2. JSON Storage for Workflow Graph
+
+**Decision:** Store workflow states/transitions and field group fields as JSON columns in single rows rather than fully normalized tables.
+
+**Rationale:** Demo scope avoids over-engineering a complex graph schema. One row per workflow definition version, easier to version and publish atomically. Flexibility: JSON structure can evolve without migrations during draft phase.
+
+**Trade-offs:** Cannot easily query "all workflows with state X" via SQL WHERE clause. Acceptable for demo — authoring/querying patterns are admin-focused, not high-volume.
+
+#### 3. Append-Only Audit Events
+
+**Decision:** `WorkflowEvent` table is immutable — events are never updated or deleted.
+
+**Rationale:** Complete audit trail for compliance and debugging. Distributed tracing via `correlationId`. Timeline reconstruction from event log.
+
+**Implementation:** No UPDATE or DELETE operations in `IWorkflowEventService`. Only append via `AppendEventAsync()`.
+
+#### 4. Optimistic Concurrency via StateVersion
+
+**Decision:** Use integer `StateVersion` counter (incremented on every state transition) for optimistic concurrency control.
+
+**Rationale:** Standard ETag pattern adapted for workflow state. Prevents lost updates when multiple actors interact with same instance.
+
+**Implementation:**
+- `WorkflowInstance.StateVersion` column with index
+- `IWorkflowConcurrencyGuard` validates and increments version atomically
+- Clients receive updated `stateVersion` in every response envelope
+
+#### 5. Response Envelope Contract
+
+**Decision:** ALL workflow dialog endpoints return `WorkflowResponseEnvelope` with consistent structure.
+
+**Structure:**
+```json
+{
+  "instanceId": "wf_123",
+  "responseState": "ask_now",
+  "stateVersion": 7,
+  "correlationId": "uuid",
+  "serverTimeUtc": "2026-04-08T10:30:00Z",
+  "pollAfterMs": null,
+  "render": { /* archetype payload */ },
+  "problems": []
+}
+```
+
+**HTTP Status Mapping:**
+- `200 OK` → `ask_now`, `complete`
+- `202 Accepted` → `wait`
+- `422 Unprocessable Entity` → `error` (validation)
+- `409 Conflict` → `error` (concurrency)
+- `404 Not Found` → `error` (not-found)
+
+#### 6. Archetype-Driven Rendering
+
+**Decision:** Backend generates archetype-based render payloads; channels are pure renderers with no business logic.
+
+**Rationale:** Workflow definition is authoritative. UI never decides process order, eligibility, or completion rules. State → Archetype mapping defined in `WorkflowState.Archetype` property.
+
+**Impact:** Channel components (web, mobile, backoffice) consume `WorkflowRenderPayload` and map archetype to UI primitives. No direct state machine logic in renderers.
+
+#### 7. Version Pinning & Immutability
+
+**Decision:** Workflow instances pin `workflowVersion` on creation. Published definitions are immutable.
+
+**Rationale:** Running instances continue on pinned version (no surprise changes mid-flight). Explicit migration path for breaking changes (controlled, auditable).
+
+**Lifecycle:** Draft → Edit → Publish (immutable) → Retire (prevent new instances).
+
+#### 8. NPoco Migration Pattern
+
+**Decision:** Follow exact pattern from `CreatePrismDeviceCredentialsTable` migration.
+
+**Pattern:**
+- Separate schema class per table with `[TableName]`, `[PrimaryKey]`, `[ExplicitColumns]` attributes
+- Migration class extends `AsyncMigrationBase(IMigrationContext)`
+- Table creation via `Create.Table<SchemaClass>().Do()`
+- Indexes created via raw SQL `Database.Execute()`
+- Added to `PrismMigrationPlan.DefinePlan()` chain
+
+**Rationale:** Consistency with existing Prism codebase patterns ensures maintainability.
+
+#### 9. Service-Oriented Architecture
+
+**Decision:** Clean separation of concerns across six core service interfaces.
+
+**Services:**
+1. `IWorkflowDefinitionService` — Authoring/versioning (CRUD, publish, retire)
+2. `IWorkflowInstanceService` — Runtime state management (create, advance, complete)
+3. `IWorkflowRenderService` — Render payload generation (archetype mapping, action filtering)
+4. `IWorkflowSubmissionService` — Field validation/storage (schema-driven validation)
+5. `IWorkflowEventService` — Audit append/query (timeline, correlation tracing)
+6. `IWorkflowConcurrencyGuard` — ETag validation (optimistic concurrency)
+
+**Rationale:** Each service has single responsibility. Testable in isolation. Clear ownership boundaries.
+
+#### 10. HTTP Status Semantics
+
+**Decision:** Use HTTP status for protocol category; `responseState` for workflow meaning.
+
+**Mapping:**
+| Scenario | HTTP Status | `responseState` |
+|---|---|---|
+| More UI items ready | `200 OK` | `ask_now` |
+| Backend not ready yet | `202 Accepted` | `wait` |
+| Complete | `200 OK` | `complete` |
+| Validation failure | `422 Unprocessable Entity` | `error` |
+| Concurrency conflict | `409 Conflict` | `error` |
+| Not found | `404 Not Found` | `error` |
+
+**Rationale:** Aligns with REST semantics. `responseState` provides workflow-specific semantics for client state machine. Clients branch on `responseState`, not HTTP status directly.
+
+---
+
+## 📌 2026-04-08: Workflow Forms Engine Client Design (Isabelle)
+
+**Session Log:** `.squad/log/2026-04-08T22:15:50Z-workflow-forms-engine-design.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-workflow-client-design.md`
+
+### Isabelle — Workflow Forms Engine Client Design Decisions
+
+**Decision Overview:** Five client-side design decisions establish Web Component strategy, UI orchestration, and accessibility baselines.
+
+#### 1. Hybrid Adapter Model for Cross-Channel Rendering
+
+**Architecture:**
+- Generic `prism-workflow-*` components consume `WorkflowRenderPayload` contract only
+- Thin adapter layer maps to UUI components in backoffice when needed
+- Mobile shell uses generic components directly
+- All components use CSS custom properties for theming
+
+**Rationale:** Maximizes cross-channel reuse (mobile + test site + backoffice). Maintains native feel in each context via theming. Isolates workflow logic from UI framework concerns.
+
+#### 2. Orchestrator State Machine Pattern
+
+**State Machine:**
+```
+idle → creating → asking → submitting → waiting → polling → complete → error
+```
+
+**Component Contract:**
+- Shell component owns orchestrator instance
+- Archetype components receive `renderPayload` prop
+- Archetype components dispatch events: `submit`, `action`, `save-draft`
+- Shell forwards events to orchestrator methods
+- Orchestrator emits `state-changed`, `workflow-complete`, `workflow-error`
+- Components never import `workflowApiClient` directly
+
+**Rationale:** Clean separation: orchestrator handles protocol, components handle presentation. Polling logic centralized. Optimistic concurrency (`stateVersion`) handled transparently. Easy to mock orchestrator for Storybook stories.
+
+#### 3. GDS Design System Principles for Workflow Forms
+
+**Adopted Principles:**
+1. **One question per page (optional)** — `progressiveDisclosure: boolean` flag
+2. **Error summary at top** — Links jump to fields, `role="alert"`
+3. **Clear labels + hints** — No placeholders as labels, explain WHY we need info
+4. **No jargon** — Plain English (reading age 11-12), active voice
+5. **Step indicator** — Visual progress (complete/current/pending)
+6. **Back navigation** — Always available, preserves answers
+7. **Check your answers** — Summary before final submit
+
+**CSS Implementation:**
+- CSS custom properties for all GDS-inspired styles
+- Mobile variant uses iOS blue (`#007aff`) + iOS system fonts
+- Backoffice variant uses GDS blue (`#1d70b8`) + Inter font
+- Components ship with sensible defaults but fully themeable
+
+**Rationale:** GDS patterns proven for accessibility (WCAG 2.2 AA). Reduces cognitive load (one thing at a time). Mobile-first by design. Clear error recovery.
+
+#### 4. WCAG 2.2 AA as Blocking Requirement
+
+**Checklist (Pre-Demo):**
+- [ ] Keyboard navigation (Tab, Shift+Tab, Enter, Space, Arrow keys)
+- [ ] Focus order is logical and visible (3:1 contrast)
+- [ ] All form fields have `<label>` with `for` attribute
+- [ ] Error messages use `role="alert"` and `aria-invalid="true"`
+- [ ] Error summary links jump to and focus the field
+- [ ] Loading states use `role="status"` with `aria-live="polite"`
+- [ ] Completion/error states use `role="alert"` with `aria-live="assertive"`
+- [ ] All text meets 4.5:1 contrast (3:1 for large text)
+- [ ] Color is not the only indicator of state (use icons + text)
+- [ ] Component tested with VoiceOver (macOS) or NVDA (Windows)
+- [ ] Storybook axe addon shows 0 violations
+
+**Automated Testing:**
+- axe addon runs on every Storybook story
+- Playwright E2E tests include axe-playwright scans
+
+**Rationale:** Accessibility is not optional for workflow forms. Fixing accessibility issues late is expensive. Automated tooling catches ~40% of issues, rest needs manual testing.
+
+#### 5. Fixture-Driven Storybook Stories
+
+**File Structure:**
+```
+src/workflow/fixtures/
+├── workflow-envelope-collect.json
+├── workflow-envelope-review.json
+├── workflow-envelope-decision.json
+├── workflow-envelope-validation-errors.json
+├── workflow-envelope-waiting.json
+└── ... (one per archetype + variants)
+```
+
+**Rationale:** Single source of truth for render payload shape. Fixtures can be used for backend contract tests too. Easy to update when contract changes (one file, not N stories).
+
+---
+
+## 📌 2026-04-08: Workflow Forms Engine Umbraco Integration (Brewster)
+
+**Session Log:** `.squad/log/2026-04-08T22:15:50Z-workflow-forms-engine-design.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/brewster-workflow-umbraco-design.md`
+
+### Brewster — Workflow Forms Engine Umbraco Integration Design Decisions
+
+**Decision Overview:** Five Umbraco-specific decisions establish MockBackOffice emulator, seed packs, and integration testing patterns.
+
+#### 1. MockBackOffice RuntimeMode Toggle
+
+**Decision:** Introduce `RuntimeMode` configuration toggle in MockBackOffice to switch between in-memory emulation (`Emulator`) and Core runtime proxying (`Core`).
+
+**Convention:**
+```json
+{
+  "PrismMockBackOffice": {
+    "WorkflowEmulator": {
+      "RuntimeMode": "Emulator",
+      "CoreRuntimeBaseUrl": "http://localhost:5000"
+    }
+  }
+}
+```
+
+**Rationale:** Emulator mode enables deterministic, fast demo scenarios with ephemeral state (resets on restart). Core mode validates that emulator contracts match Core implementation (fidelity testing). Configuration-based toggle (not environment variable) for clearer intent and easier multi-scenario demos.
+
+**Why this matters:** Allows MockBackOffice to serve dual purposes — standalone demo sandbox AND Core runtime integration test harness — without code changes, only config.
+
+#### 2. Emulator-Only Extensions Must Be Namespaced
+
+**Convention:**
+- **Shared contracts:** `UmbracoPrism.Core.Workflow.Contracts` (WorkflowDefinition, WorkflowInstance, render payloads)
+- **Emulator-only:** `UmbracoPrism.MockBackOffice.Workflow.Models` (OperatorPersona, WorkflowTaskQueue, AutoAssignmentPolicy)
+- Core uses "actor" terminology; emulator uses "persona" for clarity of intent
+
+**Rationale:** Production systems use real actor identities; "personas" are demo convenience only. Core runtime contracts must remain production-grade and emulator-agnostic. Clear namespace separation prevents accidental coupling. One-way dependency: MockBackOffice references Core, Core never references MockBackOffice.
+
+**Why this matters:** Prevents demo-only shortcuts from polluting production runtime contracts. Security-sensitive operations always execute in Core, even when initiated from emulator UI.
+
+#### 3. Workflow Seed Packs in JSON Format
+
+**Convention:**
+- `workflow-seeds/{workflow-key}-v{version}.json` for workflow definitions
+- `workflow-seeds/operator-personas.json` for operator personas
+- `IWorkflowSeedLoader` service registered in DI, invoked on startup in Emulator mode only
+
+**Rationale:** JSON is standard, cross-language, version-controllable, and easy to share. Alternative C# builders adds complexity without benefit. Alternative YAML requires extra parser dependency.
+
+**Why this matters:** Demo scenarios become source-controlled, shareable, and repeatable. Contributors can add new workflow fixtures without touching code.
+
+#### 4. TestSite Workflow Demo Page Document Type
+
+**Convention:**
+- Document type alias: `workflowDemoPage`
+- Controller name: `WorkflowDemoPageController : RenderController`
+- Template: `WorkflowDemo.cshtml`
+- Seeder: `WorkflowDemoSeeder` registered in `TestSiteComposer`
+
+**Rationale:** Follows Umbraco v17 best practices: code-first document type via startup notification handler. Properties drive demo configuration without hardcoding in view. Route-hijacking controller enforces member authentication. Seeder auto-creates demo page on first run (same pattern as VinylVaultSeeder, DemoMobileNavSeeder).
+
+**Why this matters:** Demo page is fully integrated into Umbraco CMS — editors can configure workflow key and page content via backoffice. Standard Umbraco patterns make it recognizable to any Umbraco developer.
+
+#### 5. Security Guards Always Execute in Core Runtime
+
+**Convention:**
+- MockBackOffice MUST validate JWT Bearer token on all workflow endpoints
+- MockBackOffice MUST resolve Prism tenant from claims before processing workflow requests
+- Emulator service uses shared guard evaluation logic (not emulator-specific bypass)
+
+**Rationale:** Security logic must never be "demo-only" or bypassed in emulation. In `RuntimeMode = Emulator`, emulator service replicates Core's auth/guard logic exactly. In `RuntimeMode = Core`, all security checks proxy to Core endpoints.
+
+**Why this matters:** Prevents demo-only security holes from becoming production vulnerabilities. Emulator mode demonstrates real security behavior, not fake shortcuts.
+
+---
+
+## 📌 2026-04-08: Workflow Forms Engine Security Architecture (Copper)
+
+**Session Log:** `.squad/log/2026-04-08T22:15:50Z-workflow-forms-engine-design.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copper-workflow-security-design.md`
+
+### Copper — Workflow Forms Engine Security Architecture Decisions
+
+**Decision Overview:** Eight security design decisions establish defense-in-depth for tenant isolation, authorization, PII protection, and audit integrity.
+
+#### 1. Centralised Tenant Isolation via `IWorkflowTenantGuard`
+
+**Decision:** Introduce `IWorkflowTenantGuard` service as the **single source of truth** for tenant-scoped workflow access.
+
+**Implementation:**
+```csharp
+var instance = await _tenantGuard.GetInstanceForCurrentTenantAsync(instanceId);
+if (instance == null) return NotFound(); // 404, not 403
+```
+
+**Rationale:** Centralised guard prevents developer error in direct DB queries. 404 response prevents information leakage about instance existence across tenants. Pattern mirrors existing `DeviceAdminController` tenant isolation approach. Single point of enforcement simplifies security audits.
+
+#### 2. Role-Based Actor Authorization Model
+
+**Decision:** Define `WorkflowActor` enum (`Member`, `Operator`, `System`). Each `WorkflowTransition` declares `AllowedActors` flags.
+
+**Authorization Service Enforces:**
+1. Current actor role determination (from JWT claims)
+2. Transition eligibility check (role in `AllowedActors`)
+3. Member role requires instance ownership (MemberId match)
+4. Operator role requires `role=prism-operator` claim
+
+**Rationale:** Declarative authorization model makes transition rules auditable and testable. Prevents confused deputy attacks. Member ownership check prevents cross-member actions within same tenant.
+
+#### 3. Three-Layer Emulator Security Boundary
+
+**Defense Layers:**
+1. **`[EmulatorOnly]`** attribute filter returns 404 in `!IsDevelopment()` environments
+2. **`[ApiExplorerSettings(IgnoreApi = true)]`** hides from OpenAPI/Swagger
+3. **Demo tenant check** at method start (config-driven demo tenant ID)
+
+**Critical:** Emulator MUST flow ALL decisions through Core services (`IWorkflowInstanceService`), NOT direct DB writes.
+
+**Rationale:** Demo convenience features create production risk if they leak. 404 response prevents endpoint discovery. Service flow-through ensures authorization/tenant checks still apply. Environment-based gating is fail-secure.
+
+#### 4. Optimistic Concurrency as Security Control
+
+**Decision:** Design `stateVersion` ETag enforcement as **security and integrity control** (not just UX).
+
+**Enforcement:**
+- ALL mutating operations require `stateVersion` in request
+- Atomic database UPDATE with `WHERE stateVersion = @expected` clause
+- Return **409 Conflict** with expected vs actual version on mismatch
+
+**Rationale:** Prevents TOCTOU (time-of-check/time-of-use) race conditions. Database-level atomicity prevents race exploitation. Lost updates in workflow context = security bugs (bypass, state corruption). Forces clients to operate on current state.
+
+#### 5. PII Encryption at Rest (AES-256-GCM)
+
+**Decision:** Encrypt field group values at rest using **AES-256-GCM** (following `RefreshTokenEncryptionService` pattern).
+
+**Implementation:**
+- Encrypt on submission, decrypt on retrieval
+- Encryption key in config: `Prism:Workflow:FieldEncryptionKey` (base64-encoded 32-byte key)
+- Wire format: Base64([12-byte nonce][ciphertext][16-byte tag])
+- Timeline endpoint returns **metadata only** (field group key, timestamp) — NEVER raw field values
+
+**Rationale:** Prism is marketed as security-focused multi-tenant platform — PII encryption is baseline expectation. Reusing proven `RefreshTokenEncryptionService` pattern reduces implementation risk. Establishes security posture from day one.
+
+#### 6. Append-Only Audit Log with Immutability
+
+**Decision:** Design `WorkflowEvent` table as **append-only by design**.
+
+**Enforcement:**
+- No DELETE or UPDATE endpoints exposed
+- Database constraints prevent modification
+- Application services only expose `AppendEventAsync` method
+- Optional Phase 2: Event chain hash (each event includes SHA-256 of previous event ID + timestamp)
+
+**Rationale:** Audit integrity is critical for compliance. Immutability at design level (not just permissions) prevents tampering even with elevated DB access. Append-only is simpler to implement and reason about.
+
+#### 7. Existence Concealment (404 not 403) for Wrong-Tenant Access
+
+**Decision:** Return **404 Not Found** (not 403 Forbidden) when instance exists but belongs to different tenant.
+
+**Use 403 only when:**
+1. User authenticated
+2. Tenant matches
+3. Actor role insufficient for operation
+
+**Rationale:** Different error codes leak information about instance existence. 404 response is indistinguishable from non-existent instance (existence concealment). Prevents reconnaissance: attacker cannot enumerate instance IDs across tenants.
+
+#### 8. Comprehensive Security Test Suite as Pre-Production Gate
+
+**Definition:** 15 mandatory security tests across 7 categories as pre-production gate:
+1. Tenant isolation (T1.1-T1.3)
+2. Authorization (T2.1-T2.4)
+3. Emulator security (T3.1-T3.3)
+4. Concurrency (T4.1-T4.2)
+5. Audit integrity (T5.1-T5.2)
+6. Information leakage (T6.1-T6.2)
+7. Definition integrity (T7.1-T7.2)
+
+**Rationale:** Security tests as gate ensures vulnerabilities caught before deployment. Comprehensive checklist prevents "we'll test it later" technical debt. Tests document security requirements and expected behavior. Automated tests enable regression detection.
+
+**Risk Posture:** All identified threats (T1-T8) mitigated to **Low** or **Very Low** residual risk through defense-in-depth design.
+
+---
+
 ## 📌 2026-04-03: Notifications Feature Security Review (Copper)
 
 **Session Log:** `.squad/log/2026-04-03T12:57:36Z-notifications-complete.md`

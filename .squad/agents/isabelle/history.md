@@ -535,6 +535,65 @@ The `wwwroot/branding/` directory was **not touched** — it contains deliberate
 - This removed the last server-injected `<style>` block from `Master.cshtml` (the only remaining inline styles are for dynamic Umbraco media URLs)
 - Also removed `themeColor: '#3544b1'` from the tenant creation modal in the backoffice — that property no longer exists on the backend
 
+## Session: 2026-04-08 — Workflow Forms Engine Client Design
+
+**Task:** Create comprehensive client-side design document for Prism Workflow Forms Engine.
+
+**Result:** ✅ Complete — produced `docs/design/workflow-forms-engine-client.md` (62KB, 991 lines)
+
+### Learnings
+
+- 2026-04-08: Workflow client architecture uses "Hybrid adapter model" — generic `prism-workflow-*` Web Components that are channel-agnostic, plus thin adapters for backoffice UUI integration. Mobile shell uses components directly. This maximizes reuse while maintaining native feel in each context.
+- 2026-04-08: Orchestrator state machine pattern isolates components from HTTP/polling concerns. Components consume `WorkflowRenderPayload` only and dispatch semantic events (`submit`, `action`). The orchestrator owns lifecycle (`idle → creating → asking → submitting → waiting → polling → complete → error`) and handles polling timers, optimistic concurrency (`stateVersion`), and correlation IDs.
+- 2026-04-08: GDS (Government Digital Service) design system principles fit workflow forms perfectly: one-question-per-page (optional progressive disclosure), error summary at top with jump-to-field links, clear labels + hints + error messages, no jargon, step indicators, "Back" navigation. All implemented via CSS custom properties for theming (mobile vs backoffice variants).
+- 2026-04-08: WCAG 2.2 AA compliance requires: keyboard navigation for all controls, ARIA roles (`role="alert"`, `role="status"`, `aria-live`), focus management on archetype transitions, screen reader announcements for polling states, 4.5:1 contrast ratios, visible focus indicators (3:1 contrast). Pre-demo checklist with axe Storybook addon validation.
+- 2026-04-08: Workflow forms use 8 archetypes: `Collect` (form input), `Review` (read-only summary), `TaskQueue` (operator pending list), `Decision` (approve/reject/request-changes), `RequestChanges` (correction list), `StatusTimeline` (GDS step indicator), `Completion` (terminal outcome). Each has dedicated Lit component with fixture-driven Storybook stories.
+- 2026-04-08: Polling behavior: backend returns `responseState: 'wait'` + `pollAfterMs` → orchestrator schedules timer → client polls `GET /render` → repeats until `ask_now` or `complete`. Max 60 attempts (5min default). Polling state shows `role="status"` with `aria-live="polite"` for screen readers.
+- 2026-04-08: TypeScript contract design mirrors backend: `WorkflowEnvelope` (full response), `WorkflowRenderPayload` (archetype + fieldGroups + actions), `FieldDescriptor` (key/type/label/required/validationRules/conditionalVisibility), `WorkflowProblem` (category/field/message/code). Shared via `workflow/types/index.ts`.
+- 2026-04-08: Validation errors keep orchestrator status as `asking` (not `error`) so user can correct and re-submit. Field-level errors use `aria-invalid="true"` + `aria-describedby` linking to hint + error spans. Error summary uses `role="alert"` and links with `href="#field-{key}"` that scroll and focus the field.
+
+### Design Decisions
+
+**Component Boundaries:**
+- Shell owns orchestrator instance, components never call API directly
+- Components receive `renderPayload` prop only, dispatch semantic events
+- Adapter layer (backoffice) translates events to UUI notifications/modals
+
+**Accessibility First:**
+- Pre-demo checklist blocks sign-off until WCAG 2.2 AA verified
+- Focus management on every archetype transition
+- Screen reader announcements for all state changes
+- Keyboard-only testing required for all stories
+
+**GDS Progressive Disclosure:**
+- `progressiveDisclosure: boolean` flag on field groups
+- One-question-per-page reduces cognitive load (optional pattern)
+- "Check your answers" before final submit
+- "Back" navigation preserves answers without validation
+
+**File Structure:**
+```
+src/workflow/
+├── orchestrator/
+├── api/
+├── types/
+├── fixtures/ (JSON render payloads)
+├── components/ (8 archetypes + stories)
+└── styles/ (GDS-inspired CSS)
+```
+
+**Storybook Coverage:**
+- Minimum 5 stories per archetype (default, errors, loading, accessibility check, theme variant)
+- Fixture-driven (JSON render payloads in `fixtures/`)
+- axe addon validates every story
+- Play functions test interactions
+
+**CSS Theming:**
+- ~30 CSS custom properties per archetype
+- Mobile variant: iOS blue (`#007aff`), iOS fonts
+- Backoffice variant: GDS blue (`#1d70b8`), Inter font
+- Theme switcher via decorator in Storybook
+
 ### 2026-03-22: CSS Branding Annotations + Dynamic Tenant Editor
 
 Implemented the branding design system feature in two parts:
@@ -986,3 +1045,25 @@ Apply flex layout in maximized mode so the scroll container (`.container`) has a
 
 **Fixed:** `prism-create-tenant-modal.ts` vertical scrolling when dialog is maximized
 - 2026-04-01: Fixed WebKit-only Storybook test failures in prism-create-tenant-modal. Root cause: setting multiple @state() fields inside updated() in response to a `data` property change caused a cascaded Lit render cycle. WebKit is stricter about render timing so assertions ran before the second cycle committed. Fix: moved all @state() assignments from updated() to willUpdate() (which batches them into a single render). Also wrapped two flaky assertions in waitFor() in the stories as an additional safety net. willUpdate() is the correct Lit lifecycle for deriving state from properties — use it instead of updated() whenever you need to set @state() fields in response to property changes.
+- 2026-07-10: Added Umbraco Media Library picker for mobile App Icon and Splash Screen fields. Cloned the `_pickMediaForVariable` fetch-based URL resolution pattern (no UmbMediaUrlRepository — the existing method uses direct fetch to `/umbraco/management/api/v1/media/urls`). Key learning: always make relative `/media/` paths absolute with `window.location.origin` before storing — the existing `_isValidAbsoluteUrl` validation rejects relative URLs and blocks bundle generation. TypeScript strict `noUnusedLocals` means write-only key fields (`_mobileIconKey`) won't compile; either use them in a template or omit them. Picker-primary + URL text input fallback pattern (same as branding tab) gives editors flexibility.
+- 2026-07-10 (SVG guard): Added client-side SVG validation to `_pickMobileMedia`. Key learning: `UmbMediaPickerModalData` extends `UmbTreePickerModalData` which extends `UmbPickerModalData` — the `filter` callback exists but operates on `UmbMediaTreeItemModel`, which does NOT expose the filename or file extension. Therefore file-type filtering cannot be done at the picker level; it must be done after URL resolution. The correct pattern is to check `absoluteUrl.toLowerCase().endsWith('.svg')` post-resolution, set a dedicated `@state()` error string, and return early without assigning the URL. Error states (`_mobileIconPickerError`, `_mobileSplashPickerError`) are rendered as `<small class="error-text">` below the respective picker buttons, matching the `iconUrlValid` error pattern already used in the mobile section.
+
+## Workflow Forms Engine Client Design (2026-04-08)
+
+**Decision Set:** `📌 2026-04-08: Workflow Forms Engine Client Design (Isabelle)` in `.squad/decisions.md`
+
+**Role:** Client architect for Workflow Forms Engine. Produced Web Component strategy and UI orchestration design aligned with Tom Nook's architecture and Blathers' backend contract.
+
+**Decisions Produced:** 5 client design decisions
+1. Hybrid Adapter Model — Generic Prism components with thin UUI adapter layer for backoffice
+2. Orchestrator State Machine Pattern — Centralized lifecycle management (8-state machine: idle → creating → asking → submitting → waiting → polling → complete → error)
+3. GDS Design System Principles — Plain English, one-question-per-page, error summary at top, progressive disclosure
+4. WCAG 2.2 AA as Blocking Requirement — 11-point accessibility checklist before demo sign-off
+5. Fixture-Driven Storybook Stories — JSON fixtures for render payloads (single source of truth)
+
+**Component Archetypes:** 7 interaction patterns (Collect, Review, TaskQueue, Decision, RequestChanges, StatusTimeline, Completion) with cross-channel rendering (backoffice/mobile/test site).
+
+**Accessibility Baseline:** WCAG 2.2 AA blocking gate. Automated (axe addon, Playwright) + manual testing (keyboard, screen reader). GDS patterns proven for accessibility.
+
+**Design Phase Status:** ✅ Complete (client design doc: `docs/design/workflow-forms-engine-client.md` completed)
+

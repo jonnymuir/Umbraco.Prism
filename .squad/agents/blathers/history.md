@@ -1109,3 +1109,89 @@ All components implemented, tested via build, and ready for integration with mob
 - `Description` is now `null`/empty when no `description:` annotation is present.
 - Convention established: annotation parsers leave optional fields as `null`/empty rather than falling back to raw input strings.
 - Decision logged. See `decisions.md`.
+
+---
+
+## Learnings & Handoff (2026-07-15, MobileBundleService media URL fixes)
+
+**What shipped:**
+- `RewriteMediaHost(string? mediaUrl, string resolvedStartUrl)` — replaces loopback origins (localhost, 127.0.0.1, ::1) in media URLs with the tenant's public `resolvedStartUrl` scheme+host+port. Uses `UriBuilder` for safe construction; omits port when it's the scheme default (`IsDefaultPort ? -1 : port`). Returns null/empty and relative URLs unchanged.
+- Applied to both `iconUrl` and `splashUrl` immediately after `startUrl` is resolved (lines 29–31).
+- SVG icon URLs now throw `ArgumentException` at bundle generation time with a clear message pointing editors to export as 1024×1024 PNG — prevents silent failures in `npx @capacitor/assets`.
+- SVG splash URLs emit a `"splashWarning"` JSON field in `resources/mobile-assets.json` (warn, don't throw — less critical path than icon).
+
+**Key decisions:**
+- Loopback check uses `Uri.IsLoopback` (covers all three loopback forms) rather than string-matching on "localhost".
+- Port omission: `uri.IsDefaultPort ? -1 : uri.Port` — UriBuilder interprets -1 as "use scheme default", preventing `:443` appearing in HTTPS URLs.
+- No SVG restriction on splash (SVG is less common there; Capacitor asset pipeline uses splash differently).
+
+**All 218 existing tests passed. Not pushed — Isabelle has a parallel frontend change.**
+
+---
+
+## Session: 2026-04-08 — Workflow Forms Engine Backend Design
+
+**Deliverable:** Comprehensive backend contracts & schema design document for the Prism Workflow Forms Engine at `docs/design/workflow-forms-engine-backend.md`.
+
+**Key design decisions:**
+
+1. **Multi-tenant isolation:** ALL entities include `TenantId` column with composite indexes for query performance — consistent with existing Prism patterns (`prismDeviceCredentials`, `prismNotificationSubscriptions`).
+
+2. **JSON storage for demo simplicity:** Workflow states/transitions and field group fields stored as JSON columns to avoid complex normalized graph schema. This matches the proposal's intent to keep the demo implementation lightweight while maintaining full fidelity.
+
+3. **Append-only audit:** `WorkflowEvent` table is immutable — events are never updated or deleted. Enables complete audit trails, distributed tracing, and timeline reconstruction.
+
+4. **Optimistic concurrency via StateVersion:** Integer counter incremented on every state transition. Clients include `stateVersion` in mutating requests; server validates and returns `409 Conflict` on mismatch. Follows standard ETag pattern adapted for workflow state.
+
+5. **Response envelope contract:** All workflow endpoints return `WorkflowResponseEnvelope` with consistent shape:
+   - `responseState`: `ask_now`, `wait`, `complete`, `error`
+   - `stateVersion`: For concurrency control
+   - `correlationId`: For distributed tracing
+   - `render`: Archetype-based UI payload
+   - `problems`: Typed validation/auth/conflict errors
+
+6. **Archetype-driven rendering:** States map to UI archetypes (Collect, Review, TaskQueue, Decision, RequestChanges, StatusTimeline, Completion). Backend generates render payloads; channels are pure renderers with no business logic.
+
+7. **Version pinning:** Workflow instances pin `workflowVersion` and `workflowDefinition` on creation. Field group submissions pin `fieldGroupVersion`. Immutable once published — explicit migration required for breaking changes.
+
+8. **NPoco migration pattern:** Created `CreatePrismWorkflowTables` migration following exact pattern from `CreatePrismDeviceCredentialsTable` — schema classes with `[TableName]`, `[PrimaryKey]`, `[ExplicitColumns]` attributes, separate schema class per table, indexes created via raw SQL in migration.
+
+9. **Service-oriented architecture:** Clean separation of concerns:
+   - `IWorkflowDefinitionService` — authoring/versioning
+   - `IWorkflowInstanceService` — runtime state management
+   - `IWorkflowRenderService` — render payload generation
+   - `IWorkflowSubmissionService` — field validation/storage
+   - `IWorkflowEventService` — audit append/query
+   - `IWorkflowConcurrencyGuard` — ETag validation
+
+10. **HTTP status semantics:** Workflow dialog endpoints use transport status for protocol category (`200 OK`, `202 Accepted`, `409 Conflict`, `422 Unprocessable Entity`) with `responseState` for workflow meaning — aligns with proposal's guidance.
+
+**References:**
+- Proposal: `docs/design/workflow-forms-engine-demo.md`
+- Design doc: `docs/design/workflow-forms-engine-backend.md`
+- Existing patterns: `CreatePrismDeviceCredentialsTable`, `PrismDeviceCredentialSchema`, `TenantService`, `TenantManagementController`
+
+**Next phase:** Core runtime implementation (models, migrations, services, controller) followed by testing and MockBackOffice integration.
+
+## Workflow Forms Engine Backend Design (2026-04-08)
+
+**Decision Set:** `📌 2026-04-08: Workflow Forms Engine Backend Design (Blathers)` in `.squad/decisions.md`
+
+**Role:** Backend architect for Workflow Forms Engine. Produced comprehensive C# architecture document defining data models, database schema, service interfaces, API contracts, and response envelopes aligned with Tom Nook's 8 architectural decisions.
+
+**Decisions Produced:** 10 backend design decisions
+1. Multi-Tenant Isolation Pattern — ALL workflow entities include `TenantId` column
+2. JSON Storage for Workflow Graph — Demo-appropriate simplicity
+3. Append-Only Audit Events — Immutable `WorkflowEvent` table
+4. Optimistic Concurrency via StateVersion — ETag pattern for conflict detection
+5. Response Envelope Contract — Consistent shape across all endpoints
+6. Archetype-Driven Rendering — Backend generates payloads; channels are pure renderers
+7. Version Pinning & Immutability — Workflow instances pin version on creation
+8. NPoco Migration Pattern — Follows existing Prism conventions
+9. Service-Oriented Architecture — 6 core services with clear responsibilities
+10. HTTP Status Semantics — Transport status + workflow meaning separation
+
+**Alignment:** All decisions trace back to Tom Nook's architecture and respect Prism conventions (tenant isolation, IPrismContext, NPoco migrations).
+
+**Design Phase Status:** ✅ Complete (backend design doc: `docs/design/workflow-forms-engine-backend.md` completed)
+

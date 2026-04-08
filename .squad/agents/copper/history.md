@@ -1056,3 +1056,191 @@ Feature is secure for production deployment with Key Vault for credentials. No c
 - ✅ Post-deployment smoke tests (verify token registration, subscriptions, FCM delivery)
 
 ---
+
+## 2026-04-08 — Workflow Forms Engine Security Design
+
+**Document:** `docs/design/workflow-forms-engine-security.md`  
+**Proposal:** `docs/design/workflow-forms-engine-demo.md` (Tom Nook)  
+**Requested by:** Jonny Muir
+
+### Security Design Decisions
+
+**1. Tenant Isolation Architecture**
+
+Created `IWorkflowTenantGuard` service as the single source of truth for tenant-scoped workflow access:
+- ALL instance/task lookups MUST flow through `GetInstanceForCurrentTenantAsync`/`GetTaskForCurrentTenantAsync`
+- Database queries ALWAYS include `AND TenantId = @tenantId` clause (no exceptions)
+- Return **404 Not Found** (not 403 Forbidden) when instance exists but belongs to wrong tenant (existence concealment)
+- Pattern mirrors existing `DeviceAdminController` tenant isolation approach
+
+**Why:** Centralised guard prevents developer error in ad-hoc queries; 404 response prevents information leakage about instance existence across tenants.
+
+**2. Actor Authorization Model**
+
+Defined `WorkflowActor` enum with role-based transition eligibility:
+- `WorkflowActor.Member` — instance owner (MemberId match)
+- `WorkflowActor.Operator` — backoffice user with `role=prism-operator` claim
+- `WorkflowActor.System` — scheduled/timeout transitions (not API-callable)
+
+Each `WorkflowTransition` carries `AllowedActors` flags; `IWorkflowActorAuthorizationService` enforces checks before execution.
+
+**Why:** Declarative authorization model makes transition rules auditable and testable; prevents confused deputy attacks where wrong actor type triggers privileged transition.
+
+**3. Emulator Security Boundary (Critical)**
+
+Emulator endpoints are highest-risk component — designed three-layer defense:
+1. `[EmulatorOnly]` attribute filter returns 404 in `!IsDevelopment()` environments
+2. `[ApiExplorerSettings(IgnoreApi = true)]` hides from OpenAPI/Swagger
+3. Demo tenant check at method start (config-driven demo tenant ID)
+
+Emulator MUST flow ALL decisions through Core services (`IWorkflowInstanceService`), NOT direct DB writes — prevents authorization bypass.
+
+**Why:** Demo convenience features create production risk if they leak; 404 response prevents endpoint discovery; service flow-through ensures authorization/tenant checks still apply.
+
+**4. Optimistic Concurrency as Security Control**
+
+Designed `stateVersion` ETag enforcement as integrity control (not just UX):
+- Prevents TOCTOU (time-of-check/time-of-use) race conditions where two actors transition simultaneously on stale state
+- Atomic database UPDATE with `WHERE stateVersion = @expected` clause
+- Return 409 Conflict with expected vs actual version on mismatch
+
+**Why:** Concurrency bugs are security bugs in workflow systems — lost updates can bypass approvals or corrupt state; database-level atomicity prevents race exploitation.
+
+**5. PII Protection Strategy**
+
+Recommended AES-256-GCM encryption for `FieldGroupSubmission` values (following `RefreshTokenEncryptionService` pattern):
+- Encrypt field values at rest (DOB, contact details, identity documents)
+- Timeline endpoint returns metadata only (field group key, timestamp) — NEVER raw field values
+- Encryption key in config: `Prism:Workflow:FieldEncryptionKey` (base64-encoded 32-byte key)
+
+**Why:** Prism is marketed as security-focused multi-tenant platform; PII encryption establishes baseline security posture from day one; reusing proven RefreshTokenEncryptionService pattern reduces implementation risk.
+
+**6. Audit Integrity Design**
+
+`WorkflowEvent` table is append-only:
+- No DELETE or UPDATE endpoints exposed
+- Database constraints prevent modification
+- Application services only expose `AppendEventAsync`
+- Optional Phase 2: Event chain hash (each event includes SHA-256 of previous event)
+
+**Why:** Audit integrity is critical for compliance and forensics; immutability at design level (not just permissions) prevents tampering even with elevated DB access.
+
+**7. Information Leakage Prevention**
+
+Error handling pattern to prevent reconnaissance:
+- Existence concealment: 404 for wrong-tenant instances (not 403 — don't reveal instance exists)
+- Generic error messages in API responses (no stack traces, SQL, file paths)
+- Correlation ID for support diagnostics (detailed logs server-side only)
+- Timing-safe comparison for non-existent vs wrong-tenant cases
+
+**Why:** Different error codes/messages for "not found" vs "wrong tenant" leak information to attackers about instance existence; generic errors with correlation IDs balance security and supportability.
+
+**8. Security Test Checklist**
+
+Defined 15 mandatory tests across 7 categories:
+- Tenant isolation (T1.1-T1.3): Cross-tenant access returns 404
+- Authorization (T2.1-T2.4): Role enforcement, ownership checks
+- Emulator (T3.1-T3.3): Production blocking, auth flow-through
+- Concurrency (T4.1-T4.2): Version conflicts, race prevention
+- Audit integrity (T5.1-T5.2): Immutability, PII concealment
+- Information leakage (T6.1-T6.2): Error sanitization, timing safety
+- Definition integrity (T7.1-T7.2): Access control, immutability
+
+**Why:** Security tests as pre-production gate ensures vulnerabilities caught before deployment; comprehensive checklist prevents "we'll test it later" technical debt.
+
+### Key Threat Mitigations
+
+| Threat | Priority | Mitigation | Residual Risk |
+|--------|----------|------------|---------------|
+| T1: Cross-tenant IDOR | CRITICAL | `IWorkflowTenantGuard` + 404 concealment | Low |
+| T2: Unauthorized submission | HIGH | Owner check + `IWorkflowActorAuthorizationService` | Low |
+| T3: Invalid role transition | HIGH | `AllowedActors` enforcement | Low |
+| T4: Emulator in production | CRITICAL | `[EmulatorOnly]` + environment check | Very Low |
+| T5: Concurrency race | MEDIUM | Atomic `stateVersion` check | Very Low |
+| T6: Audit tampering | CRITICAL | Append-only design | Very Low |
+| T7: Definition tampering | HIGH | Demo tenant isolation + immutability | Low |
+| T8: Information leakage | MEDIUM | 404 concealment + generic errors | Low |
+
+### Patterns Established for Workflow Security
+
+**Tenant-Scoped Query Pattern:**
+```csharp
+// ALWAYS use tenant guard — never query WorkflowInstance directly
+var instance = await _tenantGuard.GetInstanceForCurrentTenantAsync(instanceId);
+if (instance == null) return NotFound(); // 404, not 403
+```
+
+**Authorization Check Pattern:**
+```csharp
+// After tenant guard, check actor authorization for transition
+var isAuthorized = await _actorAuthService.IsAuthorizedForTransitionAsync(instance, transition);
+if (!isAuthorized) return Forbid(); // 403 here is correct (existence known, permission denied)
+```
+
+**Concurrency-Safe Transition Pattern:**
+```sql
+-- Atomic state update with version check
+UPDATE PrismWorkflowInstances
+SET CurrentState = @newState, StateVersion = StateVersion + 1, UpdatedAt = @now
+WHERE InstanceId = @instanceId AND TenantId = @tenantId AND StateVersion = @expectedVersion;
+-- Check affectedRows: 0 = version conflict, return 409
+```
+
+**Emulator Security Pattern:**
+```csharp
+[EmulatorOnly] // Returns 404 in non-Development
+[ApiExplorerSettings(IgnoreApi = true)] // Hide from OpenAPI
+public class WorkflowEmulatorController : Controller
+{
+    [HttpPost("operator/approve/{instanceId}")]
+    public async Task<IActionResult> SimulateApproval(...)
+    {
+        // 1. Demo tenant check
+        if (!_prismContext.CurrentTenant.IsDemo) return BadRequest();
+        // 2. Flow through Core service (no bypass)
+        await _workflowService.ExecuteOperatorDecisionAsync(...);
+    }
+}
+```
+
+### Open Questions (Design Review)
+
+1. **Encryption key rotation:** Multi-key support (store key version with each submission) recommended for Phase 2
+2. **Audit event chain:** Simple SHA-256 hash chain deferred to Phase 2 if compliance requires tamper-evidence
+3. **Rate limiting:** Per-tenant rate limiting (100 actions/min) recommended for Phase 2 using ASP.NET Core RateLimiter
+4. **WorkflowDefinition signing:** DB immutability sufficient for v1; HMAC signing for Phase 2 if export/import adds risk
+
+### Applicable to Future Workflow Reviews
+
+- **Tenant isolation is non-negotiable:** ALL workflow data access MUST flow through `IWorkflowTenantGuard` — no direct DB queries
+- **Authorization at transition level:** Actor role + instance ownership checks before state changes prevent confused deputy attacks
+- **Emulator is security-critical:** Demo convenience features MUST be environment-gated and flow through Core authorization
+- **Concurrency = integrity control:** Optimistic concurrency prevents race exploits in multi-actor workflows
+- **PII defaults to encrypted:** Workflow field values may contain sensitive data — encrypt at rest from day one
+- **Audit log immutability:** Append-only by design (not just permissions) for compliance and forensic integrity
+- **Existence concealment pattern:** 404 (not 403) when resource exists but belongs to different tenant — prevents reconnaissance
+- **Security tests as gate:** Comprehensive checklist prevents "we'll secure it later" — tests MUST pass before production
+
+**Next Step:** Design document review with Tom Nook before Phase 1 implementation begins.
+
+## Workflow Forms Engine Security Architecture (2026-04-08)
+
+**Decision Set:** `📌 2026-04-08: Workflow Forms Engine Security Architecture (Copper)` in `.squad/decisions.md`
+
+**Role:** Security engineer for Workflow Forms Engine. Produced defense-in-depth security architecture aligning with Tom Nook's architectural decisions and Blathers' backend design.
+
+**Decisions Produced:** 8 security design decisions
+1. Centralised Tenant Isolation via `IWorkflowTenantGuard` — Single source of truth for tenant-scoped access; 404 (not 403) for cross-tenant attempts (existence concealment)
+2. Role-Based Actor Authorization Model — `WorkflowActor` enum (Member/Operator/System) with `AllowedActors` flags per transition
+3. Three-Layer Emulator Security Boundary — `[EmulatorOnly]` attribute, API hiding, demo tenant check; all decisions flow through Core services
+4. Optimistic Concurrency as Security Control — Atomic `stateVersion` checks prevent TOCTOU race conditions
+5. PII Encryption at Rest (AES-256-GCM) — Following `RefreshTokenEncryptionService` pattern; timeline endpoint returns metadata only
+6. Append-Only Audit Log with Immutability — `WorkflowEvent` table append-only by design (not just permissions); optional Phase 2: SHA-256 event chain hash
+7. Existence Concealment (404 not 403) — Consistent response for cross-tenant access vs. authorization failure prevents reconnaissance
+8. Comprehensive Security Test Suite as Pre-Production Gate — 15 mandatory security tests across 7 categories (T1-T8) block production deployment
+
+**Risk Posture:** All identified threats mitigated to **Low** or **Very Low** residual risk through defense-in-depth design.
+
+**Design Phase Status:** ✅ Complete (security design doc: `docs/design/workflow-forms-engine-security.md` completed)
+
+---

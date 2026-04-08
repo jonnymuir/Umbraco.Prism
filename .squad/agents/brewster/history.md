@@ -33,6 +33,9 @@
 - **Multi URL Picker value converter:** Returns `IEnumerable<Umbraco.Cms.Core.Models.Link>` where `Link` has `Name`, `Url`, `Target`, `Type` properties. Access via `Model.Value<IEnumerable<Link>>("propertyAlias")`.
 - **Partial views for nav components:** Extract repeatable navigation patterns into `Views/Partials/` for reusability. Accept strongly-typed models (`@model IEnumerable<Link>`) and handle null/empty gracefully by rendering nothing.
 - **Settings node pattern (Paul Seal):** For site-wide configuration (navigation, footer links, social media, etc.), create a root-level `settings` document type with `AllowedAsRoot = true` and no template. Master layout reads it via `Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings")`. Editors configure once, all pages inherit. Standard Umbraco community pattern — avoids per-page property duplication.
+- **MockBackOffice extension pattern:** MockBackOffice is designed to be extensible for demo scenarios. New API surfaces follow the pattern: controller under `Controllers/`, service interfaces + implementations, DI registration in `Program.cs`, and configuration shape in `appsettings.json` under `PrismMockBackOffice:{Feature}`. RuntimeMode toggles allow switching between in-memory emulation and Core runtime proxying.
+- **Workflow emulator governance:** Emulator-only extensions (operator personas, auto-assignment, fast-forward) MUST be namespaced under `UmbracoPrism.MockBackOffice.Workflow.*` and never leak into Core runtime contracts. Security guards always execute in Core runtime, even when initiated from emulator UI. Shared contracts live in `UmbracoPrism.Core.Workflow.Contracts`.
+- **TestSite demo pages:** For complex interactive demos (e.g., workflow forms engine), create a dedicated document type with route-hijacking controller + Razor view. Properties drive configuration (e.g., workflow key, completion redirect). Member authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` on controller. Seed demo content via startup notification handler pattern (same as VinylVaultSeeder, DemoMobileNavSeeder).
 
 ---
 
@@ -1067,4 +1070,22 @@ These are Blathers' or Isabelle's responsibilities:
 - Could expand genre/record data as needed
 
 **Team Dependencies:** None (self-contained)
+
+## Workflow Forms Engine Umbraco Integration Design (2026-04-08)
+
+**Decision Set:** `📌 2026-04-08: Workflow Forms Engine Umbraco Integration (Brewster)` in `.squad/decisions.md`
+
+**Role:** Umbraco platform specialist for Workflow Forms Engine. Designed MockBackOffice emulator, seed packs, TestSite integration, and security patterns aligned with Tom Nook's architecture and Copper's security decisions.
+
+**Decisions Produced:** 5 Umbraco-specific decisions
+1. MockBackOffice RuntimeMode Toggle — Config-based Emulator vs. Core runtime switching (dual-purpose: standalone demo + integration test harness)
+2. Emulator-Only Extensions Must Be Namespaced — `MockBackOffice.Workflow.*` never leaks into Core contracts; Core uses "actor" terminology, emulator uses "persona"
+3. Workflow Seed Packs in JSON Format — Reproducible demo scenarios, source-controlled, shareable
+4. TestSite Workflow Demo Page Document Type — Code-first Umbraco v17 pattern; editors configure workflow key + page content
+5. Security Guards Always Execute in Core Runtime — Emulator never bypasses auth/tenant checks; all decisions flow through Core services
+
+**Integration Patterns:** Follows existing Prism conventions (tenant resolution, JWT Bearer tokens, MockBackOffice composer pattern, IWorkflowSeedLoader DI registration).
+
+**Design Phase Status:** ✅ Complete (Umbraco design doc: `docs/design/workflow-forms-engine-umbraco.md` completed)
+
 
