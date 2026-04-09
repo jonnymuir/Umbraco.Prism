@@ -105,24 +105,24 @@ public class CreatePrismWorkflowTables(IMigrationContext context) : AsyncMigrati
         }
 
         // Create field group submissions table
-        if (!TableExists("prismFieldGroupSubmissions"))
+        if (!TableExists("prismWorkflowFieldValues"))
         {
-            Create.Table<PrismWorkflowFieldGroupSubmissionSchema>().Do();
+            Create.Table<PrismWorkflowFieldValueSchema>().Do();
 
             // Instance submissions lookup
             Database.Execute(@"
-                CREATE INDEX IX_prismFieldGroupSubmissions_InstanceId
-                ON prismFieldGroupSubmissions (InstanceId);");
+                CREATE INDEX IX_prismWorkflowFieldValues_InstanceId
+                ON prismWorkflowFieldValues (InstanceId);");
 
             // Current submission by field group
             Database.Execute(@"
-                CREATE INDEX IX_prismFieldGroupSubmissions_InstanceId_FieldGroupKey_IsCurrent
-                ON prismFieldGroupSubmissions (InstanceId, FieldGroupKey, IsCurrent);");
+                CREATE INDEX IX_prismWorkflowFieldValues_InstanceId_FieldGroupKey_IsCurrent
+                ON prismWorkflowFieldValues (InstanceId, FieldGroupKey, IsCurrent);");
 
             // Tenant data isolation
             Database.Execute(@"
-                CREATE INDEX IX_prismFieldGroupSubmissions_TenantId
-                ON prismFieldGroupSubmissions (TenantId);");
+                CREATE INDEX IX_prismWorkflowFieldValues_TenantId
+                ON prismWorkflowFieldValues (TenantId);");
         }
 
         return Task.CompletedTask;

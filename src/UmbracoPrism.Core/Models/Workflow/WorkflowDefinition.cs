@@ -47,11 +47,6 @@ public class WorkflowDefinition
     public string InitialState { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the field group keys referenced by this workflow.
-    /// </summary>
-    public List<string> FieldGroupKeys { get; set; } = new();
-
-    /// <summary>
     /// Gets or sets the UTC timestamp when this definition was created.
     /// </summary>
     public DateTime CreatedAt { get; set; }
@@ -82,6 +77,12 @@ public class WorkflowState
     /// Valid values: Collect, Review, TaskQueue, Decision, RequestChanges, StatusTimeline, Completion.
     /// </summary>
     public string Archetype { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the Umbraco Element Type alias for field rendering.
+    /// Null for states that don't collect fields (Review, Completion, etc.).
+    /// </summary>
+    public string? ElementTypeAlias { get; set; }
 
     /// <summary>
     /// Gets or sets the actions allowed in this state.

@@ -1232,3 +1232,111 @@ All components implemented, tested via build, and ready for integration with mob
 - Migration path clear and phased
 - No breaking changes in Phase 1
 
+
+---
+
+## Session: Backend Redesign Implementation (2025-01-21)
+
+**Task:** Implement Workflow Forms Engine Backend Redesign
+
+**Objective:** Replace custom `PrismFieldGroupDefinition` tables with Umbraco Element Type introspection.
+
+### Changes Implemented
+
+1. **WorkflowDefinition.cs**
+   - Added `ElementTypeAlias` property to `WorkflowState` class
+   - Removed `FieldGroupKeys` property from `WorkflowDefinition` class
+
+2. **PrismPropertyTypeMapper.cs** (New)
+   - Created static mapper class to convert Umbraco property editor aliases to workflow field types
+   - Supports 14 property editor types with safe fallback to "text"
+
+3. **WorkflowRenderService.cs**
+   - Injected `IContentTypeService` for Element Type introspection
+   - Implemented `BuildFieldGroups()` method to dynamically generate field groups from Element Types
+   - Fields are mapped from `IPropertyType` properties with labels, hints, validation, and field types
+   - Returns empty field groups when `ElementTypeAlias` is null or not found
+
+4. **PrismWorkflowFieldValueSchema.cs** (Renamed)
+   - Renamed from `PrismWorkflowFieldGroupSubmissionSchema.cs`
+   - Updated table name from `prismFieldGroupSubmissions` to `prismWorkflowFieldValues`
+   - Better reflects the purpose of storing field values per instance
+
+5. **RemoveLegacyFieldGroupDefinitions.cs** (New Migration)
+   - Drops the `prismFieldGroupDefinitions` table
+   - Renames `prismFieldGroupSubmissions` to `prismWorkflowFieldValues`
+   - Updates all related indexes
+
+6. **PrismMigrationPlan.cs**
+   - Added `RemoveLegacyFieldGroupDefinitions` migration to the plan
+
+7. **CreatePrismWorkflowTables.cs**
+   - Updated to use `PrismWorkflowFieldValueSchema` instead of old schema
+   - Updated table name and index names
+
+8. **WorkflowDefinitionRepository.cs & WorkflowSeedServiceImpl.cs**
+   - Removed all references to `FieldGroupKeys`
+
+### Build Status
+
+✅ Solution compiles successfully with 0 errors and 0 warnings
+
+### Technical Notes
+
+- `IContentTypeService` is already registered by Umbraco DI (no additional registration needed)
+- `PrismPropertyTypeMapper` is static, no DI registration required
+- Migration uses SQL Server-specific `sp_rename` stored procedure
+- Field options for select/radio/checkbox fields return empty array (stretch goal for future)
+- Used `IPropertyType` interface instead of concrete `PropertyType` class for better compatibility
+
+### Files Modified
+- `src/UmbracoPrism.Core/Models/Workflow/WorkflowDefinition.cs`
+- `src/UmbracoPrism.Core/Services/WorkflowRenderService.cs`
+- `src/UmbracoPrism.Core/Persistence/CreatePrismWorkflowTables.cs`
+- `src/UmbracoPrism.Core/Persistence/PrismMigrationPlan.cs`
+- `src/UmbracoPrism.Core/Services/WorkflowDefinitionRepository.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/WorkflowSeedServiceImpl.cs`
+
+### Files Created
+- `src/UmbracoPrism.Core/Services/PrismPropertyTypeMapper.cs`
+- `src/UmbracoPrism.Core/Persistence/RemoveLegacyFieldGroupDefinitions.cs`
+
+### Files Renamed
+- `PrismWorkflowFieldGroupSubmissionSchema.cs` → `PrismWorkflowFieldValueSchema.cs`
+
+### Next Steps
+- Frontend team (Isabelle) needs to update workflow orchestrator to handle dynamic field rendering
+- Consider implementing field options extraction from data type configuration (stretch goal)
+- Test migration on existing database with field group data
+
+## Session: 2026-04-09 — Workflow Razor Redesign (Scribed)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-09T18:13:54Z-blathers-implement.md`  
+**Session Log:** `.squad/log/2026-04-09T18:13:54Z-workflow-razor-redesign.md`
+
+**Parallel Agents:** Brewster (Element Type Seeding + Controller), Isabelle (Razor Partials)
+
+### Work Completed
+
+1. **WorkflowState Enhancement**
+   - Added `ElementTypeAlias` property — replaces legacy `FieldGroupKeys`
+   - Enables Umbraco Element Type references
+
+2. **PrismPropertyTypeMapper Service**
+   - Umbraco editor alias → field type mapping
+   - 14+ property editor types with "text" fallback
+
+3. **WorkflowRenderService Updates**
+   - Injected `IContentTypeService`
+   - Dynamic field metadata from Element Type properties
+
+4. **Database Migrations**
+   - `RemoveLegacyFieldGroupDefinitions` — drops deprecated field group table
+   - Table rename: `prismWorkflowFieldValues`
+   - Schema rename: `PrismWorkflowFieldValueSchema`
+
+### Result
+
+✅ **Build Status:** Builds clean — 0 errors, 0 warnings
+
+**Integration:** Backend pipeline complete. Frontend (Isabelle) consumes `ElementTypeAlias` via Razor partials. Controller (Brewster) orchestrates HTTP + workflow state.

@@ -22,6 +22,9 @@ public class TestSiteComposer : IComposer
         // Vinyl Vault demo (Phase 2: Notifications)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultContentTypes>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultSeeder>();
+
+        // Workflow Page demo — runs after PrismContentTypeSeeder has created the workflowPage doc type
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WorkflowPageSeeder>();
         
         // Content published notification handler for push notifications
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();

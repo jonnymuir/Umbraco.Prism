@@ -4,12 +4,12 @@ using Umbraco.Cms.Infrastructure.Persistence.DatabaseAnnotations;
 namespace UmbracoPrism.Core.Persistence;
 
 /// <summary>
-/// Database schema for the prismFieldGroupSubmissions table.
+/// Database schema for the prismWorkflowFieldValues table.
 /// </summary>
-[TableName("prismFieldGroupSubmissions")]
+[TableName("prismWorkflowFieldValues")]
 [PrimaryKey("SubmissionId", AutoIncrement = false)]
 [ExplicitColumns]
-public class PrismWorkflowFieldGroupSubmissionSchema
+public class PrismWorkflowFieldValueSchema
 {
     /// <summary>
     /// Gets or sets the unique submission identifier (GUID).

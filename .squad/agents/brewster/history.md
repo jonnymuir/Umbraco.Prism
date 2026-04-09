@@ -1121,3 +1121,154 @@ These are Blathers' or Isabelle's responsibilities:
 - Ready for Blathers backend implementation
 - Ready for Isabelle frontend testing
 
+
+
+## Session: Workflow Element Types + Seeding Implementation — 2026-04-09
+
+**Timestamp:** 2026-04-09T18:15:00Z  
+**Role:** Umbraco Platform Specialist  
+**Task:** Implement WorkflowElementTypeSeeder and update WorkflowSeedServiceImpl
+
+### Deliverables
+
+1. **WorkflowElementTypeSeeder** (`src/UmbracoPrism.Core/Services/Workflow/WorkflowElementTypeSeeder.cs`)
+   - Creates two Element Types programmatically: `workflowPersonalDetails` and `workflowFinancialDetails`
+   - Uses fixed GUIDs for deterministic seeding (5 data types created)
+   - Follows `PrismContentTypeSeeder.cs` pattern exactly
+   - Idempotent: checks if element types exist before creating
+
+2. **WorkflowSeedServiceImpl Updates**
+   - Injects `IWorkflowDefinitionRepository` and `WorkflowElementTypeSeeder`
+   - Seeds Element Types first, then workflow definitions
+   - Parses JSON and calls `_repository.UpsertAsync()`
+   - Removed `FieldGroupKeys` property reference (deprecated in redesign)
+
+3. **WorkflowSeedService Updates**
+   - Now uses `IServiceScopeFactory` to create scope for scoped services
+   - Fixed DI lifetime issue (hosted service is singleton, dependencies are scoped)
+
+4. **Demo Workflow JSON** (`src/UmbracoPrism.Core/workflow-seeds/retirement-quote-v1.json`)
+   - Retirement quote workflow with 4 states (personal-details, financial-info, review, complete)
+   - Uses `elementTypeAlias` references to `workflowPersonalDetails` and `workflowFinancialDetails`
+   - Includes transitions with continue/back/submit actions
+
+5. **DI Registration Updates** (`WorkflowBuilderExtensions.cs`)
+   - Added `WorkflowElementTypeSeeder` as scoped service
+   - Changed `IWorkflowSeedService` from singleton to scoped (dependency on scoped services)
+
+### Integration Points
+
+- ✅ Coordinated with Blathers' backend changes (`ElementTypeAlias` property on `WorkflowState`)
+- ✅ Removed deprecated `FieldGroupKeys` from `WorkflowDefinition` mapping
+- ✅ Follows Umbraco v17 API patterns (IContentTypeService, IDataTypeService)
+- ✅ Solution builds successfully (Core + MockBackOffice + TestSite)
+
+### Technical Decisions
+
+- Fixed GUIDs for workflow data types ensure reproducibility across environments
+- Element Types use standard property editors (TextBox, EmailAddress, DateTime, Integer, Toggle)
+- Seed service continues even if Element Type creation fails (resilient startup)
+- JSON structure matches `WorkflowDefinition` model with case-insensitive deserialization
+
+### Status
+
+✅ Complete — Ready for integration testing with Isabelle's frontend components
+
+---
+
+## Session: 2026-04-09 — Route-Hijacking Workflow Controller
+
+**Status:** Completed
+**Build outcome:** Success, 0 errors, 0 warnings (Core + TestSite).
+
+### Problem
+
+The previous workflow UI used a `workflowDemoPage` document type with a static `<prism-workflow-shell>` Web Component (Lit/JSON API). The team decided to replace this with a Razor-over-route-hijacking approach so the server renders each workflow step as HTML, no client-side JavaScript framework required.
+
+### Work completed
+
+1. **`WorkflowViewModel.cs`** — new file at `src/UmbracoPrism.TestSite/Models/`. Composes `WorkflowRenderPayload` properties (Archetype, StateDisplayName, FieldGroups, AvailableActions) with form-tracking fields (InstanceId, StateVersion, WorkflowKey, ReturnUrl). Includes `FieldErrors` computed property for inline validation display.
+
+2. **`WorkflowAdvanceRequest.cs`** — new file at `src/UmbracoPrism.TestSite/Models/`. Simple flat model for the POST body: InstanceId, StateVersion, WorkflowKey, Action, ReturnUrl, FieldValues dictionary.
+
+3. **`WorkflowPageController.cs`** — new file at `src/UmbracoPrism.TestSite/Controllers/`. Route-hijacking controller for the `workflowPage` document type. Handles both GET and POST in `Index()` (Umbraco's content router always targets Index; HTTP method is checked manually to avoid a Surface Controller). GET creates/resumes a workflow instance via cookie, builds WorkflowViewModel, returns `CurrentTemplate(vm)`. POST validates antiforgery manually via `IAntiforgery`, reads the form, calls `IWorkflowInstanceService.AdvanceAsync`, stores problems in TempData if validation failed, redirects (PRG) back to the page URL.
+
+4. **`PrismContentTypeSeeder.cs`** — added `EnsureWorkflowPageAsync()` and `EnsureWorkflowKeyPropertyAsync()` methods. Creates the `workflowPage` document type (AllowedAsRoot = true, icon: activity) with a single `workflowKey` textstring property. Called from `HandleAsync` alongside the existing doc types.
+
+5. **`WorkflowPageSeeder.cs`** — new file at `src/UmbracoPrism.TestSite/`. Development-only notification handler. Creates and publishes a root-level "Retirement Quote" content node of type `workflowPage` with `workflowKey = "retirement-quote"`. Idempotent — skips if the node already exists.
+
+6. **`TestSiteComposer.cs`** — registered `WorkflowPageSeeder` as an `UmbracoApplicationStartedNotification` handler.
+
+7. **`Views/WorkflowPage.cshtml`** — main template. Uses `@model WorkflowViewModel`, `Layout = "Master"`. Dispatches to partial views based on `Model.Archetype`. Shows an error panel when `Model.HasError` is true.
+
+8. **`Views/Partials/_WorkflowStep-Collect.cshtml`** — renders field groups as a labelled form. Hidden fields echo InstanceId, StateVersion, WorkflowKey, ReturnUrl. Fields rendered by type (text, email, number, tel, textarea, select). Inline field-level error display. Action buttons use `name="Action" value="{actionKey}"`.
+
+9. **`Views/Partials/_WorkflowStep-Review.cshtml`** — definition-list summary of all answered fields. Action buttons in a minimal form (no fields, just hidden tracking fields + action buttons).
+
+10. **`Views/Partials/_WorkflowStep-Completion.cshtml`** — thank-you panel with a "Return to home" link. Clears the instance cookie after POST in the controller.
+
+### Key decisions
+
+- **Both verbs in Index():** Umbraco's content router hardcodes `action = "Index"` in the route values. Adding a `[HttpPost]` action named `Advance` would need explicit MVC routing registration to be reachable at the content node URL. Inspecting `HttpContext.Request.Method` inside `Index()` is simpler and equally correct for a demo.
+- **Manual antiforgery:** `IAntiforgery.ValidateRequestAsync()` provides the same protection as `[ValidateAntiForgeryToken]` without requiring a dedicated `[HttpPost]` action.
+- **Anonymous userId tracking:** Cookie `PrismAnonUserId` stores a GUID that serves as the userId for the instance service. Real implementations would use `User.FindFirst("oid")`.
+- **form field prefix `fields[key]`:** Allows multiple fields without collision with the tracking hidden fields (InstanceId, StateVersion, etc.).
+- **No workflowRenderService injection:** The existing `IWorkflowInstanceService` returns a `WorkflowResponseEnvelope` that already includes a rendered `WorkflowRenderPayload` via `WorkflowRenderService` internally. No double-render needed.
+
+### Test URL (dev)
+
+`https://localhost:{port}/retirement-quote` — shows the Retirement Quote workflow using the `retirement-quote` definition already seeded by `WorkflowSeedService`.
+
+## Session: 2026-04-09 — Workflow Razor Redesign (Scribed)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-09T18:13:54Z-brewster-implement.md` + `.squad/orchestration-log/2026-04-09T18:13:54Z-brewster-controller.md`  
+**Session Log:** `.squad/log/2026-04-09T18:13:54Z-workflow-razor-redesign.md`
+
+**Parallel Agents:** Blathers (Element Type Pipeline), Isabelle (Razor Partials)
+
+### Work Completed — Phase 1: Seeds & Element Types
+
+1. **WorkflowElementTypeSeeder Service**
+   - Created `workflowPersonalDetails` Element Type (name, email, DOB)
+   - Created `workflowFinancialDetails` Element Type (income, employer, tax resident)
+   - Idempotent pattern with deterministic GUIDs
+
+2. **WorkflowSeedServiceImpl Updates**
+   - Calls `EnsureElementTypesAsync()` before loading workflow definitions
+   - Parses `retirement-quote-v1.json` workflow
+   - Removed `FieldGroupKeys` (deprecated)
+
+3. **Demo Workflow**
+   - `retirement-quote-v1.json` — 4-state workflow (collect → financial → review → complete)
+
+### Work Completed — Phase 2: Controller & HTTP
+
+1. **WorkflowPageController**
+   - Route-hijacking controller for `workflowPage` document type
+   - GET/POST in single `Index()` (Umbraco pattern)
+   - Manual antiforgery validation
+   - Cookie-based anonymous user tracking
+
+2. **View Models**
+   - `WorkflowViewModel` — workflow state + step metadata
+   - `WorkflowAdvanceRequest` — form submission binding
+
+3. **workflowPage Document Type**
+   - Added to `PrismContentTypeSeeder`
+   - `workflowKey` textstring property
+
+4. **Demo Content**
+   - `WorkflowPageSeeder` publishes `/retirement-quote` node
+   - Test URL: `https://localhost:{port}/retirement-quote`
+
+5. **Razor Templates**
+   - `Views/WorkflowPage.cshtml` — main layout
+   - `Views/Partials/_WorkflowStep-Collect.cshtml`
+   - `Views/Partials/_WorkflowStep-Review.cshtml`
+   - `Views/Partials/_WorkflowStep-Completion.cshtml`
+
+### Result
+
+✅ **Build Status:** 0 errors, 0 warnings (Client + .NET)
+
+**Integration:** Complete workflow orchestration from seeded data → HTTP handler → Razor rendering. Frontend (Isabelle) decorates with `_WorkflowField.cshtml` reusable renderer.

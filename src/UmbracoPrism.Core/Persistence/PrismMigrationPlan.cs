@@ -30,6 +30,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddPushTokenColumn>("add-push-token")
         .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions")
         .To<DropThemeColorColumn>("drop-theme-color")
-        .To<CreatePrismWorkflowTables>("add-workflow-tables");
+        .To<CreatePrismWorkflowTables>("add-workflow-tables")
+        .To<RemoveLegacyFieldGroupDefinitions>("remove-legacy-field-group-definitions");
     }
 }

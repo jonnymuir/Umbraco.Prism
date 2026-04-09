@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -9,14 +10,14 @@ namespace UmbracoPrism.Core.Services.Workflow;
 /// </summary>
 public class WorkflowSeedService : IHostedService
 {
-    private readonly IWorkflowSeedService _seedService;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<WorkflowSeedService> _logger;
 
     public WorkflowSeedService(
-        IWorkflowSeedService seedService,
+        IServiceScopeFactory serviceScopeFactory,
         ILogger<WorkflowSeedService> logger)
     {
-        _seedService = seedService;
+        _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
     }
 
@@ -26,7 +27,9 @@ public class WorkflowSeedService : IHostedService
 
         try
         {
-            await _seedService.SeedAsync(cancellationToken);
+            using var scope = _serviceScopeFactory.CreateScope();
+            var seedService = scope.ServiceProvider.GetRequiredService<IWorkflowSeedService>();
+            await seedService.SeedAsync(cancellationToken);
             _logger.LogInformation("Workflow definitions seeded successfully");
         }
         catch (Exception ex)

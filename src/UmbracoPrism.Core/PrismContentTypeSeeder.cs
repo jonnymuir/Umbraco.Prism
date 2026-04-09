@@ -40,6 +40,7 @@ public class PrismContentTypeSeeder(
         await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureWorkflowDemoPageAsync();
+        await EnsureWorkflowPageAsync();
         await EnsureSettingsDocumentTypeAsync();
 
         logger.LogInformation("PRISM ContentTypeSeeder: Complete");
@@ -69,6 +70,64 @@ public class PrismContentTypeSeeder(
         }
 
         await EnsureTemplateAsync(contentType, name);
+    }
+
+    private async Task EnsureWorkflowPageAsync()
+    {
+        const string alias = "workflowPage";
+        const string name = "Workflow Page";
+
+        var contentType = contentTypeService.Get(alias);
+
+        if (contentType == null)
+        {
+            contentType = new ContentType(shortStringHelper, -1)
+            {
+                Alias = alias,
+                Name = name,
+                AllowedAsRoot = true,
+                Icon = "icon-activity"
+            };
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
+
+        await EnsureWorkflowKeyPropertyAsync(contentType);
+        await EnsureTemplateAsync(contentType, name);
+    }
+
+    private async Task EnsureWorkflowKeyPropertyAsync(IContentType contentType)
+    {
+        const string propertyAlias = "workflowKey";
+        if (contentType.PropertyTypes.Any(p => p.Alias == propertyAlias)) return;
+
+        var textboxDataType = await GetOrCreateTextboxDataTypeAsync();
+        if (textboxDataType == null)
+        {
+            logger.LogWarning("PRISM: Could not resolve textbox data type; skipping workflowKey property");
+            return;
+        }
+
+        const string groupName = "Workflow Configuration";
+        const string groupKey = "workflowConfiguration";
+        if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
+            contentType.AddPropertyGroup(groupName, groupKey);
+
+        var propertyType = new PropertyType(shortStringHelper, textboxDataType, propertyAlias)
+        {
+            Name = "Workflow Key",
+            Description = "The workflow definition key to run on this page (e.g. 'retirement-quote').",
+            Mandatory = false,
+            SortOrder = 0
+        };
+
+        contentType.AddPropertyType(propertyType, groupName);
+
+#pragma warning disable CS0618
+        contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        logger.LogInformation("PRISM: workflowKey property added to workflowPage content type");
     }
 
     private async Task EnsureWorkflowDemoPageAsync()

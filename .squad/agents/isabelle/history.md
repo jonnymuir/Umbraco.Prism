@@ -1187,3 +1187,49 @@ The backend redesign moved field definitions to Umbraco Element Types, with `fie
 - 2026-04-XX: MSBuild's `_CopyOutOfDateSourceItemsToOutputDirectory` produces a false "partial" error on the first incremental build after new static web asset files are added; subsequent builds succeed. This is a known MSBuild incremental quirk, not a code error. Confirm with `Build succeeded.` in the full output.
 
 **Decision Record:** `.squad/decisions/inbox/isabelle-razor-views.md`
+
+## Session: 2026-04-09 — Workflow Razor Redesign (Scribed)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-09T18:13:54Z-isabelle-implement.md` + `.squad/orchestration-log/2026-04-09T18:13:54Z-isabelle-razor.md`  
+**Session Log:** `.squad/log/2026-04-09T18:13:54Z-workflow-razor-redesign.md`
+
+**Parallel Agents:** Blathers (Element Type Pipeline), Brewster (Controller + Seeds)
+
+### Work Completed — Phase 1: Lit Extension (Superseded)
+
+1. **Extended Lit Components**
+   - Added field type support for new Element Type fields
+   - Implemented email, decimal, boolean, datetime, checkboxlist, slider
+
+2. **Architecture Review**
+   - Team decision: Razor over Lit
+   - Reason: Better integration with Umbraco Element Types (already use Razor), server-rendered HTML, accessibility-first
+   - No production code merged; documentation preserved in orchestration log
+
+### Work Completed — Phase 2: Razor Partials (Production)
+
+1. **Razr Partials Created**
+   - `Views/Partials/_WorkflowField.cshtml` — universal field renderer (text, email, textarea, number, decimal, date, datetime-local, select, radio, checkboxlist, boolean)
+   - `Views/Partials/_WorkflowStep-Collect.cshtml` — form with fieldsets + action buttons
+   - `Views/Partials/_WorkflowStep-Review.cshtml` — read-only summary + confirm/back
+   - `Views/Partials/_WorkflowStep-Completion.cshtml` — success confirmation
+   - `Views/WorkflowPage.cshtml` — main container
+
+2. **CSS Styling**
+   - `wwwroot/css/prism-workflow.css`
+   - GDS (Government Digital Service) patterns
+   - WCAG 2.2 AA accessibility compliance
+   - `:focus-visible` keyboard focus indicators
+   - Responsive mobile-first (640px breakpoint)
+   - CSS custom properties for theming
+
+3. **Lit Components Deleted**
+   - Removed 8 files: prism-workflow-shell, prism-workflow-collect, prism-workflow-completion (+ stories)
+   - Removed workflow-orchestrator, workflow-api-client, workflow-index
+   - Removed `prism-workflow` rollup entry from `vite.config.ts`
+
+### Result
+
+✅ **Build Status:** Client build green, .NET build green — 0 errors, 0 warnings
+
+**Quality:** WCAG 2.2 AA compliant server-side HTML. No runtime JS dependency for workflow forms. Partials integrate with Brewster's `WorkflowPageController` and Blathers' field metadata service.

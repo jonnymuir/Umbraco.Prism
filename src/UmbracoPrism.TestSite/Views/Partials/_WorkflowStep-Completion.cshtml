@@ -1,0 +1,52 @@
+@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+
+<div class="wf-completion">
+    <div class="wf-completion__icon" aria-hidden="true">✅</div>
+    <h2 class="wf-completion__heading">@Model.StateDisplayName</h2>
+    <p class="wf-completion__body">
+        Thank you — your submission has been received. A member of our team will be in touch shortly.
+    </p>
+    <a href="/" class="wf-btn wf-btn--secondary">Return to home</a>
+</div>
+
+<style>
+    .wf-completion {
+        text-align: center;
+        padding: 3rem 1rem;
+    }
+
+    .wf-completion__icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .wf-completion__heading {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--prism-primary, #1a1a1a);
+        margin-bottom: 0.75rem;
+    }
+
+    .wf-completion__body {
+        color: #6b7280;
+        margin-bottom: 2rem;
+        max-width: 480px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .wf-btn {
+        display: inline-block;
+        padding: 0.625rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: opacity 0.15s;
+    }
+
+    .wf-btn:hover { opacity: 0.85; }
+    .wf-btn--secondary { background: #e5e7eb; color: #374151; }
+</style>

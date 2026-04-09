@@ -1,0 +1,196 @@
+@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+@{
+    var token = Html.AntiForgeryToken();
+}
+
+<form class="workflow-form" method="post" action="@Model.ReturnUrl" novalidate>
+    @token
+    <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
+    <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
+    <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
+    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+
+    @if (Model.Problems.Any(p => string.IsNullOrEmpty(p.FieldKey)))
+    {
+        <div class="wf-alert wf-alert--error" role="alert">
+            @foreach (var p in Model.Problems.Where(p => string.IsNullOrEmpty(p.FieldKey)))
+            {
+                <p>@p.Message</p>
+            }
+        </div>
+    }
+
+    @foreach (var group in Model.FieldGroups)
+    {
+        <fieldset class="wf-fieldset">
+            <legend class="wf-fieldset__legend">@group.DisplayName</legend>
+
+            @foreach (var field in group.Fields)
+            {
+                var fieldName = $"fields[{field.FieldKey}]";
+                var fieldId = $"field-{field.FieldKey}";
+                var hasError = Model.FieldErrors.TryGetValue(field.FieldKey, out var fieldError);
+
+                <div class="wf-field @(hasError ? "wf-field--error" : "")">
+                    <label class="wf-field__label" for="@fieldId">
+                        @field.Label
+                        @if (field.Required) { <span class="wf-field__required" aria-hidden="true"> *</span> }
+                    </label>
+
+                    @if (!string.IsNullOrEmpty(field.Hint))
+                    {
+                        <p class="wf-field__hint" id="@(fieldId)-hint">@field.Hint</p>
+                    }
+
+                    @if (field.FieldType == "select" && field.Options != null)
+                    {
+                        <select id="@fieldId"
+                                name="@fieldName"
+                                class="wf-field__input"
+                                @(field.Required ? "required" : "")
+                                aria-describedby="@(!string.IsNullOrEmpty(field.Hint) ? $"{fieldId}-hint" : "")">
+                            <option value="">— Select —</option>
+                            @foreach (var opt in field.Options)
+                            {
+                                <option value="@opt" @(field.Value?.ToString() == opt ? "selected" : "")>@opt</option>
+                            }
+                        </select>
+                    }
+                    else if (field.FieldType == "textarea")
+                    {
+                        <textarea id="@fieldId"
+                                  name="@fieldName"
+                                  class="wf-field__input wf-field__input--textarea"
+                                  rows="4"
+                                  @(field.Required ? "required" : "")
+                                  aria-describedby="@(!string.IsNullOrEmpty(field.Hint) ? $"{fieldId}-hint" : "")">@(field.Value)</textarea>
+                    }
+                    else
+                    {
+                        <input id="@fieldId"
+                               name="@fieldName"
+                               type="@(field.FieldType is "email" or "number" or "tel" ? field.FieldType : "text")"
+                               class="wf-field__input"
+                               value="@(field.Value)"
+                               @(field.Required ? "required" : "")
+                               aria-describedby="@(!string.IsNullOrEmpty(field.Hint) ? $"{fieldId}-hint" : "")" />
+                    }
+
+                    @if (hasError)
+                    {
+                        <p class="wf-field__error" role="alert">@fieldError</p>
+                    }
+                </div>
+            }
+        </fieldset>
+    }
+
+    <div class="wf-actions">
+        @foreach (var action in Model.AvailableActions)
+        {
+            var btnClass = action.Style switch
+            {
+                "primary" => "wf-btn wf-btn--primary",
+                "destructive" => "wf-btn wf-btn--destructive",
+                _ => "wf-btn wf-btn--secondary"
+            };
+            <button type="submit" name="Action" value="@action.ActionKey" class="@btnClass">
+                @action.Label
+            </button>
+        }
+    </div>
+</form>
+
+<style>
+    .wf-alert {
+        border-left: 4px solid;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+    }
+
+    .wf-alert--error { border-color: #dc2626; background: #fef2f2; color: #991b1b; }
+
+    .wf-fieldset {
+        border: none;
+        padding: 0;
+        margin: 0 0 1.5rem;
+    }
+
+    .wf-fieldset__legend {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 1rem;
+        color: var(--prism-primary, #1a1a1a);
+    }
+
+    .wf-field {
+        margin-bottom: 1.25rem;
+    }
+
+    .wf-field--error .wf-field__input { border-color: #dc2626; }
+
+    .wf-field__label {
+        display: block;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 0.375rem;
+        color: #374151;
+    }
+
+    .wf-field__required { color: #dc2626; }
+
+    .wf-field__hint {
+        font-size: 0.8rem;
+        color: #6b7280;
+        margin: 0 0 0.375rem;
+    }
+
+    .wf-field__input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        background: #fff;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+    }
+
+    .wf-field__input:focus {
+        outline: none;
+        border-color: var(--prism-primary, #2563eb);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .wf-field__input--textarea { resize: vertical; }
+
+    .wf-field__error {
+        font-size: 0.8rem;
+        color: #dc2626;
+        margin: 0.25rem 0 0;
+    }
+
+    .wf-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .wf-btn {
+        padding: 0.625rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.15s;
+    }
+
+    .wf-btn:hover { opacity: 0.85; }
+    .wf-btn--primary { background: var(--prism-primary, #2563eb); color: #fff; }
+    .wf-btn--secondary { background: #e5e7eb; color: #374151; }
+    .wf-btn--destructive { background: #dc2626; color: #fff; }
+</style>

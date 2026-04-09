@@ -3714,3 +3714,222 @@ Do NOT remove `uui-dialog-layout` and replace it with `:host { display: flex; fl
 
 **Test Coverage:** 38/38 Playwright tests pass; no regressions.
 
+
+---
+
+## 📌 2026-04-09: Backend Redesign Implementation — Element Type Introspection (Blathers)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-implementation-complete.md`
+
+### Blathers — Backend Redesign Implementation Complete
+
+**Author:** Blathers (Backend Dev)  
+**Status:** Implementation Complete ✅  
+
+**Summary:** The Workflow Forms Engine backend redesign has been successfully implemented. Custom `PrismFieldGroupDefinition` tables have been replaced with Umbraco Element Type introspection.
+
+**Key Decisions:**
+
+1. **ElementTypeAlias Replaces FieldGroupKeys**
+   - `WorkflowState` now has `ElementTypeAlias` property
+   - `WorkflowDefinition` no longer uses `FieldGroupKeys`
+   - Enables dynamic field definitions via Umbraco content types
+
+2. **PrismPropertyTypeMapper Service**
+   - Static mapper class for Umbraco property editor alias → workflow field type conversion
+   - Supports 14+ property editor types with safe fallback to "text"
+   - No DI needed; stateless conversion logic
+
+3. **WorkflowRenderService Uses IContentTypeService**
+   - Now accepts `IContentTypeService` via constructor injection
+   - Dynamically builds `FieldGroupRenderPayload` from Element Type properties
+   - Returns empty field groups when `ElementTypeAlias` is null or Element Type not found
+   - Field metadata (label, hint, required, field type) derived from Umbraco property definitions
+
+4. **Database Migrations**
+   - Table rename: `prismFieldGroupSubmissions` → `prismWorkflowFieldValues`
+   - Schema class rename: `PrismWorkflowFieldGroupSubmissionSchema` → `PrismWorkflowFieldValueSchema`
+   - New migration: `RemoveLegacyFieldGroupDefinitions` drops `prismFieldGroupDefinitions` table
+   - All migrations added to `PrismMigrationPlan`
+
+**Build Status:** ✅ Builds clean — 0 errors, 0 warnings
+
+**Impact:** Backend now returns fully populated `FieldRenderPayload` structures when a workflow state has an `ElementTypeAlias` configured. Frontend can consume dynamic field definitions without hardcoding.
+
+---
+
+## 📌 2026-04-09: Workflow Element Type Seeding Strategy (Brewster)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/brewster-implementation-complete.md`
+
+### Brewster — Element Type Seeding & Demo Workflow
+
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** ✅ Implemented  
+
+**Decision:** Implement code-first Element Type seeding for workflow step definitions in Umbraco v17. Element Types are created programmatically on application startup using deterministic GUIDs.
+
+**Implementation Details:**
+
+1. **WorkflowElementTypeSeeder Service**
+   - Created `src/UmbracoPrism.Core/Services/Workflow/WorkflowElementTypeSeeder.cs`
+   - Follows exact pattern of `PrismContentTypeSeeder`
+   - 5 deterministic data type keys for workflow fields
+   - Idempotent: checks if element type exists before creating
+   - `IsElement = true` for all content types
+
+2. **Element Types Created**
+   - `workflowPersonalDetails` — first name, last name, email, date of birth
+   - `workflowFinancialDetails` — annual income, employer, UK tax resident flag
+   - Uses built-in Umbraco editors (TextBox, EmailAddress, DateTime, Integer, Toggle)
+
+3. **WorkflowSeedServiceImpl Updates**
+   - Injects `IWorkflowDefinitionRepository` and `WorkflowElementTypeSeeder`
+   - Calls `EnsureElementTypesAsync()` FIRST before loading workflow definitions
+   - Parses JSON and maps to `WorkflowDefinition` model
+   - Removed `FieldGroupKeys` property (deprecated)
+
+4. **Demo Workflow JSON**
+   - Created `retirement-quote-v1.json` with 4 states: personal-details → financial-info → review → complete
+   - Uses `elementTypeAlias` references to Element Types
+   - Includes bi-directional transitions (back buttons)
+   - Embedded as resource in Core project
+
+5. **DI Registration**
+   - `WorkflowElementTypeSeeder` added as scoped service in `WorkflowBuilderExtensions`
+   - `IWorkflowSeedService` changed from singleton to scoped (was causing lifetime issues)
+
+**Build Status:** ✅ Full solution builds successfully — 0 errors, 0 warnings
+
+---
+
+## 📌 2026-04-09: Route-Hijacking Workflow Controller Pattern (Brewster)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/brewster-razor-controller.md`
+
+### Brewster — HTTP Controller Pattern for Workflow Forms
+
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Implemented  
+
+**Context:** Workflow forms render via Razor partials + route-hijacking controller (not JSON API + Web Components).
+
+**Key Decisions:**
+
+1. **Both GET & POST in Index()**
+   - GET and POST both land on `RenderController.Index()`
+   - Manual `HttpContext.Request.Method` check inside
+   - Reason: Umbraco content router hardcodes `action = "Index"`. Separate POST route would create different URL than content node.
+   - `[ValidateAntiForgeryToken]` not used; manual antiforgery validation via `IAntiforgery.ValidateRequestAsync()`
+
+2. **Anonymous userId via Cookie**
+   - `PrismAnonUserId` cookie stores GUID for session-stable workflow instance tracking
+   - Reason: Workflow page is intentionally open (no `[Authorize]` for demo). Instance service requires non-null userId.
+   - Production: Replace with `User.FindFirst("oid")?.Value` after adding `[Authorize]`
+
+3. **Form Field Naming**
+   - Form inputs use pattern `fields[fieldKey]` (e.g. `fields[firstName]`)
+   - Tracking hidden fields use flat names (`InstanceId`, `StateVersion`, `Action`, `WorkflowKey`, `ReturnUrl`)
+   - Prevents collision between field values and control inputs
+
+4. **workflowPage Document Type in Core Seeder**
+   - `EnsureWorkflowPageAsync()` added to `PrismContentTypeSeeder`
+   - Consistency: Core seeder already owns `workflowDemoPage`
+   - Demo content node seeded separately by TestSite `WorkflowPageSeeder`
+
+5. **No Double-Render**
+   - `IWorkflowRenderService` NOT injected into controller
+   - Reason: `IWorkflowInstanceService` already calls render service internally
+   - Controller receives fully populated `WorkflowResponseEnvelope`
+
+**Build Status:** ✅ 0 errors, 0 warnings
+
+---
+
+## 📌 2026-04-09: Workflow Forms Render via Razor Partial Views (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-razor-views.md`
+
+### Isabelle — Razor Partials Over Lit Web Components
+
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)  
+**Status:** Implemented  
+
+**Context:** Workflow form steps previously prototyped as Lit Web Components. Team decision to use Razor partials instead.
+
+**Decision:** Workflow form steps render via Razor partial views, not Lit Web Components.
+
+**Rationale:**
+- Element Types already use Razor partials for rendering — consistency
+- Server-rendered HTML works on mobile (WKWebView) and desktop without JavaScript
+- CSS handles all responsive styling
+- No Lit runtime required
+
+**Partials Created:**
+- `_WorkflowField.cshtml` — Single field renderer (all types, WCAG 2.2 AA)
+- `_WorkflowStep-Collect.cshtml` — Form with fieldsets and action buttons
+- `_WorkflowStep-Review.cshtml` — Read-only summary + confirm/back actions
+- `_WorkflowStep-Completion.cshtml` — Success confirmation panel
+
+**CSS:**
+- `prism-workflow.css` in `TestSite/wwwroot/css/`
+- GDS-inspired design patterns
+- CSS custom properties for theming
+- `:focus-visible` for keyboard navigation
+- Responsive at 640px breakpoint
+
+**Superseded & Deleted:**
+- `prism-workflow-shell.ts`, `prism-workflow-collect.ts`, `prism-workflow-completion.ts`
+- `workflow-orchestrator.ts`, `workflow-api-client.ts`
+- `prism-workflow` rollup entry removed from `vite.config.ts`
+
+**Impact:** No runtime JS required; accessibility enforced server-side in HTML.
+
+---
+
+## 📌 2026-04-09: Extended Workflow Field Types (Isabelle)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-workflow-frontend-extension.md`
+
+### Isabelle — Extended FieldType Union & Renderer
+
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)  
+**Status:** Complete (Superseded by Razor architecture)
+
+**Context:** Backend redesign moved field definitions to Umbraco Element Types with `fieldType` values from property editor introspection.
+
+**Changes Implemented (Earlier Phase):**
+
+1. **Extended FieldType Union**
+   - From 8 types to 15: added email, decimal, boolean, datetime, checkboxlist, slider, multitextstring
+   - Added fallback `string` for unmapped types
+
+2. **Renderer Extensions**
+   - `email` → `<input type="email">`
+   - `decimal` → `<input type="number" step="0.01">`
+   - `boolean` → alias of checkbox (single checkbox, label inline)
+   - `datetime` → `<input type="datetime-local">`
+   - `checkboxlist` → `<fieldset>` with `<legend>`, multiple checkboxes with `name[]` array
+   - `slider` → `<input type="range">` with live `<output>`
+   - Unknown types → fallback to `<input type="text">`
+
+3. **Accessibility Enhancements**
+   - All error messages: `role="alert" aria-live="polite"`
+   - Checkboxlist wrapped in `<fieldset>` + `<legend>`
+   - Radio buttons: `aria-describedby` linking to hints/errors
+   - Slider: proper focus indicators (3px yellow outline)
+
+4. **Form Submission**
+   - Extended to detect `name[]` fields (checkboxlist)
+   - Aggregates checked values into arrays
+   - Handles `'on'` values for boolean checkboxes
+
+**Note:** This work was superseded by the Razor architecture decision. The field type extensions informed Razor partial field rendering, but the Lit implementation was not used in production.
+
+**Build Status (Earlier Phase):** ✅ `npm run build` — 0 TypeScript errors
+

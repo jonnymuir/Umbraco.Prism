@@ -22,8 +22,11 @@ public static class WorkflowBuilderExtensions
         builder.Services.AddScoped<IWorkflowRenderService, WorkflowRenderService>();
         builder.Services.AddScoped<IWorkflowTenantGuard, WorkflowTenantGuard>();
         
+        // Element type seeder
+        builder.Services.AddScoped<WorkflowElementTypeSeeder>();
+        
         // Seed service for workflow definitions
-        builder.Services.AddSingleton<IWorkflowSeedService, WorkflowSeedServiceImpl>();
+        builder.Services.AddScoped<IWorkflowSeedService, WorkflowSeedServiceImpl>();
         builder.Services.AddHostedService<WorkflowSeedService>();
 
         return builder;

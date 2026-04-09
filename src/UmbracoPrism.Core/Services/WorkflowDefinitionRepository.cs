@@ -90,7 +90,6 @@ public class WorkflowDefinitionRepository(
             States = states,
             Transitions = transitions,
             InitialState = states.FirstOrDefault()?.StateKey ?? string.Empty,
-            FieldGroupKeys = new List<string>(),
             CreatedAt = schema.CreatedAt,
             UpdatedAt = schema.PublishedAt ?? schema.CreatedAt
         };
