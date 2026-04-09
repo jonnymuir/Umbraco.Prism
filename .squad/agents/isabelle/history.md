@@ -1126,3 +1126,64 @@ Apply flex layout in maximized mode so the scroll container (`.container`) has a
 - Testing fixtures generated
 - Mobile and accessibility requirements documented
 
+
+## Session: 2026-03-31 — Workflow Frontend Extension
+
+**Task:** Extend workflow frontend for redesigned backend (Element Type-based fields)
+
+**Result:** ✅ Complete, build clean (`npm run build` — 0 errors)
+
+### Context
+
+The backend redesign moved field definitions to Umbraco Element Types, with `fieldType` values now derived from Umbraco property editor introspection. Extended the frontend to handle 7 new field types while maintaining WCAG 2.2 AA compliance.
+
+### Changes
+
+**Files modified:**
+1. `workflow-api-client.ts` — Extended `FieldType` union from 8 to 15 types, added `string` fallback
+2. `prism-workflow-collect.ts` — Added renderers for `email`, `decimal`, `boolean`, `datetime`, `checkboxlist`, `slider`, `multitextstring`; enhanced form submission to handle array values (checkboxlist); added slider CSS with vendor prefixes
+3. `prism-workflow-collect.stories.ts` — Added 4 new stories: `NewFieldTypes`, `CheckboxList`, `MultiTextString`, `UnknownFieldType`
+
+**Shell verification:** `prism-workflow-shell.ts` unchanged — passes field groups and problems through correctly.
+
+### Learnings
+
+- 2026-03-31: Use `name[]` for multi-select checkbox fields (checkboxlist) — FormData.entries() will yield multiple `[key, value]` pairs with the same key, aggregate into array. Pattern: detect `key.endsWith('[]')`, strip suffix, push to array.
+- 2026-03-31: Slider `<output>` element needs `@input` handler to update display value. Use `.nextElementSibling` to find adjacent output, update `.textContent` on slide.
+- 2026-03-31: For vendor-specific CSS pseudo-elements (`::-webkit-slider-thumb`, `::-moz-range-thumb`), each must be a separate rule — browsers ignore entire rule if they don't recognize the selector. Do NOT combine with commas.
+- 2026-03-31: `role="alert"` + `aria-live="polite"` on error messages ensures screen readers announce validation errors when they appear. GDS uses this pattern for inline field errors.
+- 2026-03-31: Checkboxlist fields need `<fieldset>` + `<legend>` for semantic grouping (WCAG 1.3.1 Info and Relationships). Use `role="group"` on outer wrapper to reinforce semantic structure.
+- 2026-03-31: Unknown field types should fallback to `<input type="text">` (not error message) — this ensures forwards compatibility when backend adds new Umbraco property editors before frontend is updated.
+
+### Decision Record
+
+`.squad/decisions/inbox/isabelle-workflow-frontend-extension.md`
+
+### Next Steps
+
+- Tangy: Add Playwright E2E tests for new field types (checkboxlist submission, slider interaction)
+- Backend: Map remaining Umbraco property editors to these field types
+
+## Session: 2026-04-XX — Workflow Razor Partial Views
+
+**Task:** Replace superseded Lit workflow components with Razor partial views for workflow form steps.
+
+**Result:** ✅ Complete. Client build clean (tsc + vite), .NET build succeeded.
+
+### Changes
+
+- **Deleted** 8 Lit/TS files: `prism-workflow-shell.ts`, `prism-workflow-collect.ts`, `prism-workflow-completion.ts`, all 3 `.stories.ts`, `workflow-orchestrator.ts`, `workflow-api-client.ts`, `workflow-index.ts`
+- **Removed** `prism-workflow` rollup entry from `vite.config.ts`
+- **Created** `Views/Shared/_WorkflowField.cshtml` — handles all field types (text, email, textarea, number, decimal, date, datetime-local, select, radio, checkboxlist, boolean) with GDS-style label/hint/required and full WCAG 2.2 AA semantics (`aria-describedby`, `aria-required`, `role` on fieldsets)
+- **Created** `Views/Shared/_WorkflowStep-Collect.cshtml` — `<form method="post">` with antiforgery token, fieldsets per group, action buttons (primary/secondary/destructive), back button auto-detected from `AvailableActions`
+- **Created** `Views/Shared/_WorkflowStep-Review.cshtml` — `<dl>` summary of collected values, separate `<form>` for action buttons
+- **Created** `Views/Shared/_WorkflowStep-Completion.cshtml` — confirmation panel with `role="alert"` and green left border
+- **Created** `wwwroot/css/prism-workflow.css` — GDS-inspired, CSS custom properties, `:focus-visible` outlines, mobile responsive breakpoint at 640px
+
+### Learnings
+
+- 2026-04-XX: Architecture decision: workflow form steps render via Razor partials, NOT Lit Web Components. Element Types use Razor partials; same pattern here. Server-rendered HTML works identically on WKWebView and desktop.
+- 2026-04-XX: In Razor, inline ternary expressions can't return HTML tag literals — always use `@if/@else` blocks for conditional HTML.
+- 2026-04-XX: MSBuild's `_CopyOutOfDateSourceItemsToOutputDirectory` produces a false "partial" error on the first incremental build after new static web asset files are added; subsequent builds succeed. This is a known MSBuild incremental quirk, not a code error. Confirm with `Build succeeded.` in the full output.
+
+**Decision Record:** `.squad/decisions/inbox/isabelle-razor-views.md`
