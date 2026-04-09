@@ -1,0 +1,184 @@
+@using UmbracoPrism.Core.Models.Workflow
+@model FieldRenderPayload
+
+@{
+    var hasHint = !string.IsNullOrEmpty(Model.Hint);
+    var hintId = $"{Model.FieldKey}-hint";
+    var describedBy = hasHint ? $@" aria-describedby=""{hintId}""" : string.Empty;
+    var ariaRequired = Model.Required ? @" aria-required=""true""" : string.Empty;
+    var fieldType = Model.FieldType?.ToLowerInvariant() ?? "text";
+}
+
+<div class="prism-form-group">
+
+    @if (fieldType == "boolean")
+    {
+        <div class="prism-form-group__checkbox-wrapper">
+            <input class="prism-checkbox"
+                   type="checkbox"
+                   id="@Model.FieldKey"
+                   name="@Model.FieldKey"
+                   value="true"
+                   @(Model.Value is true || "true".Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                   @Html.Raw(ariaRequired)
+                   @Html.Raw(describedBy) />
+            <label class="prism-label prism-label--inline" for="@Model.FieldKey">
+                @Model.Label
+                @if (Model.Required)
+                {
+                    <span class="prism-required" aria-hidden="true">*</span>
+                }
+            </label>
+        </div>
+    }
+    else if (fieldType == "radio")
+    {
+        <fieldset class="prism-fieldset">
+            <legend class="prism-legend">
+                @Model.Label
+                @if (Model.Required)
+                {
+                    <span class="prism-required" aria-hidden="true">*</span>
+                }
+            </legend>
+            @if (hasHint)
+            {
+                <div class="prism-hint" id="@hintId">@Model.Hint</div>
+            }
+            @if (Model.Options != null)
+            {
+                foreach (var option in Model.Options)
+                {
+                    var radioId = $"{Model.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
+                    <div class="prism-radio-item">
+                        <input class="prism-radio"
+                               type="radio"
+                               id="@radioId"
+                               name="@Model.FieldKey"
+                               value="@option"
+                               @(option.Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                               @Html.Raw(ariaRequired) />
+                        <label class="prism-label prism-label--inline" for="@radioId">@option</label>
+                    </div>
+                }
+            }
+        </fieldset>
+    }
+    else if (fieldType == "checkboxlist")
+    {
+        <fieldset class="prism-fieldset">
+            <legend class="prism-legend">
+                @Model.Label
+                @if (Model.Required)
+                {
+                    <span class="prism-required" aria-hidden="true">*</span>
+                }
+            </legend>
+            @if (hasHint)
+            {
+                <div class="prism-hint" id="@hintId">@Model.Hint</div>
+            }
+            @if (Model.Options != null)
+            {
+                foreach (var option in Model.Options)
+                {
+                    var cbId = $"{Model.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
+                    <div class="prism-checkbox-item">
+                        <input class="prism-checkbox"
+                               type="checkbox"
+                               id="@cbId"
+                               name="@Model.FieldKey"
+                               value="@option"
+                               @Html.Raw(ariaRequired) />
+                        <label class="prism-label prism-label--inline" for="@cbId">@option</label>
+                    </div>
+                }
+            }
+        </fieldset>
+    }
+    else if (fieldType == "select")
+    {
+        <label class="prism-label" for="@Model.FieldKey">
+            @Model.Label
+            @if (Model.Required)
+            {
+                <span class="prism-required" aria-hidden="true">*</span>
+            }
+        </label>
+        @if (hasHint)
+        {
+            <div class="prism-hint" id="@hintId">@Model.Hint</div>
+        }
+        <select class="prism-select"
+                id="@Model.FieldKey"
+                name="@Model.FieldKey"
+                @Html.Raw(ariaRequired)
+                @Html.Raw(describedBy)>
+            <option value="">-- Select --</option>
+            @if (Model.Options != null)
+            {
+                foreach (var option in Model.Options)
+                {
+                    <option value="@option"
+                            @(option.Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : "")>
+                        @option
+                    </option>
+                }
+            }
+        </select>
+    }
+    else if (fieldType == "textarea")
+    {
+        <label class="prism-label" for="@Model.FieldKey">
+            @Model.Label
+            @if (Model.Required)
+            {
+                <span class="prism-required" aria-hidden="true">*</span>
+            }
+        </label>
+        @if (hasHint)
+        {
+            <div class="prism-hint" id="@hintId">@Model.Hint</div>
+        }
+        <textarea class="prism-textarea"
+                  id="@Model.FieldKey"
+                  name="@Model.FieldKey"
+                  rows="5"
+                  @Html.Raw(ariaRequired)
+                  @Html.Raw(describedBy)>@Model.Value</textarea>
+    }
+    else
+    {
+        @* Handles: text, email, number, decimal, date, datetime, and unknown fallback *@
+        var inputType = fieldType switch
+        {
+            "email" => "email",
+            "number" or "decimal" => "number",
+            "date" => "date",
+            "datetime" => "datetime-local",
+            _ => "text"
+        };
+        var step = fieldType == "decimal" ? @" step=""any""" : string.Empty;
+
+        <label class="prism-label" for="@Model.FieldKey">
+            @Model.Label
+            @if (Model.Required)
+            {
+                <span class="prism-required" aria-hidden="true">*</span>
+            }
+        </label>
+        @if (hasHint)
+        {
+            <div class="prism-hint" id="@hintId">@Model.Hint</div>
+        }
+        <input class="prism-input"
+               type="@inputType"
+               id="@Model.FieldKey"
+               name="@Model.FieldKey"
+               value="@Model.Value"
+               @Html.Raw(step)
+               @Html.Raw(ariaRequired)
+               @Html.Raw(describedBy) />
+    }
+
+</div>
