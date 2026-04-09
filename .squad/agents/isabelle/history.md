@@ -1067,3 +1067,62 @@ Apply flex layout in maximized mode so the scroll container (`.container`) has a
 
 **Design Phase Status:** ✅ Complete (client design doc: `docs/design/workflow-forms-engine-client.md` completed)
 
+
+## Session: Workflow Forms Engine Redesign — 2026-04-09
+
+**Timestamp:** 2026-04-09T17:48:03Z  
+**Role:** Frontend Dev  
+**Sprint Type:** Cross-agent architecture sprint (parallel with Tom Nook, Brewster, Blathers)
+
+### Deliverables
+
+1. **Frontend Strategy:** `.squad/decisions/decisions.md` — "Frontend Implementation Strategy — Dynamic Form Renderer"
+   - Dynamic form renderer architecture (replacing bespoke components)
+   - Property editor mapping to input types
+   - Form state management and validation lifecycle
+   - Workflow orchestration integration
+   - Testing strategy with fixture generation
+   - Mobile responsiveness and accessibility (WCAG 2.1)
+2. **Orchestration Log:** `.squad/orchestration-log/2026-04-09T17:48:03Z-isabelle.md`
+
+### Key Components
+
+- **Delete:** `prism-workflow-shell.ts`, `prism-workflow-collect.ts`, `prism-workflow-completion.ts`, `workflow-index.ts`
+- **Create:** `dynamic-form-renderer.ts`, `form-field.ts`, `form-section.ts`
+
+### Property Editor Support
+
+| EditorUiAlias | Input Type | Status |
+|---|---|---|
+| `Umb.PropertyEditorUi.TextBox` | `<input type="text">` | ✅ v1 |
+| `Umb.PropertyEditorUi.DateTime` | `<input type="datetime-local">` | ✅ v1 |
+| `Umb.PropertyEditorUi.Toggle` | `<input type="checkbox">` | ✅ v1 |
+| `Umb.PropertyEditorUi.Dropdown` | `<select>` | ✅ v1 |
+| `Umb.PropertyEditorUi.RichText` | Rich text editor | ⏳ v2 |
+
+### Completed UI Fixes (v1.7.1)
+
+- ✅ Media Picker Mobile — touch input handling
+- ✅ Headline Padding — layout consistency
+- ✅ Picker MIME Filter — file type validation
+- ✅ WebKit Timing — animation smoothness
+- ✅ Maximised Scroll — overflow handling
+
+### Phase 4: Integration Testing (In Progress)
+
+- ✅ Single-field form (text input)
+- ✅ Multi-field form with validation
+- ✅ Media picker field
+- ✅ Date/time field
+- ✅ Error state and retry
+- ⏳ Mobile viewport rendering
+- ⏳ Accessibility compliance
+- ⏳ Performance benchmarks
+
+### Phase Outcomes
+
+- Frontend strategy complete and peer-reviewed
+- Component architecture ready for implementation
+- Testing fixtures generated
+- Mobile and accessibility requirements documented
+

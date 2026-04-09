@@ -1195,3 +1195,40 @@ All components implemented, tested via build, and ready for integration with mob
 
 **Design Phase Status:** ✅ Complete (backend design doc: `docs/design/workflow-forms-engine-backend.md` completed)
 
+
+## Session: Workflow Forms Engine Redesign — 2026-04-09
+
+**Timestamp:** 2026-04-09T17:48:03Z  
+**Role:** Backend Dev  
+**Sprint Type:** Cross-agent architecture sprint (parallel with Tom Nook, Brewster, Isabelle)
+
+### Deliverables
+
+1. **Backend Implementation Plan:** `.squad/decisions/decisions.md` — "Backend Implementation Plan — Workflow Forms Engine Redesign"
+   - WorkflowController refactor for Element Type introspection
+   - Payload generation logic from Element Type metadata
+   - IComponentService integration for media URL caching
+   - Validation framework wiring
+   - Migration strategy (dual-stack → deprecation → removal)
+2. **Orchestration Log:** `.squad/orchestration-log/2026-04-09T17:48:03Z-blathers.md`
+
+### Key Implementation Changes
+
+- **WorkflowController:** Introspect Element Types via `IContentTypeService` to generate property descriptor payloads
+- **IComponentService:** Use for media URL generation from media picker properties
+- **Validation:** Server-side validation matches Element Type constraints (mandatory, regex, data types)
+- **Migrations:** Phase 1 (dual-stack), Phase 2 (deprecation), Phase 3 (removal)
+
+### Bug Fixes Merged
+
+- Media URL generation fix for workflow media picker (v1.7.1)
+- ID token signature validation (v1.7.1)
+- Nonce validation enforcement (v1.7.1)
+
+### Phase Outcomes
+
+- Backend change specification complete and peer-reviewed
+- Ready for implementation
+- Migration path clear and phased
+- No breaking changes in Phase 1
+

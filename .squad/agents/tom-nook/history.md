@@ -308,3 +308,30 @@
 **Design Phase Status:** ✅ Complete (design docs: 2 of 5 completed; Blathers/Isabelle/Brewster/Copper to produce companion specs)
 
 
+
+## Session: Workflow Forms Engine Redesign — 2026-04-09
+
+**Timestamp:** 2026-04-09T17:48:03Z  
+**Role:** Lead architect  
+**Sprint Type:** Cross-agent architecture sprint (parallel with Brewster, Blathers, Isabelle)
+
+### Deliverables
+
+1. **Design Document:** `docs/design/workflow-forms-engine-redesign.md` — 8-section comprehensive architecture
+2. **Decision Record:** Merged into `.squad/decisions/decisions.md` as "Workflow Forms Engine Redesign — Element Types as Step Definitions"
+3. **Orchestration Log:** `.squad/orchestration-log/2026-04-09T17:48:03Z-tom-nook.md`
+
+### Key Decisions
+
+- **Replace** `PrismFieldGroupDefinition` schema with Umbraco Element Types
+- **Leverage** Umbraco's native property editors and validation
+- **Delete** bespoke Lit components; implement dynamic form renderer
+- **Maintain** workflow state machine, response envelope, controller endpoints unchanged
+- **Fix** MockBackOffice assembly isolation (prevents Umbraco management API leakage)
+
+### Phase Outcomes
+
+- Architecture established and peer-reviewed
+- Implementation readiness confirmed by Brewster, Blathers, Isabelle
+- Next: Backend and frontend tickets assigned; Element Type seeding begins
+
