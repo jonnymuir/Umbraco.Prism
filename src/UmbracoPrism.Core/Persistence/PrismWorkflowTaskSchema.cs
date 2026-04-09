@@ -59,7 +59,7 @@ public class PrismWorkflowTaskSchema
     /// </summary>
     [Column("Status")]
     [Length(50)]
-    [Constraint(Default = "'Pending'")]
+
     public string Status { get; set; } = "Pending";
 
     /// <summary>

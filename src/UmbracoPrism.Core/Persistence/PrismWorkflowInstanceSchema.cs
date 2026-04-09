@@ -66,7 +66,7 @@ public class PrismWorkflowInstanceSchema
     /// </summary>
     [Column("Status")]
     [Length(50)]
-    [Constraint(Default = "'Active'")]
+
     public string Status { get; set; } = "Active";
 
     /// <summary>

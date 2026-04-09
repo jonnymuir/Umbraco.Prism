@@ -59,7 +59,7 @@ public class PrismFieldGroupDefinitionSchema
     /// </summary>
     [Column("Status")]
     [Length(50)]
-    [Constraint(Default = "'Draft'")]
+
     public string Status { get; set; } = "Draft";
 
     /// <summary>
