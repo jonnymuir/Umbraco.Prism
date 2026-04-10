@@ -24,8 +24,10 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// the verb is inspected manually so we avoid a Surface Controller.
 /// </summary>
 /// <remarks>
-/// Anonymous user tracking: The controller creates and maintains a <c>PrismAnonUserId</c> cookie
-/// to ensure workflows remain associated with the same user across sessions (30-day expiry).
+/// Requires an authenticated PrismMemberCookie session. Unauthenticated requests are redirected
+/// to the login page. The authenticated member's OID claim is used as the stable user identifier
+/// passed to the Business App.
+///
 /// Antiforgery validation is performed manually rather than via an attribute because this method
 /// serves both GET and POST and the attribute cannot be applied to such methods.
 /// </remarks>
@@ -39,17 +41,20 @@ public class WorkflowPageController(
     IAntiforgery antiforgery)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
-    private const string AnonUserCookie = "PrismAnonUserId";
-
     /// <summary>
     /// Routes GET and POST requests for the workflow page.
+    /// Redirects to login if the member is not authenticated.
     /// </summary>
     /// <returns>
     /// For GET: A rendered workflow view with current state and fields to collect.
     /// For POST: A redirect to the current page or a configured return URL (PRG pattern).
+    /// For unauthenticated requests: A redirect to the login page.
     /// </returns>
     public override IActionResult Index()
     {
+        if (!IsAuthenticated())
+            return RedirectToLogin();
+
         if (HttpContext.Request.Method == HttpMethods.Post)
             return HandlePost().GetAwaiter().GetResult();
 
@@ -74,7 +79,7 @@ public class WorkflowPageController(
         }
 
         var tenantId = prismContext.CurrentTenant?.Id.ToString() ?? "default";
-        var userId = GetOrCreateAnonUserId();
+        var userId = GetMemberUserId();
         var problems = PopProblemsFromTempData();
 
         var envelope = workflowClient
@@ -141,7 +146,7 @@ public class WorkflowPageController(
 
         // SECURITY: Always derive tenant/user from current session, never trust form data
         var tenantId = prismContext.CurrentTenant?.Id.ToString() ?? "default";
-        var userId = GetOrCreateAnonUserId();
+        var userId = GetMemberUserId();
         
         // SECURITY: Validate that form-submitted tenant/user match session identity
         var formTenantId = form["TenantId"].ToString();
@@ -175,26 +180,27 @@ public class WorkflowPageController(
     /// <summary>
     /// Gets or creates an anonymous user ID cookie.
     /// Ensures the same user maintains workflow state across sessions (30-day expiry).
-    /// </summary>
-    /// <returns>An existing or newly created anonymous user ID (format: "anon-{guid:N}").</returns>
-    private string GetOrCreateAnonUserId()
-    {
-        if (HttpContext.Request.Cookies.TryGetValue(AnonUserCookie, out var existing)
-            && !string.IsNullOrEmpty(existing))
-        {
-            return existing;
-        }
+    /// <summary>Returns true when the current request carries a valid PrismMemberCookie session.</summary>
+    private bool IsAuthenticated() =>
+        User.Identity?.IsAuthenticated == true
+        && User.FindFirst("oid") != null;
 
-        var newId = $"anon-{Guid.NewGuid():N}";
-        HttpContext.Response.Cookies.Append(AnonUserCookie, newId, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            Secure = HttpContext.Request.IsHttps,
-            Expires = DateTimeOffset.UtcNow.AddDays(30)
-        });
-        return newId;
+    /// <summary>
+    /// Redirects to the login page, preserving the current URL as the return path.
+    /// </summary>
+    private IActionResult RedirectToLogin()
+    {
+        var returnUrl = HttpContext.Request.PathBase + HttpContext.Request.Path;
+        return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
     }
+
+    /// <summary>
+    /// Returns the authenticated member's OID claim as the stable user identifier.
+    /// </summary>
+    private string GetMemberUserId() =>
+        User.FindFirst("oid")?.Value
+        ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        ?? throw new InvalidOperationException("Authenticated user has no OID claim. This should not be reachable after IsAuthenticated() check.");
 
     /// <summary>
     /// Extracts problems from TempData and deserializes them into WorkflowProblem objects.

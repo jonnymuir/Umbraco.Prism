@@ -8,8 +8,7 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// HTTP client that calls the external Business Application's workflow API.
-/// Configured via <c>PrismBusinessApp:WorkflowApiBaseUrl</c> and the optional
-/// <c>PrismBusinessApp:WorkflowApiKey</c> for server-to-server authentication.
+/// Configured via <c>PrismBusinessApp:WorkflowApiBaseUrl</c>.
 /// </summary>
 /// <remarks>
 /// This is the primary integration point between Umbraco and the Business App.
@@ -96,16 +95,8 @@ public class BusinessAppWorkflowClient(
         }
     }
 
-    /// <summary>Creates an HTTP client configured with the API key header (if configured).</summary>
-    /// <returns>An HttpClient with the <c>X-Prism-Api-Key</c> header added if an API key is configured.</returns>
-    private HttpClient CreateClient()
-    {
-        var client = httpClientFactory.CreateClient("PrismBusinessApp");
-        var apiKey = configuration["PrismBusinessApp:WorkflowApiKey"];
-        if (!string.IsNullOrEmpty(apiKey))
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Prism-Api-Key", apiKey);
-        return client;
-    }
+    /// <summary>Creates an HTTP client for calling the Business App.</summary>
+    private HttpClient CreateClient() => httpClientFactory.CreateClient("PrismBusinessApp");
 
     /// <summary>
     /// Reads a workflow response envelope from an HTTP response, handling errors and deserialisation.
