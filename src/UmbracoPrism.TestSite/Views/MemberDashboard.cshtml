@@ -103,21 +103,21 @@
             <div class="dash-api-card">
                 <div id="api-idle">
                     <p style="margin:0 0 16px; color: var(--prism-muted, #64748b);">
-                        Click the button below to call the MockBackOffice API using your current Prism Bearer token.
+                        Click the button below to call the Mock Business App API using your current Prism Bearer token.
                         The API will validate the token, resolve your tenant, and return your registered role.
                     </p>
                     <button onclick="callDownstreamApi()" class="btn btn-primary" id="api-btn"
                             style="font-size: var(--prism-text-size-sm, 13px); padding: 8px 16px;">
-                        Call MockBackOffice API
+                        Call Mock Business App API
                     </button>
                     <div class="api-hint" style="margin-top: 16px;">
-                        💡 Make sure MockBackOffice is running first:<br />
-                        <code>dotnet run --project src/UmbracoPrism.MockBackOffice</code>
+                        💡 Make sure Mock Business App is running first:<br />
+                        <code>dotnet run --project src/UmbracoPrism.MockBusinessApp</code>
                     </div>
                 </div>
 
                 <div id="api-loading" style="display:none; padding: 16px 0; color: var(--prism-muted, #64748b); font-size: var(--prism-text-size-sm, 13px);">
-                    ⏳ Calling MockBackOffice…
+                    ⏳ Calling Mock Business App…
                 </div>
 
                 <div id="api-result" style="display:none;">

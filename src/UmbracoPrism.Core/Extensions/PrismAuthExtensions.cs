@@ -42,7 +42,7 @@ public static class PrismAuthExtensions
 
                     IssuerValidator = (issuer, securityToken, validationParameters) =>
                     {
-                        var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
+                        var tenants = config.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>();
                         if (tenants == null || tenants.Count == 0)
                             throw new SecurityTokenInvalidIssuerException("No trusted tenants configured");
 
@@ -71,7 +71,7 @@ public static class PrismAuthExtensions
 
                     AudienceValidator = (audiences, securityToken, validationParameters) =>
                     {
-                        var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
+                        var tenants = config.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>();
                         if (tenants == null || tenants.Count == 0) return false;
 
                         var tokenTenantId = GetTokenTenantId(securityToken);
@@ -86,7 +86,7 @@ public static class PrismAuthExtensions
 
                     IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
                     {
-                        var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
+                        var tenants = config.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>();
                         return ResolveSigningKeys(
                             GetTokenTenantId(securityToken),
                             kid,

@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.Core", "src\Um
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.TestSite", "src\UmbracoPrism.TestSite\UmbracoPrism.TestSite.csproj", "{17131F80-633E-4FF3-B848-AB127C386608}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.MockBackOffice", "src\UmbracoPrism.MockBackOffice\UmbracoPrism.MockBackOffice.csproj", "{287810E4-0C40-447F-BD77-18C5FA4B71B2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.MockBusinessApp", "src\UmbracoPrism.MockBusinessApp\UmbracoPrism.MockBusinessApp.csproj", "{287810E4-0C40-447F-BD77-18C5FA4B71B2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.Core.Tests", "src\UmbracoPrism.Core.Tests\UmbracoPrism.Core.Tests.csproj", "{D12A6623-457A-4BC5-AD9E-602C8DB78D21}"
 EndProject

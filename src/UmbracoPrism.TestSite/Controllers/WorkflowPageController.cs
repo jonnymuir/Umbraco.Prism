@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
 using UmbracoPrism.Core.Models;
@@ -16,22 +17,37 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// Umbraco route-hijacking controller for the <c>workflowPage</c> document type.
 /// Naming convention: <c>WorkflowPageController</c> → alias <c>workflowPage</c>.
 ///
-/// GET  — resolves or creates a workflow instance, renders the current step via Razor partials.
-/// POST — advances the workflow state (PRG pattern).  Both verbs land on Index() because
-///        Umbraco's content router always targets the Index action; the verb is inspected
-///        manually so we avoid a Surface Controller.
+/// GET  — calls the Business App to ask "what should this user do next?" and renders the result.
+/// POST — submits the member's data to the Business App and redirects (PRG pattern).
+///
+/// Both verbs land on Index() because Umbraco's content router always targets the Index action;
+/// the verb is inspected manually so we avoid a Surface Controller.
 /// </summary>
+/// <remarks>
+/// Anonymous user tracking: The controller creates and maintains a <c>PrismAnonUserId</c> cookie
+/// to ensure workflows remain associated with the same user across sessions (30-day expiry).
+/// Antiforgery validation is performed manually rather than via an attribute because this method
+/// serves both GET and POST and the attribute cannot be applied to such methods.
+/// </remarks>
 public class WorkflowPageController(
     ILogger<WorkflowPageController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
     IPrismContext prismContext,
-    IWorkflowInstanceService workflowInstanceService,
+    IBusinessAppWorkflowClient workflowClient,
+    IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     private const string AnonUserCookie = "PrismAnonUserId";
 
+    /// <summary>
+    /// Routes GET and POST requests for the workflow page.
+    /// </summary>
+    /// <returns>
+    /// For GET: A rendered workflow view with current state and fields to collect.
+    /// For POST: A redirect to the current page or a configured return URL (PRG pattern).
+    /// </returns>
     public override IActionResult Index()
     {
         if (HttpContext.Request.Method == HttpMethods.Post)
@@ -41,9 +57,13 @@ public class WorkflowPageController(
     }
 
     // -----------------------------------------------------------------------
-    // GET
+    // GET — ask the Business App what to show
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Handles GET requests: calls the Business App to get the current workflow state and renders it.
+    /// </summary>
+    /// <returns>A view model for rendering the current workflow state.</returns>
     private IActionResult HandleGet()
     {
         var workflowKey = CurrentPage!.Value<string>("workflowKey") ?? string.Empty;
@@ -55,67 +75,36 @@ public class WorkflowPageController(
 
         var tenantId = prismContext.CurrentTenant?.Id.ToString() ?? "default";
         var userId = GetOrCreateAnonUserId();
-        var cookieName = InstanceCookieName(workflowKey);
-
-        // Restore problems from TempData (set by a failed POST)
         var problems = PopProblemsFromTempData();
 
-        // Try to resume an existing instance
-        WorkflowResponseEnvelope envelope;
-        var existingInstanceId = HttpContext.Request.Cookies[cookieName];
-
-        if (!string.IsNullOrEmpty(existingInstanceId))
-        {
-            envelope = workflowInstanceService
-                .GetCurrentStateAsync(tenantId, userId, existingInstanceId)
-                .GetAwaiter().GetResult();
-
-            // Instance gone or error — start fresh
-            if (envelope.ResponseState == "error")
-            {
-                envelope = CreateFreshInstance(tenantId, userId, workflowKey, cookieName);
-            }
-        }
-        else
-        {
-            envelope = CreateFreshInstance(tenantId, userId, workflowKey, cookieName);
-        }
+        var envelope = workflowClient
+            .GetCurrentAsync(workflowKey, tenantId, userId)
+            .GetAwaiter().GetResult();
 
         if (envelope.ResponseState == "error")
         {
             var msg = envelope.Problems.FirstOrDefault()?.Message
-                ?? $"Could not start workflow '{workflowKey}'. Is the definition seeded?";
+                ?? $"Could not start workflow '{workflowKey}'. Is the Business App running?";
             return CurrentTemplate(ErrorViewModel(workflowKey, msg));
         }
 
-        var vm = BuildViewModel(envelope, workflowKey, problems);
-        return CurrentTemplate(vm);
-    }
-
-    private WorkflowResponseEnvelope CreateFreshInstance(
-        string tenantId, string userId, string workflowKey, string cookieName)
-    {
-        var envelope = workflowInstanceService
-            .CreateAsync(tenantId, userId, workflowKey)
-            .GetAwaiter().GetResult();
-
-        if (envelope.ResponseState != "error" && !string.IsNullOrEmpty(envelope.InstanceId))
-        {
-            HttpContext.Response.Cookies.Append(cookieName, envelope.InstanceId, new CookieOptions
-            {
-                HttpOnly = true,
-                SameSite = SameSiteMode.Lax,
-                Secure = HttpContext.Request.IsHttps
-            });
-        }
-
-        return envelope;
+        return CurrentTemplate(BuildViewModel(envelope, workflowKey, problems));
     }
 
     // -----------------------------------------------------------------------
-    // POST
+    // POST — submit data to the Business App and redirect (PRG)
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Handles POST requests: validates the form, collects field values, submits to the Business App,
+    /// and redirects to the return URL (Post-Redirect-Get pattern).
+    /// </summary>
+    /// <returns>A redirect response; on validation error, redirects to the current or specified return URL.</returns>
+    /// <remarks>
+    /// Performs antiforgery validation manually to handle the special case of a method serving both GET and POST.
+    /// Field values are extracted from form keys prefixed with "fields[" (e.g., "fields[retirement-age]").
+    /// Problems from the Business App (if any) are serialized to TempData for display on the next GET.
+    /// </remarks>
     private async Task<IActionResult> HandlePost()
     {
         // Manual antiforgery check (replaces [ValidateAntiForgeryToken] attribute
@@ -150,23 +139,31 @@ public class WorkflowPageController(
             return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
         }
 
+        // SECURITY: Always derive tenant/user from current session, never trust form data
         var tenantId = prismContext.CurrentTenant?.Id.ToString() ?? "default";
         var userId = GetOrCreateAnonUserId();
+        
+        // SECURITY: Validate that form-submitted tenant/user match session identity
+        var formTenantId = form["TenantId"].ToString();
+        var formUserId = form["UserId"].ToString();
+        
+        if (!string.IsNullOrEmpty(formTenantId) && formTenantId != tenantId)
+        {
+            logger.LogWarning("SECURITY: Workflow POST tenant mismatch. Session={Session}, Form={Form}", tenantId, formTenantId);
+            return Forbid();
+        }
+        
+        if (!string.IsNullOrEmpty(formUserId) && formUserId != userId)
+        {
+            logger.LogWarning("SECURITY: Workflow POST user mismatch. Session={Session}, Form={Form}", userId, formUserId);
+            return Forbid();
+        }
 
-        var envelope = await workflowInstanceService.AdvanceAsync(
-            tenantId, userId, instanceId, action, stateVersion, fieldValues);
+        var envelope = await workflowClient.AdvanceAsync(
+            workflowKey, tenantId, userId, instanceId, action, stateVersion, fieldValues);
 
-        // On validation failure push problems into TempData so the GET can display them
         if (envelope.ResponseState == "error" && envelope.Problems.Count > 0)
-        {
             TempData["WorkflowProblems"] = JsonSerializer.Serialize(envelope.Problems);
-        }
-
-        // On completion, clear the instance cookie so a fresh visit starts a new workflow
-        if (envelope.ResponseState == "complete")
-        {
-            HttpContext.Response.Cookies.Delete(InstanceCookieName(workflowKey));
-        }
 
         return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
     }
@@ -175,6 +172,11 @@ public class WorkflowPageController(
     // Helpers
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Gets or creates an anonymous user ID cookie.
+    /// Ensures the same user maintains workflow state across sessions (30-day expiry).
+    /// </summary>
+    /// <returns>An existing or newly created anonymous user ID (format: "anon-{guid:N}").</returns>
     private string GetOrCreateAnonUserId()
     {
         if (HttpContext.Request.Cookies.TryGetValue(AnonUserCookie, out var existing)
@@ -194,17 +196,19 @@ public class WorkflowPageController(
         return newId;
     }
 
-    private static string InstanceCookieName(string workflowKey)
-        => $"PrismWorkflowInstance-{workflowKey}";
-
+    /// <summary>
+    /// Extracts problems from TempData and deserializes them into WorkflowProblem objects.
+    /// Used to display validation errors or business logic problems from the previous Business App call.
+    /// </summary>
+    /// <returns>A list of problems; empty if none are present or deserialization fails.</returns>
     private IReadOnlyList<WorkflowProblem> PopProblemsFromTempData()
     {
         if (TempData.TryGetValue("WorkflowProblems", out var raw) && raw is string json)
         {
             try
             {
-                return (IReadOnlyList<WorkflowProblem>?)JsonSerializer.Deserialize<List<WorkflowProblem>>(json)
-                    ?? Array.Empty<WorkflowProblem>();
+                return JsonSerializer.Deserialize<List<WorkflowProblem>>(json)
+                    ?? (IReadOnlyList<WorkflowProblem>)Array.Empty<WorkflowProblem>();
             }
             catch
             {
@@ -215,13 +219,20 @@ public class WorkflowPageController(
         return Array.Empty<WorkflowProblem>();
     }
 
+    /// <summary>
+    /// Builds the WorkflowViewModel from a Business App response envelope.
+    /// </summary>
+    /// <param name="envelope">The WorkflowResponseEnvelope from the Business App.</param>
+    /// <param name="workflowKey">The workflow definition key configured on the page.</param>
+    /// <param name="problems">Optional validation problems to display to the user.</param>
+    /// <returns>A WorkflowViewModel ready for view rendering.</returns>
     private WorkflowViewModel BuildViewModel(
         WorkflowResponseEnvelope envelope,
         string workflowKey,
         IReadOnlyList<WorkflowProblem>? problems = null)
     {
         var render = envelope.Render;
-        return new WorkflowViewModel
+        return new WorkflowViewModel(CurrentPage!, publishedValueFallback)
         {
             InstanceId = envelope.InstanceId,
             StateVersion = envelope.StateVersion,
@@ -235,8 +246,14 @@ public class WorkflowPageController(
         };
     }
 
+    /// <summary>
+    /// Builds an error view model when the workflow cannot be started or an unexpected error occurs.
+    /// </summary>
+    /// <param name="workflowKey">The workflow key that failed.</param>
+    /// <param name="message">The error message to display to the user.</param>
+    /// <returns>A WorkflowViewModel in error state.</returns>
     private WorkflowViewModel ErrorViewModel(string workflowKey, string message) =>
-        new()
+        new(CurrentPage!, publishedValueFallback)
         {
             WorkflowKey = workflowKey,
             HasError = true,

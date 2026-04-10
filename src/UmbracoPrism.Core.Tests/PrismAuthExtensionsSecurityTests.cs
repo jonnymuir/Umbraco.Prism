@@ -20,10 +20,10 @@ public class PrismAuthExtensionsSecurityTests
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
-            ["PrismBackOffice:Tenants:0:EntraTenantId"] = "tenant-a",
-            ["PrismBackOffice:Tenants:0:ClientId"] = "client-a",
-            ["PrismBackOffice:Tenants:0:Code"] = "ta",
-            ["PrismBackOffice:Tenants:0:DisplayName"] = "Tenant A"
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "tenant-a",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "client-a",
+            ["PrismBusinessApp:Tenants:0:Code"] = "ta",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Tenant A"
         });
 
         var token = CreateToken("tenant-a");
@@ -41,14 +41,14 @@ public class PrismAuthExtensionsSecurityTests
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
-            ["PrismBackOffice:Tenants:0:EntraTenantId"] = "tenant-a",
-            ["PrismBackOffice:Tenants:0:ClientId"] = "client-a",
-            ["PrismBackOffice:Tenants:0:Code"] = "ta",
-            ["PrismBackOffice:Tenants:0:DisplayName"] = "Tenant A",
-            ["PrismBackOffice:Tenants:1:EntraTenantId"] = "tenant-b",
-            ["PrismBackOffice:Tenants:1:ClientId"] = "client-b",
-            ["PrismBackOffice:Tenants:1:Code"] = "tb",
-            ["PrismBackOffice:Tenants:1:DisplayName"] = "Tenant B"
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "tenant-a",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "client-a",
+            ["PrismBusinessApp:Tenants:0:Code"] = "ta",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Tenant A",
+            ["PrismBusinessApp:Tenants:1:EntraTenantId"] = "tenant-b",
+            ["PrismBusinessApp:Tenants:1:ClientId"] = "client-b",
+            ["PrismBusinessApp:Tenants:1:Code"] = "tb",
+            ["PrismBusinessApp:Tenants:1:DisplayName"] = "Tenant B"
         });
 
         var token = CreateToken("tenant-a");
@@ -66,14 +66,14 @@ public class PrismAuthExtensionsSecurityTests
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
-            ["PrismBackOffice:Tenants:0:EntraTenantId"] = "tenant-a",
-            ["PrismBackOffice:Tenants:0:ClientId"] = "client-a",
-            ["PrismBackOffice:Tenants:0:Code"] = "ta",
-            ["PrismBackOffice:Tenants:0:DisplayName"] = "Tenant A",
-            ["PrismBackOffice:Tenants:1:EntraTenantId"] = "tenant-b",
-            ["PrismBackOffice:Tenants:1:ClientId"] = "client-b",
-            ["PrismBackOffice:Tenants:1:Code"] = "tb",
-            ["PrismBackOffice:Tenants:1:DisplayName"] = "Tenant B"
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "tenant-a",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "client-a",
+            ["PrismBusinessApp:Tenants:0:Code"] = "ta",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Tenant A",
+            ["PrismBusinessApp:Tenants:1:EntraTenantId"] = "tenant-b",
+            ["PrismBusinessApp:Tenants:1:ClientId"] = "client-b",
+            ["PrismBusinessApp:Tenants:1:Code"] = "tb",
+            ["PrismBusinessApp:Tenants:1:DisplayName"] = "Tenant B"
         });
 
         var token = CreateToken("tenant-a");

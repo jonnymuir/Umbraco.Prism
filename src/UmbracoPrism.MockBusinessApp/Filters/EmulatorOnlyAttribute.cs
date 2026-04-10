@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace UmbracoPrism.MockBackOffice.Filters;
+namespace UmbracoPrism.MockBusinessApp.Filters;
 
 /// <summary>
 /// Action filter that restricts endpoint access to Development environment only.

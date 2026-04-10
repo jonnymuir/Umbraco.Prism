@@ -26,7 +26,7 @@ public static class PrismResolvers
     // A factory method that returns a resolver bound to your configuration
     public static PrismTenantResolver FromConfig(IConfiguration config) => (tid) =>
     {
-        var tenants = config.GetSection("PrismBackOffice:Tenants").Get<List<BackOfficeTenant>>();
+        var tenants = config.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>();
         return tenants?.FirstOrDefault(t => t.EntraTenantId == tid);
     };
 }

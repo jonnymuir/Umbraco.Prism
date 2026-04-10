@@ -16,11 +16,11 @@
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj"
         },
         {
-            "name": "C#: Mock Back-Office Debug",
+            "name": "C#: Mock Business App Debug",
             "type": "dotnet",
             "request": "launch",
             "preLaunchTask": "dotnet: build Core",
-            "projectPath": "${workspaceFolder}/src/UmbracoPrism.MockBackOffice/UmbracoPrism.MockBackOffice.csproj"
+            "projectPath": "${workspaceFolder}/src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj"
         }
     ],
     "compounds": [
@@ -28,7 +28,7 @@
             "name": "C#: Full Prism Stack (Both)",
             "configurations": [
                 "C#: Prism Test Debug",
-                "C#: Mock Back-Office Debug"
+                "C#: Mock Business App Debug"
             ],
             "stopAll": true,
             "dependsOrder": "sequence"

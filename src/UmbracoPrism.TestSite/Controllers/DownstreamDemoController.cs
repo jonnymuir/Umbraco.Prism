@@ -71,7 +71,7 @@ public class DownstreamDemoController(
                 url,
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
-                body = "Request timed out after 10 seconds. Is MockBackOffice running?"
+                body = "Request timed out after 10 seconds. Is MockBusinessApp running?"
             });
         }
         catch (HttpRequestException ex)
@@ -84,7 +84,7 @@ public class DownstreamDemoController(
                 url,
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
-                body = $"Could not reach the service: {ex.Message}\n\nMake sure MockBackOffice is running:\n  dotnet run --project src/UmbracoPrism.MockBackOffice"
+                body = $"Could not reach the service: {ex.Message}\n\nMake sure MockBusinessApp is running:\n  dotnet run --project src/UmbracoPrism.MockBusinessApp"
             });
         }
     }

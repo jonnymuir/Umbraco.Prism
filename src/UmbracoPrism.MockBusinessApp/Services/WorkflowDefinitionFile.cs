@@ -1,0 +1,121 @@
+namespace UmbracoPrism.MockBusinessApp.Services;
+
+/// <summary>
+/// JSON-deserialized shape of a workflow definition seed file.
+/// Contains the states and transitions that define a workflow's structure.
+/// </summary>
+public record WorkflowDefinitionFile
+{
+    /// <summary>The unique identifier for this workflow definition (e.g. "retirement-quote").</summary>
+    public string DefinitionKey { get; init; } = "";
+    /// <summary>User-facing display name for the workflow.</summary>
+    public string DisplayName { get; init; } = "";
+    /// <summary>Version number of the definition (for tracking schema evolution).</summary>
+    public int Version { get; init; }
+    /// <summary>The state key that instances start in when first created.</summary>
+    public string InitialState { get; init; } = "";
+    /// <summary>All states defined in this workflow.</summary>
+    public IReadOnlyList<WorkflowStateFile> States { get; init; } = Array.Empty<WorkflowStateFile>();
+    /// <summary>All state transitions (edges) defined in this workflow.</summary>
+    public IReadOnlyList<WorkflowTransitionFile> Transitions { get; init; } = Array.Empty<WorkflowTransitionFile>();
+}
+
+/// <summary>
+/// JSON-deserialized shape of a workflow state within a definition.
+/// Describes what to collect/display when the instance reaches this state.
+/// </summary>
+public record WorkflowStateFile
+{
+    /// <summary>The unique identifier for this state within the workflow (e.g. "collect-details").</summary>
+    public string StateKey { get; init; } = "";
+    /// <summary>User-facing display name for this state.</summary>
+    public string DisplayName { get; init; } = "";
+    /// <summary>
+    /// The rendering archetype for this state: "Collect" (render fields), "StatusTimeline" (read-only status), 
+    /// or "Completion" (final state).
+    /// </summary>
+    public string Archetype { get; init; } = "Collect";
+    /// <summary>Allowed actions from this state (legacy field, not currently used).</summary>
+    public IReadOnlyList<string> AllowedActions { get; init; } = Array.Empty<string>();
+    /// <summary>Keys of field groups to render when in this state.</summary>
+    public IReadOnlyList<string> FieldGroupKeys { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// JSON-deserialized shape of a workflow transition.
+/// Defines a valid state change and the action that triggers it.
+/// </summary>
+public record WorkflowTransitionFile
+{
+    /// <summary>The state this transition originates from.</summary>
+    public string FromState { get; init; } = "";
+    /// <summary>The state this transition goes to.</summary>
+    public string ToState { get; init; } = "";
+    /// <summary>The action name that triggers this transition (e.g. "submit", "approve").</summary>
+    public string Action { get; init; } = "";
+    /// <summary>Optional role restriction: null for any user, "reviewer" for reviewer-only actions.</summary>
+    public string? RequiresRole { get; init; }
+}
+
+/// <summary>
+/// JSON-deserialized shape of a field group seed file.
+/// A reusable collection of fields that can be rendered in one or more workflow states.
+/// </summary>
+public record FieldGroupFile
+{
+    /// <summary>The unique identifier for this field group (e.g. "personal-info").</summary>
+    public string GroupKey { get; init; } = "";
+    /// <summary>User-facing display name for this field group.</summary>
+    public string DisplayName { get; init; } = "";
+    /// <summary>Version number of the field group (for tracking schema evolution).</summary>
+    public int Version { get; init; }
+    /// <summary>The fields contained in this group.</summary>
+    public IReadOnlyList<FieldFile> Fields { get; init; } = Array.Empty<FieldFile>();
+}
+
+/// <summary>
+/// JSON-deserialized shape of a field within a field group.
+/// Describes a single form field to collect from the user.
+/// </summary>
+public record FieldFile
+{
+    /// <summary>The unique identifier for this field (e.g. "retirement-age").</summary>
+    public string FieldKey { get; init; } = "";
+    /// <summary>User-facing label displayed next to the field.</summary>
+    public string Label { get; init; } = "";
+    /// <summary>Optional hint or helper text displayed below the label.</summary>
+    public string? Hint { get; init; }
+    /// <summary>The input type (e.g. "text", "number", "select", "checkbox").</summary>
+    public string FieldType { get; init; } = "text";
+    /// <summary>Whether this field must be completed before submission.</summary>
+    public bool Required { get; init; }
+    /// <summary>For select/checkbox fields, the list of available options.</summary>
+    public IReadOnlyList<string>? Options { get; init; }
+}
+
+/// <summary>
+/// Runtime state for a workflow instance held in-memory by the Business App.
+/// A new instance is created the first time a user accesses a workflow,
+/// and it persists (in-memory) until the application restarts.
+/// </summary>
+public record WorkflowInstanceState
+{
+    /// <summary>Unique identifier for this instance (a GUID).</summary>
+    public string InstanceId { get; init; } = "";
+    /// <summary>The workflow key this instance belongs to (from the definition).</summary>
+    public string WorkflowKey { get; init; } = "";
+    /// <summary>The tenant ID this instance belongs to.</summary>
+    public string TenantId { get; init; } = "";
+    /// <summary>The user ID who owns this instance.</summary>
+    public string UserId { get; init; } = "";
+    /// <summary>The current state key of this instance.</summary>
+    public string CurrentState { get; init; } = "";
+    /// <summary>Optimistic concurrency version; incremented on each state change.</summary>
+    public int StateVersion { get; init; }
+    /// <summary>When this instance was created.</summary>
+    public DateTimeOffset CreatedAt { get; init; }
+    /// <summary>When this instance was last modified.</summary>
+    public DateTimeOffset UpdatedAt { get; init; }
+    /// <summary>Field values collected from the user during this workflow run.</summary>
+    public Dictionary<string, object?> FieldValues { get; init; } = new();
+}

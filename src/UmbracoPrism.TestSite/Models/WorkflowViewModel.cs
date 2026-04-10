@@ -1,13 +1,18 @@
+using Umbraco.Cms.Core.Models.PublishedContent;
 using UmbracoPrism.Core.Models.Workflow;
 
 namespace UmbracoPrism.TestSite.Models;
 
 /// <summary>
 /// View model for the WorkflowPage route-hijacking controller.
-/// Wraps a <see cref="WorkflowRenderPayload"/> with form-tracking state.
+/// Inherits <see cref="PublishedContentWrapped"/> so Umbraco's ContentModelBinder
+/// can satisfy its IPublishedContent requirement during route-hijacking.
 /// </summary>
-public class WorkflowViewModel
+public class WorkflowViewModel : PublishedContentWrapped
 {
+    public WorkflowViewModel(IPublishedContent content, IPublishedValueFallback publishedValueFallback)
+        : base(content, publishedValueFallback) { }
+
     /// <summary>The instance identifier used in form hidden fields.</summary>
     public string InstanceId { get; set; } = string.Empty;
 
