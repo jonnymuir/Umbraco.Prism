@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
@@ -24,13 +25,14 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// the verb is inspected manually so we avoid a Surface Controller.
 /// </summary>
 /// <remarks>
-/// Requires an authenticated PrismMemberCookie session. Unauthenticated requests are redirected
-/// to the login page. The authenticated member's OID claim is used as the stable user identifier
-/// passed to the Business App.
+/// Requires an authenticated PrismMemberCookie session; unauthenticated requests are
+/// challenged by the framework. The authenticated member's OID claim is used as the
+/// stable user identifier passed to the Business App.
 ///
-/// Antiforgery validation is performed manually rather than via an attribute because this method
-/// serves both GET and POST and the attribute cannot be applied to such methods.
+/// Antiforgery validation is performed manually rather than via an attribute because this
+/// method serves both GET and POST and the attribute cannot be applied to such methods.
 /// </remarks>
+[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class WorkflowPageController(
     ILogger<WorkflowPageController> logger,
     ICompositeViewEngine compositeViewEngine,
@@ -52,9 +54,6 @@ public class WorkflowPageController(
     /// </returns>
     public override IActionResult Index()
     {
-        if (!IsAuthenticated())
-            return RedirectToLogin();
-
         if (HttpContext.Request.Method == HttpMethods.Post)
             return HandlePost().GetAwaiter().GetResult();
 
@@ -177,30 +176,11 @@ public class WorkflowPageController(
     // Helpers
     // -----------------------------------------------------------------------
 
-    /// <summary>
-    /// Gets or creates an anonymous user ID cookie.
-    /// Ensures the same user maintains workflow state across sessions (30-day expiry).
-    /// <summary>Returns true when the current request carries a valid PrismMemberCookie session.</summary>
-    private bool IsAuthenticated() =>
-        User.Identity?.IsAuthenticated == true
-        && User.FindFirst("oid") != null;
-
-    /// <summary>
-    /// Redirects to the login page, preserving the current URL as the return path.
-    /// </summary>
-    private IActionResult RedirectToLogin()
-    {
-        var returnUrl = HttpContext.Request.PathBase + HttpContext.Request.Path;
-        return Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
-    }
-
-    /// <summary>
-    /// Returns the authenticated member's OID claim as the stable user identifier.
-    /// </summary>
+    /// <summary>Returns the authenticated member's OID claim as the stable user identifier.</summary>
     private string GetMemberUserId() =>
         User.FindFirst("oid")?.Value
         ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-        ?? throw new InvalidOperationException("Authenticated user has no OID claim. This should not be reachable after IsAuthenticated() check.");
+        ?? string.Empty;
 
     /// <summary>
     /// Extracts problems from TempData and deserializes them into WorkflowProblem objects.
