@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Extensions;
@@ -145,5 +146,3 @@ public static class PrismAuthExtensions
         return null;
     }
 }
-
-public record BackOfficeTenant(string EntraTenantId, string ClientId, string Code, string DisplayName);

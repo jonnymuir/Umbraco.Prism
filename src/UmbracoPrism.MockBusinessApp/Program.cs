@@ -12,14 +12,7 @@ builder.Services.AddPrismAuthentication(builder.Configuration);
 
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddControllers()
-    .ConfigureApplicationPartManager(manager =>
-    {
-        // Only scan this assembly for controllers — prevents Umbraco management API
-        // controllers (e.g. AllWebhookController) being picked up via transitive deps.
-        manager.ApplicationParts.Clear();
-        manager.ApplicationParts.Add(new Microsoft.AspNetCore.Mvc.ApplicationParts.AssemblyPart(typeof(Program).Assembly));
-    });
+builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 
 // Business App workflow engine — singleton so in-memory instance state survives across requests

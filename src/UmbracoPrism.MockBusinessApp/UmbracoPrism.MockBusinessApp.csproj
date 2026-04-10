@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
+    <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
   </ItemGroup>
 
 </Project>

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
 using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests;

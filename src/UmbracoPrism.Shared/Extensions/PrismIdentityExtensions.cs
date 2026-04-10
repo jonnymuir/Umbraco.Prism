@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Configuration;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Extensions;
 
