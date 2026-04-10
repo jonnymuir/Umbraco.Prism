@@ -29,8 +29,6 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddAllowBiometricLoginColumn>("add-allow-biometric-login")
         .To<AddPushTokenColumn>("add-push-token")
         .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions")
-        .To<DropThemeColorColumn>("drop-theme-color")
-        .To<CreatePrismWorkflowTables>("add-workflow-tables")
-        .To<RemoveLegacyFieldGroupDefinitions>("remove-legacy-field-group-definitions");
+        .To<DropThemeColorColumn>("drop-theme-color");
     }
 }
