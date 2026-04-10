@@ -25,6 +25,9 @@
             case "Review":
                 @await Html.PartialAsync("_WorkflowStep-Review", Model)
                 break;
+            case "StatusTimeline":
+                @await Html.PartialAsync("_WorkflowStep-StatusTimeline", Model)
+                break;
             case "Completion":
                 @await Html.PartialAsync("_WorkflowStep-Completion", Model)
                 break;
