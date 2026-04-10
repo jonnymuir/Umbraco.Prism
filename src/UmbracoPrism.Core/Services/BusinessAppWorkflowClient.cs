@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Models.Workflow;
 
 namespace UmbracoPrism.Core.Services;
@@ -13,10 +14,15 @@ namespace UmbracoPrism.Core.Services;
 /// <remarks>
 /// This is the primary integration point between Umbraco and the Business App.
 /// It handles serialization, error handling, and logging for all workflow API calls.
+///
+/// The authenticated member's Entra Bearer token is forwarded on every request so the
+/// Business App can independently verify the caller's identity rather than trusting the
+/// TenantId/UserId values in the request body alone.
 /// </remarks>
 public class BusinessAppWorkflowClient(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
+    IPrismContext prismContext,
     ILogger<BusinessAppWorkflowClient> logger) : IBusinessAppWorkflowClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -33,7 +39,8 @@ public class BusinessAppWorkflowClient(
 
         try
         {
-            var response = await CreateClient().PostAsJsonAsync(url, payload, cancellationToken);
+            var client = await CreateClientAsync();
+            var response = await client.PostAsJsonAsync(url, payload, cancellationToken);
             return await ReadEnvelopeAsync(response, cancellationToken);
         }
         catch (HttpRequestException ex)
@@ -65,7 +72,8 @@ public class BusinessAppWorkflowClient(
 
         try
         {
-            var response = await CreateClient().PostAsJsonAsync(url, payload, cancellationToken);
+            var client = await CreateClientAsync();
+            var response = await client.PostAsJsonAsync(url, payload, cancellationToken);
             return await ReadEnvelopeAsync(response, cancellationToken);
         }
         catch (HttpRequestException ex)
@@ -95,8 +103,15 @@ public class BusinessAppWorkflowClient(
         }
     }
 
-    /// <summary>Creates an HTTP client for calling the Business App.</summary>
-    private HttpClient CreateClient() => httpClientFactory.CreateClient("PrismBusinessApp");
+    /// <summary>Creates an HTTP client for calling the Business App, with the member's Bearer token attached.</summary>
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = httpClientFactory.CreateClient("PrismBusinessApp");
+        var authHeader = await prismContext.GetAuthorizationHeaderAsync();
+        if (authHeader != null)
+            client.DefaultRequestHeaders.Authorization = authHeader;
+        return client;
+    }
 
     /// <summary>
     /// Reads a workflow response envelope from an HTTP response, handling errors and deserialisation.
