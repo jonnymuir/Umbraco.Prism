@@ -29,18 +29,17 @@ public class BusinessAppWorkflowClient(
 
     /// <inheritdoc/>
     public async Task<WorkflowResponseEnvelope> GetCurrentAsync(
-        string workflowKey, string tenantId, string userId,
+        string workflowKey,
         CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/api/workflow/{workflowKey}/current";
-        var payload = new { TenantId = tenantId, UserId = userId };
 
-        logger.LogDebug("BusinessAppWorkflowClient: GET current {WorkflowKey} for tenant={Tenant}", workflowKey, tenantId);
+        logger.LogDebug("BusinessAppWorkflowClient: GET current {WorkflowKey}", workflowKey);
 
         try
         {
             var client = await CreateClientAsync();
-            var response = await client.PostAsJsonAsync(url, payload, cancellationToken);
+            var response = await client.PostAsync(url, null, cancellationToken);
             return await ReadEnvelopeAsync(response, cancellationToken);
         }
         catch (HttpRequestException ex)
@@ -52,8 +51,10 @@ public class BusinessAppWorkflowClient(
 
     /// <inheritdoc/>
     public async Task<WorkflowResponseEnvelope> AdvanceAsync(
-        string workflowKey, string tenantId, string userId,
-        string instanceId, string action, int stateVersion,
+        string workflowKey,
+        string instanceId,
+        string action,
+        int stateVersion,
         Dictionary<string, object?>? fieldValues = null,
         CancellationToken cancellationToken = default)
     {
@@ -61,8 +62,6 @@ public class BusinessAppWorkflowClient(
         var payload = new
         {
             InstanceId = instanceId,
-            TenantId = tenantId,
-            UserId = userId,
             Action = action,
             StateVersion = stateVersion,
             FieldValues = fieldValues

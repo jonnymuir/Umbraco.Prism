@@ -7,7 +7,6 @@ using System.Text.Json;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
-using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.TestSite.Models;
@@ -37,7 +36,6 @@ public class WorkflowPageController(
     ILogger<WorkflowPageController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    IPrismContext prismContext,
     IBusinessAppWorkflowClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery)
@@ -77,12 +75,10 @@ public class WorkflowPageController(
                 "No workflow key configured on this page. Set the 'workflowKey' property in the backoffice."));
         }
 
-        var tenantId = prismContext.CurrentTenant?.Id.ToString() ?? "default";
-        var userId = GetMemberUserId();
         var problems = PopProblemsFromTempData();
 
         var envelope = workflowClient
-            .GetCurrentAsync(workflowKey, tenantId, userId)
+            .GetCurrentAsync(workflowKey)
             .GetAwaiter().GetResult();
 
         if (envelope.ResponseState == "error")
@@ -143,28 +139,8 @@ public class WorkflowPageController(
             return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
         }
 
-        // SECURITY: Always derive tenant/user from current session, never trust form data
-        var tenantId = prismContext.CurrentTenant?.Id.ToString() ?? "default";
-        var userId = GetMemberUserId();
-        
-        // SECURITY: Validate that form-submitted tenant/user match session identity
-        var formTenantId = form["TenantId"].ToString();
-        var formUserId = form["UserId"].ToString();
-        
-        if (!string.IsNullOrEmpty(formTenantId) && formTenantId != tenantId)
-        {
-            logger.LogWarning("SECURITY: Workflow POST tenant mismatch. Session={Session}, Form={Form}", tenantId, formTenantId);
-            return Forbid();
-        }
-        
-        if (!string.IsNullOrEmpty(formUserId) && formUserId != userId)
-        {
-            logger.LogWarning("SECURITY: Workflow POST user mismatch. Session={Session}, Form={Form}", userId, formUserId);
-            return Forbid();
-        }
-
         var envelope = await workflowClient.AdvanceAsync(
-            workflowKey, tenantId, userId, instanceId, action, stateVersion, fieldValues);
+            workflowKey, instanceId, action, stateVersion, fieldValues);
 
         if (envelope.ResponseState == "error" && envelope.Problems.Count > 0)
             TempData["WorkflowProblems"] = JsonSerializer.Serialize(envelope.Problems);
@@ -175,12 +151,6 @@ public class WorkflowPageController(
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
-
-    /// <summary>Returns the authenticated member's OID claim as the stable user identifier.</summary>
-    private string GetMemberUserId() =>
-        User.FindFirst("oid")?.Value
-        ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-        ?? string.Empty;
 
     /// <summary>
     /// Extracts problems from TempData and deserializes them into WorkflowProblem objects.
