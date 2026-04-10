@@ -1340,3 +1340,82 @@ All components implemented, tested via build, and ready for integration with mob
 ✅ **Build Status:** Builds clean — 0 errors, 0 warnings
 
 **Integration:** Backend pipeline complete. Frontend (Isabelle) consumes `ElementTypeAlias` via Razor partials. Controller (Brewster) orchestrates HTTP + workflow state.
+
+
+## Learnings (2025-01-10)
+
+### Refactored UmbracoPrism.Shared Library Extraction
+
+**Context:** MockBusinessApp needed auth and workflow models from Core but pulled in all of Umbraco as a transitive dependency, requiring a hacky ConfigureApplicationPartManager workaround to exclude Umbraco controllers.
+
+**Decision:** Created new UmbracoPrism.Shared project containing zero-Umbraco types that both Core and MockBusinessApp can reference.
+
+**Files Moved:**
+- Extensions/PrismIdentityExtensions.cs
+- Extensions/PrismAuthExtensions.cs
+- Models/BackOfficeTenant.cs
+- Models/Workflow/WorkflowResponseEnvelope.cs
+- Services/IPrismSigningKeyCache.cs
+- Services/PrismSigningKeyCache.cs
+- Services/PrismSigningKeyCacheSnapshot.cs
+
+**Benefits:**
+- MockBusinessApp no longer depends on Umbraco assemblies
+- Removed 6-line ConfigureApplicationPartManager workaround
+- Cleaner separation: business apps get minimal auth surface
+- All 218 tests still pass
+
+**Paths:**
+- Project: /src/UmbracoPrism.Shared/UmbracoPrism.Shared.csproj
+- Commit: c4acb2f
+
+
+## Session: 2026-04-10 — Shared Library Extraction + Workflow Architecture Decisions
+
+**Agents spawned:** Tom Nook (analysis), Blathers (implementation)  
+**Session log:** `.squad/log/2026-04-10T07:50:19Z-shared-lib-extraction.md`
+
+### Implementation Complete: UmbracoPrism.Shared
+
+**Task:** Extract shared library per Tom Nook's architectural recommendation.
+
+**Deliverables:**
+1. Created UmbracoPrism.Shared (.NET 10.0 library)
+   - Zero Umbraco dependencies
+   - Only Microsoft.Identity.Web + Microsoft.AspNetCore.Authentication.JwtBearer
+   - 8 files moved (7 existing + 1 extracted BackOfficeTenant record)
+
+2. Updated references
+   - Core → Shared
+   - MockBusinessApp: Core → Shared (removed dependency on full Umbraco stack)
+   - Tests transitive
+
+3. Removed `ConfigureApplicationPartManager` workaround
+   - Deleted 6 lines from MockBusinessApp/Program.cs
+   - No more gymnastics to hide Umbraco assembly discovery
+
+4. Namespace preservation
+   - All files kept original `UmbracoPrism.Core.*` namespace paths
+   - Zero breaking changes; all public APIs remain unchanged
+
+**Verification:**
+- ✅ Build: `dotnet build UmbracoPrism.sln -c Release` (0 errors, 0 warnings)
+- ✅ Tests: All 218 Core tests passing
+- ✅ MockBusinessApp builds cleanly without Core
+- ✅ InternalsVisibleTo added for test helper exposure
+
+**Commit:** c4acb2f
+
+**Related decisions merged into decisions.md:**
+- Tom Nook's architectural analysis (tom-nook-shared-lib-proposal.md)
+- Workflow authority → Business App (copilot-workflow-authority-to-business-app.md)
+- Workflow cleanup directive (tom-nook-workflow-cleanup.md)
+- Workflow documentation complete (celeste-workflow-docs.md)
+- Security review — 4 CRITICAL fixed (copper-workflow-security-review.md)
+- No Lit directive (copilot-directive-2026-04-09T175520.md)
+
+**Inbox status:** 7 files merged and deleted
+
+---
+
+**Status:** Complete. Shared lib extracted; workflow decisions merged; no regressions.

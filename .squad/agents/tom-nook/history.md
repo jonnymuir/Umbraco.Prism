@@ -335,3 +335,64 @@
 - Implementation readiness confirmed by Brewster, Blathers, Isabelle
 - Next: Backend and frontend tickets assigned; Element Type seeding begins
 
+
+
+## Session: 2026-04-10 — Shared Library Extraction + Workflow Architecture Decisions
+
+**Agents spawned:** Tom Nook (analysis), Blathers (implementation)  
+**Session log:** `.squad/log/2026-04-10T07:50:19Z-shared-lib-extraction.md`
+
+### Tom Nook
+
+**Task:** Analyze shared library extraction — recommend whether to extract auth/identity helpers from Core into a zero-Umbraco-dependency library.
+
+**Decision:** ✅ **YES — extract UmbracoPrism.Shared** before 1.8.0 release.
+
+**Findings:**
+- MockBusinessApp uses only 10 types from Core across 3 namespaces (Extensions, Models.Workflow, Services).
+- 8 files to move (7 existing + 1 extracted record) with **zero Umbraco transitive dependencies**.
+- Current `ConfigureApplicationPartManager` workaround is code smell; proper fix is cheap.
+- Benefits: clean architecture (business apps don't couple to CMS), removes brittle workaround, future-proof for new business apps.
+
+**Output:** `.squad/decisions/inbox/tom-nook-shared-lib-proposal.md` (comprehensive analysis, file list, impact assessment)
+
+### Blathers
+
+**Task:** Implement shared library extraction per Tom Nook's proposal.
+
+**Decision:** ✅ **Created UmbracoPrism.Shared** (.NET 10.0 library, zero Umbraco packages, only Microsoft.Identity.Web + JwtBearer)
+
+**Actions:**
+1. Created project: UmbracoPrism.Shared
+2. Moved 8 files: PrismIdentityExtensions, PrismAuthExtensions, BackOfficeTenant (extracted), WorkflowResponseEnvelope, 3x IPrismSigningKeyCache*
+3. Updated references: Core → Shared; MockBusinessApp: Core → Shared
+4. Removed `ConfigureApplicationPartManager` workaround from MockBusinessApp/Program.cs (6 lines deleted)
+5. Namespace preservation (UmbracoPrism.Core.* paths unchanged → minimal churn)
+
+**Verification:**
+- ✅ Build: `dotnet build UmbracoPrism.sln -c Release` (0 errors, 0 warnings)
+- ✅ Tests: 218 Core tests passing
+- ✅ Zero breaking changes; all public APIs unchanged
+- ✅ MockBusinessApp builds without Core dependency
+
+**Commit:** c4acb2f
+
+**Output:** `.squad/decisions/inbox/blathers-shared-lib-extraction.md` (implementation details, structure, verification)
+
+---
+
+### Decisions Merged (7 inbox files → decisions.md)
+
+1. **tom-nook-shared-lib-proposal.md** — Architectural analysis recommending extraction
+2. **blathers-shared-lib-extraction.md** — Implementation with commit c4acb2f
+3. **copilot-workflow-authority-to-business-app.md** — Workflow authority moved to MockBusinessApp (HTTP proxy pattern)
+4. **tom-nook-workflow-cleanup.md** — Directive to delete dead code from old state machine; approved for execution
+5. **celeste-workflow-docs.md** — XML documentation complete on 7 workflow files
+6. **copper-workflow-security-review.md** — Security review; 4 CRITICAL + 2 HIGH issues identified and fixed
+7. **copilot-directive-2026-04-09T175520.md** — No Lit for workflow form rendering; use Razor partials instead
+
+All inbox files deleted after merge.
+
+---
+
+**Status:** Complete. Scribe merged decisions, created orchestration logs, updated history.

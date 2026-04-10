@@ -3933,3 +3933,181 @@ Do NOT remove `uui-dialog-layout` and replace it with `:host { display: flex; fl
 
 **Build Status (Earlier Phase):** ✅ `npm run build` — 0 TypeScript errors
 
+
+---
+
+## 📌 2026-04-10: Shared Library Extraction — UmbracoPrism.Shared (Tom Nook + Blathers)
+
+**Session Log:** `.squad/log/2026-04-10T07:50:19Z-shared-lib-extraction.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-shared-lib-proposal.md`
+- `.squad/decisions/inbox/blathers-shared-lib-extraction.md`
+
+### Tom Nook — Architectural Analysis: UmbracoPrism.Shared Library Proposal
+
+**Decision:** Extract a lightweight `UmbracoPrism.Shared` library containing auth extensions, identity helpers, and workflow DTOs with **zero Umbraco dependencies**.
+
+**Scope:** 8 files (7 existing + 1 extracted record):
+- `Extensions/PrismIdentityExtensions.cs` (GetTenantId, GetEmail, PrismResolvers)
+- `Extensions/PrismAuthExtensions.cs` (AddPrismAuthentication, signing key resolution)
+- `Models/BackOfficeTenant.cs` (extracted from inline record)
+- `Models/Workflow/WorkflowResponseEnvelope.cs` (all workflow DTOs)
+- `Services/IPrismSigningKeyCache.cs`, `PrismSigningKeyCache.cs`, `PrismSigningKeyCacheSnapshot.cs`
+
+**Dependencies:** Only `Microsoft.Identity.Web` (4.3.0) and `Microsoft.AspNetCore.Authentication.JwtBearer` (10.0.2) — NO Umbraco packages.
+
+**Benefits:**
+- ✅ Clean architecture — business apps don't depend on CMS
+- ✅ Removes brittle `ConfigureApplicationPartManager` workaround
+- ✅ Small, surgical refactor — minimal churn
+- ✅ Future-proof — new business apps can reference Shared without Umbraco
+
+**Commit:** `c4acb2f` (Blathers)
+
+---
+
+### Blathers — Shared Library Extraction Implementation
+
+**Decision:** Implemented extraction of `UmbracoPrism.Shared` library.
+
+**What Changed:**
+- Moved 8 files from Core to Shared
+- Updated project references: Core → Shared; MockBusinessApp: Core → Shared
+- Removed `ConfigureApplicationPartManager` workaround from MockBusinessApp/Program.cs
+- Zero breaking changes; namespace preservation
+
+**Verification:**
+- ✅ Build: `dotnet build UmbracoPrism.sln -c Release` (0 errors)
+- ✅ Tests: 218 passed
+- ✅ All public APIs unchanged
+
+---
+
+## 📌 2026-04-10: Workflow Architecture Authority Moved to Business App (Copilot)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copilot-workflow-authority-to-business-app.md`
+
+### Workflow Authority Moved to Business App
+
+**Status:** Accepted
+
+**Decision:** Business App is now authoritative source of workflow state and definitions.
+
+**New Flow:**
+1. Browser → Umbraco (member visits workflowPage content node)
+2. Umbraco → Business App (`WorkflowPageController` calls `IBusinessAppWorkflowClient.GetCurrentAsync()`)
+3. Business App → Umbraco (returns `WorkflowResponseEnvelope`)
+4. Umbraco → Browser (renders UI)
+5. Browser → Umbraco (member submits form)
+6. Umbraco → Business App (`IBusinessAppWorkflowClient.AdvanceAsync()`)
+7. Business App → Umbraco (returns next step)
+
+**New Components:**
+- `BusinessAppWorkflowEngine` (MockBusinessApp) — singleton; loads JSON seeds
+- `WorkflowApiController` (MockBusinessApp) — POST `/api/workflow/{key}/current` and `/advance`
+- `IBusinessAppWorkflowClient` (Core) — interface for Umbraco → Business App
+- `BusinessAppWorkflowClient` (Core) — implementation using `IHttpClientFactory`
+
+**Security:** Umbraco includes `X-Prism-Api-Key` header. If unconfigured, endpoint is open (dev only).
+
+---
+
+## 📌 2026-04-10: Workflow Feature Cleanup Directive (Tom Nook)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-workflow-cleanup.md`
+
+### Architecture Decision: Workflow Feature Cleanup
+
+**Author:** Tom Nook (Lead Architect)  
+**Status:** Approved — ready for execution
+
+**Summary:** Old Umbraco-hosted state machine is dead code. Delete it.
+
+**Keep:** IBusinessAppWorkflowClient, BusinessAppWorkflowClient, WorkflowResponseEnvelope, WorkflowPageController, BusinessAppWorkflowEngine, WorkflowApiController, WorkflowEmulatorController, workflow-seeds/, migrations
+
+**Delete:** WorkflowInstanceService, WorkflowRenderService, WorkflowResponseFactory, WorkflowTenantGuard, WorkflowController, WorkflowDefinition, WorkflowInstance, WorkflowEvent, WorkflowTask, WorkflowFieldGroupSubmission, PrismFieldGroupDefinitionSchema, WorkflowExceptions.cs, old tests, old seed JSON in Core
+
+**Security:** WorkflowController is unguarded API surface — delete immediately (dead endpoint is liability).
+
+---
+
+## 📌 2026-04-10: Workflow Architecture Documentation Complete (Celeste)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/celeste-workflow-docs.md`
+
+### Workflow Architecture Documentation Complete
+
+**Date:** 2026-01-15  
+**Author:** Celeste (Documentation Engineer)
+
+**Summary:** Added comprehensive XML documentation to 7 workflow code files.
+
+**Files Documented:**
+1. IBusinessAppWorkflowClient.cs
+2. BusinessAppWorkflowClient.cs
+3. BusinessAppWorkflowEngine.cs (MockBusinessApp)
+4. WorkflowDefinitionFile.cs
+5. WorkflowApiController.cs (MockBusinessApp)
+6. WorkflowPageController.cs (TestSite)
+7. WorkflowBuilderExtensions.cs
+
+**Build Verification:** ✅ 0 errors, 0 warnings
+
+---
+
+## 📌 2026-04-10: Workflow Security Review — Copper
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copper-workflow-security-review.md`
+
+### Workflow Security Review
+
+**Reviewer:** Copper (Security Engineer)  
+**Status:** ✅ CRITICAL issues fixed
+
+**Issues Found & Fixed:**
+
+1. **CRITICAL-01: API Key Timing Attack [FIXED]**
+   - Replaced `==` with `CryptographicOperations.FixedTimeEquals()`
+
+2. **CRITICAL-02: Fail-Open on Missing API Key [FIXED]**
+   - Changed to fail-closed; log error, reject all requests
+
+3. **CRITICAL-03: Tenant/User Identity Bypass [FIXED]**
+   - Added validation that form tenant/user match session
+
+4. **CRITICAL-04: Error Sanitization [PASS]**
+   - Already sanitized; no leaks
+
+5. **HIGH-05: State Version Not Cryptographically Signed [DOCUMENTED]**
+   - Recommendation: Add HMAC/signed token for production
+
+6. **HIGH-06: Anonymous User Cookie Not Signed [DOCUMENTED]**
+   - Recommendation: Use Data Protection API for production
+
+**Overall:** 🟡 Acceptable for MVP; needs hardening for production
+
+---
+
+## 📌 2026-04-09: User Directive — No Lit for Workflow Form Rendering (Copilot)
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/copilot-directive-2026-04-09T175520.md`
+
+### User Directive: Workflow Form Rendering via Razor, Not Lit
+
+**By:** Jonny Muir  
+**Date:** 2026-04-09
+
+**Decision:** Workflow form steps render via Razor partial views, not Lit Web Components.
+
+**Why:** Lit adds complexity with no benefit when server-rendered Razor + CSS works identically on mobile (WKWebView) and desktop.
+
+**Implications:**
+- Delete: prism-workflow-collect.ts, prism-workflow-shell.ts, prism-workflow-orchestrator.ts, workflow-api-client.ts
+- WorkflowController becomes route-hijacking Umbraco controller (GET renders, POST advances)
+- Add Razor partials: _WorkflowStep-Collect.cshtml, _WorkflowStep-Review.cshtml, _WorkflowStep-Completion.cshtml
