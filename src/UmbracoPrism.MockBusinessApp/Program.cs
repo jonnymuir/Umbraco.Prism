@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -54,6 +55,58 @@ app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =
     });
 }).RequireAuthorization();
 
+// Workflow API — server-to-server calls from Umbraco TestSite forwarding the member's Bearer token.
+// Identity is derived from JWT claims; never trusted from the request body.
+app.MapPost("/api/workflow/{workflowKey}/current", (
+    string workflowKey,
+    ClaimsPrincipal user,
+    IConfiguration config,
+    BusinessAppWorkflowEngine engine,
+    ILogger<Program> logger) =>
+{
+    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
+    var email = user.GetEmail();
+
+    if (tenant == null || string.IsNullOrEmpty(email))
+        return Results.Unauthorized();
+
+    logger.LogInformation("Workflow current: key={Key} tenant={Tenant} user={User}", workflowKey, tenant.Code, email);
+
+    var envelope = engine.GetCurrent(workflowKey, tenant.Code, email);
+    return envelope.ResponseState == "error" ? Results.UnprocessableEntity(envelope) : Results.Ok(envelope);
+}).RequireAuthorization();
+
+app.MapPost("/api/workflow/{workflowKey}/advance", (
+    string workflowKey,
+    WorkflowAdvanceApiRequest request,
+    ClaimsPrincipal user,
+    IConfiguration config,
+    BusinessAppWorkflowEngine engine,
+    ILogger<Program> logger) =>
+{
+    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
+    var email = user.GetEmail();
+
+    if (tenant == null || string.IsNullOrEmpty(email))
+        return Results.Unauthorized();
+
+    logger.LogInformation(
+        "Workflow advance: key={Key} instance={Instance} action={Action}",
+        workflowKey, request.InstanceId, request.Action);
+
+    var envelope = engine.Advance(
+        request.InstanceId, tenant.Code, email,
+        request.Action, request.StateVersion, request.FieldValues);
+
+    return envelope.ResponseState == "error" ? Results.UnprocessableEntity(envelope) : Results.Ok(envelope);
+}).RequireAuthorization();
+
 app.Run();
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);
+
+public record WorkflowAdvanceApiRequest(
+    string InstanceId,
+    string Action,
+    int StateVersion,
+    Dictionary<string, object?>? FieldValues);
