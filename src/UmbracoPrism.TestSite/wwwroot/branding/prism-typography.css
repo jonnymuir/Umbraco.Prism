@@ -25,7 +25,7 @@
 @property --prism-body-weight {
   syntax: '<number>';
   inherits: true;
-  initial-value: 500;
+  initial-value: 400;
 }
 
 @property --prism-letter-spacing-caps {
@@ -69,7 +69,7 @@
     /* @prism section: Typography | label: Heading Font Weight | description: Font weight for headings and titles | type: text */
     --prism-heading-weight: 700;
     /* @prism section: Typography | label: Body Font Weight | description: Font weight for regular body text | type: text */
-    --prism-body-weight: 500;
+    --prism-body-weight: 400;
     /* @prism section: Typography | label: Caps Letter Spacing | description: Letter spacing for uppercase and small-caps text | type: length */
     --prism-letter-spacing-caps: 0.08em;
 

@@ -155,7 +155,7 @@
     --prism-input-padding: 0.5rem 0.625rem;
     --prism-input-font-size: 1rem;
     --prism-input-focus-color: var(--prism-focus);
-    --prism-input-focus-outline: 3px solid var(--prism-text);
+    --prism-input-focus-outline: 3px solid var(--prism-focus);
     --prism-label-font-size: 1rem;
     --prism-label-font-weight: 700;
     --prism-hint-color: var(--prism-muted);

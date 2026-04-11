@@ -1,25 +1,25 @@
 @property --bg-offset {
   syntax: '<color>';
   inherits: true;
-  initial-value: #f8f9fa;
+  initial-value: #f3f2f1;
 }
 
 @property --prism-text {
   syntax: '<color>';
   inherits: true;
-  initial-value: #0f172a;
+  initial-value: #0b0c0c;
 }
 
 @property --prism-muted {
   syntax: '<color>';
   inherits: true;
-  initial-value: #64748b;
+  initial-value: #505a5f;
 }
 
 @property --prism-primary {
   syntax: '<color>';
   inherits: true;
-  initial-value: #4f46e5;
+  initial-value: #1d70b8;
 }
 
 @property --prism-primary-contrast {
@@ -31,19 +31,19 @@
 @property --prism-accent {
   syntax: '<color>';
   inherits: true;
-  initial-value: #22c55e;
+  initial-value: #00703c;
 }
 
 @property --prism-link {
   syntax: '<color>';
   inherits: true;
-  initial-value: #2563eb;
+  initial-value: #1d70b8;
 }
 
 @property --prism-focus {
   syntax: '<color>';
   inherits: true;
-  initial-value: #f59e0b;
+  initial-value: #ffdd00;
 }
 
 @property --prism-surface {
@@ -55,66 +55,66 @@
 @property --prism-surface-alt {
   syntax: '<color>';
   inherits: true;
-  initial-value: #f8fafc;
+  initial-value: #f3f2f1;
 }
 
 @property --prism-border {
   syntax: '<color>';
   inherits: true;
-  initial-value: #e2e8f0;
+  initial-value: #b1b4b6;
 }
 
 @property --prism-success {
   syntax: '<color>';
   inherits: true;
-  initial-value: #16a34a;
+  initial-value: #00703c;
 }
 
 @property --prism-warning {
   syntax: '<color>';
   inherits: true;
-  initial-value: #f59e0b;
+  initial-value: #f47738;
 }
 
 @property --prism-danger {
   syntax: '<color>';
   inherits: true;
-  initial-value: #ef4444;
+  initial-value: #d4351c;
 }
 
 
 :root {
     /* @prism section: Brand Colours | label: Background Offset | description: Subtle background tint used for page backgrounds */
-    --bg-offset: #f8f9fa;
+    --bg-offset: #f3f2f1;
 
     /* @prism section: Brand Colours | label: Body Text | description: Primary text colour for body content */
-    --prism-text: #0f172a;
+    --prism-text: #0b0c0c;
     /* @prism section: Brand Colours | label: Muted Text | description: Secondary text colour for less prominent content */
-    --prism-muted: #64748b;
+    --prism-muted: #505a5f;
 
     /* @prism section: Brand Colours | label: Primary Brand Colour | description: Main brand colour used for buttons, links, and key highlights */
-    --prism-primary: #4f46e5;
+    --prism-primary: #1d70b8;
     /* @prism section: Brand Colours | label: Primary Contrast Text | description: Text colour that contrasts with the primary brand colour */
     --prism-primary-contrast: #ffffff;
     /* @prism section: Brand Colours | label: Accent Colour | description: Secondary accent colour for highlights and call-to-actions */
-    --prism-accent: #22c55e;
+    --prism-accent: #00703c;
     /* @prism section: Brand Colours | label: Link Colour | description: Colour for hyperlinks and interactive text */
-    --prism-link: #2563eb;
-    /* @prism section: Brand Colours | label: Focus Indicator | description: Colour for focus rings and accessibility indicators */
-    --prism-focus: #f59e0b;
+    --prism-link: #1d70b8;
+    /* @prism section: Brand Colours | label: Focus Indicator | description: Colour for focus rings and accessibility indicators (GDS yellow) */
+    --prism-focus: #ffdd00;
 
     /* @prism section: Brand Colours | label: Surface Background | description: Background colour for cards and elevated surfaces */
     --prism-surface: #ffffff;
     /* @prism section: Brand Colours | label: Alternate Surface | description: Alternate background colour for subtle contrast */
-    --prism-surface-alt: #f8fafc;
+    --prism-surface-alt: #f3f2f1;
     /* @prism section: Brand Colours | label: Border Colour | description: Colour for borders and dividers */
-    --prism-border: #e2e8f0;
+    --prism-border: #b1b4b6;
 
     /* @prism section: Brand Colours | label: Success Colour | description: Colour indicating successful actions or positive states */
-    --prism-success: #16a34a;
+    --prism-success: #00703c;
     /* @prism section: Brand Colours | label: Warning Colour | description: Colour indicating warnings or caution states */
-    --prism-warning: #f59e0b;
+    --prism-warning: #f47738;
     /* @prism section: Brand Colours | label: Danger Colour | description: Colour indicating errors or destructive actions */
-    --prism-danger: #ef4444;
+    --prism-danger: #d4351c;
 
 }
