@@ -42,6 +42,9 @@ public class WorkflowViewModel : PublishedContentWrapped
     /// <summary>Validation problems from the previous POST (populated via TempData).</summary>
     public IReadOnlyList<WorkflowProblem> Problems { get; set; } = Array.Empty<WorkflowProblem>();
 
+    /// <summary>Tamper-proof nonce binding this form to its server-side field definitions.</summary>
+    public string Nonce { get; set; } = string.Empty;
+
     /// <summary>True when the workflow engine returned a fatal error (definition not found, etc.).</summary>
     public bool HasError { get; set; }
 

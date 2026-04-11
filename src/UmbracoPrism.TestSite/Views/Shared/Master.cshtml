@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="/css/layout.css" />
     <link rel="stylesheet" href="/css/components.css" />
     <link rel="stylesheet" href="/css/utilities.css" />
-    <link rel="stylesheet" href="/css/prism-workflow.css" />
+
 </head>
 <body>
 
@@ -38,7 +38,9 @@
             <strong>@(tenant?.Name ?? "Prism Portal")</strong>
         </div>
         <nav>
-            <span style="font-size: 0.8rem; opacity: 0.8;">@Context.Request.Host</span>
+            <a href="/">Home</a>
+            <a href="/get-in-touch">Get in Touch</a>
+            <span style="font-size: 0.8rem; opacity: 0.8; margin-left: auto;">@Context.Request.Host</span>
         </nav>
     </header>
 

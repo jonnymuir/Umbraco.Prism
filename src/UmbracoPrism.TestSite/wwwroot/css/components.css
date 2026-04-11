@@ -1302,3 +1302,322 @@ html.prism-mobile .dash-welcome h1 {
         grid-template-columns: 1fr;
     }
 }
+
+/* ========================================================================
+   Prism Workflow Forms
+   ======================================================================== */
+
+.prism-workflow {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.workflow-page__header {
+    margin-bottom: 2rem;
+}
+
+.workflow-page__title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--prism-primary, #4f46e5);
+}
+
+.workflow-alert {
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+    border-left: 4px solid;
+}
+
+.workflow-alert--error {
+    background: #fef2f2;
+    border-color: #dc2626;
+    color: #991b1b;
+}
+
+.workflow-alert--warn {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+/* Error Summary */
+.prism-error-summary {
+    background: #fef2f2;
+    border: 2px solid #dc2626;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.prism-error-summary__title {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #991b1b;
+}
+
+.prism-error-summary__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.prism-error-summary__list li {
+    margin-bottom: 0.5rem;
+}
+
+.prism-error-summary__list a {
+    color: #dc2626;
+    text-decoration: underline;
+    font-weight: 600;
+}
+
+.prism-error-summary__list a:hover {
+    color: #991b1b;
+}
+
+/* Form Groups */
+.prism-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.prism-form-group--error .prism-label {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* Labels */
+.prism-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.prism-label--inline {
+    display: inline;
+    font-weight: 500;
+    margin-left: 0.5rem;
+}
+
+.prism-required {
+    color: #dc2626;
+    margin-left: 0.25rem;
+}
+
+/* Fieldset & Legend */
+.prism-workflow__fieldset,
+.prism-fieldset {
+    border: none;
+    padding: 0;
+    margin: 0 0 2rem;
+}
+
+.prism-legend {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: #1f2937;
+    padding: 0;
+}
+
+/* Hints & Errors */
+.prism-hint {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.prism-field-error {
+    color: #dc2626;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0.5rem 0 0;
+}
+
+/* Inputs */
+.prism-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.prism-input:focus {
+    outline: none;
+    border-color: var(--prism-primary, #4f46e5);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.prism-form-group--error .prism-input {
+    border-color: #dc2626;
+}
+
+.prism-form-group--error .prism-input:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* Textarea */
+.prism-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    resize: vertical;
+}
+
+.prism-textarea:focus {
+    outline: none;
+    border-color: var(--prism-primary, #4f46e5);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.prism-form-group--error .prism-textarea {
+    border-color: #dc2626;
+}
+
+/* Select */
+.prism-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    background-color: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.prism-select:focus {
+    outline: none;
+    border-color: var(--prism-primary, #4f46e5);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.prism-form-group--error .prism-select {
+    border-color: #dc2626;
+}
+
+/* Radio & Checkbox Items */
+.prism-radio-item,
+.prism-checkbox-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.prism-radio,
+.prism-checkbox {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--prism-primary, #4f46e5);
+}
+
+.prism-form-group__checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+/* Buttons */
+.prism-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.prism-button--primary {
+    background: var(--prism-primary, #4f46e5);
+    color: white;
+}
+
+.prism-button--primary:hover {
+    background: var(--prism-button-hover, #4338ca);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.prism-button--secondary {
+    background: white;
+    color: #6b7280;
+    border-color: #d1d5db;
+}
+
+.prism-button--secondary:hover {
+    border-color: #9ca3af;
+    background: #f9fafb;
+}
+
+.prism-button--destructive {
+    background: #dc2626;
+    color: white;
+}
+
+.prism-button--destructive:hover {
+    background: #991b1b;
+}
+
+.prism-workflow__actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Status & Completion States */
+.prism-workflow--status,
+.prism-workflow--complete {
+    text-align: center;
+    max-width: 600px;
+    margin: 3rem auto;
+}
+
+.prism-status__icon,
+.prism-completion__icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.prism-status__heading,
+.prism-panel__title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: var(--prism-primary, #4f46e5);
+}
+
+.prism-status__body,
+.prism-panel__body {
+    font-size: 1.125rem;
+    color: #4b5563;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.prism-panel--confirmation {
+    background: #f0fdf4;
+    border: 2px solid #86efac;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}

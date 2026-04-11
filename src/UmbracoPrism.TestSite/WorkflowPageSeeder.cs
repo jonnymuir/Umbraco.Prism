@@ -9,8 +9,8 @@ using Umbraco.Cms.Core.Services;
 namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Seeds a demo "Retirement Quote" content node of type <c>workflowPage</c> at
-/// <c>/retirement-quote</c> so the route-hijacking controller has a real content
+/// Seeds a demo "Get in Touch" content node of type <c>workflowPage</c> at
+/// <c>/get-in-touch</c> so the route-hijacking controller has a real content
 /// node to intercept.  Development-only, idempotent.
 /// </summary>
 public class WorkflowPageSeeder(
@@ -30,7 +30,8 @@ public class WorkflowPageSeeder(
 
         try
         {
-            EnsureRetirementQuotePage();
+            CleanupOldRetirementQuotePage();
+            EnsureCommunityEnquiryPage();
         }
         catch (Exception ex)
         {
@@ -40,7 +41,27 @@ public class WorkflowPageSeeder(
         return Task.CompletedTask;
     }
 
-    private void EnsureRetirementQuotePage()
+    private void CleanupOldRetirementQuotePage()
+    {
+        // Delete the old "Retirement Quote" demo node if it exists
+        var oldPage = contentService
+            .GetRootContent()
+            .FirstOrDefault(c => c.ContentType.Alias == "workflowPage"
+                              && (string.Equals(c.Name, "Retirement Quote", StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(c.GetValue<string>("workflowKey"), "retirement-quote", StringComparison.OrdinalIgnoreCase)));
+
+        if (oldPage != null)
+        {
+            logger.LogInformation("WORKFLOW PAGE SEEDER: Deleting old 'Retirement Quote' node (id={Id})", oldPage.Id);
+            var deleteResult = contentService.Delete(oldPage);
+            if (deleteResult.Success)
+                logger.LogInformation("WORKFLOW PAGE SEEDER: Old demo node deleted successfully");
+            else
+                logger.LogWarning("WORKFLOW PAGE SEEDER: Delete failed — {Reason}", deleteResult.Result);
+        }
+    }
+
+    private void EnsureCommunityEnquiryPage()
     {
         var contentType = contentTypeService.Get("workflowPage");
         if (contentType == null)
@@ -49,22 +70,23 @@ public class WorkflowPageSeeder(
             return;
         }
 
-        // Check if a workflowPage node with this name already exists
+        // Check if the new community-enquiry node already exists (by name OR workflowKey)
         var existing = contentService
             .GetRootContent()
             .FirstOrDefault(c => c.ContentType.Alias == "workflowPage"
-                              && string.Equals(c.Name, "Retirement Quote", StringComparison.OrdinalIgnoreCase));
+                              && (string.Equals(c.Name, "Get in Touch", StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(c.GetValue<string>("workflowKey"), "community-enquiry", StringComparison.OrdinalIgnoreCase)));
 
         if (existing != null)
         {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: 'Retirement Quote' content node already exists");
+            logger.LogDebug("WORKFLOW PAGE SEEDER: 'Get in Touch' content node already exists");
             return;
         }
 
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating 'Retirement Quote' content node");
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating 'Get in Touch' content node");
 
-        var page = contentService.Create("Retirement Quote", Constants.System.Root, "workflowPage");
-        page.SetValue("workflowKey", "retirement-quote");
+        var page = contentService.Create("Get in Touch", Constants.System.Root, "workflowPage");
+        page.SetValue("workflowKey", "community-enquiry");
 
         var saveResult = contentService.Save(page);
         if (!saveResult.Success)
@@ -75,7 +97,7 @@ public class WorkflowPageSeeder(
 
         var publishResult = contentService.Publish(page, Array.Empty<string>());
         if (publishResult.Success)
-            logger.LogInformation("WORKFLOW PAGE SEEDER: 'Retirement Quote' published (id={Id})", page.Id);
+            logger.LogInformation("WORKFLOW PAGE SEEDER: 'Get in Touch' published (id={Id})", page.Id);
         else
             logger.LogWarning("WORKFLOW PAGE SEEDER: Publish failed — {Reason}", publishResult.Result);
     }

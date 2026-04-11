@@ -1312,3 +1312,64 @@ The backend redesign moved field definitions to Umbraco Element Types, with `fie
 - `@property initial-value` does not accept `var()` references — spec limitation. Use a matching static hex in `initial-value` and the `var()` token in `:root`. This is expected and not a bug.
 - `color-mix(in srgb, token X%, black)` is the clean way to derive hover/active shades from design tokens without introducing hardcoded hex values.
 - When a GDS button colour conflicts with a Prism brand primary, introduce a modifier class (`.prism-button--submit`) rather than overriding the base primary — keeps semantic intent clear and preserves the brand identity.
+
+## 2025-01-XX — HTML5 Constraint Attributes & Accessibility Fixes
+
+**Task:** Add HTML5 native validation attributes to _WorkflowField.cshtml to support new FieldRenderPayload constraint properties.
+
+**Changes made:**
+1. **Added HTML5 constraint attributes** based on field type:
+   - text, email: minlength, maxlength, pattern
+   - number: min, max
+   - textarea: minlength, maxlength
+   - All types: required (native HTML5 attribute, not just ARIA)
+
+2. **Accessibility improvements (WCAG 2.2 AA compliance):**
+   - Fixed aria-describedby to dynamically include both hint AND error IDs when both present
+   - Added aria-invalid="true" to all inputs when field has error
+   - Moved error messages to proper location per field type:
+     - For radio and checkboxlist: error appears after legend/hint, inside fieldset
+     - For other fields: error appears after label/hint, before input
+   - Added error ID for aria-describedby reference
+   - Ensured all error messages have role="alert" for screen reader announcements
+   - Changed error class from prism-form-group__error to prism-field-error (consistent naming)
+
+3. **Constraint attribute implementation:**
+   - Computed all HTML5 attributes at top of partial (clean separation)
+   - Used Html.Raw() pattern consistent with existing code
+   - Applied constraints conditionally based on field type (text/email get pattern, number gets min/max)
+
+**Files modified:**
+- src/UmbracoPrism.TestSite/Views/Shared/_WorkflowField.cshtml
+
+**Build status:** ✅ Build succeeded (0 warnings, 0 errors)
+
+**Next:** CSS styling for .prism-field-error class (separate task)
+
+## Session: 2026-03-31 — Form Validation Error Styles
+
+**Task:** Add GDS-style validation error CSS classes to `prism-forms.css`.
+
+**Result:** ✅ Complete
+
+### Learnings
+
+- 2026-03-31: Added GDS-style form validation error styles to Prism design system. Error colour #d4351c (GDS red) has ~4.5:1 contrast ratio on white background (WCAG 2.2 AA compliant for normal text). Visual indicator pattern: colour + icon (✕ prefix) ensures WCAG compliance (colour alone is not the sole indicator).
+
+### Changes
+
+- **Added to `prism-forms.css`** (under new "Validation errors" section):
+  - CSS custom properties: `--prism-error`, `--prism-error-bg`, `--prism-error-border`
+  - `.prism-error-summary` — GDS-style error summary box with focus outline, title, list, and link styles
+  - `.prism-field--error` — field wrapper modifier that applies error styling to label and nested inputs/select/textarea
+  - `.prism-field-error` — inline error message with ✕ prefix icon
+  - `[aria-invalid="true"]` — standalone error state for inputs/select/textarea
+
+**Accessibility:**
+- Error summary focusable with `:focus` outline (3px solid `--prism-focus`)
+- Error text colour #d4351c meets WCAG 2.2 AA contrast requirements (4.5:1 on white)
+- Icon prefix (✕) on `.prism-field-error` ensures colour is not sole indicator
+- Error border increased to 3px for visual prominence
+- All styles follow existing ITCSS structure and GDS conventions
+
+**No breaking changes** — all new styles are additive, existing form styles preserved.

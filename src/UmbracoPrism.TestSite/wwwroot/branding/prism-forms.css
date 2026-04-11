@@ -1,32 +1,175 @@
-/* ==========================================================================
-   prism-workflow.css — Workflow form styles (GDS-inspired)
-   ========================================================================== */
+/* prism-forms.css — Form & workflow component styles */
 
-/* Custom properties (theming) */
+/* --------------------------------------------------------------------------
+   @property declarations for form-specific custom properties
+   -------------------------------------------------------------------------- */
+
+@property --prism-workflow-max-width {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 680px;
+}
+
+@property --prism-workflow-padding {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1.5rem;
+}
+
+@property --prism-form-group-spacing {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1.5rem;
+}
+
+@property --prism-input-border {
+  syntax: '*';
+  inherits: true;
+  initial-value: none;
+}
+
+@property --prism-input-border-radius {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --prism-input-padding {
+  syntax: '*';
+  inherits: true;
+  initial-value: none;
+}
+
+@property --prism-input-font-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1rem;
+}
+
+@property --prism-input-focus-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f59e0b;
+}
+
+@property --prism-input-focus-outline {
+  syntax: '*';
+  inherits: true;
+  initial-value: none;
+}
+
+@property --prism-label-font-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1rem;
+}
+
+@property --prism-label-font-weight {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 700;
+}
+
+@property --prism-hint-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #64748b;
+}
+
+@property --prism-hint-font-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0.9375rem;
+}
+
+@property --prism-required-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ef4444;
+}
+
+@property --prism-button-font-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1rem;
+}
+
+@property --prism-button-padding {
+  syntax: '*';
+  inherits: true;
+  initial-value: none;
+}
+
+@property --prism-button-border-radius {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --prism-actions-gap {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1rem;
+}
+
+@property --prism-panel-confirmation-border-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #16a34a;
+}
+
+@property --prism-panel-confirmation-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f0faf4;
+}
+
+@property --prism-panel-confirmation-padding {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1.5rem;
+}
+
+@property --prism-review-dt-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #64748b;
+}
+
+@property --prism-review-item-border {
+  syntax: '*';
+  inherits: true;
+  initial-value: none;
+}
+
+/* --------------------------------------------------------------------------
+   Custom properties (theming)
+   -------------------------------------------------------------------------- */
+
 :root {
     --prism-workflow-max-width: 680px;
     --prism-workflow-padding: 1.5rem;
     --prism-form-group-spacing: 1.5rem;
-    --prism-input-border: 2px solid #0b0c0c;
+    --prism-input-border: 2px solid var(--prism-text);
     --prism-input-border-radius: 0;
     --prism-input-padding: 0.5rem 0.625rem;
     --prism-input-font-size: 1rem;
-    --prism-input-focus-color: #ffdd00;
-    --prism-input-focus-outline: 3px solid #0b0c0c;
+    --prism-input-focus-color: var(--prism-focus);
+    --prism-input-focus-outline: 3px solid var(--prism-text);
     --prism-label-font-size: 1rem;
     --prism-label-font-weight: 700;
-    --prism-hint-color: #505a5f;
+    --prism-hint-color: var(--prism-muted);
     --prism-hint-font-size: 0.9375rem;
-    --prism-required-color: var(--prism-error-color, #d4351c);
+    --prism-required-color: var(--prism-danger);
     --prism-button-font-size: 1rem;
     --prism-button-padding: 0.625rem 1.25rem;
     --prism-button-border-radius: 0;
     --prism-actions-gap: 1rem;
-    --prism-panel-confirmation-border-color: #00703c;
-    --prism-panel-confirmation-bg: #f3faf5;
+    --prism-panel-confirmation-border-color: var(--prism-success);
+    --prism-panel-confirmation-bg: color-mix(in srgb, var(--prism-success) 8%, var(--prism-surface));
     --prism-panel-confirmation-padding: 1.5rem;
-    --prism-review-dt-color: #505a5f;
-    --prism-review-item-border: 1px solid #b1b4b6;
+    --prism-review-dt-color: var(--prism-muted);
+    --prism-review-item-border: 1px solid var(--prism-border);
 }
 
 /* --------------------------------------------------------------------------
@@ -56,8 +199,11 @@
     font-weight: 700;
     margin-bottom: 1rem;
     padding: 0;
-    float: left;
-    width: 100%;
+    /* display:table forces block behaviour for <legend> across all browsers
+       without the float hack that causes first radio to shift right */
+    display: table;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .prism-workflow__heading {
@@ -136,8 +282,8 @@
     font-family: inherit;
     border: var(--prism-input-border);
     border-radius: var(--prism-input-border-radius);
-    background-color: #ffffff;
-    color: #0b0c0c;
+    background-color: var(--prism-surface);
+    color: var(--prism-text);
     appearance: none;
     -webkit-appearance: none;
 }
@@ -161,7 +307,7 @@
 .prism-select:focus-visible {
     outline: var(--prism-input-focus-outline);
     outline-offset: 0;
-    box-shadow: inset 0 0 0 2px #0b0c0c;
+    box-shadow: inset 0 0 0 2px var(--prism-text);
 }
 
 /* Never suppress focus without a replacement */
@@ -184,7 +330,7 @@
     vertical-align: middle;
     cursor: pointer;
     flex-shrink: 0;
-    accent-color: #1d70b8;
+    accent-color: var(--prism-primary);
 }
 
 .prism-checkbox:focus-visible,
@@ -245,36 +391,48 @@
 }
 
 .prism-button--primary {
-    background-color: #00703c;
-    color: #ffffff;
-    border-color: #00703c;
+    background-color: var(--prism-primary);
+    color: var(--prism-primary-contrast);
+    border-color: var(--prism-primary);
 }
 
 .prism-button--primary:hover {
-    background-color: #005a30;
-    border-color: #005a30;
+    background-color: var(--prism-button-hover);
+    border-color: var(--prism-button-hover);
+}
+
+/* GDS-style green submit button for final form submission actions */
+.prism-button--submit {
+    background-color: var(--prism-success);
+    color: var(--prism-primary-contrast);
+    border-color: var(--prism-success);
+}
+
+.prism-button--submit:hover {
+    background-color: color-mix(in srgb, var(--prism-success) 80%, black);
+    border-color: color-mix(in srgb, var(--prism-success) 80%, black);
 }
 
 .prism-button--secondary {
-    background-color: #f3f2f1;
-    color: #0b0c0c;
-    border-color: #f3f2f1;
+    background-color: var(--prism-surface-alt);
+    color: var(--prism-text);
+    border-color: var(--prism-surface-alt);
 }
 
 .prism-button--secondary:hover {
-    background-color: #dbdad9;
-    border-color: #dbdad9;
+    background-color: color-mix(in srgb, var(--prism-border) 60%, var(--prism-surface-alt));
+    border-color: color-mix(in srgb, var(--prism-border) 60%, var(--prism-surface-alt));
 }
 
 .prism-button--destructive {
-    background-color: #d4351c;
-    color: #ffffff;
-    border-color: #d4351c;
+    background-color: var(--prism-danger);
+    color: var(--prism-primary-contrast);
+    border-color: var(--prism-danger);
 }
 
 .prism-button--destructive:hover {
-    background-color: #aa2a16;
-    border-color: #aa2a16;
+    background-color: color-mix(in srgb, var(--prism-danger) 80%, black);
+    border-color: color-mix(in srgb, var(--prism-danger) 80%, black);
 }
 
 /* --------------------------------------------------------------------------
@@ -402,7 +560,7 @@
 .workflow-page__title {
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--prism-primary, #1a1a1a);
+    color: var(--prism-primary);
 }
 
 /* --------------------------------------------------------------------------
@@ -418,15 +576,15 @@
 }
 
 .workflow-alert--error {
-    border-color: #d4351c;
-    background: #fef2f2;
-    color: #7a1f10;
+    border-color: var(--prism-danger);
+    background: color-mix(in srgb, var(--prism-danger) 8%, var(--prism-surface));
+    color: color-mix(in srgb, var(--prism-danger) 70%, black);
 }
 
 .workflow-alert--warn {
-    border-color: #d4351c;
-    background: #fffbeb;
-    color: #92400e;
+    border-color: var(--prism-warning);
+    background: color-mix(in srgb, var(--prism-warning) 10%, var(--prism-surface));
+    color: color-mix(in srgb, var(--prism-warning) 60%, black);
 }
 
 /* --------------------------------------------------------------------------
@@ -436,12 +594,12 @@
 .prism-form-group--error .prism-input,
 .prism-form-group--error .prism-textarea,
 .prism-form-group--error .prism-select {
-    border-color: #d4351c;
+    border-color: var(--prism-danger);
 }
 
 .prism-form-group__error {
     font-size: 0.875rem;
-    color: #d4351c;
+    color: var(--prism-danger);
     font-weight: 700;
     margin: 0.25rem 0 0;
     display: block;
@@ -452,7 +610,7 @@
    -------------------------------------------------------------------------- */
 
 .prism-review__intro {
-    color: var(--prism-hint-color, #505a5f);
+    color: var(--prism-hint-color);
     margin-bottom: 1.5rem;
 }
 
@@ -474,12 +632,12 @@
 .prism-status__heading {
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--prism-primary, #1a1a1a);
+    color: var(--prism-primary);
     margin-bottom: 0.75rem;
 }
 
 .prism-status__body {
-    color: var(--prism-hint-color, #505a5f);
+    color: var(--prism-muted);
     max-width: 480px;
     margin: 0 auto;
 }
@@ -493,4 +651,93 @@
     margin-bottom: 1rem;
     display: block;
     text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   Validation errors
+   -------------------------------------------------------------------------- */
+
+/* Error colour variables */
+:root {
+    --prism-error: #d4351c;         /* GDS red */
+    --prism-error-bg: #fdf2f0;      /* Soft error background */
+    --prism-error-border: #d4351c;  /* Error border */
+}
+
+/* Error summary — GDS-style page-level error summary box */
+.prism-error-summary {
+    border: 4px solid var(--prism-error, #d4351c);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+    background: var(--prism-error-bg, #fdf2f0);
+}
+
+.prism-error-summary:focus {
+    outline: 3px solid var(--prism-focus, #ffdd00);
+    outline-offset: 0;
+}
+
+.prism-error-summary__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--prism-error, #d4351c);
+    margin: 0 0 0.75rem;
+}
+
+.prism-error-summary__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.prism-error-summary__list li {
+    margin-bottom: 0.25rem;
+}
+
+.prism-error-summary__list a {
+    color: var(--prism-error, #d4351c);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.prism-error-summary__list a:hover {
+    text-decoration: none;
+}
+
+/* Field wrapper error modifier — turns field into error state */
+.prism-field--error .prism-label {
+    color: var(--prism-error, #d4351c);
+}
+
+.prism-field--error input,
+.prism-field--error select,
+.prism-field--error textarea {
+    border-color: var(--prism-error, #d4351c);
+    border-width: 3px;
+}
+
+/* Inline error message — appears below invalid field */
+.prism-field-error {
+    color: var(--prism-error, #d4351c);
+    font-weight: 700;
+    font-size: 0.9375rem;
+    margin: 0.25rem 0 0.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.375rem;
+}
+
+.prism-field-error::before {
+    content: "✕";
+    font-size: 0.75rem;
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+}
+
+/* Error state for inputs with aria-invalid — standalone styling */
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+    border-color: var(--prism-error, #d4351c);
+    border-width: 3px;
 }

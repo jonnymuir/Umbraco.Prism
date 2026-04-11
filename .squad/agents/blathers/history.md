@@ -1458,3 +1458,137 @@ All components implemented, tested via build, and ready for integration with mob
 Deleted `WorkflowAdvanceRequest.cs` (dead code). 0 references confirmed. Build clean. Committed 600b172.
 
 **Next:** Available for Workflow Emulator TUI REPL implementation (Tom Nook design decision pending).
+
+---
+
+## Task: Replace retirement-quote with community-enquiry demo workflow
+
+**Date:** 2025-01-10
+
+**Goal:** Create a comprehensive demo workflow that showcases ALL of Prism's field types, replacing the limited retirement-quote demo.
+
+**Changes Made:**
+
+1. **Created new field groups:**
+   - `field-groups/about-you-v1.json` — Demonstrates: text (with MaxLength), email, select
+   - `field-groups/your-enquiry-v1.json` — Demonstrates: radio, textarea (with MinLength/MaxLength), checkboxlist, boolean
+
+2. **Created new workflow definition:**
+   - `workflow-seeds/community-enquiry-v1.json` — "Get in Touch" workflow
+   - States: collecting-details (Collect), under-review (StatusTimeline), complete (Completion)
+   - Transitions: submit, save-draft, approve (reviewer), request-changes (reviewer)
+   - Showcases 8 field types: text, email, select, radio, textarea, checkboxlist, boolean, date
+
+3. **Deleted old workflow:**
+   - Removed `workflow-seeds/retirement-quote-v1.json`
+
+**Field Constraint Properties (MinLength, MaxLength):**
+
+Added `minLength` and `maxLength` to field definitions in JSON where appropriate. These properties are NOT yet mapped through to `FieldRenderPayload` in `BusinessAppWorkflowEngine.cs` (lines 331-340). The engine currently only maps: `FieldKey`, `Label`, `Hint`, `FieldType`, `Required`, `Options`, `Value`.
+
+**Next Steps Required:**
+1. Extend `FieldRenderPayload` record in `WorkflowResponseEnvelope.cs` to include `MinLength`, `MaxLength`, `Pattern`, `Min`, `Max` properties.
+2. Update `BuildFieldGroup` in `BusinessAppWorkflowEngine.cs` to map these from `FieldFile` to `FieldRenderPayload`.
+3. Update `FieldFile` in `WorkflowDefinitionFile.cs` to declare these optional properties.
+
+**Build:** 0 warnings, 0 errors.
+
+**Status:** Complete. Constraint properties ready in JSON but not yet wired through to render payload (separate task).
+
+
+---
+
+## 2026-03-22: Add Field Constraint Properties to Workflow Models
+
+**Context:** Implementing full-stack form validation for Prism workflow forms. Business Apps needed ability to declare field constraints (min/max length, regex patterns, numeric min/max) that Prism can use for both client-side HTML5 validation and server-side validation.
+
+**Changes Made:**
+
+1. **WorkflowResponseEnvelope.cs** (FieldRenderPayload record):
+   - Added int? MinLength — minimum character length for text/textarea fields
+   - Added int? MaxLength — maximum character length for text/textarea fields
+   - Added string? Pattern — HTML5 pattern (regex) for text/email fields
+   - Added decimal? Min — minimum value for number fields
+   - Added decimal? Max — maximum value for number fields
+   - All properties nullable; placed after Options property; includes XML doc comments
+
+2. **WorkflowDefinitionFile.cs** (FieldFile record):
+   - Added matching constraint properties: MinLength, MaxLength, Pattern, Min, Max
+   - All nullable for backward compatibility with existing field group JSON files
+
+3. **BusinessAppWorkflowEngine.cs** (BuildFieldGroup method, lines 331-344):
+   - Updated field mapping to pass constraint properties from FieldFile to FieldRenderPayload
+   - Ensures constraint values flow from JSON seed files → runtime engine → API response
+
+**Result:** Constraint properties now flow end-to-end from Business App field definitions through to Prism API responses. The community-enquiry workflow JSON files (created in previous session) already use minLength and maxLength; these values will now be correctly mapped and returned to Prism clients.
+
+**Build:** 0 warnings, 0 errors.
+
+**Status:** Complete. Ready for Prism to consume constraint properties for HTML5 attribute emission and server-side validation.
+
+
+## Learnings (2026-03-29 — Workflow Field Validator)
+
+- **Structural validation architecture**: `IWorkflowFieldValidator` / `WorkflowFieldValidator` provides server-side POST validation before forwarding to Business App. Checks field key whitelist, required fields, type coercion, options whitelist, and constraints.
+- **Validation sequence (first error wins)**: Required → Type → Options → Constraints. Only the FIRST error per field is recorded, matching GDS validation UX pattern where users fix top error first.
+- **Checkboxlist suffix normalization**: Client submits checkboxlist fields as `{key}[]`. Validator is lenient: strips `[]` suffix before checking authoritative keys. Both `field.FieldKey` and `{field.FieldKey}[]` are whitelisted for checkboxlist fields.
+- **Options whitelist behavior**: For `select`/`radio`/`checkboxlist` types, validator checks submitted values against `field.Options`. Checkboxlist values are split on `,` and each checked individually (case-insensitive contains check).
+- **Type validation rules**:
+  - `number`: `decimal.TryParse`
+  - `email`: basic check for `@` and `.` presence (not strict RFC5322)
+  - `date`/`datetime`: `DateTime.TryParse`
+  - Other types: no validation needed
+- **Constraint checks**: `MinLength`, `MaxLength`, `Pattern` (regex), `Min`/`Max` (decimal for number fields only). Constraints are only checked if value is non-empty.
+- **Error message format**: `"{field.Label} {message}"`. Examples: `"Email Address is required."`, `"Age must be a number."`, `"Country contains an invalid selection."`
+- **Model structure**: `WorkflowValidationResult` has `IsValid` (computed from `Errors.Count == 0`) and `Errors` (dict keyed by field key). Factory methods: `Pass()` and `Fail(errors)`.
+- **Registration**: Transient service in `WorkflowBuilderExtensions.AddPrismWorkflowEngine()` — new instance per validation call, no state.
+- **File locations**:
+  - `src/UmbracoPrism.Core/Models/Workflow/WorkflowValidationResult.cs`
+  - `src/UmbracoPrism.Core/Services/Workflow/IWorkflowFieldValidator.cs`
+  - `src/UmbracoPrism.Core/Services/Workflow/WorkflowFieldValidator.cs`
+  - Registration: `src/UmbracoPrism.Core/Extensions/WorkflowBuilderExtensions.cs`
+- **Dependency**: Authoritative field list comes from `IWorkflowStepNonceService` cache (already implemented in prior sprint). Validator is stateless and pure — just compares authoritative schema to submitted values.
+
+---
+
+## 2026-03-23: Workflow Controller Integration (Nonce + Structural Validation)
+
+**Task:** Wire up IWorkflowStepNonceService and IWorkflowFieldValidator into WorkflowPageController for tamper-proof form binding and structural validation.
+
+**Changes Made:**
+
+1. **WorkflowViewModel** (src/UmbracoPrism.TestSite/Models/WorkflowViewModel.cs)
+   - Added Nonce property (string) — carries the server-generated nonce to the view
+
+2. **WorkflowPageController** (src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs)
+   - **Constructor:** Added IWorkflowStepNonceService and IWorkflowFieldValidator DI parameters
+   - **Index():** Changed to await both HandleGet() and HandlePost() (both now async)
+   - **HandleGet():** 
+     - Changed signature to async Task<IActionResult>
+     - After building envelope, extract all fields from envelope.Render.FieldGroups
+     - Call nonceService.CreateAsync(allFields) to generate nonce
+     - Set vm.Nonce = nonce before returning
+   - **HandlePost():**
+     - Added nonce validation after antiforgery check:
+       - Extract nonce from form
+       - Call nonceService.ResolveAsync(nonce) to get authoritative fields
+       - Return redirect if nonce missing/expired (logged as warning)
+     - Added structural validation:
+       - Extract submittedFields dict from form keys prefixed fields[
+       - Call fieldValidator.Validate(authoritativeFields, submittedFields)
+       - If invalid, convert errors to WorkflowProblem list, serialize to TempData, redirect
+     - Refactored field collection: now uses already-validated submittedFields dict (converted to Dictionary<string, object?> for AdvanceAsync call)
+
+**Result:**
+- Build succeeded (0 warnings, 0 errors)
+- Controller now enforces field schema via nonce binding (prevents field injection)
+- Structural validation runs before Business App call (type checks, required, constraints, options whitelist)
+- Failed validations redirect via PRG pattern with errors in TempData
+
+**Security Impact:**
+- Tamper-proofing: attacker cannot add/remove fields or change field types client-side
+- Defense-in-depth: nonce expiry ensures stale forms cannot be replayed
+
+**Next Steps:**
+- Front-end changes to render nonce in hidden field
+- Test coverage for nonce expiry and validation error flows

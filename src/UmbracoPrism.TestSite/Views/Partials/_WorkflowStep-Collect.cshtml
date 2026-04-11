@@ -1,38 +1,20 @@
 @model UmbracoPrism.TestSite.Models.WorkflowViewModel
-@{
-    var token = Html.AntiForgeryToken();
-}
 
-<form class="prism-workflow" method="post" action="@Model.ReturnUrl" novalidate>
-    @token
-    <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
-    <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
-    <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
-    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+<prism-workflow-form instance-id="@Model.InstanceId"
+                     state-version="@Model.StateVersion"
+                     workflow-key="@Model.WorkflowKey"
+                     return-url="@Model.ReturnUrl"
+                     nonce="@Model.Nonce">
 
-    @if (Model.Problems.Any(p => string.IsNullOrEmpty(p.FieldKey)))
-    {
-        <div class="workflow-alert workflow-alert--error" role="alert">
-            @foreach (var p in Model.Problems.Where(p => string.IsNullOrEmpty(p.FieldKey)))
-            {
-                <p>@p.Message</p>
-            }
-        </div>
-    }
+    <prism-error-summary problems="@Model.Problems" />
 
     @foreach (var group in Model.FieldGroups)
     {
         <fieldset class="prism-workflow__fieldset">
             <legend class="prism-legend">@group.DisplayName</legend>
-
             @foreach (var field in group.Fields)
             {
-                var errorVd = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData);
-                if (Model.FieldErrors.TryGetValue(field.FieldKey, out var fieldErr))
-                {
-                    errorVd["fieldError"] = fieldErr;
-                }
-                @await Html.PartialAsync("_WorkflowField", field, errorVd)
+                <prism-field field="@field" errors="@Model.FieldErrors" />
             }
         </fieldset>
     }
@@ -51,4 +33,5 @@
             </button>
         }
     </div>
-</form>
+
+</prism-workflow-form>

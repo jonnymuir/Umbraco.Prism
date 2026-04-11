@@ -117,7 +117,7 @@ public class PrismContentTypeSeeder(
         var propertyType = new PropertyType(shortStringHelper, textboxDataType, propertyAlias)
         {
             Name = "Workflow Key",
-            Description = "The workflow definition key to run on this page (e.g. 'retirement-quote').",
+            Description = "The workflow definition key to run on this page (e.g. 'community-enquiry').",
             Mandatory = false,
             SortOrder = 0
         };

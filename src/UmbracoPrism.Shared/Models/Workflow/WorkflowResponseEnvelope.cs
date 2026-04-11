@@ -135,6 +135,31 @@ public record FieldRenderPayload
     /// Gets the options for select/radio fields (nullable).
     /// </summary>
     public IReadOnlyList<string>? Options { get; init; }
+
+    /// <summary>
+    /// Gets the minimum character length for text/textarea fields (nullable).
+    /// </summary>
+    public int? MinLength { get; init; }
+
+    /// <summary>
+    /// Gets the maximum character length for text/textarea fields (nullable).
+    /// </summary>
+    public int? MaxLength { get; init; }
+
+    /// <summary>
+    /// Gets the HTML5 pattern (regex) attribute value for text/email fields (nullable).
+    /// </summary>
+    public string? Pattern { get; init; }
+
+    /// <summary>
+    /// Gets the minimum value for number fields (nullable).
+    /// </summary>
+    public decimal? Min { get; init; }
+
+    /// <summary>
+    /// Gets the maximum value for number fields (nullable).
+    /// </summary>
+    public decimal? Max { get; init; }
 }
 
 /// <summary>

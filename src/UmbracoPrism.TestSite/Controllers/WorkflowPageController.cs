@@ -38,7 +38,9 @@ public class WorkflowPageController(
     IUmbracoContextAccessor umbracoContextAccessor,
     IBusinessAppWorkflowClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
-    IAntiforgery antiforgery)
+    IAntiforgery antiforgery,
+    IWorkflowStepNonceService nonceService,
+    IWorkflowFieldValidator fieldValidator)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     /// <summary>
@@ -55,7 +57,7 @@ public class WorkflowPageController(
         if (HttpContext.Request.Method == HttpMethods.Post)
             return HandlePost().GetAwaiter().GetResult();
 
-        return HandleGet();
+        return HandleGet().GetAwaiter().GetResult();
     }
 
     // -----------------------------------------------------------------------
@@ -66,7 +68,7 @@ public class WorkflowPageController(
     /// Handles GET requests: calls the Business App to get the current workflow state and renders it.
     /// </summary>
     /// <returns>A view model for rendering the current workflow state.</returns>
-    private IActionResult HandleGet()
+    private async Task<IActionResult> HandleGet()
     {
         var workflowKey = CurrentPage!.Value<string>("workflowKey") ?? string.Empty;
         if (string.IsNullOrWhiteSpace(workflowKey))
@@ -88,7 +90,15 @@ public class WorkflowPageController(
             return CurrentTemplate(ErrorViewModel(workflowKey, msg));
         }
 
-        return CurrentTemplate(BuildViewModel(envelope, workflowKey, problems));
+        // Collect all fields from the render payload for nonce caching
+        var allFields = envelope.Render?.FieldGroups
+            .SelectMany(g => g.Fields)
+            .ToList() ?? new List<FieldRenderPayload>();
+
+        var nonce = await nonceService.CreateAsync(allFields);
+        var vm = BuildViewModel(envelope, workflowKey, problems);
+        vm.Nonce = nonce;
+        return CurrentTemplate(vm);
     }
 
     // -----------------------------------------------------------------------
@@ -102,7 +112,7 @@ public class WorkflowPageController(
     /// <returns>A redirect response; on validation error, redirects to the current or specified return URL.</returns>
     /// <remarks>
     /// Performs antiforgery validation manually to handle the special case of a method serving both GET and POST.
-    /// Field values are extracted from form keys prefixed with "fields[" (e.g., "fields[retirement-age]").
+    /// Field values are extracted from form keys prefixed with "fields[" (e.g., "fields[full-name]").
     /// Problems from the Business App (if any) are serialized to TempData for display on the next GET.
     /// </remarks>
     private async Task<IActionResult> HandlePost()
@@ -120,18 +130,49 @@ public class WorkflowPageController(
         }
 
         var form = HttpContext.Request.Form;
+
+        // 1. Nonce validation — tamper-proofing
+        var nonce = form["Nonce"].ToString();
+        if (string.IsNullOrEmpty(nonce))
+        {
+            logger.LogWarning("Workflow POST: missing nonce — possible form tampering");
+            return Redirect(string.IsNullOrEmpty(form["ReturnUrl"].ToString()) ? "/" : form["ReturnUrl"].ToString());
+        }
+
+        var authoritativeFields = await nonceService.ResolveAsync(nonce);
+        if (authoritativeFields == null)
+        {
+            logger.LogWarning("Workflow POST: nonce expired or invalid — redirecting to GET");
+            return Redirect(string.IsNullOrEmpty(form["ReturnUrl"].ToString()) ? "/" : form["ReturnUrl"].ToString());
+        }
+
+        // 2. Structural validation
+        var submittedFields = form.Keys
+            .Where(k => k.StartsWith("fields[", StringComparison.Ordinal) && k.EndsWith("]"))
+            .ToDictionary(
+                k => k[7..^1],
+                k => form[k].ToString());
+
+        var validationResult = fieldValidator.Validate(authoritativeFields, submittedFields);
+        if (!validationResult.IsValid)
+        {
+            // Convert to WorkflowProblem list and store in TempData (PRG pattern)
+            var problems = validationResult.Errors
+                .Select(e => new WorkflowProblem { FieldKey = e.Key, Message = e.Value, Code = "validation_error" })
+                .ToList();
+            TempData["WorkflowProblems"] = JsonSerializer.Serialize(problems);
+            return Redirect(string.IsNullOrEmpty(form["ReturnUrl"].ToString()) ? "/" : form["ReturnUrl"].ToString());
+        }
         var instanceId = form["InstanceId"].ToString();
         var workflowKey = form["WorkflowKey"].ToString();
         var returnUrl = form["ReturnUrl"].ToString();
         var action = form["Action"].ToString();
         var stateVersion = int.TryParse(form["StateVersion"], out var sv) ? sv : 0;
 
-        // Collect submitted field values (form keys prefixed "fields[…]")
-        var fieldValues = form.Keys
-            .Where(k => k.StartsWith("fields[", StringComparison.Ordinal) && k.EndsWith("]"))
-            .ToDictionary(
-                k => k[7..^1],
-                k => (object?)form[k].ToString());
+        // Use already-validated submittedFields (converted to object? for AdvanceAsync)
+        var fieldValues = submittedFields.ToDictionary(
+            kvp => kvp.Key,
+            kvp => (object?)kvp.Value);
 
         if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(action))
         {

@@ -557,3 +557,17 @@ All layers are correctly scoped (model constraints → HTML5 → tamper-proofing
 5. End-to-end DX walkthrough confirmed
 
 **Key Insight:** This plan exemplifies the right architecture for a platform package. The "developer installs package and validation just works" outcome is achievable if the three blockers are resolved before any implementation begins. No shortcuts on model extensions, cache registration, or TTL configurability.
+
+---
+
+## 2026-04-11: Recorded "Principle of Least Surprise" as Standing Design Decision
+
+**Action:** Formalized the Prism design principle articulated during workflow validation planning.
+
+**Deliverable:** `.squad/decisions/inbox/tom-nook-design-principle.md`
+
+**Status:** Complete
+
+**Rationale:** This principle was already documented in historical notes from the validation architecture review. Elevated it to a formal standing decision so it serves as a reference point for all future feature design and architectural reviews.
+
+**Standing Effect:** This principle now governs evaluation of all new Prism APIs, defaults, and behaviors. Every feature must answer: "Does this require developers to do extra work, or does it just work?"

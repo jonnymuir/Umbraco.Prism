@@ -16,7 +16,7 @@ public interface IBusinessAppWorkflowClient
     /// Asks the Business App for the current workflow state for the calling member,
     /// creating a new workflow instance if none exists.
     /// </summary>
-    /// <param name="workflowKey">The workflow key configured on the Umbraco page (e.g. "retirement-quote").</param>
+    /// <param name="workflowKey">The workflow key configured on the Umbraco page (e.g. "community-enquiry").</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A workflow response envelope describing the current step and what to render.</returns>
     Task<WorkflowResponseEnvelope> GetCurrentAsync(

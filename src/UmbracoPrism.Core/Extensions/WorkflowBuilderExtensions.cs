@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
+using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Extensions;
@@ -18,6 +20,9 @@ public static class WorkflowBuilderExtensions
     /// <remarks>
     /// Registers:
     /// - <see cref="IBusinessAppWorkflowClient"/> (scoped) — HTTP client for calling the Business App
+    /// - <see cref="IWorkflowStepNonceService"/> (singleton) — Nonce generation and validation for tamper-proof forms
+    /// - <see cref="IDistributedCache"/> (singleton) — In-memory cache (replace with Redis/SQL for multi-server)
+    /// - <see cref="PrismWorkflowOptions"/> — Configuration from "Prism:Workflow" section
     /// 
     /// The Business App is the authoritative source for all workflow state and definitions.
     /// Umbraco uses this client to ask "what's the next step?" and to submit collected data.
@@ -29,6 +34,20 @@ public static class WorkflowBuilderExtensions
     {
         builder.Services.AddHttpClient("PrismBusinessApp");
         builder.Services.AddScoped<IBusinessAppWorkflowClient, BusinessAppWorkflowClient>();
+
+        // Distributed cache — works out of the box for single-server dev.
+        // Replace with AddStackExchangeRedisCache() or AddDistributedSqlServerCache() for multi-server production.
+        builder.Services.AddDistributedMemoryCache();
+
+        // Workflow configuration options
+        builder.Services.Configure<PrismWorkflowOptions>(
+            builder.Config.GetSection("Prism:Workflow"));
+
+        // Workflow nonce service for tamper-proof form submission
+        builder.Services.AddSingleton<IWorkflowStepNonceService, WorkflowStepNonceService>();
+
+        // Workflow field validator for server-side structural validation
+        builder.Services.AddTransient<IWorkflowFieldValidator, WorkflowFieldValidator>();
 
         return builder;
     }

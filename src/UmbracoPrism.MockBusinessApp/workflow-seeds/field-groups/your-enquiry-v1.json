@@ -1,0 +1,50 @@
+{
+  "groupKey": "your-enquiry",
+  "displayName": "Your Enquiry",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "enquiry-type",
+      "label": "What can we help with?",
+      "hint": null,
+      "fieldType": "radio",
+      "required": true,
+      "options": [
+        "General enquiry",
+        "Technical support",
+        "Partnership opportunity",
+        "Speaking / events"
+      ]
+    },
+    {
+      "fieldKey": "message",
+      "label": "Tell us more",
+      "hint": "Please give us enough detail to help you (20–500 characters)",
+      "fieldType": "textarea",
+      "required": true,
+      "minLength": 20,
+      "maxLength": 500
+    },
+    {
+      "fieldKey": "topics",
+      "label": "Topics you're interested in",
+      "hint": null,
+      "fieldType": "checkboxlist",
+      "required": false,
+      "options": [
+        "Umbraco CMS",
+        ".NET Development",
+        "Mobile Apps",
+        "Cloud & Azure",
+        "Design Systems"
+      ]
+    },
+    {
+      "fieldKey": "newsletter",
+      "label": "Keep me updated with Prism news and releases",
+      "hint": null,
+      "fieldType": "boolean",
+      "required": false
+    }
+  ]
+}

@@ -336,7 +336,12 @@ public class BusinessAppWorkflowEngine
             FieldType = f.FieldType,
             Required = f.Required,
             Options = f.Options,
-            Value = savedValues.TryGetValue(f.FieldKey, out var v) ? v : null
+            Value = savedValues.TryGetValue(f.FieldKey, out var v) ? v : null,
+            MinLength = f.MinLength,
+            MaxLength = f.MaxLength,
+            Pattern = f.Pattern,
+            Min = f.Min,
+            Max = f.Max
         }).ToArray();
 
         return new FieldGroupRenderPayload

@@ -899,3 +899,58 @@ Two comprehensive guides in `docs/guides/`:
 - Clear "what changes in production" section prevents misconfigurations
 - Real-world integration examples (ServiceNow, etc.) give confidence for real deployments
 - CSS customization no longer requires extra file; override variables in your site's stylesheet
+
+---
+
+## 2024-03-28: Validation Guide — Workflow Form Validation
+
+**Task:** Write new guide `docs/guides/workflow-forms-validation.md` explaining Prism's form validation stack to Umbraco developers integrating a real Business App.
+
+**Audience & Core Principle:**
+- **Audience:** Umbraco developers building Business Apps on top of Prism
+- **Core Principle:** Prism design principle is "make it easy to do the right thing; principle of least surprise." Install package → validation just works. Zero config needed.
+
+**Structure & Content Delivered:**
+- **Overview:** Brief intro with design principle quote; explains validation is automatic
+- **Five validation layers:**
+  1. HTML5 client-side (🔵 Prism) — emitted by tag helpers from field definitions
+  2. Tamper-proofing nonce (🔵 Prism) — automatic, invisible, prevents field injection
+  3. Server-side structural validation (🔵 Prism) — field key whitelist, required, type coercion, constraints
+  4. Business App validation (🟠 Your BA) — optional domain-specific layer (e.g., "email already registered")
+  5. Error display (🔵 Prism) — GDS-style, accessible, automatic
+- **Field constraint declaration:** JSON example showing all constraint types with worked example from `community-enquiry` field group (minLength/maxLength on message)
+- **Tag helper reference:** `<prism-workflow-form>`, `<prism-error-summary>`, `<prism-field>` with complete example from `_WorkflowStep-Collect.cshtml`
+- **Business App validation response:** JSON pattern for `ResponseState = "validation_error"` + `problems` array with field/form-wide errors
+- **Production configuration:** 
+  - Default: in-memory cache (fine for single server / dev)
+  - Multi-server: Redis/SQL Server setup (🟠 Your config)
+  - TTL configuration with JSON example
+- **Testsite demo:** Points to `/get-in-touch` (community-enquiry workflow); describes what it demonstrates (8 field types, constraints, multi-step, error display)
+- **What you don't need to do:** Bullet list of 10 automatic features (antiforgery, nonce validation, field key whitelist, constraint checking, accessible error display, ARIA attributes, etc.)
+
+**Labelling Convention (Applied Consistently):**
+- 🔵 **Prism Platform** — zero-config, automatic, part of the package
+- 🟠 **Your Business App** — you implement in your workflow engine
+
+**Writing Style Applied:**
+- Plain English, active voice, present tense ("Prism generates", "Your BA returns")
+- Short sentences, one idea per paragraph
+- Code blocks for all JSON/C#/Razor examples
+- No jargon without explanation; developer-first perspective
+- Real examples from testsite (community-enquiry, /get-in-touch, constraint values)
+
+**Files Created:**
+- `docs/guides/workflow-forms-validation.md` (new) — ~500 lines, complete validation guide
+
+**Key Differentiator from Existing Guides:**
+- `workflow-setup.md` explains structure definition and content setup
+- `workflow-customisation.md` explains UI theming and partial overrides
+- **workflow-forms-validation.md** (NEW) explains data validation, constraints, error handling, and multi-layer security
+- Three guides now cover setup, customization, and validation comprehensively
+
+**Impact:**
+- Developers understand how validation stack protects data (client, nonce, structure, business logic, display)
+- Clear "what Prism does" vs. "what you implement" removes confusion and improves integration time
+- Production config guidance (Redis, TTL) prevents nonce expiry bugs in multi-server deployments
+- Real constraint examples and /get-in-touch demo let developers test immediately
+- "What you don't need to do" list reassures developers they're not reinventing security wheels

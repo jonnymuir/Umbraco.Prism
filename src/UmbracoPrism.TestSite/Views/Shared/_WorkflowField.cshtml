@@ -4,13 +4,27 @@
 @{
     var hasHint = !string.IsNullOrEmpty(Model.Hint);
     var hintId = $"{Model.FieldKey}-hint";
-    var describedBy = hasHint ? $@" aria-describedby=""{hintId}""" : string.Empty;
-    var ariaRequired = Model.Required ? @" aria-required=""true""" : string.Empty;
-    var fieldType = Model.FieldType?.ToLowerInvariant() ?? "text";
-}
-@{
     var fieldError = ViewData["fieldError"] as string;
     var hasFieldError = !string.IsNullOrEmpty(fieldError);
+    var errorId = $"{Model.FieldKey}-error";
+    
+    // Build aria-describedby to include hint and/or error
+    var describedByParts = new System.Collections.Generic.List<string>();
+    if (hasHint) describedByParts.Add(hintId);
+    if (hasFieldError) describedByParts.Add(errorId);
+    var describedBy = describedByParts.Count > 0 ? $@" aria-describedby=""{string.Join(" ", describedByParts)}""" : string.Empty;
+    
+    var ariaRequired = Model.Required ? @" aria-required=""true""" : string.Empty;
+    var ariaInvalid = hasFieldError ? @" aria-invalid=""true""" : string.Empty;
+    var requiredAttr = Model.Required ? " required" : string.Empty;
+    var fieldType = Model.FieldType?.ToLowerInvariant() ?? "text";
+    
+    // HTML5 constraint attributes
+    var minLengthAttr = Model.MinLength.HasValue ? $@" minlength=""{Model.MinLength.Value}""" : string.Empty;
+    var maxLengthAttr = Model.MaxLength.HasValue ? $@" maxlength=""{Model.MaxLength.Value}""" : string.Empty;
+    var patternAttr = !string.IsNullOrEmpty(Model.Pattern) ? $@" pattern=""{Model.Pattern}""" : string.Empty;
+    var minAttr = Model.Min.HasValue ? $@" min=""{Model.Min.Value}""" : string.Empty;
+    var maxAttr = Model.Max.HasValue ? $@" max=""{Model.Max.Value}""" : string.Empty;
 }
 
 <div class="prism-form-group @(hasFieldError ? "prism-form-group--error" : "")">
@@ -24,7 +38,9 @@
                    name="fields[@Model.FieldKey]"
                    value="true"
                    @(Model.Value is true || "true".Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                   @Html.Raw(requiredAttr)
                    @Html.Raw(ariaRequired)
+                   @Html.Raw(ariaInvalid)
                    @Html.Raw(describedBy) />
             <label class="prism-label prism-label--inline" for="@Model.FieldKey">
                 @Model.Label
@@ -61,7 +77,9 @@
                                name="fields[@Model.FieldKey]"
                                value="@option"
                                @(option.Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "checked" : "")
-                               @Html.Raw(ariaRequired) />
+                               @Html.Raw(requiredAttr)
+                               @Html.Raw(ariaRequired)
+                               @Html.Raw(ariaInvalid) />
                         <label class="prism-label prism-label--inline" for="@radioId">@option</label>
                     </div>
                 }
@@ -82,6 +100,10 @@
             {
                 <div class="prism-hint" id="@hintId">@Model.Hint</div>
             }
+            @if (hasFieldError)
+            {
+                <p class="prism-field-error" id="@errorId" role="alert">@fieldError</p>
+            }
             @if (Model.Options != null)
             {
                 foreach (var option in Model.Options)
@@ -93,7 +115,9 @@
                                id="@cbId"
                                name="fields[@Model.FieldKey]"
                                value="@option"
-                               @Html.Raw(ariaRequired) />
+                               @Html.Raw(requiredAttr)
+                               @Html.Raw(ariaRequired)
+                               @Html.Raw(ariaInvalid) />
                         <label class="prism-label prism-label--inline" for="@cbId">@option</label>
                     </div>
                 }
@@ -113,20 +137,31 @@
         {
             <div class="prism-hint" id="@hintId">@Model.Hint</div>
         }
+        @if (hasFieldError)
+        {
+            <p class="prism-field-error" id="@errorId" role="alert">@fieldError</p>
+        }
         <select class="prism-select"
                 id="@Model.FieldKey"
                 name="fields[@Model.FieldKey]"
+                @Html.Raw(requiredAttr)
                 @Html.Raw(ariaRequired)
+                @Html.Raw(ariaInvalid)
                 @Html.Raw(describedBy)>
             <option value="">-- Select --</option>
             @if (Model.Options != null)
             {
                 foreach (var option in Model.Options)
                 {
-                    <option value="@option"
-                            @(option.Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : "")>
-                        @option
-                    </option>
+                    var isSelected = option.Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+                    if (isSelected)
+                    {
+                        <option value="@option" selected="selected">@option</option>
+                    }
+                    else
+                    {
+                        <option value="@option">@option</option>
+                    }
                 }
             }
         </select>
@@ -144,11 +179,19 @@
         {
             <div class="prism-hint" id="@hintId">@Model.Hint</div>
         }
+        @if (hasFieldError)
+        {
+            <p class="prism-field-error" id="@errorId" role="alert">@fieldError</p>
+        }
         <textarea class="prism-textarea"
                   id="@Model.FieldKey"
                   name="fields[@Model.FieldKey]"
                   rows="5"
+                  @Html.Raw(requiredAttr)
+                  @Html.Raw(minLengthAttr)
+                  @Html.Raw(maxLengthAttr)
                   @Html.Raw(ariaRequired)
+                  @Html.Raw(ariaInvalid)
                   @Html.Raw(describedBy)>@Model.Value</textarea>
     }
     else
@@ -175,19 +218,34 @@
         {
             <div class="prism-hint" id="@hintId">@Model.Hint</div>
         }
+        @if (hasFieldError)
+        {
+            <p class="prism-field-error" id="@errorId" role="alert">@fieldError</p>
+        }
+        @{
+            // Apply appropriate HTML5 constraint attributes based on field type
+            var constraintAttrs = string.Empty;
+            if (inputType == "text" || inputType == "email")
+            {
+                constraintAttrs = minLengthAttr + maxLengthAttr + patternAttr;
+            }
+            else if (inputType == "number")
+            {
+                constraintAttrs = minAttr + maxAttr;
+            }
+        }
         <input class="prism-input"
                type="@inputType"
                id="@Model.FieldKey"
                name="fields[@Model.FieldKey]"
                value="@Model.Value"
                @Html.Raw(step)
+               @Html.Raw(requiredAttr)
+               @Html.Raw(constraintAttrs)
                @Html.Raw(ariaRequired)
+               @Html.Raw(ariaInvalid)
                @Html.Raw(describedBy) />
     }
 
-    @if (hasFieldError)
-    {
-        <p class="prism-form-group__error" role="alert">@fieldError</p>
-    }
 
 </div>

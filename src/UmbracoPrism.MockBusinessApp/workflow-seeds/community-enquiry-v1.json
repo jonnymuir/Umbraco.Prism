@@ -1,0 +1,35 @@
+{
+  "definitionKey": "community-enquiry",
+  "displayName": "Get in Touch",
+  "version": 1,
+  "initialState": "collecting-details",
+  "states": [
+    {
+      "stateKey": "collecting-details",
+      "displayName": "Tell us about your enquiry",
+      "archetype": "Collect",
+      "allowedActions": ["submit", "save-draft"],
+      "fieldGroupKeys": ["about-you", "your-enquiry"]
+    },
+    {
+      "stateKey": "under-review",
+      "displayName": "Your enquiry is with us",
+      "archetype": "StatusTimeline",
+      "allowedActions": [],
+      "fieldGroupKeys": []
+    },
+    {
+      "stateKey": "complete",
+      "displayName": "We're in touch!",
+      "archetype": "Completion",
+      "allowedActions": ["start-another"],
+      "fieldGroupKeys": []
+    }
+  ],
+  "transitions": [
+    { "fromState": "collecting-details", "toState": "under-review", "action": "submit" },
+    { "fromState": "collecting-details", "toState": "collecting-details", "action": "save-draft" },
+    { "fromState": "under-review", "toState": "complete", "action": "approve", "requiresRole": "reviewer" },
+    { "fromState": "under-review", "toState": "collecting-details", "action": "request-changes", "requiresRole": "reviewer" }
+  ]
+}

@@ -1351,3 +1351,148 @@ The previous workflow UI used a `workflowDemoPage` document type with a static `
 - **GDS-style error summary** — current implementation has manual `Model.Problems.Where(p => string.IsNullOrEmpty(p.FieldKey))` filtering; tag helper encapsulates this pattern
 - **Tag helpers are faster than partials** — compiled at build time, no runtime view engine resolution overhead
 - **Umbraco v17 has no tag helper restrictions** — standard ASP.NET Core patterns apply; no surprises
+
+---
+
+## Session: 2026-04-11 — Replace Retirement Quote Demo with Community Enquiry
+
+**Status:** Completed  
+**Requested by:** Jonny Muir  
+
+**Task:** Replace the old "Retirement Quote" workflow demo with "Community Enquiry" (Get in Touch) — a better showcase of Prism workflow features.
+
+### Files Updated
+
+1. **`WorkflowPageSeeder.cs`**
+   - Changed from seeding "Retirement Quote" at `/retirement-quote` to "Get in Touch" at `/get-in-touch`
+   - Content node name: `"Get in Touch"` (user-facing page title)
+   - `workflowKey` property: `"community-enquiry"` (workflow definition identifier)
+   - URL slug: Auto-generated as `/get-in-touch` by Umbraco
+   - Updated XML doc comment to reflect new demo
+   - Added `CleanupOldRetirementQuotePage()` method to DELETE existing "Retirement Quote" nodes on startup (keeps demo clean)
+   - Updated `EnsureCommunityEnquiryPage()` to check for existing node by BOTH name AND workflowKey (handles edge cases)
+
+2. **`PrismContentTypeSeeder.cs`**
+   - Updated `workflowKey` property description example from `'retirement-quote'` to `'community-enquiry'`
+
+3. **`IBusinessAppWorkflowClient.cs`**
+   - Updated `GetCurrentAsync` XML doc example from `"retirement-quote"` to `"community-enquiry"`
+
+4. **`WorkflowPageController.cs`**
+   - Updated field example in XML doc comment from `"fields[retirement-age]"` to `"fields[full-name]"` (more generic)
+
+### Build Status
+
+✅ **0 errors, 0 warnings** — Clean build on TestSite project
+
+### Design Notes
+
+- **Cleanup strategy:** The seeder now deletes old "Retirement Quote" nodes on startup rather than leaving orphaned demo data. This ensures developers see only the current demo.
+- **Idempotent behavior:** The seeder checks for existing "Get in Touch" nodes by BOTH name and workflowKey to handle all edge cases (renamed nodes, manual edits, etc.).
+- **Workflow key convention:** Kebab-case workflow keys (`community-enquiry`) match URL slug pattern (`/get-in-touch`) — consistent with REST API naming.
+- **Auto-generated files:** `WorkflowPage.generated.cs` will be regenerated on next build with the updated description.
+
+### Learnings
+
+- **Content node lifecycle:** Umbraco content nodes persist in the database across code changes. Demo seeders must handle cleanup explicitly to avoid confusion.
+- **Dual-key lookups:** Checking both `Name` and `workflowKey` property handles manual edits in the backoffice (e.g., a user renaming "Get in Touch" but leaving the workflowKey unchanged).
+- **contentService.Delete():** Returns an `OperationResult` with `.Success` and `.Result` — same pattern as Save/Publish.
+
+---
+
+## Session: 2026-03-29 — Workflow Tag Helpers Implementation
+
+---
+
+## Session: 2026-04-11 — TestSite Demo Review and Polish
+
+**Status:** Completed  
+**Requested by:** Jonny Muir  
+**Build outcome:** Success, 0 errors, 0 warnings.
+
+**Task:** Thorough review of the testsite workflow demo to ensure everything is wired correctly and the demo is polished for showcase.
+
+### Review Findings and Fixes
+
+1. **WorkflowPage.cshtml** — ✅ Reviewed
+   - Correctly delegates to `_WorkflowStep-Collect.cshtml` for `Collect` archetype
+   - Error state handled gracefully with `Model.ErrorMessage`
+   - Page title shows `Model.StateDisplayName` (semantically correct for multi-step workflows)
+   - Browser title uses ViewBag.Title = StateDisplayName (shows current step)
+
+2. **_WorkflowStep-Collect.cshtml** — ✅ Reviewed
+   - Tag helper usage is correct: `<prism-workflow-form>`, `<prism-error-summary>`, `<prism-field>`
+   - All attributes properly bound to view model properties
+   - Clean 38-line implementation vs. previous 200+ line partial approach
+
+3. **_WorkflowStep-StatusTimeline.cshtml** — ✅ Reviewed
+   - Nice polish: ⏳ icon, clear messaging about submission review status
+   - Copy is user-friendly and professional
+
+4. **_WorkflowStep-Completion.cshtml** — ✅ Reviewed
+   - ✅ icon, confirmation panel with green styling
+   - "Return to home" action button
+   - Professional completion messaging
+
+5. **PrismWorkflowFormTagHelper.cs** — ✅ Reviewed
+   - Nonce correctly emitted as `<input type="hidden" name="Nonce" value="..." />`
+   - Antiforgery token correctly injected via `IAntiforgery.GetAndStoreTokens()`
+   - Form `action` attribute correctly set from `return-url`
+   - All hidden fields properly emitted (InstanceId, StateVersion, WorkflowKey, ReturnUrl, Nonce)
+
+6. **PrismFieldTagHelper.cs** — ✅ Reviewed and Fixed
+   - **FIXED:** Checkbox list checked state — now parses `field.Value` as comma-separated string and checks against each option
+   - ✅ Boolean fields correctly submit `value="true"` when checked
+   - ✅ Radio fields layout correct
+   - ✅ Select fields have blank placeholder `-- Select --` as first option
+   - All fields correctly emit `name="fields[{fieldKey}]"` matching controller extraction pattern
+
+7. **Navigation** — ✅ Fixed
+   - Added "Get in Touch" link to Master.cshtml header nav
+   - Navigation now shows: Home | Get in Touch | hostname badge
+
+8. **CSS Styles** — ✅ Added (Critical Fix)
+   - **Added 300+ lines of workflow form CSS** to `components.css`
+   - Comprehensive styling for all workflow components:
+     - `.prism-workflow`, `.workflow-page__*` — page structure
+     - `.workflow-alert--error`, `.workflow-alert--warn` — error states
+     - `.prism-error-summary` — GDS-style error summary with accessible red styling
+     - `.prism-form-group`, `.prism-label`, `.prism-required` — form structure
+     - `.prism-input`, `.prism-textarea`, `.prism-select` — form controls with focus states
+     - `.prism-radio-item`, `.prism-checkbox-item` — choice controls
+     - `.prism-button--primary/secondary/destructive` — action buttons
+     - `.prism-status__*`, `.prism-panel__*` — status and completion states
+   - All styles follow Prism design token pattern (`var(--prism-primary, #4f46e5)`)
+   - Accessibility: focus states, aria support, color contrast compliant
+
+### Code Quality
+
+- **Controller → Validator → Tag Helper flow:** All components correctly wired
+- **Form submission:** Controller extracts `fields[*]` keys, validator handles checkboxlist suffix `[]` variation
+- **Checkbox list values:** ASP.NET Core auto-concatenates multiple checkbox values with commas (e.g., `"option1,option2"`)
+- **Boolean handling:** Unchecked checkboxes submit nothing; validator treats missing as `false` (correct behavior)
+- **Nonce validation:** Tamper-proof nonce service prevents field definition manipulation
+- **HTML encoding:** All user input HTML-encoded via `System.Net.WebUtility.HtmlEncode()`
+
+### Build Status
+
+✅ **0 errors, 0 warnings** — Clean build after all fixes
+
+### Outcome
+
+The "Get in Touch" workflow demo is now fully functional and polished:
+- All tag helpers working correctly
+- Full CSS styling in place (previously missing!)
+- Navigation includes link to demo page
+- Checkbox list state preservation fixed
+- Professional UX with error states, status timeline, and completion confirmation
+
+**Demo is ready for showcase.**
+
+### Learnings
+
+- **CSS is not optional:** Tag helpers were built but the demo was incomplete without matching CSS. Always check for missing styles when implementing new UI components.
+- **Checkbox list checked state:** When `field.Value` contains multiple values, it's comma-separated (e.g., `"Red,Blue"`). Must split and compare against options.
+- **ASP.NET Core form behavior:** Multiple checkboxes with the same `name` attribute auto-concatenate values with commas on POST.
+- **Workflow title semantics:** For multi-step workflows, showing the current *state* display name as the page title is correct UX (not the workflow definition name).
+- **GDS accessibility patterns:** Error summary with `role="alert"`, `tabindex="-1"`, and anchor links to fields is the gold standard for form error handling.

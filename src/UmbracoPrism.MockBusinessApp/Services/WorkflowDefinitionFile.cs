@@ -91,6 +91,16 @@ public record FieldFile
     public bool Required { get; init; }
     /// <summary>For select/checkbox fields, the list of available options.</summary>
     public IReadOnlyList<string>? Options { get; init; }
+    /// <summary>Minimum character length for text/textarea fields.</summary>
+    public int? MinLength { get; init; }
+    /// <summary>Maximum character length for text/textarea fields.</summary>
+    public int? MaxLength { get; init; }
+    /// <summary>HTML5 pattern (regex) attribute value for text/email fields.</summary>
+    public string? Pattern { get; init; }
+    /// <summary>Minimum value for number fields.</summary>
+    public decimal? Min { get; init; }
+    /// <summary>Maximum value for number fields.</summary>
+    public decimal? Max { get; init; }
 }
 
 /// <summary>

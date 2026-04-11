@@ -18,12 +18,10 @@
     }
     else
     {
-        @{
-            var partialName = $"_WorkflowStep-{Model.Archetype}";
-            var partialPath = $"~/Views/Partials/{partialName}.cshtml";
-            var viewResult = _viewEngine.GetView(null, partialPath, false);
-        }
-        @if (viewResult.Success)
+        var partialName = $"_WorkflowStep-{Model.Archetype}";
+        var partialPath = $"~/Views/Partials/{partialName}.cshtml";
+        var viewResult = _viewEngine.GetView(null, partialPath, false);
+        if (viewResult.Success)
         {
             @await Html.PartialAsync(partialName, Model)
         }

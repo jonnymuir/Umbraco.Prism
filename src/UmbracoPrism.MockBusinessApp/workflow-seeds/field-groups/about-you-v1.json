@@ -1,0 +1,44 @@
+{
+  "groupKey": "about-you",
+  "displayName": "About You",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "full-name",
+      "label": "Full name",
+      "hint": null,
+      "fieldType": "text",
+      "required": true,
+      "maxLength": 100
+    },
+    {
+      "fieldKey": "email-address",
+      "label": "Email address",
+      "hint": null,
+      "fieldType": "email",
+      "required": true
+    },
+    {
+      "fieldKey": "organisation",
+      "label": "Organisation (optional)",
+      "hint": null,
+      "fieldType": "text",
+      "required": false,
+      "maxLength": 100
+    },
+    {
+      "fieldKey": "your-role",
+      "label": "Your role",
+      "hint": null,
+      "fieldType": "select",
+      "required": true,
+      "options": [
+        "Developer",
+        "Architect",
+        "Technical Lead",
+        "CTO / Head of Engineering",
+        "Other"
+      ]
+    }
+  ]
+}
