@@ -186,7 +186,8 @@
    Fieldset / legend
    -------------------------------------------------------------------------- */
 
-.prism-workflow__fieldset {
+.prism-workflow__fieldset,
+.prism-fieldset {
     border: 0;
     padding: 0;
     margin: 0 0 2rem;

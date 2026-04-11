@@ -655,4 +655,211 @@ public class WorkflowFieldValidatorTests
 
         result.IsValid.Should().BeTrue();
     }
+
+    // ------------------------------------------------------------------ Conditional Fields
+
+    [Fact]
+    public void GivenConditionalRequiredField_WhenTriggerDoesNotMatch_ThenFieldIsSkipped()
+    {
+        // enquiry-type-other is only required when enquiry-type = "Other"
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "enquiry-type", Label = "Enquiry Type", FieldType = "radio", Required = true,
+                Options = new List<string> { "General enquiry", "Other" } },
+            new() { FieldKey = "enquiry-type-other", Label = "Please specify", FieldType = "text", Required = true,
+                ConditionalOn = "enquiry-type", VisibleWhen = "Other" }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["enquiry-type"] = "General enquiry"
+            // enquiry-type-other intentionally absent — trigger doesn't match
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue("the conditional field should be skipped when its trigger is not satisfied");
+    }
+
+    [Fact]
+    public void GivenConditionalRequiredField_WhenTriggerMatches_ThenFieldIsValidated()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "enquiry-type", Label = "Enquiry Type", FieldType = "radio", Required = true,
+                Options = new List<string> { "General enquiry", "Other" } },
+            new() { FieldKey = "enquiry-type-other", Label = "Please specify", FieldType = "text", Required = true,
+                ConditionalOn = "enquiry-type", VisibleWhen = "Other" }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["enquiry-type"] = "Other"
+            // enquiry-type-other is absent but required when trigger matches
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("enquiry-type-other");
+    }
+
+    [Fact]
+    public void GivenConditionalRequiredField_WhenTriggerMatchesAndValueProvided_ThenIsValid()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "enquiry-type", Label = "Enquiry Type", FieldType = "radio", Required = true,
+                Options = new List<string> { "General enquiry", "Other" } },
+            new() { FieldKey = "enquiry-type-other", Label = "Please specify", FieldType = "text", Required = true,
+                ConditionalOn = "enquiry-type", VisibleWhen = "Other" }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["enquiry-type"] = "Other",
+            ["enquiry-type-other"] = "Something else entirely"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenConditionalRequiredField_WhenTriggerMatchesCaseInsensitively_ThenFieldIsValidated()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "type", Label = "Type", FieldType = "radio", Required = true,
+                Options = new List<string> { "Other" } },
+            new() { FieldKey = "type-other", Label = "Specify", FieldType = "text", Required = true,
+                ConditionalOn = "type", VisibleWhen = "Other" }
+        };
+        var submitted = new Dictionary<string, string> { ["type"] = "other" }; // lowercase
+
+        // The trigger value "other" matches VisibleWhen "Other" case-insensitively
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse("type-other is required when type=Other (case-insensitive)");
+        result.Errors.Should().ContainKey("type-other");
+    }
+
+    // ------------------------------------------------------------------ ReadOnly (pre-populated) Fields
+
+    [Fact]
+    public void GivenReadOnlyField_WhenMissingFromSubmission_ThenSkippedValidation()
+    {
+        // Pre-populated fields (email, name from CMS claims) are ReadOnly and not re-validated
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "email", Label = "Email", FieldType = "email", Required = true, ReadOnly = true },
+            new() { FieldKey = "message", Label = "Message", FieldType = "textarea", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            // email intentionally absent — ReadOnly fields may not be re-submitted
+            ["message"] = "Hello from a test"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue("ReadOnly fields are skipped in server-side validation");
+    }
+
+    [Fact]
+    public void GivenReadOnlyField_WhenInvalidValueProvided_ThenStillSkipped()
+    {
+        // Even if a client submits a bad value for a ReadOnly field, we don't validate it
+        // (the controller uses the server-side value, not the submitted one)
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "email", Label = "Email", FieldType = "email", Required = true, ReadOnly = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["email"] = "not-an-email"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue("ReadOnly field type/format validation is skipped server-side");
+    }
+
+    // ------------------------------------------------------------------ Community Enquiry Demo Scenario
+
+    [Fact]
+    public void GivenCommunityEnquiryForm_WhenGeneralEnquirySubmitted_ThenIsValid()
+    {
+        // Mirrors the actual community-enquiry workflow form fields
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "full-name", Label = "Full Name", FieldType = "text", Required = true, ReadOnly = true },
+            new() { FieldKey = "email-address", Label = "Email Address", FieldType = "email", Required = true, ReadOnly = true },
+            new() { FieldKey = "organisation", Label = "Organisation", FieldType = "text", Required = false },
+            new() { FieldKey = "your-role", Label = "Your Role", FieldType = "select", Required = true,
+                Options = new List<string> { "Developer", "Architect", "Manager", "Designer", "Other" } },
+            new() { FieldKey = "enquiry-type", Label = "What can we help with?", FieldType = "radio", Required = true,
+                Options = new List<string> { "General enquiry", "Technical support", "Partnership opportunity", "Speaking / events", "Other" } },
+            new() { FieldKey = "enquiry-type-other", Label = "Please specify", FieldType = "text", Required = false,
+                ConditionalOn = "enquiry-type", VisibleWhen = "Other", MaxLength = 100 },
+            new() { FieldKey = "message", Label = "Tell us more", FieldType = "textarea", Required = true, MinLength = 20, MaxLength = 500 },
+            new() { FieldKey = "newsletter", Label = "Keep me updated", FieldType = "boolean", Required = false }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["your-role"] = "Developer",
+            ["enquiry-type"] = "General enquiry",
+            ["message"] = "I have a question about the Prism package and how it integrates with Umbraco workflows."
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenCommunityEnquiryForm_WhenOtherSelectedButSpecifyMissing_ThenConditionalFieldIsNotRequiredWhenOptional()
+    {
+        // enquiry-type-other is required=false in the real workflow
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "enquiry-type", Label = "What can we help with?", FieldType = "radio", Required = true,
+                Options = new List<string> { "General enquiry", "Other" } },
+            new() { FieldKey = "enquiry-type-other", Label = "Please specify", FieldType = "text", Required = false,
+                ConditionalOn = "enquiry-type", VisibleWhen = "Other", MaxLength = 100 },
+            new() { FieldKey = "message", Label = "Tell us more", FieldType = "textarea", Required = true, MinLength = 20 }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["enquiry-type"] = "Other",
+            // enquiry-type-other is absent but not required
+            ["message"] = "Some message that is long enough to pass min length validation easily"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue("optional conditional field absence should not fail validation");
+    }
+
+    [Fact]
+    public void GivenCommunityEnquiryForm_WhenOtherSelectedAndSpecifyTooLong_ThenConstraintFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "enquiry-type", Label = "What can we help with?", FieldType = "radio", Required = true,
+                Options = new List<string> { "General enquiry", "Other" } },
+            new() { FieldKey = "enquiry-type-other", Label = "Please specify", FieldType = "text", Required = false,
+                ConditionalOn = "enquiry-type", VisibleWhen = "Other", MaxLength = 10 },
+            new() { FieldKey = "message", Label = "Tell us more", FieldType = "textarea", Required = true, MinLength = 5 }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["enquiry-type"] = "Other",
+            ["enquiry-type-other"] = "This value is definitely longer than ten characters",
+            ["message"] = "Some message"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("enquiry-type-other");
+    }
 }

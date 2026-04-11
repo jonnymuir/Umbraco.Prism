@@ -54,8 +54,17 @@ public class PrismFieldTagHelper : TagHelper
         var minAttr = Field.Min.HasValue ? $@" min=""{Field.Min.Value}""" : string.Empty;
         var maxAttr = Field.Max.HasValue ? $@" max=""{Field.Max.Value}""" : string.Empty;
 
+        // Conditional field attributes
+        var isConditional = !string.IsNullOrEmpty(Field.ConditionalOn);
+        var conditionalClass = isConditional ? " prism-field--conditional" : string.Empty;
+        var conditionalAttrs = isConditional
+            ? $@" data-conditional-on=""{Encode(Field.ConditionalOn)}"" data-visible-when=""{Encode(Field.VisibleWhen ?? "")}"""
+            : string.Empty;
+        var hiddenAttr = isConditional ? " hidden" : string.Empty;
+        var ariaHiddenAttr = isConditional ? @" aria-hidden=""true""" : string.Empty;
+
         var sb = new StringBuilder();
-        sb.AppendLine($@"<div class=""prism-form-group {(hasFieldError ? "prism-form-group--error" : "")}"">");
+        sb.AppendLine($@"<div class=""prism-form-group {(hasFieldError ? "prism-form-group--error" : "")}{conditionalClass}""{conditionalAttrs}{hiddenAttr}{ariaHiddenAttr}>");
 
         switch (fieldType)
         {
@@ -127,7 +136,8 @@ public class PrismFieldTagHelper : TagHelper
         {
             foreach (var option in field.Options)
             {
-                var radioId = $"{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
+                // Prefix with "opt-" to prevent DOM ID collision with sibling field keys (e.g. enquiry-type-other)
+                var radioId = $"opt-{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
                 var isChecked = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
 
                 sb.AppendLine(@"        <div class=""prism-radio-item"">");
@@ -164,7 +174,8 @@ public class PrismFieldTagHelper : TagHelper
         {
             foreach (var option in field.Options)
             {
-                var cbId = $"{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
+                // Prefix with "opt-" to prevent DOM ID collision with sibling field keys
+                var cbId = $"opt-{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
                 var isChecked = checkedValues.Contains(option, StringComparer.OrdinalIgnoreCase);
 
                 sb.AppendLine(@"        <div class=""prism-checkbox-item"">");

@@ -58,21 +58,24 @@
     }
 
     /**
-     * Validate a single field using HTML5 Constraint Validation API
+     * Validate a single field using HTML5 Constraint Validation API.
+     * For radio inputs, validates the whole group by name.
      */
     function validateField(input) {
         const isValid = input.validity.valid;
         const fieldWrapper = findFieldWrapper(input);
-        const fieldKey = input.id || input.name.replace('fields[', '').replace(']', '');
+
+        // Radio buttons: use group name so all radios share one error element
+        const fieldKey = input.type === 'radio'
+            ? input.name.replace(/^fields\[/, '').replace(/\]$/, '')
+            : (input.id || input.name.replace(/^fields\[/, '').replace(/\]$/, ''));
         const errorId = `${fieldKey}-error`;
         const label = input.getAttribute('data-label') || fieldKey;
 
         if (!isValid) {
-            // Field is invalid - show error
             const errorMessage = getValidationMessage(input, label);
-            showError(input, fieldWrapper, errorId, errorMessage);
+            showError(input, fieldWrapper, errorId, errorMessage, input.type === 'radio');
         } else {
-            // Field is valid - clear error
             clearError(input, fieldWrapper, errorId);
         }
     }
@@ -121,9 +124,14 @@
     /**
      * Show error message and update field state
      */
-    function showError(input, fieldWrapper, errorId, message) {
-        // Set aria-invalid
-        input.setAttribute('aria-invalid', 'true');
+    function showError(input, fieldWrapper, errorId, message, isRadioGroup) {
+        // For radio groups, mark aria-invalid on the fieldset instead of the input
+        if (isRadioGroup) {
+            const fieldset = input.closest('fieldset.prism-fieldset');
+            if (fieldset) fieldset.setAttribute('aria-invalid', 'true');
+        } else {
+            input.setAttribute('aria-invalid', 'true');
+        }
 
         // Add error class to wrapper
         if (fieldWrapper) {
@@ -299,12 +307,16 @@
         if (!isClientValid) {
             event.preventDefault();
 
-            // Validate all fields to show all errors
+            // Validate all fields — deduplicate radio groups by name to avoid multiple errors
+            const seenRadioNames = new Set();
             const inputs = form.querySelectorAll('input, select, textarea');
             inputs.forEach(input => {
-                if (input.type !== 'submit' && input.type !== 'button' && input.type !== 'hidden') {
-                    validateField(input);
+                if (input.type === 'submit' || input.type === 'button' || input.type === 'hidden') return;
+                if (input.type === 'radio') {
+                    if (seenRadioNames.has(input.name)) return;
+                    seenRadioNames.add(input.name);
                 }
+                validateField(input);
             });
 
             // Re-find error fields after validation
