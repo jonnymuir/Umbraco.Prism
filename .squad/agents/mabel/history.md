@@ -842,3 +842,60 @@ Two comprehensive guides in `docs/guides/`:
 - Customisation guide covers CSS theming, partial overrides, and accessibility constraints
 
 **Next:** Available for additional documentation work (workflow emulator TUI docs, API reference updates).
+
+---
+
+## 2026-04-11: Prism vs. Mock Business App Clarity Refactor
+
+**Task:** Update workflow guides to clearly distinguish between **Prism Platform** (🔵 built-in to `UmbracoPrism.Core`) and **Mock Business App** (🟠 reference implementation by `UmbracoPrism.MockBusinessApp`).
+
+**Problem:** Existing guides treated Mock Business App as if it were "the workflow system," confusing readers about what's provided vs. what's replaced.
+
+**Deliverables:**
+
+1. **Updated `docs/guides/workflow-setup.md`:**
+   - Added "What's Prism and What's the Mock Business App?" section (after Overview) with 🔵/🟠 callouts and responsibility matrix
+   - Added callouts to individual sections:
+     - Step 1 (Define Workflow): 🟠 callout explaining mock file system; real apps serve via API
+     - Step 2 (Register Workflow): 🟠 callout explaining mock JSON discovery; real systems load from database
+     - Step 3 (Umbraco Doc Type): 🔵 callout emphasizing this is Prism-provided, no changes needed
+     - Step 4 (Publish Content): 🔵 callout reinforcing form routing is built-in
+   - Added new section "Connecting to a Real Business App" (before "Next Steps"):
+     - Explains HTTP contract (GET /api/workflow/{key}/current, POST /api/workflow/{key}/advance)
+     - Provides appsettings.json configuration example
+     - Shows JSON request/response shapes (WorkflowResponseEnvelope)
+     - References Mock Business App source as working reference (workflow-seeds/, WorkflowEngine, WorkflowController)
+     - Lists real-world examples (ServiceNow, Salesforce, bespoke .NET API, legacy REST wrapper)
+     - Emphasizes: "Prism is workflow-agnostic. It calls HTTP endpoints and renders the response."
+
+2. **Updated `docs/guides/workflow-customisation.md`:**
+   - Added "What's Prism and What's the Mock Business App?" section (after Overview)
+   - Updated CSS file reference: OLD `wwwroot/css/prism-workflow.css` → NEW `wwwroot/branding/prism-forms.css` with explanation that it's auto-imported
+   - Clarified CSS loading order: Prism branding → your CSS (so you can override variables)
+   - Simplified theming instructions: removed instruction to create separate `prism-theme.css`; now just override variables in site stylesheet
+   - Added 🔵 callouts to:
+     - "The CSS File" section: emphasize it's part of Prism, you override not replace
+     - "Theming by Overriding Variables": explain the design system tokens are built-in
+     - "Overriding a Partial View": clarify these are Prism templates you customize
+     - "Creating a Custom Archetype": explain archetypes are rendering templates (Prism layer, not Mock Business App)
+     - "The Field Partial": emphasize field renderer is Prism; you override to customize
+
+**Key Writing Principles Applied:**
+- **Clarity via emoji callouts:** 🔵 (Prism, built-in) vs. 🟠 (Mock Business App, replace this)
+- **Responsibility matrix:** Explicit table showing what Prism handles vs. what the business app handles
+- **Real-world grounding:** Actual HTTP contract and integration examples (ServiceNow, Salesforce, bespoke .NET)
+- **Reduced confusion:** Readers now understand Mock Business App is a working reference, not a production requirement
+- **Discoverable guidance:** "Connecting to a Real Business App" section shows exactly where to change URLs (appsettings.json) and what contract to implement
+- **CSS path correction:** Updated outdated file path and clarified import order for CSS variable override workflow
+
+**Files Modified:**
+- `docs/guides/workflow-setup.md` — 5 callouts added, 1 new section (~330 lines of new/updated content)
+- `docs/guides/workflow-customisation.md` — 6 callouts added, CSS file path corrected (~40 lines of clarifications)
+
+**Commit:** `docs: clarify prism-platform vs mock-business-app in workflow guides` with Copilot co-author trailer
+
+**Impact:**
+- New integrators understand immediately: Prism is the form engine (stays), Mock Business App is demo only (gets replaced)
+- Clear "what changes in production" section prevents misconfigurations
+- Real-world integration examples (ServiceNow, etc.) give confidence for real deployments
+- CSS customization no longer requires extra file; override variables in your site's stylesheet

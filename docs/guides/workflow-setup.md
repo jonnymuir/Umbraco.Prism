@@ -24,6 +24,25 @@ Rendered form
 
 Workflows support complex scenarios: multi-step data collection, review steps, approval workflows, status tracking, and completion states. Each step can validate, branch logic, or trigger backend actions.
 
+## What's Prism and What's the Mock Business App?
+
+> **🔵 Prism Platform** — Provided by `UmbracoPrism.Core`. You don't build this.
+> **🟠 Mock Business App** — Provided by `UmbracoPrism.MockBusinessApp` as a reference implementation. Replace this with your real workflow engine.
+
+**Responsibility breakdown:**
+
+| Component | Provided by | Replace with |
+|-----------|-------------|--------------|
+| Form rendering (Razor views, partials) | 🔵 Prism | Customise/override views — don't replace |
+| Authentication & member sessions | 🔵 Prism | No change needed |
+| Umbraco content type & routing | 🔵 Prism | No change needed |
+| CSS design system | 🔵 Prism | Override variables / add your own theme |
+| Workflow definitions (JSON files) | 🟠 Mock Business App | Your case management system's API |
+| State machine / workflow engine | 🟠 Mock Business App | Your case management system |
+| `/api/workflow/*` HTTP endpoints | 🟠 Mock Business App | Your case management system's equivalent endpoints |
+
+**In real integrations:** You replace the Mock Business App with your actual case management system (ServiceNow, Salesforce, a bespoke .NET API, etc.). Prism remains unchanged — it calls your system via HTTP.
+
 ## Prerequisites
 
 Before setting up a workflow, ensure:
@@ -34,6 +53,8 @@ Before setting up a workflow, ensure:
 4. **Business App client is configured** in Umbraco's `appsettings.json` with the correct endpoint URL and Entra token
 
 ## Step 1: Define the Workflow in Your Business App
+
+> 🟠 **Mock Business App** — This step describes the mock implementation. In a real integration, your case management system hosts workflow definitions and serves them via API.
 
 A workflow is a JSON file stored in your Business App's `workflow-seeds/` directory.
 
@@ -220,6 +241,8 @@ Each field in a field group:
 
 ## Step 2: Register the Workflow
 
+> 🟠 **Mock Business App** — This step describes the mock implementation. A real business app would load workflows from your system's database or API.
+
 The Business App's `WorkflowEngine` automatically discovers all JSON files in the `workflow-seeds/` directory at startup. No code changes needed.
 
 **File location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/retirement-quote.json`
@@ -233,6 +256,8 @@ The Business App's `WorkflowEngine` automatically discovers all JSON files in th
 To reload workflows without restarting, restart the Business App.
 
 ## Step 3: Set Up the Umbraco Document Type
+
+> 🔵 **Prism Platform** — This is handled by `UmbracoPrism.Core`. The content type and routing are part of Prism's built-in form engine. No changes needed for basic usage.
 
 Create a new document type in Umbraco's backoffice to represent workflow pages.
 
@@ -258,6 +283,8 @@ Create a new document type in Umbraco's backoffice to represent workflow pages.
 Note: The `WorkflowPageController` requires this exact alias. If you rename it, also rename the controller file (Umbraco route-hijacking uses filename conventions).
 
 ## Step 4: Publish the Content Node
+
+> 🔵 **Prism Platform** — Form routing and rendering are handled by Prism. You define content in Umbraco as you would any page.
 
 Create and publish a content page using the `workflowPage` document type.
 
@@ -379,9 +406,103 @@ Use this as a starting point for new workflows:
 }
 ```
 
-## Next Steps
+## Connecting to a Real Business App
 
-- **Customise the UI:** See [Customising Workflow UI](./workflow-customisation.md) for CSS theming and partial overrides
-- **Add validation:** Implement server-side validation in your Business App
-- **Add transitions:** Extend the workflow with approval steps, role-based routing
-- **Monitor usage:** Check Umbraco logs for workflow state transitions and errors
+> 🟠 **Mock Business App** — The `UmbracoPrism.MockBusinessApp` is a reference implementation. In production, replace it with your real case management system.
+
+The Mock Business App demonstrates what a minimal business app implementation looks like. When integrating Prism with a real system, follow this pattern:
+
+### How Prism Communicates with Your Business App
+
+Prism calls your business app via HTTP endpoints. The Mock Business App implements these endpoints; your real system should do the same.
+
+**Endpoints Prism expects:**
+
+1. **GET `/api/workflow/{key}/current`**
+   - Returns the current workflow state (form fields, available actions, etc.)
+   - Response format: `WorkflowResponseEnvelope`
+
+2. **POST `/api/workflow/{key}/advance`**
+   - Advances the workflow to the next state based on user action
+   - Accepts form data and action name
+   - Returns updated workflow state
+
+3. **GET `/api/workflow/{key}/history`** (optional)
+   - Returns workflow history/audit trail
+   - Used by `StatusTimeline` archetype
+
+### Configuring Your Business App URL
+
+In Umbraco's `appsettings.json`, configure the endpoint:
+
+```json
+{
+  "Prism": {
+    "BusinessAppUrl": "https://your-business-app.example.com",
+    "EntraToken": {
+      "Authority": "https://login.microsoftonline.com/your-tenant-id",
+      "ClientId": "your-client-id",
+      "ClientSecret": "your-client-secret"
+    }
+  }
+}
+```
+
+When you deploy, change `BusinessAppUrl` to point to your real system instead of the Mock Business App.
+
+### The HTTP Contract
+
+Prism sends and expects specific JSON shapes. The Mock Business App shows the exact contract:
+
+**Request (POST `/api/workflow/{key}/advance`):**
+```json
+{
+  "instanceId": "abc-123",
+  "stateVersion": 1,
+  "action": "submit",
+  "formData": {
+    "full-name": "Jane Doe",
+    "email": "jane@example.com"
+  }
+}
+```
+
+**Response (WorkflowResponseEnvelope):**
+```json
+{
+  "instanceId": "abc-123",
+  "currentStateKey": "review-details",
+  "currentState": {
+    "stateKey": "review-details",
+    "displayName": "Check your answers",
+    "archetype": "Review",
+    "allowedActions": ["submit", "back"],
+    "fieldGroupKeys": []
+  },
+  "collectedData": {
+    "full-name": "Jane Doe",
+    "email": "jane@example.com"
+  },
+  "stateVersion": 2,
+  "isComplete": false
+}
+```
+
+### Reference Implementation
+
+The Mock Business App source code is at:
+- **Workflow definitions:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/`
+- **Workflow engine:** `src/UmbracoPrism.MockBusinessApp/Services/WorkflowEngine.cs`
+- **API endpoints:** `src/UmbracoPrism.MockBusinessApp/Controllers/WorkflowController.cs`
+
+Review these files to understand the expected contract, then implement equivalent endpoints in your system.
+
+### Real-World Examples
+
+When replacing the Mock Business App:
+- **ServiceNow:** Wire Prism's HTTP calls to ServiceNow's Incident or Case API
+- **Salesforce:** Create Apex endpoints or use standard REST APIs to manage Cases
+- **Bespoke .NET API:** Implement the HTTP contract above in your custom service
+- **Legacy system with REST wrapper:** Add an API layer in front of your existing system
+
+The key point: **Prism is workflow-agnostic.** It calls HTTP endpoints and renders the response. Your business app handles the complexity.

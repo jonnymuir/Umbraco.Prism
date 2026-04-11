@@ -8,9 +8,22 @@ Prism provides a complete, accessible workflow rendering system out of the box. 
 
 **The philosophy:** Prism provides working defaults (GDS-inspired accessibility and styling); you layer your brand on top using CSS, HTML, and Razor (the Umbraco view engine).
 
+## What's Prism and What's the Mock Business App?
+
+> **🔵 Prism Platform** — Provided by `UmbracoPrism.Core`. You don't build this.
+> **🟠 Mock Business App** — Provided by `UmbracoPrism.MockBusinessApp` as a reference implementation. Replace this with your real workflow engine.
+
+**In this guide:**
+- 🔵 Customisation sections (CSS, partials, archetypes) describe Prism Platform features you control
+- 🟠 Workflow definitions (JSON structure, states, transitions) are your business app's responsibility
+
+For Prism customisation, you override CSS variables and Razor views. Your business app defines what workflows exist and how they behave.
+
 ## The CSS File
 
-**Location:** `src/UmbracoPrism.TestSite/wwwroot/css/prism-workflow.css`
+> 🔵 **Prism Platform** — The Prism design system is part of `UmbracoPrism.Core`. You override CSS variables; you don't replace the stylesheet.
+
+**Location:** `src/UmbracoPrism.TestSite/wwwroot/branding/prism-forms.css` — part of the Prism branding system, imported automatically via `prism-branding.css`
 
 This file contains:
 - All form and field styles
@@ -18,9 +31,10 @@ This file contains:
 - GDS-compliant accessible defaults (focus visible, hint text associations, required field markers)
 
 **How it's loaded:**
-- Umbraco's TestSite includes it in the layout view (or master page)
-- Prism doesn't bundle CSS; you control the inclusion
-- Override variables in your site's CSS or branding stylesheet
+- Prism's layout view imports `prism-branding.css` automatically
+- `prism-branding.css` imports `prism-forms.css` (plus other Prism styles)
+- Your site's CSS loads **after** Prism branding, so you can override variables
+- Prism doesn't bundle CSS; you control what loads and in what order
 
 **What it covers:**
 - Workflow container layout
@@ -87,12 +101,16 @@ Below are all available `--prism-*` variables and their defaults. Override any t
 
 ## Theming by Overriding Variables
 
+> 🔵 **Prism Platform** — The design system tokens are already defined in `prism-forms.css`. You override them in your own stylesheet.
+
+The Prism design system exposes CSS variables for every visual element. Override them in your site's stylesheet (which loads after Prism branding) to apply your brand.
+
 ### Example 1: Change Your Brand Colours
 
-Create a `prism-theme.css` file in your site's stylesheet folder:
+In your site's main stylesheet (or a dedicated branding file):
 
 ```css
-/* prism-theme.css */
+/* Add to your site's stylesheet (loads after prism-branding.css) */
 :root {
   /* Use your brand primary colour */
   --prism-input-focus-color: #0066cc;
@@ -107,12 +125,7 @@ Create a `prism-theme.css` file in your site's stylesheet folder:
 }
 ```
 
-Include it **after** `prism-workflow.css` in your layout:
-
-```html
-<link rel="stylesheet" href="/css/prism-workflow.css">
-<link rel="stylesheet" href="/css/prism-theme.css">
-```
+That's it. Prism renders with your brand applied.
 
 ### Example 2: Rounded, Spacious Design
 
@@ -144,6 +157,8 @@ For tight spacing on mobile:
 ```
 
 ## Overriding a Partial View
+
+> 🔵 **Prism Platform** — Partial views (Razor templates) are part of Prism. You override them to customise rendering, but Prism provides all the defaults.
 
 Umbraco uses a view resolution order: **your site's Views folder takes precedence** over defaults. To override any workflow partial, copy it to your site and modify.
 
@@ -185,6 +200,8 @@ Edit the partial. For example, add a custom CSS class:
 Umbraco will now use your version instead of the default.
 
 ## Creating a Custom Archetype
+
+> 🔵 **Prism Platform** — Archetypes are rendering templates. Create a new partial to define a custom step type, then use it in your business app's workflow JSON.
 
 Want a new step type? Create a custom archetype without touching C#.
 
@@ -252,6 +269,8 @@ The dispatcher (`WorkflowPage.cshtml`) uses convention-based routing:
 No code changes needed.
 
 ## The Field Partial
+
+> 🔵 **Prism Platform** — The field renderer is part of Prism. Override it to customise how individual form fields render across all archetypes.
 
 **File:** `Views/Partials/_WorkflowField.cshtml`
 
