@@ -1419,3 +1419,19 @@ All components implemented, tested via build, and ready for integration with mob
 ---
 
 **Status:** Complete. Shared lib extracted; workflow decisions merged; no regressions.
+
+---
+
+## Task: Replace WorkflowEmulatorController with Spectre.Console TUI
+
+**Date:** 2025-07-10
+
+- Replaced HTTP `WorkflowEmulatorController` and `EmulatorOnlyAttribute` with `WorkflowTuiService : BackgroundService`.
+- Added `Spectre.Console` 0.55.0 NuGet to `UmbracoPrism.MockBusinessApp`.
+- Added `Reset(instanceId)` and `GetAllDefinitions()` to `BusinessAppWorkflowEngine`.
+- REPL commands: `list`, `show <id>`, `approve <id>`, `reject <id>`, `reset <id>`, `defs`, `help`, `quit`.
+- Removed `AddControllers()` / `MapControllers()` — MockBusinessApp is now MVC-free.
+- Dropped console log level to `Warning` in `appsettings.Development.json`.
+- Build: 0 warnings, 0 errors.
+
+**Status:** Complete. All changes committed on `main` (e562edd).
