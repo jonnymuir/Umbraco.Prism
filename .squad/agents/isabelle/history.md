@@ -1233,3 +1233,38 @@ The backend redesign moved field definitions to Umbraco Element Types, with `fie
 ✅ **Build Status:** Client build green, .NET build green — 0 errors, 0 warnings
 
 **Quality:** WCAG 2.2 AA compliant server-side HTML. No runtime JS dependency for workflow forms. Partials integrate with Brewster's `WorkflowPageController` and Blathers' field metadata service.
+
+## Session: 2026-04-XX — Workflow UI Full Refactor (P0–P3)
+
+**Task:** Full workflow view refactor: fix critical field naming bug, CSS consolidation, convention-based dispatch, error state support.
+
+**Result:** ✅ Complete. `dotnet build` succeeded with 0 errors, 0 warnings.
+
+### Changes
+
+1. **`_WorkflowField.cshtml`** — Fixed `name="@Model.FieldKey"` → `name="fields[@Model.FieldKey]"` across all 6 field renderers (boolean checkbox, radio, checkboxlist, select, textarea, text/email/number/date). Added ViewData-driven error state: `prism-form-group--error` wrapper class + `prism-form-group__error` message paragraph with `role="alert"`.
+
+2. **`_WorkflowStep-Collect.cshtml`** — Replaced inline field renderer (only handled 3 types) with `@await Html.PartialAsync("_WorkflowField", field, errorVd)` pattern. Removed `<style>` block. Migrated from `wf-*` to `prism-*` CSS classes. Error ViewData passed per-field via `ViewDataDictionary` copy.
+
+3. **`_WorkflowStep-Review.cshtml`** — Migrated from `wf-*` to `prism-*` CSS. Removed inline `<style>` block. Updated `wf-review__row` → `prism-review__item`.
+
+4. **`_WorkflowStep-StatusTimeline.cshtml`** — Migrated from `wf-status` to `prism-workflow prism-workflow--status`. Removed inline `<style>` block.
+
+5. **`_WorkflowStep-Completion.cshtml`** — Migrated to `prism-workflow prism-workflow--complete` + `prism-panel--confirmation` structure. Removed inline `<style>` block.
+
+6. **`WorkflowPage.cshtml`** — Replaced hard-coded `switch` statement with `ICompositeViewEngine.GetView()` convention-based dispatch. Added `@inject ICompositeViewEngine`. Removed inline `<style>` block.
+
+7. **`Master.cshtml`** — Added `prism-workflow.css` link after utilities.css.
+
+8. **`prism-workflow.css`** — Appended: `.workflow-page` container, `.workflow-alert` variants, `.prism-form-group--error` input border, `.prism-form-group__error` error text, `.prism-review__intro`, `.prism-workflow--status` / `.prism-status__*`, `.prism-completion__icon`.
+
+### Learnings
+
+- 2026-04-XX: When passing per-field ViewData to a partial, always copy via `new ViewDataDictionary(ViewData)` before mutating — do not mutate the loop-shared `ViewData` directly or all fields will see the last field's error state.
+- 2026-04-XX: `ICompositeViewEngine.GetView(null, "~/Views/Partials/Name.cshtml", false)` enables convention-based partial dispatch — check `.Success` before rendering to provide a graceful fallback. The tilde-rooted path is required for app-relative resolution.
+- 2026-04-XX: Inline `<style>` blocks in Razor partials are rendered once per partial invocation — if the same partial is included multiple times duplicate style blocks bloat the DOM. Always prefer a single linked CSS file.
+- 2026-04-XX: When a form field's `name` attribute doesn't match the controller's model binding prefix (`fields[key]`), values are silently dropped by the model binder with no error. Always test form submissions end-to-end, not just rendering.
+
+### Decision Record
+
+`.squad/decisions/inbox/isabelle-workflow-ui-refactor.md`
