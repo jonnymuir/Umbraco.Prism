@@ -553,3 +553,54 @@ Two test issues identified by Jonny Muir:
   - Produce Mobile push notification toggle
 - Playwright's `webServer` config auto-starts Storybook — no need to manually start it in background.
 - Lesson: After component refactoring or library upgrades, run the full suite even if the change seems isolated. UI components are tightly coupled and a CSS class change or layout wrapper can affect selector stability.
+
+---
+
+## 2024-04-10 — Workflow Form Validation Test Suite
+
+**Task:** Create comprehensive unit tests for `WorkflowFieldValidator` and `WorkflowStepNonceService`.
+
+**What I did:**
+- Created `WorkflowFieldValidatorTests.cs` with 45 behavioural tests covering:
+  - Happy path validation for all field types (text, email, number, select, radio, checkboxlist, boolean, textarea, date)
+  - Required field validation
+  - Type validation (email format, number parsing, date parsing)
+  - Options whitelist enforcement (select, radio, checkboxlist)
+  - Constraint validation (MinLength, MaxLength, Pattern, Min, Max)
+  - Security-relevant whitelist enforcement (unknown field keys rejected)
+  - Edge cases (boolean absent = false, checkboxlist comma-separated, suffix handling, empty options)
+  - XSS passthrough (validator doesn't encode, just validates structure)
+
+- Created `WorkflowStepNonceServiceTests.cs` with 10 tests covering:
+  - Nonce creation returns 32 hex chars (Guid "N" format)
+  - Cache storage with correct TTL from options
+  - Resolve valid nonce returns original field list
+  - Resolve unknown/expired nonce returns null
+  - Round-trip serialization preserves all field properties
+  - Two nonces are different
+
+**Test results:**
+- 55 new tests created
+- All 273 tests in Core.Tests pass
+- Test suite runs in ~1.5 seconds
+
+**Test style:**
+- xUnit `[Fact]` and `[Theory]` with `[InlineData]`
+- Descriptive method names: `GivenRequiredField_WhenEmpty_ThenValidationFails()`
+- Arrange/Act/Assert with blank line separators
+- Minimal mocking — test the real validator
+- Used Moq for IDistributedCache in nonce service tests
+
+**Key findings:**
+- Email validator checks for @ and . presence (simple but effective)
+- Validator enforces field key whitelist to prevent field injection
+- Options validation is case-insensitive
+- Checkboxlist supports both `field` and `field[]` submission keys
+- Validation errors cascade-stop (first error wins, mirroring GDS pattern)
+
+**Coverage gaps:**
+- No E2E tests for WorkflowPageController route hijacking
+- No tests for nonce replay attack prevention (TTL is the only defence)
+- No tests for concurrent nonce creation/resolution
+- No tests for malformed JSON in cache (deserialization error handling)
+- No tests for datetime field type (only date tested)

@@ -14,6 +14,9 @@ public class PrismFieldTagHelper : TagHelper
     [HtmlAttributeName("errors")]
     public IReadOnlyDictionary<string, string>? Errors { get; set; }
 
+    [HtmlAttributeName("values")]
+    public IReadOnlyDictionary<string, string>? Values { get; set; }
+
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         if (Field == null)
@@ -79,7 +82,10 @@ public class PrismFieldTagHelper : TagHelper
 
     private void RenderCheckbox(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy)
     {
-        var isChecked = field.Value is true || "true".Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
+        var isChecked = submittedValue != null
+            ? "true".Equals(submittedValue, StringComparison.OrdinalIgnoreCase)
+            : (field.Value is true || "true".Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase));
 
         sb.AppendLine(@"    <div class=""prism-form-group__checkbox-wrapper"">");
         sb.Append($@"        <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""true""");
@@ -108,12 +114,15 @@ public class PrismFieldTagHelper : TagHelper
         if (hasHint) sb.AppendLine($@"        <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
         if (hasFieldError) sb.AppendLine($@"        <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
+        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
+        var currentValue = submittedValue ?? field.Value?.ToString();
+
         if (field.Options != null)
         {
             foreach (var option in field.Options)
             {
                 var radioId = $"{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
-                var isChecked = option.Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+                var isChecked = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
 
                 sb.AppendLine(@"        <div class=""prism-radio-item"">");
                 sb.Append($@"            <input class=""prism-radio"" type=""radio"" id=""{Encode(radioId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}""");
@@ -140,7 +149,9 @@ public class PrismFieldTagHelper : TagHelper
         if (hasHint) sb.AppendLine($@"        <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
         if (hasFieldError) sb.AppendLine($@"        <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
-        var checkedValues = field.Value?.ToString()?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
+        var currentValue = submittedValue ?? field.Value?.ToString();
+        var checkedValues = currentValue?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             ?? Array.Empty<string>();
 
         if (field.Options != null)
@@ -174,6 +185,9 @@ public class PrismFieldTagHelper : TagHelper
         if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
         if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
+        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
+        var currentValue = submittedValue ?? field.Value?.ToString();
+
         sb.Append($@"    <select class=""prism-select"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]""");
         sb.Append(requiredAttr);
         sb.Append(ariaRequired);
@@ -186,7 +200,7 @@ public class PrismFieldTagHelper : TagHelper
         {
             foreach (var option in field.Options)
             {
-                var isSelected = option.Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+                var isSelected = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
                 sb.Append($@"        <option value=""{Encode(option)}""");
                 if (isSelected) sb.Append(" selected");
                 sb.AppendLine($">{Encode(option)}</option>");
@@ -205,6 +219,9 @@ public class PrismFieldTagHelper : TagHelper
         if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
         if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
+        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
+        var currentValue = submittedValue ?? field.Value?.ToString() ?? "";
+
         sb.Append($@"    <textarea class=""prism-textarea"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" rows=""5""");
         sb.Append(requiredAttr);
         sb.Append(minLengthAttr);
@@ -213,7 +230,7 @@ public class PrismFieldTagHelper : TagHelper
         sb.Append(ariaInvalid);
         sb.Append(describedBy);
         sb.Append(">");
-        sb.Append(Encode(field.Value?.ToString() ?? ""));
+        sb.Append(Encode(currentValue));
         sb.AppendLine("</textarea>");
     }
 
@@ -236,6 +253,9 @@ public class PrismFieldTagHelper : TagHelper
         if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
         if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
+        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
+        var currentValue = submittedValue ?? field.Value?.ToString() ?? "";
+
         var constraintAttrs = string.Empty;
         if (inputType == "text" || inputType == "email")
         {
@@ -246,7 +266,7 @@ public class PrismFieldTagHelper : TagHelper
             constraintAttrs = minAttr + maxAttr;
         }
 
-        sb.Append($@"    <input class=""prism-input"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(field.Value?.ToString() ?? "")}""");
+        sb.Append($@"    <input class=""prism-input"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}""");
         sb.Append(step);
         sb.Append(requiredAttr);
         sb.Append(constraintAttrs);

@@ -78,6 +78,7 @@ public class WorkflowPageController(
         }
 
         var problems = PopProblemsFromTempData();
+        var formValues = PopFormValuesFromTempData();
 
         var envelope = workflowClient
             .GetCurrentAsync(workflowKey)
@@ -96,7 +97,7 @@ public class WorkflowPageController(
             .ToList() ?? new List<FieldRenderPayload>();
 
         var nonce = await nonceService.CreateAsync(allFields);
-        var vm = BuildViewModel(envelope, workflowKey, problems);
+        var vm = BuildViewModel(envelope, workflowKey, problems, formValues);
         vm.Nonce = nonce;
         return CurrentTemplate(vm);
     }
@@ -133,17 +134,20 @@ public class WorkflowPageController(
 
         // 1. Nonce validation — tamper-proofing
         var nonce = form["Nonce"].ToString();
+        var returnUrl = form["ReturnUrl"].ToString();
+        var safeReturnUrl = GetSafeReturnUrl(returnUrl);
+
         if (string.IsNullOrEmpty(nonce))
         {
             logger.LogWarning("Workflow POST: missing nonce — possible form tampering");
-            return Redirect(string.IsNullOrEmpty(form["ReturnUrl"].ToString()) ? "/" : form["ReturnUrl"].ToString());
+            return Redirect(safeReturnUrl);
         }
 
         var authoritativeFields = await nonceService.ResolveAsync(nonce);
         if (authoritativeFields == null)
         {
             logger.LogWarning("Workflow POST: nonce expired or invalid — redirecting to GET");
-            return Redirect(string.IsNullOrEmpty(form["ReturnUrl"].ToString()) ? "/" : form["ReturnUrl"].ToString());
+            return Redirect(safeReturnUrl);
         }
 
         // 2. Structural validation
@@ -161,11 +165,11 @@ public class WorkflowPageController(
                 .Select(e => new WorkflowProblem { FieldKey = e.Key, Message = e.Value, Code = "validation_error" })
                 .ToList();
             TempData["WorkflowProblems"] = JsonSerializer.Serialize(problems);
-            return Redirect(string.IsNullOrEmpty(form["ReturnUrl"].ToString()) ? "/" : form["ReturnUrl"].ToString());
+            TempData["WorkflowFormValues"] = JsonSerializer.Serialize(submittedFields);
+            return Redirect(safeReturnUrl);
         }
         var instanceId = form["InstanceId"].ToString();
         var workflowKey = form["WorkflowKey"].ToString();
-        var returnUrl = form["ReturnUrl"].ToString();
         var action = form["Action"].ToString();
         var stateVersion = int.TryParse(form["StateVersion"], out var sv) ? sv : 0;
 
@@ -177,16 +181,19 @@ public class WorkflowPageController(
         if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(action))
         {
             logger.LogWarning("Workflow POST: missing InstanceId or Action");
-            return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+            return Redirect(safeReturnUrl);
         }
 
         var envelope = await workflowClient.AdvanceAsync(
             workflowKey, instanceId, action, stateVersion, fieldValues);
 
         if (envelope.ResponseState == "error" && envelope.Problems.Count > 0)
+        {
             TempData["WorkflowProblems"] = JsonSerializer.Serialize(envelope.Problems);
+            TempData["WorkflowFormValues"] = JsonSerializer.Serialize(submittedFields);
+        }
 
-        return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+        return Redirect(safeReturnUrl);
     }
 
     // -----------------------------------------------------------------------
@@ -217,16 +224,41 @@ public class WorkflowPageController(
     }
 
     /// <summary>
+    /// Extracts form values from TempData and deserializes them.
+    /// Used to repopulate form fields after a failed validation round-trip (PRG pattern).
+    /// </summary>
+    /// <returns>A dictionary of field values; empty if none are present or deserialization fails.</returns>
+    private IReadOnlyDictionary<string, string> PopFormValuesFromTempData()
+    {
+        if (TempData.TryGetValue("WorkflowFormValues", out var raw) && raw is string json)
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                    ?? (IReadOnlyDictionary<string, string>)new Dictionary<string, string>();
+            }
+            catch
+            {
+                // ignore deserialization failures
+            }
+        }
+
+        return new Dictionary<string, string>();
+    }
+
+    /// <summary>
     /// Builds the WorkflowViewModel from a Business App response envelope.
     /// </summary>
     /// <param name="envelope">The WorkflowResponseEnvelope from the Business App.</param>
     /// <param name="workflowKey">The workflow definition key configured on the page.</param>
     /// <param name="problems">Optional validation problems to display to the user.</param>
+    /// <param name="formValues">Optional pre-filled form values from a failed validation round-trip.</param>
     /// <returns>A WorkflowViewModel ready for view rendering.</returns>
     private WorkflowViewModel BuildViewModel(
         WorkflowResponseEnvelope envelope,
         string workflowKey,
-        IReadOnlyList<WorkflowProblem>? problems = null)
+        IReadOnlyList<WorkflowProblem>? problems = null,
+        IReadOnlyDictionary<string, string>? formValues = null)
     {
         var render = envelope.Render;
         return new WorkflowViewModel(CurrentPage!, publishedValueFallback)
@@ -239,7 +271,8 @@ public class WorkflowPageController(
             StateDisplayName = render?.StateDisplayName ?? string.Empty,
             FieldGroups = render?.FieldGroups ?? Array.Empty<FieldGroupRenderPayload>(),
             AvailableActions = render?.AvailableActions ?? Array.Empty<WorkflowAction>(),
-            Problems = problems ?? Array.Empty<WorkflowProblem>()
+            Problems = problems ?? Array.Empty<WorkflowProblem>(),
+            FormValues = formValues ?? new Dictionary<string, string>()
         };
     }
 
@@ -257,4 +290,22 @@ public class WorkflowPageController(
             ErrorMessage = message,
             ReturnUrl = HttpContext.Request.PathBase + HttpContext.Request.Path
         };
+
+    /// <summary>
+    /// Validates and sanitizes a return URL to prevent open redirect attacks.
+    /// Only accepts local URLs (relative paths or same-origin absolute URLs).
+    /// </summary>
+    /// <param name="returnUrl">The return URL from the form submission.</param>
+    /// <returns>A safe local URL; defaults to "/" if the input is empty or external.</returns>
+    private string GetSafeReturnUrl(string? returnUrl)
+    {
+        if (string.IsNullOrWhiteSpace(returnUrl))
+            return "/";
+
+        if (Url.IsLocalUrl(returnUrl))
+            return returnUrl;
+
+        logger.LogWarning("Rejected external ReturnUrl in workflow POST: {ReturnUrl}", returnUrl);
+        return "/";
+    }
 }

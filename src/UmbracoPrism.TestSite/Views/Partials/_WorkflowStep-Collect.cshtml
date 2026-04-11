@@ -14,7 +14,7 @@
             <legend class="prism-legend">@group.DisplayName</legend>
             @foreach (var field in group.Fields)
             {
-                <prism-field field="@field" errors="@Model.FieldErrors" />
+                <prism-field field="@field" errors="@Model.FieldErrors" values="@Model.FormValues" />
             }
         </fieldset>
     }

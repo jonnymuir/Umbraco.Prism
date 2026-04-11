@@ -1,0 +1,658 @@
+using FluentAssertions;
+using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Core.Services;
+
+namespace UmbracoPrism.Core.Tests.Services.Workflow;
+
+public class WorkflowFieldValidatorTests
+{
+    private static readonly WorkflowFieldValidator Validator = new();
+
+    // ------------------------------------------------------------------ Happy Path
+
+    [Fact]
+    public void GivenAllRequiredFieldsProvided_WhenValid_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true },
+            new() { FieldKey = "email", Label = "Email", FieldType = "email", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["name"] = "Jane Doe",
+            ["email"] = "jane@example.com"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void GivenOptionalFieldsOmitted_WhenValid_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true },
+            new() { FieldKey = "bio", Label = "Bio", FieldType = "textarea", Required = false }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["name"] = "Jane"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("text", "Hello world")]
+    [InlineData("email", "user@example.com")]
+    [InlineData("number", "42")]
+    [InlineData("select", "option1")]
+    [InlineData("radio", "choice2")]
+    [InlineData("checkboxlist", "item1,item2")]
+    [InlineData("boolean", "true")]
+    [InlineData("textarea", "Long text here")]
+    [InlineData("date", "2024-04-10")]
+    public void GivenFieldType_WhenValidValue_ThenIsValidTrue(string fieldType, string value)
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "field",
+                Label = "Field",
+                FieldType = fieldType,
+                Required = true,
+                Options = fieldType is "select" or "radio" or "checkboxlist"
+                    ? new List<string> { "option1", "choice2", "item1", "item2" }
+                    : null
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["field"] = value };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenMinLengthConstraint_WhenExactlyAtMin_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "password", Label = "Password", FieldType = "text", Required = true, MinLength = 8 }
+        };
+        var submitted = new Dictionary<string, string> { ["password"] = "12345678" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenMaxLengthConstraint_WhenExactlyAtMax_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "code", Label = "Code", FieldType = "text", Required = true, MaxLength = 5 }
+        };
+        var submitted = new Dictionary<string, string> { ["code"] = "12345" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    // ------------------------------------------------------------------ Required Validation
+
+    [Fact]
+    public void GivenRequiredTextField_WhenEmpty_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["name"] = "" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("name");
+        result.Errors["name"].Should().Be("Name is required.");
+    }
+
+    [Fact]
+    public void GivenRequiredEmailField_WhenEmpty_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "email", Label = "Email", FieldType = "email", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["email"] = "" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("email");
+        result.Errors["email"].Should().Be("Email is required.");
+    }
+
+    [Fact]
+    public void GivenRequiredSelectField_WhenEmpty_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "country",
+                Label = "Country",
+                FieldType = "select",
+                Required = true,
+                Options = new List<string> { "US", "UK", "CA" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["country"] = "" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("country");
+        result.Errors["country"].Should().Be("Country is required.");
+    }
+
+    [Fact]
+    public void GivenRequiredRadioField_WhenNotSelected_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "plan",
+                Label = "Plan",
+                FieldType = "radio",
+                Required = true,
+                Options = new List<string> { "basic", "pro", "enterprise" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["plan"] = "" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("plan");
+        result.Errors["plan"].Should().Be("Plan is required.");
+    }
+
+    // ------------------------------------------------------------------ Type Validation
+
+    [Theory]
+    [InlineData("noatsign.com")]
+    [InlineData("nodot@")]
+    [InlineData("invalid")]
+    public void GivenEmailField_WhenInvalidFormat_ThenValidationFails(string invalidEmail)
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "email", Label = "Email", FieldType = "email", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["email"] = invalidEmail };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("email");
+        result.Errors["email"].Should().Be("Email must be a valid email address.");
+    }
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("12.34.56")]
+    [InlineData("not-a-number")]
+    public void GivenNumberField_WhenNonNumeric_ThenValidationFails(string invalidNumber)
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "age", Label = "Age", FieldType = "number", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["age"] = invalidNumber };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("age");
+        result.Errors["age"].Should().Be("Age must be a number.");
+    }
+
+    [Theory]
+    [InlineData("not-a-date")]
+    [InlineData("2024-13-01")]
+    [InlineData("32/12/2024")]
+    public void GivenDateField_WhenInvalidDate_ThenValidationFails(string invalidDate)
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "dob", Label = "Date of Birth", FieldType = "date", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["dob"] = invalidDate };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("dob");
+        result.Errors["dob"].Should().Be("Date of Birth must be a valid date.");
+    }
+
+    // ------------------------------------------------------------------ Options Whitelist
+
+    [Fact]
+    public void GivenSelectField_WhenValueNotInOptions_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "color",
+                Label = "Color",
+                FieldType = "select",
+                Required = true,
+                Options = new List<string> { "red", "green", "blue" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["color"] = "yellow" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("color");
+        result.Errors["color"].Should().Be("Color contains an invalid selection.");
+    }
+
+    [Fact]
+    public void GivenRadioField_WhenInjectedValue_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "membership",
+                Label = "Membership",
+                FieldType = "radio",
+                Required = true,
+                Options = new List<string> { "free", "basic", "premium" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["membership"] = "hacked-admin" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("membership");
+        result.Errors["membership"].Should().Be("Membership contains an invalid selection.");
+    }
+
+    [Fact]
+    public void GivenCheckboxListField_WhenOneValidOneInvalid_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "features",
+                Label = "Features",
+                FieldType = "checkboxlist",
+                Required = false,
+                Options = new List<string> { "sso", "api", "backup" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["features"] = "sso,injected-feature" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("features");
+        result.Errors["features"].Should().Be("Features contains an invalid selection.");
+    }
+
+    // ------------------------------------------------------------------ Constraint Validation
+
+    [Fact]
+    public void GivenMinLengthConstraint_WhenTooShort_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "username",
+                Label = "Username",
+                FieldType = "text",
+                Required = true,
+                MinLength = 5
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["username"] = "abc" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("username");
+        result.Errors["username"].Should().Be("Username must be at least 5 characters.");
+    }
+
+    [Fact]
+    public void GivenMaxLengthConstraint_WhenTooLong_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "code",
+                Label = "Code",
+                FieldType = "text",
+                Required = true,
+                MaxLength = 10
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["code"] = "12345678901" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("code");
+        result.Errors["code"].Should().Be("Code must be no more than 10 characters.");
+    }
+
+    [Fact]
+    public void GivenPatternConstraint_WhenDoesNotMatch_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "postcode",
+                Label = "Postcode",
+                FieldType = "text",
+                Required = true,
+                Pattern = @"^[A-Z]{2}\d{2}$"
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["postcode"] = "12AB" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("postcode");
+        result.Errors["postcode"].Should().Be("Postcode is not in the expected format.");
+    }
+
+    [Fact]
+    public void GivenMinConstraint_WhenBelowMinimum_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "quantity",
+                Label = "Quantity",
+                FieldType = "number",
+                Required = true,
+                Min = 10
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["quantity"] = "5" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("quantity");
+        result.Errors["quantity"].Should().Be("Quantity must be at least 10.");
+    }
+
+    [Fact]
+    public void GivenMaxConstraint_WhenAboveMaximum_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "rating",
+                Label = "Rating",
+                FieldType = "number",
+                Required = true,
+                Max = 5
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["rating"] = "10" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("rating");
+        result.Errors["rating"].Should().Be("Rating must be no more than 5.");
+    }
+
+    // ------------------------------------------------------------------ Security
+
+    [Fact]
+    public void GivenUnknownFieldKeyInSubmission_WhenNotInAuthoritative_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["name"] = "Jane",
+            ["injected_field"] = "malicious"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("injected_field");
+        result.Errors["injected_field"].Should().Be("injected_field: Unknown field");
+    }
+
+    [Fact]
+    public void GivenEmptySubmission_WhenNoRequiredFields_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "comment", Label = "Comment", FieldType = "textarea", Required = false }
+        };
+        var submitted = new Dictionary<string, string>();
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenXssAttemptInTextField_WhenValidatingStructure_ThenPassesThrough()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "comment", Label = "Comment", FieldType = "text", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["comment"] = "<script>alert('xss')</script>"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    // ------------------------------------------------------------------ Edge Cases
+
+    [Fact]
+    public void GivenBooleanField_WhenAbsentFromSubmission_ThenTreatedAsFalse()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "agree", Label = "I agree", FieldType = "boolean", Required = false }
+        };
+        var submitted = new Dictionary<string, string>();
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenCheckboxListField_WhenCommaSeparatedValues_ThenValidatesEachValue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "interests",
+                Label = "Interests",
+                FieldType = "checkboxlist",
+                Required = false,
+                Options = new List<string> { "sports", "music", "reading" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["interests"] = "sports,reading" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenCheckboxListField_WhenSubmittedWithSuffix_ThenFindsValue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "tags",
+                Label = "Tags",
+                FieldType = "checkboxlist",
+                Required = true,
+                Options = new List<string> { "tech", "design", "business" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["tags[]"] = "tech,design" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenSelectFieldWithEmptyOptions_WhenValidValue_ThenNoOptionsError()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "choice",
+                Label = "Choice",
+                FieldType = "select",
+                Required = false,
+                Options = new List<string>()
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["choice"] = "anything" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenPatternConstraint_WhenMatches_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "postcode",
+                Label = "Postcode",
+                FieldType = "text",
+                Required = true,
+                Pattern = @"^[A-Z]{2}\d{2}$"
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["postcode"] = "AB12" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenMinAndMaxNumberConstraints_WhenWithinRange_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "score",
+                Label = "Score",
+                FieldType = "number",
+                Required = true,
+                Min = 0,
+                Max = 100
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["score"] = "75" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenMultipleFieldsWithErrors_WhenValidating_ThenReturnsAllErrors()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true },
+            new() { FieldKey = "email", Label = "Email", FieldType = "email", Required = true },
+            new() { FieldKey = "age", Label = "Age", FieldType = "number", Required = true, Min = 18 }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["name"] = "",
+            ["email"] = "invalid-email",
+            ["age"] = "15"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().HaveCount(3);
+        result.Errors.Should().ContainKey("name");
+        result.Errors.Should().ContainKey("email");
+        result.Errors.Should().ContainKey("age");
+    }
+
+    [Fact]
+    public void GivenOptionsWithCaseInsensitiveMatch_WhenValidating_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "color",
+                Label = "Color",
+                FieldType = "select",
+                Required = true,
+                Options = new List<string> { "Red", "Green", "Blue" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["color"] = "red" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+}

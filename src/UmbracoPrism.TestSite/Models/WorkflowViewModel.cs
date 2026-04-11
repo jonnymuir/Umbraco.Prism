@@ -52,6 +52,12 @@ public class WorkflowViewModel : PublishedContentWrapped
     public string? ErrorMessage { get; set; }
 
     /// <summary>
+    /// Pre-filled field values to repopulate the form after a failed validation round-trip.
+    /// Used to preserve user input during PRG redirects (WCAG 3.3.1 compliance).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> FormValues { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>
     /// Returns a lookup of the first problem message keyed by field key,
     /// for rendering inline field-level errors.
     /// </summary>

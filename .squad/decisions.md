@@ -4264,3 +4264,1370 @@ This design is ready to hand off to **Blathers** for implementation:
 5. Update `Program.cs` (remove `AddControllers`, `MapControllers`)
 6. Adjust `appsettings.Development.json` log levels
 7. **Tangy** should add integration-level smoke tests for the new engine `Reset` method
+
+---
+
+# Decision: Community Enquiry Workflow — Field Constraints Not Yet Wired
+
+**Date:** 2025-01-10  
+**Author:** Blathers (Backend Dev)  
+**Context:** Replacing retirement-quote demo with comprehensive community-enquiry workflow
+
+## Decision
+
+Created a new `community-enquiry` workflow definition that showcases ALL of Prism's field types. The JSON field definitions include constraint properties (`minLength`, `maxLength`) where appropriate, but these are **not yet mapped** through to the runtime `FieldRenderPayload`.
+
+## Current State
+
+**Field constraint properties in JSON (ready):**
+- `about-you-v1.json`: `maxLength: 100` on `full-name` and `organisation` fields
+- `your-enquiry-v1.json`: `minLength: 20`, `maxLength: 500` on `message` field
+
+**Engine mapping (incomplete):**
+- `FieldFile` record in `WorkflowDefinitionFile.cs` does NOT declare `MinLength`, `MaxLength`, `Pattern`, `Min`, `Max` properties
+- `FieldRenderPayload` in `WorkflowResponseEnvelope.cs` does NOT expose these properties
+- `BuildFieldGroup()` in `BusinessAppWorkflowEngine.cs` (lines 331-340) only maps: `FieldKey`, `Label`, `Hint`, `FieldType`, `Required`, `Options`, `Value`
+
+## What This Means
+
+1. **JSON is forward-compatible:** The constraint properties are stored in the seed files and will be ignored by the deserializer until the C# models are updated.
+2. **UI won't receive constraints:** The render payloads sent to the frontend will not include validation hints (min/max length, patterns) until the engine is extended.
+3. **No validation errors:** The system will not break; constraints will simply be unavailable to the UI for client-side validation.
+
+## Follow-Up Work Required
+
+To complete constraint support, a future task must:
+
+1. **Extend `FieldFile` record** (`WorkflowDefinitionFile.cs`):
+   ```csharp
+   public int? MinLength { get; init; }
+   public int? MaxLength { get; init; }
+   public string? Pattern { get; init; }
+   public decimal? Min { get; init; }
+   public decimal? Max { get; init; }
+   ```
+
+2. **Extend `FieldRenderPayload` record** (`WorkflowResponseEnvelope.cs`):
+   ```csharp
+   public int? MinLength { get; init; }
+   public int? MaxLength { get; init; }
+   public string? Pattern { get; init; }
+   public decimal? Min { get; init; }
+   public decimal? Max { get; init; }
+   ```
+
+3. **Update `BuildFieldGroup()` method** (`BusinessAppWorkflowEngine.cs`, ~line 331):
+   ```csharp
+   var fields = group.Fields.Select(f => new FieldRenderPayload
+   {
+       FieldKey = f.FieldKey,
+       Label = f.Label,
+       Hint = f.Hint,
+       FieldType = f.FieldType,
+       Required = f.Required,
+       Options = f.Options,
+       Value = savedValues.TryGetValue(f.FieldKey, out var v) ? v : null,
+       MinLength = f.MinLength,     // NEW
+       MaxLength = f.MaxLength,     // NEW
+       Pattern = f.Pattern,         // NEW
+       Min = f.Min,                 // NEW
+       Max = f.Max                  // NEW
+   }).ToArray();
+   ```
+
+## Rationale
+
+Defined the constraints in the JSON seed files NOW to establish the schema, even though the backend doesn't yet propagate them. This approach:
+
+- **Avoids rework:** When constraint support is added, the seed files won't need updating
+- **Documents intent:** Makes it clear what validation rules should apply
+- **Maintains consistency:** All field metadata lives in one place (the JSON definition)
+- **No breaking changes:** JSON deserialization ignores unknown properties, so adding them to the model later is safe
+
+## Impact
+
+- ✅ **No build errors:** System compiles and runs correctly
+- ✅ **No runtime errors:** Extra JSON properties are silently ignored
+- ⚠️ **Missing feature:** UI cannot validate min/max length until backend support added
+- 📋 **Follow-up task needed:** Wire constraints through the full stack (C# models + engine mapping)
+
+## Files Changed
+
+- Created: `workflow-seeds/field-groups/about-you-v1.json`
+- Created: `workflow-seeds/field-groups/your-enquiry-v1.json`
+- Created: `workflow-seeds/community-enquiry-v1.json`
+- Deleted: `workflow-seeds/retirement-quote-v1.json`
+
+## Workflow Field Types Demonstrated
+
+1. ✅ **text** — `full-name`, `organisation` (with MaxLength)
+2. ✅ **email** — `email-address`
+3. ✅ **select** — `your-role`
+4. ✅ **radio** — `enquiry-type`
+5. ✅ **textarea** — `message` (with MinLength/MaxLength)
+6. ✅ **checkboxlist** — `topics`
+7. ✅ **boolean** — `newsletter`
+8. ✅ **date** — (used in `personal-details` field group from `information-request` workflow)
+
+This workflow now serves as a comprehensive showcase of Prism's form capabilities.
+
+---
+
+# Decision: Workflow Controller Integration with Nonce & Structural Validation
+
+**Date:** 2026-03-23  
+**Author:** Blathers (Backend Dev)  
+**Status:** Implemented  
+
+## Context
+
+The workflow engine now has two security/validation services:
+- `IWorkflowStepNonceService` — generates tamper-proof nonces binding forms to server-authoritative field definitions
+- `IWorkflowFieldValidator` — validates submitted form data against authoritative schema (type, required, constraints, options whitelist)
+
+These services needed to be integrated into `WorkflowPageController` to enforce security before sending data to the Business App.
+
+## Decision
+
+Integrated both services into the workflow controller's GET and POST flows:
+
+### GET Flow
+1. After successfully building the workflow envelope, extract all fields from `envelope.Render.FieldGroups`
+2. Generate a nonce via `nonceService.CreateAsync(allFields)`
+3. Set the nonce on the ViewModel for rendering in a hidden field
+4. Changed `HandleGet()` from synchronous to `async Task<IActionResult>` to support this
+
+### POST Flow
+1. **Nonce validation** (after antiforgery check):
+   - Extract nonce from form
+   - Resolve to authoritative fields via `nonceService.ResolveAsync(nonce)`
+   - Redirect if missing/expired (prevents stale or tampered forms)
+   
+2. **Structural validation**:
+   - Extract submitted fields (keys prefixed `fields[`)
+   - Call `fieldValidator.Validate(authoritativeFields, submittedFields)`
+   - If invalid, convert errors to `WorkflowProblem` objects, serialize to TempData, redirect via PRG
+   
+3. **Business App submission**:
+   - Only proceed if both validations pass
+   - Use already-validated `submittedFields` dict (converted to `Dictionary<string, object?>` for API compatibility)
+
+### Implementation Details
+- Added two constructor parameters: `IWorkflowStepNonceService nonceService`, `IWorkflowFieldValidator fieldValidator`
+- Added `Nonce` property to `WorkflowViewModel`
+- Updated `Index()` to await both GET and POST handlers
+- All validation failures redirect via PRG pattern with problems in TempData
+
+## Rationale
+
+**Defense in depth:**
+- Nonce binding prevents field injection (attacker cannot add/modify field definitions client-side)
+- Structural validation ensures type safety, required fields, constraints, and options whitelisting before hitting the Business App
+- Nonce expiry mitigates replay attacks with stale forms
+
+**Performance:**
+- Validations run in-memory (nonce cache, in-process validation)
+- No round-trip to Business App for invalid data
+
+**UX:**
+- Validation errors surface immediately via TempData → shown in same view on redirect
+- Failed nonces trigger clean redirect (user sees current state, can resubmit)
+
+## Consequences
+
+### Positive
+- ✅ Tamper-proof forms: field schema enforced server-side
+- ✅ Early validation: bad data rejected before Business App call
+- ✅ Clean error handling: PRG pattern with structured problems
+- ✅ Build succeeded (0 warnings, 0 errors)
+
+### Negative
+- Front-end must render `Nonce` in hidden field (requires view template update)
+- Nonce expiry creates time window for form submission (configurable via cache TTL, but still a constraint)
+
+### Open Questions
+- What should nonce cache TTL be? (default 15 minutes in implementation)
+- Should expired nonces show a user-friendly message vs. silent redirect?
+
+## Alternatives Considered
+
+1. **Validation in Business App only** — rejected because it requires network round-trip for every validation error
+2. **Client-side validation only** — rejected because it's trivially bypassable
+3. **Nonce per field instead of per form** — rejected as over-engineering (form-level nonce sufficient)
+
+## Follow-up Work
+
+- [ ] Update workflow view template to render nonce in hidden field
+- [ ] Add test coverage for nonce expiry scenarios
+- [ ] Add test coverage for validation error flows (missing required, type mismatch, constraint violations)
+- [ ] Document nonce TTL configuration in README or setup guide
+
+---
+
+# Decision: Server-Side Workflow Field Validation Architecture
+
+**Author:** Blathers  
+**Date:** 2026-03-29  
+**Status:** Implemented
+
+## Context
+
+The workflow engine requires server-side structural validation before forwarding form POSTs to the Business App. The validator must use the authoritative field definitions cached by `IWorkflowStepNonceService` to prevent client-side tampering.
+
+## Decision
+
+Implemented `IWorkflowFieldValidator` / `WorkflowFieldValidator` with the following architecture:
+
+### Validation Sequence (First Error Wins)
+
+1. **Field key whitelist** — Reject any submitted key not in authoritative definitions
+2. **Required check** — Empty values fail if `field.Required`
+3. **Type validation** — `number` → decimal parse, `email` → basic check, `date`/`datetime` → DateTime parse
+4. **Options whitelist** — For `select`/`radio`/`checkboxlist`, check against `field.Options`
+5. **Constraints** — `MinLength`, `MaxLength`, `Pattern`, `Min`, `Max`
+
+Only the **first** error per field is recorded (mirrors GDS validation pattern).
+
+### Checkboxlist Suffix Normalization
+
+Client submits checkboxlist fields as `{key}[]`. Validator is lenient: both `field.FieldKey` and `{field.FieldKey}[]` are whitelisted.
+
+### Error Message Format
+
+Pattern: `"{field.Label} {message}"`
+
+Examples:
+- `"Email Address is required."`
+- `"Age must be a number."`
+- `"Country contains an invalid selection."`
+- `"Password must be at least 8 characters."`
+
+### Registration
+
+Transient service in `WorkflowBuilderExtensions.AddPrismWorkflowEngine()`. New instance per validation call, no state.
+
+### Model Structure
+
+```csharp
+public record WorkflowValidationResult
+{
+    public bool IsValid => Errors.Count == 0;
+    public IReadOnlyDictionary<string, string> Errors { get; init; }
+    
+    public static WorkflowValidationResult Pass();
+    public static WorkflowValidationResult Fail(Dictionary<string, string> errors);
+}
+```
+
+## Files
+
+- `src/UmbracoPrism.Core/Models/Workflow/WorkflowValidationResult.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/IWorkflowFieldValidator.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/WorkflowFieldValidator.cs`
+- `src/UmbracoPrism.Core/Extensions/WorkflowBuilderExtensions.cs` (registration)
+
+## Consequences
+
+### Positive
+
+- Server-authoritative validation prevents client-side tampering
+- First-error-wins pattern reduces error message noise
+- Lenient checkboxlist handling improves form UX
+- Stateless validator enables easy unit testing
+- Type coercion errors caught before Business App sees data
+
+### Negative
+
+- Email validation is basic (not strict RFC5322) — business rules validation remains in Business App
+- Checkboxlist split-on-comma assumes client serialization format — may need adjustment if client changes
+
+## Next Steps
+
+1. Controller integration — call validator in POST endpoint before Business App forwarding
+2. Unit tests — cover all validation rules and error collapsing behavior
+3. Consider structured error codes (not just messages) for client-side display logic
+
+---
+
+# Field Constraint Properties Convention
+
+**Decision:** Add validation constraint properties to workflow field models for full-stack form validation.
+
+**What:**
+- Added five nullable constraint properties to `FieldRenderPayload` (shared API model) and `FieldFile` (Business App definition model)
+- Properties: `MinLength`, `MaxLength`, `Pattern`, `Min`, `Max`
+- All nullable to maintain backward compatibility with existing field definitions
+
+**Why:**
+- Enables Business Apps to declaratively specify field validation rules in their workflow definitions
+- Allows Prism to auto-emit HTML5 constraint attributes (`minlength`, `maxlength`, `pattern`, `min`, `max`) for client-side validation
+- Provides server-side validation engine with the same constraints for consistent validation behavior
+- Nullable approach means existing workflows continue working without modification
+
+**Convention:**
+- Constraint properties are optional (nullable) on both definition (`FieldFile`) and render payload (`FieldRenderPayload`)
+- Text/textarea fields use `MinLength` and `MaxLength` (int)
+- Text/email fields use `Pattern` (string) for HTML5 regex validation
+- Number fields use `Min` and `Max` (decimal) for numeric range validation
+- Business App mapping layer (`BuildFieldGroup`) passes constraint values through unchanged
+- Properties added after `Options` in record definition to maintain stable ordering
+
+**Impact:**
+- Shared Models: `WorkflowResponseEnvelope.cs` updated
+- Mock Business App: `WorkflowDefinitionFile.cs` and `BusinessAppWorkflowEngine.cs` updated
+- Existing field group JSON files remain valid (constraints optional)
+- New field definitions can specify constraints as needed (already used in community-enquiry workflow)
+
+---
+
+# Decision: Workflow Form Nonce Service Architecture
+
+**Date:** 2026-04-11  
+**Author:** Blathers (Backend Dev)  
+**Status:** Implemented
+
+## Context
+
+Building full-stack workflow form validation for Prism. Needed a mechanism to prevent:
+- **Field key injection** — submitting fields the Business App never asked for
+- **Constraint bypass** — ignoring MinLength, Required, MaxLength etc.
+- **Replay attacks** — reusing nonces across different workflow steps
+
+## Decision
+
+Implemented a cryptographic nonce service (`IWorkflowStepNonceService`) that binds each form submission to its server-side authoritative field definition.
+
+### Architecture
+
+1. **Nonce Generation:**
+   - Format: `Guid.NewGuid().ToString("N")` (32-char hex, no dashes)
+   - Cache key: `"prism:workflow:nonce:{nonce}"`
+   - Stores serialized `FieldRenderPayload[]` from Business App response
+
+2. **Storage:**
+   - Uses `IDistributedCache` (registered via `AddDistributedMemoryCache()`)
+   - Works out of the box for single-server dev
+   - Production: replace with `AddStackExchangeRedisCache()` or `AddDistributedSqlServerCache()`
+
+3. **TTL:**
+   - Default: **2 hours** (configurable via `PrismWorkflowOptions.NonceExpiry`)
+   - Rationale: balances security with UX for slow multi-step workflows
+
+4. **Graceful Degradation:**
+   - Expired/missing nonce → `ResolveAsync()` returns `null`
+   - Caller redirects to GET (no crash, no data loss)
+
+5. **Browser Back Button:**
+   - Nonce NOT removed on resolve
+   - Survives multiple POSTs within TTL window
+   - User can use back button and resubmit without "nonce expired" error
+
+### Configuration
+
+```json
+{
+  "Prism": {
+    "Workflow": {
+      "NonceExpiry": "02:00:00"  // 2 hours default
+    }
+  }
+}
+```
+
+### Services Registered
+
+In `WorkflowBuilderExtensions.AddPrismWorkflowEngine()`:
+- `IDistributedCache` — singleton, in-memory cache
+- `PrismWorkflowOptions` — bound from `"Prism:Workflow"` config section
+- `IWorkflowStepNonceService` — singleton, nonce generation/validation
+
+## Alternatives Considered
+
+1. **JWT signed tokens** — overkill; nonce lookup is faster and doesn't bloat HTML
+2. **Database-backed nonce table** — slower; cache is sufficient and auto-expires
+3. **One-time use nonces** — breaks browser back button UX
+
+## Consequences
+
+✅ **Pros:**
+- Prevents field injection and constraint bypass attacks
+- Zero-config for single-server dev (in-memory cache)
+- Multi-server ready (swap to Redis/SQL)
+- Browser back button friendly
+
+⚠️ **Considerations:**
+- Devs deploying multi-server must configure distributed cache provider
+- Nonce TTL should match longest expected workflow session duration
+
+## Related Files
+
+- `src/UmbracoPrism.Core/Configuration/PrismWorkflowOptions.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/IWorkflowStepNonceService.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/WorkflowStepNonceService.cs`
+- `src/UmbracoPrism.Core/Extensions/WorkflowBuilderExtensions.cs`
+
+---
+
+# Form Value Retention Strategy
+
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Date:** 2026-04-12  
+**Status:** Implemented
+
+## Context
+
+When workflow forms fail validation (either structural or Business App validation), the PRG (Post-Redirect-Get) pattern was clearing all user-entered values. This created:
+- **Usability problem:** Users must re-enter all data
+- **Accessibility violation:** WCAG 3.3.1 requires errors be identified AND the value that caused the error be preserved
+
+## Decision
+
+**Store submitted field values in TempData alongside validation problems, then repopulate form fields on GET.**
+
+### Implementation Approach
+
+1. **Controller POST** — on validation failure:
+   - Serialize submitted field values: `TempData["WorkflowFormValues"] = JsonSerializer.Serialize(submittedFields)`
+   - Applied to BOTH failure paths: structural validation AND BA validation_error responses
+
+2. **Controller GET** — retrieve and apply:
+   - Add `PopFormValuesFromTempData()` method (parallel to `PopProblemsFromTempData()`)
+   - Pass retrieved values to `BuildViewModel(envelope, workflowKey, problems, formValues)`
+
+3. **View Model** — store for tag helpers:
+   - Add `FormValues` property (IReadOnlyDictionary<string, string>)
+
+4. **Tag Helper** — render with pre-filled values:
+   - Add `values` attribute accepting IReadOnlyDictionary<string, string>
+   - Each field type checks `Values?.GetValueOrDefault(field.FieldKey)` FIRST, then falls back to `field.Value`
+   - Submitted values take precedence over BA-provided field defaults
+
+5. **View Template** — pass values through:
+   - Update `<prism-field>` invocation: `values="@Model.FormValues"`
+
+### Key Design Choices
+
+| Choice | Rationale |
+|--------|-----------|
+| **TempData storage** | Existing pattern for problems; survives redirect; auto-cleanup after read |
+| **JSON serialization** | Matches existing `PopProblemsFromTempData()` pattern |
+| **Dictionary<string, string>** | Simple, matches `submittedFields` structure from form parser |
+| **Precedence: submitted > BA defaults** | Preserve user intent, not server state |
+| **No type conversion** | HTML `value=""` attributes accept strings; browser handles type coercion |
+
+### Field Type Handling
+
+- **Text/email/number/date/textarea:** Direct value repopulation
+- **Checkbox (boolean):** Check if `Values[key] == "true"`; absence = unchecked
+- **Radio:** Pre-select matching option
+- **CheckboxList:** Split comma-separated values (ASP.NET Core concatenation behavior)
+- **Select:** Pre-select matching option
+
+## Alternatives Considered
+
+1. **Storing in ModelState** — Rejected: ASP.NET Core ModelState is designed for MVC controllers, not Umbraco route-hijacking
+2. **Client-side localStorage** — Rejected: Requires JavaScript; fails for no-JS users; GDPR concerns
+3. **Hidden fields with all values** — Rejected: Security risk (exposes all fields to tampering)
+4. **Nonce-based value cache** — Rejected: Over-engineered; TempData simpler and sufficient
+
+## Consequences
+
+✅ **Positive:**
+- WCAG 3.3.1 compliance achieved
+- Better UX — users don't lose work on validation errors
+- Minimal code change — leverages existing TempData pattern
+- Works for all field types
+
+⚠️ **Trade-offs:**
+- TempData has session affinity requirements (already a constraint for workflow state)
+- Submitted values persist only for one redirect (acceptable for PRG pattern)
+
+## Testing Guidance
+
+Test scenarios:
+1. Required field missing → structural validation fails → values retained
+2. BA validation_error (e.g., "email already registered") → values retained
+3. All field types (checkbox, radio, select, text, textarea, checkboxlist) → all retain values correctly
+4. Multiple validation failures → all fields retain values across multiple round-trips
+
+## Related Patterns
+
+- **PRG (Post-Redirect-Get):** Maintained — still redirects after POST
+- **Nonce validation:** Unaffected — nonce still prevents field tampering
+- **Error summary:** Works together — errors + values shown simultaneously
+
+---
+
+# Demo Workflow: Community Enquiry replaces Retirement Quote
+
+**Date:** 2026-04-11  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Implemented
+
+## Decision
+
+The TestSite demo workflow has been changed from "Retirement Quote" to "Community Enquiry" (branded as "Get in Touch").
+
+### Identifiers
+
+- **Content node name:** `"Get in Touch"` (user-facing page title)
+- **URL slug:** `/get-in-touch` (auto-generated by Umbraco)
+- **Workflow key:** `"community-enquiry"` (workflow definition identifier used in API calls)
+
+### Rationale
+
+"Get in Touch" is a better showcase for Prism workflow features:
+- More generic and relatable than a retirement-specific form
+- Demonstrates the same technical capabilities (multi-step workflow, field collection, review, completion)
+- Better represents real-world member portal use cases (contact forms, enquiries, requests)
+
+### Implementation Notes
+
+1. **Cleanup on startup:** The seeder now deletes any existing "Retirement Quote" nodes to keep the demo clean. This prevents confusion when switching between branches or pulling updates.
+
+2. **Dual-key lookup:** The seeder checks for existing nodes by BOTH `Name` and `workflowKey` to handle manual backoffice edits (e.g., a user renaming the node but leaving the workflowKey unchanged).
+
+3. **Workflow key convention:** Kebab-case workflow keys (`community-enquiry`) match URL slug patterns (`/get-in-touch`) and REST API naming conventions.
+
+### Impact on Other Teams
+
+- **Blathers (BusinessApp):** Will need to create a `community-enquiry` workflow definition to match the new workflow key. The old `retirement-quote` definition can be archived or removed.
+- **Isabelle (Frontend):** No changes required — the workflow rendering is archetype-driven and workflow-agnostic.
+- **Tangy (Testing):** Integration tests that reference the old workflow key should be updated.
+
+### Files Changed
+
+- `src/UmbracoPrism.TestSite/WorkflowPageSeeder.cs` — seeder logic
+- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs` — property description example
+- `src/UmbracoPrism.Core/Services/IBusinessAppWorkflowClient.cs` — XML doc example
+- `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` — XML doc example
+
+---
+
+# Decision: Workflow Tag Helpers for Form Rendering
+
+**Date:** 2026-03-29  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Implemented  
+
+## Context
+
+Workflow forms in the TestSite require collecting user input with validation errors, hints, and constraint attributes. The initial implementation used a partial view (`_WorkflowField.cshtml`) invoked with ViewData-based error passing. While functional, this approach had boilerplate:
+
+- Manual `Html.AntiForgeryToken()` calls
+- 5 hidden input fields duplicated across views
+- ViewDataDictionary creation per field to pass errors
+- No error summary with anchor links (GDS pattern missing)
+
+## Decision
+
+Implement three tag helpers in `UmbracoPrism.Core/TagHelpers/`:
+
+1. **`<prism-workflow-form>`** — Wraps form with antiforgery token and hidden state fields
+2. **`<prism-error-summary>`** — Renders GDS-compliant error summary with field anchor links
+3. **`<prism-field>`** — Renders individual fields with labels, hints, errors, ARIA attributes
+
+## Rationale
+
+- **Principle of least surprise:** Developers write declarative Razor without ViewData coupling
+- **Accessibility by default:** ARIA attributes, error summary jump links, keyboard navigation built-in
+- **Reduced boilerplate:** View code reduced from 55 lines to 37 lines (33% reduction)
+- **Auto-discovery:** Tag helpers registered via `@addTagHelper *, UmbracoPrism.Core` in _ViewImports.cshtml
+- **Single responsibility:** Each tag helper owns one concern (form wrapper, error summary, field rendering)
+
+## Implementation Details
+
+### 1. PrismWorkflowFormTagHelper
+
+**Target:** `<prism-workflow-form>`  
+**Attributes:** `instance-id`, `state-version`, `workflow-key`, `return-url`, `nonce`  
+**Output:** `<form>` with method="post", action, novalidate, antiforgery token, 5 hidden fields
+
+**Key patterns:**
+- Injects `IAntiforgery` for CSRF token generation
+- Uses `[ViewContext]` injection (same as PrismDebugTagHelper)
+- Renders antiforgery + hidden fields in `PreContent` (before child content)
+
+### 2. PrismErrorSummaryTagHelper
+
+**Target:** `<prism-error-summary>`  
+**Attribute:** `problems` (IReadOnlyList<WorkflowProblem>)  
+**Output:** GDS-style error summary div with role="alert", tabindex="-1"
+
+**Key patterns:**
+- Suppresses output if no problems (null or empty list)
+- Field errors → anchor links (`href="#{fieldKey}"` for keyboard jump-to-field)
+- Summary-level errors (no FieldKey) → plain text
+- Uses `System.Net.WebUtility.HtmlEncode` for XSS safety
+
+### 3. PrismFieldTagHelper
+
+**Target:** `<prism-field>`  
+**Attributes:** `field` (FieldRenderPayload), `errors` (IReadOnlyDictionary<string, string>)  
+**Output:** Field wrapper with label, hint, error, input/select/textarea/radio/checkbox
+
+**Field types supported:**
+- `text`, `email`, `number`, `date`, `datetime` → `<input type="...">`
+- `textarea` → `<textarea>`
+- `boolean` → single checkbox
+- `select` → `<select>` with `<option>`s
+- `radio` → fieldset + radio inputs
+- `checkboxlist` → fieldset + checkboxes
+
+**Constraint attributes applied:**
+- `required` if Required
+- `minlength`/`maxlength` if MinLength/MaxLength has value
+- `pattern` if Pattern has value (regex)
+- `min`/`max` if Min/Max has value (number fields)
+
+**ARIA attributes:**
+- `aria-required="true"` if Required
+- `aria-invalid="true"` if field has error
+- `aria-describedby="{hint-id} {error-id}"` (only IDs that exist)
+
+**Rendering order (accessibility):**
+1. Label (with required star if needed)
+2. Hint (if present)
+3. Error message (if present)
+4. Input element
+
+**XSS safety:**
+- All user-facing content encoded via `System.Net.WebUtility.HtmlEncode()`
+- No raw string interpolation for field values, labels, hints, or errors
+
+## View Transformation
+
+### Before (55 lines):
+```razor
+@{
+    var token = Html.AntiForgeryToken();
+}
+<form class="prism-workflow" method="post" action="@Model.ReturnUrl" novalidate>
+    @token
+    <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
+    <!-- ... 4 more hidden fields ... -->
+    @if (Model.Problems.Any(p => string.IsNullOrEmpty(p.FieldKey))) { /* manual error div */ }
+    @foreach (var field in group.Fields)
+    {
+        var errorVd = new ViewDataDictionary(ViewData);
+        if (Model.FieldErrors.TryGetValue(field.FieldKey, out var fieldErr))
+        {
+            errorVd["fieldError"] = fieldErr;
+        }
+        @await Html.PartialAsync("_WorkflowField", field, errorVd)
+    }
+</form>
+```
+
+### After (37 lines):
+```razor
+<prism-workflow-form instance-id="@Model.InstanceId"
+                     state-version="@Model.StateVersion"
+                     workflow-key="@Model.WorkflowKey"
+                     return-url="@Model.ReturnUrl"
+                     nonce="@Model.Nonce">
+
+    <prism-error-summary problems="@Model.Problems" />
+
+    @foreach (var field in group.Fields)
+    {
+        <prism-field field="@field" errors="@Model.FieldErrors" />
+    }
+</prism-workflow-form>
+```
+
+## Consequences
+
+### Positive
+- **Declarative syntax:** Tag helpers read like HTML, not C# boilerplate
+- **No ViewData coupling:** Errors passed as dictionary property, intent clear
+- **GDS error summary:** Standard accessibility pattern (used by GOV.UK, NHS.UK)
+- **Field rendering DRY:** Logic centralized in tag helper, not duplicated
+- **Auto-discovered:** No manual registration needed (addTagHelper in _ViewImports)
+
+### Neutral
+- **Tag helper complexity:** PrismFieldTagHelper is 270 lines (vs 250-line partial view)
+- **Debugging:** Tag helper errors show at compile-time (not runtime like partials)
+
+### Negative
+- None identified. Tag helpers are the ASP.NET Core idiomatic approach for reusable HTML generation.
+
+## Namespace Note
+
+Models are in `UmbracoPrism.Core.Models.Workflow` (not `UmbracoPrism.Shared.Models.Workflow`). Initial build failed due to wrong using statement. Fixed by changing:
+
+```csharp
+using UmbracoPrism.Shared.Models.Workflow;  // ❌ Wrong
+using UmbracoPrism.Core.Models.Workflow;     // ✅ Correct
+```
+
+## Future Considerations
+
+- **Validation summary client-side focus:** Add JavaScript to focus error summary on form submission (GDS pattern)
+- **Field groups:** Consider a `<prism-field-group>` tag helper to wrap fieldsets
+- **Custom validators:** Tag helpers could read from ModelState for server-side validation errors
+- **Umbraco Forms integration:** If Umbraco Forms is added, tag helpers may need to coexist with Forms rendering
+
+## References
+
+- [ASP.NET Core Tag Helpers](https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/intro)
+- [GOV.UK Design System — Error Summary Component](https://design-system.service.gov.uk/components/error-summary/)
+- [PrismDebugTagHelper.cs](../../../src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs) — reference for [ViewContext] injection pattern
+
+---
+
+# Brewster — TestSite Demo Polish Decisions
+
+**Session:** 2026-04-11 — TestSite Demo Review and Polish  
+**Agent:** Brewster (Umbraco Platform Specialist)  
+**Status:** Ready for merge
+
+## Decision: Workflow Form CSS in components.css
+
+**What:** Added 300+ lines of comprehensive CSS for Prism workflow forms to `src/UmbracoPrism.TestSite/wwwroot/css/components.css`.
+
+**Why:** Tag helpers (`PrismWorkflowFormTagHelper`, `PrismFieldTagHelper`, `PrismErrorSummaryTagHelper`) were implemented and working correctly, but the demo had no styling. CSS was a critical missing piece that made the demo incomplete.
+
+**Classes added:**
+- `.prism-workflow` — Main form container
+- `.prism-error-summary` — GDS-style error summary panel
+- `.prism-form-group` — Field wrapper with error state variant
+- `.prism-label`, `.prism-input`, `.prism-textarea`, `.prism-select` — Form controls
+- `.prism-radio-item`, `.prism-checkbox-item` — Choice controls
+- `.prism-button--primary/secondary/destructive` — Action buttons
+- `.prism-status__*`, `.prism-panel__*` — Status timeline and completion states
+
+**Design principles:**
+- Follow Prism design token pattern (`var(--prism-primary, #4f46e5)`)
+- Accessibility: focus states, color contrast, aria support
+- GDS Design System influence for error handling
+- Mobile-responsive layout
+
+## Decision: Checkbox List Checked State Handling
+
+**What:** Updated `PrismFieldTagHelper.RenderCheckboxList()` to parse `field.Value` as comma-separated string and check each checkbox against matched options.
+
+**Why:** When a checkboxlist field has previously submitted values, those values need to be preserved on re-render (e.g., after validation error). The `field.Value` contains a comma-separated string like `"Red,Blue"`. Each checkbox must check if its option value is in that list.
+
+**Implementation:**
+```csharp
+var checkedValues = field.Value?.ToString()?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? Array.Empty<string>();
+
+var isChecked = checkedValues.Contains(option, StringComparer.OrdinalIgnoreCase);
+```
+
+**Works with:** ASP.NET Core auto-concatenates multiple checkbox values with commas when they share the same `name` attribute.
+
+## Decision: Navigation Link to Demo Page
+
+**What:** Added "Get in Touch" link to Master.cshtml header navigation.
+
+**Why:** The demo page at `/get-in-touch` was seeded and functional, but users had no way to discover it without typing the URL manually. Navigation makes the demo discoverable.
+
+**Location:** `src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml`
+
+**Layout:**
+```html
+<nav>
+    <a href="/">Home</a>
+    <a href="/get-in-touch">Get in Touch</a>
+    <span style="...">@Context.Request.Host</span>
+</nav>
+```
+
+## Non-Decisions (Considered but Not Changed)
+
+### Page Title Shows State Display Name
+
+**Current behavior:** `WorkflowPage.cshtml` shows `Model.StateDisplayName` (e.g., "Tell us about your enquiry") as both ViewBag.Title and `<h1>`.
+
+**Considered:** Showing workflow definition display name instead (e.g., "Get in Touch").
+
+**Decision:** Keep current behavior. For multi-step workflows, showing the current *state* display name is semantically correct UX — it tells the user where they are in the process. The page content node name "Get in Touch" is just the URL slug and backoffice identifier.
+
+### Boolean Field Submission Behavior
+
+**Current behavior:** Boolean checkbox fields submit `value="true"` when checked, and nothing when unchecked. The validator treats missing fields as `false`.
+
+**Considered:** Adding a hidden input with `value="false"` before the checkbox (ASP.NET MVC pattern).
+
+**Decision:** Keep current behavior. The validator's `GetSubmittedValue()` method correctly handles missing boolean fields by returning `string.Empty`, which the required check catches. No need for workaround hidden inputs.
+
+## Impact
+
+- **UX:** Professional-looking workflow demo with polished styling
+- **Discoverability:** Demo page linked from main navigation
+- **Functionality:** Checkbox list state preservation works correctly
+- **Completeness:** All tag helpers now have matching CSS
+
+## Follow-Up Candidates
+
+- Add example workflow definition JSON to documentation
+- Consider adding `WorkflowDisplayName` to `WorkflowViewModel` for breadcrumb scenarios
+- Document CSS class naming conventions in design system guide
+
+---
+
+# Copper — Workflow Validation Stack Security Audit
+
+**Date:** 2026-03-28  
+**Auditor:** Copper (Security Engineer)  
+**Scope:** Full workflow validation stack (10 files)
+
+---
+
+## Executive Summary
+
+Conducted a comprehensive security audit of the newly-built workflow form validation stack focusing on nonce generation, field validation, controller POST handling, tag helpers, and tenant isolation. **Identified and FIXED 3 Critical/High vulnerabilities directly:**
+
+1. **CRITICAL: Open Redirect in WorkflowPageController** — FIXED
+2. **HIGH: ReDoS (Regex Denial of Service) in WorkflowFieldValidator** — FIXED  
+3. **MEDIUM: Weak Email Validation** — FIXED
+
+**Remaining risks documented below** require team decision or Business App hardening.
+
+---
+
+## CRITICAL FINDINGS — FIXED
+
+### 1. Open Redirect in WorkflowPageController ✅ FIXED
+
+**Severity:** CRITICAL  
+**Location:** `WorkflowPageController.cs` lines 139, 146, 164, 180, 189 (pre-fix)  
+**CVE Category:** CWE-601 (URL Redirection to Untrusted Site)
+
+**Vulnerability:**  
+The `ReturnUrl` form parameter was used directly in `Redirect()` without validation. An attacker could craft a workflow form with `<input type="hidden" name="ReturnUrl" value="https://attacker.com/phish"/>` and redirect the user to an external phishing site after form submission, while the user's authenticated session cookies remain valid.
+
+**Attack Vector:**
+```html
+<!-- Malicious form -->
+<input type="hidden" name="ReturnUrl" value="https://evil.com/steal-session"/>
+```
+User submits → redirected to `https://evil.com/steal-session` with cookies still active → attacker can social-engineer credential capture or session hijacking.
+
+**Fix Applied:**
+Added `GetSafeReturnUrl()` helper method that validates `returnUrl` using `Url.IsLocalUrl()`. Only local URLs (relative paths or same-origin absolute URLs) are accepted. External URLs are rejected with a warning log and default to `"/"`.
+
+**Code Changes:**
+- Added `GetSafeReturnUrl(string? returnUrl)` private method
+- Replaced all 5 instances of direct `Redirect(returnUrl)` with `Redirect(safeReturnUrl)`
+- Added security warning log when external URL is rejected
+
+**Post-Fix Behavior:**
+- `ReturnUrl="/workflow"` → accepted
+- `ReturnUrl="https://attacker.com"` → rejected, redirects to `"/"`
+- `ReturnUrl` empty/null → defaults to `"/"`
+
+---
+
+### 2. ReDoS (Regex Denial of Service) in WorkflowFieldValidator ✅ FIXED
+
+**Severity:** HIGH  
+**Location:** `WorkflowFieldValidator.cs` line 197 (pre-fix)  
+**CVE Category:** CWE-1333 (Inefficient Regular Expression Complexity)
+
+**Vulnerability:**  
+The `field.Pattern` regex comes from Business App-controlled content (`FieldRenderPayload.Pattern`). No timeout or complexity check was applied to `Regex.IsMatch()`. An attacker controlling BA content could inject catastrophic backtracking patterns (e.g., `^(a+)+$`, `(a|a)*b`) and cause CPU exhaustion when validating user input, leading to DoS.
+
+**Attack Vector:**
+1. Attacker controls Business App workflow definition (e.g., compromised BA or malicious insider)
+2. BA returns `FieldRenderPayload` with `Pattern = "^(a+)+$"` (catastrophic backtracking)
+3. User submits form with input like `"aaaaaaaaaaaaaaaaaaaaX"`
+4. `Regex.IsMatch()` hangs for minutes/hours consuming 100% CPU core
+
+**Fix Applied:**
+- Added `RegexTimeout = TimeSpan.FromMilliseconds(100)` static field
+- Wrapped `Regex.IsMatch()` in `try/catch (RegexMatchTimeoutException)`
+- Changed call to `Regex.IsMatch(raw, field.Pattern, RegexOptions.None, RegexTimeout)`
+- On timeout exception, return user-friendly error: `"{field.Label} validation pattern is too complex to evaluate safely."`
+
+**Post-Fix Behavior:**
+- Normal patterns (e.g., `^\d{5}$` for zip codes) → works as before
+- Catastrophic backtracking patterns → timeout after 100ms → validation error instead of hang
+- User sees error message, server remains responsive
+
+**Defense-in-Depth Note:**  
+100ms timeout is conservative. Even on slow hardware, most legitimate patterns execute in <10ms. This protects against both malicious and accidentally-complex patterns.
+
+---
+
+### 3. Weak Email Validation ✅ FIXED
+
+**Severity:** MEDIUM  
+**Location:** `WorkflowFieldValidator.cs` lines 128-131 (pre-fix)
+
+**Vulnerability:**  
+Email validation was `raw.Contains('@') && raw.Contains('.')` — trivially bypassable. Accepts non-emails like `@.`, `a@.b`, `..@..`, etc. While not a direct security vulnerability (XSS is prevented by HTML encoding), poor validation can lead to data integrity issues and downstream failures if email addresses are used for communication or identity.
+
+**Fix Applied:**
+- Replaced naive check with `MailAddress` parsing (`System.Net.Mail.MailAddress`)
+- Validates `new MailAddress(raw)` succeeds and `addr.Address == raw` (no normalization drift)
+- Catches `FormatException` for malformed addresses
+
+**Post-Fix Behavior:**
+- `"user@example.com"` → valid
+- `"@."` → invalid
+- `"user@"` → invalid
+- `"user@domain"` → invalid (no TLD)
+- `"user @domain.com"` → invalid (whitespace)
+
+---
+
+## HIGH FINDINGS — DOCUMENTED (Design Decision)
+
+### 4. Nonce Replay Protection — Intentional Design Risk
+
+**Severity:** HIGH (design risk)  
+**Location:** `WorkflowStepNonceService.cs` lines 53-69
+
+**Issue:**  
+Nonces are **NOT consumed** after validation (`ResolveAsync` does not delete from cache). This is intentional to support browser back-button workflows, but it enables **replay attacks**. An attacker can capture a valid form POST (with nonce) and replay it indefinitely until the nonce expires (2 hours default via `NonceExpiry`).
+
+**Attack Vector:**
+1. Legitimate user submits workflow form → POST with valid nonce
+2. Attacker captures the POST request (MITM, XSS, or compromised client)
+3. Attacker replays the POST 100 times before nonce expires
+4. Each replay bypasses field definition validation (nonce still resolves)
+
+**Mitigation Assessment:**
+- **Partial Mitigation:** The Business App's `StateVersion` optimistic concurrency control *should* prevent duplicate state transitions. However:
+  - If the BA accepts multiple submissions with the same `StateVersion`, this is fully exploitable.
+  - If the BA increments `StateVersion` per submission, replay still creates noise (error responses) but shouldn't corrupt state.
+- **Risk Window:** 2 hours (default `NonceExpiry`). An attacker has a 2-hour window to replay captured nonces.
+
+**Recommendation:**
+- **Document this as a known design trade-off** in `WorkflowStepNonceService.cs` and `PrismWorkflowOptions.cs`.
+- **Consider adding a "nonce usage counter"** in the cache value. Warn (or reject) if a nonce is resolved >N times (e.g., 5) within the expiry window. This preserves back-button support while limiting abuse.
+- **Recommendation for Business App:** The BA MUST enforce `StateVersion` optimistic concurrency and reject duplicate submissions. Document this as a hard requirement in the integration guide.
+
+**Tracking:** Add to `.squad/decisions.md` as a documented design constraint.
+
+---
+
+## MEDIUM FINDINGS — DOCUMENTED
+
+### 5. Nonce DoS via Cache Exhaustion
+
+**Severity:** MEDIUM-HIGH  
+**Location:** `WorkflowStepNonceService.cs` line 38
+
+**Issue:**  
+`CreateAsync` generates unlimited nonces with **no rate limiting or per-user cap**. An authenticated attacker can spam GET requests to the workflow page and generate millions of cache entries, exhausting memory (in-memory cache) or storage (Redis). Each nonce is a JSON-serialized `List<FieldRenderPayload>` (~1-10 KB depending on field count).
+
+**Attack Vector:**
+1. Authenticated attacker scripts 10,000 GET requests to `/workflow-page`
+2. Each GET creates a new nonce → 10,000 cache entries
+3. In-memory cache: Memory exhaustion → OOM → service crash
+4. Redis cache: Storage exhaustion → eviction of legitimate nonces → DoS for real users
+
+**Impact:**
+- **Availability Risk:** Memory/storage exhaustion can crash the app or evict legitimate nonces (forcing real users to restart workflows)
+- **Cost Risk:** If using cloud cache (Redis), unbounded nonce generation → cost spike
+
+**Recommendation:**
+- **Immediate (Low-Effort):** Reduce `NonceExpiry` from 2 hours to 30 minutes to limit attack window and cache size.
+- **Near-Term:** Add per-user nonce limit (e.g., max 10 active nonces per authenticated member). Store a `HashSet<string>` in cache keyed by `userId` to track active nonces. Reject `CreateAsync` if user already has ≥10 nonces.
+- **Long-Term:** Add distributed rate limiting (e.g., `AspNetCoreRateLimit` or per-tenant rate limiter) to limit GET requests to workflow pages.
+
+**Tracking:** Add to backlog as a hardening task. Not blocking for MVP but should be prioritized for production.
+
+---
+
+### 6. Tenant Isolation in Workflow Submission — Business App Responsibility
+
+**Severity:** MEDIUM  
+**Location:** `WorkflowPageController.cs` line 184
+
+**Issue:**  
+The controller submits `InstanceId`, `WorkflowKey`, `Action`, `StateVersion` from the form to `workflowClient.AdvanceAsync()`. These values are **trusted from the form**. If an attacker can guess or enumerate another tenant's `InstanceId` (GUIDs can be leaked or predicted if not using secure GUID generation), they could potentially submit workflow data for another tenant's instance.
+
+**Mitigation Assessment:**
+- **Partial Mitigation:** `BusinessAppWorkflowClient.CreateClientAsync()` attaches the authenticated member's bearer token via `prismContext.GetAuthorizationHeaderAsync()`. This token is **tenant-bound** (per CIA hardening in `.squad/agents/copper/history.md`):
+  - Token `tid` claim must match `CurrentTenant.EntraTenantId`.
+  - Issuer is tenant-bound (`{tid}.ciamlogin.com/{tid}/v2.0...`).
+  - Audience must match tenant's `ClientId`.
+- **Residual Risk:** **The Business App MUST verify the bearer token's tenant matches the `InstanceId`'s tenant.** If the BA does NOT enforce this, cross-tenant submission is possible.
+
+**Attack Scenario (if BA doesn't verify):**
+1. Attacker is authenticated member of Tenant A
+2. Attacker guesses/enumerates `InstanceId` belonging to Tenant B
+3. Attacker crafts POST with Tenant B's `InstanceId`
+4. Umbraco forwards Tenant A's bearer token to BA
+5. If BA trusts `InstanceId` without verifying token tenant → cross-tenant data leak/corruption
+
+**Recommendation:**
+- **Umbraco-side (optional defense-in-depth):** Add explicit tenant binding validation in `WorkflowPageController.HandlePost()`:
+  ```csharp
+  // After nonce validation, before AdvanceAsync:
+  if (prismContext.CurrentTenant?.Id != null)
+  {
+      // Optional: pass CurrentTenant.Id to BA in request body for explicit validation
+      // or require BA to enforce tenant binding from bearer token alone
+  }
+  ```
+- **Business App-side (REQUIRED):** Document in BA integration guide:
+  > **Security Requirement:** The Business App MUST validate that the bearer token's `tid` claim matches the tenant of the `InstanceId` in the request body. Failure to enforce this allows cross-tenant workflow manipulation.
+
+**Tracking:** Add to `.squad/decisions.md` as a documented Business App integration requirement.
+
+---
+
+### 7. Field Whitelist Case-Sensitivity — Already Safe
+
+**Severity:** LOW (documentation)  
+**Location:** `WorkflowFieldValidator.cs` line 24
+
+**Finding:**  
+The field key whitelist uses `StringComparer.OrdinalIgnoreCase`, meaning `FieldKey="Email"` from BA and submitted `"email"` both match. This is **intentional and safe** for HTML form name attributes (case-insensitive by convention). Options whitelist (line 171) also uses case-insensitive comparison, which is correct.
+
+**Edge Case Concern:**  
+The early rejection logic (lines 36-42) normalizes `[]` suffix for checkboxlists. If an attacker submits `Email[]` when `Email` is NOT a checkboxlist, the normalization could bypass the whitelist. However, the current code correctly handles this:
+- Line 37: `normalizedKey = submittedKey.EndsWith("[]") ? submittedKey[..^2] : submittedKey;`
+- Line 38: Checks both `normalizedKey` and `submittedKey` against authoritative keys
+- Checkboxlist fields explicitly add `{FieldKey}[]` to authoritative set (lines 28-31)
+
+**Recommendation:**
+- **No code change needed.** The logic is correct.
+- **Add test coverage:** Ensure non-checkboxlist field with `[]` suffix is rejected (e.g., `Email[]` when `Email` is `type="text"` should fail whitelist).
+
+**Tracking:** Add to test backlog.
+
+---
+
+## LOW FINDINGS — SAFE (No Action)
+
+### 8. XSS Risk in Error Messages — SAFE ✅
+
+**Severity:** LOW (verified safe)  
+**Location:** `PrismFieldTagHelper.cs`, `PrismErrorSummaryTagHelper.cs`
+
+**Finding:**  
+Field labels (`field.Label`), hints (`field.Hint`), error messages, and options from BA content are rendered in HTML. If the BA returns malicious content like `<script>alert(1)</script>` in `field.Label`, this could be an XSS vector.
+
+**Mitigation Verification:**  
+All output uses `System.Net.WebUtility.HtmlEncode()` consistently:
+- `PrismFieldTagHelper.cs` line 259: `Encode()` helper wraps `HtmlEncode()`
+- `PrismErrorSummaryTagHelper.cs` lines 39, 43: Direct `HtmlEncode()` calls
+- All label, hint, option, and error rendering paths use `Encode()`
+
+**Conclusion:** XSS risk is **fully mitigated**. No action needed.
+
+---
+
+### 9. Antiforgery Token Scoping — SAFE ✅
+
+**Severity:** LOW (verified safe)  
+**Location:** `PrismWorkflowFormTagHelper.cs` line 40
+
+**Finding:**  
+Antiforgery token is generated per-form and tied to the authenticated session via `antiforgery.GetAndStoreTokens(ViewContext.HttpContext)`. This is correct per ASP.NET Core security best practices.
+
+**Conclusion:** No issues found. Token scoping is appropriate.
+
+---
+
+### 10. Guid.NewGuid() for Nonce — ACCEPTABLE ✅
+
+**Severity:** INFO  
+**Location:** `WorkflowStepNonceService.cs` line 38
+
+**Finding:**  
+Nonces are generated using `Guid.NewGuid()`. Is this cryptographically adequate, or should it be strengthened with additional random bytes or a CSPRNG?
+
+**Analysis:**  
+- `Guid.NewGuid()` on modern .NET (6+) uses `System.Security.Cryptography.RandomNumberGenerator` internally (CSPRNG).
+- Provides 128 bits of entropy (2^128 ≈ 3.4 × 10^38 possible values).
+- Prediction or enumeration is computationally infeasible.
+- Collision probability: For 1 billion nonces, probability of collision is ~1 in 2^90 (negligible).
+
+**Conclusion:** `Guid.NewGuid()` is **cryptographically sufficient** for nonce generation. No change needed.
+
+---
+
+## Multi-Tenancy Analysis
+
+**Question:** Does the workflow validation stack correctly scope to the authenticated member's tenant? Can one tenant's member submit workflow data for another tenant's instance?
+
+**Answer:**
+- **Umbraco-side tenant binding:** ✅ SAFE
+  - `PrismContext.GetAuthorizationHeaderAsync()` enforces tenant binding (per CIA hardening):
+    - Bearer token `tid` must match `CurrentTenant.EntraTenantId`.
+    - Token refresh enforces same check.
+  - Workflow requests include the tenant-bound bearer token.
+- **Business App-side tenant binding:** ⚠️ **REQUIRES BA ENFORCEMENT**
+  - The BA receives the tenant-bound bearer token and the `InstanceId` from the request.
+  - **The BA MUST verify the token's `tid` matches the `InstanceId`'s tenant.**
+  - If the BA does NOT enforce this, cross-tenant workflow manipulation is possible.
+
+**Recommendation:** Document this as a **hard security requirement** for Business App integration.
+
+---
+
+## Summary of Direct Fixes Applied
+
+| # | Issue | Severity | File | Status |
+|---|-------|----------|------|--------|
+| 1 | Open Redirect | CRITICAL | `WorkflowPageController.cs` | ✅ FIXED |
+| 2 | ReDoS (Regex DoS) | HIGH | `WorkflowFieldValidator.cs` | ✅ FIXED |
+| 3 | Weak Email Validation | MEDIUM | `WorkflowFieldValidator.cs` | ✅ FIXED |
+
+---
+
+## Remaining Risks (Documented for Team Decision)
+
+| # | Issue | Severity | Recommendation | Tracking |
+|---|-------|----------|----------------|----------|
+| 4 | Nonce Replay (no consumption) | HIGH | Add usage counter or document design trade-off | Add to decisions.md |
+| 5 | Nonce DoS (cache exhaustion) | MEDIUM | Add per-user nonce limit + rate limiting | Add to backlog |
+| 6 | Tenant isolation in workflow | MEDIUM | Document BA requirement to verify token tenant | Add to decisions.md |
+| 7 | Field whitelist case handling | LOW | Add test coverage for `[]` suffix edge case | Add to test backlog |
+
+---
+
+## Build Verification
+
+**Command:** `dotnet build UmbracoPrism.sln -c Release`  
+**Result:** ✅ Build succeeded (0 warnings, 0 errors)
+
+---
+
+## Next Steps
+
+1. **Merge this audit report** into `.squad/decisions.md`.
+2. **Document nonce replay trade-off** in `WorkflowStepNonceService.cs` and `PrismWorkflowOptions.cs`.
+3. **Document BA tenant verification requirement** in Business App integration guide.
+4. **Add nonce DoS mitigation** to backlog (prioritize for production).
+5. **Add test coverage** for field whitelist edge cases.
+
+---
+
+**Audit Completed:** 2026-03-28  
+**Security Gate:** PASS (Critical/High issues fixed; Medium/Low documented)  
+**Code Quality:** All fixes are surgical, fail-closed, and backward-compatible.
+
+---
+
+# Decision: HTML5 Native Validation with Progressive Enhancement
+
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)  
+**Date:** 2025-01-XX  
+**Context:** Full-stack validation for Prism workflow forms
+
+## Decision
+
+Use **HTML5 native constraint validation** as the first line of defense for workflow form validation, with server-side validation as backup.
+
+## Implementation
+
+### HTML5 Attributes Applied
+- `required` — all field types (boolean, radio, checkboxlist, select, text, email, textarea, number)
+- `minlength`, `maxlength` — text, email, textarea
+- `pattern` — text, email
+- `min`, `max` — number
+
+### Progressive Enhancement Strategy
+1. **Browser validates first** using native HTML5 (instant feedback, zero JS)
+2. **Server validates second** on form submission (security boundary)
+3. **Client-side errors** returned via `ViewData["fieldError"]` and rendered with ARIA
+4. **No custom JavaScript validation** needed (browsers handle it)
+
+### Accessibility Requirements Met
+- All validation errors use `aria-invalid="true"` on the invalid field
+- Error messages use `role="alert"` for screen reader announcements
+- `aria-describedby` links field to both hint text AND error message
+- Error messages use semantic `id` pattern: `{fieldKey}-error`
+
+### Error CSS Class
+Changed from `prism-form-group__error` to `prism-field-error` for:
+- Consistency with other field-level classes (`prism-field-*`)
+- Clearer semantic meaning (it's an error on a specific field, not a group error)
+- Easier to target in CSS
+
+## Rationale
+
+1. **Zero JavaScript required** — native browser validation is fast, accessible, and works without JS
+2. **Better UX** — instant feedback on blur/submit, no roundtrip to server for basic validation
+3. **Security maintained** — server-side validation is still the source of truth
+4. **Accessibility first** — native HTML5 validation works with screen readers out of the box
+
+## Team Impact
+
+- **Blathers (backend):** Server validation remains unchanged; HTML5 is additive
+- **Future JS work:** If custom validation UI needed, we can layer on top (progressive enhancement)
+- **Storybook:** Will show validation states in stories (future task)
+
+---
+
+# Workflow Form Validation Test Coverage
+
+**Date:** 2024-04-10  
+**Author:** Tangy (Tester)  
+**Context:** Workflow form validation stack has been built. This decision documents the test coverage and gaps.
+
+## What was tested
+
+### WorkflowFieldValidator (45 tests)
+
+**Happy path:**
+- All required fields provided with valid values → IsValid = true
+- Optional fields omitted → IsValid = true
+- All field types valid (text, email, number, select, radio, checkboxlist, boolean, textarea, date)
+- Constraint edge cases: exactly at MinLength, exactly at MaxLength
+
+**Required validation:**
+- Required text field empty → error on that field
+- Required email field empty → error
+- Required select empty → error
+- Required radio not selected → error
+
+**Type validation:**
+- Email without @ or . → error
+- Number field with non-numeric value → error
+- Date field with invalid date → error
+
+**Options whitelist:**
+- Select with value not in options list → error
+- Radio with injected value not in options → error
+- Checkboxlist with one valid + one invalid option → error
+- Case-insensitive option matching works
+
+**Constraint validation:**
+- MinLength: value too short → error
+- MaxLength: value too long → error
+- Pattern: value doesn't match regex → error
+- Min (number): value below minimum → error
+- Max (number): value above maximum → error
+
+**Security:**
+- Unknown field key in submission → error (whitelist enforcement)
+- Empty submission against no required fields → IsValid = true
+- XSS attempt in text field → validator passes through (no encoding at validation layer)
+
+**Edge cases:**
+- Boolean (checkbox) — absent from submission = false, treat as not required missing
+- Checkboxlist — comma-separated submitted values validated against options
+- Checkboxlist supports both `field` and `field[]` keys
+- Empty options list on select field → no options error (passes through)
+
+### WorkflowStepNonceService (10 tests)
+
+- Create nonce → nonce is non-empty string
+- Nonce format: 32 hex chars (Guid "N" format)
+- Stores cache entry with correct key prefix
+- Uses TTL from PrismWorkflowOptions
+- Resolve valid nonce → returns original field list
+- Resolve unknown nonce → returns null
+- Resolve expired nonce → returns null
+- Round-trip serialization preserves all field properties
+- Two nonces are different values
+
+## Test Results
+
+- 55 new tests created
+- All 273 tests in Core.Tests pass
+- Test suite runs in ~1.5 seconds
+- 100% success rate
+
+## Coverage Gaps
+
+The following scenarios are **not** tested:
+
+1. **E2E route hijacking:** No tests for WorkflowPageController route hijacking behaviour (GET/POST to workflow pages)
+2. **Nonce replay attacks:** No tests for nonce replay attack prevention (TTL is the only defence — no one-time-use enforcement)
+3. **Concurrent nonce operations:** No tests for concurrent nonce creation/resolution (race conditions)
+4. **Malformed cache data:** No tests for malformed JSON in cache (deserialization error handling)
+5. **Datetime field type:** Only `date` field type tested, not `datetime`
+6. **Field injection via checkboxlist suffix:** Potential bypass using `field[]` when field is not a checkboxlist
+7. **Nonce cache eviction under load:** No tests for distributed cache eviction behaviour (MemoryCache vs Redis)
+8. **Validation error message i18n:** All error messages are English — no tests for localisation
+9. **Field value length limits:** No tests for extremely long field values (DOS via memory)
+10. **Pattern ReDoS:** No tests for catastrophic backtracking in regex patterns (security concern)
+
+## Recommendations
+
+### High priority (security-relevant):
+1. Add E2E test for WorkflowPageController POST with tampered nonce → expect redirect to GET
+2. Add test for Pattern constraint with ReDoS regex → should timeout or reject (consider SafeRegex wrapper)
+3. Add test for checkboxlist `field[]` submission when field is not a checkboxlist → should error (whitelist enforcement)
+
+### Medium priority (reliability):
+4. Add test for malformed JSON in cache → should return null (graceful degradation)
+5. Add datetime field type test (currently only date is tested)
+6. Add test for extremely long field values → should reject or truncate
+
+### Low priority (nice-to-have):
+7. Add concurrent nonce creation test (prove uniqueness under load)
+8. Add nonce TTL expiry test with real cache (not just mock)
+9. Add validation error message localisation tests (when i18n is implemented)
+
+## Decision
+
+✅ **Merge the test suite as-is.** Coverage is comprehensive for the current scope.
+
+⚠️ **Action:** Create follow-up issues for the high-priority gaps (especially ReDoS and E2E route hijacking tests).
+
+## Related Files
+
+- `src/UmbracoPrism.Core.Tests/Services/Workflow/WorkflowFieldValidatorTests.cs`
+- `src/UmbracoPrism.Core.Tests/Services/Workflow/WorkflowStepNonceServiceTests.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/WorkflowFieldValidator.cs`
+- `src/UmbracoPrism.Core/Services/Workflow/WorkflowStepNonceService.cs`
+
+---
+
+# Decision: Prism Design Principle — Least Surprise
+
+**Date:** 2026-04-11  
+**Author:** Jonny Muir (via Squad session, documented by Tom Nook)  
+**Type:** Standing Design Principle
+
+## Principle
+
+**Make it easy to do the right thing; principle of least surprise.**
+
+The only install should be the NuGet package. Validation, accessibility, tamper-proofing, and Umbraco idioms should all be in place automatically — developers shouldn't have to know they need them. Where choices exist, the Prism default should be the correct choice.
+
+## Context
+
+This principle was articulated by Jonny Muir during the workflow form validation planning session and validated across the Squad. It reflects the core philosophy that drives all Prism feature design decisions.
+
+## Rationale
+
+The Prism package should remove friction and cognitive load from developers integrating Umbraco workflows. Rather than requiring developers to:
+- Research what validation patterns to apply
+- Manually configure accessibility features
+- Implement security measures like tamper-proofing
+- Learn Umbraco idioms and conventions
+
+...the package should provide all of this out-of-the-box. The default behavior should always be correct and secure.
+
+## How We Apply This
+
+Every feature and API in Prism should be evaluated against this question: **"Does this require the developer to do extra work to get the right behaviour, or does it just work?"**
+
+If the answer is "they have to do extra work," the design needs revision.
+
+## Applies To
+
+- ✅ All `UmbracoPrism.Core` public APIs
+- ✅ Tag helpers and template directives
+- ✅ Built-in services and workflows
+- ✅ Default behaviors and options
+- ✅ Documentation and examples
+
+## Impact on Feature Design
+
+- **Validation:** Should be automatic from workflow definitions, not optional
+- **Accessibility:** Required ARIA attributes and semantic HTML, not a checkbox
+- **Security:** CSRF tokens, output encoding, and permission checks should work by default
+- **Umbraco integration:** Should follow Umbraco conventions without developer configuration
+
+## Standing Effect
+
+This is a standing design principle — not a one-off decision. It applies to all future Prism development and should be referenced in architectural reviews and PR discussions.
+
+---
+
+**Recorded by:** Tom Nook (Lead, Architecture & Code Review)

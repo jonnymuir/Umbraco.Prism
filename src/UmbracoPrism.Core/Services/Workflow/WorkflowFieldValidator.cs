@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using System.Text.RegularExpressions;
 using UmbracoPrism.Core.Models.Workflow;
 
@@ -9,6 +10,7 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public class WorkflowFieldValidator : IWorkflowFieldValidator
 {
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
     /// <summary>
     /// Validates the submitted form values against the step's authoritative field definitions.
     /// </summary>
@@ -125,7 +127,15 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                 break;
 
             case "email":
-                if (!raw.Contains('@') || !raw.Contains('.'))
+                try
+                {
+                    var addr = new MailAddress(raw);
+                    if (addr.Address != raw)
+                    {
+                        return $"{field.Label} must be a valid email address.";
+                    }
+                }
+                catch (FormatException)
                 {
                     return $"{field.Label} must be a valid email address.";
                 }
@@ -194,9 +204,17 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
         // Pattern check
         if (!string.IsNullOrWhiteSpace(field.Pattern))
         {
-            if (!Regex.IsMatch(raw, field.Pattern))
+            try
             {
-                return $"{field.Label} is not in the expected format.";
+                if (!Regex.IsMatch(raw, field.Pattern, RegexOptions.None, RegexTimeout))
+                {
+                    return $"{field.Label} is not in the expected format.";
+                }
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                // Pattern from BA is too complex or causes catastrophic backtracking
+                return $"{field.Label} validation pattern is too complex to evaluate safely.";
             }
         }
 
