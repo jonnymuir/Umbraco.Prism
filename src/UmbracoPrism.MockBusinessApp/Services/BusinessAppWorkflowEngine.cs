@@ -181,6 +181,26 @@ public class BusinessAppWorkflowEngine
     /// <returns>An enumerable of all active WorkflowInstanceState objects.</returns>
     public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instancesById.Values;
 
+    /// <summary>Returns all loaded workflow definitions.</summary>
+    public IEnumerable<WorkflowDefinitionFile> GetAllDefinitions() => _definitions.Values;
+
+    /// <summary>
+    /// Removes an instance from in-memory state entirely (TUI reset command).
+    /// The next call to <see cref="GetCurrent"/> for the same user/tenant/key will create a fresh instance.
+    /// </summary>
+    /// <param name="instanceId">The instance ID to remove.</param>
+    /// <returns><c>true</c> if the instance was found and removed; <c>false</c> if it did not exist.</returns>
+    public bool Reset(string instanceId)
+    {
+        if (!_instancesById.TryRemove(instanceId, out var instance))
+            return false;
+
+        var lookupKey = LookupKey(instance.TenantId, instance.UserId, instance.WorkflowKey);
+        _instanceLookup.TryRemove(lookupKey, out _);
+        _logger.LogInformation("Reset (deleted) instance {Id}", instanceId);
+        return true;
+    }
+
     // -----------------------------------------------------------------------
     // Seed loading
     // -----------------------------------------------------------------------

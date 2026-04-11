@@ -396,3 +396,48 @@ All inbox files deleted after merge.
 ---
 
 **Status:** Complete. Scribe merged decisions, created orchestration logs, updated history.
+
+## Session: Workflow minimal API refactor
+- Deleted WorkflowApiController.cs
+- Moved /api/workflow/* endpoints to Program.cs as MapPost minimal API
+- userId now derived via GetEmail() (consistent with /api/backoffice/me)
+- WorkflowAdvanceApiRequest record moved to Program.cs bottom
+
+---
+
+## Session: TUI Control Plane Design for MockBusinessApp — 2025-07-15
+
+**Role:** Lead architect  
+**Requested by:** Jonny  
+**Task:** Assess and design replacing `WorkflowEmulatorController.cs` with an embedded terminal TUI
+
+### Current State Assessed
+- `WorkflowEmulatorController` exposes 3 endpoints (list instances, advance-as-reviewer, list definitions) protected by `[EmulatorOnly]` (dev env only) + JWT Bearer auth
+- Developer must use `.http` files or curl to trigger reviewer actions — awkward for a dev mock tool
+- `BusinessAppWorkflowEngine` is a singleton with `GetAllInstances()`, `AdvanceAsReviewer()`, `GetCurrent()`, `Advance()` — all the data is accessible in-process
+- App already runs in a terminal; the opportunity is to make that terminal interactive
+
+### Recommendation: Option A — Spectre.Console REPL as BackgroundService
+
+**Chosen over:**
+- Terminal.Gui (Option B): ncurses panels are overkill for a list+action dev tool
+- Bare Console.ReadLine (Option C): no tables, no colour, no discoverability
+
+**Key decisions:**
+1. **Hosting:** `TuiReplService : BackgroundService`, registered via `AddHostedService<TuiReplService>()`. Starts after web host is listening. Runs `while(true)` readline loop.
+2. **Logging conflict:** Configure `appsettings.Development.json` to set `Default` log level to `Warning` — suppresses runtime request logs, lets startup/shutdown messages through. REPL uses `AnsiConsole.MarkupLine` exclusively. No Serilog dependency required for first pass.
+3. **Remove controller stack:** `AddControllers()`, `MapControllers()`, `Controllers/`, `Filters/`, and `Microsoft.AspNetCore.OpenApi` package can all be deleted.
+4. **NuGet:** Add `Spectre.Console` only.
+5. **New engine method needed:** `Reset(instanceId)` on `BusinessAppWorkflowEngine` to support the `reset` command (must clean both `_instancesById` and `_instanceLookup`).
+
+### Command Set Designed
+`list` / `show <id>` / `approve <id>` / `reject <id>` / `reset <id>` / `defs` / `help` / `quit`
+
+Short 8-char ID prefix matching so devs don't paste full GUIDs.
+
+### Decision Written
+`.squad/decisions/inbox/tom-nook-tui-design.md` — full proposal with architecture, command set, risks, and routing to Blathers for implementation.
+
+### Next Routing
+- **Blathers:** Implement `TuiReplService`, `Reset()` engine method, remove controller stack, update `Program.cs`
+- **Tangy:** Smoke tests for new `Reset()` method on `BusinessAppWorkflowEngine`

@@ -13,18 +13,16 @@ builder.Services.AddPrismAuthentication(builder.Configuration);
 
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 
 // Business App workflow engine — singleton so in-memory instance state survives across requests
 builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
+builder.Services.AddHostedService<WorkflowTuiService>();
 
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
-app.MapControllers();
 
 
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =>
