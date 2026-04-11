@@ -62,7 +62,23 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = httpContext?.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant == null || string.IsNullOrEmpty(tenant.EntraTenantId)) return [];
+            if (tenant == null) return [];
+
+            // Handle generic OIDC providers (Keycloak, Okta, etc.)
+            if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+            {
+                validationParameters.ValidAudience = tenant.OidcClientId;
+                validationParameters.ValidIssuer = tenant.OidcAuthority;
+                validationParameters.ValidateAudience = true;
+                validationParameters.ValidateIssuer = true;
+
+                // For generic OIDC, rely on standard OIDC discovery and key validation
+                // The middleware will fetch keys from {authority}/.well-known/openid-configuration
+                return [];
+            }
+
+            // Handle Entra-specific path (existing behavior)
+            if (string.IsNullOrEmpty(tenant.EntraTenantId)) return [];
 
             validationParameters.ValidAudience = tenant.EntraClientId;
             validationParameters.ValidIssuer = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0";
@@ -95,13 +111,24 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant != null && !string.IsNullOrEmpty(tenant.EntraTenantId))
+            if (tenant != null)
             {
-                // 1. Set our specific tenant details BEFORE calling Microsoft's logic
-                var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
-                context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/authorize";
-                context.ProtocolMessage.ClientId = tenant.EntraClientId;
-                context.Options.Authority = $"{baseUri}/v2.0";
+                // Support both generic OIDC (Keycloak, Okta, etc.) and Entra-specific paths
+                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+                {
+                    // Generic OIDC provider path (e.g., Keycloak)
+                    context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/auth";
+                    context.ProtocolMessage.ClientId = tenant.OidcClientId;
+                    context.Options.Authority = tenant.OidcAuthority;
+                }
+                else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
+                {
+                    // Entra-specific path (existing behavior)
+                    var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
+                    context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/authorize";
+                    context.ProtocolMessage.ClientId = tenant.EntraClientId;
+                    context.Options.Authority = $"{baseUri}/v2.0";
+                }
             }
 
             logger.LogDebug("Prism OIDC redirecting to {IssuerAddress} for client {ClientId}", context.ProtocolMessage.IssuerAddress, context.ProtocolMessage.ClientId);
@@ -138,13 +165,33 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant != null && !string.IsNullOrEmpty(tenant.EntraTenantId))
+            if (tenant != null && (!string.IsNullOrEmpty(tenant.OidcAuthority) || !string.IsNullOrEmpty(tenant.EntraTenantId)))
             {
-                var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
-                var secret = await vault.GetSecretAsync(tenant.SecretKeyName ?? string.Empty);
+                string authority;
+                string clientId;
+                string secret;
+                string scope;
 
-                // CIAM / Entra ID Token Endpoint
-                var authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
+                // Determine which OIDC provider we're using
+                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+                {
+                    // Generic OIDC provider (Keycloak, Okta, etc.)
+                    authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
+                    clientId = tenant.OidcClientId ?? string.Empty;
+                    secret = tenant.OidcClientSecret ?? string.Empty;
+                    scope = "openid profile offline_access";
+                }
+                else
+                {
+                    // Entra-specific path (existing behavior with Key Vault)
+                    var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
+                    secret = await vault.GetSecretAsync(tenant.SecretKeyName ?? string.Empty);
+                    
+                    authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
+                    clientId = tenant.EntraClientId ?? string.Empty;
+                    scope = $"openid profile offline_access {tenant.EntraClientId}/.default";
+                }
+
                 var redirectUri = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{options.CallbackPath}";
 
                 string? verifier = null;
@@ -154,13 +201,13 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 using var client = new HttpClient();
                 var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
                 {
-                    { "client_id", tenant.EntraClientId ?? string.Empty },
+                    { "client_id", clientId },
                     { "client_secret", secret },
                     { "grant_type", "authorization_code" },
                     { "code", context.ProtocolMessage.Code },
                     { "redirect_uri", redirectUri },
                     { "code_verifier", verifier ?? "" },
-                    { "scope", $"openid profile offline_access {tenant.EntraClientId}/.default" }
+                    { "scope", scope }
                 }));
 
                 if (!response.IsSuccessStatusCode)
@@ -189,22 +236,6 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 var parsedHeader = handler.ReadJwtToken(idToken);
                 var kid = parsedHeader.Header.Kid;
 
-                // Warm the signing key cache if needed before validation
-                var snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
-                if (snapshot.ShouldRefresh)
-                {
-                    await signingKeyCache.WarmAsync(tenant.EntraTenantId, forceRefresh: true, CancellationToken.None);
-                    snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
-                }
-
-                if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
-                {
-                    logger.LogError("ID token validation failed for tenant {TenantId}: signing key '{Kid}' not found in cache", tenant.EntraTenantId, kid);
-                    context.HandleResponse();
-                    context.Response.Redirect("/error?reason=token_validation_failed");
-                    return;
-                }
-
                 // Hard nonce validation — fail closed if nonce is absent from authentication properties
                 if (!props.Items.TryGetValue(PrismNoncePropertiesKey, out var expectedNonce) || string.IsNullOrEmpty(expectedNonce))
                 {
@@ -212,28 +243,90 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 }
 
                 System.IdentityModel.Tokens.Jwt.JwtSecurityToken jwt;
-                try
+                
+                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
                 {
-                    var validationParameters = new TokenValidationParameters
+                    // Generic OIDC provider - use standard OIDC discovery
+                    try
                     {
-                        ValidIssuer = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0",
-                        ValidAudience = tenant.EntraClientId,
-                        IssuerSigningKeys = snapshot.Keys,
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.FromMinutes(5),
-                        RequireSignedTokens = true,
-                        RequireExpirationTime = true
-                    };
+                        var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
+                            $"{tenant.OidcAuthority}/.well-known/openid-configuration",
+                            new OpenIdConnectConfigurationRetriever(),
+                            new System.Net.Http.HttpClient());
 
-                    handler.ValidateToken(idToken, validationParameters, out var validatedToken);
-                    jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
+                        var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
+
+                        var validationParameters = new TokenValidationParameters
+                        {
+                            ValidIssuer = tenant.OidcAuthority,
+                            ValidAudience = tenant.OidcClientId,
+                            IssuerSigningKeys = oidcConfig.SigningKeys,
+                            ValidateLifetime = true,
+                            ClockSkew = TimeSpan.FromMinutes(5),
+                            RequireSignedTokens = true,
+                            RequireExpirationTime = true
+                        };
+
+                        handler.ValidateToken(idToken, validationParameters, out var validatedToken);
+                        jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
+                    }
+                    catch (SecurityTokenException ex)
+                    {
+                        logger.LogError(ex, "ID token signature/claims validation failed for OIDC tenant {Authority}", tenant.OidcAuthority);
+                        context.HandleResponse();
+                        context.Response.Redirect("/error?reason=token_validation_failed");
+                        return;
+                    }
                 }
-                catch (SecurityTokenException ex)
+                else
                 {
-                    logger.LogError(ex, "ID token signature/claims validation failed for tenant {TenantId}", tenant.EntraTenantId);
-                    context.HandleResponse();
-                    context.Response.Redirect("/error?reason=token_validation_failed");
-                    return;
+                    // Entra-specific validation using cached signing keys
+                    if (string.IsNullOrEmpty(tenant.EntraTenantId))
+                    {
+                        logger.LogError("ID token validation failed: no OIDC authority or Entra tenant ID configured");
+                        context.HandleResponse();
+                        context.Response.Redirect("/error?reason=token_validation_failed");
+                        return;
+                    }
+
+                    var snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
+                    if (snapshot.ShouldRefresh)
+                    {
+                        await signingKeyCache.WarmAsync(tenant.EntraTenantId, forceRefresh: true, CancellationToken.None);
+                        snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
+                    }
+
+                    if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
+                    {
+                        logger.LogError("ID token validation failed for tenant {TenantId}: signing key '{Kid}' not found in cache", tenant.EntraTenantId, kid);
+                        context.HandleResponse();
+                        context.Response.Redirect("/error?reason=token_validation_failed");
+                        return;
+                    }
+
+                    try
+                    {
+                        var validationParameters = new TokenValidationParameters
+                        {
+                            ValidIssuer = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0",
+                            ValidAudience = tenant.EntraClientId,
+                            IssuerSigningKeys = snapshot.Keys,
+                            ValidateLifetime = true,
+                            ClockSkew = TimeSpan.FromMinutes(5),
+                            RequireSignedTokens = true,
+                            RequireExpirationTime = true
+                        };
+
+                        handler.ValidateToken(idToken, validationParameters, out var validatedToken);
+                        jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
+                    }
+                    catch (SecurityTokenException ex)
+                    {
+                        logger.LogError(ex, "ID token signature/claims validation failed for tenant {TenantId}", tenant.EntraTenantId);
+                        context.HandleResponse();
+                        context.Response.Redirect("/error?reason=token_validation_failed");
+                        return;
+                    }
                 }
 
                 // Hard nonce validation — fail closed if nonce claim absent or mismatched
@@ -272,17 +365,26 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant != null && !string.IsNullOrEmpty(tenant.EntraTenantId))
+            if (tenant != null)
             {
-                var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
-                context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/logout";
-
-                var userEmail = context.HttpContext.User.FindFirst("preferred_username")?.Value
-                                ?? context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-
-                if (!string.IsNullOrEmpty(userEmail))
+                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
                 {
-                    context.ProtocolMessage.SetParameter("logout_hint", userEmail);
+                    // Generic OIDC provider logout
+                    context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/logout";
+                }
+                else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
+                {
+                    // Entra-specific logout
+                    var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
+                    context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/logout";
+
+                    var userEmail = context.HttpContext.User.FindFirst("preferred_username")?.Value
+                                    ?? context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+                    if (!string.IsNullOrEmpty(userEmail))
+                    {
+                        context.ProtocolMessage.SetParameter("logout_hint", userEmail);
+                    }
                 }
             }
         };

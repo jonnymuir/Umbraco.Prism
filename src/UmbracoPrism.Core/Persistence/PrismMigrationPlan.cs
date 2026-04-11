@@ -29,6 +29,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddAllowBiometricLoginColumn>("add-allow-biometric-login")
         .To<AddPushTokenColumn>("add-push-token")
         .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions")
-        .To<DropThemeColorColumn>("drop-theme-color");
+        .To<DropThemeColorColumn>("drop-theme-color")
+        .To<AddOidcAuthorityColumns>("add-oidc-authority-columns");
     }
 }

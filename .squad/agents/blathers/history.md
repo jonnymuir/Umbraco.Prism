@@ -1685,3 +1685,64 @@ Implemented member dashboard for managing multiple workflow instances:
 - Active vs. completed split based on `IsCompleted` and `CanContinue` flags
 
 **Build & Test:** All 273 Core tests pass. Solution builds cleanly.
+
+## 2026-04-11: Aspire + Keycloak Local OIDC Development
+
+**Request:** Jonny wanted a "press play" Aspire-based dev experience with Keycloak for local OIDC auth, without affecting existing Entra tenants.
+
+**Deliverables:**
+
+1. **Schema Extensions (Additive)**:
+   - Added OidcAuthority, OidcClientId, OidcClientSecret columns to prismTenants (all nullable)
+   - Migration class AddOidcAuthorityColumns added to PrismMigrationPlan
+   - Updated PrismTenantSchema, PrismTenant, and TenantService to map new properties
+
+2. **PrismOidcConfiguration Dual-Path Logic**:
+   - If OidcAuthority is set use generic OIDC provider (Keycloak, Okta, etc.)
+   - If null fall back to Entra-specific authority construction (existing behavior)
+   - Token validation uses standard OIDC discovery for generic providers
+   - Entra path continues using cached signing keys (no behavior change)
+
+3. **Aspire Projects**:
+   - UmbracoPrism.ServiceDefaults: Shared extensions (OpenTelemetry, health checks, service discovery)
+   - UmbracoPrism.AppHost: Orchestrates Keycloak container + TestSite with WaitFor dependency
+
+4. **Keycloak Realm**:
+   - Realm prism-dev with client prism-client / secret prism-dev-secret
+   - Demo user demo@prism.local / password
+   - Wildcard redirect URIs for localhost port flexibility
+   - Realm export stored at keycloak/realm-export.json
+
+5. **Documentation**:
+   - ASPIRE_DEV.md with quick start, tenant setup, and troubleshooting
+   - Decision document in .squad/decisions/inbox/blathers-aspire-oidc-design.md
+
+**Technical Challenges:**
+
+- Aspire Workload Deprecation: .NET 10 deprecated IsAspireHost property; resolved by removing it and relying solely on NuGet packages
+- Missing Keycloak Package: No stable Aspire.Hosting.Keycloak package exists; used direct container orchestration with AddContainer
+- Dual OIDC Paths: Designed fallback logic to support both Entra (existing) and generic OIDC (new) without breaking changes
+
+**Learnings:**
+
+- Additive Schema Changes: Nullable columns enable zero-downtime schema evolution. Existing Entra tenants completely unaffected by OIDC columns.
+- OIDC Discovery Standard: Generic OIDC providers (Keycloak, Okta) work best with standard ConfigurationManager rather than custom key caching.
+- Aspire Container Orchestration: Direct AddContainer with bind mounts is simpler than waiting for community packages when orchestrating third-party services.
+- Entra vs Generic OIDC Secret Management: Entra tenants use Azure Key Vault (SecretKeyName); generic OIDC tenants use in-database secrets for local dev simplicity (production would use env vars).
+
+**Files Modified:**
+- src/UmbracoPrism.Core/Persistence/PrismTenantSchema.cs, PrismMigrationPlan.cs, AddOidcAuthorityColumns.cs
+- src/UmbracoPrism.Core/Models/PrismTenant.cs, PrismOidcConfiguration.cs
+- src/UmbracoPrism.Core/Services/TenantService.cs
+
+**Files Created:**
+- src/UmbracoPrism.ServiceDefaults/* (Extensions.cs, csproj)
+- src/UmbracoPrism.AppHost/* (Program.cs, csproj, launchSettings.json)
+- keycloak/realm-export.json
+- ASPIRE_DEV.md
+
+**Next Steps (Future Work):**
+- Production deployment guidance for Keycloak (external service, secret injection)
+- Support for additional OIDC providers (Okta, Auth0, etc.)
+- Health check integration for Keycloak readiness probe
+

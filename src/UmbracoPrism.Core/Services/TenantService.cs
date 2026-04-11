@@ -80,7 +80,10 @@ public class TenantService : ITenantService
                 MobileBrandingOverrides = mobileBrandingOverrides,
                 BrandingCssDeclarations = BuildCssDeclarations(brandingOverrides),
                 MobileBrandingCssDeclarations = BuildCssDeclarations(mobileBrandingOverrides),
-                AllowBiometricLogin = tenantSchema.AllowBiometricLogin
+                AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
+                OidcAuthority = tenantSchema.OidcAuthority,
+                OidcClientId = tenantSchema.OidcClientId,
+                OidcClientSecret = tenantSchema.OidcClientSecret
             };
         }, TimeSpan.FromMinutes(30));
 
