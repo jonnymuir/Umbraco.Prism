@@ -441,3 +441,62 @@ Short 8-char ID prefix matching so devs don't paste full GUIDs.
 ### Next Routing
 - **Blathers:** Implement `TuiReplService`, `Reset()` engine method, remove controller stack, update `Program.cs`
 - **Tangy:** Smoke tests for new `Reset()` method on `BusinessAppWorkflowEngine`
+
+---
+
+## Session: Workflow UI Analysis — 2025-07-15
+
+**Role:** Lead architect
+**Requested by:** Jonny
+**Task:** Thorough analysis of the workflow UI layer (end-to-end, critique, simplification recommendations)
+
+### Files Audited
+
+- `WorkflowPageController.cs` — Route-hijacking controller, GET/POST via single `Index()`
+- `WorkflowPage.cshtml` — Main view; Archetype switch dispatch to partials
+- `_WorkflowStep-Collect.cshtml` — Form rendering with inline field switch
+- `_WorkflowStep-Review.cshtml` — Read-only summary + form actions
+- `_WorkflowStep-StatusTimeline.cshtml` — Stub: static text + emoji only
+- `_WorkflowStep-Completion.cshtml` — Static hardcoded completion text
+- `Views/Shared/_WorkflowField.cshtml` — Comprehensive field renderer (NOT used by Collect partial)
+- `WorkflowViewModel.cs` — PublishedContentWrapped view model
+- `WorkflowAdvanceRequest.cs` — Dead model (never used by controller)
+- `WorkflowDemoPage.cshtml` — Separate Web Component approach (`<prism-workflow-shell>`)
+- `retirement-quote-v1.json`, `information-request-v1.json` — Workflow definitions
+- `personal-details-v1.json`, `request-details-v1.json` — Field group seeds
+
+### Key Findings
+
+**CRITICAL BUG — `_WorkflowField.cshtml` field naming is broken:**
+`Views/Shared/_WorkflowField.cshtml` uses bare field names (`name="@Model.FieldKey"`) but the controller POST handler expects `fields[{fieldKey}]` format. If this partial were used for Collect, all field values would be silently dropped. The Collect partial has its own (duplicate) inline renderer — this is what keeps forms working today.
+
+**Dead code — `WorkflowAdvanceRequest.cs`:**
+Defined but never model-bound; controller reads directly from `HttpContext.Request.Form`. Safe to delete.
+
+**Two archetypes are stubs:**
+`StatusTimeline` renders emoji + hardcoded static text. `Completion` has hardcoded "A member of our team will be in touch shortly." Neither is driven by definition data or CMS content.
+
+**Dual field renderers (duplication):**
+Field rendering logic exists in two places: inline in `_WorkflowStep-Collect.cshtml` (covers text/select/textarea) and in `_WorkflowField.cshtml` (covers text/select/textarea/boolean/radio/checkboxlist/number/decimal/date/datetime). These are inconsistent in coverage; `_WorkflowField.cshtml` is the richer one but is not wired up.
+
+**Inline CSS in every partial:**
+Each partial carries its own `<style>` block. Real sites will inject duplicate styles into the body, and there is no canonical stylesheet designers can reference or override.
+
+**Two competing UI approaches:**
+`WorkflowPage.cshtml` (Razor server-rendered) and `WorkflowDemoPage.cshtml` (Web Component `<prism-workflow-shell>`) are entirely separate. It is unclear which is canonical.
+
+**Sync-over-async in controller:**
+`GetAwaiter().GetResult()` in `HandleGet()` can deadlock under ASP.NET Core's default synchronisation context. The Umbraco route-hijacking constraint (Index must be synchronous) is real, but `Task.Run()` wrapping would be safer.
+
+**Switch-statement dispatch is fragile:**
+Adding a new Archetype requires editing `WorkflowPage.cshtml`. Convention-based partial resolution (`_WorkflowStep-{Archetype}.cshtml`) would be zero-code to extend.
+
+### Recommendations
+
+1. Fix `_WorkflowField.cshtml` field name prefix — add `fields[...]` wrapper and use it from Collect partial; delete duplicate inline renderer.
+2. Delete `WorkflowAdvanceRequest.cs` — dead code.
+3. Extract inline CSS to `prism-workflow.css` — single stylesheet in wwwroot; partials reference BEM classes only.
+4. Replace switch in `WorkflowPage.cshtml` with convention-based partial discovery.
+5. Drive StatusTimeline and Completion from definition/CMS data, not hardcoded strings.
+6. Decide and document canonical UI approach: server-rendered Razor OR Web Component, not both simultaneously.
+7. Add safe async wrapper in controller to avoid sync-over-async deadlock risk.
