@@ -1,19 +1,19 @@
 @property --prism-font-body {
-  syntax: '<string>';
+  syntax: '*';
   inherits: true;
-  initial-value: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  initial-value: "GDS Transport", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
 @property --prism-font-display {
-  syntax: '<string>';
+  syntax: '*';
   inherits: true;
-  initial-value: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  initial-value: "GDS Transport", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
 @property --prism-font-mono {
-  syntax: '<string>';
+  syntax: '*';
   inherits: true;
-  initial-value: "SFMono-Regular", "Courier New", monospace;
+  initial-value: ui-monospace, "Courier New", monospace;
 }
 
 @property --prism-heading-weight {
@@ -31,54 +31,154 @@
 @property --prism-letter-spacing-caps {
   syntax: '<length>';
   inherits: true;
-  initial-value: 0.08em;
+  initial-value: 0;
 }
 
 @property --prism-text-size-xl {
   syntax: '<length>';
   inherits: true;
-  initial-value: 40px;
+  initial-value: 48px;
 }
 
 @property --prism-text-size-lg {
   syntax: '<length>';
   inherits: true;
-  initial-value: 22px;
+  initial-value: 24px;
 }
 
 @property --prism-text-size-md {
   syntax: '<length>';
   inherits: true;
-  initial-value: 16px;
+  initial-value: 19px;
 }
 
 @property --prism-text-size-sm {
   syntax: '<length>';
   inherits: true;
-  initial-value: 13px;
+  initial-value: 16px;
 }
 
 :root {
     /* @prism section: Typography | label: Body Font Family | description: Primary font family for body text and UI elements | type: font */
-    --prism-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --prism-font-body: "GDS Transport", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     /* @prism section: Typography | label: Display Font Family | description: Font family for headings and prominent text | type: font */
-    --prism-font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --prism-font-display: "GDS Transport", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     /* @prism section: Typography | label: Monospace Font Family | description: Font family for code and technical content | type: font */
-    --prism-font-mono: "SFMono-Regular", "Courier New", monospace;
+    --prism-font-mono: ui-monospace, "Courier New", monospace;
 
     /* @prism section: Typography | label: Heading Font Weight | description: Font weight for headings and titles | type: text */
     --prism-heading-weight: 700;
     /* @prism section: Typography | label: Body Font Weight | description: Font weight for regular body text | type: text */
     --prism-body-weight: 400;
     /* @prism section: Typography | label: Caps Letter Spacing | description: Letter spacing for uppercase and small-caps text | type: length */
-    --prism-letter-spacing-caps: 0.08em;
+    --prism-letter-spacing-caps: 0;
 
     /* @prism section: Typography | label: Extra Large Text Size | description: Text size for hero headings and large display text | type: length */
-    --prism-text-size-xl: 40px;
+    --prism-text-size-xl: 48px;
     /* @prism section: Typography | label: Large Text Size | description: Text size for subheadings and section titles | type: length */
-    --prism-text-size-lg: 22px;
+    --prism-text-size-lg: 24px;
     /* @prism section: Typography | label: Medium Text Size | description: Standard text size for body content | type: length */
-    --prism-text-size-md: 16px;
+    --prism-text-size-md: 19px;
     /* @prism section: Typography | label: Small Text Size | description: Text size for captions and secondary content | type: length */
-    --prism-text-size-sm: 13px;
+    --prism-text-size-sm: 16px;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    font-family: var(--prism-font-body);
+    font-weight: var(--prism-body-weight);
+    font-size: var(--prism-text-size-sm);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 40.0625em) {
+    body {
+        font-size: var(--prism-text-size-md);
+    }
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--prism-font-display);
+    font-weight: var(--prism-heading-weight);
+    line-height: 1.2;
+    margin-top: 0;
+    color: var(--prism-text);
+}
+
+h1 {
+    font-size: clamp(32px, 5vw, var(--prism-text-size-xl));
+    line-height: 1.1;
+    margin-bottom: 30px;
+}
+
+h2 {
+    font-size: clamp(24px, 4vw, 36px);
+    line-height: 1.15;
+    margin-bottom: 20px;
+}
+
+h3 {
+    font-size: clamp(19px, 3vw, var(--prism-text-size-lg));
+    line-height: 1.2;
+    margin-bottom: 15px;
+}
+
+p {
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+ul, ol {
+    margin: 0 0 20px;
+    padding-left: 1.35em;
+}
+
+li {
+    margin-bottom: 10px;
+}
+
+a {
+    color: var(--prism-link);
+    text-decoration: underline;
+    text-decoration-thickness: max(2px, 0.1em);
+    text-underline-offset: 0.1em;
+}
+
+a:hover {
+    text-decoration-thickness: max(3px, 0.14em);
+}
+
+a:focus-visible {
+    outline: 3px solid var(--prism-focus);
+    outline-offset: 0;
+    background-color: var(--prism-focus);
+    color: var(--prism-text);
+    box-shadow: inset 0 0 0 1px var(--prism-text);
+}
+
+strong, b {
+    font-weight: 700;
+}
+
+code, kbd, samp {
+    font-family: var(--prism-font-mono);
+    font-size: 0.95em;
+}
+
+code {
+    padding: 0.1em 0.25em;
+    background-color: var(--prism-surface-alt);
+    border: 1px solid var(--prism-border);
+}
+
+/* Keep the "mobile shell" demo legible — don’t force a dark theme */
+html.prism-mobile body {
+    background: var(--bg-offset);
+    color: var(--prism-text);
 }

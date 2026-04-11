@@ -1,7 +1,7 @@
 @property --prism-hero-bg {
   syntax: '*';
   inherits: true;
-  initial-value: linear-gradient(135deg, #4f46e5, #22d3ee);
+  initial-value: linear-gradient(135deg, #003078, #1d70b8);
 }
 
 @property --prism-hero-text {
@@ -31,18 +31,18 @@
 @property --prism-card-image {
   syntax: '*';
   inherits: true;
-  initial-value: linear-gradient(130deg, rgba(79, 70, 229, 0.45), rgba(14, 165, 233, 0.45));
+  initial-value: linear-gradient(130deg, rgba(29, 112, 184, 0.22), rgba(0, 112, 60, 0.18));
 }
 
 @property --prism-image-radius {
   syntax: '<length>';
   inherits: true;
-  initial-value: 20px;
+  initial-value: 0px;
 }
 
 :root {
     /* @prism section: Hero Imagery | label: Hero Background | description: Gradient background for hero sections and headers */
-    --prism-hero-bg: linear-gradient(135deg, #4f46e5, #22d3ee);
+    --prism-hero-bg: linear-gradient(135deg, #003078, var(--prism-primary));
     /* @prism section: Hero Imagery | label: Hero Text Colour | description: Text colour for content in hero sections */
     --prism-hero-text: #ffffff;
     /* @prism section: Hero Imagery | label: Hero Badge Background | description: Semi-transparent background for badges in hero sections */
@@ -52,7 +52,7 @@
     /* @prism section: Imagery | label: Hero Background Image Blend | description: Blend type for hero sections */
     --prism-hero-image-blend: normal;
     /* @prism section: Imagery | label: Card Background Image | description: Background image or gradient overlay for feature cards | type: image */
-    --prism-card-image: linear-gradient(130deg, rgba(79, 70, 229, 0.45), rgba(14, 165, 233, 0.45));
+    --prism-card-image: linear-gradient(130deg, rgba(29, 112, 184, 0.22), rgba(0, 112, 60, 0.18));
     /* @prism section: Imagery | label: Image Border Radius | description: Corner rounding for images and media elements | type: length */
-    --prism-image-radius: 20px;
+    --prism-image-radius: 0px;
 }

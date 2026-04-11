@@ -7,7 +7,7 @@
 @property --prism-button-hover {
   syntax: '<color>';
   inherits: true;
-  initial-value: #4338ca;
+  initial-value: #003078;
 }
 
 @property --prism-button-text {
@@ -19,13 +19,13 @@
 @property --prism-chip-bg {
   syntax: '<color>';
   inherits: true;
-  initial-value: rgba(79, 70, 229, 0.12);
+  initial-value: rgba(29, 112, 184, 0.15);
 }
 
 @property --prism-chip-text {
   syntax: '<color>';
   inherits: true;
-  initial-value: #3730a3;
+  initial-value: #1d70b8;
 }
 
 @property --prism-graph-1 {
@@ -117,14 +117,14 @@
     /* @prism section: Components | label: Button Background | description: Background colour for primary buttons */
     --prism-button-bg: var(--prism-primary);
     /* @prism section: Components | label: Button Hover | description: Button background colour on hover state */
-    --prism-button-hover: #4338ca;
+    --prism-button-hover: #003078;
     /* @prism section: Components | label: Button Text | description: Text colour for primary buttons */
     --prism-button-text: var(--prism-primary-contrast);
 
     /* @prism section: Components | label: Chip Background | description: Background colour for chips and tags */
-    --prism-chip-bg: rgba(79, 70, 229, 0.12);
+    --prism-chip-bg: rgba(29, 112, 184, 0.15);
     /* @prism section: Components | label: Chip Text | description: Text colour for chips and tags */
-    --prism-chip-text: #3730a3;
+    --prism-chip-text: #1d70b8;
 
     /* @prism section: Components | label: Graph Colour 1 | description: First colour for charts and data visualizations */
     --prism-graph-1: #38bdf8;
@@ -146,10 +146,11 @@
 }
 
 .card {
-    background: white;
-    border-radius: 12px;
-    padding: 2rem;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    background: var(--prism-surface);
+    border: 1px solid var(--prism-border);
+    border-radius: var(--prism-radius);
+    padding: 20px;
+    box-shadow: var(--prism-card-shadow);
 }
 
 /* Reveal the mobile nav web component when inside the Prism mobile shell */

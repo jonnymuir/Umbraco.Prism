@@ -13,25 +13,25 @@
 @property --prism-page-max {
   syntax: '<length>';
   inherits: true;
-  initial-value: 1100px;
+  initial-value: 960px;
 }
 
 @property --prism-page-gutter {
   syntax: '<length>';
   inherits: true;
-  initial-value: 24px;
+  initial-value: 30px;
 }
 
 @property --prism-section-gap {
   syntax: '<length>';
   inherits: true;
-  initial-value: 28px;
+  initial-value: 30px;
 }
 
 @property --prism-radius {
   syntax: '<length>';
   inherits: true;
-  initial-value: 16px;
+  initial-value: 0;
 }
 
 @property --prism-card-shadow {
@@ -59,72 +59,125 @@
     --prism-mobile-nav-height: 68px;
 
     /* @prism section: Layout | label: Page Maximum Width | description: Maximum width for page content containers | type: length */
-    --prism-page-max: 1100px;
+    --prism-page-max: 960px;
     /* @prism section: Layout | label: Page Gutter | description: Horizontal padding for page edges and margins | type: length */
-    --prism-page-gutter: 24px;
+    --prism-page-gutter: 30px;
     /* @prism section: Layout | label: Section Gap | description: Vertical spacing between content sections | type: length */
-    --prism-section-gap: 28px;
+    --prism-section-gap: 30px;
 
     /* @prism section: Layout | label: Border Radius | description: Corner rounding for cards and UI elements | type: length */
-    --prism-radius: 16px;
+    --prism-radius: 0;
     /* @prism section: Layout | label: Card Shadow | description: Box shadow for elevated cards and panels | type: text */
-    --prism-card-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+    --prism-card-shadow: none;
 
     /* @prism section: Layout | label: Hero Section Padding | description: Internal padding for hero sections | type: length */
     --prism-hero-padding: 40px;
     /* @prism section: Layout | label: Grid Minimum Column Width | description: Minimum width for responsive grid columns | type: length */
-    --prism-grid-min: 240px;
+    --prism-grid-min: 280px;
 }
 
 body {
-    font-family: 'Inter', -apple-system, system-ui, sans-serif;
     margin: 0;
     background-color: var(--bg-offset);
-    color: #1a1a1a;
+    color: var(--prism-text);
+}
+
+/* Skip link (GDS pattern) */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 999;
+    padding: 10px 15px;
+    background: var(--prism-text);
+    color: var(--prism-surface);
+    text-decoration: none;
+}
+
+.skip-link:focus-visible {
+    left: 0;
+    outline: 3px solid var(--prism-focus);
+    outline-offset: 0;
+    box-shadow: inset 0 0 0 1px var(--prism-text);
 }
 
 .header {
     background-color: var(--prism-primary);
     color: var(--prism-primary-contrast);
-    padding: 1rem 2rem;
+    padding: 0 var(--prism-page-gutter);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    gap: 1rem;
+    min-height: var(--prism-nav-height);
+    border-bottom: 10px solid var(--prism-text);
+}
+
+.header nav {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.header nav a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: max(2px, 0.12em);
+    text-underline-offset: 0.15em;
+    font-size: var(--prism-text-size-sm);
+    font-weight: 400;
+}
+
+.header nav a:hover {
+    text-decoration-thickness: max(3px, 0.16em);
+}
+
+.header nav a:focus-visible {
+    outline: 3px solid var(--prism-focus);
+    outline-offset: 0;
+    background-color: var(--prism-focus);
+    color: var(--prism-text);
+    box-shadow: inset 0 0 0 1px var(--prism-text);
 }
 
 .container {
-    max-width: 1000px;
-    margin: 2rem auto;
-    padding: 0 1rem;
+    max-width: var(--prism-page-max);
+    margin: 0 auto;
+    padding: 30px var(--prism-page-gutter) 60px;
 }
 
 .footer {
     text-align: center;
-    padding: 2rem;
-    color: #6c757d;
-    font-size: 0.9rem;
+    padding: 40px var(--prism-page-gutter);
+    color: var(--prism-muted);
+    font-size: var(--prism-text-size-sm);
+    border-top: 1px solid var(--prism-border);
+    margin-top: 60px;
 }
 
+@media (max-width: 640px) {
+    :root {
+        --prism-page-gutter: 15px;
+        --prism-section-gap: 20px;
+        --prism-hero-padding: 20px;
+    }
+}
+
+/* Safe-area + mobile-nav space (class set by Prism middleware) */
+html.prism-mobile .header,
 .prism-mobile .header {
-    padding-top: calc(0.75rem + env(safe-area-inset-top));
-    padding-right: calc(1rem + env(safe-area-inset-right));
-    padding-left: calc(1rem + env(safe-area-inset-left));
-    padding-bottom: 0.75rem;
+    padding-top: env(safe-area-inset-top);
+    min-height: calc(var(--prism-nav-height) + env(safe-area-inset-top));
 }
 
+html.prism-mobile .container,
 .prism-mobile .container {
-    max-width: none;
-    width: 100%;
-    margin: 0;
-    padding-top: 1rem;
-    padding-right: calc(1rem + env(safe-area-inset-right));
-    padding-left: calc(1rem + env(safe-area-inset-left));
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-    box-sizing: border-box;
+    padding-bottom: calc(60px + 88px + env(safe-area-inset-bottom));
 }
 
+html.prism-mobile .footer,
 .prism-mobile .footer {
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
     margin-bottom: 0;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
 }

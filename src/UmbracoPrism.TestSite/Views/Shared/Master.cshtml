@@ -19,17 +19,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>@(tenant?.Name ?? "Prism") - @Model.Name</title>
 
-    <!-- Branding CSS (feature showcase - tenant-specific CSS variable overrides) -->
-    <link rel="stylesheet" href="/branding/prism-branding.css" />
-
     <!-- Site CSS (ITCSS layer order) -->
     <link rel="stylesheet" href="/css/base.css" />
     <link rel="stylesheet" href="/css/layout.css" />
     <link rel="stylesheet" href="/css/components.css" />
     <link rel="stylesheet" href="/css/utilities.css" />
 
+    <!-- Branding CSS (feature showcase - tenant-specific CSS variable overrides) -->
+    <!--
+        Loaded after site CSS so tenant branding can safely override defaults.
+        This keeps the demo honest: the branding layer is what partners will edit.
+    -->
+    <link rel="stylesheet" href="/branding/prism-branding.css" />
+
 </head>
 <body>
+
+    <a href="#main-content" class="skip-link">Skip to main content</a>
 
     <prism-mobile-user-agent-demo />
 
@@ -37,20 +43,19 @@
         <div class="logo">
             <strong>@(tenant?.Name ?? "Prism Portal")</strong>
         </div>
-        <nav>
+        <nav aria-label="Main navigation">
             <a href="/">Home</a>
             <a href="/get-in-touch">Get in Touch</a>
             <a href="/my-workflows">My Workflows</a>
-            <span style="font-size: 0.8rem; opacity: 0.8; margin-left: auto;">@Context.Request.Host</span>
         </nav>
     </header>
 
-    <div class="container">
+    <main id="main-content" class="container">
         @RenderBody()
-    </div>
+    </main>
 
     <footer class="footer">
-        &copy; @DateTime.Now.Year - Managed by Prism Multi-Tenant Engine
+        <p>&copy; @DateTime.Now.Year @(tenant?.Name ?? "Prism Portal") &mdash; Powered by Prism Multi-Tenant Engine</p>
     </footer>
 
     @if (mobileNavLinks != null)
