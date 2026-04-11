@@ -33,9 +33,11 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- Remove RazorCompileOnBuild and RazorCompileOnPublish when not using ModelsMode InMemoryAuto -->
-    <RazorCompileOnBuild>false</RazorCompileOnBuild>
-    <RazorCompileOnPublish>false</RazorCompileOnPublish>
+    <!-- SourceCodeAuto generates model files on disk, so views can be compiled at build time.
+         This catches @model property mismatches (e.g. Model.MissingProperty) as build errors,
+         not runtime exceptions. Only disable if switching to InMemoryAuto models mode. -->
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
   </PropertyGroup>
 
 </Project>

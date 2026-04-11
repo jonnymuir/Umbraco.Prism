@@ -45,6 +45,15 @@ public class WorkflowViewModel : PublishedContentWrapped
     /// <summary>Tamper-proof nonce binding this form to its server-side field definitions.</summary>
     public string Nonce { get; set; } = string.Empty;
 
+    /// <summary>Human-readable display name for the workflow (e.g. "Get in Touch").</summary>
+    public string WorkflowDisplayName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// True when instancePolicy = "prompt" and an active instance already exists for this user.
+    /// Causes the view to render the instance picker partial instead of the workflow form.
+    /// </summary>
+    public bool ShowInstancePicker { get; set; }
+
     /// <summary>True when the workflow engine returned a fatal error (definition not found, etc.).</summary>
     public bool HasError { get; set; }
 

@@ -230,17 +230,14 @@
         {
             <p class="prism-field-error" id="@errorId" role="alert">@fieldError</p>
         }
-        @{
-            // Apply appropriate HTML5 constraint attributes based on field type
-            var constraintAttrs = string.Empty;
-            if (inputType == "text" || inputType == "email")
-            {
-                constraintAttrs = minLengthAttr + maxLengthAttr + patternAttr;
-            }
-            else if (inputType == "number")
-            {
-                constraintAttrs = minAttr + maxAttr;
-            }
+        var constraintAttrs = string.Empty;
+        if (inputType == "text" || inputType == "email")
+        {
+            constraintAttrs = minLengthAttr + maxLengthAttr + patternAttr;
+        }
+        else if (inputType == "number")
+        {
+            constraintAttrs = minAttr + maxAttr;
         }
         <input class="prism-input"
                type="@inputType"
