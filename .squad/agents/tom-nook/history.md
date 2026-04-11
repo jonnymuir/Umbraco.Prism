@@ -500,3 +500,60 @@ Adding a new Archetype requires editing `WorkflowPage.cshtml`. Convention-based 
 5. Drive StatusTimeline and Completion from definition/CMS data, not hardcoded strings.
 6. Decide and document canonical UI approach: server-rendered Razor OR Web Component, not both simultaneously.
 7. Add safe async wrapper in controller to avoid sync-over-async deadlock risk.
+
+### Workflow Form Validation — Design Architecture Review (2026-04-11)
+
+**Role:** Lead architect
+
+**Task:** Validate Jonny's proposed validation plan; critique the design principle; evaluate current state; identify gaps and risks; advise on tag helper approach; assess DX end-to-end.
+
+**Deliverable:** `.squad/decisions/inbox/tom-nook-validation-architecture.md` (comprehensive architectural review with decision matrix)
+
+**Key Assessment:**
+
+The plan is **sound and ready to implement** with three critical blockers resolved first:
+
+1. **FieldRenderPayload model gaps** — Missing `MinLength`, `MaxLength`, `Pattern`, `Min`, `Max` properties. These are prerequisites for HTML5 emission and server validation. Hard blocker for tasks #3–#5.
+
+2. **IDistributedCache auto-registration** — Plan assumes manual registration; violates "principle of least surprise." Must ship with sensible defaults: in-memory for dev (with warning), explicit guidance for Redis/SQL Server in production.
+
+3. **Nonce cache TTL configurability** — 30 minutes too short for multi-step workflows (users step away). Make configurable via `PrismWorkflowOptions.StepNonceTtl`; default to 2 hours.
+
+**Design Principle — APPROVED FOR RECORDING:**
+
+> "Make it easy to do the right thing; principle of least surprise. The only install should be including the package. Validation, accessibility, tamper-proofing, and Umbraco idioms should all be in place automatically — developers shouldn't have to know they need them. Where choices exist, the Prism default should be the correct choice."
+
+This principle is **correct and should be recorded in decisions.md as a first-class architectural decision.** It resolves future design debates: defaults must work; configuration is for advanced cases; the "configure everything" trap is a failure mode for .NET platform packages.
+
+**Five-Layer Validation Architecture:**
+
+All layers are correctly scoped (model constraints → HTML5 → tamper-proofing → server structural → BA logic). The nonce + distributed cache approach is proven and correct vs. HMAC signing. Controller integration requires careful wiring; no shortcuts allowed (must validate before calling BA).
+
+**Tag Helper Approach:**
+
+`<prism-workflow-form>` tag helper is the correct Umbraco 17 idiom. Matches Prism's Web Component naming convention; developers familiar with Umbraco will recognize the pattern. No need for `<prism-workflow-step>` tag helper yet (deferrable enhancement).
+
+**Secondary Concerns (Not Blockers):**
+
+- Unknown key handling: currently silent discard. Should log warnings; optional strict mode to treat as error.
+- BA error protocol: need clarity on `error` vs. `validation_error` distinction. Document strictly or introduce `WorkflowResponseState` enum.
+- Nonce in all POST partials: must be in all form-rendering step types, not just Collect.
+- Developer experience validated end-to-end: install package → use tag helper → validation works automatically. Only BA and cache configuration require developer input.
+
+**Implementation Sequencing:**
+
+- Design principle (decision) — Blocker #1
+- Model constraints → IDistributedCache registration → Nonce TTL configuration (Blathers) — Blockers #2–#3
+- HTML5 attributes / Nonce service / Field validator — Parallel phase
+- Controller integration → Tag helper → Error CSS — Sequential
+- Test site demo → User guide — Last
+
+**Decisions Written:**
+
+1. Design principle recorded to decisions.md
+2. Three critical blockers identified with clear resolution steps
+3. Implementation sequencing with dependency graph
+4. Tag helper idiom validated
+5. End-to-end DX walkthrough confirmed
+
+**Key Insight:** This plan exemplifies the right architecture for a platform package. The "developer installs package and validation just works" outcome is achievable if the three blockers are resolved before any implementation begins. No shortcuts on model extensions, cache registration, or TTL configurability.

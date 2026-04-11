@@ -1290,3 +1290,25 @@ The backend redesign moved field definitions to Umbraco Element Types, with `fie
 **Build Status:** Clean
 
 **What Isabelle Learned:** Form binding errors are silent when field names don't match. Convention-based dispatch eliminates core file editing for new archetypes. ViewData is the right place for view-scoped error state.
+
+---
+
+## 2026-07: Unify Workflow CSS into Prism Design System
+
+**Task:** Migrate `prism-workflow.css` into the ITCSS branding system as `prism-forms.css`.
+
+### Changes
+
+1. **`/wwwroot/branding/prism-forms.css`** (new) — Migrated all workflow/form styles from `prism-workflow.css`. All hardcoded GDS hex values replaced with `var(--prism-*)` tokens. `@property` declarations added for all form-specific custom properties. `.prism-button--primary` now uses `var(--prism-primary)` (indigo). New `.prism-button--submit` class added for GDS-green final submission actions using `var(--prism-success)`. Hover states use `color-mix()` rather than hardcoded darker shades.
+
+2. **`/wwwroot/branding/prism-branding.css`** — Added `@import url("/branding/prism-forms.css");` as final import.
+
+3. **`/Views/Shared/Master.cshtml`** — Removed separate `prism-workflow.css` link (now covered by branding import chain).
+
+4. **`/wwwroot/css/prism-workflow.css`** — Deleted.
+
+## Learnings
+
+- `@property initial-value` does not accept `var()` references — spec limitation. Use a matching static hex in `initial-value` and the `var()` token in `:root`. This is expected and not a bug.
+- `color-mix(in srgb, token X%, black)` is the clean way to derive hover/active shades from design tokens without introducing hardcoded hex values.
+- When a GDS button colour conflicts with a Prism brand primary, introduce a modifier class (`.prism-button--submit`) rather than overriding the base primary — keeps semantic intent clear and preserves the brand identity.

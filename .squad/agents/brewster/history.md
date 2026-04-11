@@ -1272,3 +1272,82 @@ The previous workflow UI used a `workflowDemoPage` document type with a static `
 ✅ **Build Status:** 0 errors, 0 warnings (Client + .NET)
 
 **Integration:** Complete workflow orchestration from seeded data → HTTP handler → Razor rendering. Frontend (Isabelle) decorates with `_WorkflowField.cshtml` reusable renderer.
+
+---
+
+## Session: 2026-03-30 — Workflow Form Tag Helper Design Research
+
+**Status:** Completed (Research + Design Doc)  
+**Requested by:** Jonny Muir  
+
+**Task:** Research current workflow form implementation and advise on tag helper approach for validation. Make it **idiomatic Umbraco 17** and follow **principle of least surprise**.
+
+### Current State Findings
+
+1. **Existing Workflow Views:**
+   - `WorkflowPage.cshtml` — Route-hijacking pattern with archetype-driven partial selection (✅ idiomatic)
+   - `_WorkflowStep-Collect.cshtml` — Manual form with 4 hidden fields, antiforgery token, field iteration via `Html.PartialAsync()`
+   - `_WorkflowStep-Review.cshtml` — Read-only summary with separate form for actions
+   - `_WorkflowField.cshtml` — 200-line partial handling 10+ field types (text, email, number, boolean, radio, checkboxlist, select, textarea, date, datetime)
+
+2. **Current Model:**
+   - `WorkflowViewModel` extends `PublishedContentWrapped` (enables route hijacking)
+   - Contains `FieldGroups`, `AvailableActions`, `Problems`, `FieldErrors` dictionary
+   - Controller uses manual antiforgery validation via `IAntiforgery.ValidateRequestAsync()`
+
+3. **Existing Tag Helpers:**
+   - **`PrismDebugTagHelper`** (`<prism-debug>`) — comprehensive debug panel
+   - **`PrismMobileUserAgentDemoTagHelper`** (`<prism-mobile-user-agent-demo>`) — UA mocking toggle
+   - Both in `UmbracoPrism.Core/TagHelpers/` namespace
+   - Already registered in `_ViewImports.cshtml` via `@addTagHelper *, UmbracoPrism.Core`
+
+### Tag Helper Design Recommendations
+
+**Minimum viable set:**
+1. **`<prism-workflow-form model="@Model">`** — Replaces form boilerplate, injects antiforgery + 4 hidden fields automatically
+2. **`<prism-field field="@field" errors="@Model.FieldErrors" />`** — Replaces 200-line partial, type-safe, faster than runtime view engine
+3. **`<prism-error-summary problems="@Model.Problems" />`** — GDS-style accessibility pattern for form-level errors
+
+**Optional (lower priority):**
+4. **`<prism-workflow-actions actions="@Model.AvailableActions" />`** — Action button renderer (less boilerplate savings)
+
+### Assembly and Namespace
+
+- **Namespace:** `UmbracoPrism.Core.TagHelpers` (same as existing tag helpers)
+- **Assembly:** `UmbracoPrism.Core.csproj` (shipped package, not TestSite)
+- **Registration:** Already auto-discovered via `@addTagHelper *, UmbracoPrism.Core` in `_ViewImports.cshtml`
+
+### Umbraco v17 Considerations
+
+- **Tag helpers are standard ASP.NET Core** — no special Umbraco handling required
+- Umbraco v17 embraces tag helpers (e.g., `<umb-block-grid>`)
+- If tag helpers need `ViewContext`, use `[ViewContext]` attribute (example in `PrismDebugTagHelper`)
+- Constructor DI supported (example in `PrismDebugTagHelper` with 5 injected services)
+
+### Before vs After
+
+**Current implementation:** 55 lines of boilerplate (manual token, hidden fields, ViewData anti-pattern for error passing)  
+**With tag helpers:** 18 lines (67% reduction), declarative, self-documenting
+
+### Security Notes
+
+- Antiforgery token injected via `IHtmlHelper.AntiForgeryToken()` (same as current)
+- All field values HTML-encoded via `TagHelperOutput.SetAttribute()` (automatic encoding)
+- Field keys are server-controlled — no injection risk
+
+### Outcome
+
+✅ **Design doc written:** `.squad/decisions/inbox/brewster-taghelper-design.md`  
+✅ **Recommendation:** Implement MVP set (`<prism-workflow-form>`, `<prism-field>`, `<prism-error-summary>`)  
+✅ **Principle of least surprise:** Tag helpers are expected ASP.NET Core patterns — Umbraco developers will recognize them immediately  
+✅ **Idiomatic Umbraco v17:** Tag helpers are first-class citizens in Umbraco v17 (same as Block Grid, backoffice Web Components)
+
+### Learnings
+
+- **Tag helpers in Prism codebase already established** — two existing tag helpers in `UmbracoPrism.Core/TagHelpers/` prove the pattern is approved
+- **ViewData anti-pattern in current workflow forms** — passing `errorVd` dictionary to partial is unnecessary with tag helpers (type-safe attributes replace it)
+- **200-line partial is ripe for tag helper migration** — field rendering logic belongs in compiled code, not runtime view engine
+- **Manual antiforgery token injection** — current implementation uses `@Html.AntiForgeryToken()` in every form partial; tag helper centralizes this
+- **GDS-style error summary** — current implementation has manual `Model.Problems.Where(p => string.IsNullOrEmpty(p.FieldKey))` filtering; tag helper encapsulates this pattern
+- **Tag helpers are faster than partials** — compiled at build time, no runtime view engine resolution overhead
+- **Umbraco v17 has no tag helper restrictions** — standard ASP.NET Core patterns apply; no surprises
