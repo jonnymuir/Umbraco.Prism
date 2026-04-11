@@ -776,3 +776,53 @@ The changelog emphasizes what the fix *does*, not the commit message. Target aud
 - Release notes are not commit logs — filter for user-facing content only
 - Nonce validation is a "hard failure" pattern worth calling out (replay attacks are serious; enforcement is noteworthy)
 - Structured logging is a best practice, but only mention it in release notes if you're replacing visible behavior (console leaks are user-visible; worth noting)
+
+### 2026-04-11: Workflow User Guides Created
+
+**Context:** Prism has a sophisticated workflow engine enabling multi-step forms defined in a Business App and rendered in Umbraco. New integrators needed clear, step-by-step documentation.
+
+**Deliverable:**
+Two comprehensive guides in `docs/guides/`:
+
+1. **workflow-setup.md** — Developer guide covering:
+   - Architecture overview (Umbraco ↔ Business App)
+   - Prerequisites (Prism installed, auth configured)
+   - Complete 5-step setup: define workflow JSON → register → create document type → publish content → test
+   - Full workflow definition schema with properties table
+   - Field type reference (text, email, number, date, select, textarea, radio, checkboxlist, boolean, decimal, datetime)
+   - Archetype reference (Collect, Review, StatusTimeline, Completion)
+   - Troubleshooting table
+   - Template JSON for quick starts
+
+2. **workflow-customisation.md** — Designer/developer guide covering:
+   - CSS-first theming philosophy (override variables, not code)
+   - Complete CSS custom property reference (layout, inputs, labels, buttons, panels)
+   - Theming examples: brand colours, rounded modern style, mobile responsive
+   - Partial override guide (copy → modify → Umbraco view resolution picks it up)
+   - Creating custom archetypes (example: "Documents" upload step, no C# needed)
+   - Field partial customization
+   - Accessibility standards (WCAG 2.2 AA, focus indicators, ARIA, required field markers)
+   - Full worked example: Acme Finance theming (navy/gold, custom header, branding)
+   - Responsive design patterns
+   - Performance considerations
+   - Troubleshooting table
+
+**Key Decisions:**
+- **Running example:** Used the real `retirement-quote-v1.json` workflow from MockBusinessApp to keep examples grounded and testable
+- **File paths:** Relative to repo root (e.g., `src/UmbracoPrism.MockBusinessApp/workflow-seeds/`) so integrators can easily locate files
+- **Schema accuracy:** Verified actual implementation against docs (stateKey/state property names, archetype types, transition structure)
+- **Accessibility parity:** Ensured customization guide emphasizes maintaining WCAG 2.2 AA defaults (focus contrast, ARIA, keyboard nav)
+- **No C# escalation:** Both guides deliberately show that partials + CSS handle 90% of customization; reinforces "designer-friendly" positioning
+
+**Files Created:**
+- `docs/guides/workflow-setup.md` (15.3 KB, ~390 lines)
+- `docs/guides/workflow-customisation.md` (15.1 KB, ~360 lines)
+
+**Commit:** `docs: add workflow setup and customisation guides`
+
+**Learnings for Future Documentation:**
+- **Integrator onboarding improves when docs include the complete chain** (define → register → content setup → test). Sequential, numbered steps reduce friction.
+- **Run examples against real codebase files.** Using the actual `retirement-quote-v1.json` (not a fictional example) makes docs trustworthy and immediately useful.
+- **Customization guides thrive when they separate CSS (easy) from code changes (hard).** Emphasizing "override variables, not C#" empowers designers and reduces support burden.
+- **Accessibility is not afterthought content; it's a customization constraint.** Calling out WCAG 2.2 AA defaults and why they matter (contrast ratios, focus visible, ARIA) prevents well-intentioned breakage.
+- **Worked examples (Acme Finance) are more useful than abstract lists.** Showing real workflow (header styling, gold focus, custom partial) with actual CSS code makes patterns copy-paste ready.
