@@ -1267,4 +1267,26 @@ The backend redesign moved field definitions to Umbraco Element Types, with `fie
 
 ### Decision Record
 
-`.squad/decisions/inbox/isabelle-workflow-ui-refactor.md`
+`.squad/decisions.md` sections:
+- 2026-04-11: Workflow UI Full Refactor (Isabelle) — Decisions 1–6 (form binding, error state, convention dispatch, CSS consolidation, namespacing, field delegation)
+
+---
+
+## 2026-04-11: Workflow UI Full Refactor Complete
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-11T09:00:34Z-isabelle.md`
+
+**Commits:** Multiple (refactor spans form binding fix, ViewData injection, dispatch convention, CSS consolidation, all 4 step partials refactored)
+
+**Changes:**
+- Fixed P0 bug in `_WorkflowField.cshtml`: All field renderers now use `fields[key]` prefix for model binding
+- Added ViewData error state injection (preserves FieldRenderPayload separation of concerns)
+- Replaced hard-coded switch with ICompositeViewEngine convention dispatch in WorkflowPage.cshtml
+- Consolidated all workflow CSS into `prism-workflow.css` (removed inline styles)
+- Unified CSS classes: `wf-*` → `prism-*` namespace
+- Refactored all 4 step partials: Approve, Collect (delegates 100% to _WorkflowField), Archive, Transform
+- Linked `prism-workflow.css` from Master.cshtml
+
+**Build Status:** Clean
+
+**What Isabelle Learned:** Form binding errors are silent when field names don't match. Convention-based dispatch eliminates core file editing for new archetypes. ViewData is the right place for view-scoped error state.

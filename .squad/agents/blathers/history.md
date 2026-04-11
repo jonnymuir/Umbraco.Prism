@@ -1448,3 +1448,13 @@ All components implemented, tested via build, and ready for integration with mob
 - Committed as `chore: remove dead WorkflowAdvanceRequest model` (600b172).
 
 **Status:** Complete.
+
+---
+
+## 2026-04-11: P0 Dead Code Cleanup
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-11T09:00:34Z-blathers.md`
+
+Deleted `WorkflowAdvanceRequest.cs` (dead code). 0 references confirmed. Build clean. Committed 600b172.
+
+**Next:** Available for Workflow Emulator TUI REPL implementation (Tom Nook design decision pending).

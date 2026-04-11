@@ -826,3 +826,19 @@ Two comprehensive guides in `docs/guides/`:
 - **Customization guides thrive when they separate CSS (easy) from code changes (hard).** Emphasizing "override variables, not C#" empowers designers and reduces support burden.
 - **Accessibility is not afterthought content; it's a customization constraint.** Calling out WCAG 2.2 AA defaults and why they matter (contrast ratios, focus visible, ARIA) prevents well-intentioned breakage.
 - **Worked examples (Acme Finance) are more useful than abstract lists.** Showing real workflow (header styling, gold focus, custom partial) with actual CSS code makes patterns copy-paste ready.
+
+---
+
+## 2026-04-11: Workflow Documentation Guides Created
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-11T09:00:34Z-mabel.md`
+
+**New Documents:**
+- `docs/guides/workflow-setup.md` — Commit df79ddf
+- `docs/guides/workflow-customisation.md` — Commit ee4fa41
+
+**Scope:**
+- Setup guide covers initial workflow definition creation, registration, and content seeding for developers and end users
+- Customisation guide covers CSS theming, partial overrides, and accessibility constraints
+
+**Next:** Available for additional documentation work (workflow emulator TUI docs, API reference updates).

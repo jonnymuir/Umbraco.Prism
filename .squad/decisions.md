@@ -4111,3 +4111,156 @@ Do NOT remove `uui-dialog-layout` and replace it with `:host { display: flex; fl
 - Delete: prism-workflow-collect.ts, prism-workflow-shell.ts, prism-workflow-orchestrator.ts, workflow-api-client.ts
 - WorkflowController becomes route-hijacking Umbraco controller (GET renders, POST advances)
 - Add Razor partials: _WorkflowStep-Collect.cshtml, _WorkflowStep-Review.cshtml, _WorkflowStep-Completion.cshtml
+
+---
+
+## 📌 2026-04-11: Workflow UI Full Refactor (Isabelle)
+
+**Session Log:** `.squad/log/2026-04-11T09:00:34Z-workflow-ui-refactor.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/isabelle-workflow-ui-refactor.md`
+
+### Isabelle — Workflow UI Full Refactor
+
+**Date:** 2026-04-11
+
+#### 1. Form Field Name Prefix: `fields[key]`
+
+**Decision:** All form field `name` attributes in `_WorkflowField.cshtml` must use the `fields[key]` prefix pattern.
+
+**Rationale:** The controller uses `[FromForm] Dictionary<string, string> fields` for model binding. Without the `fields[` prefix, submitted values are silently dropped — the model binder produces an empty dictionary. This was the critical P0 bug.
+
+**Applies to:** All 6 field renderers in `_WorkflowField.cshtml` (boolean, radio, checkboxlist, select, textarea, text/email/number/date).
+
+#### 2. Error State via ViewData, Not Model Property
+
+**Decision:** Field-level errors are injected into `_WorkflowField.cshtml` via `ViewData["fieldError"]`, not via a property on `FieldRenderPayload`.
+
+**Rationale:** `FieldRenderPayload` is a Core model (owned by Blathers' domain). Adding UI error state to it would violate separation of concerns. ViewData is the standard ASP.NET pattern for passing view-scoped context that doesn't belong on the model.
+
+**Implementation:** Caller creates a copy of `ViewData` via `new ViewDataDictionary(ViewData)` per field (not mutating the shared instance), sets `["fieldError"]`, and passes it as the third argument to `PartialAsync`.
+
+#### 3. Convention-Based Partial Dispatch via `ICompositeViewEngine`
+
+**Decision:** `WorkflowPage.cshtml` uses `ICompositeViewEngine.GetView()` to resolve `~/Views/Partials/_WorkflowStep-{Archetype}.cshtml` at runtime, replacing the hard-coded `switch` statement.
+
+**Rationale:** Each new archetype previously required editing a core file (`WorkflowPage.cshtml`). Convention-based dispatch means new archetypes only require adding a new `_WorkflowStep-{Archetype}.cshtml` partial — no core file change needed.
+
+**Fallback:** If the view is not found, a `workflow-alert--warn` message is displayed with the archetype name, supporting graceful degradation during development.
+
+#### 4. Single CSS File: `prism-workflow.css`
+
+**Decision:** All workflow-related CSS lives in `prism-workflow.css`. Inline `<style>` blocks are removed from all partials.
+
+**Rationale:** Inline styles prevent theming (designers can't override via CSS custom properties), cause duplication when partials are rendered multiple times, and cannot be cached separately. A single linked stylesheet is cacheable, overridable, and inspectable.
+
+**Linked from:** `Master.cshtml` after `utilities.css`.
+
+#### 5. `prism-*` CSS Class Namespace for All Workflow UI
+
+**Decision:** All workflow UI uses `prism-*` CSS classes (from `prism-workflow.css`). The previous `wf-*` classes are removed.
+
+**Rationale:** Two parallel CSS class systems (`wf-*` inline + `prism-*` in linked file) caused confusion and the linked file was never loaded. Consolidating to `prism-*` aligns with the project's established CSS architecture and enables CSS custom property theming.
+
+#### 6. `_WorkflowStep-Collect` Delegates Entirely to `_WorkflowField`
+
+**Decision:** The Collect step partial no longer has its own field renderer. It delegates 100% to `_WorkflowField` via `PartialAsync`.
+
+**Rationale:** The old Collect partial only handled 3 field types (select, textarea, basic text). `_WorkflowField` handles 11 types with full WCAG 2.2 AA semantics. Duplication was removed to prevent drift.
+
+---
+
+## 📌 2026-04-11: Workflow Emulator TUI REPL Design (Tom Nook)
+
+**Session Log:** `.squad/log/2026-04-11T09:00:34Z-workflow-ui-refactor.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/tom-nook-tui-design.md`
+
+### Tom Nook — Replace WorkflowEmulatorController with Spectre.Console TUI REPL
+
+**Date:** 2026-04-11
+
+**Status:** Proposed
+
+#### Problem
+
+`WorkflowEmulatorController.cs` requires a developer to issue HTTP requests (via `.http` files or curl) to inspect and advance workflow instances. This is clunky — the app already runs in a terminal; a dev shouldn't need a separate HTTP client just to simulate a reviewer action.
+
+#### Decision
+
+Replace the MVC controller with a **Spectre.Console command REPL** running on the main thread as a `BackgroundService`. The web host keeps running on its own background thread (standard ASP.NET Core behaviour). The terminal becomes an interactive control plane.
+
+**Chosen approach: Option A — Spectre.Console REPL**
+
+##### Why Spectre.Console?
+
+- Widely used in .NET CLI tooling; no conceptual overhead
+- `Table` rendering for instance lists
+- `Markup` for coloured status output
+- `AnsiConsole.Ask<string>` for confirmations
+- Single lightweight NuGet package: `Spectre.Console`
+
+##### REPL Hosting
+
+Register as `IHostedService`:
+```csharp
+builder.Services.AddHostedService<TuiReplService>();
+```
+`TuiReplService` starts after the web host is listening. It runs a `while(true)` readline loop, dispatching to handler methods. It holds an injected `BusinessAppWorkflowEngine` reference.
+
+##### Logging Conflict Resolution
+
+Configure `appsettings.Development.json` to suppress console log noise during REPL operation:
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  }
+}
+```
+
+This means startup/shutdown messages still appear, but runtime HTTP request logs don't spray over the prompt. The REPL uses `AnsiConsole.MarkupLine` for its own output — no interference from the framework logger. This avoids adding Serilog or a file sink dependency.
+
+#### Command Set
+
+| Command | Arguments | Description |
+|---------|-----------|-------------|
+| `list` / `ls` | — | Table of all active instances: short ID, workflow key, state, tenant, user, version |
+| `show` | `<instanceId>` | Full detail view for one instance including field values |
+| `approve` | `<instanceId>` | Advance instance with reviewer action `approve` |
+| `reject` | `<instanceId>` | Advance instance with reviewer action `request-changes` |
+| `reset` | `<instanceId>` | Remove instance from engine (next user call recreates it from scratch) |
+| `defs` | — | List loaded workflow definition keys and instance counts |
+| `help` / `?` | — | Print command reference |
+| `quit` / `exit` / `q` | — | Stop the application via `IHostApplicationLifetime.StopApplication()` |
+
+**Shorthand IDs:** When displaying instances in `list`, show a short prefix (first 8 chars of GUID) so the dev can type `approve 3f2a1b8c` without copy-pasting a full UUID. The engine already uses full GUIDs; the REPL resolves prefix → full ID.
+
+#### Risks & Gotchas
+
+1. **Startup log spam before REPL starts**: Print a `[yellow]⚡ Emulator ready.[/]` banner from `ExecuteAsync` *after* a short `Task.Delay(500)` to let the web host finish its startup logs — banner lands last, visually anchoring the prompt.
+
+2. **Non-interactive stdin**: If stdin is redirected (CI, pipe), `Console.ReadLine()` returns `null`. Detect this at startup (`!Console.IsInputRedirected`) and skip the REPL entirely — don't crash.
+
+3. **Thread safety on AnsiConsole**: Only the REPL background service calls `AnsiConsole` output methods. ASP.NET logs go through ILogger (console provider). These can interleave but won't corrupt each other — acceptable for a dev tool.
+
+4. **`reset` semantics**: Deleting an instance from `_instancesById` requires exposing a new `Reset(instanceId)` method on `BusinessAppWorkflowEngine`. This method must also remove the `_instanceLookup` entry to avoid orphaned lookup keys.
+
+5. **Prefix ambiguity**: If two instance IDs share the same 8-char prefix (unlikely with GUIDs, but possible in long-running sessions), the REPL should warn and require a longer prefix. A `StartsWith` match on full ID handles this gracefully.
+
+#### Next Steps (routing)
+
+This design is ready to hand off to **Blathers** for implementation:
+
+1. Add `Spectre.Console` NuGet reference
+2. Implement `TuiReplService : BackgroundService`
+3. Add `Reset(instanceId)` to `BusinessAppWorkflowEngine`
+4. Delete controller/filter stack
+5. Update `Program.cs` (remove `AddControllers`, `MapControllers`)
+6. Adjust `appsettings.Development.json` log levels
+7. **Tangy** should add integration-level smoke tests for the new engine `Reset` method
