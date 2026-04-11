@@ -104,28 +104,22 @@ Push notification logic is split between the NuGet package and the consuming sit
 
 ### Token Lifecycle
 
-```
-[Mobile App Starts]
-     │
-     ▼
-Request push permission (iOS: explicit prompt; Android 13+: POST_NOTIFICATIONS)
-     │
-     ▼
-Capacitor PushNotifications.register()
-     │
-     ▼
-FCM returns device token
-     │
-     ▼
-POST /umbraco/api/prism/push/register
-  { "token": "...", "platform": "ios|android", "deviceId": "..." }
-     │
-     ▼
-Stored in prismPushTokens (linked to authenticated member)
-     │
-     ▼
-[Token refresh] → same endpoint, upsert by deviceId
-[Logout]        → DELETE /umbraco/api/prism/push/register/{deviceId}
+```mermaid
+sequenceDiagram
+    participant Mobile App
+    participant OS
+    participant Capacitor
+    participant FCM
+    participant Backend API
+    
+    Mobile App->>Mobile App: App Starts
+    Mobile App->>OS: Request push permission<br/>iOS: explicit prompt<br/>Android 13+: POST_NOTIFICATIONS
+    Mobile App->>Capacitor: PushNotifications.register()
+    Capacitor->>FCM: Request device token
+    FCM-->>Capacitor: Return device token
+    Mobile App->>Backend API: POST /umbraco/api/prism/push/register<br/>{ token, platform, deviceId }
+    Backend API->>Backend API: Store in prismPushTokens<br/>linked to authenticated member
+    Note over Mobile App,Backend API: On token refresh: same endpoint, upsert by deviceId<br/>On logout: DELETE /umbraco/api/prism/push/register/{deviceId}
 ```
 
 ### Token Storage: `prismPushTokens` table

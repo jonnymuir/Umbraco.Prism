@@ -40,49 +40,28 @@ The feature must feel native to Umbraco, be easy for package consumers to extend
 
 ### Layer Diagram
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     UMBRACO BACKOFFICE                       │
-│                                                             │
-│  Content publish/unpublish ──► Umbraco Notification System  │
-│  Custom backoffice UI ──────► "Send Global Notification"    │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   PRISM NOTIFICATION LAYER                   │
-│                                                             │
-│  PrismContentNotificationHandler                            │
-│    (listens to ContentPublishedNotification)                │
-│                                                             │
-│  IPrismNotificationService                                  │
-│    (public API for developers — send to user/topic/all)     │
-│                                                             │
-│  NotificationRouter                                         │
-│    (resolves topic → device tokens via subscription store)  │
-│                                                             │
-│  NotificationDeliveryService                                │
-│    (batches, retries, handles token expiry)                 │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   PUSH GATEWAY ADAPTER                       │
-│                                                             │
-│  IPrismPushGateway (interface)                              │
-│    ├── FcmPushGateway (default — Firebase Cloud Messaging)  │
-│    └── (extensible: consumer can swap in APNs, OneSignal…)  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     MOBILE APP (Capacitor)                   │
-│                                                             │
-│  @capacitor/push-notifications plugin                       │
-│    → Receives push, displays native notification            │
-│    → On tap: deep-link to relevant content                  │
-│    → On registration: sends PushToken to Prism backend      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["Umbraco Backoffice"] -->|Content publish/unpublish| B["Umbraco Notification System"]
+    A -->|Custom backoffice UI| C["Send Global Notification"]
+    B --> D["Prism Notification Layer"]
+    C --> D
+    
+    D --> D1["PrismContentNotificationHandler<br/>listens to ContentPublishedNotification"]
+    D --> D2["IPrismNotificationService<br/>public API - send to user/topic/all"]
+    D --> D3["NotificationRouter<br/>resolves topic → device tokens"]
+    D --> D4["NotificationDeliveryService<br/>batches, retries, handles token expiry"]
+    
+    D --> E["Push Gateway Adapter"]
+    E --> E1["IPrismPushGateway interface"]
+    E1 --> E2["FcmPushGateway<br/>Firebase Cloud Messaging"]
+    E1 --> E3["Custom implementations<br/>APNs, OneSignal, etc."]
+    
+    E --> F["Mobile App - Capacitor"]
+    F --> F1["@capacitor/push-notifications"]
+    F1 --> F2["Receives push,<br/>displays native notification"]
+    F1 --> F3["On tap: deep-link<br/>to relevant content"]
+    F1 --> F4["On registration:<br/>sends PushToken to backend"]
 ```
 
 ### Design Principles
@@ -147,27 +126,21 @@ The feature must feel native to Umbraco, be easy for package consumers to extend
 
 ### Flow
 
-```
-App Launch
-    │
-    ▼
-[@capacitor/push-notifications] requestPermissions()
-    │
-    ▼
-OS grants permission → plugin fires 'registration' event with PushToken
-    │
-    ▼
-[Capacitor Bridge JS] POST /umbraco/prism/mobile/notifications/register
-    Headers: PrismMemberCookie (authenticated)
-    Body: {
-      "pushToken": "fcm-token-string",
-      "deviceId": "existing-device-uuid",
-      "platform": "ios"
-    }
-    │
-    ▼
-[NotificationController] Upserts PushToken on prismDeviceCredentials
-    (extends existing row — same DeviceId + TenantId + UserId)
+```mermaid
+sequenceDiagram
+    participant App
+    participant Capacitor
+    participant OS
+    participant Backend
+    
+    App->>App: Launch
+    App->>Capacitor: requestPermissions()
+    Capacitor->>OS: Request push notification permission
+    OS-->>Capacitor: Grant permission, fire 'registration' event
+    Capacitor-->>Capacitor: Obtain PushToken
+    Capacitor->>Backend: POST /umbraco/prism/mobile/notifications/register
+    Note over Capacitor,Backend: Headers: PrismMemberCookie (authenticated)<br/>Body: pushToken, deviceId, platform
+    Backend->>Backend: Upserts PushToken on prismDeviceCredentials<br/>Same DeviceId + TenantId + UserId
 ```
 
 ### Storage: Extend `prismDeviceCredentials`
@@ -267,19 +240,11 @@ prismNotificationSubscriptions
 
 Subscriptions are per-user, not per-device. If a user has two devices, both receive the notification. The routing flow is:
 
-```
-Topic "content:1234" in Tenant "acme"
-    │
-    ▼
-SELECT UserId FROM prismNotificationSubscriptions
-WHERE TenantId = 'acme' AND Topic = 'content:1234'
-    │
-    ▼
-SELECT PushToken, Platform FROM prismDeviceCredentials
-WHERE TenantId = 'acme' AND UserId IN (...) AND PushToken IS NOT NULL AND RevokedAt IS NULL
-    │
-    ▼
-Batch PushTokens → FCM send
+```mermaid
+graph TD
+    A["Topic 'content:1234'<br/>Tenant 'acme'"] --> B["SELECT UserId FROM prismNotificationSubscriptions<br/>WHERE TenantId = 'acme'<br/>AND Topic = 'content:1234'"]
+    B --> C["SELECT PushToken, Platform<br/>FROM prismDeviceCredentials<br/>WHERE TenantId = 'acme'<br/>AND UserId IN ...)<br/>AND PushToken IS NOT NULL<br/>AND RevokedAt IS NULL"]
+    C --> D["Batch PushTokens<br/>→ FCM send"]
 ```
 
 ### Subscription Endpoints

@@ -44,6 +44,12 @@ public record WorkflowResponseEnvelope
     public WorkflowRenderPayload? Render { get; init; }
 
     /// <summary>
+    /// Gets the instance policy from the workflow definition.
+    /// Valid values: "single", "multiple", "prompt".
+    /// </summary>
+    public string? InstancePolicy { get; init; }
+
+    /// <summary>
     /// Gets the list of validation or error problems.
     /// </summary>
     public IReadOnlyList<WorkflowProblem> Problems { get; init; } = Array.Empty<WorkflowProblem>();
@@ -132,6 +138,18 @@ public record FieldRenderPayload
     public object? Value { get; init; }
 
     /// <summary>
+    /// Gets the default value to pre-populate the field (nullable).
+    /// Takes precedence over user-submitted values.
+    /// </summary>
+    public string? DefaultValue { get; init; }
+
+    /// <summary>
+    /// Gets whether the field is read-only and cannot be edited by the user.
+    /// Read-only fields are rendered as disabled inputs or plain text.
+    /// </summary>
+    public bool ReadOnly { get; init; }
+
+    /// <summary>
     /// Gets the options for select/radio fields (nullable).
     /// </summary>
     public IReadOnlyList<string>? Options { get; init; }
@@ -160,6 +178,17 @@ public record FieldRenderPayload
     /// Gets the maximum value for number fields (nullable).
     /// </summary>
     public decimal? Max { get; init; }
+
+    /// <summary>
+    /// The field key this field depends on for visibility. When set, this field is only
+    /// shown when the dependency field's value matches <see cref="VisibleWhen"/>.
+    /// </summary>
+    public string? ConditionalOn { get; init; }
+
+    /// <summary>
+    /// The value that makes this field visible when <see cref="ConditionalOn"/> is set.
+    /// </summary>
+    public string? VisibleWhen { get; init; }
 }
 
 /// <summary>

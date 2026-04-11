@@ -41,6 +41,7 @@ public class PrismContentTypeSeeder(
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureWorkflowDemoPageAsync();
         await EnsureWorkflowPageAsync();
+        await EnsureWorkflowHubAsync();
         await EnsureSettingsDocumentTypeAsync();
 
         logger.LogInformation("PRISM ContentTypeSeeder: Complete");
@@ -94,6 +95,30 @@ public class PrismContentTypeSeeder(
         }
 
         await EnsureWorkflowKeyPropertyAsync(contentType);
+        await EnsureTemplateAsync(contentType, name);
+    }
+
+    private async Task EnsureWorkflowHubAsync()
+    {
+        const string alias = "workflowHub";
+        const string name = "Workflow Hub";
+
+        var contentType = contentTypeService.Get(alias);
+
+        if (contentType == null)
+        {
+            contentType = new ContentType(shortStringHelper, -1)
+            {
+                Alias = alias,
+                Name = name,
+                AllowedAsRoot = true,
+                Icon = "icon-dashboard"
+            };
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
+
         await EnsureTemplateAsync(contentType, name);
     }
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 using System.Text.Json;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
@@ -91,13 +92,16 @@ public class WorkflowPageController(
             return CurrentTemplate(ErrorViewModel(workflowKey, msg));
         }
 
+        // Pre-populate fields from authenticated user claims before building nonce
+        var updatedEnvelope = PrePopulateFieldsFromClaims(envelope);
+
         // Collect all fields from the render payload for nonce caching
-        var allFields = envelope.Render?.FieldGroups
+        var allFields = updatedEnvelope.Render?.FieldGroups
             .SelectMany(g => g.Fields)
             .ToList() ?? new List<FieldRenderPayload>();
 
         var nonce = await nonceService.CreateAsync(allFields);
-        var vm = BuildViewModel(envelope, workflowKey, problems, formValues);
+        var vm = BuildViewModel(updatedEnvelope, workflowKey, problems, formValues);
         vm.Nonce = nonce;
         return CurrentTemplate(vm);
     }
@@ -307,5 +311,57 @@ public class WorkflowPageController(
 
         logger.LogWarning("Rejected external ReturnUrl in workflow POST: {ReturnUrl}", returnUrl);
         return "/";
+    }
+
+    /// <summary>
+    /// Pre-populates workflow fields from authenticated user claims.
+    /// Sets DefaultValue and ReadOnly properties on email-address and full-name fields
+    /// if the corresponding claims exist.
+    /// </summary>
+    /// <param name="envelope">The workflow envelope from the Business App.</param>
+    /// <returns>An updated envelope with pre-populated fields.</returns>
+    private WorkflowResponseEnvelope PrePopulateFieldsFromClaims(WorkflowResponseEnvelope envelope)
+    {
+        if (envelope.Render == null)
+            return envelope;
+
+        var email = HttpContext.User.FindFirstValue(ClaimTypes.Email)
+            ?? HttpContext.User.FindFirstValue("email");
+        var name = HttpContext.User.FindFirstValue(ClaimTypes.Name)
+            ?? HttpContext.User.FindFirstValue("name");
+
+        var updatedFieldGroups = envelope.Render.FieldGroups
+            .Select(group => group with
+            {
+                Fields = group.Fields.Select(field =>
+                {
+                    if (field.FieldKey == "email-address" && !string.IsNullOrWhiteSpace(email))
+                    {
+                        return field with
+                        {
+                            DefaultValue = email,
+                            ReadOnly = true
+                        };
+                    }
+
+                    if (field.FieldKey == "full-name" && !string.IsNullOrWhiteSpace(name))
+                    {
+                        return field with
+                        {
+                            DefaultValue = name,
+                            ReadOnly = true
+                        };
+                    }
+
+                    return field;
+                }).ToList()
+            }).ToList();
+
+        var updatedRender = envelope.Render with
+        {
+            FieldGroups = updatedFieldGroups
+        };
+
+        return envelope with { Render = updatedRender };
     }
 }

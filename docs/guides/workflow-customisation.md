@@ -176,13 +176,13 @@ Partials are located in `src/UmbracoPrism.TestSite/Views/Partials/`:
 
 Copy the partial to your site's `Views/Partials/` (or `Views/` if the directory structure differs):
 
-```
-Your Site
-└── Views/
-    ├── Partials/
-    │   ├── _WorkflowStep-Collect.cshtml  ← copy here
-    │   └── _WorkflowStep-Review.cshtml   ← copy here
-    └── ...
+```mermaid
+graph TD
+    A["Your Site"] --> B["Views/"]
+    B --> C["Partials/"]
+    B --> D["..."]
+    C --> E["_WorkflowStep-Collect.cshtml<br/>&lt;-- copy here"]
+    C --> F["_WorkflowStep-Review.cshtml<br/>&lt;-- copy here"]
 ```
 
 ### Step 3: Modify
@@ -365,9 +365,9 @@ Don't rely on colour alone to communicate state:
 
 The default partials do this correctly.
 
-## Example: Brand the Retirement Quote Form
+## Example: Brand the Community Enquiry Form
 
-Let's say you're integrating the `retirement-quote` workflow for a fictional financial services company "Acme Finance" with brand colours: navy (#003d80) and gold (#d4a574).
+Let's say you're integrating the `community-enquiry` workflow for a fictional tech company "Acme Tech" with brand colours: navy (#003d80) and gold (#d4a574).
 
 ### Step 1: Create Your Theme CSS
 
@@ -405,7 +405,7 @@ Copy the default and add Acme branding:
 <div class="prism-workflow acme-workflow">
     <div class="acme-header">
         <h1 class="acme-title">@Model.CurrentStep.DisplayName</h1>
-        <p class="acme-subtitle">Acme Finance retirement quote request</p>
+        <p class="acme-subtitle">Acme Tech contact form</p>
     </div>
     
     <form class="workflow-form" method="post" action="@Model.ReturnUrl" novalidate>

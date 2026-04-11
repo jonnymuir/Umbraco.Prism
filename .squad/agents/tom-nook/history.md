@@ -571,3 +571,84 @@ All layers are correctly scoped (model constraints → HTML5 → tamper-proofing
 **Rationale:** This principle was already documented in historical notes from the validation architecture review. Elevated it to a formal standing decision so it serves as a reference point for all future feature design and architectural reviews.
 
 **Standing Effect:** This principle now governs evaluation of all new Prism APIs, defaults, and behaviors. Every feature must answer: "Does this require developers to do extra work, or does it just work?"
+
+### Workflow Hub & Conditional Fields Design (2026-04-11)
+
+**Task:** Produce comprehensive design document for two key workflow enhancements: conditional fields pattern and workflow hub/multi-instance management.
+
+**Design doc:** `docs/design/workflow-hub-and-conditional-fields.md` (35KB)
+
+**What was designed:**
+
+1. **Conditional fields pattern** — "Other → specify" UX pattern for dynamic field visibility
+   - Data model extension: `ConditionalOn` and `VisibleWhen` properties on `FieldRenderPayload`
+   - Server-side validation: skip hidden fields, validate visible conditional fields
+   - Client-side: Pure CSS + small JS enhancement (~1KB), ARIA live regions, focus management
+   - Accessibility tested with VoiceOver patterns
+   - UX assessment: when "Other" is good vs. a smell (included in design)
+
+2. **Workflow Hub** — member dashboard for multi-instance management
+   - New `workflowHub` document type (seeded via `PrismContentTypeSeeder`)
+   - Route-hijacking `WorkflowHubController` (follows existing `WorkflowPageController` pattern)
+   - BA extension: `GetInstancesAsync()` endpoint returning `WorkflowInstanceListEnvelope`
+   - URL resolution on Prism side (BA doesn't need to know Umbraco routing)
+   - Separate active/completed instance lists with empty state
+
+3. **Multi-instance policy enforcement** — configurable per workflow definition
+   - `instancePolicy` property: `"single"` | `"multiple"` | `"prompt"`
+   - Single: auto-resume active instance, never start new
+   - Multiple: always start new, no check
+   - Prompt: show user choice via new `InstancePicker` archetype
+   - Enforcement in `WorkflowPageController.HandleGet()`
+
+4. **Extension points** — progressive customization patterns
+   - Zero-config default (create `workflowHub` page, done)
+   - Override entire view (standard Umbraco view override)
+   - Override partials only (`_WorkflowHub-InstanceList.cshtml`)
+   - Per-archetype instance rendering (`_WorkflowHub-InstanceCard-{Archetype}.cshtml`)
+
+**Key architectural decisions:**
+
+- **Conditional fields are BA-controlled, Prism-enforced.** BA defines visibility rules via JSON; Prism renders and validates according to those rules. No complex DSL needed for MVP.
+- **Single-value triggers only in v1.** Multi-value `VisibleWhen: ["A", "B"]` deferred to v2 (covers 90% of use cases).
+- **Workflow Hub is NOT a meta-workflow in v1.** Evaluated "workflow as a workflow" pattern — pros (infinite extensibility, consistent model) vs. cons (bootstrapping problem, circular dependency risk, MVP complexity). Decision: dedicated controller for v1, reserve meta-workflow as v2 opt-in extension.
+- **Instance list is NOT cached in MVP.** Always fresh from BA; if performance becomes an issue, add 30s cache keyed by userId in v2.
+- **No pagination in MVP.** Most members have <10 instances; wait for user feedback before adding complexity.
+
+**Umbraco-native patterns followed:**
+- Document type seeding (same pattern as existing Prism content types)
+- Route-hijacking controller (no Surface Controllers)
+- Strongly-typed view models
+- Partial override conventions (`_WorkflowHub-*.cshtml`)
+- Tag helpers where appropriate
+
+**Open questions documented:**
+1. Should conditional fields support multi-value triggers? (Defer to v2)
+2. Should hub show cross-tenant instances? (Leave to BA; Prism is agnostic)
+3. Should instance list be cached? (No for MVP; add 30s cache in v2 if needed)
+4. Should completed instances be paginated? (No for MVP; wait for feedback)
+5. Should conditional fields support nesting depth > 2? (Allow but document max = 2)
+6. Should hub allow bulk actions? (Not in MVP; BA owns lifecycle)
+7. Should InstancePicker remember user's choice? (Not in MVP; adds state complexity)
+
+**Design deliverables:**
+- Full responsibility split (🔵 Prism Platform / 🟠 Business App)
+- JSON examples for field definitions and workflow policies
+- Code examples for server-side validation extension
+- Client-side JS implementation (<1KB, zero deps, graceful degradation)
+- Accessibility patterns (ARIA live, focus management, screen reader testing notes)
+- View/partial examples with archetype-aware rendering
+- Complete implementation checklist (18 tasks across 3 features)
+
+**Handoff targets:**
+- Blathers: Backend (`GetInstancesAsync`, `GetDefinitionAsync`, `StartNewAsync` endpoints)
+- Isabelle: UI (hub view, instance cards, conditional field JS)
+- Tangy: Test scenarios (conditional field validation, instance policy enforcement, multi-instance edge cases)
+
+**Design principles reinforced:**
+- "Make it easy to do the right thing; principle of least surprise" — zero-config defaults, progressive disclosure of complexity
+- No breaking changes — entirely additive, existing workflows unaffected
+- Accessibility first-class (ARIA, focus, screen reader patterns)
+- Umbraco-idiomatic (document types, route-hijacking, view overrides)
+
+**Decisions file:** `.squad/decisions/inbox/tom-nook-workflow-hub-design.md` (needs Scribe merge)

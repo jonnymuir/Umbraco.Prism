@@ -99,6 +99,24 @@ app.MapPost("/api/workflow/{workflowKey}/advance", (
     return envelope.ResponseState == "error" ? Results.UnprocessableEntity(envelope) : Results.Ok(envelope);
 }).RequireAuthorization();
 
+app.MapGet("/api/workflow/instances", (
+    ClaimsPrincipal user,
+    IConfiguration config,
+    BusinessAppWorkflowEngine engine,
+    ILogger<Program> logger) =>
+{
+    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
+    var email = user.GetEmail();
+
+    if (tenant == null || string.IsNullOrEmpty(email))
+        return Results.Unauthorized();
+
+    logger.LogInformation("Workflow instances: tenant={Tenant} user={User}", tenant.Code, email);
+
+    var envelope = engine.GetInstances(tenant.Code, email);
+    return Results.Ok(envelope);
+}).RequireAuthorization();
+
 app.Run();
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);

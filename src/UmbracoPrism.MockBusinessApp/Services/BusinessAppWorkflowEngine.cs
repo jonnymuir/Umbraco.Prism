@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 
@@ -123,6 +125,41 @@ public class BusinessAppWorkflowEngine
             return ErrorEnvelope(
                 $"Action '{action}' is not valid from state '{instance.CurrentState}'.", "INVALID_TRANSITION");
 
+        // BA cross-field validation: Technical Support requires diagnostic info
+        if (fieldValues != null &&
+            fieldValues.TryGetValue("enquiry-type", out var enquiryTypeObj) &&
+            enquiryTypeObj?.ToString() == "Technical support" &&
+            fieldValues.TryGetValue("message", out var messageObj))
+        {
+            var message = messageObj?.ToString() ?? string.Empty;
+            
+            // Check for version number (v1.2, v17, 1.0.0), URL (http/https), or error code (ERR-, 0x, #)
+            var hasVersionNumber = Regex.IsMatch(message, @"\bv?\d+\.\d+", RegexOptions.IgnoreCase);
+            var hasUrl = Regex.IsMatch(message, @"https?://\S+", RegexOptions.IgnoreCase);
+            var hasErrorRef = Regex.IsMatch(message, @"\b(ERR[-_]\w+|0x[0-9A-Fa-f]+|#\d{3,})\b");
+            
+            if (!hasVersionNumber && !hasUrl && !hasErrorRef)
+            {
+                return new WorkflowResponseEnvelope
+                {
+                    InstanceId = instanceId,
+                    StateVersion = instance.StateVersion,
+                    ResponseState = "validation_error",
+                    CorrelationId = instance.InstanceId,
+                    ServerTimeUtc = DateTimeOffset.UtcNow,
+                    Problems = new List<WorkflowProblem>
+                    {
+                        new WorkflowProblem
+                        {
+                            FieldKey = "message",
+                            Code = "diagnostic-info-required",
+                            Message = "Technical support requests should include a version number (e.g. v1.2.3), a URL, or an error reference so our team can help you faster."
+                        }
+                    }
+                };
+            }
+        }
+
         var updated = instance with
         {
             CurrentState = transition.ToState,
@@ -180,6 +217,45 @@ public class BusinessAppWorkflowEngine
     /// <summary>Returns a snapshot of all active instances (for the emulator dashboard).</summary>
     /// <returns>An enumerable of all active WorkflowInstanceState objects.</returns>
     public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instancesById.Values;
+
+    /// <summary>
+    /// Returns all workflow instances for a specific user and tenant.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier.</param>
+    /// <param name="userId">The user identifier.</param>
+    /// <returns>A WorkflowInstanceListEnvelope containing summaries of all instances.</returns>
+    public WorkflowInstanceListEnvelope GetInstances(string tenantId, string userId)
+    {
+        var userInstances = _instancesById.Values
+            .Where(i => string.Equals(i.TenantId, tenantId, StringComparison.Ordinal)
+                     && string.Equals(i.UserId, userId, StringComparison.Ordinal))
+            .Select(instance =>
+            {
+                _definitions.TryGetValue(instance.WorkflowKey, out var definition);
+                var state = definition?.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
+
+                return new WorkflowInstanceSummary
+                {
+                    InstanceId = instance.InstanceId,
+                    WorkflowKey = instance.WorkflowKey,
+                    WorkflowDisplayName = definition?.DisplayName ?? instance.WorkflowKey,
+                    CurrentStateKey = instance.CurrentState,
+                    CurrentStateDisplayName = state?.DisplayName ?? instance.CurrentState,
+                    Archetype = state?.Archetype ?? "Collect",
+                    CreatedAt = instance.CreatedAt.DateTime,
+                    LastUpdatedAt = instance.UpdatedAt.DateTime,
+                    CanContinue = state?.Archetype != "Completion",
+                    IsCompleted = state?.Archetype == "Completion",
+                    WorkflowPageUrl = null // Controller will resolve this
+                };
+            })
+            .ToList();
+
+        return new WorkflowInstanceListEnvelope
+        {
+            Instances = userInstances
+        };
+    }
 
     /// <summary>Returns all loaded workflow definitions.</summary>
     public IEnumerable<WorkflowDefinitionFile> GetAllDefinitions() => _definitions.Values;
@@ -316,7 +392,8 @@ public class BusinessAppWorkflowEngine
             StateVersion = instance.StateVersion,
             CorrelationId = instance.InstanceId,
             ServerTimeUtc = DateTimeOffset.UtcNow,
-            Render = render
+            Render = render,
+            InstancePolicy = definition.InstancePolicy
         };
     }
 
@@ -341,7 +418,9 @@ public class BusinessAppWorkflowEngine
             MaxLength = f.MaxLength,
             Pattern = f.Pattern,
             Min = f.Min,
-            Max = f.Max
+            Max = f.Max,
+            ConditionalOn = f.ConditionalOn,
+            VisibleWhen = f.VisibleWhen
         }).ToArray();
 
         return new FieldGroupRenderPayload

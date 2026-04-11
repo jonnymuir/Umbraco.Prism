@@ -742,32 +742,39 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
 
 ### 2.5 Content Tree Structure
 
-```
-Home
-└── Vinyl Vault [vinylVaultHub]
-    ├── Notifications [notificationSubscriptions]
-    ├── Jazz [genre]
-    │   ├── Miles Davis - Kind of Blue [vinylRecord]
-    │   ├── John Coltrane - A Love Supreme [vinylRecord]
-    │   └── Bill Evans - Portrait in Jazz [vinylRecord]
-    ├── Rock [genre]
-    │   ├── Pink Floyd - The Dark Side of the Moon [vinylRecord]
-    │   ├── Led Zeppelin - IV [vinylRecord]
-    │   └── The Beatles - Abbey Road [vinylRecord]
-    ├── Electronic [genre]
-    │   ├── Daft Punk - Random Access Memories [vinylRecord]
-    │   ├── Boards of Canada - Music Has the Right to Children [vinylRecord]
-    │   └── Aphex Twin - Selected Ambient Works 85-92 [vinylRecord]
-    ├── Hip-Hop [genre]
-    │   ├── Kendrick Lamar - To Pimp a Butterfly [vinylRecord]
-    │   └── A Tribe Called Quest - The Low End Theory [vinylRecord]
-    ├── Classical [genre]
-    │   └── Beethoven - Symphony No. 9 (Glenn Gould) [vinylRecord]
-    ├── Techno [genre]
-    │   ├── Kraftwerk - The Man-Machine [vinylRecord]
-    │   └── Jeff Mills - Exhibitionist [vinylRecord]
-    └── Nose Flute Jazz [genre]
-        └── Various Artists - Nasal Passages: A Nose Flute Jazz Collection [vinylRecord]
+```mermaid
+graph TD
+    A["Home"] --> B["Vinyl Vault<br/>vinylVaultHub"]
+    B --> C["Notifications<br/>notificationSubscriptions"]
+    B --> D["Jazz<br/>genre"]
+    B --> E["Rock<br/>genre"]
+    B --> F["Electronic<br/>genre"]
+    B --> G["Hip-Hop<br/>genre"]
+    B --> H["Classical<br/>genre"]
+    B --> I["Techno<br/>genre"]
+    B --> J["Nose Flute Jazz<br/>genre"]
+    
+    D --> D1["Miles Davis - Kind of Blue<br/>vinylRecord"]
+    D --> D2["John Coltrane - A Love Supreme<br/>vinylRecord"]
+    D --> D3["Bill Evans - Portrait in Jazz<br/>vinylRecord"]
+    
+    E --> E1["Pink Floyd - The Dark Side of the Moon<br/>vinylRecord"]
+    E --> E2["Led Zeppelin - IV<br/>vinylRecord"]
+    E --> E3["The Beatles - Abbey Road<br/>vinylRecord"]
+    
+    F --> F1["Daft Punk - Random Access Memories<br/>vinylRecord"]
+    F --> F2["Boards of Canada - Music Has the Right to Children<br/>vinylRecord"]
+    F --> F3["Aphex Twin - Selected Ambient Works 85-92<br/>vinylRecord"]
+    
+    G --> G1["Kendrick Lamar - To Pimp a Butterfly<br/>vinylRecord"]
+    G --> G2["A Tribe Called Quest - The Low End Theory<br/>vinylRecord"]
+    
+    H --> H1["Beethoven - Symphony No. 9 Glenn Gould<br/>vinylRecord"]
+    
+    I --> I1["Kraftwerk - The Man-Machine<br/>vinylRecord"]
+    I --> I2["Jeff Mills - Exhibitionist<br/>vinylRecord"]
+    
+    J --> J1["Various Artists - Nasal Passages<br/>A Nose Flute Jazz Collection<br/>vinylRecord"]
 ```
 
 **Recommendation:** This structure avoids an extra `/catalog/` URL segment and keeps genre landing pages at `/vinyl-vault/jazz` instead of `/vinyl-vault/catalog/jazz`.

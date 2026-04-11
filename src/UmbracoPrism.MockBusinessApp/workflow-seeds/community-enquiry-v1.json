@@ -2,6 +2,7 @@
   "definitionKey": "community-enquiry",
   "displayName": "Get in Touch",
   "version": 1,
+  "instancePolicy": "single",
   "initialState": "collecting-details",
   "states": [
     {

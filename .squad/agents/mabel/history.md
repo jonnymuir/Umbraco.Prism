@@ -954,3 +954,17 @@ Two comprehensive guides in `docs/guides/`:
 - Production config guidance (Redis, TTL) prevents nonce expiry bugs in multi-server deployments
 - Real constraint examples and /get-in-touch demo let developers test immediately
 - "What you don't need to do" list reassures developers they're not reinventing security wheels
+
+
+---
+
+## 2026-03-31 — Documentation Migration: Completed
+
+**Tasks:**
+- Removed all retirement-quote references from docs/guides/ - replaced with community-enquiry
+- Converted 11 ASCII art diagrams to Mermaid format across 8 files
+- Updated .squad/agents/mabel/charter.md with Diagram Standards section
+
+**Files Changed:** 10 markdown files + 1 charter file
+**Diagrams Converted:** 11 (flowchart, sequenceDiagram, graph TD)
+**Decision Document:** .squad/decisions/inbox/mabel-mermaid-standard.md

@@ -1,4 +1,5 @@
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.Core.Services;
 
@@ -41,4 +42,10 @@ public interface IBusinessAppWorkflowClient
         int stateVersion,
         Dictionary<string, object?>? fieldValues = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a list of all workflow instances for the calling member.
+    /// The BA filters by authenticated user identity (from the bearer token).
+    /// </summary>
+    Task<WorkflowInstanceListEnvelope> GetInstancesAsync(CancellationToken cancellationToken = default);
 }

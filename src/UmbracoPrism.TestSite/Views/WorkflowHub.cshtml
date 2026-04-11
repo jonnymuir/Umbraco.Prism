@@ -1,0 +1,36 @@
+@using UmbracoPrism.Core.Models
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WorkflowHubViewModel>
+@{
+    Layout = "Master.cshtml";
+}
+
+<div class="prism-workflow-hub">
+    <header class="prism-workflow-hub__header">
+        <h1 class="prism-workflow-hub__title">My Workflows</h1>
+        <p class="prism-workflow-hub__subtitle">Track and manage your service requests.</p>
+    </header>
+
+    @if (Model.ActiveInstances.Any())
+    {
+        <section class="prism-workflow-hub__section" aria-labelledby="active-heading">
+            <h2 id="active-heading" class="prism-workflow-hub__section-title">In Progress</h2>
+            @await Html.PartialAsync("~/Views/Partials/_WorkflowHub-InstanceList.cshtml", Model.ActiveInstances)
+        </section>
+    }
+
+    @if (Model.CompletedInstances.Any())
+    {
+        <section class="prism-workflow-hub__section" aria-labelledby="completed-heading">
+            <h2 id="completed-heading" class="prism-workflow-hub__section-title">Completed</h2>
+            @await Html.PartialAsync("~/Views/Partials/_WorkflowHub-InstanceList.cshtml", Model.CompletedInstances)
+        </section>
+    }
+
+    @if (!Model.ActiveInstances.Any() && !Model.CompletedInstances.Any())
+    {
+        <div class="prism-workflow-hub__empty" role="status">
+            <p class="prism-workflow-hub__empty-text">You don't have any active workflows yet.</p>
+            <a href="/get-in-touch" class="prism-button">Submit an enquiry</a>
+        </div>
+    }
+</div>

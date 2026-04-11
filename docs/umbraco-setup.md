@@ -109,10 +109,10 @@ When your Umbraco site starts, Prism's `PrismContentTypeSeeder` runs automatical
 
 Prism expects a simple content hierarchy:
 
-```
-Content/
-  └── Home (document type: homePage)
-        └── Dashboard (document type: memberDashboard)
+```mermaid
+graph TD
+    A["Content/"] --> B["Home<br/>document type: homePage"]
+    B --> C["Dashboard<br/>document type: memberDashboard"]
 ```
 
 - **Home page:** The public landing page. Users see "Sign In" and "Register" CTAs here.

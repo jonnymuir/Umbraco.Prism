@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.Core.Services;
 
@@ -79,6 +80,40 @@ public class BusinessAppWorkflowClient(
         {
             logger.LogError(ex, "HTTP error calling Business App workflow advance for instance '{InstanceId}'", instanceId);
             return ErrorEnvelope($"Business App is unavailable: {ex.Message}", "BUSINESS_APP_UNAVAILABLE");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<WorkflowInstanceListEnvelope> GetInstancesAsync(CancellationToken cancellationToken = default)
+    {
+        var url = $"{BaseUrl}/api/workflow/instances";
+
+        logger.LogDebug("BusinessAppWorkflowClient: GET instances");
+
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.GetAsync(url, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Business App returned {StatusCode} for instances list", (int)response.StatusCode);
+                return new WorkflowInstanceListEnvelope();
+            }
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            return JsonSerializer.Deserialize<WorkflowInstanceListEnvelope>(body, JsonOptions)
+                   ?? new WorkflowInstanceListEnvelope();
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "HTTP error calling Business App workflow instances");
+            return new WorkflowInstanceListEnvelope();
+        }
+        catch (JsonException ex)
+        {
+            logger.LogError(ex, "Failed to deserialise Business App workflow instances response");
+            return new WorkflowInstanceListEnvelope();
         }
     }
 

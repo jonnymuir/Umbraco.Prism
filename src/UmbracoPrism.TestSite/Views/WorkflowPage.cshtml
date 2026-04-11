@@ -16,6 +16,11 @@
             <p>@Model.ErrorMessage</p>
         </div>
     }
+    @* Instance picker — shown when instancePolicy = "prompt" and an active instance exists *@
+    else if (Model.ShowInstancePicker)
+    {
+        @await Html.PartialAsync("~/Views/Partials/_WorkflowHub-InstancePicker.cshtml", Model)
+    }
     else
     {
         var partialName = $"_WorkflowStep-{Model.Archetype}";

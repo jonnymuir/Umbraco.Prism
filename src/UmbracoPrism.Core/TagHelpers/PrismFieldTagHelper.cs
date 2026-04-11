@@ -44,6 +44,10 @@ public class PrismFieldTagHelper : TagHelper
         var requiredAttr = Field.Required ? " required" : string.Empty;
         var fieldType = Field.FieldType?.ToLowerInvariant() ?? "text";
 
+        // Readonly handling
+        var readonlyAttr = Field.ReadOnly ? @" readonly aria-readonly=""true""" : string.Empty;
+        var readonlyCssClass = Field.ReadOnly ? " prism-field__input--readonly" : string.Empty;
+
         var minLengthAttr = Field.MinLength.HasValue ? $@" minlength=""{Field.MinLength.Value}""" : string.Empty;
         var maxLengthAttr = Field.MaxLength.HasValue ? $@" maxlength=""{Field.MaxLength.Value}""" : string.Empty;
         var patternAttr = !string.IsNullOrEmpty(Field.Pattern) ? $@" pattern=""{Encode(Field.Pattern)}""" : string.Empty;
@@ -56,7 +60,7 @@ public class PrismFieldTagHelper : TagHelper
         switch (fieldType)
         {
             case "boolean":
-                RenderCheckbox(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy);
+                RenderCheckbox(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr);
                 break;
             case "radio":
                 RenderRadio(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
@@ -65,13 +69,13 @@ public class PrismFieldTagHelper : TagHelper
                 RenderCheckboxList(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
                 break;
             case "select":
-                RenderSelect(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy);
+                RenderSelect(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
                 break;
             case "textarea":
-                RenderTextarea(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, minLengthAttr, maxLengthAttr, ariaRequired, ariaInvalid, describedBy);
+                RenderTextarea(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, minLengthAttr, maxLengthAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
                 break;
             default:
-                RenderInput(sb, Field, fieldType, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, minLengthAttr, maxLengthAttr, patternAttr, minAttr, maxAttr, ariaRequired, ariaInvalid, describedBy);
+                RenderInput(sb, Field, fieldType, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, minLengthAttr, maxLengthAttr, patternAttr, minAttr, maxAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
                 break;
         }
 
@@ -80,20 +84,22 @@ public class PrismFieldTagHelper : TagHelper
         output.Content.SetHtmlContent(sb.ToString());
     }
 
-    private void RenderCheckbox(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy)
+    private void RenderCheckbox(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr)
     {
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var isChecked = submittedValue != null
-            ? "true".Equals(submittedValue, StringComparison.OrdinalIgnoreCase)
+        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue;
+        var isChecked = currentValue != null
+            ? "true".Equals(currentValue, StringComparison.OrdinalIgnoreCase)
             : (field.Value is true || "true".Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase));
 
         sb.AppendLine(@"    <div class=""prism-form-group__checkbox-wrapper"">");
-        sb.Append($@"        <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""true""");
+        sb.Append($@"        <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""true"" data-label=""{Encode(field.Label)}""");
         if (isChecked) sb.Append(" checked");
         sb.Append(requiredAttr);
         sb.Append(ariaRequired);
         sb.Append(ariaInvalid);
         sb.Append(describedBy);
+        if (field.ReadOnly) sb.Append(@" disabled");
         sb.AppendLine(" />");
         sb.Append($@"        <label class=""prism-label prism-label--inline"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
         if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
@@ -125,7 +131,7 @@ public class PrismFieldTagHelper : TagHelper
                 var isChecked = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
 
                 sb.AppendLine(@"        <div class=""prism-radio-item"">");
-                sb.Append($@"            <input class=""prism-radio"" type=""radio"" id=""{Encode(radioId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}""");
+                sb.Append($@"            <input class=""prism-radio"" type=""radio"" id=""{Encode(radioId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
                 if (isChecked) sb.Append(" checked");
                 sb.Append(requiredAttr);
                 sb.Append(ariaRequired);
@@ -162,7 +168,7 @@ public class PrismFieldTagHelper : TagHelper
                 var isChecked = checkedValues.Contains(option, StringComparer.OrdinalIgnoreCase);
 
                 sb.AppendLine(@"        <div class=""prism-checkbox-item"">");
-                sb.Append($@"            <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(cbId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}""");
+                sb.Append($@"            <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(cbId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
                 if (isChecked) sb.Append(" checked");
                 sb.Append(requiredAttr);
                 sb.Append(ariaRequired);
@@ -176,7 +182,7 @@ public class PrismFieldTagHelper : TagHelper
         sb.AppendLine("    </fieldset>");
     }
 
-    private void RenderSelect(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy)
+    private void RenderSelect(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
     {
         sb.Append($@"    <label class=""prism-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
         if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
@@ -186,31 +192,40 @@ public class PrismFieldTagHelper : TagHelper
         if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = submittedValue ?? field.Value?.ToString();
+        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString();
 
-        sb.Append($@"    <select class=""prism-select"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]""");
-        sb.Append(requiredAttr);
-        sb.Append(ariaRequired);
-        sb.Append(ariaInvalid);
-        sb.Append(describedBy);
-        sb.AppendLine(">");
-        sb.AppendLine(@"        <option value="""">-- Select --</option>");
-
-        if (field.Options != null)
+        if (field.ReadOnly)
         {
-            foreach (var option in field.Options)
-            {
-                var isSelected = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
-                sb.Append($@"        <option value=""{Encode(option)}""");
-                if (isSelected) sb.Append(" selected");
-                sb.AppendLine($">{Encode(option)}</option>");
-            }
+            // Render as plain text with hidden input for readonly select
+            sb.AppendLine($@"    <div class=""prism-field__readonly-display"">{Encode(currentValue ?? "")}</div>");
+            sb.AppendLine($@"    <input type=""hidden"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue ?? "")}"">");
         }
+        else
+        {
+            sb.Append($@"    <select class=""prism-select{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" data-label=""{Encode(field.Label)}""");
+            sb.Append(requiredAttr);
+            sb.Append(ariaRequired);
+            sb.Append(ariaInvalid);
+            sb.Append(describedBy);
+            sb.AppendLine(">");
+            sb.AppendLine(@"        <option value="""">-- Select --</option>");
 
-        sb.AppendLine("    </select>");
+            if (field.Options != null)
+            {
+                foreach (var option in field.Options)
+                {
+                    var isSelected = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
+                    sb.Append($@"        <option value=""{Encode(option)}""");
+                    if (isSelected) sb.Append(" selected");
+                    sb.AppendLine($">{Encode(option)}</option>");
+                }
+            }
+
+            sb.AppendLine("    </select>");
+        }
     }
 
-    private void RenderTextarea(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string ariaRequired, string ariaInvalid, string describedBy)
+    private void RenderTextarea(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
     {
         sb.Append($@"    <label class=""prism-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
         if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
@@ -220,21 +235,22 @@ public class PrismFieldTagHelper : TagHelper
         if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = submittedValue ?? field.Value?.ToString() ?? "";
+        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
 
-        sb.Append($@"    <textarea class=""prism-textarea"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" rows=""5""");
+        sb.Append($@"    <textarea class=""prism-textarea{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" rows=""5"" data-label=""{Encode(field.Label)}""");
         sb.Append(requiredAttr);
         sb.Append(minLengthAttr);
         sb.Append(maxLengthAttr);
         sb.Append(ariaRequired);
         sb.Append(ariaInvalid);
         sb.Append(describedBy);
+        sb.Append(readonlyAttr);
         sb.Append(">");
         sb.Append(Encode(currentValue));
         sb.AppendLine("</textarea>");
     }
 
-    private void RenderInput(StringBuilder sb, FieldRenderPayload field, string fieldType, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string patternAttr, string minAttr, string maxAttr, string ariaRequired, string ariaInvalid, string describedBy)
+    private void RenderInput(StringBuilder sb, FieldRenderPayload field, string fieldType, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string patternAttr, string minAttr, string maxAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
     {
         var inputType = fieldType switch
         {
@@ -254,7 +270,7 @@ public class PrismFieldTagHelper : TagHelper
         if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = submittedValue ?? field.Value?.ToString() ?? "";
+        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
 
         var constraintAttrs = string.Empty;
         if (inputType == "text" || inputType == "email")
@@ -266,13 +282,14 @@ public class PrismFieldTagHelper : TagHelper
             constraintAttrs = minAttr + maxAttr;
         }
 
-        sb.Append($@"    <input class=""prism-input"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}""");
+        sb.Append($@"    <input class=""prism-input{readonlyCssClass}"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}"" data-label=""{Encode(field.Label)}""");
         sb.Append(step);
         sb.Append(requiredAttr);
         sb.Append(constraintAttrs);
         sb.Append(ariaRequired);
         sb.Append(ariaInvalid);
         sb.Append(describedBy);
+        sb.Append(readonlyAttr);
         sb.AppendLine(" />");
     }
 

@@ -58,6 +58,18 @@ When asked to cut a release (e.g. "Mabel, cut a release"):
 - **Do:** Markdown docs, README, /docs/ content, marketplace listing, CHANGELOG, version bumps in csproj + package.json, git tags
 - **Don't:** XML docs on C# code (that's Celeste); don't implement runtime behaviour; don't push to remote (leave that to the human)
 
+## Diagram Standards
+
+Always use **Mermaid diagrams** in documentation. Never use ASCII/box-drawing art.
+
+- **Architecture flows:** `flowchart LR` or `flowchart TD`
+- **Request/response sequences:** `sequenceDiagram`
+- **State machines:** `stateDiagram-v2`
+- **Data models:** `erDiagram`
+- **Timelines/processes:** `timeline`
+
+Mermaid renders natively in GitHub, is screen-reader friendly, and is far more maintainable than ASCII art. When reviewing existing docs, replace any ASCII art diagrams with Mermaid equivalents.
+
 ## Preferred Model
 
 `claude-haiku-4.5` — Writing and documentation work optimised for cost

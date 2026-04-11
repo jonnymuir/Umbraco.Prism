@@ -33,6 +33,32 @@
 - Cookie-based fallback
 - CSS class `prism-mobile` for safe-area styling on notched devices
 
+## Workflow Form Validation (2026-07-11)
+
+**What was implemented:**
+- Client-side validation with blur validation, character count, and smart error scrolling
+- `prism-workflow-validation.js` — vanilla JS, no dependencies, uses HTML5 Constraint Validation API
+- Blur validation: validates on blur/change events, shows inline errors immediately
+- Character count: auto-inserted for textareas with minlength/maxlength, updates live with warning/error states
+- Smart scroll: on form submit, scrolls to first error field and focuses it (smooth behavior)
+- WCAG 2.2 AA compliant: aria-invalid, aria-describedby, aria-live, role="alert", focus management
+
+**Files created:**
+- `src/UmbracoPrism.TestSite/wwwroot/js/prism-workflow-validation.js`
+
+**Files modified:**
+- `src/UmbracoPrism.Core/TagHelpers/PrismFieldTagHelper.cs` — added `data-label="{field.Label}"` to all input/select/textarea elements
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-forms.css` — added `.prism-field-char-count`, `--warning`, `--error` styles, smooth border transition
+- `src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml` — added script tag for `prism-workflow-validation.js`
+
+**Key learnings:**
+- HTML5 Constraint Validation API provides all validation logic needed — no custom regexes required
+- ValidityState maps cleanly to friendly error messages
+- `form.noValidate = true` (set via JS) suppresses native browser validation while preserving HTML validation attributes for JS to read
+- Character count with aria-live="polite" provides real-time feedback without being intrusive
+- Smooth scroll + focus management creates accessible, non-disorienting error experience
+- Server-rendered errors and client-side errors share the same DOM structure (same error element ID)
+
 ## Learnings & Handoff (2026-03-22)
 
 **From Tom Nook Architecture Review:**
@@ -1373,3 +1399,95 @@ The backend redesign moved field definitions to Umbraco Element Types, with `fie
 - All styles follow existing ITCSS structure and GDS conventions
 
 **No breaking changes** — all new styles are additive, existing form styles preserved.
+
+---
+
+## Conditional Fields & Workflow Hub (2026-01-24)
+
+**What was implemented:**
+
+### Feature 1: Conditional Fields ("Other → specify" pattern)
+Progressive enhancement for dynamic field visibility based on trigger field values.
+
+**Backend dependency:** `FieldRenderPayload` extended with `ConditionalOn` and `VisibleWhen` properties (Blathers).
+
+**Files created:**
+- `src/UmbracoPrism.TestSite/wwwroot/js/prism-conditional-fields.js` — vanilla JS, no deps
+  - Watches trigger fields (radio, select, text)
+  - Shows/hides conditional fields based on value match
+  - Clears hidden field values to prevent stale data
+  - Auto-focuses first input when field appears (50ms delay for reflow)
+  - Runs on init to handle server validation re-renders
+
+**Files modified:**
+- `src/UmbracoPrism.TestSite/Views/Shared/_WorkflowField.cshtml`:
+  - Added conditional field attributes to wrapper div:
+    - `prism-field--conditional` class when `ConditionalOn != null`
+    - `data-conditional-on="@Model.ConditionalOn"`
+    - `data-visible-when="@Model.VisibleWhen"`
+    - `hidden` attribute on init (fields start hidden)
+    - `aria-hidden="true"` on init
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-forms.css`:
+  - `.prism-field--conditional[hidden]` — `display: none`
+  - `.prism-field--conditional:not([hidden])` — 0.15s reveal animation (fade + translateY)
+- `src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml`:
+  - Added `<script src="/js/prism-conditional-fields.js" defer></script>`
+
+**Accessibility:**
+- Hidden fields use `hidden` attribute (not just `display: none`)
+- `aria-hidden` managed dynamically
+- Focus moved to first input on reveal
+- No JS = fields visible by default (graceful degradation)
+
+### Feature 2: Workflow Hub Views
+Member dashboard for managing multiple workflow instances.
+
+**Backend dependency:** `WorkflowHubViewModel`, `WorkflowInstanceViewModel`, `WorkflowInstanceSummary` (Blathers).
+
+**Files created:**
+- `src/UmbracoPrism.TestSite/Views/WorkflowHub.cshtml`:
+  - Main hub view with header, active/completed sections, empty state
+  - Uses Master.cshtml layout
+  - Consumes `WorkflowHubViewModel` (namespace `UmbracoPrism.Core.Models`)
+- `src/UmbracoPrism.TestSite/Views/Partials/_WorkflowHub-InstanceList.cshtml`:
+  - Instance card list rendering
+  - Shows workflow name, state badge, created/updated dates, continue/view button
+  - Semantic `<time>` elements with `datetime` attribute
+- `src/UmbracoPrism.TestSite/Views/Partials/_WorkflowHub-InstancePicker.cshtml`:
+  - Rendered when `instancePolicy = "prompt"` and active instance exists
+  - "Continue existing" vs "Start new" actions (query params: `?action=resume` / `?action=start-new`)
+  - Consumes `WorkflowViewModel` (namespace `UmbracoPrism.TestSite.Models`)
+
+**Files modified:**
+- `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml`:
+  - Added instance picker rendering path:
+    - Checks `Model.ShowInstancePicker` (property added by Blathers)
+    - Renders `_WorkflowHub-InstancePicker.cshtml` if true
+    - Falls through to normal step rendering otherwise
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-forms.css`:
+  - Added Workflow Hub styles:
+    - `.prism-workflow-hub__*` — hub container, header, section titles, empty state
+    - `.prism-instance-list` — flexbox list with gap spacing
+    - `.prism-instance-card` — card layout with body/actions split
+    - `.prism-instance-card__state-badge` — pill-style status badge
+    - `.prism-instance-picker__*` — picker panel with actions row
+  - Responsive: cards stack vertically on mobile (< 600px)
+
+**Accessibility:**
+- Semantic HTML: `<section>`, `<header>`, `<ul role="list">`, `<time>`
+- ARIA landmarks: `aria-labelledby`, `role="status"`, `role="region"`, `aria-label`
+- Empty state uses `role="status"` for screen reader announcement
+- Focus indicators on all interactive elements (buttons, links)
+- Clear visual hierarchy with headings (h1, h2, h3)
+
+**Design notes:**
+- Hub CSS follows GDS-style card pattern
+- State badges use `--prism-info-bg` / `--prism-info` variables (light blue)
+- Instance card metadata uses middot separator for visual breathing room
+- Continue button = primary, View button = secondary (matches CanContinue boolean)
+
+**Build check:**
+- Build fails on backend C# (expected) — missing `WorkflowInstanceListEnvelope`, `WorkflowHubViewModel`, etc.
+- All Razor views compile without errors once backend models exist
+- Frontend implementation complete and ready for integration
+

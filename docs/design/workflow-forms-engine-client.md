@@ -13,38 +13,27 @@ The Workflow Forms Engine client follows the **Hybrid adapter model** (Option C 
 
 ### Architecture Diagram
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Channel Contexts                          │
-├────────────────────────┬─────────────────────────────────────┤
-│  Umbraco Backoffice    │  Mobile Shell / Test Site           │
-│  (UUI Adapter Layer)   │  (Direct Prism Usage)               │
-├────────────────────────┴─────────────────────────────────────┤
-│                                                                │
-│         Generic Prism Workflow Components                     │
-│         (prism-workflow-*)                                    │
-│                                                                │
-│  • prism-workflow-shell                                       │
-│  • prism-workflow-collect                                     │
-│  • prism-workflow-review                                      │
-│  • prism-workflow-task-queue                                  │
-│  • prism-workflow-decision                                    │
-│  • prism-workflow-request-changes                             │
-│  • prism-workflow-status-timeline                             │
-│  • prism-workflow-completion                                  │
-│                                                                │
-├────────────────────────────────────────────────────────────┬─┤
-│  workflowDialogOrchestrator                                │ │
-│  (State machine: idle → asking → waiting → complete)       │ │
-├────────────────────────────────────────────────────────────┤ │
-│  workflowApiClient                                          │ │
-│  (Typed HTTP client for runtime endpoints)                 │ │
-├────────────────────────────────────────────────────────────┴─┤
-│                                                                │
-│         UmbracoPrism.Core Runtime Endpoints                   │
-│         (Workflow execution + render payload generation)      │
-│                                                                │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["Channel Contexts"] --> B["Umbraco Backoffice<br/>UUI Adapter Layer"]
+    A --> C["Mobile Shell / Test Site<br/>Direct Prism Usage"]
+    
+    B --> D["Generic Prism Workflow Components<br/>prism-workflow-*"]
+    C --> D
+    
+    D --> D1["prism-workflow-shell"]
+    D --> D2["prism-workflow-collect"]
+    D --> D3["prism-workflow-review"]
+    D --> D4["prism-workflow-task-queue"]
+    D --> D5["prism-workflow-decision"]
+    D --> D6["prism-workflow-request-changes"]
+    D --> D7["prism-workflow-status-timeline"]
+    D --> D8["prism-workflow-completion"]
+    
+    D --> E["workflowDialogOrchestrator<br/>State machine:<br/>idle → asking → waiting → complete"]
+    E --> F["workflowApiClient<br/>Typed HTTP client<br/>for runtime endpoints"]
+    
+    F --> G["UmbracoPrism.Core Runtime Endpoints<br/>Workflow execution +<br/>render payload generation"]
 ```
 
 ### Layer Responsibilities
@@ -1473,23 +1462,23 @@ All archetype components should have comprehensive Storybook stories using fixtu
 
 ### File Structure
 
-```
-src/UmbracoPrism.Client/src/
-├── workflow/
-│   ├── prism-workflow-shell.ts
-│   ├── prism-workflow-shell.stories.ts
-│   ├── prism-workflow-collect.ts
-│   ├── prism-workflow-collect.stories.ts
-│   ├── prism-workflow-review.ts
-│   ├── prism-workflow-review.stories.ts
-│   ├── ... (other archetypes)
-│   └── fixtures/
-│       ├── workflow-envelope-collect.json
-│       ├── workflow-envelope-review.json
-│       ├── workflow-envelope-decision.json
-│       ├── workflow-envelope-completion.json
-│       ├── workflow-envelope-validation-errors.json
-│       └── workflow-envelope-waiting.json
+```mermaid
+graph TD
+    A["src/UmbracoPrism.Client/src/"] --> B["workflow/"]
+    B --> B1["prism-workflow-shell.ts"]
+    B --> B2["prism-workflow-shell.stories.ts"]
+    B --> B3["prism-workflow-collect.ts"]
+    B --> B4["prism-workflow-collect.stories.ts"]
+    B --> B5["prism-workflow-review.ts"]
+    B --> B6["prism-workflow-review.stories.ts"]
+    B --> B7["... other archetypes"]
+    B --> B8["fixtures/"]
+    B8 --> B8a["workflow-envelope-collect.json"]
+    B8 --> B8b["workflow-envelope-review.json"]
+    B8 --> B8c["workflow-envelope-decision.json"]
+    B8 --> B8d["workflow-envelope-completion.json"]
+    B8 --> B8e["workflow-envelope-validation-errors.json"]
+    B8 --> B8f["workflow-envelope-waiting.json"]
 ```
 
 ### Story List per Archetype

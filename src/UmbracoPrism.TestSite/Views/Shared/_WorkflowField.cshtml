@@ -25,9 +25,17 @@
     var patternAttr = !string.IsNullOrEmpty(Model.Pattern) ? $@" pattern=""{Model.Pattern}""" : string.Empty;
     var minAttr = Model.Min.HasValue ? $@" min=""{Model.Min.Value}""" : string.Empty;
     var maxAttr = Model.Max.HasValue ? $@" max=""{Model.Max.Value}""" : string.Empty;
+    
+    // Conditional field attributes
+    var isConditional = !string.IsNullOrEmpty(Model.ConditionalOn);
+    var conditionalClass = isConditional ? " prism-field--conditional" : string.Empty;
+    var conditionalOnAttr = $@" data-conditional-on=""{Model.ConditionalOn ?? string.Empty}""";
+    var visibleWhenAttr = $@" data-visible-when=""{Model.VisibleWhen ?? string.Empty}""";
+    var hiddenAttr = isConditional ? " hidden" : string.Empty;
+    var ariaHidden = isConditional ? @" aria-hidden=""true""" : string.Empty;
 }
 
-<div class="prism-form-group @(hasFieldError ? "prism-form-group--error" : "")">
+<div class="prism-form-group @(hasFieldError ? "prism-form-group--error" : "")@conditionalClass"@Html.Raw(conditionalOnAttr)@Html.Raw(visibleWhenAttr)@Html.Raw(hiddenAttr)@Html.Raw(ariaHidden)>
 
     @if (fieldType == "boolean")
     {

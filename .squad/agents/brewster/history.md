@@ -1496,3 +1496,85 @@ The "Get in Touch" workflow demo is now fully functional and polished:
 - **ASP.NET Core form behavior:** Multiple checkboxes with the same `name` attribute auto-concatenate values with commas on POST.
 - **Workflow title semantics:** For multi-step workflows, showing the current *state* display name as the page title is correct UX (not the workflow definition name).
 - **GDS accessibility patterns:** Error summary with `role="alert"`, `tabindex="-1"`, and anchor links to fields is the gold standard for form error handling.
+
+---
+
+
+## Session: 2026-03-29 — Workflow Field Pre-population from Member Claims
+**Status:** Completed  
+**Build outcome:** Success, 0 errors, 0 warnings.
+
+**Problem:** The "Get in Touch" workflow demo needed two enhancements:
+1. A prominent link from the Member Dashboard to the workflow page
+2. Pre-population of email and name fields from authenticated user claims
+
+**Solution implemented:**
+
+1. **MemberDashboard.cshtml:**
+   - Added fourth card to the dashboard grid with "Get in Touch" workflow CTA
+   - Styled with emoji icon (📝), clear description, and primary button linking to /get-in-touch
+   - Visually consistent with existing dashboard cards
+
+2. **WorkflowResponseEnvelope.cs (FieldRenderPayload):**
+   - Added DefaultValue (string?) property for server-side field pre-population
+   - Added ReadOnly (bool) property to indicate fields that cannot be edited by user
+   - DefaultValue takes precedence over user-submitted values and BA-supplied Value
+
+3. **WorkflowPageController.cs:**
+   - Added PrePopulateFieldsFromClaims() method that inspects HttpContext.User claims
+   - Extracts email from ClaimTypes.Email or "email" claim
+   - Extracts name from ClaimTypes.Name or "name" claim
+   - Sets DefaultValue and ReadOnly = true on email-address and full-name fields if claims exist
+   - Only modifies fields where we have claim values (does not clear BA-supplied defaults)
+   - Pre-population happens BEFORE nonce creation (so readonly state is authoritative)
+
+4. **PrismFieldTagHelper.cs:**
+   - Extended all render methods to accept readonlyAttr and readonlyCssClass parameters
+   - For text/email/textarea/number inputs: adds readonly aria-readonly="true" attributes + CSS class
+   - For select fields: renders as plain text display with hidden input to preserve value for submission
+   - For checkboxes: adds disabled attribute (readonly checkboxes are not meaningful in HTML5)
+   - DefaultValue takes precedence over Values dictionary (user-submitted) when rendering initial value
+
+5. **WorkflowFieldValidator.cs:**
+   - Skip validation for ReadOnly fields entirely (server provided value, not user input)
+   - Readonly fields still pass through to BA in submitted field values
+
+6. **prism-forms.css:**
+   - Added .prism-field__input--readonly CSS class with greyed background, muted text, no-hover
+   - Added .prism-field__readonly-display for plain-text rendering of readonly select/radio fields
+   - Uses color-mix() for subtle background tint, maintains accessibility contrast
+   - cursor: not-allowed and opacity: 0.85 provide visual feedback
+
+**Technical approach:**
+- Controller pre-population happens server-side before nonce generation (tamper-proof)
+- Uses C# records with syntax for immutable envelope transformation
+- TagHelper checks DefaultValue first, then Values, then Value for render priority
+- Validator skips readonly fields (no client-side manipulation risk)
+- CSS maintains Prism design system consistency (custom properties, color-mix)
+
+**Outcome:** Authenticated members see their email and name pre-filled and locked in workflow forms. Dashboard provides clear entry point to workflow demo. Build clean, pattern proven, accessible.
+
+## 2025-01-XX — Wired TestSite for conditional fields + workflow hub
+
+**Context:** Added support for conditional "Other" field in community-enquiry form and seeded the new "My Workflows" hub page.
+
+**Changes:**
+1. **Updated `your-enquiry-v1.json`**
+   - Added "Other" option to enquiry-type radio field
+   - Added new conditional field `enquiry-type-other` (text, max 100 chars)
+   - Conditional field uses `conditionalOn: "enquiry-type"` and `visibleWhen: "Other"`
+
+2. **Updated `community-enquiry-v1.json`**
+   - Added `"instancePolicy": "single"` to enforce single active instance per user
+
+3. **Added workflow hub page seeding**
+   - Created `EnsureWorkflowHubPage()` method in WorkflowPageSeeder.cs
+   - Seeds a "My Workflows" page using `workflowHub` document type
+   - Published at `/my-workflows`
+
+4. **Updated Master.cshtml navigation**
+   - Added "My Workflows" link to main nav
+
+**No BA engine changes needed:** The FieldFile record and mapping in BusinessAppWorkflowEngine already included ConditionalOn/VisibleWhen properties (lines 105-107 in WorkflowDefinitionFile.cs, lines 381-382 in BusinessAppWorkflowEngine.cs).
+
+**Build status:** Existing unrelated errors for WorkflowInstanceListEnvelope — not introduced by this work.

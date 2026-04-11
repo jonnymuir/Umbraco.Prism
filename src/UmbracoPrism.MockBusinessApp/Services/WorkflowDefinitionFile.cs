@@ -14,6 +14,8 @@ public record WorkflowDefinitionFile
     public int Version { get; init; }
     /// <summary>The state key that instances start in when first created.</summary>
     public string InitialState { get; init; } = "";
+    /// <summary>Instance creation policy: "single" (reuse existing), "multiple" (always create new), "prompt" (ask user).</summary>
+    public string InstancePolicy { get; init; } = "single";
     /// <summary>All states defined in this workflow.</summary>
     public IReadOnlyList<WorkflowStateFile> States { get; init; } = Array.Empty<WorkflowStateFile>();
     /// <summary>All state transitions (edges) defined in this workflow.</summary>
@@ -101,6 +103,10 @@ public record FieldFile
     public decimal? Min { get; init; }
     /// <summary>Maximum value for number fields.</summary>
     public decimal? Max { get; init; }
+    /// <summary>The field key this field depends on for visibility.</summary>
+    public string? ConditionalOn { get; init; }
+    /// <summary>The value that makes this field visible when ConditionalOn is set.</summary>
+    public string? VisibleWhen { get; init; }
 }
 
 /// <summary>

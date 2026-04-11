@@ -257,6 +257,24 @@
     margin-bottom: 0.5rem;
 }
 
+/* Character count for textareas */
+.prism-field-char-count {
+    font-size: 0.875rem;
+    text-align: right;
+    margin: 0.25rem 0 0;
+    color: var(--prism-hint-color);
+}
+
+.prism-field-char-count--warning {
+    color: var(--prism-warning, #f59e0b);
+    font-weight: 600;
+}
+
+.prism-field-char-count--error {
+    color: var(--prism-error, #d4351c);
+    font-weight: 700;
+}
+
 /* --------------------------------------------------------------------------
    Required indicator
    -------------------------------------------------------------------------- */
@@ -286,6 +304,7 @@
     color: var(--prism-text);
     appearance: none;
     -webkit-appearance: none;
+    transition: border-color 0.15s ease;
 }
 
 .prism-textarea {
@@ -514,6 +533,35 @@
 }
 
 /* --------------------------------------------------------------------------
+   Readonly fields
+   -------------------------------------------------------------------------- */
+
+.prism-field__input--readonly,
+.prism-input.prism-field__input--readonly,
+.prism-textarea.prism-field__input--readonly {
+    background-color: color-mix(in srgb, var(--prism-border) 20%, var(--prism-surface));
+    color: var(--prism-muted);
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.prism-field__input--readonly:hover {
+    border-color: var(--prism-input-border);
+}
+
+.prism-field__readonly-display {
+    padding: var(--prism-input-padding);
+    background-color: color-mix(in srgb, var(--prism-border) 20%, var(--prism-surface));
+    color: var(--prism-muted);
+    border: var(--prism-input-border);
+    border-radius: var(--prism-input-border-radius);
+    font-size: var(--prism-input-font-size);
+    min-height: 2.5rem;
+    display: flex;
+    align-items: center;
+}
+
+/* --------------------------------------------------------------------------
    Responsive — mobile
    -------------------------------------------------------------------------- */
 
@@ -595,6 +643,7 @@
 .prism-form-group--error .prism-textarea,
 .prism-form-group--error .prism-select {
     border-color: var(--prism-danger);
+    border-width: 3px;
 }
 
 .prism-form-group__error {
@@ -740,4 +789,167 @@ select[aria-invalid="true"],
 textarea[aria-invalid="true"] {
     border-color: var(--prism-error, #d4351c);
     border-width: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Conditional fields
+   -------------------------------------------------------------------------- */
+
+.prism-field--conditional[hidden] {
+  display: none;
+}
+
+.prism-field--conditional:not([hidden]) {
+  animation: prism-field-reveal 0.15s ease-out;
+}
+
+@keyframes prism-field-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------------------------------
+   Workflow Hub
+   -------------------------------------------------------------------------- */
+
+.prism-workflow-hub {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--prism-space-xl, 2rem) var(--prism-space-md, 1rem);
+}
+
+.prism-workflow-hub__header {
+  margin-bottom: var(--prism-space-xl, 2rem);
+}
+
+.prism-workflow-hub__title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.prism-workflow-hub__subtitle {
+  color: var(--prism-muted, #6b7280);
+  margin: 0;
+}
+
+.prism-workflow-hub__section {
+  margin-bottom: var(--prism-space-xl, 2rem);
+}
+
+.prism-workflow-hub__section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--prism-border, #e5e7eb);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.prism-workflow-hub__empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--prism-muted, #6b7280);
+}
+
+.prism-workflow-hub__empty-text {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Instance List */
+
+.prism-instance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prism-instance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  background: var(--prism-surface, #ffffff);
+  border: 1px solid var(--prism-border, #e5e7eb);
+  border-radius: 6px;
+  gap: 1rem;
+}
+
+.prism-instance-card__body {
+  flex: 1;
+}
+
+.prism-instance-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.prism-instance-card__status {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.prism-instance-card__state-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: var(--prism-info-bg, #e0f2fe);
+  color: var(--prism-info, #0369a1);
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.prism-instance-card__meta {
+  font-size: 0.8rem;
+  color: var(--prism-muted, #6b7280);
+  margin: 0;
+}
+
+.prism-instance-card__actions {
+  flex-shrink: 0;
+}
+
+/* Instance Picker */
+
+.prism-instance-picker {
+  border: 2px solid var(--prism-border, #e5e7eb);
+  border-radius: 6px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+  background: var(--prism-surface, #ffffff);
+}
+
+.prism-instance-picker__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+
+.prism-instance-picker__description {
+  margin: 0 0 1.5rem;
+  color: var(--prism-body, #111827);
+}
+
+.prism-instance-picker__actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .prism-instance-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .prism-instance-card__actions {
+    width: 100%;
+  }
+  .prism-instance-card__actions .prism-button {
+    width: 100%;
+  }
 }

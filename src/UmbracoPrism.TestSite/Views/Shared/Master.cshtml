@@ -40,6 +40,7 @@
         <nav>
             <a href="/">Home</a>
             <a href="/get-in-touch">Get in Touch</a>
+            <a href="/my-workflows">My Workflows</a>
             <span style="font-size: 0.8rem; opacity: 0.8; margin-left: auto;">@Context.Request.Host</span>
         </nav>
     </header>
@@ -56,6 +57,12 @@
     {
         @Html.Partial("_MobileShellNav", mobileNavLinks)
     }
+
+    <!-- Workflow validation script -->
+    <script src="/js/prism-workflow-validation.js" defer></script>
+    
+    <!-- Conditional fields script -->
+    <script src="/js/prism-conditional-fields.js" defer></script>
 
 </body>
 </html>

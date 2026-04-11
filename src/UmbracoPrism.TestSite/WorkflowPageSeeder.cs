@@ -32,6 +32,7 @@ public class WorkflowPageSeeder(
         {
             CleanupOldRetirementQuotePage();
             EnsureCommunityEnquiryPage();
+            EnsureWorkflowHubPage();
         }
         catch (Exception ex)
         {
@@ -98,6 +99,45 @@ public class WorkflowPageSeeder(
         var publishResult = contentService.Publish(page, Array.Empty<string>());
         if (publishResult.Success)
             logger.LogInformation("WORKFLOW PAGE SEEDER: 'Get in Touch' published (id={Id})", page.Id);
+        else
+            logger.LogWarning("WORKFLOW PAGE SEEDER: Publish failed — {Reason}", publishResult.Result);
+    }
+
+    private void EnsureWorkflowHubPage()
+    {
+        var contentType = contentTypeService.Get("workflowHub");
+        if (contentType == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowHub doc type not found; skipping (run again after seeder)");
+            return;
+        }
+
+        // Check if the workflow hub node already exists
+        var existing = contentService
+            .GetRootContent()
+            .FirstOrDefault(c => c.ContentType.Alias == "workflowHub"
+                              && string.Equals(c.Name, "My Workflows", StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: 'My Workflows' content node already exists");
+            return;
+        }
+
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating 'My Workflows' content node");
+
+        var page = contentService.Create("My Workflows", Constants.System.Root, "workflowHub");
+
+        var saveResult = contentService.Save(page);
+        if (!saveResult.Success)
+        {
+            logger.LogWarning("WORKFLOW PAGE SEEDER: Save failed — {Reason}", saveResult.Result);
+            return;
+        }
+
+        var publishResult = contentService.Publish(page, Array.Empty<string>());
+        if (publishResult.Success)
+            logger.LogInformation("WORKFLOW PAGE SEEDER: 'My Workflows' published (id={Id})", page.Id);
         else
             logger.LogWarning("WORKFLOW PAGE SEEDER: Publish failed — {Reason}", publishResult.Result);
     }

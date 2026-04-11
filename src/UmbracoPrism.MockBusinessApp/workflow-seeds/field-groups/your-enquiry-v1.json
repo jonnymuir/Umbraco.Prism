@@ -13,13 +13,24 @@
         "General enquiry",
         "Technical support",
         "Partnership opportunity",
-        "Speaking / events"
+        "Speaking / events",
+        "Other"
       ]
+    },
+    {
+      "fieldKey": "enquiry-type-other",
+      "label": "Please specify your enquiry type",
+      "hint": "Please describe your enquiry type in a few words.",
+      "fieldType": "text",
+      "required": false,
+      "maxLength": 100,
+      "conditionalOn": "enquiry-type",
+      "visibleWhen": "Other"
     },
     {
       "fieldKey": "message",
       "label": "Tell us more",
-      "hint": "Please give us enough detail to help you (20–500 characters)",
+      "hint": "For technical support, include a version number, URL, or error reference to help us respond faster.",
       "fieldType": "textarea",
       "required": true,
       "minLength": 20,

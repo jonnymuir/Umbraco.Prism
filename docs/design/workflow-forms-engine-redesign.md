@@ -67,44 +67,28 @@ This makes workflow step authoring a **native Umbraco experience** — no custom
 
 In Umbraco, an **Element Type** is a content type that cannot exist independently — it's designed to be embedded (e.g., in Block List items). This maps perfectly to workflow steps: a step's form fields are defined once in the Umbraco backoffice, then referenced by alias in workflow definitions.
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                     Umbraco Backoffice                         │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │  Element Type: workflowPersonalDetails                  │  │
-│  │  ─────────────────────────────────────────────────────  │  │
-│  │  Property: firstName    | TextString  | Mandatory       │  │
-│  │  Property: lastName     | TextString  | Mandatory       │  │
-│  │  Property: email        | EmailPicker | Mandatory       │  │
-│  │  Property: dateOfBirth  | DatePicker  | Optional        │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │  Element Type: workflowFinancialDetails                 │  │
-│  │  ─────────────────────────────────────────────────────  │  │
-│  │  Property: annualIncome | Integer     | Mandatory       │  │
-│  │  Property: employerName | TextString  | Optional        │  │
-│  │  Property: taxResident  | TrueFalse   | Mandatory       │  │
-│  └─────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌────────────────────────────────────────────────────────────────┐
-│                   Workflow Definition                          │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │  workflowKey: "retirement-quote"                        │  │
-│  │  states:                                                │  │
-│  │    - key: "personal-details"                            │  │
-│  │      elementTypeAlias: "workflowPersonalDetails"        │  │
-│  │      archetype: "Collect"                               │  │
-│  │    - key: "financial-info"                              │  │
-│  │      elementTypeAlias: "workflowFinancialDetails"       │  │
-│  │      archetype: "Collect"                               │  │
-│  │    - key: "review"                                      │  │
-│  │      archetype: "Review"                                │  │
-│  │    - key: "complete"                                    │  │
-│  │      archetype: "Completion"                            │  │
-│  └─────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["Umbraco Backoffice"] --> B["Element Type:<br/>workflowPersonalDetails"]
+    A --> C["Element Type:<br/>workflowFinancialDetails"]
+    
+    B --> B1["firstName: TextString<br/>Mandatory"]
+    B --> B2["lastName: TextString<br/>Mandatory"]
+    B --> B3["email: EmailPicker<br/>Mandatory"]
+    B --> B4["dateOfBirth: DatePicker<br/>Optional"]
+    
+    C --> C1["annualIncome: Integer<br/>Mandatory"]
+    C --> C2["employerName: TextString<br/>Optional"]
+    C --> C3["taxResident: TrueFalse<br/>Mandatory"]
+    
+    B --> D["Workflow Definition"]
+    C --> D
+    
+    D --> E["workflowKey: 'community-enquiry'"]
+    D --> F["state: 'personal-details'<br/>elementTypeAlias: workflowPersonalDetails<br/>archetype: Collect"]
+    D --> G["state: 'financial-info'<br/>elementTypeAlias: workflowFinancialDetails<br/>archetype: Collect"]
+    D --> H["state: 'review'<br/>archetype: Review"]
+    D --> I["state: 'complete'<br/>archetype: Completion"]
 ```
 
 ### 3.2 Why This is Better
@@ -127,7 +111,7 @@ The workflow builder becomes dramatically simpler. Instead of defining fields in
 ```csharp
 public static class RetirementQuoteWorkflow
 {
-    public const string Key = "retirement-quote";
+    public const string Key = "community-enquiry";
 
     public static WorkflowDefinition Build()
     {

@@ -52,6 +52,20 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                 continue;
             }
 
+            // Skip hidden conditional fields
+            if (!string.IsNullOrEmpty(field.ConditionalOn))
+            {
+                submitted.TryGetValue(field.ConditionalOn, out var triggerValue);
+                if (!string.Equals(triggerValue?.ToString(), field.VisibleWhen, StringComparison.OrdinalIgnoreCase))
+                    continue; // Hidden — skip validation entirely
+            }
+
+            // Skip validation for ReadOnly fields (but they should still be in submitted values)
+            if (field.ReadOnly)
+            {
+                continue;
+            }
+
             // Get submitted value (handle checkboxlist suffix)
             var raw = GetSubmittedValue(field, submitted);
 

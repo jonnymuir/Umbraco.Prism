@@ -8,18 +8,15 @@ A Prism workflow is a multi-step form engine that connects your Umbraco website 
 
 **Architecture:**
 
-```
-Umbraco TestSite              Business App
-─────────────────            ──────────────
-workflowPage content node    workflow-seeds/retirement-quote.json
-    ↓ workflowKey property       ↓ defines states, fields, transitions
-WorkflowPageController       WorkflowEngine
-    ↓ GET/POST                   ↓ returns WorkflowResponseEnvelope
-IBusinessAppWorkflowClient   
-    ↓ HTTP Bearer token
-Views/Partials/_WorkflowStep-{Archetype}.cshtml
-    ↓
-Rendered form
+```mermaid
+flowchart LR
+    A["Umbraco TestSite<br/>workflowPage content node"] -->|workflowKey property| B["WorkflowPageController"]
+    C["Business App<br/>workflow-seeds/community-enquiry.json"] -->|defines states, fields, transitions| D["WorkflowEngine"]
+    B -->|GET/POST| D
+    D -->|returns WorkflowResponseEnvelope| B
+    B -->|HTTP Bearer token| E["IBusinessAppWorkflowClient"]
+    E -->|renders| F["Views/Partials/<br/>_WorkflowStep-Archetype.cshtml"]
+    F -->|produces| G["Rendered form"]
 ```
 
 Workflows support complex scenarios: multi-step data collection, review steps, approval workflows, status tracking, and completion states. Each step can validate, branch logic, or trigger backend actions.
@@ -60,21 +57,21 @@ A workflow is a JSON file stored in your Business App's `workflow-seeds/` direct
 
 **Create a new file:** `workflow-seeds/my-workflow.json`
 
-### Complete Example: Retirement Quote Workflow
+### Complete Example: Get in Touch (Community Enquiry) Workflow
 
 ```json
 {
-  "definitionKey": "retirement-quote",
-  "displayName": "Retirement Quote Request",
+  "definitionKey": "community-enquiry",
+  "displayName": "Get in Touch",
   "version": 1,
   "initialState": "collecting-info",
   "states": [
     {
       "stateKey": "collecting-info",
-      "displayName": "Tell us about yourself",
+      "displayName": "Tell us what you need",
       "archetype": "Collect",
       "allowedActions": ["submit", "save-draft"],
-      "fieldGroupKeys": ["personal-details", "request-details"]
+      "fieldGroupKeys": ["contact-details", "enquiry-info"]
     },
     {
       "stateKey": "review-details",
@@ -85,14 +82,14 @@ A workflow is a JSON file stored in your Business App's `workflow-seeds/` direct
     },
     {
       "stateKey": "under-review",
-      "displayName": "Your quote is being prepared",
+      "displayName": "We're looking at your enquiry",
       "archetype": "StatusTimeline",
       "allowedActions": [],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "complete",
-      "displayName": "Your quote is ready",
+      "displayName": "Thank you for reaching out",
       "archetype": "Completion",
       "allowedActions": ["start-another"],
       "fieldGroupKeys": []
@@ -107,8 +104,8 @@ A workflow is a JSON file stored in your Business App's `workflow-seeds/` direct
   ],
   "fieldGroups": [
     {
-      "fieldGroupKey": "personal-details",
-      "displayName": "Personal Information",
+      "fieldGroupKey": "contact-details",
+      "displayName": "Your Details",
       "fields": [
         {
           "fieldKey": "full-name",
@@ -118,45 +115,79 @@ A workflow is a JSON file stored in your Business App's `workflow-seeds/` direct
           "hint": "Enter your first and last name"
         },
         {
-          "fieldKey": "date-of-birth",
-          "label": "Date of birth",
-          "fieldType": "date",
-          "required": true
-        },
-        {
-          "fieldKey": "email",
+          "fieldKey": "email-address",
           "label": "Email address",
           "fieldType": "email",
           "required": true,
-          "hint": "We'll use this to send your quote"
+          "hint": "We'll use this to get back to you"
+        },
+        {
+          "fieldKey": "organisation",
+          "label": "Organisation (optional)",
+          "fieldType": "text",
+          "required": false,
+          "hint": "The company or organisation you represent"
+        },
+        {
+          "fieldKey": "your-role",
+          "label": "Your role",
+          "fieldType": "select",
+          "required": true,
+          "options": [
+            { "key": "executive", "label": "Executive" },
+            { "key": "developer", "label": "Developer" },
+            { "key": "designer", "label": "Designer" },
+            { "key": "other", "label": "Other" }
+          ]
         }
       ]
     },
     {
-      "fieldGroupKey": "request-details",
-      "displayName": "Quote Details",
+      "fieldGroupKey": "enquiry-info",
+      "displayName": "Your Enquiry",
       "fields": [
         {
-          "fieldKey": "retirement-age",
-          "label": "What age do you want to retire?",
-          "fieldType": "number",
-          "required": true
-        },
-        {
-          "fieldKey": "investment-type",
-          "label": "Investment preference",
-          "fieldType": "select",
+          "fieldKey": "enquiry-type",
+          "label": "What's your enquiry about?",
+          "fieldType": "radio",
           "required": true,
           "options": [
-            { "key": "conservative", "label": "Conservative" },
-            { "key": "balanced", "label": "Balanced" },
-            { "key": "aggressive", "label": "Aggressive" }
+            { "key": "general", "label": "General enquiry" },
+            { "key": "technical", "label": "Technical support" },
+            { "key": "partnership", "label": "Partnership opportunity" },
+            { "key": "other", "label": "Other" }
           ]
         },
         {
-          "fieldKey": "additional-info",
-          "label": "Anything else we should know?",
+          "fieldKey": "enquiry-type-other",
+          "label": "Please describe your enquiry",
           "fieldType": "textarea",
+          "required": false,
+          "hint": "Visible only if you selected 'Other' above"
+        },
+        {
+          "fieldKey": "message",
+          "label": "Tell us more",
+          "fieldType": "textarea",
+          "required": true,
+          "hint": "Please provide as much detail as possible"
+        },
+        {
+          "fieldKey": "topics",
+          "label": "Topics of interest",
+          "fieldType": "checkboxlist",
+          "required": false,
+          "options": [
+            { "key": "prism-workflows", "label": "Prism Workflows" },
+            { "key": "notifications", "label": "Notifications" },
+            { "key": "mobile", "label": "Mobile" },
+            { "key": "integration", "label": "Integration" }
+          ]
+        },
+        {
+          "fieldKey": "newsletter",
+          "label": "Subscribe to our newsletter",
+          "fieldType": "boolean",
           "required": false
         }
       ]
@@ -245,7 +276,7 @@ Each field in a field group:
 
 The Business App's `WorkflowEngine` automatically discovers all JSON files in the `workflow-seeds/` directory at startup. No code changes needed.
 
-**File location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/retirement-quote.json`
+**File location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`
 
 **How it works:**
 1. Business App starts up
@@ -271,7 +302,7 @@ Create a new document type in Umbraco's backoffice to represent workflow pages.
    - Name: `Workflow Key`
    - Alias: `workflowKey`
    - Type: **Text string**
-   - Description: "The key of the workflow definition (e.g., 'retirement-quote')"
+   - Description: "The key of the workflow definition (e.g., 'community-enquiry')"
    - Required: Yes
 
 3. **Optional properties** you may want to add:
@@ -291,17 +322,17 @@ Create and publish a content page using the `workflowPage` document type.
 1. **Create a content node:**
    - Go to **Content**
    - Right-click the root and select **Create > Workflow Page**
-   - Name: "Retirement Quote Request" (or your form title)
+   - Name: "Get in Touch" (or your form title)
 
 2. **Fill in the properties:**
-   - `workflowKey`: `retirement-quote` (must match the JSON `definitionKey` exactly)
+   - `workflowKey`: `community-enquiry` (must match the JSON `definitionKey` exactly)
    - Any other properties you added (description, redirect URL, etc.)
 
 3. **Publish the page:**
    - Click **Save and Publish**
 
 4. **Note the URL:**
-   - Umbraco assigns a URL like `/retirement-quote-request/`
+   - Umbraco assigns a URL like `/get-in-touch/`
    - This is the public URL where members will visit the form
 
 ## Step 5: Test It
