@@ -3,40 +3,40 @@
     var token = Html.AntiForgeryToken();
 }
 
-<div class="wf-review">
-    <p class="wf-review__intro">Please check your answers before submitting.</p>
+<div class="prism-workflow--review prism-workflow">
+    <p class="prism-review__intro">Please check your answers before submitting.</p>
 
     @foreach (var group in Model.FieldGroups)
     {
-        <div class="wf-review__group">
-            <h2 class="wf-review__group-title">@group.DisplayName</h2>
-            <dl class="wf-review__list">
+        <div class="prism-review__group">
+            <h2 class="prism-review__group-title">@group.DisplayName</h2>
+            <dl class="prism-review__list">
                 @foreach (var field in group.Fields)
                 {
-                    <div class="wf-review__row">
-                        <dt class="wf-review__label">@field.Label</dt>
-                        <dd class="wf-review__value">@(field.Value ?? "—")</dd>
+                    <div class="prism-review__item">
+                        <dt class="prism-review__label">@field.Label</dt>
+                        <dd class="prism-review__value">@(field.Value ?? "—")</dd>
                     </div>
                 }
             </dl>
         </div>
     }
 
-    <form class="wf-form-actions" method="post" action="@Model.ReturnUrl">
+    <form method="post" action="@Model.ReturnUrl">
         @token
         <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
         <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
         <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
         <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
 
-        <div class="wf-actions">
+        <div class="prism-workflow__actions">
             @foreach (var action in Model.AvailableActions)
             {
                 var btnClass = action.Style switch
                 {
-                    "primary" => "wf-btn wf-btn--primary",
-                    "destructive" => "wf-btn wf-btn--destructive",
-                    _ => "wf-btn wf-btn--secondary"
+                    "primary" => "prism-button prism-button--primary",
+                    "destructive" => "prism-button prism-button--destructive",
+                    _ => "prism-button prism-button--secondary"
                 };
                 <button type="submit" name="Action" value="@action.ActionKey" class="@btnClass">
                     @action.Label
@@ -45,70 +45,3 @@
         </div>
     </form>
 </div>
-
-<style>
-    .wf-review__intro {
-        color: #6b7280;
-        margin-bottom: 1.5rem;
-    }
-
-    .wf-review__group {
-        margin-bottom: 2rem;
-    }
-
-    .wf-review__group-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--prism-primary, #1a1a1a);
-        margin-bottom: 0.75rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #e5e7eb;
-    }
-
-    .wf-review__list {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.75rem 1rem;
-        margin: 0;
-    }
-
-    .wf-review__row {
-        display: contents;
-    }
-
-    .wf-review__label {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #6b7280;
-    }
-
-    .wf-review__value {
-        font-size: 0.95rem;
-        color: #111827;
-        margin: 0;
-    }
-
-    .wf-form-actions { margin: 0; }
-
-    .wf-actions {
-        display: flex;
-        gap: 0.75rem;
-        margin-top: 2rem;
-        flex-wrap: wrap;
-    }
-
-    .wf-btn {
-        padding: 0.625rem 1.5rem;
-        border: none;
-        border-radius: 6px;
-        font-size: 0.95rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: opacity 0.15s;
-    }
-
-    .wf-btn:hover { opacity: 0.85; }
-    .wf-btn--primary { background: var(--prism-primary, #2563eb); color: #fff; }
-    .wf-btn--secondary { background: #e5e7eb; color: #374151; }
-    .wf-btn--destructive { background: #dc2626; color: #fff; }
-</style>

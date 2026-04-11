@@ -1,35 +1,10 @@
 @model UmbracoPrism.TestSite.Models.WorkflowViewModel
 
-<div class="wf-status">
-    <div class="wf-status__icon" aria-hidden="true">⏳</div>
-    <h2 class="wf-status__heading">@Model.StateDisplayName</h2>
-    <p class="wf-status__body">
+<div class="prism-workflow prism-workflow--status">
+    <div class="prism-status__icon" aria-hidden="true">⏳</div>
+    <h2 class="prism-status__heading">@Model.StateDisplayName</h2>
+    <p class="prism-status__body">
         We've received your submission and it's currently being reviewed.
         You'll hear from us soon — no further action is needed right now.
     </p>
 </div>
-
-<style>
-    .wf-status {
-        text-align: center;
-        padding: 3rem 1rem;
-    }
-
-    .wf-status__icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-    }
-
-    .wf-status__heading {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--prism-primary, #1a1a1a);
-        margin-bottom: 0.75rem;
-    }
-
-    .wf-status__body {
-        color: #6b7280;
-        max-width: 480px;
-        margin: 0 auto;
-    }
-</style>

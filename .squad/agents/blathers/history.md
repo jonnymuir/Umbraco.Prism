@@ -1435,3 +1435,16 @@ All components implemented, tested via build, and ready for integration with mob
 - Build: 0 warnings, 0 errors.
 
 **Status:** Complete. All changes committed on `main` (e562edd).
+
+---
+
+## Task: Delete dead WorkflowAdvanceRequest model
+
+**Date:** 2025-07-10
+
+- Deleted `src/UmbracoPrism.TestSite/Models/WorkflowAdvanceRequest.cs` — a model binding class that was never used (controller reads form fields manually).
+- Confirmed no other references to `WorkflowAdvanceRequest` existed in the solution via grep.
+- Build: 0 warnings, 0 errors.
+- Committed as `chore: remove dead WorkflowAdvanceRequest model` (600b172).
+
+**Status:** Complete.

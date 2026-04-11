@@ -384,3 +384,113 @@
         justify-content: center;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Page container (WorkflowPage layout)
+   -------------------------------------------------------------------------- */
+
+.workflow-page {
+    max-width: 680px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.workflow-page__header {
+    margin-bottom: 1.5rem;
+}
+
+.workflow-page__title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--prism-primary, #1a1a1a);
+}
+
+/* --------------------------------------------------------------------------
+   Alerts
+   -------------------------------------------------------------------------- */
+
+.workflow-alert {
+    border-left: 4px solid;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.workflow-alert--error {
+    border-color: #d4351c;
+    background: #fef2f2;
+    color: #7a1f10;
+}
+
+.workflow-alert--warn {
+    border-color: #d4351c;
+    background: #fffbeb;
+    color: #92400e;
+}
+
+/* --------------------------------------------------------------------------
+   Form group error state
+   -------------------------------------------------------------------------- */
+
+.prism-form-group--error .prism-input,
+.prism-form-group--error .prism-textarea,
+.prism-form-group--error .prism-select {
+    border-color: #d4351c;
+}
+
+.prism-form-group__error {
+    font-size: 0.875rem;
+    color: #d4351c;
+    font-weight: 700;
+    margin: 0.25rem 0 0;
+    display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Review step — intro text
+   -------------------------------------------------------------------------- */
+
+.prism-review__intro {
+    color: var(--prism-hint-color, #505a5f);
+    margin-bottom: 1.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Status timeline step
+   -------------------------------------------------------------------------- */
+
+.prism-workflow--status {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.prism-status__icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.prism-status__heading {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--prism-primary, #1a1a1a);
+    margin-bottom: 0.75rem;
+}
+
+.prism-status__body {
+    color: var(--prism-hint-color, #505a5f);
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Completion icon
+   -------------------------------------------------------------------------- */
+
+.prism-completion__icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+    text-align: center;
+}

@@ -1,4 +1,5 @@
 ﻿@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+@inject Microsoft.AspNetCore.Mvc.ViewEngines.ICompositeViewEngine _viewEngine
 @{
     Layout = "Master";
     ViewBag.Title = Model.HasError ? "Workflow Error" : Model.StateDisplayName;
@@ -17,61 +18,20 @@
     }
     else
     {
-        switch (Model.Archetype)
+        @{
+            var partialName = $"_WorkflowStep-{Model.Archetype}";
+            var partialPath = $"~/Views/Partials/{partialName}.cshtml";
+            var viewResult = _viewEngine.GetView(null, partialPath, false);
+        }
+        @if (viewResult.Success)
         {
-            case "Collect":
-                @await Html.PartialAsync("_WorkflowStep-Collect", Model)
-                break;
-            case "Review":
-                @await Html.PartialAsync("_WorkflowStep-Review", Model)
-                break;
-            case "StatusTimeline":
-                @await Html.PartialAsync("_WorkflowStep-StatusTimeline", Model)
-                break;
-            case "Completion":
-                @await Html.PartialAsync("_WorkflowStep-Completion", Model)
-                break;
-            default:
-                <div class="workflow-alert workflow-alert--warn">
-                    <p>Unknown workflow step type: <code>@Model.Archetype</code></p>
-                </div>
-                break;
+            @await Html.PartialAsync(partialName, Model)
+        }
+        else
+        {
+            <div class="workflow-alert workflow-alert--warn">
+                <p>No template found for step type: <code>@Model.Archetype</code></p>
+            </div>
         }
     }
 </div>
-
-<style>
-    .workflow-page {
-        max-width: 640px;
-        margin: 2rem auto;
-    }
-
-    .workflow-page__header {
-        margin-bottom: 1.5rem;
-    }
-
-    .workflow-page__title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: var(--prism-primary, #1a1a1a);
-    }
-
-    .workflow-alert {
-        border-left: 4px solid;
-        border-radius: 4px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .workflow-alert--error {
-        border-color: #dc2626;
-        background: #fef2f2;
-        color: #991b1b;
-    }
-
-    .workflow-alert--warn {
-        border-color: #d97706;
-        background: #fffbeb;
-        color: #92400e;
-    }
-</style>

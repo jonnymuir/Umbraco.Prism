@@ -8,8 +8,12 @@
     var ariaRequired = Model.Required ? @" aria-required=""true""" : string.Empty;
     var fieldType = Model.FieldType?.ToLowerInvariant() ?? "text";
 }
+@{
+    var fieldError = ViewData["fieldError"] as string;
+    var hasFieldError = !string.IsNullOrEmpty(fieldError);
+}
 
-<div class="prism-form-group">
+<div class="prism-form-group @(hasFieldError ? "prism-form-group--error" : "")">
 
     @if (fieldType == "boolean")
     {
@@ -17,7 +21,7 @@
             <input class="prism-checkbox"
                    type="checkbox"
                    id="@Model.FieldKey"
-                   name="@Model.FieldKey"
+                   name="fields[@Model.FieldKey]"
                    value="true"
                    @(Model.Value is true || "true".Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "checked" : "")
                    @Html.Raw(ariaRequired)
@@ -54,7 +58,7 @@
                         <input class="prism-radio"
                                type="radio"
                                id="@radioId"
-                               name="@Model.FieldKey"
+                               name="fields[@Model.FieldKey]"
                                value="@option"
                                @(option.Equals(Model.Value?.ToString(), StringComparison.OrdinalIgnoreCase) ? "checked" : "")
                                @Html.Raw(ariaRequired) />
@@ -87,7 +91,7 @@
                         <input class="prism-checkbox"
                                type="checkbox"
                                id="@cbId"
-                               name="@Model.FieldKey"
+                               name="fields[@Model.FieldKey]"
                                value="@option"
                                @Html.Raw(ariaRequired) />
                         <label class="prism-label prism-label--inline" for="@cbId">@option</label>
@@ -111,7 +115,7 @@
         }
         <select class="prism-select"
                 id="@Model.FieldKey"
-                name="@Model.FieldKey"
+                name="fields[@Model.FieldKey]"
                 @Html.Raw(ariaRequired)
                 @Html.Raw(describedBy)>
             <option value="">-- Select --</option>
@@ -142,7 +146,7 @@
         }
         <textarea class="prism-textarea"
                   id="@Model.FieldKey"
-                  name="@Model.FieldKey"
+                  name="fields[@Model.FieldKey]"
                   rows="5"
                   @Html.Raw(ariaRequired)
                   @Html.Raw(describedBy)>@Model.Value</textarea>
@@ -174,11 +178,16 @@
         <input class="prism-input"
                type="@inputType"
                id="@Model.FieldKey"
-               name="@Model.FieldKey"
+               name="fields[@Model.FieldKey]"
                value="@Model.Value"
                @Html.Raw(step)
                @Html.Raw(ariaRequired)
                @Html.Raw(describedBy) />
+    }
+
+    @if (hasFieldError)
+    {
+        <p class="prism-form-group__error" role="alert">@fieldError</p>
     }
 
 </div>
