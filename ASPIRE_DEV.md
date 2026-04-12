@@ -20,7 +20,7 @@ In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for 
 
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)
-- **Keycloak** at `http://localhost:8080` (OIDC provider)
+- **Keycloak** at `https://localhost:8443` for browser sign-in and `http://localhost:8080` for direct HTTP access (OIDC provider)
 - **TestSite** at `https://localhost:44345` and `http://localhost:9250`
 
 ## What Gets Configured
@@ -32,6 +32,7 @@ This launches:
 - **Keycloak admin:** `admin` / `admin`
 
 The realm configuration is imported from `keycloak/realm-export.json`.
+AppHost fronts Keycloak with an Aspire HTTPS proxy so Safari/WebKit can keep the auth-session cookies that Keycloak marks `Secure; SameSite=None`.
 For localhost auth, the Keycloak client is pinned to those two TestSite URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
 
 ## Localhost Tenant (Auto-Seeded)
@@ -89,9 +90,10 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 - Check the Aspire dashboard for Keycloak logs
 - Verify the realm export path is correct: `../../keycloak/realm-export.json` (relative to AppHost project)
 - On Apple Silicon Macs, the AppHost now adds `JAVA_OPTS_APPEND=-XX:UseSVE=0` for the Keycloak container to avoid the known OpenJDK 21 `SIGILL` crash during JVM startup on affected ARM64 Docker environments
+- The AppHost now starts Keycloak with `--server-async-bootstrap=false` so the browser only lands on a ready instance instead of a page that needs a manual refresh
 
 **TestSite can't reach Keycloak:**
-- Ensure the `OidcAuthority` uses `http://localhost:8080` (not `host.docker.internal` — we're running locally, not in containers)
+- Ensure the `OidcAuthority` uses the AppHost-provided `KEYCLOAK_URL` (defaults to `https://localhost:8443` under Aspire, or `http://localhost:8080` when running TestSite standalone)
 - If Keycloak shows `Invalid parameter: redirect_uri`, recreate the local Keycloak realm/container so it re-imports the exact localhost redirect URIs from `keycloak/realm-export.json`
 
 **Token validation fails:**

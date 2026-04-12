@@ -25,7 +25,7 @@ public class DemoTenantSeeder(
     // Keycloak values from keycloak/realm-export.json (Aspire dev environment).
     private const string LocalhostHostname = "localhost";
     private const string TenantName        = "Local Dev (Keycloak)";
-    private const string OidcAuthority     = "http://localhost:8080/realms/prism-dev";
+    private const string DefaultKeycloakBaseUrl = "http://localhost:8080";
     private const string OidcClientId      = "prism-client";
     private const string OidcClientSecret  = "prism-dev-secret";
 
@@ -41,6 +41,14 @@ public class DemoTenantSeeder(
 
     private void EnsureLocalhostTenant()
     {
+        var keycloakBaseUrl = Environment.GetEnvironmentVariable("KEYCLOAK_URL");
+        if (string.IsNullOrWhiteSpace(keycloakBaseUrl))
+        {
+            keycloakBaseUrl = DefaultKeycloakBaseUrl;
+        }
+
+        var oidcAuthority = $"{keycloakBaseUrl.TrimEnd('/')}/realms/prism-dev";
+
         using var db = databaseFactory.CreateDatabase();
 
         var existing = db.FirstOrDefault<PrismTenantSchema>(
@@ -59,7 +67,7 @@ public class DemoTenantSeeder(
         {
             Name              = TenantName,
             Hostname          = LocalhostHostname,
-            OidcAuthority     = OidcAuthority,
+            OidcAuthority     = oidcAuthority,
             OidcClientId      = OidcClientId,
             OidcClientSecret  = OidcClientSecret,
             AllowBiometricLogin = true
@@ -69,6 +77,6 @@ public class DemoTenantSeeder(
 
         logger.LogInformation(
             "DEMO SEEDER: Created localhost tenant '{Name}' pointing at Keycloak ({Authority}).",
-            TenantName, OidcAuthority);
+            TenantName, oidcAuthority);
     }
 }
