@@ -1786,3 +1786,8 @@ Implemented member dashboard for managing multiple workflow instances:
 - Standing convention: When local OIDC clients target the TestSite, keep Keycloak redirect URIs synchronized with exact launchSettings URLs. If TestSite ports change, update both `keycloak/realm-export.json` and documentation.
 - Decision recorded in `.squad/decisions.md` with standing effect guidance.
 
+## Learnings & Handoff (2026-04-12, Aspire dashboard launch timing)
+
+- For VS Code's `dotnet` Aspire launch config, an explicit `.vscode/launch.json` `launchUrl` opens the dashboard eagerly, before the AppHost has finished startup and before Aspire is ready to serve it.
+- The repo already has the correct deferred browser-launch source in `src/UmbracoPrism.AppHost/Properties/launchSettings.json` (`launchBrowser: true` on the `https` profile), so the smallest fix is to remove the VS Code `launchUrl` override and let AppHost/browser launch happen at readiness time.
+- Validation for this class of change is config-focused: keep the AppHost `launchBrowser` setting intact, ensure `.vscode/launch.json` still parses, and confirm the solution still builds after the edit.

@@ -13,8 +13,7 @@
             "type": "dotnet",
             "request": "launch",
             "preLaunchTask": "Full Stack: prepare",
-            "projectPath": "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj",
-            "launchUrl": "https://localhost:17214"
+            "projectPath": "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj"
         }
     ]
 }

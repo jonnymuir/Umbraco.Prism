@@ -21,6 +21,11 @@ Use this pattern when a repo includes an Aspire AppHost and developers launch it
 - First reproduce with the same AppHost entry point used by the launch configuration, for example `dotnet run --project src/Some.AppHost`.
 - If startup fails with missing `CliPath` / `DashboardPath`, treat that as a likely local tooling prerequisite problem before changing application code.
 
+### Avoid eager dashboard launches
+
+- If a VS Code Aspire `dotnet` launch configuration points at the AppHost and the AppHost launch profile already has `launchBrowser: true`, do not also set `launchUrl` in `.vscode/launch.json`.
+- Let the AppHost/browser launch flow open the dashboard when Aspire is actually ready, instead of having the editor open the URL immediately at debug start.
+
 ### Put the guard in the launch path
 
 - Add a repo-owned preflight step in `.vscode/tasks.json`.
@@ -44,3 +49,4 @@ Use this pattern when a repo includes an Aspire AppHost and developers launch it
 - **Changing AppHost code first** — if the failure is missing orchestration tooling, code changes in `Program.cs` will not fix it.
 - **Relying on tribal knowledge** — requiring developers to remember `dotnet workload install aspire` without launch-path validation keeps the experience brittle.
 - **Checking only one prerequisite** — if the full stack also needs Docker, validate that too so the next failure is not just deferred.
+- **Setting both `launchBrowser` and VS Code `launchUrl`** — the editor-side URL launch can race ahead of AppHost readiness and show the dashboard too early.
