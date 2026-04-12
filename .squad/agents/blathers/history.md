@@ -139,6 +139,14 @@
 - Prism auth callback path is `/signin-oidc` (as configured in Prism OIDC setup), so tunnel automation and docs must use that same callback path to avoid Entra redirect mismatches.
 - Updated local tunnel script default callback path and README tunnel redirect URI examples to `/signin-oidc` for consistency between runtime auth behavior and developer setup guidance.
 
+## Learnings & Handoff (2026-04-12, Aspire startup prerequisite UX)
+
+- Reproduced the AppHost startup failure with `dotnet run --project src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj --no-build`; the thrown `OptionsValidationException` is `CliPath` / `DashboardPath` missing from Aspire DCP options.
+- In this repo, that error maps directly to missing local Aspire orchestration tooling rather than broken AppHost code. On this machine, `dotnet workload list` returned no installed workloads, which explains why DCP and dashboard binaries could not be resolved.
+- Team convention added for local full-stack UX: guard external prerequisites in the VS Code pre-launch path before starting AppHost, so developers get an actionable setup error instead of the raw Aspire exception.
+- The guard lives at `scripts/validate-aspire-prereqs.mjs` and is wired through `.vscode/tasks.json` via `Aspire: validate prerequisites` and `Full Stack: prepare`, with `.vscode/launch.json` pointing the full-stack launch config at that preparation task.
+- User preference captured here: prefer repo-level configuration and clearer local developer UX over one-off manual debugging steps when an external prerequisite cannot be bundled.
+
 ## Learnings & Handoff (2026-03-22, trycloudflare callback rotation safety)
 
 - Local tunnel script now prunes only stale `*.trycloudflare.com/signin-oidc` redirect URIs before adding current callback URI.
@@ -1746,3 +1754,8 @@ Implemented member dashboard for managing multiple workflow instances:
 - Support for additional OIDC providers (Okta, Auth0, etc.)
 - Health check integration for Keycloak readiness probe
 
+## Learnings & Handoff (2026-04-12, Aspire workload permissions)
+
+- On macOS with the Microsoft PKG-style .NET install under `/usr/local/share/dotnet`, `dotnet workload install aspire` must be run elevated because workloads write into the protected SDK location.
+- Aspire setup docs and `scripts/validate-aspire-prereqs.mjs` now call out the conditional `sudo dotnet workload install aspire` path so the preflight guidance matches real machine behavior.
+- This is a docs/dev-experience fix only; validation was `node --check scripts/validate-aspire-prereqs.mjs` plus an execution of the validator to confirm the updated message.

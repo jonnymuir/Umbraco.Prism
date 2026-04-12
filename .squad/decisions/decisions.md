@@ -724,3 +724,29 @@ Property descriptors generated for testing:
 
 ---
 
+# Blathers — Aspire startup prerequisite guard
+
+## Context
+
+The VS Code **C#: Aspire (Full Stack)** launch path could fail with an opaque Aspire runtime exception:
+
+- `Property CliPath: The path to the DCP executable used for Aspire orchestration is required.`
+- `Property DashboardPath: The path to the Aspire Dashboard binaries is missing.`
+
+In practice, this occurred when local machine prerequisites were missing, especially the Aspire workload.
+
+## Decision
+
+Add an explicit prerequisite validation step to the repo-owned VS Code full-stack launch flow before AppHost starts.
+
+## Conventions
+
+- Keep the fix in repository launch/task configuration instead of relying on developers to remember a manual workaround.
+- Validate the Aspire workload before AppHost launch and fail with a direct setup instruction if it is missing.
+- Validate Docker availability in the same preflight because the full stack depends on container orchestration for Keycloak.
+- Document the exact `CliPath` / `DashboardPath` symptom in local dev docs so developers can map the exception to the missing prerequisite quickly.
+
+## Why
+
+Aspire tooling binaries are an external machine prerequisite and cannot be bundled by the AppHost project itself. Repo-level preflight validation is the smallest reliable fix: it preserves the existing launch flow on correctly configured machines while turning a confusing runtime crash into an actionable setup message.
+

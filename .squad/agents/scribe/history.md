@@ -103,3 +103,46 @@ These three decisions span different domains:
 All decisions are orthogonal and improve long-term project hygiene.
 
 ---
+
+## Post-Agent Documentation Session (2026-04-12T01:29:29Z)
+
+### Summary
+
+Processed background session output from Blathers (Aspire workload permissions investigation). Created orchestration and session logs, merged decision from inbox to main decisions file, and archived old entries.
+
+### Actions Completed
+
+1. ✅ **Orchestration Log:** `2026-04-12T01:29:29Z-blathers.md`
+   - Summary of Blathers' Aspire workload investigation
+   - Root cause: .NET SDK at `/usr/local/share/dotnet` owned by `root:wheel` requires elevated privileges
+   - Implementation: Updated README.md, ASPIRE_DEV.md, scripts/validate-aspire-prereqs.mjs
+   - Validation status and impact documented
+
+2. ✅ **Session Log:** `2026-04-12T01:29:29Z-aspire-workload-permissions.md`
+   - Brief summary of Aspire workload permissions fix
+   - Outcome: elevated command path documented and tested
+
+3. ✅ **Decision Merge:** `blathers-workload-permissions.md` → `decisions.md`
+   - Decision: Document elevated Aspire workload install on macOS protected SDK paths
+   - Conventions established for preflight validation messaging
+   - Standing effect: Developers now receive clear elevated-command guidance
+   - Inbox file deleted
+
+4. ✅ **Archive Maintenance:** `decisions-archive.md` created
+   - Archived two entries older than 30 days (2025-07-22, 2025-07-15)
+   - decisions.md reduced by 2 old entries to improve size management
+   - Archive file preserves historical record
+
+5. ✅ **Team Notifications:**
+   - Blathers: Existing handoff already in history from background session
+   - No cross-agent updates needed; this is dev-experience only
+
+### Decision Impact
+
+The archived decisions remain valid but are now in historical record:
+- **2025-07-22:** uui-input accessibility label pattern (continues to apply)
+- **2025-07-15:** Test philosophy as behavioral contracts (continues to apply)
+
+These principles remain standing even after archiving.
+
+---

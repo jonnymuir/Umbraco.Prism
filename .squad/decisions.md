@@ -3370,16 +3370,6 @@ Use a plain `<button class="dialog-icon-btn">` with SVG icon, `aria-label`, and 
 ---
 
 
-## 📌 2025-07-22: uui-input Accessibility Label Pattern (Isabelle)
-
-Every `uui-input` element must have a `label` attribute, regardless of whether a visible `<label>` element already wraps or precedes it. The UUI component library requires the attribute on the element itself for its internal accessibility wiring.
-
-- **Dynamic fields** (`_renderDynamicField`): use `label=${variable.label}` (in scope from `BrandingMetadata` variable object).
-- **Table loop inputs** (`_renderStaticBrandingContent`): use template literals for uniqueness, e.g. `"${variable.name} (desktop override)"`.
-
-Visible labels do not satisfy the UUI component's internal label requirement. Omitting the `label` attribute causes console noise and screen-reader issues.
-
----
 
 ## 📌 2026-07-10: Media Picker URL Endpoint (Isabelle)
 
@@ -3405,21 +3395,6 @@ Hero-section presentation variables (bg, text, badge) live in `prism-imagery.css
 
 ---
 
-## 📌 2025-07-15: Test Philosophy — Behavioural Contracts (Tangy)
-
-Tests are **behavioural contracts** — they express what the product should *do* from a user/product-owner perspective, not *how* it does it. Tests must remain green after any refactor that preserves observable behaviour.
-
-**Key principles:**
-
-1. **Prefer semantic selectors over structural selectors.** `data-variable="--color-primary"` expresses intent. `uui-table-row:first-of-type` expresses position and breaks if rows are reordered.
-
-2. **Wait for visible state before querying shadow DOM.** Always add `await expect(...).toBeVisible()` before any `evaluate` that depends on async-rendered content.
-
-3. **Follow named-ID patterns** for stable assertions (`#mobile-app-name`, `#mobile-app-id`) with real semantic values.
-
-Additional fixes made alongside: `_fetchBrandingMetadata` fixed with `Promise.race` + 500ms timeout so fetch fires in test environments; duplicate-ID bug fixed by extracting `_renderStaticBrandingContent` from `_renderStaticBrandingTab`.
-
----
 
 ## 📌 2026-07-11: Mobile Branding Inheritance Model (Isabelle)
 
@@ -5627,6 +5602,38 @@ If the answer is "they have to do extra work," the design needs revision.
 ## Standing Effect
 
 This is a standing design principle — not a one-off decision. It applies to all future Prism development and should be referenced in architectural reviews and PR discussions.
+
+---
+
+## 📌 2026-04-12: Elevated Aspire Workload Install on macOS Protected SDK Paths (Blathers)
+
+**Session Log:** `.squad/log/2026-04-12T01:29:29Z-aspire-workload-permissions.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-workload-permissions.md`
+
+### Blathers — Document Elevated Aspire Workload Install on macOS Protected SDK Paths
+
+**Decision:** When the .NET SDK is installed in a protected directory (e.g., `/usr/local/share/dotnet` owned by `root:wheel` on macOS), the Aspire workload installation must be run with elevated privileges:
+
+```bash
+sudo dotnet workload install aspire
+```
+
+**Conventions:**
+- Keep the default cross-platform command in core documentation.
+- Add a conditional macOS note in README.md and ASPIRE_DEV.md for protected SDK scenarios.
+- Update preflight validators (e.g., `scripts/validate-aspire-prereqs.mjs`) to detect protected SDK installations and provide explicit guidance.
+- Include both the standard and elevated-privilege command paths in error/guidance messages.
+
+**Why:** On this machine, the SDK base path is owned by `root:wheel`, which prevents unprivileged workload installation. Microsoft documents this behavior for macOS/Linux systems. Without clear documentation, developers encounter a "Inadequate permissions" error with no obvious resolution, creating a confusing setup loop.
+
+**Documentation Impact:**
+- README.md: Added note about elevated permissions on macOS when SDK is in protected paths
+- ASPIRE_DEV.md: Updated with explicit `sudo dotnet workload install aspire` guidance
+- scripts/validate-aspire-prereqs.mjs: Enhanced to provide actionable guidance for protected SDK scenarios
+
+**Standing Effect:** When Aspire workload installation fails on developer machines with protected SDK installations, the preflight validator and documentation provide clear elevated-command guidance.
 
 ---
 
