@@ -1492,3 +1492,47 @@ Member dashboard for managing multiple workflow instances.
 - All Razor views compile without errors once backend models exist
 - Frontend implementation complete and ready for integration
 
+
+## Session: 2026-XX-XX — OIDC Tenant Fields (Identity Tab)
+
+**Task:** Add three new OIDC fields (oidcAuthority, oidcClientId, oidcClientSecret) to the tenant create/edit modal for non-Entra OIDC providers (e.g. Keycloak, Auth0).
+
+**Result:** ✅ Complete, build clean (npm run build — 0 errors).
+
+### Changes
+
+**Modified:** src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts
+- Added three new @state() properties: _oidcAuthority, _oidcClientId, _oidcClientSecret
+- Populated from tenant data in two places: connectedCallback (line ~160) and willUpdate (line ~208)
+- Reset to empty strings in create mode (line ~238)
+- Included in save payload (line ~422) as oidcAuthority, oidcClientId, oidcClientSecret (using || undefined to send null for empty strings)
+- Added new OIDC section to Identity tab (line ~547-587) with:
+  - Section divider (<div class="section-divider"></div>)
+  - Heading: <h3>OIDC Provider (non-Entra)</h3>
+  - Help text explaining when to use OIDC fields vs Entra
+  - Three fields: OIDC Authority (type=url), OIDC Client ID (text), OIDC Client Secret (type=password with aria-label)
+- Added CSS for new classes (line ~1759-1773): .section-divider, .help-text, h3
+
+**Modified:** src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.stories.ts
+- Updated Edit story mock tenant data with realistic OIDC values: oidcAuthority: 'http://localhost:8080/realms/prism-dev', oidcClientId: 'prism-client', oidcClientSecret: ''
+
+### Learnings
+
+- 2026-XX-XX: When adding fields to a Lit component modal, remember to update state in THREE places: (1) @state() property declaration, (2) data population in connectedCallback, (3) data population in willUpdate (which handles reactive property changes). Also reset values in the else branch (create mode).
+- 2026-XX-XX: For optional request fields that should map to null in C# when empty, use field: this._field || undefined in the payload object — this sends undefined which JSON.stringify omits, and ASP.NET Core binds omitted properties to null for nullable types. Don't send empty strings if the backend expects nullable.
+- 2026-XX-XX: The Identity tab already had the Entra fields (entraTenantId, entraClientId, secretKeyName). Task instructions mentioned "General tab" but secretKeyName lives in the Identity tab, so the OIDC section was added to the Identity tab after the existing Entra section — this is architecturally correct because both Entra and OIDC are identity provider configurations.
+- 2026-XX-XX: For password fields with labels, adding aria-label on the input provides an extra accessibility layer for screen readers inside Shadow DOM contexts (where label association via for can be ambiguous). Pattern: <uui-label for="id">Label</uui-label> <uui-input id="id" label="Label" type="password" aria-label="Label">.
+- 2026-XX-XX: Section dividers in forms should use a thin border (height: 1px; background: var(--uui-color-border)) with generous vertical margin (var(--uui-size-space-6) top, var(--uui-size-space-5) bottom) to create clear visual separation without overwhelming the form.
+
+### Accessibility Notes
+
+- All three new fields have proper <uui-label> with matching id and for attributes
+- OIDC Client Secret has additional aria-label="OIDC Client Secret" for Shadow DOM label association
+- Help text uses .help-text class with color: var(--uui-color-text-alt) for sufficient contrast
+- OIDC Authority uses type="url" for HTML5 validation (browser provides built-in URL format checking)
+- No autocomplete attributes needed — these are tenant-level config fields, not user credentials
+
+### Backend Integration
+
+Backend PrismTenantRequest model already has OidcAuthority, OidcClientId, OidcClientSecret as nullable strings (confirmed in task context). Frontend sends these fields as camelCase (oidcAuthority, etc.) which ASP.NET Core automatically binds to PascalCase C# properties. Empty strings become undefined in the payload, which ASP.NET Core binds to null for nullable types.
+

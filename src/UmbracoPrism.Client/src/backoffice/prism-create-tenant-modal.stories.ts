@@ -78,6 +78,9 @@ export const Edit: Story = {
         entraTenantId: '00000000-0000-0000-0000-000000000000',
         entraClientId: '11111111-1111-1111-1111-111111111111',
         secretKeyName: 'northwind-prism-secret',
+        oidcAuthority: 'http://localhost:8080/realms/prism-dev',
+        oidcClientId: 'prism-client',
+        oidcClientSecret: '',
         mobileAppConfig: {
           AppName: 'Northwind Portal',
           AppId: 'com.northwind.portal',

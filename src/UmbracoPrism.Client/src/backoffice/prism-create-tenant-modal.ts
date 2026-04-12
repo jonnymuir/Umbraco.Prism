@@ -67,6 +67,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _entraTenantId = '';
   @state() private _entraClientId = '';
   @state() private _secretKeyName = '';
+  @state() private _oidcAuthority = '';
+  @state() private _oidcClientId = '';
+  @state() private _oidcClientSecret = '';
   @state() private _mobileAppName = '';
   @state() private _mobileAppId = '';
   @state() private _mobileVersion = '1.0.0';
@@ -157,6 +160,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       this._entraTenantId = t.entraTenantId ?? '';
       this._entraClientId = t.entraClientId ?? '';
       this._secretKeyName = t.secretKeyName ?? '';
+      this._oidcAuthority = t.oidcAuthority ?? '';
+      this._oidcClientId = t.oidcClientId ?? '';
+      this._oidcClientSecret = t.oidcClientSecret ?? '';
       this._allowBiometricLogin = t.allowBiometricLogin ?? true;
 
       const mobileConfig = this._readMobileAppConfig(t);
@@ -202,6 +208,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._entraTenantId = t.entraTenantId ?? '';
         this._entraClientId = t.entraClientId ?? '';
         this._secretKeyName = t.secretKeyName ?? '';
+        this._oidcAuthority = t.oidcAuthority ?? '';
+        this._oidcClientId = t.oidcClientId ?? '';
+        this._oidcClientSecret = t.oidcClientSecret ?? '';
 
         const mobileConfig = this._readMobileAppConfig(t);
         this._mobileAppName = mobileConfig?.appName ?? t.name ?? '';
@@ -226,6 +235,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._entraTenantId = '';
         this._entraClientId = '';
         this._secretKeyName = '';
+        this._oidcAuthority = '';
+        this._oidcClientId = '';
+        this._oidcClientSecret = '';
         this._mobileAppName = '';
         this._mobileAppId = '';
         this._mobileVersion = '1.0.0';
@@ -410,6 +422,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       entraTenantId: this._entraTenantId,
       entraClientId: this._entraClientId,
       secretKeyName: this._secretKeyName,
+      oidcAuthority: this._oidcAuthority || undefined,
+      oidcClientId: this._oidcClientId || undefined,
+      oidcClientSecret: this._oidcClientSecret || undefined,
       brandingOverrides,
       mobileBrandingOverrides,
       mobileAppConfig,
@@ -528,6 +543,47 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               aria-describedby="secret-hint">
             </uui-input>
             <small id="secret-hint">Must match the secret identifier in your configured Azure Key Vault.</small>
+          </div>
+
+          <div class="section-divider"></div>
+          
+          <h3>OIDC Provider (non-Entra)</h3>
+          <p class="help-text">Use this section if your identity provider is not Microsoft Entra (e.g. Keycloak, Auth0). Leave blank to use Entra.</p>
+
+          <div class="field">
+            <uui-label for="oidc-authority">OIDC Authority</uui-label>
+            <uui-input 
+              id="oidc-authority" 
+              label="OIDC Authority"
+              type="url" 
+              placeholder="https://auth.example.com/realms/my-realm" 
+              .value=${this._oidcAuthority} 
+              @input=${(e: any) => this._oidcAuthority = e.target.value}>
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="oidc-client-id">OIDC Client ID</uui-label>
+            <uui-input 
+              id="oidc-client-id" 
+              label="OIDC Client ID" 
+              placeholder="my-client-id" 
+              .value=${this._oidcClientId} 
+              @input=${(e: any) => this._oidcClientId = e.target.value}>
+            </uui-input>
+          </div>
+
+          <div class="field">
+            <uui-label for="oidc-client-secret">OIDC Client Secret</uui-label>
+            <uui-input 
+              id="oidc-client-secret" 
+              label="OIDC Client Secret"
+              type="password" 
+              placeholder="••••••••" 
+              .value=${this._oidcClientSecret} 
+              @input=${(e: any) => this._oidcClientSecret = e.target.value}
+              aria-label="OIDC Client Secret">
+            </uui-input>
           </div>
         </uui-box>
       </div>
@@ -1699,6 +1755,21 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     small { 
       margin-top: var(--uui-size-space-2); 
       color: var(--uui-color-text-alt); 
+    }
+    .section-divider {
+      height: 1px;
+      background: var(--uui-color-border);
+      margin: var(--uui-size-space-6) 0 var(--uui-size-space-5);
+    }
+    .help-text {
+      color: var(--uui-color-text-alt);
+      margin-bottom: var(--uui-size-space-4);
+      font-size: 0.85rem;
+    }
+    h3 {
+      margin: 0 0 var(--uui-size-space-3);
+      font-size: 1rem;
+      font-weight: 600;
     }
     .helper-actions {
       display: flex;
