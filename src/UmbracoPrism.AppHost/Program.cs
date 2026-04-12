@@ -1,4 +1,10 @@
+using System.Runtime.InteropServices;
+
 var builder = DistributedApplication.CreateBuilder(args);
+
+var needsKeycloakSveWorkaround =
+    OperatingSystem.IsMacOS() &&
+    RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
 // Add Keycloak as a container resource
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
@@ -10,8 +16,15 @@ var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26
     .WithBindMount("../../keycloak", "/opt/keycloak/data/import")
     .WithArgs("start-dev", "--import-realm");
 
-// Add TestSite with environment variable pointing to Keycloak
-builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj")
+if (needsKeycloakSveWorkaround)
+{
+    keycloak = keycloak.WithEnvironment("JAVA_OPTS_APPEND", "-XX:UseSVE=0");
+}
+
+// Add TestSite with environment variable pointing to Keycloak.
+// The Umbraco project uses a custom launch profile name, so select it explicitly
+// so Aspire can discover the applicationUrl endpoints and advertise them.
+builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", () => $"http://{keycloak.Resource.Name}:8080")
     .WaitFor(keycloak);
 

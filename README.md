@@ -20,10 +20,12 @@ Multi-tenant website branding and identity at runtime. Add a mobile app with one
 Get from clone to running in five minutes. No Azure account needed.
 
 **One-time setup:**
+- `.NET 10 SDK` ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
 - Docker Desktop running ([Download](https://www.docker.com/products/docker-desktop/))
-- `.NET Aspire workload:` `dotnet workload install aspire`
 - `Node.js 20+` ([Download](https://nodejs.org/))
 - Frontend dependencies: `cd src/UmbracoPrism.Client && npm install`
+
+> VS Code tip: the **C#: Aspire (Full Stack)** launch now validates the .NET 10 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need `dotnet workload install aspire`.
 
 **Start the full stack:**
 ```bash
@@ -222,7 +224,6 @@ In backoffice:
 - **.NET 10.0** ([Download](https://dotnet.microsoft.com/download))
 - **Node.js 20+** ([Download](https://nodejs.org/))
 - **Docker Desktop** — for local demo with Aspire ([Download](https://www.docker.com/products/docker-desktop/))
-- **.NET Aspire workload** — for local dev: `dotnet workload install aspire` (one-time)
 - **Azure Key Vault** (production) or local dev without vault (see setup guide)
 - **Entra ID** (for authentication)
 

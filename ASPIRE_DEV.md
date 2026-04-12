@@ -4,8 +4,8 @@ Press-play local development with Keycloak OIDC authentication.
 
 ## Prerequisites (One-Time Setup)
 
+- **.NET 10 SDK** — install the current .NET 10 SDK ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
 - **Docker Desktop** — must be running ([Download](https://www.docker.com/products/docker-desktop/))
-- **.NET Aspire workload:** `dotnet workload install aspire`
 - **Node.js 20+** — for frontend assets ([Download](https://nodejs.org/))
 - **Frontend dependencies:** `cd src/UmbracoPrism.Client && npm install`
 
@@ -16,10 +16,12 @@ Press-play local development with Keycloak OIDC authentication.
 dotnet run --project src/UmbracoPrism.AppHost
 ```
 
+In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for the .NET 10 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need to run `dotnet workload install aspire`.
+
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)
 - **Keycloak** at `http://localhost:8080` (OIDC provider)
-- **TestSite** at assigned port (check Aspire dashboard for URL)
+- **TestSite** at `https://localhost:44345` and `http://localhost:9250`
 
 ## What Gets Configured
 
@@ -30,6 +32,7 @@ This launches:
 - **Keycloak admin:** `admin` / `admin`
 
 The realm configuration is imported from `keycloak/realm-export.json`.
+For localhost auth, the Keycloak client is pinned to those two TestSite URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
 
 ## Localhost Tenant (Auto-Seeded)
 
@@ -77,12 +80,19 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 
 ## Troubleshooting
 
+**`CliPath` / `DashboardPath` validation error on startup:**
+- Pull the latest repo changes so the AppHost project includes the Aspire AppHost SDK
+- Ensure the .NET 10 SDK is installed and Docker Desktop is running
+- Rerun **C#: Aspire (Full Stack)**; no separate Aspire workload install is required
+
 **Keycloak not starting:**
 - Check the Aspire dashboard for Keycloak logs
 - Verify the realm export path is correct: `../../keycloak/realm-export.json` (relative to AppHost project)
+- On Apple Silicon Macs, the AppHost now adds `JAVA_OPTS_APPEND=-XX:UseSVE=0` for the Keycloak container to avoid the known OpenJDK 21 `SIGILL` crash during JVM startup on affected ARM64 Docker environments
 
 **TestSite can't reach Keycloak:**
 - Ensure the `OidcAuthority` uses `http://localhost:8080` (not `host.docker.internal` — we're running locally, not in containers)
+- If Keycloak shows `Invalid parameter: redirect_uri`, recreate the local Keycloak realm/container so it re-imports the exact localhost redirect URIs from `keycloak/realm-export.json`
 
 **Token validation fails:**
 - Check that the tenant hostname matches the request (e.g., `localhost:5000` not `127.0.0.1:5000`)

@@ -2,6 +2,13 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Aspire: validate prerequisites",
+      "type": "shell",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/validate-aspire-prereqs.mjs"],
+      "problemMatcher": []
+    },
+    {
       "label": "dotnet: build Core",
       "type": "shell",
       "command": "dotnet",
@@ -17,6 +24,12 @@
         "cwd": "${workspaceFolder}/src/UmbracoPrism.Client"
       },
       "dependsOn": ["dotnet: build Core"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Full Stack: prepare",
+      "dependsOn": ["Aspire: validate prerequisites", "Client: build"],
       "dependsOrder": "sequence",
       "problemMatcher": []
     },

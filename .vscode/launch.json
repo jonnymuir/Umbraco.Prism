@@ -12,7 +12,7 @@
             "name": "C#: Aspire (Full Stack)",
             "type": "dotnet",
             "request": "launch",
-            "preLaunchTask": "Client: build",
+            "preLaunchTask": "Full Stack: prepare",
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj",
             "launchUrl": "https://localhost:17214"
         }

@@ -23,12 +23,12 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "prism-dev-secret",
       "redirectUris": [
-        "http://localhost:*/signin-oidc",
-        "https://localhost:*/signin-oidc"
+        "http://localhost:9250/signin-oidc",
+        "https://localhost:44345/signin-oidc"
       ],
       "webOrigins": [
-        "http://localhost:*",
-        "https://localhost:*"
+        "http://localhost:9250",
+        "https://localhost:44345"
       ],
       "protocol": "openid-connect",
       "publicClient": false,
