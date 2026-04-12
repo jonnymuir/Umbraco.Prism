@@ -4,6 +4,47 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-04-12: Keycloak localhost redirect_uri convention (Blathers)
+
+**Session Log:** `.squad/log/2026-04-12T07-28-02Z-redirect-uri.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-redirect-uri.md`
+
+### Blathers — Keycloak localhost redirect URI convention
+
+**Context**
+
+The Aspire/TestSite localhost OIDC sign-in flow redirects to Keycloak with callback URLs derived from `src/UmbracoPrism.TestSite/Properties/launchSettings.json`:
+
+- `https://localhost:44345/signin-oidc`
+- `http://localhost:9250/signin-oidc`
+
+Although Keycloak 26 accepted `http://localhost:*` and `https://localhost:*` patterns in the imported client JSON, live authorize requests failed with `PRISM-DEV: Invalid parameter: redirect_uri`. Investigation traced the issue to Keycloak persisting wildcard config at import time but not honoring wildcard patterns during runtime redirect URI validation.
+
+**Decision**
+
+Pin the local Keycloak client redirect URIs and web origins to exact TestSite launchSettings URLs instead of using `localhost:*` port wildcards.
+
+**Why**
+
+- Keeps localhost auth deterministic and aligned with repo-owned TestSite ports.
+- Avoids relying on wildcard behavior that Keycloak accepts at config import but does not honor during redirect URI validation.
+- Ensures the local auth flow is predictable and maintainable.
+
+**Standing Effect**
+
+- When local OIDC clients target the TestSite, keep Keycloak redirect URIs synchronized with exact launchSettings URLs.
+- If TestSite localhost ports change in repo config (e.g., `launchSettings.json`), update `keycloak/realm-export.json` redirect URIs and web origins to match.
+- Document such changes in ASPIRE_DEV.md and orchestration logs.
+
+**Documentation Impact:**
+- ASPIRE_DEV.md: Updated with localhost redirect URI convention note
+- keycloak/realm-export.json: Updated to use exact localhost URLs instead of wildcards
+
+---
+
+
 ## 📌 2026-04-12: Aspire TestSite launch profile selection (Brewster)
 
 **Session Log:** `.squad/log/2026-04-12T07:12:41Z-testsite-url.md`

@@ -218,6 +218,12 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **Rolling refresh token rotation**: On every successful exchange, re-encrypt the new refresh token (or fall back to existing if Entra doesn't return a new one) and update `LastUsedAt`. Matches v1 hard requirement.
 - **Cookie issuance**: Build `ClaimsIdentity` with `oid` (user OID) and `tid` (Entra tenant ID — NOT Prism internal ID) claims. Store `access_token`, `refresh_token`, `expires_at` in `AuthenticationProperties`. Call `HttpContext.SignInAsync("PrismMemberCookie", principal, authProps)`.
 - **Important distinction**: Biometric token stores Prism internal tenant ID (`tenant.Id.ToString()`) as `tid` claim, but the cookie principal needs the Entra tenant ID (`tenant.EntraTenantId`) because `PrismContext.IsPrincipalBoundToCurrentTenant` checks against `EntraTenantId`.
+
+## Learnings (2026-04-12 — Keycloak localhost redirect validation)
+
+- Keycloak 26 will happily store `http://localhost:*` / `https://localhost:*` redirect URI patterns in the client config, but it still rejects real authorize requests with `Invalid parameter: redirect_uri`.
+- For the Aspire/TestSite flow here, localhost sign-in works when the Keycloak client is pinned to the exact launchSettings URLs: `https://localhost:44345/signin-oidc` and `http://localhost:9250/signin-oidc`.
+- Because the realm is imported from `keycloak/realm-export.json`, local developers may need to recreate the existing Keycloak realm/container after this change so the corrected redirect URIs are re-imported.
 - **Test pattern for exchange**: `BuildExchangeScenario` helper issues a valid JWT, creates a matching DB record with encrypted refresh token, and wires up `IAuthenticationService` mock for `SignInAsync` verification. 18 tests cover all error paths.
 - **Error code convention**: `biometric_token_invalid` (catch-all for bad JWT, not found, revoked, expired, user mismatch), `device_mismatch` (specific), `credential_refresh_failed` (Entra-side failures).
 - **Key files added**: `BiometricExchangeRequest.cs`.
@@ -1772,3 +1778,11 @@ Implemented member dashboard for managing multiple workflow instances:
 - The `SIGILL` during `java.lang.System.registerNatives()` on `linux-aarch64` Keycloak containers running under Docker Desktop on Apple M4 is not a Prism realm-import problem; it is the known OpenJDK 21 SVE startup bug. The exact workaround from upstream reports is `-XX:UseSVE=0`.
 - Bumping from `quay.io/keycloak/keycloak:26.0.0` was not a reliable repo-only fix on this machine class; direct `docker run` checks still crashed on newer ARM64 Keycloak images until `JAVA_OPTS_APPEND=-XX:UseSVE=0` was set.
 - Best repo fit is to apply the workaround only when the AppHost is running on macOS ARM64, keeping Intel/Linux behavior unchanged while restoring native ARM64 Keycloak startup without forcing `linux/amd64` emulation.
+## Learnings & Handoff (2026-04-12, Keycloak localhost redirect_uri)
+
+- Although Keycloak 26 accepts `http://localhost:*` and `https://localhost:*` wildcard patterns during client JSON import, live authorize requests fail with `PRISM-DEV: Invalid parameter: redirect_uri` because the wildcard matching is not applied at redirect URI validation time.
+- Traced live authorize flow in the TestSite sign-in flow using network inspection to confirm Prism sends the expected exact localhost redirect URIs but Keycloak rejects them due to the wildcard-only config.
+- Resolution: Updated `keycloak/realm-export.json` to pin redirect URIs and web origins to exact TestSite launchSettings URLs. After importing the corrected client, Keycloak accepts sign-in without issues.
+- Standing convention: When local OIDC clients target the TestSite, keep Keycloak redirect URIs synchronized with exact launchSettings URLs. If TestSite ports change, update both `keycloak/realm-export.json` and documentation.
+- Decision recorded in `.squad/decisions.md` with standing effect guidance.
+
