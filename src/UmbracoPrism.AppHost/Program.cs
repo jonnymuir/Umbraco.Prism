@@ -15,7 +15,7 @@ var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26
     .WithEnvironment("KC_HEALTH_ENABLED", "true")
     .WithEnvironment("KC_METRICS_ENABLED", "true")
     .WithBindMount("../../keycloak", "/opt/keycloak/data/import")
-    .WithArgs("start-dev", "--import-realm", "--proxy-headers", "xforwarded", "--server-async-bootstrap=false");
+    .WithArgs("start-dev", "--import-realm", "--proxy-headers", "xforwarded");
 
 if (needsKeycloakSveWorkaround)
 {

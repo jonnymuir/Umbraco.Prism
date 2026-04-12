@@ -179,6 +179,9 @@
 - 2026-03-28 (PrismAuth downstream hardening): `PrismAuthExtensions` key resolution now mirrors the OIDC runtime pattern: snapshot read first, background warm trigger when `ShouldRefresh`, and strict fail-closed return when cache is expired or requested `kid` is missing.
 - 2026-03-28 (PrismAuth downstream hardening): `AddPrismAuthentication` now configures JWT options via DI (`Configure<IPrismSigningKeyCache>`) so resolver logic can stay cache-only and avoid sync request-thread metadata I/O.
 - 2026-03-28 (PrismAuth downstream hardening): Non-blocking behavior is testable by using a never-completing warm task and asserting resolver return timing + key return correctness on cached snapshot paths.
+- 2026-04-12 (localhost Keycloak cookie flow): WebKit/Safari drops Keycloak’s `Secure; SameSite=None` auth cookies when the browser-facing IdP URL is plain `http://localhost`, which reproduces as Keycloak’s “Cookie not found” error after credential submit.
+- 2026-04-12 (localhost Keycloak cookie flow): The repo’s local fix path is to keep Keycloak itself on HTTP inside the container, but front it with Aspire’s HTTPS endpoint and seed TestSite from `KEYCLOAK_URL` so browser redirects use HTTPS while backchannel routing still hits the same container.
+- 2026-04-12 (localhost Keycloak cookie flow): `src/UmbracoPrism.AppHost/Program.cs` must keep `--proxy-headers xforwarded` for Keycloak so proxied HTTPS requests generate HTTPS-facing OIDC URLs, but Keycloak `26.0.0` does not support the newer `--server-async-bootstrap` flag.
 
 ## Learnings
 

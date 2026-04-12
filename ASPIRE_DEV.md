@@ -90,7 +90,6 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 - Check the Aspire dashboard for Keycloak logs
 - Verify the realm export path is correct: `../../keycloak/realm-export.json` (relative to AppHost project)
 - On Apple Silicon Macs, the AppHost now adds `JAVA_OPTS_APPEND=-XX:UseSVE=0` for the Keycloak container to avoid the known OpenJDK 21 `SIGILL` crash during JVM startup on affected ARM64 Docker environments
-- The AppHost now starts Keycloak with `--server-async-bootstrap=false` so the browser only lands on a ready instance instead of a page that needs a manual refresh
 
 **TestSite can't reach Keycloak:**
 - Ensure the `OidcAuthority` uses the AppHost-provided `KEYCLOAK_URL` (defaults to `https://localhost:8443` under Aspire, or `http://localhost:8080` when running TestSite standalone)
