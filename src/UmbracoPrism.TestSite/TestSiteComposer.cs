@@ -18,6 +18,9 @@ public class TestSiteComposer : IComposer
         // Mobile navigation demo
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, MobileNavSchemaSetup>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, DemoMobileNavSeeder>();
+
+        // Localhost tenant (Keycloak) — dev only, idempotent
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, DemoTenantSeeder>();
         
         // Vinyl Vault demo (Phase 2: Notifications)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultContentTypes>();
