@@ -9,46 +9,12 @@
             "cwd": "${workspaceFolder}/src/UmbracoPrism.Client"
         },
         {
-            "name": "C#: Prism Test Debug",
-            "type": "dotnet",
-            "request": "launch",
-            "preLaunchTask": "Client: build",
-            "projectPath": "${workspaceFolder}/src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj"
-        },
-        {
-            "name": "C#: Mock Business App Debug",
-            "type": "dotnet",
-            "request": "launch",
-            "preLaunchTask": "dotnet: build Core",
-            "projectPath": "${workspaceFolder}/src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj"
-        },
-        {
-            "name": "C#: Aspire (TestSite + Keycloak)",
+            "name": "C#: Aspire (Full Stack)",
             "type": "dotnet",
             "request": "launch",
             "preLaunchTask": "Client: build",
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj",
             "launchUrl": "https://localhost:17214"
-        }
-    ],
-    "compounds": [
-        {
-            "name": "C#: Full Prism Stack (Both)",
-            "configurations": [
-                "C#: Prism Test Debug",
-                "C#: Mock Business App Debug"
-            ],
-            "stopAll": true,
-            "dependsOrder": "sequence"
-        },
-        {
-            "name": "C#: Aspire + Business App",
-            "configurations": [
-                "C#: Aspire (TestSite + Keycloak)",
-                "C#: Mock Business App Debug"
-            ],
-            "stopAll": true,
-            "dependsOrder": "parallel"
         }
     ]
 }

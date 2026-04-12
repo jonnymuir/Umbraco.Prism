@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\UmbracoPrism.ServiceDefaults\UmbracoPrism.ServiceDefaults.csproj" />
     <ProjectReference Include="..\UmbracoPrism.TestSite\UmbracoPrism.TestSite.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.MockBusinessApp\UmbracoPrism.MockBusinessApp.csproj" />
   </ItemGroup>
 
 </Project>

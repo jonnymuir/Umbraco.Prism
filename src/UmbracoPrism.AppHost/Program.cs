@@ -15,4 +15,7 @@ builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.c
     .WithEnvironment("KEYCLOAK_URL", () => $"http://{keycloak.Resource.Name}:8080")
     .WaitFor(keycloak);
 
+// Add MockBusinessApp — runs alongside TestSite for the full dev stack
+builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj");
+
 builder.Build().Run();
