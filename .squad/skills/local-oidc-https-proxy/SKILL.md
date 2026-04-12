@@ -1,6 +1,6 @@
 ---
 name: "local-oidc-https-proxy"
-description: "Fix localhost OIDC sign-in failures caused by secure cookie policy and mixed app/IdP schemes"
+description: "Require real TLS for localhost OIDC IdP routes; Aspire endpoint naming alone is not enough"
 domain: "authentication"
 confidence: "high"
 source: "earned"
@@ -12,19 +12,25 @@ tools:
 
 ## Context
 
-Use this pattern when a local app runs on HTTPS but its OIDC provider is exposed to the browser on plain HTTP. Modern browsers, especially Safari/WebKit, can drop or refuse to send IdP auth-session cookies when the provider emits `Secure; SameSite=None` cookies on an HTTP origin, which often appears as an IdP-side `cookie not found` or restart-loop error after the login form submits.
+Use this pattern when a local app runs on HTTPS and you want the browser-facing OIDC provider route to be HTTPS as well. Modern browsers, especially Safari/WebKit, can drop or refuse to send IdP auth-session cookies when the provider emits `Secure; SameSite=None` cookies on an HTTP origin, which often appears as an IdP-side `cookie not found` or restart-loop error after the login form submits. In Aspire, do not assume `WithHttpsEndpoint(...)` on an HTTP-only container gives you real TLS.
 
 ## Patterns
 
 ### Prefer HTTPS for the browser-facing IdP origin
 
 - Keep browser navigations to the IdP on HTTPS even in local development.
-- If the IdP itself only listens on HTTP inside orchestration, front it with a local HTTPS proxy/endpoint instead of downgrading cookie policy.
+- If the IdP itself only listens on HTTP inside orchestration, front it with a real local HTTPS reverse proxy or enable the IdP's native TLS instead of downgrading cookie policy.
+
+### Verify transport, not just endpoint names
+
+- Probe the advertised HTTPS route with `curl`/`openssl` before trusting it.
+- In this repo, `WithHttpsEndpoint(port: 8443, targetPort: 8080)` on Keycloak's HTTP `start-dev` container exposed plain HTTP on port 8443, not TLS.
+- Treat Aspire endpoint scheme metadata and browser-usable TLS as separate concerns.
 
 ### Preserve external scheme awareness
 
 - When a proxy fronts the IdP, enable forwarded-header handling so the IdP builds issuer, login action, and cookie behavior from the external HTTPS scheme rather than the internal HTTP hop.
-- For Keycloak in this repo, that means passing `--proxy-headers xforwarded` when AppHost fronts the container.
+- For Keycloak in this repo, that means passing `--proxy-headers xforwarded` when a real HTTPS proxy fronts the container.
 
 ### Keep app config aligned with the browser origin
 
@@ -33,17 +39,17 @@ Use this pattern when a local app runs on HTTPS but its OIDC provider is exposed
 
 ### Keep HTTP only for direct/internal use
 
-- If an internal HTTP endpoint still exists for diagnostics or non-browser access, document it as non-browser/internal only.
-- Browser auth should consistently use the HTTPS entry point.
+- If only HTTP is actually available, document it honestly and seed `KEYCLOAK_URL` from the HTTP endpoint rather than a fake HTTPS origin.
+- Browser auth should only use HTTPS once a real TLS listener exists.
 
 ## Examples
 
-- `src/UmbracoPrism.AppHost/Program.cs` exposes Keycloak on HTTPS `8443`, keeps HTTP `8080` for direct access, and enables `--proxy-headers xforwarded`.
+- `src/UmbracoPrism.AppHost/Program.cs` now seeds `KEYCLOAK_URL` from Keycloak's real HTTP endpoint because the previous fake HTTPS route was not TLS-capable.
 - `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` builds `OidcAuthority` from `KEYCLOAK_URL` with a fallback to standalone `http://localhost:8080`.
-- `ASPIRE_DEV.md` documents `https://localhost:8443` as the browser sign-in route.
+- `ASPIRE_DEV.md` documents the current HTTP-only limitation and the need for a real TLS proxy for Safari/WebKit-friendly browser auth.
 
 ## Anti-Patterns
 
-- **Weakening realm security for browser HTTP** — changing the IdP to accommodate insecure browser traffic is a larger blast-radius change than adding a local HTTPS front door.
+- **Assuming `WithHttpsEndpoint(...)` means real browser TLS** — on an HTTP-only container, Aspire can still expose plain HTTP behind an `https` endpoint label.
 - **Hardcoding the internal container origin** — this creates issuer/base-url drift between the browser route and the app's configured authority.
-- **Ignoring forwarded headers** — the IdP may continue emitting HTTP-based action URLs or cookie policy even when the browser entered over HTTPS.
+- **Ignoring transport verification** — if `curl https://...` fails but `curl http://...` succeeds on the same port, you do not have a usable HTTPS route yet.

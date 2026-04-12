@@ -1601,3 +1601,21 @@ builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.c
 **Outcome:** Aspire now parses the correct `applicationUrl` from the `Umbraco.Web.UI` profile. TestSite advertises its URL in the dashboard on restart.
 
 **Standing Effect:** When Umbraco-based projects in this repo use nonstandard launch profile names, AppHost should select them explicitly rather than relying on Aspire's default launch-profile matching.
+
+---
+
+## Session: 2026-04-12 — Keycloak HTTPS Exposure Check
+**Status:** Completed  
+**Build outcome:** Success.
+
+**Problem:** Local docs and AppHost wiring advertised `https://localhost:8443` for Keycloak, but Safari could not open it.
+
+**Root Cause:** `src/UmbracoPrism.AppHost/Program.cs` used `WithHttpsEndpoint(port: 8443, targetPort: 8080)` against Keycloak's HTTP-only `start-dev` listener. Aspire/DCP exposed a host port on 8443, but it served plain HTTP, not TLS. That made `KEYCLOAK_URL=https://localhost:8443` misleading and unusable.
+
+**Solution:** Removed the fake HTTPS endpoint, pinned `KEYCLOAK_URL` to the real host HTTP route (`http://localhost:8080`), and updated local-dev docs to explain that real browser HTTPS requires a cert-backed reverse proxy or Keycloak native HTTPS.
+
+**Outcome:** AppHost no longer injects a broken HTTPS authority into TestSite. The repo now documents the exact limitation instead of implying that Safari trust was the blocker.
+
+## Learnings
+
+- **Aspire container endpoint naming is not TLS termination.** On this repo's Keycloak `start-dev` container, `WithHttpsEndpoint(port: 8443, targetPort: 8080)` created a host listener that still served plain HTTP. Verify local "HTTPS" IdP routes with `curl`/`openssl` before seeding browser-facing authorities from them.

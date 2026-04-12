@@ -20,7 +20,7 @@ In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for 
 
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)
-- **Keycloak** at `https://localhost:8443` for browser sign-in and `http://localhost:8080` for direct HTTP access (OIDC provider)
+- **Keycloak** at `http://localhost:8080` (OIDC provider)
 - **TestSite** at `https://localhost:44345` and `http://localhost:9250`
 
 ## What Gets Configured
@@ -32,7 +32,8 @@ This launches:
 - **Keycloak admin:** `admin` / `admin`
 
 The realm configuration is imported from `keycloak/realm-export.json`.
-AppHost fronts Keycloak with an Aspire HTTPS proxy so Safari/WebKit can keep the auth-session cookies that Keycloak marks `Secure; SameSite=None`.
+The AppHost exposes Keycloak on host HTTP only. Aspire's `WithHttpsEndpoint(...)` annotation does not create a real TLS listener for this HTTP-only container, so `https://localhost:8443` is not a usable browser route in the current repo state.
+If you need Safari/WebKit-safe browser HTTPS locally, add a real cert-backed reverse proxy (for example Caddy, nginx, or Traefik) or enable Keycloak native HTTPS with a trusted localhost certificate.
 For localhost auth, the Keycloak client is pinned to those two TestSite URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
 
 ## Localhost Tenant (Auto-Seeded)
@@ -92,7 +93,8 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 - On Apple Silicon Macs, the AppHost now adds `JAVA_OPTS_APPEND=-XX:UseSVE=0` for the Keycloak container to avoid the known OpenJDK 21 `SIGILL` crash during JVM startup on affected ARM64 Docker environments
 
 **TestSite can't reach Keycloak:**
-- Ensure the `OidcAuthority` uses the AppHost-provided `KEYCLOAK_URL` (defaults to `https://localhost:8443` under Aspire, or `http://localhost:8080` when running TestSite standalone)
+- Ensure the `OidcAuthority` uses the AppHost-provided `KEYCLOAK_URL` (currently `http://localhost:8080` under Aspire, or `http://localhost:8080` when running TestSite standalone)
+- If you need a browser-usable HTTPS IdP origin, the repo needs a real TLS proxy or Keycloak native HTTPS; the AppHost alone does not provide that.
 - If Keycloak shows `Invalid parameter: redirect_uri`, recreate the local Keycloak realm/container so it re-imports the exact localhost redirect URIs from `keycloak/realm-export.json`
 
 **Token validation fails:**
