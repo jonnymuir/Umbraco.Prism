@@ -21,6 +21,14 @@
             "request": "launch",
             "preLaunchTask": "dotnet: build Core",
             "projectPath": "${workspaceFolder}/src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj"
+        },
+        {
+            "name": "C#: Aspire (TestSite + Keycloak)",
+            "type": "dotnet",
+            "request": "launch",
+            "preLaunchTask": "Client: build",
+            "projectPath": "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj",
+            "launchUrl": "https://localhost:17214"
         }
     ],
     "compounds": [
@@ -32,6 +40,15 @@
             ],
             "stopAll": true,
             "dependsOrder": "sequence"
+        },
+        {
+            "name": "C#: Aspire + Business App",
+            "configurations": [
+                "C#: Aspire (TestSite + Keycloak)",
+                "C#: Mock Business App Debug"
+            ],
+            "stopAll": true,
+            "dependsOrder": "parallel"
         }
     ]
 }
