@@ -4,6 +4,31 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-04-12: Aspire TestSite launch profile selection (Brewster)
+
+**Session Log:** `.squad/log/2026-04-12T07:12:41Z-testsite-url.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/brewster-testsite-url.md`
+
+### Brewster — Aspire TestSite launch profile selection
+
+**Context:** `UmbracoPrism.AppHost` launches `UmbracoPrism.TestSite` through Aspire. The AppHost runs under the `https` launch profile, and Aspire tries to use a service launch profile with the same name before falling back to the first profile in the service's `launchSettings.json`.
+
+`UmbracoPrism.TestSite` came from the Umbraco template and its project launch profile is named `Umbraco.Web.UI`, while the first profile is `IIS Express`. That meant Aspire did not pick the profile containing the TestSite `applicationUrl`, so the dashboard showed the resource as running without an advertised URL.
+
+**Decision:** Pin the TestSite launch profile explicitly in AppHost:
+
+```csharp
+builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
+```
+
+**Why:** Keeps the Umbraco project's own launch settings intact. Makes Aspire parse the correct `applicationUrl` values for the TestSite. Produces predictable dashboard behavior even though the Umbraco template does not use Aspire's conventional `https` profile name.
+
+**Standing Effect:** When an Umbraco-based project in this repo uses a nonstandard launch profile name, AppHost should select it explicitly rather than relying on Aspire's default launch-profile matching.
+
+---
+
 ## 📌 2026-03-22: trycloudflare Redirect URI Rotation Safety (Blathers)
 
 **Session Log:** `.squad/log/2026-03-22-trycloudflare-uri-rotation-and-az-login.md`

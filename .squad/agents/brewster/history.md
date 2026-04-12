@@ -36,6 +36,7 @@
 - **MockBackOffice extension pattern:** MockBackOffice is designed to be extensible for demo scenarios. New API surfaces follow the pattern: controller under `Controllers/`, service interfaces + implementations, DI registration in `Program.cs`, and configuration shape in `appsettings.json` under `PrismMockBackOffice:{Feature}`. RuntimeMode toggles allow switching between in-memory emulation and Core runtime proxying.
 - **Workflow emulator governance:** Emulator-only extensions (operator personas, auto-assignment, fast-forward) MUST be namespaced under `UmbracoPrism.MockBackOffice.Workflow.*` and never leak into Core runtime contracts. Security guards always execute in Core runtime, even when initiated from emulator UI. Shared contracts live in `UmbracoPrism.Core.Workflow.Contracts`.
 - **TestSite demo pages:** For complex interactive demos (e.g., workflow forms engine), create a dedicated document type with route-hijacking controller + Razor view. Properties drive configuration (e.g., workflow key, completion redirect). Member authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` on controller. Seed demo content via startup notification handler pattern (same as VinylVaultSeeder, DemoMobileNavSeeder).
+- **Aspire launch profile matching matters for UmbracoPrism.TestSite.** The AppHost launches projects by matching the AppHost profile name first (`https` here). Because TestSite only exposed `IIS Express` and `Umbraco.Web.UI`, Aspire missed its `applicationUrl` endpoints until `AddProject(..., launchProfileName: "Umbraco.Web.UI")` was specified explicitly.
 
 ---
 
@@ -1578,3 +1579,24 @@ The "Get in Touch" workflow demo is now fully functional and polished:
 **No BA engine changes needed:** The FieldFile record and mapping in BusinessAppWorkflowEngine already included ConditionalOn/VisibleWhen properties (lines 105-107 in WorkflowDefinitionFile.cs, lines 381-382 in BusinessAppWorkflowEngine.cs).
 
 **Build status:** Existing unrelated errors for WorkflowInstanceListEnvelope — not introduced by this work.
+
+
+---
+
+## Session: 2026-04-12 — Aspire TestSite Launch Profile Selection
+**Status:** Completed  
+**Build outcome:** Success.
+
+**Problem:** UmbracoPrism.TestSite was launched by AppHost through Aspire but the Aspire dashboard showed the resource running without an advertised URL, preventing navigation to the site.
+
+**Root Cause:** Aspire matches service launch profiles by name with the host profile by default. AppHost runs under the `https` profile, so Aspire looks for a `https` profile in TestSite's launchSettings.json. TestSite (sourced from Umbraco template) uses `Umbraco.Web.UI`, not `https`. When no name match is found, Aspire falls back to the first profile (`IIS Express`), which lacks the `applicationUrl` that advertises the site in the dashboard.
+
+**Solution:** Pinned TestSite launch profile explicitly in src/UmbracoPrism.AppHost/Program.cs:
+
+```csharp
+builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
+```
+
+**Outcome:** Aspire now parses the correct `applicationUrl` from the `Umbraco.Web.UI` profile. TestSite advertises its URL in the dashboard on restart.
+
+**Standing Effect:** When Umbraco-based projects in this repo use nonstandard launch profile names, AppHost should select them explicitly rather than relying on Aspire's default launch-profile matching.
