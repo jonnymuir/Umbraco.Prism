@@ -31,10 +31,10 @@ dotnet run --project src/UmbracoPrism.AppHost
 ```
 
 Then:
-1. Open Aspire dashboard at `https://localhost:17214`
-2. Find the TestSite URL and click it
-3. Log in with `demo@prism.local` / `password`
-4. See the localhost tenant auto-configured (no manual setup)
+1. Open the Aspire dashboard at `https://localhost:17214`
+2. Click the TestSite URL → log in with `demo@prism.local` / `password`
+3. Browse **My Workflows** to see the demo workflow in action
+4. The MockBusinessApp runs alongside — it accepts the same demo credentials and powers the workflow engine
 
 **Optional:** Explore the Keycloak admin at `http://localhost:8080/admin` (`admin` / `admin`).
 

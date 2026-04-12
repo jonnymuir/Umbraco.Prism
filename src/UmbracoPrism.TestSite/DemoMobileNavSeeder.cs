@@ -32,6 +32,7 @@ public class DemoMobileNavSeeder(
     private static readonly Guid MediaFolderKey = new("b5c6d7e8-f9a0-1234-efab-345678901234");
     private static readonly Guid HomeElementKey = new("f3a4b5c6-d7e8-4012-cdef-123456789012");
     private static readonly Guid DashElementKey = new("a4b5c6d7-e8f9-4123-defa-234567890123");
+    private static readonly Guid WorkflowsElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
 
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
@@ -48,6 +49,12 @@ public class DemoMobileNavSeeder(
     private const string DashboardSvg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/>
+        </svg>
+        """;
+
+    private const string WorkflowsSvg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
         </svg>
         """;
 
@@ -85,25 +92,28 @@ public class DemoMobileNavSeeder(
         var folderId = EnsureIconsFolder();
         var homeKey = EnsureIconMedia("Nav Icon - Home",      folderId, "home.svg");
         var dashKey = EnsureIconMedia("Nav Icon - Dashboard", folderId, "dashboard.svg");
+        var workflowsKey = EnsureIconMedia("Nav Icon - Workflows", folderId, "workflows.svg");
 
         var existing = settings.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing))
         {
-            // Only skip if already populated with a v14+ block list that includes the expose array.
-            // Without "expose", blocks show as draft. Replace any content missing it.
+            // Only skip if already populated with a v14+ block list that includes the expose array
+            // AND all three expected nav items (home, dashboard, my-workflows).
             bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
                                && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal)
                                && existing.Contains("\"expose\":", StringComparison.Ordinal);
-            if (isV14BlockList)
+            bool hasWorkflowsItem = existing.Contains("/my-workflows", StringComparison.Ordinal);
+
+            if (isV14BlockList && hasWorkflowsItem)
             {
                 logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
                 return Task.CompletedTask;
             }
 
-            logger.LogInformation("DEMO SEEDER: Replacing non-block-list or old-format mobileNavLinks value with v14+ block list.");
+            logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks (missing workflows item or old format).");
         }
 
-        var blockListJson = BuildBlockListJson(homeKey, dashKey);
+        var blockListJson = BuildBlockListJson(homeKey, dashKey, workflowsKey);
 
         settings.SetValue("mobileNavLinks", blockListJson);
         contentService.Save(settings, null, null!);
@@ -111,7 +121,7 @@ public class DemoMobileNavSeeder(
         contentService.Publish(settings, Array.Empty<string>(), Constants.Security.SuperUserId);
 #pragma warning restore CS0618
 
-        logger.LogInformation("DEMO SEEDER: Seeded mobile nav with Home and Dashboard items.");
+        logger.LogInformation("DEMO SEEDER: Seeded mobile nav with Home, Dashboard, and My Workflows items.");
         return Task.CompletedTask;
     }
 
@@ -123,8 +133,11 @@ public class DemoMobileNavSeeder(
         var homePath = Path.Combine(iconDir, "home.svg");
         var dashPath = Path.Combine(iconDir, "dashboard.svg");
 
-        if (!System.IO.File.Exists(homePath))  System.IO.File.WriteAllText(homePath,  HomeSvg,      Encoding.UTF8);
-        if (!System.IO.File.Exists(dashPath))  System.IO.File.WriteAllText(dashPath,  DashboardSvg, Encoding.UTF8);
+        if (!System.IO.File.Exists(homePath))  System.IO.File.WriteAllText(homePath,  HomeSvg,       Encoding.UTF8);
+        if (!System.IO.File.Exists(dashPath))  System.IO.File.WriteAllText(dashPath,  DashboardSvg,  Encoding.UTF8);
+
+        var workflowsPath = Path.Combine(iconDir, "workflows.svg");
+        if (!System.IO.File.Exists(workflowsPath)) System.IO.File.WriteAllText(workflowsPath, WorkflowsSvg, Encoding.UTF8);
 
         logger.LogDebug("DEMO SEEDER: SVG icon files written to {Path}.", iconDir);
     }
@@ -226,10 +239,11 @@ public class DemoMobileNavSeeder(
     /// instead of flat properties. This allows the backoffice label template (e.g. <c>{{ navLabel }}</c>)
     /// to resolve correctly, since the TypeScript interpolation reads from the <c>values</c> array.
     /// </summary>
-    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey)
+    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? workflowsMediaKey)
     {
-        var homeKey = HomeElementKey.ToString();
-        var dashKey = DashElementKey.ToString();
+        var homeKey      = HomeElementKey.ToString();
+        var dashKey      = DashElementKey.ToString();
+        var workflowsKey = WorkflowsElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -237,19 +251,20 @@ public class DemoMobileNavSeeder(
             {
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
-                    new JsonObject { ["contentKey"] = dashKey }
+                    new JsonObject { ["contentKey"] = dashKey },
+                    new JsonObject { ["contentKey"] = workflowsKey }
                 )
             },
             ["contentData"] = new JsonArray(
-                BuildBlockItem(homeKey, "Home",      "/",          homeMediaKey),
-                BuildBlockItem(dashKey, "Dashboard", "/dashboard", dashMediaKey)
+                BuildBlockItem(homeKey,      "Home",         "/",             homeMediaKey),
+                BuildBlockItem(dashKey,      "Dashboard",    "/dashboard",    dashMediaKey),
+                BuildBlockItem(workflowsKey, "My Workflows", "/my-workflows", workflowsMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
-            // expose array: Umbraco v14+ requires an entry per block per culture/segment to mark
-            // the block as "created for this variant". Without it every block shows as draft.
             ["expose"] = new JsonArray(
-                new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = dashKey, ["culture"] = null, ["segment"] = null }
+                new JsonObject { ["contentKey"] = homeKey,      ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = dashKey,      ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null }
             )
         };
 

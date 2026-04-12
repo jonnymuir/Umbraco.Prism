@@ -155,6 +155,158 @@ public class PrismAuthExtensionsSecurityTests
         warmGate.TrySetResult();
     }
 
+    [Fact]
+    public void IssuerValidator_AcceptsOidcIssuer_WhenMatchesConfiguredOidcAuthority()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+
+        var result = options.TokenValidationParameters.IssuerValidator!(
+            "http://localhost:8080/realms/prism-dev",
+            token,
+            options.TokenValidationParameters);
+
+        result.Should().Be("http://localhost:8080/realms/prism-dev");
+    }
+
+    [Fact]
+    public void IssuerValidator_RejectsOidcIssuer_WhenNoMatchingOidcAuthority()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcToken("http://evil.example/realms/evil");
+
+        var act = () => options.TokenValidationParameters.IssuerValidator!(
+            "http://evil.example/realms/evil",
+            token,
+            options.TokenValidationParameters);
+
+        act.Should().Throw<SecurityTokenInvalidIssuerException>();
+    }
+
+    [Fact]
+    public void AudienceValidator_AcceptsOidcAudience_WhenMatchesConfiguredClientId()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+
+        var accepted = options.TokenValidationParameters.AudienceValidator!(
+            ["prism-client"],
+            token,
+            options.TokenValidationParameters);
+
+        accepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AudienceValidator_RejectsOidcAudience_WhenClientIdMismatch()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+
+        var accepted = options.TokenValidationParameters.AudienceValidator!(
+            ["wrong-client"],
+            token,
+            options.TokenValidationParameters);
+
+        accepted.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ResolveSigningKeys_ResolvesKeys_ForOidcTenant()
+    {
+        var signingKey = CreateSigningKey("oidc-key");
+        var cache = new Mock<IPrismSigningKeyCache>();
+        cache
+            .Setup(c => c.GetSnapshot("http://localhost:8080/realms/prism-dev", "oidc-key"))
+            .Returns(new PrismSigningKeyCacheSnapshot([signingKey], false, false, true));
+
+        var keys = PrismAuthExtensions.ResolveSigningKeys(
+            null,
+            "oidc-key",
+            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", "http://localhost:8080/realms/prism-dev")],
+            cache.Object,
+            "http://localhost:8080/realms/prism-dev")
+            .ToArray();
+
+        keys.Should().ContainSingle().Which.KeyId.Should().Be("oidc-key");
+        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void ResolveSigningKeys_FetchesOidcKeys_WhenCacheCold()
+    {
+        var signingKey = CreateSigningKey("oidc-key");
+        var cache = new Mock<IPrismSigningKeyCache>();
+        cache
+            .SetupSequence(c => c.GetSnapshot("http://localhost:8080/realms/prism-dev", "oidc-key"))
+            .Returns(new PrismSigningKeyCacheSnapshot([], true, true, false))
+            .Returns(new PrismSigningKeyCacheSnapshot([signingKey], false, false, true));
+
+        var keys = PrismAuthExtensions.ResolveSigningKeys(
+            null,
+            "oidc-key",
+            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", "http://localhost:8080/realms/prism-dev")],
+            cache.Object,
+            "http://localhost:8080/realms/prism-dev")
+            .ToArray();
+
+        keys.Should().ContainSingle().Which.KeyId.Should().Be("oidc-key");
+        cache.Verify(c => c.WarmAsync(
+            "http://localhost:8080/realms/prism-dev",
+            "http://localhost:8080/realms/prism-dev/.well-known/openid-configuration",
+            true,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void ResolveSigningKeys_ReturnsEmpty_WhenNoOidcTenantMatchesIssuer()
+    {
+        var cache = new Mock<IPrismSigningKeyCache>();
+
+        var keys = PrismAuthExtensions.ResolveSigningKeys(
+            null,
+            "oidc-key",
+            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", "http://localhost:8080/realms/prism-dev")],
+            cache.Object,
+            "http://evil.example/realms/evil")
+            .ToArray();
+
+        keys.Should().BeEmpty();
+        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static JwtBearerOptions BuildJwtOptions(IReadOnlyDictionary<string, string?> values)
     {
         var configuration = new ConfigurationBuilder()
@@ -174,6 +326,9 @@ public class PrismAuthExtensionsSecurityTests
         var claims = new[] { new Claim("tid", tenantId) };
         return new JwtSecurityToken(claims: claims);
     }
+
+    private static JwtSecurityToken CreateOidcToken(string issuer)
+        => new JwtSecurityToken(issuer: issuer);
 
     private static SecurityKey CreateSigningKey(string keyId)
     {
@@ -267,6 +422,9 @@ public class PrismAuthExtensionsSecurityTests
         public Task WarmAsync(string entraTenantId, bool forceRefresh = false, CancellationToken cancellationToken = default)
             => warmAsync(entraTenantId, forceRefresh, cancellationToken);
 
+        public Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, CancellationToken cancellationToken = default)
+            => warmAsync(tenantKey, forceRefresh, cancellationToken);
+
         public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)
             => snapshot;
 
@@ -298,6 +456,9 @@ public class PrismAuthExtensionsSecurityTests
                 _lock.Release();
             }
         }
+
+        public Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, CancellationToken cancellationToken = default)
+            => WarmAsync(tenantKey, forceRefresh, cancellationToken);
 
         public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)
         {

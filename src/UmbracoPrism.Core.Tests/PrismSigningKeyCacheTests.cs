@@ -16,7 +16,7 @@ public class PrismSigningKeyCacheTests
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 3, 28, 12, 0, 0, TimeSpan.Zero));
         var httpClientFactory = new Mock<IHttpClientFactory>();
         var configuration = CreateConfiguration("key-a");
-        var cache = new PrismSigningKeyCache(httpClientFactory.Object, clock, (_, _) => new StubConfigurationManager(configuration));
+        var cache = new PrismSigningKeyCache(httpClientFactory.Object, clock, (_, _, _) => new StubConfigurationManager(configuration));
 
         await cache.WarmAsync("tenant-a");
 
@@ -47,7 +47,7 @@ public class PrismSigningKeyCacheTests
         var cache = new PrismSigningKeyCache(
             httpClientFactory.Object,
             TimeProvider.System,
-            (_, _) => new DelegateConfigurationManager(async cancel =>
+            (_, _, _) => new DelegateConfigurationManager(async cancel =>
             {
                 Interlocked.Increment(ref calls);
                 await release.Task.WaitAsync(cancel);
@@ -73,7 +73,7 @@ public class PrismSigningKeyCacheTests
         var cache = new PrismSigningKeyCache(
             httpClientFactory.Object,
             TimeProvider.System,
-            (_, metadataAddress) =>
+            (_, metadataAddress, _) =>
             {
                 var tenantId = metadataAddress.Split('/')[3];
                 return new StubConfigurationManager(CreateConfiguration($"{tenantId}-key"));
@@ -96,7 +96,7 @@ public class PrismSigningKeyCacheTests
         var cache = new PrismSigningKeyCache(
             httpClientFactory.Object,
             clock,
-            (_, _) => new DelegateConfigurationManager(_ =>
+            (_, _, _) => new DelegateConfigurationManager(_ =>
             {
                 Interlocked.Increment(ref calls);
                 return Task.FromResult(CreateConfiguration("shared-key"));
@@ -124,7 +124,7 @@ public class PrismSigningKeyCacheTests
         var cache = new PrismSigningKeyCache(
             httpClientFactory.Object,
             clock,
-            (_, metadataAddress) =>
+            (_, metadataAddress, _) =>
             {
                 var tenantId = metadataAddress.Split('/')[3];
                 callsByTenant.TryGetValue(tenantId, out var callCount);
@@ -147,6 +147,52 @@ public class PrismSigningKeyCacheTests
 
         callsByTenant["tenant-a"].Should().Be(2);
         callsByTenant["tenant-b"].Should().Be(2);
+    }
+
+    [Fact]
+    public async Task WarmAsync_WithMetadataAddress_UsesThatAddressDirectly()
+    {
+        var httpClientFactory = new Mock<IHttpClientFactory>();
+        string? capturedMetadataAddress = null;
+        bool? capturedRequireHttps = null;
+        var cache = new PrismSigningKeyCache(
+            httpClientFactory.Object,
+            TimeProvider.System,
+            (_, metadataAddress, requireHttps) =>
+            {
+                capturedMetadataAddress = metadataAddress;
+                capturedRequireHttps = requireHttps;
+                return new StubConfigurationManager(CreateConfiguration("oidc-key"));
+            });
+
+        await cache.WarmAsync(
+            "http://localhost:8080/realms/prism-dev",
+            "http://localhost:8080/realms/prism-dev/.well-known/openid-configuration");
+
+        capturedMetadataAddress.Should().Be("http://localhost:8080/realms/prism-dev/.well-known/openid-configuration");
+        capturedRequireHttps.Should().BeFalse("HTTP metadata URL should disable RequireHttps");
+        cache.GetSnapshot("http://localhost:8080/realms/prism-dev", "oidc-key").ContainsRequestedKey.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WarmAsync_WithMetadataAddress_RequiresHttps_ForHttpsUrl()
+    {
+        var httpClientFactory = new Mock<IHttpClientFactory>();
+        bool? capturedRequireHttps = null;
+        var cache = new PrismSigningKeyCache(
+            httpClientFactory.Object,
+            TimeProvider.System,
+            (_, _, requireHttps) =>
+            {
+                capturedRequireHttps = requireHttps;
+                return new StubConfigurationManager(CreateConfiguration("key"));
+            });
+
+        await cache.WarmAsync(
+            "https://example.com/realms/demo",
+            "https://example.com/realms/demo/.well-known/openid-configuration");
+
+        capturedRequireHttps.Should().BeTrue("HTTPS metadata URL should keep RequireHttps enabled");
     }
 
     private static OpenIdConnectConfiguration CreateConfiguration(string keyId)
