@@ -57,6 +57,9 @@ public class TenantManagementController(
             EntraTenantId = tenant.EntraTenantId,
             EntraClientId = tenant.EntraClientId,
             SecretKeyName = tenant.SecretKeyName,
+            OidcAuthority = tenant.OidcAuthority,
+            OidcClientId = tenant.OidcClientId,
+            OidcClientSecret = tenant.OidcClientSecret,
             BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides),
             MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides),
             MobileAppConfig = SerializeMobileAppConfig(tenant.MobileAppConfig),
@@ -93,6 +96,9 @@ public class TenantManagementController(
         existing.EntraTenantId = updatedTenant.EntraTenantId;
         existing.EntraClientId = updatedTenant.EntraClientId;
         existing.SecretKeyName = updatedTenant.SecretKeyName;
+        existing.OidcAuthority = updatedTenant.OidcAuthority;
+        existing.OidcClientId = updatedTenant.OidcClientId;
+        existing.OidcClientSecret = updatedTenant.OidcClientSecret;
         existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
         existing.MobileBrandingOverrides = SerializeBrandingOverrides(updatedTenant.MobileBrandingOverrides);
         existing.MobileAppConfig = SerializeMobileAppConfig(updatedTenant.MobileAppConfig);
