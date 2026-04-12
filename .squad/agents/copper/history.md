@@ -1043,6 +1043,25 @@ Push notification token registration, genre subscriptions, FCM delivery, tenant 
 **Security Verdict:** ✅ **PASS**  
 Feature is secure for production deployment with Key Vault for credentials. No cross-tenant leakage or credential exposure vectors found.
 
+---
+
+## 2026-04-12 — Local Keycloak cookie failure review
+
+**Requested by:** Jonny Muir  
+**Commit:** `ecbd448` (`fix(auth): route local Keycloak sign-in through HTTPS`)
+
+### Findings
+
+- The localhost failure matched a browser cookie-policy break, not a bad password or tenant-isolation defect.
+- Keycloak was being opened on plain HTTP while issuing auth-session cookies that browsers treat as `Secure; SameSite=None`; those cookies are unreliable over `http://localhost` and produced the Keycloak-side `Cookie not found` failure on the login POST.
+- The repo-level safe fix is to make the browser-facing Keycloak authority HTTPS and keep Keycloak aware of the forwarded scheme.
+
+### Repo patterns to remember
+
+- `src/UmbracoPrism.AppHost/Program.cs` is now the source of truth for local Keycloak browser routing: expose Keycloak on Aspire HTTPS (`8443`), pass `--proxy-headers xforwarded`, and keep `--server-async-bootstrap=false` so the browser only hits a ready instance.
+- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` must derive the localhost tenant `OidcAuthority` from `KEYCLOAK_URL` instead of hardcoding the internal HTTP origin, so TestSite and AppHost stay aligned on the same issuer/base URL.
+- `ASPIRE_DEV.md` documents the local auth convention: use `https://localhost:8443` for browser sign-in, keep `http://localhost:8080` only for direct/internal HTTP access.
+
 **Build & Test Status:**
 - `dotnet build UmbracoPrism.sln` → 0 errors
 - Security fixes applied: Token validation, rate limiting, credential sanitization, tenant scoping
