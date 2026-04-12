@@ -114,6 +114,9 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+- 2026-04-12: Jonny wants warning-free restore/build/test runs treated as a standing quality bar; warnings like `NU1603` are work to eliminate, not accepted baseline noise.
+- 2026-04-12: Project guidance for that policy now lives in `.squad/team.md`, `.squad/skills/project-conventions/SKILL.md`, and `.squad/decisions/inbox/tom-nook-warning-policy.md`.
+- 2026-04-12: The repo's `NU1603` warnings were caused by `src/UmbracoPrism.ServiceDefaults/UmbracoPrism.ServiceDefaults.csproj` pinning unavailable `OpenTelemetry.Instrumentation.AspNetCore` / `OpenTelemetry.Instrumentation.Http` version `1.11.2`; `1.12.0` is the current resolvable version.
 
 ### Biometric Auth Architecture (2026-07-14)
 

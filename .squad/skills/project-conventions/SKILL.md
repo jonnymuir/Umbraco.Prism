@@ -8,13 +8,15 @@ source: "template"
 
 ## Context
 
-> **This is a starter template.** Replace the placeholder patterns below with your actual project conventions. Skills train agents on codebase-specific practices — accurate documentation here improves agent output quality.
+Core conventions that repeatedly affect delivery quality in this repo.
 
 ## Patterns
 
-### [Pattern Name]
+### Warning-Free Builds
 
-Describe a key convention or practice used in this codebase. Be specific about what to do and why.
+- Treat restore, build, and test warnings as actionable work.
+- Do not normalize NuGet restore warnings such as `NU1603`; fix the package reference/version mismatch or document the exact blocker in squad decision artifacts.
+- Before handoff, run the existing solution build/test commands and record whether warnings were removed or deliberately deferred.
 
 ### Error Handling
 
@@ -25,10 +27,8 @@ Describe a key convention or practice used in this codebase. Be specific about w
 
 ### Testing
 
-<!-- Example: What test framework? Where do tests live? How to run them? -->
-<!-- - Test framework: Jest/Vitest/node:test/etc. -->
-<!-- - Test location: test/, __tests__/, *.test.ts, etc. -->
-<!-- - Run command: npm test, etc. -->
+- .NET validation runs through `dotnet build UmbracoPrism.sln` and `dotnet test UmbracoPrism.sln`.
+- Core automated tests currently live in `src/UmbracoPrism.Core.Tests`.
 
 ### Code Style
 
@@ -36,21 +36,20 @@ Describe a key convention or practice used in this codebase. Be specific about w
 <!-- - Linter: ESLint config? -->
 <!-- - Formatter: Prettier? -->
 <!-- - Naming: camelCase, snake_case, etc.? -->
+- Prefer small, surgical fixes that align with existing package and framework choices.
+- For dependency cleanup, update only the references required to remove the warning unless compatibility forces a broader upgrade.
 
 ### File Structure
 
-<!-- Example: How is the project organized? -->
-<!-- - src/ — Source code -->
-<!-- - test/ — Tests -->
-<!-- - docs/ — Documentation -->
+- `src/` contains the .NET projects, Aspire AppHost, service defaults, test site, and test suite.
+- `.squad/` contains team guidance, decisions, agent history, and reusable skills.
 
 ## Examples
 
-```
-// Add code examples that demonstrate your conventions
+```xml
+<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
 ```
 
 ## Anti-Patterns
 
-<!-- List things to avoid in this codebase -->
-- **[Anti-pattern]** — Explanation of what not to do and why.
+- **Ignoring restore/build warnings** — Warning debt hides real regressions and makes future upgrades harder to reason about.

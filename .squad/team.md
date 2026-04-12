@@ -31,3 +31,8 @@
 - **Universe:** Animal Crossing
 - **Stack:** .NET 10.0.x, Node.js 22.17.1, Web Components/Storybook, Playwright, XUnit
 - **User:** Jonny Muir
+
+## Quality Expectations
+
+- Aim for warning-free restore/build/test runs.
+- Treat compiler, analyzer, and NuGet warnings (including restore warnings like `NU1603`) as work to eliminate, not background noise.
