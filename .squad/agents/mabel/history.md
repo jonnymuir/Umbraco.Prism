@@ -968,3 +968,39 @@ Two comprehensive guides in `docs/guides/`:
 **Files Changed:** 10 markdown files + 1 charter file
 **Diagrams Converted:** 11 (flowchart, sequenceDiagram, graph TD)
 **Decision Document:** .squad/decisions/inbox/mabel-mermaid-standard.md
+
+
+---
+
+## 2025-04-01 — Demo Quickstart Documentation: Completed
+
+**Task:** Update README.md and ASPIRE_DEV.md to make press-play demo experience crystal clear for anyone cloning the repo.
+
+**Changes Made:**
+
+1. **README.md:**
+   - Added new "Try the Demo — No Azure Required" section (after tagline, before "What You Get")
+   - Clearly lists one-time prerequisites: Docker Desktop, `dotnet workload install aspire`, Node.js 20+, npm install
+   - Single command to start: `dotnet run --project src/UmbracoPrism.AppHost`
+   - Directs developer to Aspire dashboard at `https://localhost:17214` to find TestSite URL
+   - Shows demo login: `demo@prism.local` / `password`
+   - Notes localhost tenant is auto-configured (no manual setup)
+   - Mentions Keycloak admin optional exploration at `http://localhost:8080/admin` with hardcoded credentials
+   - Points to ASPIRE_DEV.md for detailed setup and troubleshooting
+   - Updated Prerequisites section to include Docker Desktop and .NET Aspire workload
+
+2. **ASPIRE_DEV.md:**
+   - Added "Prerequisites (One-Time Setup)" section at top with Docker Desktop, Aspire workload, Node.js 20+, and npm install
+   - Fixed "What Gets Configured" to show hardcoded Keycloak admin credentials: `admin` / `admin` (replaced incorrect "check logs" instruction)
+   - Replaced manual SQL-based "Localhost Tenant Setup" with concise "Localhost Tenant (Auto-Seeded)" that explains DemoTenantSeeder idempotency
+   - Removed outdated "Keycloak Admin" section (now covered in "What Gets Configured")
+   - Kept Architecture, Migration, and Troubleshooting sections unchanged
+
+**Impact:**
+- Developer can clone repo and run demo in <5 minutes with zero Azure/Entra setup
+- Credentials and port information upfront — no hunting through logs
+- Clear distinction between one-time setup and per-run steps
+- DemoTenantSeeder auto-configuration removed friction of manual database inserts
+- Quickstart flow before deep architecture docs improves onboarding experience
+
+**Files Changed:** 2 markdown files (README.md, ASPIRE_DEV.md)

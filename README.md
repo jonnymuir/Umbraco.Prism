@@ -15,6 +15,33 @@ Multi-tenant website branding and identity at runtime. Add a mobile app with one
 
 ---
 
+## Try the Demo — No Azure Required
+
+Get from clone to running in five minutes. No Azure account needed.
+
+**One-time setup:**
+- Docker Desktop running ([Download](https://www.docker.com/products/docker-desktop/))
+- `.NET Aspire workload:` `dotnet workload install aspire`
+- `Node.js 20+` ([Download](https://nodejs.org/))
+- Frontend dependencies: `cd src/UmbracoPrism.Client && npm install`
+
+**Start the full stack:**
+```bash
+dotnet run --project src/UmbracoPrism.AppHost
+```
+
+Then:
+1. Open Aspire dashboard at `https://localhost:17214`
+2. Find the TestSite URL and click it
+3. Log in with `demo@prism.local` / `password`
+4. See the localhost tenant auto-configured (no manual setup)
+
+**Optional:** Explore the Keycloak admin at `http://localhost:8080/admin` (`admin` / `admin`).
+
+> For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](ASPIRE_DEV.md).
+
+---
+
 ## What You Get
 
 ### Multi-Tenant Web — One Instance, Hundreds of Brands
@@ -194,6 +221,8 @@ In backoffice:
 
 - **.NET 10.0** ([Download](https://dotnet.microsoft.com/download))
 - **Node.js 20+** ([Download](https://nodejs.org/))
+- **Docker Desktop** — for local demo with Aspire ([Download](https://www.docker.com/products/docker-desktop/))
+- **.NET Aspire workload** — for local dev: `dotnet workload install aspire` (one-time)
 - **Azure Key Vault** (production) or local dev without vault (see setup guide)
 - **Entra ID** (for authentication)
 

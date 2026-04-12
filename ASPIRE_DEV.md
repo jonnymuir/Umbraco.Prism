@@ -2,6 +2,13 @@
 
 Press-play local development with Keycloak OIDC authentication.
 
+## Prerequisites (One-Time Setup)
+
+- **Docker Desktop** — must be running ([Download](https://www.docker.com/products/docker-desktop/))
+- **.NET Aspire workload:** `dotnet workload install aspire`
+- **Node.js 20+** — for frontend assets ([Download](https://nodejs.org/))
+- **Frontend dependencies:** `cd src/UmbracoPrism.Client && npm install`
+
 ## Quick Start
 
 ```bash
@@ -20,25 +27,13 @@ This launches:
 - **Client ID:** `prism-client`
 - **Client secret:** `prism-dev-secret`
 - **Demo user:** `demo@prism.local` / `password`
+- **Keycloak admin:** `admin` / `admin`
 
 The realm configuration is imported from `keycloak/realm-export.json`.
 
-## Localhost Tenant Setup
+## Localhost Tenant (Auto-Seeded)
 
-To use Keycloak for local auth, configure a tenant in your database:
-
-```sql
-INSERT INTO prismTenants 
-  (name, hostname, OidcAuthority, OidcClientId, OidcClientSecret)
-VALUES 
-  ('Local Dev', 
-   'localhost:5000',  -- adjust port to match TestSite
-   'http://localhost:8080/realms/prism-dev',
-   'prism-client',
-   'prism-dev-secret');
-```
-
-**Important:** Your existing Entra tenant (different hostname) is completely unaffected. The new `OidcAuthority`, `OidcClientId`, and `OidcClientSecret` columns are nullable and additive.
+When TestSite starts in Development mode, a `DemoTenantSeeder` automatically creates the localhost tenant pointing at Keycloak — no manual database setup required. The seeder is idempotent: if a localhost tenant already exists, it is left untouched.
 
 ## Entra Tenants (Existing Behavior)
 
@@ -79,14 +74,6 @@ else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
 ## Migration
 
 The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenants` table. It runs automatically on TestSite startup.
-
-## Keycloak Admin
-
-Access Keycloak admin console at `http://localhost:8080/admin`:
-- **Username:** `admin`
-- **Password:** Auto-generated (check Aspire dashboard logs for "Keycloak admin password")
-
-Or use the default admin credentials from the Keycloak container.
 
 ## Troubleshooting
 
