@@ -37,6 +37,7 @@
 - **Workflow emulator governance:** Emulator-only extensions (operator personas, auto-assignment, fast-forward) MUST be namespaced under `UmbracoPrism.MockBackOffice.Workflow.*` and never leak into Core runtime contracts. Security guards always execute in Core runtime, even when initiated from emulator UI. Shared contracts live in `UmbracoPrism.Core.Workflow.Contracts`.
 - **TestSite demo pages:** For complex interactive demos (e.g., workflow forms engine), create a dedicated document type with route-hijacking controller + Razor view. Properties drive configuration (e.g., workflow key, completion redirect). Member authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` on controller. Seed demo content via startup notification handler pattern (same as VinylVaultSeeder, DemoMobileNavSeeder).
 - **Aspire launch profile matching matters for UmbracoPrism.TestSite.** The AppHost launches projects by matching the AppHost profile name first (`https` here). Because TestSite only exposed `IIS Express` and `Umbraco.Web.UI`, Aspire missed its `applicationUrl` endpoints until `AddProject(..., launchProfileName: "Umbraco.Web.UI")` was specified explicitly.
+- **Aspire dashboard browser timing in VS Code:** For this repo's AppHost, the outer host logs `Now listening on:` before the dashboard process is fully ready. To avoid blank/half-ready dashboard loads, keep AppHost `launchBrowser` off and let VS Code open `https://localhost:17214` from a `coreclr` `serverReadyAction` keyed to `Distributed application started.`
 
 ---
 

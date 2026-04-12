@@ -26,6 +26,12 @@ Use this pattern when a repo includes an Aspire AppHost and developers launch it
 - If a VS Code Aspire `dotnet` launch configuration points at the AppHost and the AppHost launch profile already has `launchBrowser: true`, do not also set `launchUrl` in `.vscode/launch.json`.
 - Let the AppHost/browser launch flow open the dashboard when Aspire is actually ready, instead of having the editor open the URL immediately at debug start.
 
+### If AppHost still opens too early, move browser launch to VS Code
+
+- Aspire AppHost can log `Now listening on:` for the outer host before the dashboard process and resources are fully ready.
+- In that case, disable `launchBrowser` in the AppHost `launchSettings.json` and switch the VS Code launch to a `coreclr` configuration that opens the dashboard via `serverReadyAction`.
+- Match a later Aspire readiness log such as `Distributed application started.` and point `uriFormat` at the dashboard URL, so VS Code opens the page after orchestration has actually started.
+
 ### Put the guard in the launch path
 
 - Add a repo-owned preflight step in `.vscode/tasks.json`.
@@ -43,6 +49,7 @@ Use this pattern when a repo includes an Aspire AppHost and developers launch it
 - `scripts/validate-aspire-prereqs.mjs` checks `dotnet workload list` for `aspire` and verifies `docker info` succeeds.
 - `.vscode/tasks.json` defines `Aspire: validate prerequisites` plus a composite `Full Stack: prepare` task.
 - `.vscode/launch.json` uses `Full Stack: prepare` as the `preLaunchTask` for the AppHost configuration.
+- `.vscode/launch.json` can use `type: "coreclr"` plus `serverReadyAction` on `Distributed application started.` when the AppHost launch profile opens the dashboard too early.
 
 ## Anti-Patterns
 
@@ -50,3 +57,4 @@ Use this pattern when a repo includes an Aspire AppHost and developers launch it
 - **Relying on tribal knowledge** — requiring developers to remember `dotnet workload install aspire` without launch-path validation keeps the experience brittle.
 - **Checking only one prerequisite** — if the full stack also needs Docker, validate that too so the next failure is not just deferred.
 - **Setting both `launchBrowser` and VS Code `launchUrl`** — the editor-side URL launch can race ahead of AppHost readiness and show the dashboard too early.
+- **Relying on AppHost `launchBrowser` after observing early opens** — once logs show the dashboard URL is announced before Aspire reports `Distributed application started.`, the launch profile alone is too early to be the browser trigger.

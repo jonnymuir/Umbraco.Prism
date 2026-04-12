@@ -10,10 +10,24 @@
         },
         {
             "name": "C#: Aspire (Full Stack)",
-            "type": "dotnet",
+            "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "Full Stack: prepare",
-            "projectPath": "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj"
+            "preLaunchTask": "Full Stack: prepare AppHost",
+            "program": "${workspaceFolder}/src/UmbracoPrism.AppHost/bin/Debug/net10.0/UmbracoPrism.AppHost.dll",
+            "cwd": "${workspaceFolder}/src/UmbracoPrism.AppHost",
+            "console": "internalConsole",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:17214;http://localhost:15135",
+                "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21233",
+                "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22194"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "Distributed application started\\.",
+                "uriFormat": "https://localhost:17214"
+            }
         }
     ]
 }

@@ -34,6 +34,19 @@
       "problemMatcher": []
     },
     {
+      "label": "dotnet: build AppHost",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Full Stack: prepare AppHost",
+      "dependsOn": ["Full Stack: prepare", "dotnet: build AppHost"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
       "label": "Storybook: dev",
       "type": "shell",
       "command": "npm",
