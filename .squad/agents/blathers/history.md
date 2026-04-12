@@ -457,7 +457,14 @@ Replace the naive `context.User.Identity?.IsAuthenticated` check with an explici
 ### Tasks Completed
 
 1. **Architecture Research & Recommendation** (`blathers-keyvault-arch.md`)
-   - Evaluated 5 implementation options for Key Vault configuration wiring:
+    - Evaluated 5 implementation options for Key Vault configuration wiring:
+ 
+## Learnings (2026-04-12 — Aspire workload deprecation)
+
+- `dotnet workload install aspire` is no longer the right setup step for this repo on current .NET 10 SDKs.
+- `UmbracoPrism.AppHost` needs `Aspire.AppHost.Sdk` alongside `Aspire.Hosting.AppHost`; the SDK restores the dashboard and DCP packages that the deprecated workload used to provide.
+- With the AppHost SDK in place, local prerequisite guidance should validate `.NET 10 SDK` and `Docker`, not workload installation.
+- `UmbracoPrism.ServiceDefaults` is a library reference from the AppHost and should be marked `IsAspireProjectResource="false"` to avoid `ASPIRE004` warnings.
      - Option A: WebApplicationBuilder extension method ✅ (RECOMMENDED)
      - Option B: IStartupFilter — rejected (runs after config is built)
      - Option C: IUmbracoBuilder extension — rejected (config frozen at that point)
@@ -1759,3 +1766,9 @@ Implemented member dashboard for managing multiple workflow instances:
 - On macOS with the Microsoft PKG-style .NET install under `/usr/local/share/dotnet`, `dotnet workload install aspire` must be run elevated because workloads write into the protected SDK location.
 - Aspire setup docs and `scripts/validate-aspire-prereqs.mjs` now call out the conditional `sudo dotnet workload install aspire` path so the preflight guidance matches real machine behavior.
 - This is a docs/dev-experience fix only; validation was `node --check scripts/validate-aspire-prereqs.mjs` plus an execution of the validator to confirm the updated message.
+
+## Learnings & Handoff (2026-04-12, Keycloak ARM64 startup crash)
+
+- The `SIGILL` during `java.lang.System.registerNatives()` on `linux-aarch64` Keycloak containers running under Docker Desktop on Apple M4 is not a Prism realm-import problem; it is the known OpenJDK 21 SVE startup bug. The exact workaround from upstream reports is `-XX:UseSVE=0`.
+- Bumping from `quay.io/keycloak/keycloak:26.0.0` was not a reliable repo-only fix on this machine class; direct `docker run` checks still crashed on newer ARM64 Keycloak images until `JAVA_OPTS_APPEND=-XX:UseSVE=0` was set.
+- Best repo fit is to apply the workaround only when the AppHost is running on macOS ARM64, keeping Intel/Linux behavior unchanged while restoring native ARM64 Keycloak startup without forcing `linux/amd64` emulation.

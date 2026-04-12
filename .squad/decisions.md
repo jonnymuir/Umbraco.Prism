@@ -5638,3 +5638,66 @@ sudo dotnet workload install aspire
 ---
 
 **Recorded by:** Tom Nook (Lead, Architecture & Code Review)
+
+---
+
+## 📌 2026-04-12: Keycloak ARM64 Startup Workaround (Blathers)
+
+**Session Log:** `.squad/log/2026-04-12T07-03-36Z-keycloak-arm64.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-keycloak-arm64.md`
+
+### Blathers — Keycloak ARM64 startup workaround
+
+**Context**
+
+Aspire local dev uses `quay.io/keycloak/keycloak:26.0.0` for the OIDC provider. On Apple Silicon M4 machines running Docker Desktop, the Keycloak container crashes immediately with `SIGILL` during `java.lang.System.registerNatives()` before Keycloak startup completes.
+
+**Decision**
+
+Apply `JAVA_OPTS_APPEND=-XX:UseSVE=0` to the Keycloak container **only when** the AppHost is running on macOS ARM64.
+
+**Why**
+
+- The crash matches the known OpenJDK 21 `linux-aarch64` SVE startup bug on Apple M4 Docker environments.
+- Direct validation showed the same ARM64 crash outside Aspire and successful startup once `-XX:UseSVE=0` was added.
+- Forcing `linux/amd64` emulation also works, but it is a heavier fallback than disabling SVE and would penalize every Apple Silicon dev run.
+- Upgrading the pinned Keycloak tag alone was not a reliable fix on this machine class during validation.
+
+**Validation**
+
+- `dotnet build UmbracoPrism.sln`
+- `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests`
+- `docker run --rm quay.io/keycloak/keycloak:26.0.0 start-dev` → reproduces crash
+- `docker run --rm -e JAVA_OPTS_APPEND='-XX:UseSVE=0' quay.io/keycloak/keycloak:26.0.0 start-dev` → starts successfully
+- `dotnet run --project src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj --no-build` → Aspire starts and Keycloak imports the realm successfully
+
+---
+
+## 📌 2026-04-12: Aspire Workload Deprecation (Blathers)
+
+**Session Log:** `.squad/log/2026-04-12T07-03-36Z-keycloak-arm64.md`
+
+**Merged From Inbox:**
+- `.squad/decisions/inbox/blathers-aspire-deprecation.md`
+
+### Blathers — Aspire workload deprecation
+
+**Decision**
+
+Treat the deprecated Aspire workload as obsolete for this repo's local AppHost flow. The AppHost project should use `Aspire.AppHost.Sdk` plus `Aspire.Hosting.AppHost`, and developer guidance should point people to the `.NET 10 SDK` and `Docker Desktop`, not `dotnet workload install aspire`.
+
+**Why**
+
+On the current .NET 10 SDK, `dotnet workload install aspire` reports that the workload is deprecated. The repo's AppHost was still relying on workload-provided dashboard/DCP bits, which caused the `CliPath` / `DashboardPath` failure until the AppHost SDK was added.
+
+**Impact**
+
+- VS Code preflight checks should validate `.NET 10 SDK` and `Docker`
+- Local setup docs should stop telling developers to install the Aspire workload
+- AppHost projects in this repo should keep `Aspire.AppHost.Sdk` configured
+
+---
+
+**Recorded by:** Scribe (Documentation Specialist)
