@@ -214,6 +214,13 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 ## Learnings (Issue #15 — Biometric Exchange Endpoint)
 
 - **Exchange is unauthenticated**: `[AllowAnonymous]` on the action overrides the class-level `[Authorize]` on `BiometricController`. The BiometricToken JWT IS the credential — no cookie required.
+
+## Learnings (2026-04-12, local Keycloak logout `id_token_hint`)
+
+- The local Keycloak logout failure was not a bad end-session URL; Prism’s manual authorization-code exchange in `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` persisted `access_token` and `refresh_token` but dropped `id_token`, so RP-initiated logout had nothing to send as `id_token_hint`.
+- For generic OIDC tenants, the logout event should explicitly backfill `context.ProtocolMessage.IdTokenHint` from the `PrismMemberCookie` tokens if the framework has not already set it. This keeps Keycloak-compatible logout behavior even when Prism customizes the logout issuer address.
+- Local Keycloak config should register both sign-in and sign-out callback URLs for the TestSite. In this repo that means `keycloak/realm-export.json` must include `/signin-oidc` and `/signout-callback-oidc` for `http://localhost:9250` and `https://localhost:44345`.
+- Key files for this fix: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core/PrismComposer.cs`, `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs`, `keycloak/realm-export.json`, `ASPIRE_DEV.md`, and `README.md`.
 - **Token validation flow**: `BiometricTokenService.ValidateToken()` → verify tenantId matches request tenant → hash token → DB lookup by `TokenHash` → assert not revoked/expired → verify DeviceId + UserId binding.
 - **Cross-user protection**: Always verify `credential.UserId == claims.UserOid` after DB lookup (security note from Copper's review of #14). Prevents token substitution attacks.
 - **DeviceId binding check**: JWT `sub` claim (DeviceId) must match DB row's `DeviceId`. Mismatch returns specific `device_mismatch` error code (distinct from generic `biometric_token_invalid`).
@@ -262,6 +269,21 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **Package consumer UX**: With both seeders, any Prism consumer can install the package, set `SeedStarterContent: true`, and immediately have a working member dashboard without backoffice intervention. Document types are always created automatically.
 - **Blueprint feature deferred**: Initial implementation included `IContentService.CreateContentFromBlueprint()` for a "Member Dashboard Template" blueprint, but that API is obsolete and scheduled for removal in v18. Removed from seeder to avoid future breaking changes. Teams can manually create blueprints in the backoffice if needed.
 - **Key files**: `PrismConfiguration.cs`, `PrismContentTypeSeeder.cs`, `PrismStarterContentSeeder.cs`, updated `PrismComposer.cs` and `appsettings.json`.
+
+## Learnings (2026-04-12 — Aspire local endpoint wiring)
+
+- **Aspire project URL advertisement**: Executable project resources only show browser-usable URLs in Aspire when the AppHost can discover a concrete `applicationUrl` from launch settings. For local fixed ports, prefer explicit `launchProfileName` selection in `src/UmbracoPrism.AppHost/Program.cs` over relying on default profile ordering.
+- **Keycloak proxy source of truth**: `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json` is now the source of truth for the proxy's HTTPS port (`https://localhost:8443`). The proxy program no longer hardcodes Kestrel port binding; this keeps standalone `dotnet run` and Aspire advertisement aligned.
+- **Business App source of truth**: `src/UmbracoPrism.MockBusinessApp/Properties/launchSettings.json` now puts the `https` profile first, so plain `dotnet run --project src/UmbracoPrism.MockBusinessApp` comes up on `https://localhost:7245` and still keeps the legacy HTTP listener on `http://localhost:5163`.
+- **Downstream demo URL pattern**: Demo controllers should not hardcode their own downstream base URLs. `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` now derives its default target from `PrismBusinessApp:WorkflowApiBaseUrl`, matching `BusinessAppWorkflowClient` and preventing dashboard/demo drift.
+- **Key files**: `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json`, `src/UmbracoPrism.MockBusinessApp/Properties/launchSettings.json`, `src/UmbracoPrism.TestSite/appsettings.Development.json`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `ASPIRE_DEV.md`, `README.md`.
+
+## Learnings (2026-04-12 — Mock Business App 401 after local Keycloak sign-in)
+
+- **Downstream issuer must match the browser-facing authority**: For the local Keycloak demo, the forwarded bearer token carries `iss=https://localhost:8443/realms/prism-dev`, so `src/UmbracoPrism.MockBusinessApp/appsettings.json` and the Aspire override in `src/UmbracoPrism.AppHost/Program.cs` must trust that HTTPS proxy authority, not the container's internal `http://localhost:8080` URL.
+- **Generic OIDC API validation should accept `azp` as client binding**: Keycloak-style access tokens may identify the caller in `azp` even when `aud` is a shared resource such as `account`. `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` now mirrors `PrismContext` by accepting either `aud` or `azp` for generic OIDC tenants.
+- **Regression tests belong in `PrismAuthExtensionsSecurityTests`**: The downstream 401 was reproducible without UI automation by asserting issuer/audience validation directly in `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs`, including the localhost HTTPS authority and `azp` fallback path.
+- **Docs should call out the single source of authority**: `README.md` and `ASPIRE_DEV.md` now explicitly state that TestSite, MockBusinessApp, and the local Keycloak login flow must all agree on `https://localhost:8443` as the demo OIDC authority.
 
 ## Work Summary (2026-03-29)
 
@@ -1061,6 +1083,14 @@ All components implemented, tested via build, and ready for integration with mob
 
 ## Learnings (2026-04-08, Branding Metadata API)
 
+## Learnings (2026-04-12 — Keycloak offline token fix)
+
+- The localhost Keycloak tenant in `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` is a generic OIDC path, so `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` must not blindly reuse the Entra `offline_access` scope there.
+- In Keycloak code flow, `offline_access` asks for an offline token and can fail with `error=not_allowed` unless the realm/client/user is explicitly granted offline-token use; that is the wrong default for fresh-clone local dev.
+- The repo-owned fix is to keep Entra on `openid profile offline_access {clientId}/.default` but downgrade generic OIDC/Keycloak requests to `openid profile` for both the authorize request and the authorization-code token exchange.
+- Generic OIDC callback token storage should tolerate providers that omit `refresh_token`; store it only when present instead of failing the sign-in exchange.
+- Scope regression coverage now lives in `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs`.
+
 **Feature:** CSS Branding Metadata Parser + API endpoint for dynamic tenant editor UI
 
 **What shipped:**
@@ -1823,3 +1853,50 @@ Created UmbracoPrism.KeycloakProxy project:
 ### User Preferences
 - "Nice and easy for when people take the repo" - prefer repo-owned solutions over external tool requirements
 - Fresh clone should work without manual setup steps
+
+## Learnings (2026-04-12 — Generic OIDC downstream session binding)
+
+- The downstream demo 401 after a successful localhost Keycloak sign-in was not a missing cookie or dropped tokens: `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` was reaching `IPrismContext.GetAuthorizationHeaderAsync()`, but `src/UmbracoPrism.Core/Models/PrismContext.cs` only trusted Entra `tid` claims for tenant binding.
+- Generic OIDC tenants seeded by `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` do not populate `EntraTenantId`, so Prism must validate the cookie principal against the resolved tenant using OIDC-native claims (`iss` plus `aud`/`azp`) instead of assuming Entra semantics.
+- Safe repo-owned fix: keep the existing Entra `tid` isolation path intact, then add a generic OIDC branch in `PrismContext` that compares the principal issuer/audience to `CurrentTenant.OidcAuthority` and `CurrentTenant.OidcClientId` before releasing downstream bearer tokens.
+- Regression coverage lives in `src/UmbracoPrism.Core.Tests/PrismContextTests.cs`; include both a positive Keycloak-style match and a mismatch case so local downstream demo regressions fail fast in unit tests.
+- Key files for this auth path: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`.
+
+## Learnings (2026-04-13 — Persistent Mock Business App 401 was stale runtime state)
+
+- I reproduced the live failure end-to-end against the running stack: a real Keycloak login to `https://localhost:44345/auth/login`, followed by `GET https://localhost:44345/api/prism/downstream-demo`, still returned `401 Unauthorized` for `https://localhost:7245/api/backoffice/me`.
+- The same freshly-issued Keycloak access token (`iss=https://localhost:8443/realms/prism-dev`, `azp=prism-client`, `email=demo@prism.local`) also failed directly against the live `https://localhost:7245/api/backoffice/me` endpoint with `WWW-Authenticate: Bearer error="invalid_token"`.
+- The repo-owned code/config is already correct: starting the current `src/UmbracoPrism.MockBusinessApp` on a fresh port (`https://localhost:9345`) accepted that exact same token and returned the expected `Prism Demo (Keycloak)` payload.
+- That proves the persistent 401 is caused by a stale running MockBusinessApp/Aspire resource still holding the old JWT validator, not by the current worktree, tenant database row, Keycloak realm import, or browser session.
+- Minimum recovery is operational, not code: restart the running MockBusinessApp resource (or stop and rerun `dotnet run --project src/UmbracoPrism.AppHost`). No SQLite reset, tenant reseed, Keycloak re-import, or forced sign-out is required.
+- Key files for this repro path: `src/UmbracoPrism.MockBusinessApp/Program.cs`, `src/UmbracoPrism.MockBusinessApp/appsettings.json`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`, `ASPIRE_DEV.md`.
+
+## Learnings (2026-04-13 — Downstream generic OIDC bearer validation)
+
+- `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` must treat generic OIDC access tokens as `JsonWebToken` first-class inputs; optional `tid`, `iss`, and `azp` reads need non-throwing claim enumeration rather than `JsonWebToken.GetClaim(...)`.
+- Local Keycloak downstream validation should trust the browser-facing issuer in `src/UmbracoPrism.MockBusinessApp/appsettings.json` (`https://localhost:8443/realms/prism-dev`), not the container's internal `http://localhost:8080` URL, or valid forwarded tokens fail before the dashboard demo can reach `/api/backoffice/me`.
+- For Keycloak-style tokens, client binding must accept either `aud` or `azp`; the local demo commonly emits `aud=account` with `azp=prism-client`.
+- `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs` is the correct regression harness for this hop: validator-level tests cover the HTTPS issuer, `azp` fallback, and `JsonWebToken` payloads without needing UI automation.
+- When reproducing locally, `src/UmbracoPrism.MockBusinessApp/Properties/launchSettings.json` should default `dotnet run` to the HTTPS profile so standalone verification matches Aspire's advertised `https://localhost:7245` endpoint.
+
+
+## Learnings (2026-04-13, staged proxy follow-up commit)
+
+- Architecture decision: the local Keycloak browser-facing origin now lives at https://localhost:8443 through src/UmbracoPrism.KeycloakProxy/, while Keycloak itself remains on internal HTTP http://localhost:8080 behind forwarded headers.
+- Reusable backend pattern: for localhost OIDC flows in this repo, prefer Kestrel UseHttps() with the trusted .NET dev certificate over runtime self-signed certificate generation; keep YARP forwarded-header transforms on the route so Keycloak emits HTTPS-facing metadata.
+- User preference: Jonny wants repo-owned local auth infrastructure that works cleanly for fresh clones with minimal manual setup beyond standard dotnet dev-certs https --trust.
+- Key file paths for this follow-up set: src/UmbracoPrism.KeycloakProxy/Program.cs, src/UmbracoPrism.KeycloakProxy/appsettings.json, src/UmbracoPrism.AppHost/Program.cs, src/UmbracoPrism.TestSite/DemoTenantSeeder.cs, and ASPIRE_DEV.md.
+- Commit traceability: staged Safari-safe TLS follow-up committed as 973ee95d221270f0737bddf04ec3fe1fe3fffbcb with message fix(auth): add local keycloak https proxy.
+
+## Learnings (2026-04-13 — staged index commit check)
+
+- Reusable git pattern: `git --no-pager diff --cached --quiet` is the safest non-interactive guard for "commit exactly the staged set"; exit code `0` means the index is empty and no commit should be created.
+- User preference: when asked to commit, Jonny wants staged content only, no opportunistic inclusion of unrelated unstaged work, and a plain report when nothing is staged.
+- Key file paths for this workflow: `.squad/skills/conventional-commits/SKILL.md` for commit message shape and `.squad/agents/blathers/history.md` for backend session learnings.
+
+## Learnings (2026-04-13 — remaining local OIDC commits)
+
+- Architecture split: the remaining localhost OIDC work naturally grouped into two backend buckets — auth/session correctness in `src/UmbracoPrism.Core/` + `keycloak/realm-export.json`, and local endpoint/dashboard wiring in `src/UmbracoPrism.AppHost/`, `src/UmbracoPrism.KeycloakProxy/`, and `src/UmbracoPrism.TestSite/`.
+- Reusable commit pattern: when repo knowledge artifacts (`README.md`, `ASPIRE_DEV.md`, `.squad/skills/*`) explain the same runtime change, keep them in a follow-up docs commit instead of mixing them into the behavior-changing code commit.
+- User preference: Jonny prefers conservative focused commits and would rather leave unrelated squad history noise uncommitted than bundle it into a backend cleanup commit.
+- Key file paths for this packaging pass: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `README.md`, `ASPIRE_DEV.md`.

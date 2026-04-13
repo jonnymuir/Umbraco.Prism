@@ -27,6 +27,7 @@ Use this when local Keycloak login works in Chromium-like browsers but fails in 
 
 - When Keycloak is behind a local HTTPS proxy, keep `--proxy-headers xforwarded` so generated OIDC URLs and callback metadata stay HTTPS-facing.
 - Seed the localhost tenant from a browser-safe base URL such as `KEYCLOAK_URL` instead of hardcoding the container’s internal HTTP address.
+- Downstream APIs that validate bearer tokens must trust the same browser-facing HTTPS issuer (`https://localhost:8443/...`) rather than Keycloak’s internal HTTP container URL, or valid tokens will fail closed with 401.
 
 ### Check image-version flags
 
@@ -38,10 +39,12 @@ Use this when local Keycloak login works in Chromium-like browsers but fails in 
 - `src/UmbracoPrism.KeycloakProxy/` is a YARP-based HTTPS proxy that terminates TLS at `https://localhost:8443` using the .NET dev certificate and forwards to Keycloak's HTTP endpoint at port 8080.
 - `src/UmbracoPrism.AppHost/Program.cs` wires the proxy as a project resource and seeds `KEYCLOAK_URL=https://localhost:8443` for TestSite. Keycloak container receives `--proxy-headers xforwarded`.
 - `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` uses `KEYCLOAK_URL` for the seeded localhost tenant authority, defaulting to the HTTPS proxy endpoint.
+- `src/UmbracoPrism.MockBusinessApp/appsettings.json` pins the demo tenant OIDC authority to the HTTPS proxy issuer so downstream JWT validation matches the token’s `iss` claim.
 - The proxy uses Kestrel's `UseHttps()` with no explicit certificate parameter, which automatically loads the .NET dev cert that most developers already trust via `dotnet dev-certs https --trust`.
 
 ## Anti-Patterns
 
 - **Testing only in Chromium** — can miss Safari/WebKit cookie failures.
 - **Using plain HTTP as the browser authority** — reproduces the missing-cookie login failure in WebKit/Safari.
+- **Letting downstream APIs trust Keycloak’s internal `http://localhost:8080` issuer** — breaks the browser-facing token contract and tempts validator weakening.
 - **Copying flags from newer Keycloak docs without version-checking** — can stop the pinned local container from starting.

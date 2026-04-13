@@ -21,8 +21,9 @@ In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for 
 
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)
-- **Keycloak** at `https://localhost:8443` (OIDC provider with TLS proxy)
+- **Keycloak proxy** at `https://localhost:8443` (browser-facing OIDC endpoint shown in Aspire)
 - **TestSite** at `https://localhost:44345` and `http://localhost:9250`
+- **MockBusinessApp** at `https://localhost:7245` and `http://localhost:5163`
 
 ## What Gets Configured
 
@@ -34,7 +35,9 @@ This launches:
 
 The realm configuration is imported from `keycloak/realm-export.json`.
 The AppHost includes a lightweight HTTPS reverse proxy (`UmbracoPrism.KeycloakProxy`) that terminates TLS at `https://localhost:8443` and forwards requests to Keycloak's HTTP endpoint on port 8080. The proxy uses the .NET development certificate that is already trusted on most dev machines (via `dotnet dev-certs https --trust`). This setup ensures Safari/WebKit-compatible authentication flows that require secure cookies while keeping Keycloak's own configuration simple.
-For localhost auth, the Keycloak client is pinned to those two TestSite URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
+The MockBusinessApp now defaults to its `https` launch profile, so both the workflow engine and the dashboard's downstream demo call the same trusted localhost origin (`https://localhost:7245`) that Aspire advertises.
+For localhost auth, the Keycloak client is pinned to the TestSite sign-in and sign-out callback URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
+The local Prism login flow intentionally requests standard OIDC scopes (`openid profile`) from Keycloak instead of `offline_access`. Keycloak still issues a normal session refresh token for code flow, and fresh clones do not need extra offline-token grants on the user or client.
 
 ## Localhost Tenant (Auto-Seeded)
 
@@ -97,6 +100,21 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 - Verify the .NET dev certificate is trusted: `dotnet dev-certs https --trust`
 - If Keycloak shows `Invalid parameter: redirect_uri`, recreate the local Keycloak realm/container so it re-imports the exact localhost redirect URIs from `keycloak/realm-export.json`
 
+**Dashboard workflow or downstream API demo can't reach MockBusinessApp:**
+- Ensure `PrismBusinessApp:WorkflowApiBaseUrl` resolves to `https://localhost:7245`
+- If running the Business App outside Aspire, `dotnet run --project src/UmbracoPrism.MockBusinessApp` now uses the HTTPS launch profile by default
+- Verify the .NET dev certificate is trusted: `dotnet dev-certs https --trust`
+- Keep the MockBusinessApp's trusted OIDC issuer aligned with the browser-facing Keycloak proxy (`https://localhost:8443/realms/prism-dev`), not Keycloak's internal container URL on port 8080
+- If `/api/backoffice/me` still returns a bare `401 Unauthorized` after pulling the latest auth fixes, fully restart the running MockBusinessApp resource (or restart the Aspire AppHost session). A stale process can keep the old JWT validation settings even though the repo now accepts the same Keycloak token without any database reset, realm re-import, or sign-in flow changes.
+
 **Token validation fails:**
 - Check that the tenant hostname matches the request (e.g., `localhost:5000` not `127.0.0.1:5000`)
 - Verify the `OidcAuthority`, `OidcClientId`, and `OidcClientSecret` match the Keycloak realm configuration
+
+**`Offline tokens not allowed for the user or client`:**
+- The local Keycloak demo is expected to work without enabling offline tokens
+- Pull the latest repo changes so Prism no longer requests `offline_access` for the generic Keycloak tenant during the localhost login flow
+
+**Keycloak shows `Missing parameters: id_token_hint` on logout:**
+- Pull the latest repo changes so Prism persists the OIDC `id_token` in the member cookie and sends it back on RP-initiated logout
+- Recreate the local Keycloak realm/container if needed so it re-imports the registered `signout-callback-oidc` redirect URIs from `keycloak/realm-export.json`

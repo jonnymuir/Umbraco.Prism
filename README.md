@@ -21,6 +21,7 @@ Get from clone to running in five minutes. No Azure account needed.
 
 **One-time setup:**
 - `.NET 10 SDK` ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
+- **Trust the .NET dev certificate** — run `dotnet dev-certs https --trust`
 - Docker Desktop running ([Download](https://www.docker.com/products/docker-desktop/))
 - `Node.js 20+` ([Download](https://nodejs.org/))
 - Frontend dependencies: `cd src/UmbracoPrism.Client && npm install`
@@ -36,9 +37,12 @@ Then:
 1. Open the Aspire dashboard at `https://localhost:17214`
 2. Click the TestSite URL → log in with `demo@prism.local` / `password`
 3. Browse **My Workflows** to see the demo workflow in action
-4. The MockBusinessApp runs alongside — it accepts the same demo credentials and powers the workflow engine
+4. The MockBusinessApp runs alongside at `https://localhost:7245` — it accepts the same demo credentials and powers the workflow engine
 
-**Optional:** Explore the Keycloak admin at `http://localhost:8080/admin` (`admin` / `admin`).
+**Optional:** Explore the Keycloak admin at `https://localhost:8443/admin` (`admin` / `admin`).
+The repo-owned local Keycloak flow uses standard OIDC code-flow scopes, so a fresh clone does not need Keycloak offline tokens enabled.
+The imported local Keycloak client also includes the Prism sign-out callback URLs, and Prism now preserves the OIDC `id_token` in the session so RP-initiated logout can send Keycloak the required `id_token_hint`.
+The downstream MockBusinessApp also trusts that same HTTPS Keycloak authority (`https://localhost:8443`), so the dashboard demo and workflow calls validate the forwarded bearer token against the browser-facing issuer rather than Keycloak's internal `http://localhost:8080` container URL.
 
 > For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](ASPIRE_DEV.md).
 
