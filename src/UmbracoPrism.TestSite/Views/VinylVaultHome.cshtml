@@ -6,7 +6,7 @@
     var heroSubtitle = Model.Value<string>("heroSubtitle") ?? "Your notification-powered vinyl record shop";
     
     // Get all genre landing pages (children of this node)
-    var genres = Model.Children?.Where(c => c.ContentType.Alias == "vinylGenreLanding").ToList() ?? new List<IPublishedContent>();
+    var genres = Model.Children<VinylGenreLanding>().ToList();
 }
 
 <div class="vinyl-vault-home">
@@ -38,7 +38,7 @@
             @{
                 // Get all vinyl records across all genres, sorted by create date
                 var allVinyls = genres
-                    .SelectMany(g => g.Children?.Where(c => c.ContentType.Alias == "vinylRecord") ?? Enumerable.Empty<IPublishedContent>())
+                    .SelectMany(g => g.Children<VinylRecord>())
                     .OrderByDescending(v => v.CreateDate)
                     .Take(8)
                     .ToList();

@@ -744,6 +744,11 @@ Two test issues identified by Jonny Muir:
 - 2026-04-13 (Persistent downstream 401): the dashboard-to-BusinessApp repro was still live on the running Aspire stack (`https://localhost:7245/api/backoffice/me` returned `401 Unauthorized` after real Keycloak sign-in), but a rebuilt standalone MockBusinessApp on `https://localhost:7246` succeeded once `PrismAuthExtensions` stopped calling `JsonWebToken.GetClaim(...)` for optional `tid`/`azp`/`iss` lookups.
 - Generic Keycloak access tokens in this flow arrive as `JsonWebToken` instances without a `tid` claim, so safe claim enumeration is required before falling back to the OIDC issuer path; otherwise downstream bearer validation fails before issuer/audience matching can run.
 - The smallest reliable regression guard for this hop is validator-level coverage in `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs` using browser-shaped `JsonWebToken` payloads, plus a manual smoke check that stale `7245` processes still need a restart to pick up the fix.
+- 2026-04-13 (Solution warning cleanup): `dotnet build UmbracoPrism.sln` initially surfaced one actionable NU1902 warning from `src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj`, traced to transitive `KubernetesClient` 16.0.2 under `Aspire.Hosting.AppHost` 9.2.0.
+- For transitive vulnerability warnings, the low-risk remediation pattern is to pin the minimum advisory-patched package directly (`KubernetesClient` 17.0.14 here) with `PrivateAssets="all"` before considering a broader top-level package upgrade.
+- Final validation for this warning slice was green with `dotnet build UmbracoPrism.sln`, `dotnet test UmbracoPrism.sln`, and Playwright from `src/UmbracoPrism.Client`.
+- Key file paths for this work: `src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj`, `.squad/skills/nuget-vulnerability-overrides/SKILL.md`, and `.squad/decisions/inbox/tangy-solution-warning-baseline.md`.
+- Jonny preference reinforced: report warning outcomes in human terms and clearly separate real blockers from out-of-scope residual warnings.
 
 ---
 
@@ -765,3 +770,18 @@ Two test issues identified by Jonny Muir:
 
 **Status:** ✅ Complete; all changed surfaces validated.
 
+## Learnings — 2026-04-13 — Storybook DEP0190 startup noise
+
+- The `DEP0190` warning shown during Playwright startup is not caused by our `playwright.config.ts` command shape; it reproduces when `src/UmbracoPrism.Client/package.json` runs Storybook directly, before Playwright adds anything on top.
+- Trace output pinned the warning to Storybook 8.6.15 internals (`@storybook/core/dist/common/index.cjs` `hasNPM()`), where npm version detection still calls `spawnSync(..., { shell: true })` with args on Node 24.
+- The safest in-repo mitigation is targeted suppression on the Storybook process only: run the local Storybook CLI through `node --disable-warning=DEP0190` instead of muting all warnings or patching `node_modules`.
+- Key file paths for this slice: `src/UmbracoPrism.Client/package.json`, `src/UmbracoPrism.Client/playwright.config.ts`, and `.squad/decisions/inbox/tangy-dep0190-noise.md`.
+- Jonny preference reinforced: remove warning noise where practical, but clearly distinguish between a true codebase fix and a narrowly-scoped upstream mitigation.
+
+## Learnings — 2026-04-13 — DEP0190 policy follow-up
+
+- Jonny's current preference is stricter than the earlier mitigation: do not suppress tooling warnings as the solution; either land a real root-cause fix or leave the warning visible.
+- The active `DEP0190` warning is an upstream Storybook 8.6.15 issue in `@storybook/core/dist/common/index.cjs` (`hasNPM()`), not a repo-owned Playwright or Storybook wrapper bug.
+- There is no safe in-repo root fix on the current dependency line because the warning comes from vendored Storybook internals and would require either patching `node_modules` or a broader Storybook upgrade beyond the verified 8.6.15 setup.
+- Validation for this review used `npm run storybook -- --quiet --smoke-test` and `node node_modules/.bin/playwright test --reporter=line` under `src/UmbracoPrism.Client`; Playwright stayed green while the warning remained visible.
+- Key file paths for future follow-up: `src/UmbracoPrism.Client/package.json`, `src/UmbracoPrism.Client/playwright.config.ts`, `.squad/skills/node-warning-mitigation/SKILL.md`, and `.squad/decisions/inbox/tangy-dep0190-policy-followup.md`.

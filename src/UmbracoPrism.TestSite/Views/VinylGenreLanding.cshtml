@@ -6,7 +6,7 @@
     var description = Model.Value<string>("description") ?? "";
     
     // Get all vinyl records in this genre
-    var vinyls = Model.Children?.Where(c => c.ContentType.Alias == "vinylRecord").ToList() ?? new List<IPublishedContent>();
+    var vinyls = Model.Children<VinylRecord>().ToList();
 }
 
 <div class="genre-landing">

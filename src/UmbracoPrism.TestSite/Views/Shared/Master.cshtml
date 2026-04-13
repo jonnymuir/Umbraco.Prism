@@ -60,7 +60,7 @@
 
     @if (mobileNavLinks != null)
     {
-        @Html.Partial("_MobileShellNav", mobileNavLinks)
+        @await Html.PartialAsync("_MobileShellNav", mobileNavLinks)
     }
 
     <!-- Workflow validation script -->

@@ -1619,3 +1619,5 @@ builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.c
 ## Learnings
 
 - **Aspire container endpoint naming is not TLS termination.** On this repo's Keycloak `start-dev` container, `WithHttpsEndpoint(port: 8443, targetPort: 8080)` created a host listener that still served plain HTTP. Verify local "HTTPS" IdP routes with `curl`/`openssl` before seeding browser-facing authorities from them.
+- **Umbraco v17 navigation in Razor should use typed extension methods, not deprecated tree properties.** In TestSite templates, prefer `Children<T>()` and `Parent<T>()` over `IPublishedContent.Children` / `Parent`; it removes obsolete warnings and keeps document-type intent explicit in `Views/VinylGenreLanding.cshtml`, `Views/VinylVaultHome.cshtml`, and `Views/VinylRecord.cshtml`.
+- **MVC partial rendering in Razor layouts should stay async.** Use `@await Html.PartialAsync(...)` in shared Umbraco layouts like `Views/Shared/Master.cshtml` to avoid MVC1000 warnings and match the rest of the TestSite partial-rendering pattern.

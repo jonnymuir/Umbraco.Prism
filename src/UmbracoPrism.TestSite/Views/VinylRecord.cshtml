@@ -13,8 +13,9 @@
     var isLimitedEdition = Model.Value<bool>("isLimitedEdition");
     
     // Get parent genre page
-    var genrePage = Model.Parent;
-    var genreName = genrePage?.Value<string>("genre") ?? genre;
+    var genrePage = Model.Parent<VinylGenreLanding>();
+    var genreName = genrePage?.Genre ?? genre;
+    var vaultHomePage = Model.Root()?.Children<VinylVaultHome>().FirstOrDefault();
 }
 
 <div class="vinyl-detail">
@@ -27,7 +28,7 @@
         <div class="vinyl-meta">
             <div class="breadcrumb">
                 <a href="@(Model.Root()?.Url())">Home</a> › 
-                <a href="@(Model.Root()?.Children?.FirstOrDefault(c => c.ContentType.Alias == "vinylVaultHome")?.Url())">Vinyl Vault</a> › 
+                <a href="@(vaultHomePage?.Url())">Vinyl Vault</a> › 
                 @if (genrePage != null)
                 {
                     <a href="@genrePage.Url()">@genreName</a> <text>›</text>

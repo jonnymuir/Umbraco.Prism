@@ -1939,3 +1939,8 @@ Created UmbracoPrism.KeycloakProxy project:
 
 **Status:** ✅ Complete; all regression tests passing.
 
+## Learnings (2026-04-13 — solution build warning cleanup)
+
+- `dotnet build UmbracoPrism.sln` was warning solely because `src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj` restored transitive `KubernetesClient` `16.0.2` through `Aspire.Hosting.AppHost` `9.2.0`, triggering `NU1902` for GHSA-w7r3-mgwf-4mqq / CVE-2025-9708.
+- The least-invasive repo fix is to pin a direct AppHost-only `PackageReference` for `KubernetesClient` to the patched minimum `17.0.14` with `PrivateAssets="all"` instead of forcing a broader Aspire upgrade just to clear restore warnings.
+- Validation for this warning-removal pattern should include both `dotnet build UmbracoPrism.sln` and `dotnet list src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj package --vulnerable --include-transitive` so we confirm the warning is gone and the advisory is no longer reported.
