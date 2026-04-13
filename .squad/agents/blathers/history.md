@@ -1,5 +1,15 @@
 # Blathers — History
 
+## Core Context (Session Summaries)
+
+**Phase 2 Auth & Restart Diagnostics (2026-04-13):** Completed restart-stale downstream auth investigation. Restart-stale cookie detection in `PrismContext` prevents pre-restart access token reuse. Offline token contract for localhost Keycloak demo (offline_access + scope-less refresh). Auth test suite green (57/57). Blockers: live restart 401 from MockBusinessApp + pre-existing TestSite Razor build errors.
+
+**Phase 1 Auth Fixes (2026-04-12):** Completed generic OIDC session survival and downstream bearer validation. Browser-facing issuer `https://localhost:8443/realms/prism-dev` authoritative. `PrismMemberCookie` preserves tokens across restarts. Keycloak logout fixed with id_token_hint. Scope contract: `openid profile` without `offline_access`. Tangential fixes: Fresh DB per Aspire startup, endpoint wiring from launch profiles, session metadata probe endpoint.
+
+**Phase 0 P0 Security Remediation (2026-03-28):** Copper signing-key warm-path hardening (30s forced-refresh cooldown per tenant). Tangy reliability expansion (test coverage for tenant isolation + cache coherence). Security gate passed. Residual: PrismAuthExtensions synchronous metadata retrieval remains availability candidate.
+
+---
+
 ## Project Context
 
 **Project:** Umbraco.Prism — Multi-tenancy package for Umbraco v17+
