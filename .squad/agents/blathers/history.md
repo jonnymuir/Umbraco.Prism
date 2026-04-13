@@ -1944,3 +1944,40 @@ Created UmbracoPrism.KeycloakProxy project:
 - `dotnet build UmbracoPrism.sln` was warning solely because `src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj` restored transitive `KubernetesClient` `16.0.2` through `Aspire.Hosting.AppHost` `9.2.0`, triggering `NU1902` for GHSA-w7r3-mgwf-4mqq / CVE-2025-9708.
 - The least-invasive repo fix is to pin a direct AppHost-only `PackageReference` for `KubernetesClient` to the patched minimum `17.0.14` with `PrivateAssets="all"` instead of forcing a broader Aspire upgrade just to clear restore warnings.
 - Validation for this warning-removal pattern should include both `dotnet build UmbracoPrism.sln` and `dotnet list src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj package --vulnerable --include-transitive` so we confirm the warning is gone and the advisory is no longer reported.
+
+## Learnings (2026-04-13 — generic OIDC auth recovery and logout fix)
+
+- Issue 1 Missing refresh tokens for generic OIDC: The scope openid profile for generic OIDC providers does not include offline_access so providers like Keycloak do not issue a refresh token. When the access token expires PrismContext.GetAuthorizationHeaderAsync tries to refresh but has no refresh_token returning null and causing 401 errors on downstream API calls.
+  - Fix: Changed GenericOidcBrowserScopes in PrismOidcConfiguration.cs from openid profile to openid profile offline_access to request refresh tokens from generic OIDC providers.
+  - Impact: Generic OIDC tenants now get refresh tokens and can automatically recover from expired access tokens without forcing the user to re-authenticate.
+
+- Issue 2 Invalid id_token_hint causing Keycloak logout errors: The logout flow for generic OIDC was sending id_token_hint to the provider logout endpoint. However many OIDC providers including Keycloak in certain configurations support logout with just client_id and post_logout_redirect_uri making id_token_hint optional. When the id_token was missing or invalid Keycloak rejected the logout request with Invalid parameter id_token_hint.
+  - Fix: Removed the warning log when id_token_hint is missing and updated the comment to clarify that most OIDC providers support logout without it. The code still sends id_token_hint if available but does not require it.
+  - Impact: Logout now works cleanly for generic OIDC tenants even when the id_token is not available in the cookie.
+
+- Testing: Updated PrismOidcConfigurationTests and PrismContextTests to verify the new offline_access scope is requested and included in token refresh flows. All auth-related tests passing.
+
+- Architecture decision: Generic OIDC now requests the same session-based refresh token semantics as Entra tenants offline_access scope ensuring consistent token management across all OIDC providers. This aligns with standard OIDC best practices for confidential clients.
+
+- Key file paths for this fix: 
+  - src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs scope definition and logout event handler
+  - src/UmbracoPrism.Core/Models/PrismContext.cs token refresh logic
+  - src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs scope and logout tests
+  - src/UmbracoPrism.Core.Tests/PrismContextTests.cs refresh token tests
+
+## Learnings (2026-04-13 — Generic OIDC logout id_token_hint removal for Keycloak compatibility)
+
+- Issue: Generic OIDC logout was still sending id_token_hint from the PrismMemberCookie even after the previous fix removed the warning log. When Keycloak receives an id_token_hint that doesn't match its session expectations (e.g., from cross-tenant cookie reuse or expired sessions), it rejects the logout request with "Invalid parameter: id_token_hint".
+  - Root cause: Lines 467-471 in PrismOidcConfiguration.cs were retrieving and sending id_token_hint from the cookie, contradicting the comment that stated it was optional.
+  - Fix: Completely removed the id_token_hint retrieval and transmission for generic OIDC logout. Generic OIDC providers (including Keycloak) support logout with just client_id and post_logout_redirect_uri, making id_token_hint unnecessary and potentially harmful.
+  - Impact: Generic OIDC logout now works reliably with Keycloak and other providers regardless of cookie state, avoiding "Invalid parameter: id_token_hint" errors entirely.
+
+- Entra logout behavior is preserved: Entra uses a completely separate code path (lines 475-488) that sends logout_hint (email) instead of id_token_hint, so this change has no impact on Entra tenants.
+
+- Testing: Updated PrismOidcConfigurationTests to verify that id_token_hint is NOT sent for generic OIDC logout, even when available in the cookie. The test PostConfigure_GenericOidcLogout_OmitsIdTokenHint_ToAvoidProviderRejection now correctly asserts IdTokenHint.Should().BeNull(). All 14 PrismOidcConfiguration tests pass.
+
+- Architecture decision: For generic OIDC, prefer the most widely compatible logout approach that works across all providers. Since id_token_hint is optional per OIDC spec and can cause provider-specific validation errors, omitting it entirely is the safest choice for multi-provider compatibility.
+
+- Key file paths for this fix:
+  - src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs logout event handler (removed id_token_hint retrieval)
+  - src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs logout tests (updated assertions)

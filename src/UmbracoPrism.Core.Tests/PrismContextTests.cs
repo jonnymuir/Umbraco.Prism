@@ -335,7 +335,7 @@ public class PrismContextTests
         header!.Parameter.Should().Be("new-access-token");
         postedForm.Should().NotBeNull();
         postedForm!["client_secret"].Should().Be("resolved-secret");
-        postedForm["scope"].Should().Be("openid profile");
+        postedForm["scope"].Should().Be("openid profile offline_access");
     }
 
     [Fact]

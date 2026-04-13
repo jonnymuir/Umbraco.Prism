@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using System.Text;
 using System.Security.Claims;
 using UmbracoPrism.Core.Models;
@@ -20,7 +22,8 @@ public class PrismDebugTagHelper(
     IPrismUserContext prismUser,
     ITenantService tenantService,
     IConfiguration config,
-    IAuthenticationSchemeProvider schemeProvider) : TagHelper
+    IAuthenticationSchemeProvider schemeProvider,
+    IWebHostEnvironment environment) : TagHelper
 {
     [HtmlAttributeNotBound]
     [ViewContext]
@@ -28,6 +31,17 @@ public class PrismDebugTagHelper(
 
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
     {
+        // Phase 1 Security: Only render debug output in Development environment
+        // or when explicitly enabled via Prism:EnableDebugPanel config
+        var isDebugEnabled = environment.IsDevelopment() 
+            || config.GetValue<bool>("Prism:EnableDebugPanel", false);
+        
+        if (!isDebugEnabled)
+        {
+            output.SuppressOutput();
+            return;
+        }
+
         output.TagName = "div";
         output.TagMode = TagMode.StartTagAndEndTag;
         output.Attributes.SetAttribute("class", "prism-debug-root");

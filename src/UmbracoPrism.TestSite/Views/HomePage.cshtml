@@ -562,6 +562,11 @@
             </div>
         </section>
 
+        @* 
+            Phase 1 Security: Debug panel is environment-gated via PrismDebugTagHelper.
+            Only renders in Development or when Prism:EnableDebugPanel=true.
+            Safe to include in views; the tag helper suppresses output in production.
+        *@
         <div class="prism-debug-section">
             <prism-debug />
         </div>

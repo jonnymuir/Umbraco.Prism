@@ -107,6 +107,11 @@
             </div>
         </div>
 
+        @* 
+            Phase 1 Security: Downstream API demo is environment-gated via DownstreamDemoController.
+            Only functional in Development or when Prism:EnableDownstreamDemo=true.
+            URL forwarding is restricted to allowlist to prevent token leakage.
+        *@
         <!-- Downstream API demo -->
         <div class="dash-section">
             <h2>Downstream API</h2>

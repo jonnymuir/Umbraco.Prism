@@ -1548,3 +1548,44 @@ Documentation updated: README includes cert trust setup, ASPIRE_DEV.md explains 
 
 **Status:** ✅ Complete; blocker resolved by implementation team.
 
+---
+
+## Session: 2026-03-30 — Localhost OIDC Runtime Diagnosis (Refresh Token + Logout)
+
+**Role:** Security diagnosis; root-cause identification for auth flow failures.
+
+**Issue Context:**
+1. User signed in to localhost (Keycloak) but `/api/prism/downstream-demo` returns 401 "No Prism session"
+2. Logout redirects to Keycloak which rejects with "Invalid parameter: id_token_hint"
+
+**Diagnosis Outcomes:**
+
+**Issue #1: Missing refresh tokens in generic OIDC flow**
+- Root cause: `PrismOidcConfiguration.cs:28` defines `GenericOidcBrowserScopes = "openid profile"` (missing `offline_access`)
+- Without `offline_access`, OIDC providers (Keycloak, Okta, etc.) do not issue refresh tokens
+- When access token expires, `PrismContext.GetAuthorizationHeaderAsync()` calls `RefreshTokenAsync()` which finds `refreshToken == null` (line 56) and returns null
+- Result: 401 from downstream controller even though user is visibly signed in
+- **Classification:** Scope configuration bug introduced with generic OIDC support (not a hardening regression)
+- **Fix:** Add `offline_access` to `GenericOidcBrowserScopes` constant to align with Entra path
+
+**Issue #2: Keycloak logout rejects `id_token_hint`**
+- Root cause: Keycloak validates `id_token_hint` signature at logout time; if signing key rotated or token expired, logout is rejected
+- Code at `PrismOidcConfiguration.cs:464–467` retrieves `id_token` from cookie and sends as hint (correct for Entra, strict for Keycloak)
+- Local session still clears correctly (no confidentiality/integrity breach), but UX is poor (error page instead of redirect)
+- **Classification:** Provider compatibility gap (not a security bug)
+- **Fix:** Make `id_token_hint` optional for generic OIDC logout per OIDC RP-Initiated Logout spec (hint is recommended but not required)
+
+**Security Assessment:**
+- Neither issue is a regression from recent hardening work
+- Both issues are safe to fix with low risk
+- Refresh token issue requires scope change; logout issue requires graceful degradation
+- Both align with OIDC best practices and improve provider compatibility
+
+**Key Learnings:**
+- Generic OIDC providers have stricter token validation semantics than Entra (especially Keycloak)
+- Scope definitions for authorization must match token usage patterns downstream (refresh requires `offline_access`)
+- Logout flows should gracefully degrade when optional parameters (like `id_token_hint`) are unavailable or rejected
+- OIDC spec allows provider variance; implementations must handle both permissive (Entra) and strict (Keycloak) behaviors
+
+**Artifacts:** `.squad/decisions/inbox/copper-auth-logout-diagnosis.md` (complete diagnosis with file/line references and fix recommendations)
+

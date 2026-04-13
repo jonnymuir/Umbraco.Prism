@@ -25,7 +25,7 @@ public class PrismOidcConfigurationTests
             OidcClientId = "prism-client"
         };
 
-        PrismOidcConfiguration.GetRequestedScope(tenant).Should().Be("openid profile");
+        PrismOidcConfiguration.GetRequestedScope(tenant).Should().Be("openid profile offline_access");
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class PrismOidcConfigurationTests
     }
 
     [Fact]
-    public async Task PostConfigure_GenericOidcRedirect_DoesNotRequestOfflineAccess()
+    public async Task PostConfigure_GenericOidcRedirect_RequestsOfflineAccessForRefreshTokens()
     {
         var tenant = new PrismTenant
         {
@@ -276,7 +276,7 @@ public class PrismOidcConfigurationTests
 
         await options.Events.OnRedirectToIdentityProvider(context);
 
-        context.ProtocolMessage.Scope.Should().Be("openid profile");
+        context.ProtocolMessage.Scope.Should().Be("openid profile offline_access");
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public class PrismOidcConfigurationTests
     }
 
     [Fact]
-    public async Task PostConfigure_GenericOidcLogout_LoadsIdTokenHint_FromCookieTokens()
+    public async Task PostConfigure_GenericOidcLogout_OmitsIdTokenHint_ToAvoidProviderRejection()
     {
         var tenant = new PrismTenant
         {
@@ -322,11 +322,12 @@ public class PrismOidcConfigurationTests
 
         context.ProtocolMessage.IssuerAddress.Should().Be("https://localhost:8443/realms/prism-dev/protocol/openid-connect/logout");
         context.ProtocolMessage.ClientId.Should().Be("prism-client");
-        context.ProtocolMessage.IdTokenHint.Should().Be("id-token");
+        // Generic OIDC should NOT send id_token_hint to avoid Keycloak "Invalid parameter" errors
+        context.ProtocolMessage.IdTokenHint.Should().BeNull();
     }
 
     [Fact]
-    public async Task PostConfigure_GenericOidcLogout_FallsBackToClientId_WhenIdTokenHintMissing()
+    public async Task PostConfigure_GenericOidcLogout_SucceedsWithoutIdTokenHint()
     {
         var tenant = new PrismTenant
         {
@@ -334,6 +335,7 @@ public class PrismOidcConfigurationTests
             OidcClientId = "prism-client"
         };
 
+        // No id_token stored in cookie (common if provider doesn't issue it or it was lost)
         var authenticationService = new StubAuthenticationService(AuthenticateResult.NoResult());
         var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, tenant, authenticationService);
 
@@ -341,6 +343,7 @@ public class PrismOidcConfigurationTests
 
         await options.Events.OnRedirectToIdentityProviderForSignOut(context);
 
+        // Should still construct valid logout URL without id_token_hint
         context.ProtocolMessage.IssuerAddress.Should().Be("https://localhost:8443/realms/prism-dev/protocol/openid-connect/logout");
         context.ProtocolMessage.ClientId.Should().Be("prism-client");
         context.ProtocolMessage.IdTokenHint.Should().BeNull();

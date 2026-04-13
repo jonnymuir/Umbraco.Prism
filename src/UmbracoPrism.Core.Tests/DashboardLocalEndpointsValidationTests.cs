@@ -3,8 +3,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.TestSite.Controllers;
@@ -34,7 +36,8 @@ public class DashboardLocalEndpointsValidationTests
             {
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
             },
-            authHeader: new AuthenticationHeaderValue("Bearer", "token"));
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
 
         var result = await controller.Get();
 
@@ -60,7 +63,8 @@ public class DashboardLocalEndpointsValidationTests
             {
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
             },
-            authHeader: new AuthenticationHeaderValue("Bearer", "token"));
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
 
         var result = await controller.Get();
 
@@ -73,6 +77,120 @@ public class DashboardLocalEndpointsValidationTests
         root.GetProperty("url").GetString().Should().Be("https://localhost:7245/api/backoffice/me");
         root.GetProperty("body").GetString().Should().Contain("Could not reach the service");
         root.GetProperty("body").GetString().Should().Contain("dotnet run --project src/UmbracoPrism.MockBusinessApp");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_Blocks_WhenNotInDevelopmentAndNotExplicitlyEnabled()
+    {
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: false);
+
+        var result = await controller.Get();
+
+        var statusCode = result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(403);
+        var body = JsonSerializer.Serialize(statusCode.Value);
+        body.Should().Contain("Downstream demo is disabled in this environment");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_AllowsWhenExplicitlyEnabledInProduction()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245",
+                ["Prism:EnableDownstreamDemo"] = "true"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: false);
+
+        var result = await controller.Get();
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_BlocksArbitraryUrls_WhenNotInAllowlist()
+    {
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get(url: "https://evil.com/steal-token");
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var body = JsonSerializer.Serialize(badRequest.Value);
+        body.Should().Contain("not in the allowlist");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_AllowsConfiguredBusinessAppUrl()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get(url: "https://localhost:7245/api/backoffice/me");
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_AllowsUrlsInConfiguredAllowlist()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245",
+                ["Prism:DownstreamDemo:AllowedUrls:0"] = "https://staging.example.com"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get(url: "https://staging.example.com/api/test");
+
+        result.Should().BeOfType<OkObjectResult>();
     }
 
     [Fact]
@@ -109,7 +227,8 @@ public class DashboardLocalEndpointsValidationTests
     private static DownstreamDemoController BuildController(
         HttpMessageHandler handler,
         IDictionary<string, string?> configValues,
-        AuthenticationHeaderValue? authHeader)
+        AuthenticationHeaderValue? authHeader,
+        bool isDevelopment = true)
     {
         var client = new HttpClient(handler);
         var clientFactory = new Mock<IHttpClientFactory>();
@@ -123,7 +242,15 @@ public class DashboardLocalEndpointsValidationTests
         prismContext.Setup(context => context.GetAuthorizationHeaderAsync())
             .ReturnsAsync(authHeader);
 
-        return new DownstreamDemoController(clientFactory.Object, configuration, prismContext.Object);
+        var environment = new Mock<IWebHostEnvironment>();
+        environment.Setup(env => env.EnvironmentName)
+            .Returns(isDevelopment ? Environments.Development : Environments.Production);
+
+        return new DownstreamDemoController(
+            clientFactory.Object, 
+            configuration, 
+            prismContext.Object,
+            environment.Object);
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> factory) : HttpMessageHandler

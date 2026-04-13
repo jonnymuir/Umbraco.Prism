@@ -25,7 +25,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 {
 
     private const string PrismNoncePropertiesKey = ".prism_nonce";
-    private const string GenericOidcBrowserScopes = "openid profile";
+    private const string GenericOidcBrowserScopes = "openid profile offline_access";
     private const string LocalDemoHostname = "localhost";
     private const string LocalDemoClientId = "prism-client";
 
@@ -459,20 +459,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                         context.ProtocolMessage.ClientId = tenant.OidcClientId;
                     }
 
-                    if (string.IsNullOrWhiteSpace(context.ProtocolMessage.IdTokenHint))
-                    {
-                        var idTokenHint = await context.HttpContext.GetTokenAsync("PrismMemberCookie", "id_token");
-                        if (!string.IsNullOrWhiteSpace(idTokenHint))
-                        {
-                            context.ProtocolMessage.IdTokenHint = idTokenHint;
-                        }
-                        else
-                        {
-                            logger.LogWarning(
-                                "OIDC logout for tenant {Authority} is missing an ID token hint; provider sign-out may be rejected.",
-                                tenant.OidcAuthority);
-                        }
-                    }
+                    // Generic OIDC logout: omit id_token_hint to avoid provider rejection.
+                    // Keycloak and other providers support logout with just client_id and post_logout_redirect_uri.
+                    // Sending id_token_hint from cookie can cause "Invalid parameter: id_token_hint" errors
+                    // if the token doesn't match provider expectations (e.g., cross-tenant cookie reuse).
                 }
                 else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
                 {
