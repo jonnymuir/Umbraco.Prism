@@ -193,6 +193,9 @@
 - 2026-04-13 (fresh SQLite bootstrap): A clean isolated TestSite SQLite file does not self-bootstrap unless Umbraco unattended install is enabled for that path; wiring unattended install into the isolated runtime root is what makes fresh-clone AppHost starts reproducible.
 - 2026-04-13 (Prism migration timing): Prism package migrations must run on `UmbracoApplicationStartedNotification`, not `UmbracoApplicationStartingNotification`, otherwise a fresh unattended install can serve requests before `prismTenants` exists.
 - 2026-04-13 (deterministic localhost tenant): The localhost Keycloak demo tenant should be reconciled back to its expected OIDC/provider fields on every Development startup, not only inserted once, so isolated restarts do not inherit drift.
+- 2026-04-13 (runtime-stale downstream auth): `PrismContext` should treat a cookie issued before the current process start as restart-stale and try a refresh before reusing a still-unexpired downstream bearer token. Key files: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core.Tests/PrismContextTests.cs`.
+- 2026-04-13 (local demo offline-token contract): The repo-owned localhost Keycloak demo now requests `offline_access` on the browser auth flow, but omits `scope` on the refresh-token grant so Keycloak can reuse the granted offline scopes. Key files: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core.Tests/LocalhostGenericOidcRegressionTests.cs`, `keycloak/realm-export.json`.
+- 2026-04-13 (downstream auth diagnostics): `IPrismContext.LastAuthorizationFailureReason` and the dev-only downstream session-contract probe give a sanitized reason when Prism cannot mint a downstream bearer header after restart, without exposing token values.
 
 ## Learnings (2026-03-29 — GitHub Release Workflow)
 
@@ -2095,3 +2098,59 @@ Created UmbracoPrism.KeycloakProxy project:
 ### Follow-up
 
 Tangy will validate live suite behavior after this phase completes.
+
+## Restart-Only Downstream Auth Investigation Pass (2026-04-13)
+
+**Status:** ✅ Contracts implemented; 57/57 auth tests green; integration blockers persist
+
+### Deliverables
+
+1. **Restart-Stale Cookie Detection**
+   - `PrismContext` detects if encrypted `PrismMemberCookie` issued before current TestSite process start
+   - Automatic token refresh triggered for stale cookies before reusing cached downstream access token
+   - Preserves session intent across process restarts without overfitting to localhost-only behavior
+
+2. **Offline Token Contract for Localhost Demo**
+   - Keycloak browser auth flow now requests `offline_access` scope
+   - Enables token refresh across full stack restarts without requiring browser re-auth
+   - Keycloak realm export updated with offline_access configuration
+
+3. **Scope-Aware Token Refresh**
+   - Localhost refresh token grant omits `scope` parameter
+   - Allows Keycloak to reuse offline scopes already carried by the refresh token
+   - Aligns with OIDC refresh best practices
+
+4. **Sanitized Auth Failure Diagnostics**
+   - 401 responses include diagnostic context without exposing credentials
+   - Failure chain visible in logs for debugging restart edge cases
+   - Device-friendly error reporting for downstream auth issues
+
+### Test Coverage
+
+- ✅ Focused auth test set: 57/57 passing
+- ✅ `PrismContextTests`: restart-stale detection tests passing
+- ✅ `LocalhostGenericOidcRegressionTests`: offline refresh tests passing
+- ✅ Keycloak realm export validation passing
+
+### Remaining Blockers
+
+1. **Live Restart Regression (401)**
+   - Full stack restart still results in 401 from MockBusinessApp
+   - Symptoms: pre-restart access token rejected after Keycloak restart
+   - Root cause investigation needed: token expiry vs revocation during restart cycle
+
+2. **Pre-existing TestSite Razor Build Errors**
+   - Blocks normal Playwright/AppHost test path
+   - Unblocks: Fix Razor compilation issues before running full integration suite
+
+### Architecture Decisions
+
+- Added `RestartStaleSessionHandler` in `PrismContext`
+- Implemented `OfflineTokenRefreshContract` for localhost demo
+- Keycloak realm export: offline_access + minimal scope refresh pattern
+- Diagnostic context preserved without security exposure
+
+### Follow-up
+
+- Blathers: Investigate live restart 401 root cause (token lifecycle during Keycloak restart)
+- Tangy: Validate live suite behavior after Razor build errors resolved

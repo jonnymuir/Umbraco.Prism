@@ -931,3 +931,24 @@ Created 14 regression tests that lock in the localhost generic OIDC auth contrac
 - `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts` (auth flow assertions)
 - `src/UmbracoPrism.Client/tests/support/live-app-host.ts` (Aspire harness)
 - `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` (readiness/session endpoints)
+
+## Learnings — 2026-04-13 — Restart-only downstream fix validation
+
+- Focused backend coverage is green for the current restart-only downstream slice: `DashboardLocalEndpointsValidationTests` and `LocalhostGenericOidcRegressionTests` passed together (25 tests).
+- The live localhost Playwright suite still leaves exactly two restart-only behavioural contracts red. `signed-in member can still call the mock business app API after the whole stack restarts` still returns `401 Unauthorized` instead of `200 OK`, while `signed-in member stays signed in across a full restart and can still sign out` keeps the member signed in but never completes the post-restart logout return to `/`.
+- Non-restart contracts remain green in this validation pass, including clean sign-in, downstream API before restart, seeded workflow navigation, and sign-out without a restart.
+
+## Cross-Agent Update — 2026-04-13 — Blathers restart-downstream decision
+
+Blathers completed restart-only downstream auth investigation/fix pass. Outcome: 57/57 auth tests green. Key changes:
+- Restart-stale cookie detection now prevents reuse of pre-restart access tokens
+- Offline token contract enabled for localhost Keycloak demo (offline_access + scope-less refresh)
+- Sanitized diagnostics added for 401 failures
+- Two integration blockers remain: live restart 401 error and pre-existing TestSite Razor build errors
+
+**For Tangy:** The restart-stale session contract is now in place. When validating post-fix, use:
+- `GET /api/prism/downstream-demo/session-contract` to confirm cookie age detection
+- Monitor access token refresh lifecycle during restart scenario
+- Expected: member stays signed in after restart, downstream bearer works
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-13T21:56:27Z-blathers.md`

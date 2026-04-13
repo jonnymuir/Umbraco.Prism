@@ -5715,3 +5715,46 @@ Generic OIDC and Entra now follow the same vault-backed, reference-based secret 
 ---
 
 **Recorded by:** Scribe (Phase 1 Consolidation)
+
+---
+
+## 📌 2026-04-13: Blathers — Restart-Only Downstream Auth Contract (Phase 2 Auth Diagnostics)
+
+**Status:** Completed with integration blockers
+
+**Decision:** Treat restart-stale localhost generic OIDC sessions as a special contract:
+
+1. If the encrypted `PrismMemberCookie` was issued before the current TestSite process started, `PrismContext` should try a refresh before reusing the cached downstream access token.
+2. The repo-owned localhost Keycloak demo should request `offline_access` on the browser auth flow so a full local AppHost restart can still mint a fresh downstream bearer token.
+3. The localhost refresh-token grant should omit the `scope` parameter and let Keycloak reuse the offline scopes already carried by the refresh token.
+
+**Why:** The live restart regression is specifically about the local demo stack: MockBusinessApp rejects the pre-restart access token after Keycloak restarts, while the browser cookie still says the member is signed in. Restart-stale cookie detection plus an offline-token contract keeps the behavioural test strict without broadening generic OIDC privileges for non-demo tenants.
+
+**Implementation Details:**
+- Added `RestartStaleSessionHandler` in `PrismContext` to detect cookie age vs process start time
+- Implemented `OfflineTokenRefreshContract` for localhost demo token refresh lifecycle
+- Keycloak realm export updated to request `offline_access` on browser auth flow
+- Refresh token grant configured to omit `scope` parameter
+
+**Validation:**
+- Auth test suite: 57/57 passing
+- Restart-stale detection tests: all passing
+- Offline refresh tests: all passing
+
+**Files Modified:**
+- `src/UmbracoPrism.Core/Models/PrismContext.cs`
+- `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`
+- `src/UmbracoPrism.Core/Services/IPrismTokenRefreshService.cs`
+- `src/UmbracoPrism.Core/Services/PrismTokenRefreshService.cs`
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`
+- `src/UmbracoPrism.Core.Tests/PrismContextTests.cs`
+- `src/UmbracoPrism.Core.Tests/LocalhostGenericOidcRegressionTests.cs`
+- `keycloak/realm-export.json`
+
+**Remaining Blockers:**
+1. **Live Restart Regression (401)** — Full stack restart still results in 401. Symptoms suggest token expiry vs revocation issue during Keycloak restart cycle.
+2. **TestSite Razor Build Errors** — Pre-existing Razor compilation errors block normal Playwright/AppHost test path. Unblocks: Fix Razor build issues first.
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-13T21:56:27Z-blathers.md`
+
+**Recorded by:** Scribe (2026-04-13T21:56:27Z)
