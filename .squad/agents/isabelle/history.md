@@ -75,6 +75,7 @@
 
 ## Learnings
 
+- 2026-04-12: The TestSite downstream API demo in `src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml` must normalize incomplete or non-demo payloads client-side (for example `401 { error: ... }`) and fall back to the `fetch` response metadata for status, URL, and content type. Keep `#api-btn` mounted, disable it while loading, and announce a human summary through `#api-summary`/`aria-live` so failures never degrade to `undefined undefined` or console-only feedback.
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
 - 2026-03-28: Fixed SecurityError in "Produce Mobile" download — Umbraco's SPA router was intercepting the programmatic anchor click and trying to navigate to the blob: URL. Solution: Add `target="_blank"` and `rel="noopener noreferrer"` to download anchors, plus `preventDefault()` / `stopPropagation()` on button handlers. This prevents the router from capturing the click event.
 - 2026-03-28: Implemented biometric bridge (issue #22) using Aparajita packages (@aparajita/capacitor-biometric-auth, @aparajita/capacitor-secure-storage) — these have different API signatures than @capacitor-community equivalents. SecureStorage.set(key, value) not {key, value}, and returns DataType directly not {value}. Always check node_modules definitions when working with Capacitor plugins.
@@ -1535,4 +1536,3 @@ Member dashboard for managing multiple workflow instances.
 ### Backend Integration
 
 Backend PrismTenantRequest model already has OidcAuthority, OidcClientId, OidcClientSecret as nullable strings (confirmed in task context). Frontend sends these fields as camelCase (oidcAuthority, etc.) which ASP.NET Core automatically binds to PascalCase C# properties. Empty strings become undefined in the payload, which ASP.NET Core binds to null for nullable types.
-

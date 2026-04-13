@@ -604,3 +604,138 @@ Two test issues identified by Jonny Muir:
 - No tests for concurrent nonce creation/resolution
 - No tests for malformed JSON in cache (deserialization error handling)
 - No tests for datetime field type (only date tested)
+
+---
+
+## 2025-01-21 — Real HTTPS for Keycloak — Acceptance Criteria Definition
+
+**Task:** Define practical acceptance criteria and verification steps for real TLS-backed HTTPS Keycloak endpoint to fix Safari/WebKit auth failures.
+
+**Context:**
+- Previous WithHttpsEndpoint exposed plain HTTP, not TLS
+- Safari/WebKit drop Keycloak Secure cookies on HTTP origins
+- Fix must remain easy for developers taking fresh repo clone
+
+**What I delivered:**
+- Comprehensive acceptance criteria in .squad/decisions/inbox/tangy-keycloak-https.md covering:
+  1. Real TLS endpoint verification
+  2. Browser sign-in flow (Safari focus, regression checks)
+  3. Developer experience (2 or fewer additional manual steps)
+  4. Configuration alignment (KEYCLOAK_URL, OidcAuthority)
+  5. Regression checks (startup, realm import, Apple Silicon)
+  6. Documentation updates
+
+**Minimal verification workflow (for Blathers):**
+1. Transport probe: curl for HTTPS well-known endpoint
+2. Safari sign-in: Navigate, sign in, no cookie errors
+3. Logs check: Keycloak imported realm, TestSite HTTPS authority
+4. Fresh clone simulation: documented setup under 5 minutes
+
+**Key acceptance points:**
+- Real TLS handshake (not HTTP redirect)
+- Safari sign-in completes without cookie errors
+- Setup documented, 2 or fewer extra manual steps
+- KEYCLOAK_URL injected into TestSite points to HTTPS
+- Keycloak proxy-headers flag still present
+- No regression on Keycloak startup or Apple Silicon workaround
+
+**Skills leveraged:**
+- keycloak-localhost-https: Keep frontchannel HTTPS
+- local-oidc-https-proxy: Verify transport with curl/openssl
+
+**File paths:**
+- Acceptance criteria: .squad/decisions/inbox/tangy-keycloak-https.md
+- Current AppHost: src/UmbracoPrism.AppHost/Program.cs
+- Tenant seeder: src/UmbracoPrism.TestSite/DemoTenantSeeder.cs
+
+----
+
+## 2025-01-21 — Validation: Revised Keycloak HTTPS Implementation
+
+**Task:** Validate the revised implementation using .NET dev cert and corrected YARP transform placement against acceptance criteria.
+
+**Context:**
+- Blathers implemented UmbracoPrism.KeycloakProxy (YARP-based reverse proxy)
+- Proxy terminates TLS at https://localhost:8443 using .NET dev cert via Kestrel UseHttps()
+- X-Forwarded headers set at route-level transforms (corrected placement)
+- KEYCLOAK_URL environment variable points to HTTPS proxy endpoint
+- DemoTenantSeeder uses KEYCLOAK_URL with https://localhost:8443 fallback
+
+**What I validated (code review):**
+
+1. **Real TLS Endpoint:** ✅ PASS
+   - Kestrel UseHttps() with no cert parameter loads .NET dev cert automatically
+   - Proxy listens on localhost:8443, forwards to Keycloak HTTP container at 8080
+   - Expected transport: curl https://localhost:8443 should show valid TLS handshake
+
+2. **Safari/WebKit Cookie Architecture:** ✅ PASS
+   - Browser-facing authority is https://localhost:8443 (from KEYCLOAK_URL)
+   - YARP transforms set X-Forwarded-Proto: https and X-Forwarded-Host: localhost:8443
+   - Keycloak receives --proxy-headers xforwarded flag
+   - Keycloak will emit Secure cookies with HTTPS-based OIDC metadata
+   - Architecture satisfies Safari/WebKit secure cookie requirements
+
+3. **Developer Experience:** ✅ PASS (with README enhancement opportunity)
+   - One trust command: dotnet dev-certs https --trust (documented in ASPIRE_DEV.md)
+   - AppHost orchestrates proxy automatically (WaitFor, environment variable injection)
+   - No manual cert generation or proxy startup required
+   - Enhancement: README.md "One-time setup" section missing cert trust step (ASPIRE_DEV has it)
+
+4. **Configuration Alignment:** ✅ PASS
+   - KEYCLOAK_URL injected as https://localhost:8443 (AppHost Program.cs:35)
+   - DemoTenantSeeder reads KEYCLOAK_URL, defaults to https://localhost:8443
+   - Keycloak --proxy-headers xforwarded flag present (Program.cs:17)
+   - YARP transforms correctly placed at route level (appsettings.json:16-29)
+   - No hardcoded http://localhost:8080 in browser-facing config
+
+5. **Regression Checks:** ✅ PASS
+   - Apple Silicon workaround still present (JAVA_OPTS_APPEND=-XX:UseSVE=0)
+   - Realm import path and --import-realm flag unchanged
+   - Standalone TestSite defaults to https://localhost:8443 (assumes proxy running)
+
+6. **Documentation:** ✅ PASS (with README enhancement)
+   - ASPIRE_DEV.md documents cert trust, proxy architecture, Safari rationale, troubleshooting
+   - KeycloakProxy/README.md explains approach and technology choices
+   - README.md missing cert trust in "One-time setup" (consistency opportunity)
+
+**Transport Verification (code review analysis):**
+- Proxy implementation: Kestrel UseHttps() → loads .NET dev cert → listens on 8443
+- YARP config: Route-level transforms set X-Forwarded-Proto and X-Forwarded-Host correctly
+- Keycloak proxy-awareness: --proxy-headers xforwarded flag reads forwarded headers
+- Expected issuer: https://localhost:8443/realms/prism-dev (matches TestSite authority)
+
+**Outcome:** ✅ **PASS** — All critical acceptance criteria satisfied
+
+**Gaps:** None blocking
+- Enhancement: Add dotnet dev-certs https --trust to README.md "One-time setup" section
+- Future: Playwright Safari E2E test (when WebKit available on CI)
+
+**Manual verification gate:** Safari sign-in flow after dotnet run --project src/UmbracoPrism.AppHost
+
+**Skills leveraged:**
+- keycloak-localhost-https: Keep frontchannel HTTPS, WebKit cookie requirements
+- local-oidc-https-proxy: Use .NET dev cert, verify transport, preserve external scheme awareness
+
+**File paths:**
+- Validation report: .squad/decisions/inbox/tangy-validate-revised-keycloak-https.md
+- Proxy implementation: src/UmbracoPrism.KeycloakProxy/Program.cs
+- YARP config: src/UmbracoPrism.KeycloakProxy/appsettings.json
+- AppHost orchestration: src/UmbracoPrism.AppHost/Program.cs
+- Tenant seeder: src/UmbracoPrism.TestSite/DemoTenantSeeder.cs
+- Docs: ASPIRE_DEV.md, README.md, src/UmbracoPrism.KeycloakProxy/README.md
+
+**Key learning:**
+- YARP transforms must be at route level (Transforms array inside Route definition), not cluster level
+- .NET dev cert approach is cleaner than mkcert (one command, no CA installation, already trusted)
+- X-Forwarded headers must include both Proto and Host for Keycloak to build correct OIDC URLs
+
+## Learnings
+
+- 2026-04-12 (Dashboard/local endpoint validation): locked in the Aspire localhost contract for the member dashboard downstream demo.
+- Aspire should advertise the Keycloak proxy at `https://localhost:8443`, TestSite via the explicit `Umbraco.Web.UI` profile, and MockBusinessApp via its explicit `https` profile so both `https://localhost:7245` and `http://localhost:5163` stay visible/usable in local orchestration.
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` now treats the Business App target as configuration-driven and keeps the graceful inline failure payload contract testable when the service is down.
+- Validation coverage now lives in `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`; relevant wiring lives in `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json`, and `src/UmbracoPrism.TestSite/appsettings.Development.json`.
+- Jonny’s preference for this thread: validate endpoint visibility and graceful dashboard behavior with the smallest useful automated guard, then report outcomes in human terms.
+- 2026-04-13 (Persistent downstream 401): the dashboard-to-BusinessApp repro was still live on the running Aspire stack (`https://localhost:7245/api/backoffice/me` returned `401 Unauthorized` after real Keycloak sign-in), but a rebuilt standalone MockBusinessApp on `https://localhost:7246` succeeded once `PrismAuthExtensions` stopped calling `JsonWebToken.GetClaim(...)` for optional `tid`/`azp`/`iss` lookups.
+- Generic Keycloak access tokens in this flow arrive as `JsonWebToken` instances without a `tid` claim, so safe claim enumeration is required before falling back to the OIDC issuer path; otherwise downstream bearer validation fails before issuer/audience matching can run.
+- The smallest reliable regression guard for this hop is validator-level coverage in `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs` using browser-shaped `JsonWebToken` payloads, plus a manual smoke check that stale `7245` processes still need a restart to pick up the fix.

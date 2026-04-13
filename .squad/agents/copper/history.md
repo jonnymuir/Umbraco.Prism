@@ -100,6 +100,15 @@
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
 
+- 2026-04-12: Local Keycloak demo sign-in should not request `offline_access`; Prism generic OIDC browser auth can use standard session-bound scopes (`openid profile`) and only needs offline tokens after an explicit feature/security review.
+- 2026-04-12: Relevant local auth files for this policy are `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `keycloak/realm-export.json`, `src/UmbracoPrism.AppHost/Program.cs`, and `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`.
+- 2026-04-12: Guardrail for repo-taker demos: do not broaden Keycloak client/user privileges, relax nonce/issuer/audience checks, or weaken HTTPS/redirect pinning just to unblock localhost OIDC.
+- 2026-04-12: For generic OIDC logout (local Keycloak), persist the `id_token` only inside the existing encrypted auth cookie, send it back as `id_token_hint` during RP-initiated logout, and set `client_id` as a safe fallback when the hint is unavailable.
+- 2026-04-12: Logout hardening files for this flow are `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs`, `src/UmbracoPrism.Core/Controllers/AccountController.cs`, and `keycloak/realm-export.json`.
+- 2026-04-12: For downstream calls, a valid Prism session is not just “has PrismMemberCookie”; it must include a current `access_token` plus provider-specific tenant binding to the resolved host tenant: Entra via `tid` ↔ `CurrentTenant.EntraTenantId`, generic OIDC via `iss` ↔ `CurrentTenant.OidcAuthority`.
+- 2026-04-12: The localhost 401 on `api/prism/downstream-demo` is security-relevant because `src/UmbracoPrism.Core/Models/PrismContext.cs` still treats `tid` as the only binding signal, while the local Keycloak tenant seeded by `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` is issuer-bound and has no Entra tenant id.
+- 2026-04-12: Any Blathers fix for downstream session forwarding must preserve the existing encrypted `PrismMemberCookie`, keep host/tenant resolution as the trust anchor, and avoid fallbacks that accept bearer forwarding without tenant-bound claim validation.
+
 ## 2026-03-29 — Biometric Authentication Security Analysis
 
 - Reviewed biometric login design for Prism Mobile (Capacitor WebView wrapper).
@@ -1492,3 +1501,11 @@ Documentation updated: README includes cert trust setup, ASPIRE_DEV.md explains 
 - Fresh clones work immediately with no browser warnings (assuming standard .NET dev cert trust)
 - Forwarded headers are correctly configured so Keycloak generates HTTPS OIDC URLs
 - Implementation meets Tom Nook's reviewer findings and user requirement for "nice and easy"
+
+## Learnings
+
+### 2026-04-12 — Mock Business App downstream OIDC contract
+- Local Keycloak browser-facing issuer is the HTTPS proxy authority `https://localhost:8443/realms/prism-dev`; downstream APIs must trust that issuer string exactly and must not fall back to Keycloak’s internal HTTP endpoint.
+- Prism’s downstream bearer for the local generic OIDC path is the session `access_token`, released only after `PrismContext` confirms the cookie principal is bound to the resolved tenant via `iss` plus `aud`/`azp`.
+- Mock Business App must keep fail-closed issuer, audience, lifetime, and signing-key validation in `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`; the 401 should be fixed by aligning trusted authority configuration, not by disabling validators.
+- Key file paths: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`, `src/UmbracoPrism.MockBusinessApp/appsettings.json`, `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`.

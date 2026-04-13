@@ -31,6 +31,21 @@
 
 ## Learnings
 
+### Keycloak HTTPS via YARP + .NET Dev Cert (2025-07-22)
+**Decision:** Use the existing `UmbracoPrism.KeycloakProxy` YARP project with the standard .NET dev cert (not self-signed) to provide browser-trusted HTTPS in front of Keycloak on port 8443.
+**Key insight:** Every developer already runs `dotnet dev-certs https --trust` for TestSite HTTPS, so a .NET YARP proxy reuses that trust for free — zero extra setup on fresh clones.
+**Alternatives rejected:** Keycloak native HTTPS (needs PEM cert generation + mkcert tool), Caddy container (extra Docker image + manual CA trust). Both add onboarding friction.
+**Files:** `src/UmbracoPrism.KeycloakProxy/Program.cs` (remove self-signed cert, use Kestrel default), `src/UmbracoPrism.AppHost/Program.cs` (wire proxy into Aspire, point KEYCLOAK_URL at proxy HTTPS endpoint).
+**User preference:** "Nice and easy for when people take the repo" — minimal prerequisites, no manual cert steps.
+**Decision file:** `.squad/decisions/inbox/tom-nook-keycloak-https.md`
+
+### Revised Keycloak HTTPS Review — Approved (2025-07-22)
+**Verdict:** APPROVE after second review. Both prior rejection issues resolved.
+**What changed:** (1) Self-signed cert replaced with `UseHttps()` loading .NET dev cert. (2) YARP transforms moved from Clusters to Routes section.
+**Minor fix applied:** Stale "self-signed" comment in `AppHost/Program.cs` corrected to reference .NET dev cert.
+**Key files verified:** `src/UmbracoPrism.KeycloakProxy/Program.cs`, `src/UmbracoPrism.KeycloakProxy/appsettings.json`, `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`.
+**Pattern confirmed:** YARP transforms belong in `Routes > {route} > Transforms`, never in `Clusters`. The `.NET dev cert` approach is the standard for this repo's localhost HTTPS.
+
 ### Stateless OIDC Architecture (2026-03-22)
 **What works:** Per-request tenant resolution + dynamic OIDC config is elegant:
 1. PrismTenantMiddleware resolves hostname → fetches PrismTenant from cache (30 min TTL)
@@ -655,3 +670,16 @@ All layers are correctly scoped (model constraints → HTML5 → tamper-proofing
 - Umbraco-idiomatic (document types, route-hijacking, view overrides)
 
 **Decisions file:** `.squad/decisions/inbox/tom-nook-workflow-hub-design.md` (needs Scribe merge)
+
+### Keycloak HTTPS Proxy Review — REJECT (2025-07-22)
+
+**Reviewed:** Blathers' implementation of `UmbracoPrism.KeycloakProxy` YARP reverse proxy for HTTPS Keycloak access.
+
+**Verdict:** REJECT with two required fixes before merge.
+
+**Issue 1 — Self-signed cert instead of dev cert:** `Program.cs` generates a self-signed certificate via `CreateSelfSignedCert()` instead of using Kestrel's default .NET dev cert. This contradicts the architecture decision to reuse the already-trusted dev cert for zero-friction onboarding. Fix: call `listenOptions.UseHttps()` without a cert parameter and remove the `CreateSelfSignedCert()` method.
+
+**Issue 2 — YARP transforms in wrong config location:** `appsettings.json` places `X-Forwarded-*` header transforms under `Clusters > keycloak-cluster > HttpRequest > Transforms`. YARP's config schema expects transforms on routes (`Routes > routeId > Transforms`), not clusters. The transforms are silently ignored, so Keycloak never receives forwarded-proto headers, breaking OIDC issuer URL construction. Fix: move the `Transforms` array to the route section.
+
+**Routed to:** Copper (Security Engineer) — Blathers under reviewer lockout.
+**Decision file:** `.squad/decisions/inbox/tom-nook-keycloak-https-review.md`
