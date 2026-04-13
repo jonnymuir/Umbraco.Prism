@@ -952,3 +952,30 @@ Blathers completed restart-only downstream auth investigation/fix pass. Outcome:
 - Expected: member stays signed in after restart, downstream bearer works
 
 **Orchestration Log:** `.squad/orchestration-log/2026-04-13T21:56:27Z-blathers.md`
+
+## Session: 2026-04-13 — Concurrent Dashboard Test Investigation
+
+**Status:** Completed  
+**Collaboration:** Parallel investigation with Brewster on localhost auth Playwright dashboard regression
+
+**Problem:** Dashboard Playwright test was failing; uncertain whether issue was navigation-based or selector-based.
+
+**Investigation Scope:**
+- Validated navigation assumptions in the dashboard Playwright test flow
+- Determined whether the failure was routing-related or test-setup-related
+- Coordinated with Brewster to avoid duplicate investigation
+
+**Findings:**
+- Brewster confirmed the root cause: browser test was not verifying the authored CTA navigation before asserting dashboard UI
+- Test instability came from incomplete state transitions (test still on home page while asserting dashboard-only UI)
+- Confirmed that following authored Umbraco navigation is the stable test pattern
+
+**Decision Captured:** **Brewster — Dashboard Route Contract** merged to `.squad/decisions.md`
+- Keep seeded dashboard at `/dashboard` (direct published route)
+- Browser tests must reach it via the authored home page CTA
+- Exercises the same Umbraco-authored navigation users see
+- Prevents false negatives from incomplete test state transitions
+
+**Learning:** Playwright test stability improves when tests follow authored content-tree navigation rather than direct route access. This pattern aligns test behavior with user-visible navigation and reduces false negatives.
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-13T23:05:08Z-tangy.md`

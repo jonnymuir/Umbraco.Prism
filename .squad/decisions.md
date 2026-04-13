@@ -4,6 +4,25 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-04-13: Brewster — Dashboard Route Contract
+
+**Decision:** Keep the seeded Umbraco dashboard contract as a direct published route at `/dashboard`, but have browser tests reach it from the signed-in home page CTA while asserting that CTA resolves to `/dashboard`.
+
+**Context:** localhost auth/session Playwright flow for the seeded TestSite dashboard.
+
+**Why:**
+- `/api/prism/downstream-demo/seed-contract-ready` already treats `/dashboard` as part of the machine-checked route contract.
+- An unauthenticated request to `/dashboard` correctly challenges to `/auth/login?ReturnUrl=%2Fdashboard`, so the app-side route wiring is sound.
+- Driving the browser through the `Go to Dashboard` link exercises the same authored Umbraco navigation the user sees and avoids false negatives where the test is still on the home page when it expects dashboard-only UI.
+
+**Implications:**
+- Do not weaken the seed contract to allow a home-page fallback for dashboard scenarios.
+- Localhost Playwright flows should verify the CTA `href` and then click it before asserting dashboard UI.
+
+**Session Log:** `.squad/log/2026-04-13T23:05:08Z-dashboard-test-investigation.md`
+
+---
+
 ## 📌 2026-03-28: P1 #5 Completed — Tenant Cache Invalidation Strategy
 
 **Decision:** Centralize tenant-cache invalidation in `ITenantService` and instrument cache behavior with runtime counters.

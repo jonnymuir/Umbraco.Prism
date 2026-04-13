@@ -37,3 +37,20 @@
 **Open Questions for Implementation:** Copper (encryption key scoping), Blathers (token expiry validation, rate limiting strategy) — documented in decisions.md pending implementation phase.
 
 **Delivery Mechanism:** Orchestration logs recorded for each team member; session log created; decisions merged and inbox cleared.
+
+## Session: 2026-04-13 — Dashboard Test Investigation
+
+**Spawn Request:** Investigate localhost auth Playwright regression for dashboard route (requested by Jonny Muir)
+
+**Participants:**
+- Brewster (Umbraco Platform Specialist)
+- Tangy (Tester)
+
+**Outcomes:**
+- Root cause identified: Dashboard Playwright test was not verifying authored CTA navigation before asserting dashboard UI
+- Dashboard route contract confirmed: `/dashboard` is correct; seeded route wiring is sound
+- Test pattern recommendation: Playwright flows should navigate via authored CTAs (same path users take) rather than direct routes
+- Decision merged to `.squad/decisions.md`: **Brewster — Dashboard Route Contract**
+- Session log: `.squad/log/2026-04-13T23:05:08Z-dashboard-test-investigation.md`
+
+**Key Finding:** Test false negatives were caused by incomplete state transitions. Fix ensures tests exercise authored Umbraco navigation structure.

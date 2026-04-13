@@ -20,6 +20,7 @@ Use this skill when the TestSite's real auth/workflow flow depends on seeded Umb
 - Normalize published URLs before asserting them as a contract; Umbraco may emit trailing slashes even when the intended route contract is `/dashboard`, `/get-in-touch`, or `/my-workflows`.
 - If a clean Aspire run uses an isolated runtime root, verify the seeded contract against that isolated database rather than the developer's standalone local Umbraco DB.
 - Document the route contract anywhere the localhost Playwright/Aspire flow is described so QA and docs use the same assumptions as the seeders.
+- In browser tests, prefer entering authored member pages by clicking the content-resolved CTA or nav link that points there, while separately asserting the link `href` matches the seeded contract (for example, `Go to Dashboard` → `/dashboard`).
 
 ## Examples
 
