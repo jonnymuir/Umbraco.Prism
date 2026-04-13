@@ -31,7 +31,7 @@ public class PrismTenant
     public string? EntraClientId { get; set; }
     
     /// <summary>
-    /// This is NOT the secret itself. It is the NAME of the secret in Azure Key Vault.
+    /// This is NOT the secret itself. It is the vault-backed secret reference used by Entra tenants.
     /// Example: "Prism-TenantA-Secret"
     /// </summary>
     public string? SecretKeyName { get; set; }
@@ -75,8 +75,14 @@ public class PrismTenant
     public string? OidcClientId { get; set; }
 
     /// <summary>
-    /// Gets or sets the OIDC client secret for non-Entra providers.
-    /// Note: For local dev only. Production should use environment variables.
+    /// Gets or sets the provider used to resolve the generic OIDC client secret at runtime.
+    /// Normal tenants should use <c>azure-key-vault</c>; the repo-owned localhost demo may use <c>inline</c>.
     /// </summary>
-    public string? OidcClientSecret { get; set; }
+    public string? OidcClientSecretProvider { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider-specific reference used to resolve the generic OIDC client secret at runtime.
+    /// For Key Vault this is the secret name; for the localhost demo it is the repo-owned inline secret.
+    /// </summary>
+    public string? OidcClientSecretReference { get; set; }
 }

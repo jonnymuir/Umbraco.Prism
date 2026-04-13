@@ -43,6 +43,82 @@ public class PrismOidcConfigurationTests
     }
 
     [Fact]
+    public async Task ResolveClientSecretAsync_UsesInlineSecret_ForRepoOwnedLocalDemoTenant()
+    {
+        var tenant = new PrismTenant
+        {
+            Hostname = "localhost",
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client",
+            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+            OidcClientSecretReference = "prism-dev-secret"
+        };
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(service => service.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"))
+            .ReturnsAsync("prism-dev-secret");
+
+        var secret = await PrismOidcConfiguration.ResolveClientSecretAsync(tenant, vault.Object);
+
+        secret.Should().Be("prism-dev-secret");
+        vault.Verify(service => service.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResolveClientSecretAsync_UsesVaultReference_ForGenericOidcTenantsOutsideLocalDemoPath()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://auth.example.com/realms/northwind",
+            OidcClientId = "northwind-portal",
+            OidcClientSecretProvider = PrismSecretProviderNames.AzureKeyVault,
+            OidcClientSecretReference = "northwind-oidc-secret"
+        };
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(service => service.ResolveSecretAsync(PrismSecretProviderNames.AzureKeyVault, "northwind-oidc-secret"))
+            .ReturnsAsync("vault-backed-secret");
+
+        var secret = await PrismOidcConfiguration.ResolveClientSecretAsync(tenant, vault.Object);
+
+        secret.Should().Be("vault-backed-secret");
+        vault.Verify(service => service.ResolveSecretAsync(PrismSecretProviderNames.AzureKeyVault, "northwind-oidc-secret"), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResolveClientSecretAsync_FailsClosed_ForInlineSecretsOutsideRepoOwnedLocalDemoPath()
+    {
+        var tenant = new PrismTenant
+        {
+            Hostname = "northwind.example",
+            OidcAuthority = "https://auth.example.com/realms/northwind",
+            OidcClientId = "northwind-portal",
+            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+            OidcClientSecretReference = "should-not-resolve"
+        };
+        var vault = new Mock<ISecretVaultService>();
+
+        var secret = await PrismOidcConfiguration.ResolveClientSecretAsync(tenant, vault.Object);
+
+        secret.Should().BeEmpty();
+        vault.Verify(service => service.ResolveSecretAsync(It.IsAny<string?>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResolveClientSecretAsync_FailsClosed_ForGenericOidcTenantsWithoutSecretReference()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://auth.example.com/realms/northwind",
+            OidcClientId = "northwind-portal"
+        };
+        var vault = new Mock<ISecretVaultService>();
+
+        var secret = await PrismOidcConfiguration.ResolveClientSecretAsync(tenant, vault.Object);
+
+        secret.Should().BeEmpty();
+        vault.Verify(service => service.ResolveSecretAsync(It.IsAny<string?>(), It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
     public async Task PostConfigure_TriggersBackgroundRefreshWithoutBlocking_WhenKidIsMissingFromCache()
     {
         var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

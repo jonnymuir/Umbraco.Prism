@@ -1,8 +1,11 @@
 namespace UmbracoPrism.Core.Controllers.Models;
 
-public class PrismTenantRequest
+/// <summary>
+/// Management API response for tenant records.
+/// </summary>
+public class PrismTenantResponse
 {
-    public int? Id { get; set; }
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Hostname { get; set; } = string.Empty;
     public string? EntraTenantId { get; set; }
@@ -11,10 +14,9 @@ public class PrismTenantRequest
     public string? OidcAuthority { get; set; }
     public string? OidcClientId { get; set; }
     public string? OidcClientSecretProvider { get; set; }
-    public string? OidcClientSecretReference { get; set; }
-    public bool ResetOidcClientSecret { get; set; }
-    public Dictionary<string, string>? BrandingOverrides { get; set; }
-    public Dictionary<string, string>? MobileBrandingOverrides { get; set; }
-    public PrismMobileAppConfig? MobileAppConfig { get; set; }
-    public bool AllowBiometricLogin { get; set; } = true;
+    public bool HasOidcClientSecret { get; set; }
+    public string? BrandingOverrides { get; set; }
+    public string? MobileBrandingOverrides { get; set; }
+    public string? MobileAppConfig { get; set; }
+    public bool AllowBiometricLogin { get; set; }
 }

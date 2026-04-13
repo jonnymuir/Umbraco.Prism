@@ -83,7 +83,11 @@ public class TenantService : ITenantService
                 AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
                 OidcAuthority = tenantSchema.OidcAuthority,
                 OidcClientId = tenantSchema.OidcClientId,
-                OidcClientSecret = tenantSchema.OidcClientSecret
+                OidcClientSecretProvider = tenantSchema.OidcClientSecretProvider
+                    ?? (!string.IsNullOrWhiteSpace(tenantSchema.OidcClientSecret)
+                        ? PrismSecretProviderNames.Inline
+                        : null),
+                OidcClientSecretReference = tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret
             };
         }, TimeSpan.FromMinutes(30));
 

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const createStoryUrl = '/?path=/story/prism-create-tenant-modal--create';
 const editStoryUrl = '/?path=/story/prism-create-tenant-modal--edit';
+const localDemoStoryUrl = '/?path=/story/prism-create-tenant-modal--local-demo-secret-exception';
 
 test('Create modal tabs switch and content has height', async ({ page }) => {
   await page.goto(createStoryUrl);
@@ -97,6 +98,123 @@ test('Edit modal shows branding tabs', async ({ page }) => {
   });
 
   await expect(frame.getByText('--custom-border')).toBeVisible();
+});
+
+test('Edit modal keeps generic OIDC secret replacement fields empty by default', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Identity"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const secretState = await modal.evaluate((el) => {
+    const keyVaultInput = el.shadowRoot?.querySelector('#secret-name') as HTMLInputElement | null;
+    const resetToggle = el.shadowRoot?.querySelector('input[aria-label="Reset configured OIDC secret"]') as HTMLInputElement | null;
+
+    return {
+      keyVaultValue: keyVaultInput?.value ?? '',
+      resetVisible: Boolean(resetToggle)
+    };
+  });
+
+  expect(secretState.keyVaultValue).toBe('');
+  expect(secretState.resetVisible).toBe(true);
+  await expect(frame.getByText('Current secret source: Azure Key Vault reference.')).toBeVisible();
+  await expect(frame.getByText('Leave blank on edit to keep the current secret')).toBeVisible();
+});
+
+test('Edit modal builds replace-only payload for generic OIDC Key Vault references', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Identity"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const payload = await modal.evaluate((el) => {
+    const keyVaultInput = el.shadowRoot?.querySelector('#secret-name') as HTMLInputElement | null;
+    if (keyVaultInput) {
+      keyVaultInput.value = 'northwind-oidc-secret-v2';
+      keyVaultInput.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+    }
+
+    return (el as any)._buildTenantPayload();
+  });
+
+  expect(payload.secretKeyName).toBe('northwind-oidc-secret-v2');
+  expect(payload.oidcClientSecretProvider).toBeUndefined();
+  expect(payload.oidcClientSecretReference).toBeUndefined();
+  expect(payload.resetOidcClientSecret).toBe(false);
+});
+
+test('Local demo story keeps inline secret write-only and uses explicit replace payload', async ({ page }) => {
+  await page.goto(localDemoStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Identity"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const payload = await modal.evaluate((el) => {
+    const inlineSecretInput = el.shadowRoot?.querySelector('#oidc-client-secret-reference') as HTMLInputElement | null;
+    if (inlineSecretInput) {
+      inlineSecretInput.value = 'prism-dev-secret';
+      inlineSecretInput.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+    }
+
+    return {
+      inputValue: inlineSecretInput?.value ?? '',
+      payload: (el as any)._buildTenantPayload()
+    };
+  });
+
+  expect(payload.inputValue).toBe('prism-dev-secret');
+  expect(payload.payload.secretKeyName).toBeUndefined();
+  expect(payload.payload.oidcClientSecretProvider).toBe('inline');
+  expect(payload.payload.oidcClientSecretReference).toBe('prism-dev-secret');
+  expect(payload.payload.resetOidcClientSecret).toBe(false);
+  await expect(frame.getByText('Only the repo-owned localhost Keycloak demo uses an inline secret.')).toBeVisible();
+});
+
+test('Edit modal can request an explicit OIDC secret reset', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Identity"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const payload = await modal.evaluate((el) => {
+    const resetToggle = el.shadowRoot?.querySelector('input[aria-label="Reset configured OIDC secret"]') as HTMLInputElement | null;
+    if (resetToggle) {
+      resetToggle.checked = true;
+      resetToggle.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    }
+
+    return (el as any)._buildTenantPayload();
+  });
+
+  expect(payload.secretKeyName).toBeUndefined();
+  expect(payload.oidcClientSecretProvider).toBeUndefined();
+  expect(payload.oidcClientSecretReference).toBeUndefined();
+  expect(payload.resetOidcClientSecret).toBe(true);
 });
 
 test('Edit modal branding table shows mobile override column and value', async ({ page }) => {

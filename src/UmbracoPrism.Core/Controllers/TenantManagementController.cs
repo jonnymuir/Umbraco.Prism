@@ -6,9 +6,9 @@ using Umbraco.Cms.Api.Management.Controllers;
 using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Cms.Web.Common.Authorization;
-using UmbracoPrism.Core.Persistence;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Controllers;
@@ -32,11 +32,11 @@ public class TenantManagementController(
     /// Gets all registered tenants.
     /// </summary>
     [HttpGet("tenants")]
-    public ActionResult<IEnumerable<PrismTenantSchema>> GetTenants()
+    public ActionResult<IEnumerable<PrismTenantResponse>> GetTenants()
     {
         using var db = databaseFactory.CreateDatabase();
         var tenants = db.Fetch<PrismTenantSchema>();
-        return Ok(tenants);
+        return Ok(tenants.Select(ToTenantResponse));
     }
 
     /// <summary>
@@ -48,7 +48,32 @@ public class TenantManagementController(
         if (tenant == null) return BadRequest();
 
         using var db = databaseFactory.CreateDatabase();
-        
+
+        var genericSecret = ResolveGenericSecretFields(
+            tenant.Hostname,
+            tenant.OidcAuthority,
+            tenant.OidcClientId,
+            tenant.SecretKeyName,
+            tenant.OidcClientSecretProvider,
+            tenant.OidcClientSecretReference,
+            existingProvider: null,
+            existingReference: null,
+            preserveExisting: false);
+
+        if (!TryValidateGenericOidcSecretRequest(
+                tenant.Hostname,
+                tenant.OidcAuthority,
+                tenant.OidcClientId,
+                tenant.SecretKeyName,
+                tenant.OidcClientSecretProvider,
+                tenant.OidcClientSecretReference,
+                tenant.ResetOidcClientSecret,
+                genericSecret.Reference,
+                out var createError))
+        {
+            return BadRequest(new { error = createError });
+        }
+
         var schema = new PrismTenantSchema
         {
             Id = 0,
@@ -56,10 +81,12 @@ public class TenantManagementController(
             Hostname = tenant.Hostname,
             EntraTenantId = tenant.EntraTenantId,
             EntraClientId = tenant.EntraClientId,
-            SecretKeyName = tenant.SecretKeyName,
-            OidcAuthority = tenant.OidcAuthority,
-            OidcClientId = tenant.OidcClientId,
-            OidcClientSecret = tenant.OidcClientSecret,
+            SecretKeyName = string.IsNullOrWhiteSpace(tenant.OidcAuthority) ? NormalizeOptionalString(tenant.SecretKeyName) : null,
+            OidcAuthority = NormalizeOptionalString(tenant.OidcAuthority),
+            OidcClientId = NormalizeOptionalString(tenant.OidcClientId),
+            OidcClientSecret = genericSecret.LegacyInlineSecret,
+            OidcClientSecretProvider = genericSecret.Provider,
+            OidcClientSecretReference = genericSecret.Reference,
             BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides),
             MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides),
             MobileAppConfig = SerializeMobileAppConfig(tenant.MobileAppConfig),
@@ -67,11 +94,9 @@ public class TenantManagementController(
         };
 
         db.Insert(schema);
-
-        // Tenant-affecting writes invalidate host-based tenant cache entries.
         tenantService.InvalidateDomain(schema.Hostname, "tenant-create");
-        
-        return Ok(schema);
+
+        return Ok(ToTenantResponse(schema));
     }
 
     /// <summary>
@@ -83,34 +108,56 @@ public class TenantManagementController(
         if (updatedTenant == null) return BadRequest();
 
         using var db = databaseFactory.CreateDatabase();
-        
-        // 1. Fetch the existing record to find the old hostname (for cache clearing)
         var existing = db.SingleOrDefaultById<PrismTenantSchema>(id);
         if (existing == null) return NotFound();
 
-        string oldHostname = existing.Hostname;
+        var oldHostname = existing.Hostname;
+        var existingProvider = NormalizeSecretProvider(existing);
+        var existingReference = NormalizeSecretReference(existing);
+        var genericSecret = ResolveGenericSecretFields(
+            updatedTenant.Hostname,
+            updatedTenant.OidcAuthority,
+            updatedTenant.OidcClientId,
+            updatedTenant.ResetOidcClientSecret ? null : updatedTenant.SecretKeyName,
+            updatedTenant.ResetOidcClientSecret ? null : updatedTenant.OidcClientSecretProvider,
+            updatedTenant.ResetOidcClientSecret ? null : updatedTenant.OidcClientSecretReference,
+            existingProvider,
+            existingReference,
+            preserveExisting: !updatedTenant.ResetOidcClientSecret);
 
-        // 2. Map updated values
+        if (!TryValidateGenericOidcSecretRequest(
+                updatedTenant.Hostname,
+                updatedTenant.OidcAuthority,
+                updatedTenant.OidcClientId,
+                updatedTenant.SecretKeyName,
+                updatedTenant.OidcClientSecretProvider,
+                updatedTenant.OidcClientSecretReference,
+                updatedTenant.ResetOidcClientSecret,
+                genericSecret.Reference,
+                out var updateError))
+        {
+            return BadRequest(new { error = updateError });
+        }
+
         existing.Name = updatedTenant.Name;
         existing.Hostname = updatedTenant.Hostname;
         existing.EntraTenantId = updatedTenant.EntraTenantId;
         existing.EntraClientId = updatedTenant.EntraClientId;
-        existing.SecretKeyName = updatedTenant.SecretKeyName;
-        existing.OidcAuthority = updatedTenant.OidcAuthority;
-        existing.OidcClientId = updatedTenant.OidcClientId;
-        existing.OidcClientSecret = updatedTenant.OidcClientSecret;
+        existing.SecretKeyName = string.IsNullOrWhiteSpace(updatedTenant.OidcAuthority) ? NormalizeOptionalString(updatedTenant.SecretKeyName) : null;
+        existing.OidcAuthority = NormalizeOptionalString(updatedTenant.OidcAuthority);
+        existing.OidcClientId = NormalizeOptionalString(updatedTenant.OidcClientId);
+        existing.OidcClientSecret = genericSecret.LegacyInlineSecret;
+        existing.OidcClientSecretProvider = genericSecret.Provider;
+        existing.OidcClientSecretReference = genericSecret.Reference;
         existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
         existing.MobileBrandingOverrides = SerializeBrandingOverrides(updatedTenant.MobileBrandingOverrides);
         existing.MobileAppConfig = SerializeMobileAppConfig(updatedTenant.MobileAppConfig);
         existing.AllowBiometricLogin = updatedTenant.AllowBiometricLogin;
 
-        // 3. Persist
         db.Update(existing);
-
-        // Tenant/branding/key changes are reflected by invalidating old and new host entries.
         tenantService.InvalidateDomains([oldHostname, updatedTenant.Hostname], "tenant-update");
-        
-        return Ok(existing);
+
+        return Ok(ToTenantResponse(existing));
     }
 
     /// <summary>
@@ -177,15 +224,13 @@ public class TenantManagementController(
     public IActionResult DeleteTenant(int id)
     {
         using var db = databaseFactory.CreateDatabase();
-        
+
         var tenant = db.SingleOrDefaultById<PrismTenantSchema>(id);
         if (tenant == null) return NotFound();
 
         db.Delete<PrismTenantSchema>(id);
-
-        // Remove cached host mapping immediately after delete.
         tenantService.InvalidateDomain(tenant.Hostname, "tenant-delete");
-        
+
         return Ok();
     }
 
@@ -266,5 +311,197 @@ public class TenantManagementController(
             .ToArray());
 
         return string.IsNullOrWhiteSpace(sanitized) ? "tenant" : sanitized;
+    }
+
+    private static PrismTenantResponse ToTenantResponse(PrismTenantSchema tenant)
+    {
+        var provider = NormalizeSecretProvider(tenant);
+        var reference = NormalizeSecretReference(tenant);
+
+        return new PrismTenantResponse
+        {
+            Id = tenant.Id,
+            Name = tenant.Name,
+            Hostname = tenant.Hostname,
+            EntraTenantId = tenant.EntraTenantId,
+            EntraClientId = tenant.EntraClientId,
+            SecretKeyName = string.IsNullOrWhiteSpace(tenant.OidcAuthority)
+                ? tenant.SecretKeyName
+                : null,
+            OidcAuthority = tenant.OidcAuthority,
+            OidcClientId = tenant.OidcClientId,
+            OidcClientSecretProvider = provider,
+            HasOidcClientSecret = !string.IsNullOrWhiteSpace(reference),
+            BrandingOverrides = tenant.BrandingOverrides,
+            MobileBrandingOverrides = tenant.MobileBrandingOverrides,
+            MobileAppConfig = tenant.MobileAppConfig,
+            AllowBiometricLogin = tenant.AllowBiometricLogin
+        };
+    }
+
+    private static (string? Provider, string? Reference, string? LegacyInlineSecret) ResolveGenericSecretFields(
+        string? hostname,
+        string? oidcAuthority,
+        string? oidcClientId,
+        string? requestedKeyVaultReference,
+        string? requestedProvider,
+        string? requestedReference,
+        string? existingProvider,
+        string? existingReference,
+        bool preserveExisting)
+    {
+        if (string.IsNullOrWhiteSpace(oidcAuthority))
+        {
+            return (null, null, null);
+        }
+
+        var normalizedKeyVaultReference = NormalizeOptionalString(requestedKeyVaultReference);
+        var normalizedProvider = NormalizeOptionalString(requestedProvider);
+        var normalizedReference = NormalizeOptionalString(requestedReference);
+        if (!string.IsNullOrWhiteSpace(normalizedProvider) && !string.IsNullOrWhiteSpace(normalizedReference))
+        {
+            if (string.Equals(normalizedProvider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase)
+                && IsRepoOwnedLocalDemoTenant(hostname, oidcAuthority, oidcClientId))
+            {
+                return (PrismSecretProviderNames.Inline, normalizedReference, normalizedReference);
+            }
+
+            if (string.Equals(normalizedProvider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase))
+            {
+                return (PrismSecretProviderNames.AzureKeyVault, normalizedReference, null);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedKeyVaultReference))
+        {
+            return (PrismSecretProviderNames.AzureKeyVault, normalizedKeyVaultReference, null);
+        }
+
+        if (preserveExisting)
+        {
+            var provider = NormalizeOptionalString(existingProvider);
+            var reference = NormalizeOptionalString(existingReference);
+            return (provider, reference, string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase) ? reference : null);
+        }
+
+        return (null, null, null);
+    }
+
+    private static bool TryValidateGenericOidcSecretRequest(
+        string? hostname,
+        string? oidcAuthority,
+        string? oidcClientId,
+        string? requestedKeyVaultReference,
+        string? requestedProvider,
+        string? requestedReference,
+        bool resetOidcClientSecret,
+        string? resolvedReference,
+        out string? error)
+    {
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(oidcAuthority))
+        {
+            return true;
+        }
+
+        var keyVaultReference = NormalizeOptionalString(requestedKeyVaultReference);
+        var provider = NormalizeOptionalString(requestedProvider);
+        var reference = NormalizeOptionalString(requestedReference);
+        var hasRequestedSecretChange = provider != null || reference != null;
+        var hasRequestedKeyVaultReference = keyVaultReference != null;
+
+        if (resetOidcClientSecret && (hasRequestedSecretChange || hasRequestedKeyVaultReference))
+        {
+            error = "OIDC client secret reset cannot be combined with a replacement secret reference.";
+            return false;
+        }
+
+        if (hasRequestedSecretChange && (provider == null || reference == null))
+        {
+            error = "OIDC client secret updates require both provider and reference.";
+            return false;
+        }
+
+        if (hasRequestedKeyVaultReference && string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Inline OIDC client secrets cannot be combined with an Azure Key Vault secret reference.";
+            return false;
+        }
+
+        if (hasRequestedKeyVaultReference
+            && string.Equals(provider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase)
+            && reference != null
+            && !string.Equals(reference, keyVaultReference, StringComparison.Ordinal))
+        {
+            error = "OIDC client secret reference payload is inconsistent.";
+            return false;
+        }
+
+        if (provider != null)
+        {
+            if (string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase)
+                && !IsRepoOwnedLocalDemoTenant(hostname, oidcAuthority, oidcClientId))
+            {
+                error = "Inline OIDC client secrets are reserved for the repo-owned localhost demo seed.";
+                return false;
+            }
+
+            if (!string.Equals(provider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase))
+            {
+                error = "Unsupported OIDC client secret provider.";
+                return false;
+            }
+        }
+
+        if (!resetOidcClientSecret && string.IsNullOrWhiteSpace(resolvedReference))
+        {
+            error = "Generic OIDC confidential clients require an OIDC client secret provider and reference.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string? NormalizeSecretProvider(PrismTenantSchema tenant)
+    {
+        if (!string.IsNullOrWhiteSpace(tenant.OidcClientSecretProvider))
+        {
+            return tenant.OidcClientSecretProvider;
+        }
+
+        return string.IsNullOrWhiteSpace(tenant.OidcClientSecret) ? null : PrismSecretProviderNames.Inline;
+    }
+
+    private static string? NormalizeSecretReference(PrismTenantSchema tenant)
+    {
+        return NormalizeOptionalString(tenant.OidcClientSecretReference)
+            ?? NormalizeOptionalString(tenant.OidcClientSecret);
+    }
+
+    private static bool IsRepoOwnedLocalDemoTenant(string? hostname, string? oidcAuthority, string? oidcClientId)
+    {
+        if (!string.Equals(hostname?.Trim(), "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(oidcClientId?.Trim(), "prism-client", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(oidcAuthority, UriKind.Absolute, out var authority))
+        {
+            return false;
+        }
+
+        return string.Equals(authority.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeOptionalString(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

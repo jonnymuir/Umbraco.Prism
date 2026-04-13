@@ -6,6 +6,7 @@ using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Persistence;
+using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.TestSite;
 
@@ -69,7 +70,8 @@ public class DemoTenantSeeder(
             Hostname          = LocalhostHostname,
             OidcAuthority     = oidcAuthority,
             OidcClientId      = OidcClientId,
-            OidcClientSecret  = OidcClientSecret,
+            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+            OidcClientSecretReference = OidcClientSecret,
             AllowBiometricLogin = true
         };
 

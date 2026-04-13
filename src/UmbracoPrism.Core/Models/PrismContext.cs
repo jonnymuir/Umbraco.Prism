@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System.Security.Claims;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Models;
@@ -81,34 +82,57 @@ public class PrismContext(
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(CurrentTenant.EntraTenantId) || string.IsNullOrWhiteSpace(CurrentTenant.EntraClientId))
+        string tokenEndpoint;
+        string clientId;
+        string clientSecret;
+        string scope;
+
+        if (!string.IsNullOrWhiteSpace(CurrentTenant.OidcAuthority))
         {
-            Log.Error("Cannot refresh token: CurrentTenant is missing Entra tenant/client configuration");
-            return null;
+            if (string.IsNullOrWhiteSpace(CurrentTenant.OidcClientId))
+            {
+                Log.Error("Cannot refresh token: CurrentTenant is missing generic OIDC client configuration");
+                return null;
+            }
+
+            tokenEndpoint = $"{CurrentTenant.OidcAuthority.TrimEnd('/')}/protocol/openid-connect/token";
+            clientId = CurrentTenant.OidcClientId;
+            clientSecret = await vault.ResolveSecretAsync(CurrentTenant.OidcClientSecretProvider, CurrentTenant.OidcClientSecretReference);
+            scope = PrismOidcConfiguration.GetRequestedScope(CurrentTenant);
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(CurrentTenant.EntraTenantId) || string.IsNullOrWhiteSpace(CurrentTenant.EntraClientId))
+            {
+                Log.Error("Cannot refresh token: CurrentTenant is missing Entra tenant/client configuration");
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(CurrentTenant.SecretKeyName))
+            {
+                Log.Error("Cannot refresh token: CurrentTenant secret reference is missing");
+                return null;
+            }
+
+            tokenEndpoint = $"https://{CurrentTenant.EntraTenantId}.ciamlogin.com/{CurrentTenant.EntraTenantId}/oauth2/v2.0/token";
+            clientId = CurrentTenant.EntraClientId;
+            clientSecret = await vault.GetSecretAsync(CurrentTenant.SecretKeyName);
+            scope = $"openid profile offline_access {CurrentTenant.EntraClientId}/.default";
         }
 
-        if (string.IsNullOrWhiteSpace(CurrentTenant.SecretKeyName))
-        {
-            Log.Error("Cannot refresh token: CurrentTenant secret reference is missing");
-            return null;
-        }
-
-        var tokenEndpoint = $"https://{CurrentTenant.EntraTenantId}.ciamlogin.com/{CurrentTenant.EntraTenantId}/oauth2/v2.0/token";
-
-        var clientSecret = await vault.GetSecretAsync(CurrentTenant.SecretKeyName);
         if (string.IsNullOrWhiteSpace(clientSecret))
         {
-            Log.Error("Cannot refresh token: client secret could not be resolved from vault");
+            Log.Error("Cannot refresh token: client secret could not be resolved from configured provider");
             return null;
         }
 
         var formParameters = new Dictionary<string, string>
         {
-            { "client_id", CurrentTenant.EntraClientId },
+            { "client_id", clientId },
             { "client_secret", clientSecret },
             { "grant_type", "refresh_token" },
             { "refresh_token", refreshToken },
-            { "scope", $"openid profile offline_access {CurrentTenant.EntraClientId}/.default" }
+            { "scope", scope }
         };
 
         var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters, context.RequestAborted);

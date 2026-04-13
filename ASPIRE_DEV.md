@@ -43,36 +43,52 @@ The local Prism login flow intentionally requests standard OIDC scopes (`openid 
 
 When TestSite starts in Development mode, a `DemoTenantSeeder` automatically creates the localhost tenant pointing at Keycloak — no manual database setup required. The seeder is idempotent: if a localhost tenant already exists, it is left untouched.
 
+The seeded tenant is the only supported inline-secret exception:
+- `Hostname = "localhost"`
+- `OidcAuthority = "https://localhost:8443/realms/prism-dev"`
+- `OidcClientId = "prism-client"`
+- `OidcClientSecretProvider = "inline"`
+- `OidcClientSecretReference = "prism-dev-secret"` (repo-owned demo marker)
+
+At runtime, Prism allows inline generic OIDC secrets only for that repo-owned localhost Keycloak path. Any other generic OIDC tenant must resolve through a managed provider such as Azure Key Vault, otherwise token exchange fails closed.
+
 ## Entra Tenants (Existing Behavior)
 
-Tenants with `EntraTenantId` set continue to use Entra ID authentication via Azure Key Vault. The OIDC columns are optional — if `OidcAuthority` is null, the system falls back to constructing the Entra authority from `EntraTenantId`.
+Tenants with `EntraTenantId` set continue to use Entra ID authentication via Azure Key Vault. The generic OIDC columns are optional — if `OidcAuthority` is null, the system falls back to constructing the Entra authority from `EntraTenantId`.
 
 ## Architecture
 
-### New Columns
+### Secret Model
 
-- **`OidcAuthority`** (nullable string): Full OIDC authority URL (e.g., `http://localhost:8080/realms/prism-dev`). When set, overrides Entra-specific authority construction.
+- **`OidcAuthority`** (nullable string): Full OIDC authority URL (e.g., `https://localhost:8443/realms/prism-dev`). When set, overrides Entra-specific authority construction.
 - **`OidcClientId`** (nullable string): OIDC client ID for generic providers.
-- **`OidcClientSecret`** (nullable string): OIDC client secret. For local dev only — production should use environment variables.
+- **`OidcClientSecretProvider`** (nullable string): Canonical secret provider name. Prism currently supports `azure-key-vault` for normal tenants and `inline` only for the repo-owned localhost demo.
+- **`OidcClientSecretReference`** (nullable string): Provider-specific alias/reference. For Key Vault this is the secret name; for the localhost demo it is the repo-owned inline secret.
+- **`OidcClientSecret`** (legacy nullable string): Back-compat storage for older demo rows. `TenantService` maps it onto the new provider/reference model as `inline`.
 
-### PrismOidcConfiguration Fallback Logic
+### PrismOidcConfiguration Resolution Logic
 
 ```csharp
 if (!string.IsNullOrEmpty(tenant.OidcAuthority))
 {
-    // Use generic OIDC provider (Keycloak, Okta, etc.)
-    authority = tenant.OidcAuthority;
+    authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
     clientId = tenant.OidcClientId;
-    secret = tenant.OidcClientSecret;
+    secret = await PrismOidcConfiguration.ResolveClientSecretAsync(tenant, vault);
 }
 else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
 {
-    // Use Entra ID (existing path with Key Vault)
-    authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0";
+    authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
     clientId = tenant.EntraClientId;
     secret = await vault.GetSecretAsync(tenant.SecretKeyName);
 }
 ```
+
+### Management API / Backoffice
+
+- Tenant list/edit responses expose `OidcClientSecretProvider` and `HasOidcClientSecret`, never the raw secret value or the reference name.
+- **Request Contract:** POST/PUT accept `OidcClientSecretProvider` (string, e.g., `"azure-key-vault"`) and `OidcClientSecretReference` (string, the vault secret name). Setting `ResetOidcClientSecret = true` clears the stored secret configuration.
+- **Security:** Inline secrets are rejected on the normal management path unless the tenant matches the repo-owned localhost demo identity.
+- **Backend:** The backoffice edit form shows whether a secret exists but does not echo the reference. Updating a tenant without filling the reference field preserves the stored configuration.
 
 ## Projects
 
@@ -81,7 +97,7 @@ else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
 
 ## Migration
 
-The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenants` table. It runs automatically on TestSite startup.
+The OIDC migrations add the authority/client columns and the provider/reference columns to the `prismTenants` table. They run automatically on TestSite startup.
 
 ## Troubleshooting
 
@@ -109,7 +125,8 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 
 **Token validation fails:**
 - Check that the tenant hostname matches the request (e.g., `localhost:5000` not `127.0.0.1:5000`)
-- Verify the `OidcAuthority`, `OidcClientId`, and `OidcClientSecret` match the Keycloak realm configuration
+- Verify the `OidcAuthority`, `OidcClientId`, and generic secret provider/reference match the Keycloak realm configuration
+- For the localhost demo tenant, the generic secret should resolve through the inline demo path only for the seeded `localhost` tenant
 
 **`Offline tokens not allowed for the user or client`:**
 - The local Keycloak demo is expected to work without enabling offline tokens

@@ -78,9 +78,10 @@ export const Edit: Story = {
         entraTenantId: '00000000-0000-0000-0000-000000000000',
         entraClientId: '11111111-1111-1111-1111-111111111111',
         secretKeyName: 'northwind-prism-secret',
-        oidcAuthority: 'http://localhost:8080/realms/prism-dev',
-        oidcClientId: 'prism-client',
-        oidcClientSecret: '',
+        oidcAuthority: 'https://auth.example.com/realms/northwind',
+        oidcClientId: 'northwind-portal',
+        oidcClientSecretProvider: 'azure-key-vault',
+        hasOidcClientSecret: true,
         mobileAppConfig: {
           AppName: 'Northwind Portal',
           AppId: 'com.northwind.portal',
@@ -138,9 +139,43 @@ export const Edit: Story = {
     await modal.updateComplete;
 
     await expect(shadow.textContent ?? '').toContain('Directory (Tenant) ID');
+    await expect(shadow.textContent ?? '').toContain('Current secret source: Azure Key Vault reference.');
+    await expect(shadow.textContent ?? '').toContain('OIDC Key Vault Secret Name (replace only)');
     const identityPanel = shadow.querySelector('#identity-panel') as HTMLElement;
     await expect(identityPanel).not.toBeNull();
     await expect(identityPanel.getBoundingClientRect().height).toBeGreaterThan(0);
+  }
+};
+
+export const LocalDemoSecretException: Story = {
+  args: {
+    data: {
+      tenant: {
+        id: 321,
+        name: 'Local Dev (Keycloak)',
+        hostname: 'localhost',
+        oidcAuthority: 'https://localhost:8443/realms/prism-dev',
+        oidcClientId: 'prism-client',
+        oidcClientSecretProvider: 'inline',
+        hasOidcClientSecret: true
+      },
+      brandingTabs: []
+    }
+  },
+  play: async ({ canvasElement, args }) => {
+    const modal = canvasElement.querySelector('prism-create-tenant-modal') as PrismCreateTenantModalElement;
+    modal.data = args.data;
+    await modal.updateComplete;
+
+    if (!modal.shadowRoot) throw new Error('Shadow root not found');
+    const shadow = modal.shadowRoot;
+
+    const identityTab = shadow.querySelector('uui-tab[label="Identity"]') as HTMLElement;
+    identityTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await modal.updateComplete;
+
+    await expect(shadow.textContent ?? '').toContain('repo-owned localhost Keycloak demo');
+    await expect(shadow.textContent ?? '').toContain('Local Demo OIDC Client Secret');
   }
 };
 

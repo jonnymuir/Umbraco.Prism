@@ -26,6 +26,8 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
     private const string PrismNoncePropertiesKey = ".prism_nonce";
     private const string GenericOidcBrowserScopes = "openid profile";
+    private const string LocalDemoHostname = "localhost";
+    private const string LocalDemoClientId = "prism-client";
 
     internal static string GetRequestedScope(PrismTenant tenant)
     {
@@ -35,6 +37,43 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         }
 
         return $"openid profile offline_access {tenant.EntraClientId}/.default";
+    }
+
+    internal static async Task<string> ResolveClientSecretAsync(PrismTenant tenant, ISecretVaultService vault)
+    {
+        if (string.IsNullOrWhiteSpace(tenant.OidcAuthority))
+        {
+            return await vault.GetSecretAsync(tenant.SecretKeyName ?? string.Empty);
+        }
+
+        if (string.Equals(tenant.OidcClientSecretProvider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase)
+            && !IsRepoOwnedLocalDemoTenant(tenant))
+        {
+            return string.Empty;
+        }
+
+        return await vault.ResolveSecretAsync(tenant.OidcClientSecretProvider, tenant.OidcClientSecretReference)
+            ?? string.Empty;
+    }
+
+    internal static bool IsRepoOwnedLocalDemoTenant(PrismTenant tenant)
+    {
+        if (!string.Equals(tenant.Hostname, LocalDemoHostname, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(tenant.OidcClientId, LocalDemoClientId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(tenant.OidcAuthority, UriKind.Absolute, out var authority))
+        {
+            return false;
+        }
+
+        return string.Equals(authority.Host, "localhost", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static List<AuthenticationToken> CreateAuthenticationTokens(JsonElement payload, DateTimeOffset issuedAtUtc)
@@ -215,6 +254,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 string clientId;
                 string secret;
                 string scope;
+                var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
 
                 // Determine which OIDC provider we're using
                 if (!string.IsNullOrEmpty(tenant.OidcAuthority))
@@ -222,15 +262,19 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     // Generic OIDC provider (Keycloak, Okta, etc.)
                     authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
                     clientId = tenant.OidcClientId ?? string.Empty;
-                    secret = tenant.OidcClientSecret ?? string.Empty;
+                    secret = await ResolveClientSecretAsync(tenant, vault);
                     scope = GetRequestedScope(tenant);
+
+                    if (string.IsNullOrWhiteSpace(secret))
+                    {
+                        throw new AuthenticationException(
+                            "Generic OIDC client secret is not configured. Use SecretKeyName for managed secrets, or keep inline secrets limited to the repo-owned localhost demo tenant.");
+                    }
                 }
                 else
                 {
                     // Entra-specific path (existing behavior with Key Vault)
-                    var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
-                    secret = await vault.GetSecretAsync(tenant.SecretKeyName ?? string.Empty);
-
+                    secret = await ResolveClientSecretAsync(tenant, vault);
                     authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
                     clientId = tenant.EntraClientId ?? string.Empty;
                     scope = GetRequestedScope(tenant);

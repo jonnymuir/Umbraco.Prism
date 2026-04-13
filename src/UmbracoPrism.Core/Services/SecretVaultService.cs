@@ -85,4 +85,31 @@ public class SecretVaultService : ISecretVaultService
 
         return secretValue ?? string.Empty;
     }
+
+    /// <inheritdoc />
+    public Task<string> ResolveSecretAsync(string? provider, string? reference)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(reference))
+        {
+            return Task.FromResult(string.Empty);
+        }
+
+        var normalizedProvider = provider.Trim();
+
+        if (string.Equals(normalizedProvider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetSecretAsync(reference.Trim());
+        }
+
+        if (string.Equals(normalizedProvider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(reference);
+        }
+
+        _logger.LogError(
+            "Prism: Secret resolution failed because provider '{Provider}' is not supported.",
+            normalizedProvider);
+
+        return Task.FromResult(string.Empty);
+    }
 }

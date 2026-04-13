@@ -282,6 +282,109 @@ public class PrismContextTests
         header.Should().BeNull();
     }
 
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_RefreshesGenericOidcTokens_UsingConfiguredSecretProvider()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "expired-access-token" },
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.ResolveSecretAsync(PrismSecretProviderNames.AzureKeyVault, "keycloak-dev-secret"))
+            .ReturnsAsync("resolved-secret");
+
+        IReadOnlyDictionary<string, string>? postedForm = null;
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted))
+            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken>((_, form, _) => postedForm = form)
+            .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client",
+                OidcClientSecretProvider = PrismSecretProviderNames.AzureKeyVault,
+                OidcClientSecretReference = "keycloak-dev-secret"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().NotBeNull();
+        header!.Parameter.Should().Be("new-access-token");
+        postedForm.Should().NotBeNull();
+        postedForm!["client_secret"].Should().Be("resolved-secret");
+        postedForm["scope"].Should().Be("openid profile");
+    }
+
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_FailsClosed_WhenGenericOidcSecretCannotBeResolved()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "expired-access-token" },
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var vault = new Mock<ISecretVaultService>();
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client",
+                OidcClientSecretProvider = PrismSecretProviderNames.AzureKeyVault,
+                OidcClientSecretReference = "missing-secret"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().BeNull();
+        vault.Verify(v => v.ResolveSecretAsync(PrismSecretProviderNames.AzureKeyVault, "missing-secret"), Times.Once);
+        tokenRefreshService.Verify(
+            t => t.RefreshAsync(
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static ClaimsPrincipal CreatePrincipalWithTenant(string tenantId)
     {
         var identity = new ClaimsIdentity("Test");

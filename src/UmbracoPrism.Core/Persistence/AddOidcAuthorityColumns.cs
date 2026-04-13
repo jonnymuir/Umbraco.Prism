@@ -25,10 +25,9 @@ public class AddOidcAuthorityColumns(IMigrationContext context) : AsyncMigration
         if (!ColumnExists("PrismTenants", "OidcClientId"))
             Create.Column("OidcClientId").OnTable("PrismTenants").AsString(255).Nullable().Do();
 
-        // OidcClientSecret: OIDC client secret for non-Entra providers
-        // Unlike Entra tenants which use Azure Key Vault (SecretKeyName), Keycloak/Okta tenants
-        // store the secret directly in the database for local dev simplicity.
-        // Production deployments should use environment variables or secret management.
+        // OidcClientSecret: legacy inline secret column retained for migration compatibility.
+        // New generic OIDC flows should use the provider/reference columns added later in the
+        // migration plan so production tenants stay vault-backed by default.
         if (!ColumnExists("PrismTenants", "OidcClientSecret"))
             Create.Column("OidcClientSecret").OnTable("PrismTenants").AsString(500).Nullable().Do();
 

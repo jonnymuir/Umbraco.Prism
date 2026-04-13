@@ -145,7 +145,9 @@ Prism auto-creates document types (`homePage`, `memberDashboard`) on first start
 
 In backoffice:
 1. **Settings → Prism Dashboard**
-2. Add tenant (hostname, Entra ID settings, branding)
+2. Add tenant (hostname, identity settings, branding)
+   - **Entra tenants:** enter the vault secret name in `SecretKeyName`
+   - **Generic OIDC tenants:** enter OIDC authority and client ID, then provide the Key Vault secret name as the `OidcClientSecretReference` with provider `azure-key-vault`; the localhost Keycloak demo is the only inline-secret exception
 3. Visit the hostname — see branded portal
 
 → [Full Setup Guide](docs/umbraco-setup.md)
@@ -156,7 +158,9 @@ In backoffice:
 
 **Multi-tenancy at runtime:** Middleware resolves hostname to tenant. One content tree serves hundreds of portals.
 
-**Stateless auth:** No local Members. Identity deferred to Entra ID. Secrets in Azure Key Vault.
+**Stateless auth:** No local Members. Identity deferred to OIDC providers (Entra ID or generic OIDC). Confidential client secrets resolve through Key Vault or the repo-owned localhost demo exception.
+
+**Secure-by-default secrets:** Production tenants use vault-backed secret references, never raw values in management responses. The localhost Keycloak demo is the only inline-secret path, and runtime rejects inline generic OIDC secrets anywhere else.
 
 **Mobile generation:** Tenant settings → iOS/Android app. Run in simulator immediately.
 
@@ -193,6 +197,7 @@ In backoffice:
 
 | Guide | Description |
 |---|---|
+| [Secret Management](docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
 | [Biometric Setup](docs/biometric-setup.md) | Generate signing/encryption keys for mobile biometric auth |
 | [Push Notifications](docs/PUSH_SETUP.md) | Configure FCM (Android) and APNs (iOS) for push |
@@ -219,7 +224,14 @@ In backoffice:
 * `SecretVaultService` — Azure Key Vault (Managed Identity in prod, Azure CLI local)
 * Downstream flow — propagate tenant identity to APIs
 
-→ [Architecture Docs](docs/)
+**Secret Management:**
+* **Entra ID tenants (production):** Secrets stored in Azure Key Vault, referenced by `SecretKeyName`
+* **Generic OIDC tenants (production):** Secrets stored in Azure Key Vault, referenced by `OidcClientSecretProvider = "azure-key-vault"` plus `OidcClientSecretReference`
+* **Local dev demo (Keycloak):** Repo-owned secret uses `OidcClientSecretProvider = "inline"` only for the seeded `localhost` tenant path
+* **Management API/UI:** Responses expose `HasOidcClientSecret` and `OidcClientSecretProvider`, never the raw secret or reference value
+* All confidential-client flows fail closed if a secret cannot be resolved at runtime
+
+→ [Secret Management Guide](docs/secret-management.md) | [Architecture Docs](docs/)
 
 ---
 
@@ -380,6 +392,8 @@ In **Prism Dashboard** (backoffice):
 - **Entra Tenant ID:** Directory ID
 - **Entra Client ID:** App Registration ID
 - **Secret Key Name:** `tenant-a-secret`
+
+For **generic OIDC production tenants**, enter the provider authority/client ID plus the Key Vault secret name that should be resolved at runtime. The dashboard does not round-trip raw OIDC client secrets through edit responses; production updates are reference-based, and only the seeded localhost Keycloak demo exposes an inline replace field.
 
 #### 4. Downstream API Auth
 

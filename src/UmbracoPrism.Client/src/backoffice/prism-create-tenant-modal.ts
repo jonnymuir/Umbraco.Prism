@@ -7,6 +7,8 @@ import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import { UMB_MEDIA_PICKER_MODAL } from '@umbraco-cms/backoffice/media';
 
+const INLINE_SECRET_PROVIDER = 'inline';
+
 interface BrandingMetadata {
   sections: Array<{
     name: string;
@@ -69,7 +71,10 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _secretKeyName = '';
   @state() private _oidcAuthority = '';
   @state() private _oidcClientId = '';
-  @state() private _oidcClientSecret = '';
+  @state() private _oidcClientSecretReference = '';
+  @state() private _oidcClientSecretProvider = '';
+  @state() private _hasStoredOidcClientSecret = false;
+  @state() private _clearOidcClientSecret = false;
   @state() private _mobileAppName = '';
   @state() private _mobileAppId = '';
   @state() private _mobileVersion = '1.0.0';
@@ -138,6 +143,119 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     };
   }
 
+  private _normalizeOptionalString(value: string) {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private _usesGenericOidc() {
+    return Boolean(this._normalizeOptionalString(this._oidcAuthority) || this._normalizeOptionalString(this._oidcClientId));
+  }
+
+  private _isRepoOwnedLocalDemoTenant(hostname = this._hostname, oidcAuthority = this._oidcAuthority, oidcClientId = this._oidcClientId) {
+    if (hostname.trim().toLowerCase() !== 'localhost') {
+      return false;
+    }
+
+    if (oidcClientId.trim() !== 'prism-client') {
+      return false;
+    }
+
+    try {
+      return new URL(oidcAuthority).hostname.toLowerCase() === 'localhost';
+    } catch {
+      return false;
+    }
+  }
+
+  private _getOidcSecretStatusMessage() {
+    if (!this._usesGenericOidc()) {
+      return '';
+    }
+
+    if (!this._hasStoredOidcClientSecret) {
+      return 'No generic OIDC client secret is configured yet.';
+    }
+
+    if (this._oidcClientSecretProvider === INLINE_SECRET_PROVIDER || this._isRepoOwnedLocalDemoTenant()) {
+      return 'Current secret source: repo-owned localhost demo inline secret.';
+    }
+
+    return 'Current secret source: Azure Key Vault reference.';
+  }
+
+  private _getOidcSecretValidationMessage() {
+    if (!this._usesGenericOidc()) {
+      return '';
+    }
+
+    if (this._clearOidcClientSecret && this._id !== null) {
+      return '';
+    }
+
+    if (this._isRepoOwnedLocalDemoTenant()) {
+      if (this._normalizeOptionalString(this._oidcClientSecretReference)) {
+        return '';
+      }
+
+      if (this._id !== null && this._hasStoredOidcClientSecret) {
+        return '';
+      }
+
+      return 'Enter the repo-owned localhost demo secret before saving this generic OIDC tenant.';
+    }
+
+    if (this._normalizeOptionalString(this._secretKeyName)) {
+      return '';
+    }
+
+    if (this._id !== null && this._hasStoredOidcClientSecret) {
+      return '';
+    }
+
+    return 'Enter an Azure Key Vault secret name for this generic OIDC client, or leave the OIDC section blank to use Entra.';
+  }
+
+  private _buildTenantPayload() {
+    const usesGenericOidc = this._usesGenericOidc();
+    const inlineSecretReplacement = usesGenericOidc && this._isRepoOwnedLocalDemoTenant() && !this._clearOidcClientSecret
+      ? this._normalizeOptionalString(this._oidcClientSecretReference)
+      : undefined;
+
+    return {
+      id: this._id,
+      name: this._name,
+      hostname: this._hostname,
+      entraTenantId: this._normalizeOptionalString(this._entraTenantId),
+      entraClientId: this._normalizeOptionalString(this._entraClientId),
+      secretKeyName: usesGenericOidc && this._clearOidcClientSecret
+        ? undefined
+        : this._normalizeOptionalString(this._secretKeyName),
+      oidcAuthority: this._normalizeOptionalString(this._oidcAuthority),
+      oidcClientId: this._normalizeOptionalString(this._oidcClientId),
+      oidcClientSecretProvider: inlineSecretReplacement ? INLINE_SECRET_PROVIDER : undefined,
+      oidcClientSecretReference: inlineSecretReplacement,
+      resetOidcClientSecret: usesGenericOidc && this._clearOidcClientSecret,
+      brandingOverrides: this._collectBrandingOverrides(),
+      mobileBrandingOverrides: this._collectMobileBrandingOverrides(),
+      mobileAppConfig: {
+        appName: this._mobileAppName,
+        appId: this._mobileAppId,
+        version: this._mobileVersion,
+        startUrl: this._mobileStartUrl,
+        userAgentMarker: this._mobileUserAgentMarker,
+        iconUrl: this._mobileIconUrl,
+        splashUrl: this._mobileSplashUrl,
+        errorBackgroundColor: this._mobileErrorBackgroundColor,
+        errorTextColor: this._mobileErrorTextColor,
+        errorTitle: this._mobileErrorTitle,
+        errorMessage: this._mobileErrorMessage,
+        showErrorDiagnostics: this._mobileShowErrorDiagnostics
+      },
+      allowBiometricLogin: this._allowBiometricLogin
+    };
+  }
+
 
   modalContext?: any;
 
@@ -159,10 +277,13 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       this._hostname = t.hostname ?? '';
       this._entraTenantId = t.entraTenantId ?? '';
       this._entraClientId = t.entraClientId ?? '';
-      this._secretKeyName = t.secretKeyName ?? '';
+      this._secretKeyName = t.oidcAuthority ? '' : (t.secretKeyName ?? '');
       this._oidcAuthority = t.oidcAuthority ?? '';
       this._oidcClientId = t.oidcClientId ?? '';
-      this._oidcClientSecret = t.oidcClientSecret ?? '';
+      this._oidcClientSecretReference = '';
+      this._oidcClientSecretProvider = t.oidcClientSecretProvider ?? '';
+      this._hasStoredOidcClientSecret = t.hasOidcClientSecret ?? false;
+      this._clearOidcClientSecret = false;
       this._allowBiometricLogin = t.allowBiometricLogin ?? true;
 
       const mobileConfig = this._readMobileAppConfig(t);
@@ -207,10 +328,13 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._hostname = t.hostname ?? '';
         this._entraTenantId = t.entraTenantId ?? '';
         this._entraClientId = t.entraClientId ?? '';
-        this._secretKeyName = t.secretKeyName ?? '';
+        this._secretKeyName = t.oidcAuthority ? '' : (t.secretKeyName ?? '');
         this._oidcAuthority = t.oidcAuthority ?? '';
         this._oidcClientId = t.oidcClientId ?? '';
-        this._oidcClientSecret = t.oidcClientSecret ?? '';
+        this._oidcClientSecretReference = '';
+        this._oidcClientSecretProvider = t.oidcClientSecretProvider ?? '';
+        this._hasStoredOidcClientSecret = t.hasOidcClientSecret ?? false;
+        this._clearOidcClientSecret = false;
 
         const mobileConfig = this._readMobileAppConfig(t);
         this._mobileAppName = mobileConfig?.appName ?? t.name ?? '';
@@ -237,7 +361,10 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         this._secretKeyName = '';
         this._oidcAuthority = '';
         this._oidcClientId = '';
-        this._oidcClientSecret = '';
+        this._oidcClientSecretReference = '';
+        this._oidcClientSecretProvider = '';
+        this._hasStoredOidcClientSecret = false;
+        this._clearOidcClientSecret = false;
         this._mobileAppName = '';
         this._mobileAppId = '';
         this._mobileVersion = '1.0.0';
@@ -398,38 +525,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       return;
     }
 
-    const brandingOverrides = this._collectBrandingOverrides();
-    const mobileBrandingOverrides = this._collectMobileBrandingOverrides();
-    const mobileAppConfig = {
-      appName: this._mobileAppName,
-      appId: this._mobileAppId,
-      version: this._mobileVersion,
-      startUrl: this._mobileStartUrl,
-      userAgentMarker: this._mobileUserAgentMarker,
-      iconUrl: this._mobileIconUrl,
-      splashUrl: this._mobileSplashUrl,
-      errorBackgroundColor: this._mobileErrorBackgroundColor,
-      errorTextColor: this._mobileErrorTextColor,
-      errorTitle: this._mobileErrorTitle,
-      errorMessage: this._mobileErrorMessage,
-      showErrorDiagnostics: this._mobileShowErrorDiagnostics
-    };
+    if (this._getOidcSecretValidationMessage()) {
+      this._activeTab = 'identity';
+      return;
+    }
 
-    const tenant = {
-      id: this._id,
-      name: this._name,
-      hostname: this._hostname,
-      entraTenantId: this._entraTenantId,
-      entraClientId: this._entraClientId,
-      secretKeyName: this._secretKeyName,
-      oidcAuthority: this._oidcAuthority || undefined,
-      oidcClientId: this._oidcClientId || undefined,
-      oidcClientSecret: this._oidcClientSecret || undefined,
-      brandingOverrides,
-      mobileBrandingOverrides,
-      mobileAppConfig,
-      allowBiometricLogin: this._allowBiometricLogin
-    };
+    const tenant = this._buildTenantPayload();
 
     this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
       if (!authContext) return;
@@ -508,6 +609,17 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderIdentityTab() {
+    const usesGenericOidc = this._usesGenericOidc();
+    const isRepoOwnedLocalDemo = this._isRepoOwnedLocalDemoTenant();
+    const oidcSecretStatusMessage = this._getOidcSecretStatusMessage();
+    const oidcSecretValidationMessage = this._getOidcSecretValidationMessage();
+    const secretNameLabel = usesGenericOidc
+      ? `OIDC Key Vault Secret Name ${this._id !== null ? '(replace only)' : ''}`
+      : 'Key Vault Secret Name';
+    const secretNameHint = usesGenericOidc
+      ? 'Reference only — Prism resolves the actual generic OIDC client secret from Azure Key Vault at runtime. Leave blank on edit to keep the current secret, or use Reset configured OIDC secret to clear it.'
+      : 'Use the Azure Key Vault secret name for Entra confidential clients. Generic OIDC tenants use the OIDC section below.';
+
     return html`
       <div role="tabpanel" id="identity-panel" aria-labelledby="identity-tab" class="tab-content">
         <uui-box>
@@ -533,22 +645,26 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             </uui-input>
           </div>
 
-          <div class="field">
-            <uui-label for="secret-name">Key Vault Secret Name</uui-label>
-            <uui-input 
-              id="secret-name" 
-              label="Secret Name" 
-              .value=${this._secretKeyName} 
-              @input=${(e: any) => this._secretKeyName = e.target.value}
-              aria-describedby="secret-hint">
-            </uui-input>
-            <small id="secret-hint">Must match the secret identifier in your configured Azure Key Vault.</small>
-          </div>
+          ${isRepoOwnedLocalDemo ? html`` : html`
+            <div class="field">
+              <uui-label for="secret-name">${secretNameLabel}</uui-label>
+              <uui-input 
+                id="secret-name" 
+                label=${secretNameLabel}
+                placeholder=${usesGenericOidc ? 'northwind-oidc-secret' : 'tenant-a-secret'}
+                .value=${this._secretKeyName} 
+                @input=${(e: any) => this._secretKeyName = e.target.value}
+                ?disabled=${usesGenericOidc && this._clearOidcClientSecret}
+                aria-describedby="secret-hint">
+              </uui-input>
+              <small id="secret-hint">${secretNameHint}</small>
+            </div>
+          `}
 
           <div class="section-divider"></div>
           
           <h3>OIDC Provider (non-Entra)</h3>
-          <p class="help-text">Use this section if your identity provider is not Microsoft Entra (e.g. Keycloak, Auth0). Leave blank to use Entra.</p>
+          <p class="help-text">Use this section if your identity provider is not Microsoft Entra (e.g. Keycloak, Auth0). Leave blank to use Entra. Production tenants should use a Key Vault secret reference; the localhost demo is the only inline-secret exception.</p>
 
           <div class="field">
             <uui-label for="oidc-authority">OIDC Authority</uui-label>
@@ -573,18 +689,55 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             </uui-input>
           </div>
 
-          <div class="field">
-            <uui-label for="oidc-client-secret">OIDC Client Secret</uui-label>
-            <uui-input 
-              id="oidc-client-secret" 
-              label="OIDC Client Secret"
-              type="password" 
-              placeholder="••••••••" 
-              .value=${this._oidcClientSecret} 
-              @input=${(e: any) => this._oidcClientSecret = e.target.value}
-              aria-label="OIDC Client Secret">
-            </uui-input>
-          </div>
+          ${usesGenericOidc ? html`
+            <p class="help-text" role="status" aria-live="polite">${oidcSecretStatusMessage}</p>
+
+            ${this._hasStoredOidcClientSecret ? html`
+              <div class="field">
+                <div class="toggle-label">
+                  <span>Reset configured OIDC secret</span>
+                  <span class="toggle-hint">Use this only if you want to remove the current generic OIDC secret and replace it later.</span>
+                </div>
+                <label class="toggle-switch" title="${this._clearOidcClientSecret ? 'Configured OIDC secret will be cleared' : 'Configured OIDC secret will be preserved'}">
+                  <input
+                    type="checkbox"
+                    aria-label="Reset configured OIDC secret"
+                    .checked=${this._clearOidcClientSecret}
+                    @change=${(e: Event) => {
+                      this._clearOidcClientSecret = (e.target as HTMLInputElement).checked;
+                      if (this._clearOidcClientSecret) this._oidcClientSecretReference = '';
+                    }}
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            ` : html``}
+
+            ${isRepoOwnedLocalDemo ? html`
+              <div class="field">
+                <uui-label for="oidc-client-secret-reference">Local Demo OIDC Client Secret ${this._id !== null ? '(replace only)' : ''}</uui-label>
+                <uui-input 
+                  id="oidc-client-secret-reference" 
+                  label="Local Demo OIDC Client Secret"
+                  type="password"
+                  placeholder="prism-dev-secret" 
+                  .value=${this._oidcClientSecretReference} 
+                  @input=${(e: any) => {
+                    this._oidcClientSecretReference = e.target.value;
+                    if (this._oidcClientSecretReference) this._clearOidcClientSecret = false;
+                  }}
+                  ?disabled=${this._clearOidcClientSecret}
+                  aria-label="Local Demo OIDC Client Secret"
+                  aria-describedby="oidc-client-secret-hint">
+                </uui-input>
+                <small id="oidc-client-secret-hint">Only the repo-owned localhost Keycloak demo uses an inline secret. This field never receives the currently stored value; enter a new one only when replacing the demo secret.</small>
+              </div>
+            ` : html``}
+
+            ${oidcSecretValidationMessage ? html`
+              <small class="error-text" role="alert">${oidcSecretValidationMessage}</small>
+            ` : html``}
+          ` : html``}
         </uui-box>
       </div>
     `;
