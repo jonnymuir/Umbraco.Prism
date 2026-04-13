@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
 using UmbracoPrism.Core.Extensions;
@@ -16,6 +17,8 @@ namespace UmbracoPrism.Core.Tests;
 
 public class PrismAuthExtensionsSecurityTests
 {
+    private const string LocalOidcAuthority = "https://localhost:8443/realms/prism-dev";
+
     [Fact]
     public void IssuerValidator_RejectsIssuerHostMismatch_EvenWhenTenantIdAppearsInPath()
     {
@@ -162,19 +165,19 @@ public class PrismAuthExtensionsSecurityTests
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
-            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
 
-        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+        var token = CreateOidcToken(LocalOidcAuthority);
 
         var result = options.TokenValidationParameters.IssuerValidator!(
-            "http://localhost:8080/realms/prism-dev",
+            LocalOidcAuthority,
             token,
             options.TokenValidationParameters);
 
-        result.Should().Be("http://localhost:8080/realms/prism-dev");
+        result.Should().Be(LocalOidcAuthority);
     }
 
     [Fact]
@@ -184,7 +187,7 @@ public class PrismAuthExtensionsSecurityTests
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
-            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
@@ -200,18 +203,40 @@ public class PrismAuthExtensionsSecurityTests
     }
 
     [Fact]
+    public void IssuerValidator_RejectsInternalHttpIssuer_WhenTenantPinsBrowserFacingHttpsAuthority()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+
+        var act = () => options.TokenValidationParameters.IssuerValidator!(
+            "http://localhost:8080/realms/prism-dev",
+            token,
+            options.TokenValidationParameters);
+
+        act.Should().Throw<SecurityTokenInvalidIssuerException>();
+    }
+
+    [Fact]
     public void AudienceValidator_AcceptsOidcAudience_WhenMatchesConfiguredClientId()
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
-            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
 
-        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+        var token = CreateOidcToken(LocalOidcAuthority);
 
         var accepted = options.TokenValidationParameters.AudienceValidator!(
             ["prism-client"],
@@ -228,12 +253,12 @@ public class PrismAuthExtensionsSecurityTests
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
-            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "http://localhost:8080/realms/prism-dev",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
 
-        var token = CreateOidcToken("http://localhost:8080/realms/prism-dev");
+        var token = CreateOidcToken(LocalOidcAuthority);
 
         var accepted = options.TokenValidationParameters.AudienceValidator!(
             ["wrong-client"],
@@ -244,20 +269,86 @@ public class PrismAuthExtensionsSecurityTests
     }
 
     [Fact]
+    public void AudienceValidator_AcceptsOidcAuthorizedParty_WhenAudienceClaimDoesNotContainClientId()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcToken(LocalOidcAuthority, audience: "account", authorizedParty: "prism-client");
+
+        var accepted = options.TokenValidationParameters.AudienceValidator!(
+            ["account"],
+            token,
+            options.TokenValidationParameters);
+
+        accepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IssuerValidator_AcceptsOidcIssuer_ForJsonWebTokenWithoutTidClaim()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcJsonWebToken(LocalOidcAuthority);
+
+        var result = options.TokenValidationParameters.IssuerValidator!(
+            LocalOidcAuthority,
+            token,
+            options.TokenValidationParameters);
+
+        result.Should().Be(LocalOidcAuthority);
+    }
+
+    [Fact]
+    public void AudienceValidator_AcceptsOidcAuthorizedParty_ForJsonWebTokenWithoutTidClaim()
+    {
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
+        });
+
+        var token = CreateOidcJsonWebToken(LocalOidcAuthority, audience: "account", authorizedParty: "prism-client");
+
+        var accepted = options.TokenValidationParameters.AudienceValidator!(
+            ["account"],
+            token,
+            options.TokenValidationParameters);
+
+        accepted.Should().BeTrue();
+    }
+
+    [Fact]
     public void ResolveSigningKeys_ResolvesKeys_ForOidcTenant()
     {
         var signingKey = CreateSigningKey("oidc-key");
         var cache = new Mock<IPrismSigningKeyCache>();
         cache
-            .Setup(c => c.GetSnapshot("http://localhost:8080/realms/prism-dev", "oidc-key"))
+            .Setup(c => c.GetSnapshot(LocalOidcAuthority, "oidc-key"))
             .Returns(new PrismSigningKeyCacheSnapshot([signingKey], false, false, true));
 
         var keys = PrismAuthExtensions.ResolveSigningKeys(
             null,
             "oidc-key",
-            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", "http://localhost:8080/realms/prism-dev")],
+            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", LocalOidcAuthority)],
             cache.Object,
-            "http://localhost:8080/realms/prism-dev")
+            LocalOidcAuthority)
             .ToArray();
 
         keys.Should().ContainSingle().Which.KeyId.Should().Be("oidc-key");
@@ -270,22 +361,22 @@ public class PrismAuthExtensionsSecurityTests
         var signingKey = CreateSigningKey("oidc-key");
         var cache = new Mock<IPrismSigningKeyCache>();
         cache
-            .SetupSequence(c => c.GetSnapshot("http://localhost:8080/realms/prism-dev", "oidc-key"))
+            .SetupSequence(c => c.GetSnapshot(LocalOidcAuthority, "oidc-key"))
             .Returns(new PrismSigningKeyCacheSnapshot([], true, true, false))
             .Returns(new PrismSigningKeyCacheSnapshot([signingKey], false, false, true));
 
         var keys = PrismAuthExtensions.ResolveSigningKeys(
             null,
             "oidc-key",
-            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", "http://localhost:8080/realms/prism-dev")],
+            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", LocalOidcAuthority)],
             cache.Object,
-            "http://localhost:8080/realms/prism-dev")
+            LocalOidcAuthority)
             .ToArray();
 
         keys.Should().ContainSingle().Which.KeyId.Should().Be("oidc-key");
         cache.Verify(c => c.WarmAsync(
-            "http://localhost:8080/realms/prism-dev",
-            "http://localhost:8080/realms/prism-dev/.well-known/openid-configuration",
+            LocalOidcAuthority,
+            $"{LocalOidcAuthority}/.well-known/openid-configuration",
             true,
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -298,7 +389,7 @@ public class PrismAuthExtensionsSecurityTests
         var keys = PrismAuthExtensions.ResolveSigningKeys(
             null,
             "oidc-key",
-            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", "http://localhost:8080/realms/prism-dev")],
+            [new BackOfficeTenant("", "prism-client", "PRISM-DEMO", "Prism Demo (Keycloak)", LocalOidcAuthority)],
             cache.Object,
             "http://evil.example/realms/evil")
             .ToArray();
@@ -327,8 +418,48 @@ public class PrismAuthExtensionsSecurityTests
         return new JwtSecurityToken(claims: claims);
     }
 
-    private static JwtSecurityToken CreateOidcToken(string issuer)
-        => new JwtSecurityToken(issuer: issuer);
+    private static JwtSecurityToken CreateOidcToken(string issuer, string? audience = null, string? authorizedParty = null)
+    {
+        var claims = new List<Claim>();
+
+        if (!string.IsNullOrWhiteSpace(audience))
+        {
+            claims.Add(new Claim("aud", audience));
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorizedParty))
+        {
+            claims.Add(new Claim("azp", authorizedParty));
+        }
+
+        return new JwtSecurityToken(issuer: issuer, claims: claims);
+    }
+
+    private static JsonWebToken CreateOidcJsonWebToken(string issuer, string? audience = null, string? authorizedParty = null)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["iss"] = issuer
+        };
+
+        if (!string.IsNullOrWhiteSpace(audience))
+        {
+            payload["aud"] = audience;
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorizedParty))
+        {
+            payload["azp"] = authorizedParty;
+        }
+
+        var headerJson = "{\"alg\":\"none\"}";
+        var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
+        var rawToken =
+            $"{Base64UrlEncoder.Encode(Encoding.UTF8.GetBytes(headerJson))}." +
+            $"{Base64UrlEncoder.Encode(Encoding.UTF8.GetBytes(payloadJson))}.";
+
+        return new JsonWebToken(rawToken);
+    }
 
     private static SecurityKey CreateSigningKey(string keyId)
     {
