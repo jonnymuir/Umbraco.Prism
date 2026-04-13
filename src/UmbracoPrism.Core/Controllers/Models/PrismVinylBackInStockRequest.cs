@@ -2,12 +2,10 @@ namespace UmbracoPrism.Core.Controllers.Models;
 
 /// <summary>
 /// Request model for back-in-stock vinyl notifications.
+/// Tenant is determined from the authenticated user's session context, not from request data.
 /// </summary>
 public class PrismVinylBackInStockRequest
 {
-    /// <summary>Tenant ID to send the notification to (required).</summary>
-    public string? TenantId { get; set; }
-
     /// <summary>Title of the vinyl that is back in stock (required).</summary>
     public string? VinylTitle { get; set; }
 
