@@ -186,6 +186,13 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+- 2026-04-13 (generic OIDC session contract): The encrypted `PrismMemberCookie` is the restart-stable contract for localhost generic OIDC — it must preserve `access_token`, `refresh_token`, `id_token`, and `expires_at` so `PrismContext` can still produce downstream bearer headers and logout can still restore `id_token_hint` after a site restart.
+- 2026-04-13 (dev auth observability): `GET /api/prism/downstream-demo/session-contract` is the dev-only probe for Playwright and manual debugging. It reports tenant mode, cookie token presence, downstream authorization-header readiness, and logout hint readiness without exposing raw token values.
+- 2026-04-13 (key files): Auth-session contract changes live in `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs`, `src/UmbracoPrism.Core.Tests/LocalhostGenericOidcRegressionTests.cs`, and `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`.
+- 2026-04-13 (fresh Aspire DB path): The Aspire-hosted TestSite now needs its own repo-local runtime root (`artifacts/aspire/testsite-runtime/`) for mutable state, so restart-heavy auth suites can reset from scratch without touching the standalone `umbraco/Data` database.
+- 2026-04-13 (fresh SQLite bootstrap): A clean isolated TestSite SQLite file does not self-bootstrap unless Umbraco unattended install is enabled for that path; wiring unattended install into the isolated runtime root is what makes fresh-clone AppHost starts reproducible.
+- 2026-04-13 (Prism migration timing): Prism package migrations must run on `UmbracoApplicationStartedNotification`, not `UmbracoApplicationStartingNotification`, otherwise a fresh unattended install can serve requests before `prismTenants` exists.
+- 2026-04-13 (deterministic localhost tenant): The localhost Keycloak demo tenant should be reconciled back to its expected OIDC/provider fields on every Development startup, not only inserted once, so isolated restarts do not inherit drift.
 
 ## Learnings (2026-03-29 — GitHub Release Workflow)
 
@@ -1981,3 +1988,110 @@ Created UmbracoPrism.KeycloakProxy project:
 - Key file paths for this fix:
   - src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs logout event handler (removed id_token_hint retrieval)
   - src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs logout tests (updated assertions)
+
+## Learnings & Handoff (2026-04-13, Keycloak offline_access Scope Regression)
+
+**Issue:** Commit 9cf7820 added offline_access to generic OIDC browser scopes to enable refresh token support, but localhost Keycloak login failed with OpenIdConnectProtocolException: invalid_scope.
+
+**Root Cause:** The prism-client in keycloak/realm-export.json did not have offline_access in its allowed scopes. Keycloak rejected the authorization request because the code was requesting a scope the client wasn't configured for.
+
+**Resolution:** Configuration fix, not code change.
+- Added offline_access to prism-client.optionalClientScopes in keycloak/realm-export.json
+- Created keycloak/README.md documenting scope requirements and configuration
+- Decision logged in .squad/decisions/inbox/blathers-oidc-scope-regression.md
+
+**Key Learnings:**
+1. offline_access is provider-configurable: Even though it's a standard OIDC scope, providers (including Keycloak) require explicit client-level configuration. If not configured, the provider will reject the auth request with invalid_scope.
+2. Refresh tokens require offline_access: Without this scope, OIDC providers won't issue refresh tokens, forcing users to re-authenticate when access tokens expire.
+3. Code already handles missing refresh tokens gracefully: CreateAuthenticationTokens() uses TryGetProperty("refresh_token") so login succeeds even if the provider doesn't return one. The issue was that Keycloak rejected the request before we got to the token exchange.
+4. Configuration alignment matters: Local dev environment should match production expectations. If production generic OIDC tenants will use offline_access, the localhost realm must support it too.
+5. Scope validation happens at authorization time: The invalid_scope error occurs during the redirect to the OIDC provider's /authorize endpoint, not during token exchange. This means you can't catch it in OnAuthorizationCodeReceived.
+
+**Testing:** All relevant tests pass:
+- PrismOidcConfigurationTests.GetRequestedScope_* (validates scope strings)
+- PrismContextTests.* (validates token refresh logic)
+
+**Regression Commit:** 9cf7820 (already on HEAD -> main, not yet pushed to origin)
+
+**Next:** When configuring new generic OIDC tenants (Okta, Auth0, etc.), ensure their client configurations include offline_access in optional or default scopes to enable refresh token support.
+
+## Learnings & Handoff (2026-04-13, Keycloak offline_access Corrected — Reverting Bad Intermediate Fix)
+
+**Issue:** Commit 9cf7820 added `offline_access` to generic OIDC scopes as a reactive fix for downstream 401s. Runtime now fails with Keycloak error: `Offline tokens not allowed for the user or client` / `not_allowed` during token exchange.
+
+**Root Cause Analysis (by Copper, security review):**
+- `offline_access` was NOT part of the original design — it was introduced while chasing downstream symptoms.
+- Keycloak interprets `offline_access` as a request for offline token mode (long-lived, revokable tokens), NOT standard session refresh tokens.
+- Keycloak's default client configuration DOES NOT allow offline token issuance, causing the `not_allowed` error.
+- Standard OIDC authorization code flow provides session-bound refresh tokens by DEFAULT without requiring `offline_access`.
+- The 401s were likely a different issue (misconfiguration, missing refresh token handling), not a scope problem.
+
+**Resolution:** Reverted the broken intermediate fix and corrected to original design contract.
+1. Removed `offline_access` from `GenericOidcBrowserScopes` in `PrismOidcConfiguration.cs` (back to `"openid profile"`)
+2. Removed `offline_access` from `keycloak/realm-export.json` optional scopes (was added only to support broken path)
+3. Updated `keycloak/README.md` to clarify that refresh tokens work WITHOUT `offline_access` in Keycloak
+4. Updated all test assertions to match corrected behavior:
+   - `PrismOidcConfigurationTests.GetRequestedScope_ReturnsStandardOidcScopes_ForGenericProvider`
+   - `PrismOidcConfigurationTests.PostConfigure_GenericOidcRedirect_RequestsStandardOidcScopesOnly`
+   - `PrismContextTests.GetAuthorizationHeaderAsync_RefreshesGenericOidcTokens_*` (scope assertion)
+   - `LocalhostGenericOidcRegressionTests.*` (all scope-related tests updated to reflect minimal standard scopes)
+5. Preserved the logout fix: generic OIDC still omits `id_token_hint` (correct behavior)
+
+**Key Learnings:**
+1. **offline_access ≠ refresh tokens in Keycloak:** Standard OIDC authorization code flow gives you session refresh tokens by default. `offline_access` is an ELEVATED PRIVILEGE requesting long-lived offline tokens, which require special client permissions.
+2. **Keycloak offline token mode requires explicit client config:** If not enabled server-side, requesting `offline_access` fails with `not_allowed`. This is a feature, not a bug — offline tokens bypass session lifetime limits.
+3. **Reactive fixes hide root causes:** The downstream 401s were likely due to missing refresh token handling or expired tokens, not missing `offline_access`. Adding the scope masked the real issue.
+4. **Test what you ship:** The LocalhostGenericOidcRegressionTests were written to lock in the BROKEN behavior. Tests should validate intended design, not document intermediate workarounds.
+5. **Scope semantics matter:** `openid profile` = identity claims. `offline_access` = long-lived revokable tokens. Don't conflate session refresh with offline refresh.
+
+**Testing:** All auth tests pass with corrected scopes:
+- `PrismOidcConfigurationTests`: 14 tests passed
+- `PrismContextTests`: 9 tests passed  
+- `LocalhostGenericOidcRegressionTests`: 14 tests passed
+
+**Status:** ✅ Corrected. Generic OIDC now uses minimal standard scopes (`openid profile`) and relies on standard session refresh tokens provided by the authorization code flow. No special offline token mode required or requested.
+
+**Architecture Decision:** Generic OIDC login and refresh paths use `openid profile` without `offline_access`. Session refresh tokens are provided by default and work correctly. If future requirements demand long-lived offline tokens for a specific tenant, that should be an explicit opt-in with clear security review, not a blanket behavior for all generic OIDC.
+
+## Phase 1 Auth Fixes Completion (2026-04-13)
+
+**Status:** ⚠️ Startup/auth/navigation pass; restart-only downstream case remains (follow-up work).
+
+### Deliverables
+
+1. **Generic OIDC Session Contract Survival**
+   - Browser-facing issuer `https://localhost:8443/realms/prism-dev` is authoritative
+   - `PrismMemberCookie` preserves `access_token`, `refresh_token`, `id_token`, `expires_at`
+   - Tokens survive site restarts and support downstream bearer propagation
+   - `GET /api/prism/downstream-demo/session-contract` probes session readiness (dev-only metadata)
+
+2. **Downstream Bearer Validation**
+   - Downstream APIs validate against Prism's Keycloak issuer
+   - Mock BusinessApp 401 fixed via isolated fresh DB seeding
+   - Session metadata available before blaming downstream 401s
+
+3. **Offline Token & Scope Contract**
+   - Reverted `offline_access` scope drift (Generic OIDC now uses `openid profile` only)
+   - Local Keycloak scope aligns with browser + downstream
+   - Standard session refresh tokens work correctly
+
+4. **Logout Behavior**
+   - Use `id_token_hint` from stored `id_token` when available
+   - Fallback to `client_id` for older/damaged sessions only
+   - Keycloak logout flow validated across restart
+
+5. **Endpoint Wiring & DB Isolation**
+   - Launch profiles are source of truth for endpoint URLs
+   - Fresh DB per Aspire startup isolates TestSite runtime state
+   - Dashboard launch timing synchronized with AppHost readiness
+
+### Test Coverage
+
+- ✅ `LocalhostGenericOidcRegressionTests` (14 tests)
+- ✅ `PrismOidcConfigurationTests`
+- ✅ `DashboardLocalEndpointsValidationTests`
+- ⚠️ Restart-only downstream API: session contract passes, but downstream runtime stale after full AppHost restart (scoped blocker)
+
+### Follow-up
+
+Tangy will validate live suite behavior after this phase completes.

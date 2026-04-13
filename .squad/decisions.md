@@ -5603,3 +5603,115 @@ Generic OIDC and Entra now follow the same vault-backed, reference-based secret 
 
 **Recorded by:** Scribe (Multi-Agent Consolidation)
 **Team:** Tom Nook (Lead), Copper (Security), Blathers (Backend), Tangy (Testing), Isabelle (Frontend), Mabel (Documentation)
+
+---
+
+## 📌 2026-04-13: Brewster Clean-Boot Readiness & Blathers Auth Fixes — Phase 1 Completion
+
+**Session Log:** `.squad/log/2026-04-13T20:14:37Z-scribe-spawn.md`  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-13T20:14:37Z-brewster.md`
+
+### Brewster — Live Suite Startup & Seed Stability
+
+**Outcome:** Live localhost Playwright suite now passes startup/auth/navigation tests with stable, deterministic seeded data.
+
+#### 1. Stable Umbraco Seed Contract
+
+**Decision:** Adopt single seed contract for TestSite's authenticated demo journey:
+- `homePage` named **Home** at `/`
+- `memberDashboard` named **Dashboard** at `/dashboard`
+- `workflowPage` named **Get in Touch** with `workflowKey = community-enquiry` at `/get-in-touch/`
+- `workflowHub` named **My Workflows** at `/my-workflows/`
+- Root `settings` node containing mobile nav links
+
+**Implementation:** Seeders repair missing/drifted demo nodes idempotently on Development startup; Razor navigation resolves destinations from published content tree, not positional assumptions.
+
+**Why:** Clean-database runs become deterministic; Umbraco content tree remains CMS-native with real route hijacking and published URLs.
+
+#### 2. Live Suite Startup Contract (Machine-Readable)
+
+**Decision:** Treat localhost Aspire readiness as machine-readable Umbraco contract, not rendered-text check.
+
+**Implementation:**
+- TestSite home page exposes stable readiness marker: `data-prism-home-ready="true"`
+- `GET /api/prism/downstream-demo/seed-contract-ready` is authoritative Umbraco/TestSite readiness endpoint
+- Readiness payload normalizes published URLs and confirms expected auth challenge contract
+- Live-suite tooling prefers this endpoint over scraping rendered copy
+
+**Why:** Previous probe depended on rendered hero text; clean boots could be healthy while HTML formatting or trailing-slash URLs caused false negatives.
+
+#### 3. Keycloak HTTPS & Cookie Flow
+
+**Decision:** Localhost Keycloak accessed via HTTPS port 8443 from browser with restart-stable cookie flow.
+
+**Implementation:** Browser URL: `https://localhost:8443/realms/prism-dev`; cookie flow validated across restart scenarios; retry logic for 8443 port availability; dashboard launch timing synchronized with AppHost readiness.
+
+#### 4. View & Build Warnings Cleanup
+
+**Decisions:**
+- Use typed Umbraco navigation extensions in Razor views (not untyped `Html.GetUmbracoHelper()`)
+- Warning policy: fix root causes, not suppress noise
+- Aspire launch profile sourced from configuration (no hardcoded VS Code `launchUrl`)
+
+### Blathers — Backend Auth Fixes (Phase 1 Security Remediation)
+
+**Blocker Status:** Restart-only downstream API failure after full AppHost restart (scoped blocker; startup/auth/navigation pass).
+
+#### 1. Generic OIDC Session Contract Survival
+
+**Decision:** Browser-facing Keycloak issuer must be authoritative for downstream token validation; session tokens persist across site restarts.
+
+**Implementation:**
+- Browser-facing issuer: `https://localhost:8443/realms/prism-dev`
+- Downstream APIs validate against same issuer (not container internal `http://localhost:8080`)
+- `PrismMemberCookie` preserves `access_token`, `refresh_token`, `id_token`, `expires_at`
+- ID tokens retained for RP-initiated logout
+- `GET /api/prism/downstream-demo/session-contract` probes metadata (dev-only)
+
+#### 2. Downstream Bearer Validation
+
+**Decision:** Align local demo validation with HTTPS Keycloak authority; generic OIDC downstream binding uses issuer + client identity.
+
+**Implementation:** Mock BusinessApp 401 resolved via isolated fresh DB seeding; downstream calls validate against Prism's Keycloak issuer.
+
+#### 3. Offline Token & Scope Fixes
+
+**Decisions:**
+- Revert `offline_access` scope drift to Generic OIDC contract
+- Local Keycloak should NOT request offline_access by default
+- Scope contract aligns browser + downstream
+
+#### 4. Logout Behavior
+
+**Decision:** Omit `id_token_hint` for Generic OIDC logout when ID token available; fallback to `client_id` only for older/damaged sessions.
+
+**Implementation:** At logout, restore `id_token_hint` from stored `id_token` when available; Keycloak logout validated across restart.
+
+#### 5. Endpoint Wiring
+
+**Decision:** Launch profiles are source of truth for local endpoint URLs; fresh DB seeding isolates TestSite runtime state.
+
+**Implementation:** Dashboard launch timing synchronized with Aspire workload startup; Aspire TestSite no longer reuses standalone `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`.
+
+### Changed Files
+
+- `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`
+- `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs`
+- `src/UmbracoPrism.Core.Tests/LocalhostGenericOidcRegressionTests.cs`
+- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`
+
+### Follow-up Agents
+
+- **Blathers:** Fix restart-only downstream API failure
+- **Tangy:** Validate live suite after Blathers fix
+
+### Team Notes
+
+- **Tangy:** Playwright can assert restart-stable session contract directly and use seed-contract-ready endpoint
+- **Copper:** No token values exposed by new probes; only dev-enabled metadata
+- **Mabel/Celeste:** Docs should keep seed contract visible in fresh-clone localhost documentation
+
+---
+
+**Recorded by:** Scribe (Phase 1 Consolidation)

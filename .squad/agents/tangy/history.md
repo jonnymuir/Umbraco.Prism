@@ -785,3 +785,149 @@ Two test issues identified by Jonny Muir:
 - There is no safe in-repo root fix on the current dependency line because the warning comes from vendored Storybook internals and would require either patching `node_modules` or a broader Storybook upgrade beyond the verified 8.6.15 setup.
 - Validation for this review used `npm run storybook -- --quiet --smoke-test` and `node node_modules/.bin/playwright test --reporter=line` under `src/UmbracoPrism.Client`; Playwright stayed green while the warning remained visible.
 - Key file paths for future follow-up: `src/UmbracoPrism.Client/package.json`, `src/UmbracoPrism.Client/playwright.config.ts`, `.squad/skills/node-warning-mitigation/SKILL.md`, and `.squad/decisions/inbox/tangy-dep0190-policy-followup.md`.
+
+## 2026-04-13 — Localhost Generic OIDC Regression Coverage
+
+**Session:** Auth Regression Testing  
+**Work Type:** Unit test implementation
+
+**Context:** Blathers fixed two critical auth issues: (1) downstream 401 by adding `offline_access` scope to generic OIDC login flow, and (2) Keycloak logout by omitting `id_token_hint` for generic OIDC providers. User requested comprehensive regression tests to prevent auth fixes from breaking adjacent behavior.
+
+**Tests Implemented (LocalhostGenericOidcRegressionTests.cs):**
+
+Created 14 regression tests that lock in the localhost generic OIDC auth contract across three key areas:
+
+**1. Login/Authorization Scope Behavior (4 tests):**
+- `Login_RequestsOfflineAccessScope_ForGenericOidcProviders` — Locks in `openid profile offline_access` scope for generic OIDC (prevents downstream 401 regression)
+- `Login_DoesNotRequestOfflineAccessScope_ForLocalhostKeycloakWithMissingConfig` — Edge case: incomplete tenant config still gets consistent scope
+- `GetRequestedScope_ReturnsConsistentScope_ForGenericOidc` — Scope MUST match between login and refresh (mismatch causes 401)
+- `Login_SetsGenericOidcAuthorizationEndpoint_ForLocalhostKeycloak` — Uses `/protocol/openid-connect/auth` not Entra-specific paths
+
+**2. Token Refresh Behavior (3 tests):**
+- `TokenRefresh_UsesOfflineAccessScope_ForGenericOidc` — Refresh requests MUST include `offline_access` (the downstream 401 fix)
+- `TokenRefresh_UsesCorrectTokenEndpoint_ForGenericOidc` — Uses `/protocol/openid-connect/token` endpoint
+- `TokenRefresh_FailsClosed_WhenSecretCannotBeResolved` — Security: no refresh attempt without valid secret
+
+**3. Logout Parameter Behavior (4 tests):**
+- `Logout_OmitsIdTokenHint_ForGenericOidc` — MUST NOT send `id_token_hint` (Keycloak "Invalid parameter" fix)
+- `Logout_SetsClientId_ForGenericOidc` — Still identifies app with `client_id` even without `id_token_hint`
+- `Logout_UsesStandardOidcLogoutEndpoint_ForGenericOidc` — Uses `/protocol/openid-connect/logout` not Entra paths
+- `Logout_SucceedsWithoutStoredIdToken` — Edge case: logout works even if `id_token` missing from cookie
+
+**4. Provider Discrimination (3 tests):**
+- `GenericOidc_UsesStandardOidcEndpoints_NotEntraSpecific` — Verifies generic OIDC never uses Entra paths
+- `GenericOidc_IdentifiedByOidcAuthority_NotEntraTenantId` — Provider type discrimination uses `OidcAuthority` presence
+- `GenericOidc_RequestsStandardScopes_NotEntraDefault` — No `/.default` suffix in scope (Entra-specific)
+
+**Test Strategy:**
+- Tests lock in the **auth contract**, not implementation details
+- Each test has a clear regression-lock comment explaining what breaks if the test fails
+- Tests cover the full localhost Keycloak flow: login → refresh → logout
+- Edge cases included: missing config, missing tokens, secret resolution failures
+
+**Test Results:**
+- ✅ All 14 new tests pass
+- ✅ All 23 existing PrismOidcConfigurationTests + PrismContextTests still pass
+- ✅ No regressions introduced
+
+**Decision Points Captured:**
+- Generic OIDC scope is now a locked contract: `openid profile offline_access`
+- Generic OIDC logout MUST omit `id_token_hint` (not optional)
+- Scope mismatch between login and refresh is a critical bug (causes 401)
+
+**Coverage Gaps Still Present:**
+- No integration tests for the full OAuth code exchange flow (mocked CIAM needed)
+- No chaos testing for OIDC metadata endpoint failures during login
+- No tests for generic OIDC with providers other than Keycloak (Okta, Auth0, etc.)
+
+**Next Steps for Auth Hardening:**
+- Add integration tests with mocked OIDC discovery endpoint
+- Add tests for non-Keycloak generic OIDC providers
+- Add token refresh under concurrent load scenarios
+- Consider chaos testing: OIDC metadata down during login
+
+## Learnings & Handoff (2026-03-22, OIDC Scope Correction)
+
+**Task:** Update auth regression coverage to protect the corrected design rather than the broken intermediate contract.
+
+**Context:**
+- Previous regression suite locked in offline_access for localhost generic OIDC
+- This was a broken intermediate contract based on incorrect assumption
+- Copper's security review revealed: offline_access is NOT required for session-bound refresh tokens
+- Standard OIDC authorization code flow returns refresh tokens WITHOUT offline_access
+- In Keycloak, offline_access requests long-lived offline tokens (elevated privilege, requires special config)
+
+**Corrected Contract:**
+1. Generic OIDC login scope: "openid profile" (minimal standard scopes)
+2. Generic OIDC refresh scope: "openid profile" (same as login, for session-bound refresh)
+3. Generic OIDC logout: without id_token_hint (Keycloak rejects it)
+4. Entra unchanged: "openid profile offline_access {clientId}/.default"
+
+**Changes Made:**
+- Updated LocalhostGenericOidcRegressionTests.cs (14 tests) to reflect corrected contract
+  - Login scope: "openid profile" (not "openid profile offline_access")
+  - Refresh scope: "openid profile" (not "openid profile offline_access")
+  - Added assertions that offline_access is NOT requested (negative test)
+  - Updated comments to explain session-bound vs offline tokens
+- Implementation in PrismOidcConfiguration.cs already correct: GenericOidcBrowserScopes = "openid profile"
+- Tests in PrismOidcConfigurationTests.cs and PrismContextTests.cs already correct
+
+**Test Results:**
+- All 28 auth-related tests pass (LocalhostGenericOidcRegressionTests, PrismOidcConfigurationTests, PrismContextTests)
+- 14 tests in LocalhostGenericOidcRegressionTests: All pass
+- 14 tests in PrismOidcConfigurationTests: All pass
+- 9 tests in PrismContextTests (generic OIDC-related): All pass
+
+**Key Testing Principles Applied:**
+1. Behavior over implementation: Tests focus on scope values and endpoint URLs, not internal variable names
+2. Provider discrimination: Clear separation between generic OIDC and Entra-specific behavior
+3. Negative assertions: Tests explicitly verify that offline_access is NOT included
+4. Regression protection: Tests lock in the corrected minimal-privilege contract
+
+**Security Principle Validated:**
+- Least Privilege: Generic OIDC uses minimal scopes; offline_access is an elevated capability
+- Session-bound refresh tokens are sufficient for dev/demo flows
+- Long-lived offline tokens require explicit feature need and security review
+
+**Team Coordination:**
+- Blathers: Implementation already correct in PrismOidcConfiguration.cs
+- Copper: Security review identified the issue, recommended minimal scopes
+- Tangy: Updated regression tests to protect corrected contract
+
+**Artifacts:**
+- .squad/decisions/inbox/tangy-update-oidc-regressions.md (decision document)
+- 14 regression tests updated with corrected contract expectations
+
+## Learnings — 2026-04-13 — Real localhost auth/session Playwright coverage
+
+- Real localhost auth/session coverage now lives in `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts` with a separate config at `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`; the default Storybook config explicitly ignores that spec so component tests stay isolated.
+- The reusable harness pattern is to let the live Playwright spec own AppHost lifecycle in-process (`src/UmbracoPrism.Client/tests/support/live-app-host.ts`) instead of using Playwright `webServer`, because restart contracts need deliberate stop/start control mid-test.
+- When the default Aspire ports are already serving this repo's stack, the harness should attach to the existing `UmbracoPrism.AppHost` process, reuse it for readiness, and only take over restart control when a restart scenario actually runs.
+- The real behavioural contract is now executable with the repo-owned Keycloak demo identity from `keycloak/realm-export.json`: `demo@prism.local` / `password`.
+- Current live results: 4 of 6 flows pass; two desired-contract regressions remain real after full-stack restart — dashboard downstream API calls return `401 Unauthorized`, and logout lands on Keycloak's `Invalid parameter: id_token_hint` page.
+- Jonny's preference for this slice was reinforced: ship runnable real-app regressions rather than a plan, and keep the failing restart scenarios as the stronger desired contract instead of weakening them to match current behaviour.
+- Key file paths for future follow-up: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`, `src/UmbracoPrism.Client/tests/support/live-app-host.ts`, `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`, `src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml`, and `src/UmbracoPrism.Core/Controllers/AccountController.cs`.
+
+## Learnings — 2026-04-13 — Aspire-owned localhost auth harness
+
+- The localhost auth suite now needs exclusive control of the full Aspire graph, including AppHost control ports (`17214`, `15135`, `21233`, `22194`) as well as TestSite/Keycloak/MockBusinessApp, because stale AppHost helper processes can survive a failed run even when the browser-facing ports look free.
+- Preflight validation belongs in the runnable script (`npm run test:playwright:localhost-auth` via `scripts/validate-aspire-prereqs.mjs`), not just inside the test helper, so developers get a fast human-readable failure before Playwright boots.
+- Resetting the isolated Aspire TestSite runtime is useful because it exposes whether backend seeders really recreate the workflow/browser contract from an empty SQLite DB; on the current repo state that clean-room boot still leaves `/my-workflows` unresolved and Keycloak discovery intermittently proxying `502`, which is a genuine upstream blocker rather than a harness bug.
+
+## Phase 1 Validation Follow-up (2026-04-13)
+
+**Status:** Spawned for post-Blathers fix validation. Ready to validate when Blathers completes restart-only downstream fix.
+
+### Context for Tangy's Follow-up Work
+
+1. **Seed Contract Readiness** — Use `GET /api/prism/downstream-demo/seed-contract-ready` endpoint instead of rendered-text probe
+2. **Session Contract Metadata** — Probe `GET /api/prism/downstream-demo/session-contract` before asserting downstream 401s are infrastructure issues
+3. **Restart Contract Validation** — Full AppHost restart should leave Prism session + downstream bearer validation working
+4. **Scope Contract** — Generic OIDC now uses `openid profile` only (no `offline_access`)
+5. **Logout Behavior** — ID token persistence should enable id_token_hint propagation across restart
+
+### Key Files for Validation
+
+- `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts` (auth flow assertions)
+- `src/UmbracoPrism.Client/tests/support/live-app-host.ts` (Aspire harness)
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` (readiness/session endpoints)

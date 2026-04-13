@@ -1589,3 +1589,53 @@ Documentation updated: README includes cert trust setup, ASPIRE_DEV.md explains 
 
 **Artifacts:** `.squad/decisions/inbox/copper-auth-logout-diagnosis.md` (complete diagnosis with file/line references and fix recommendations)
 
+## 2026-04-13 — Generic OIDC offline_access Scope Review
+
+**Context:** Localhost Keycloak login now fails with `invalid_scope` for `offline_access`. Blathers added `offline_access` to `GenericOidcBrowserScopes` to fix missing refresh tokens (commit 9cf7820), but this conflicts with Copper's 2026-04-12 guidance and the Keycloak client configuration.
+
+**Investigation:**
+- Keycloak `realm-export.json` defines `prism-client` with `optionalClientScopes: ['address', 'phone', 'microprofile-jwt']`
+- **`offline_access` is NOT in the Keycloak client scope list**
+- When Prism requests `offline_access`, Keycloak rejects authorization with `invalid_scope`
+- Tests pass because they don't test actual Keycloak runtime behavior
+
+**Security Analysis:**
+- In Keycloak, `offline_access` requests an **offline token** (long-lived, outlives SSO session)
+- This is NOT the same as a normal session-bound refresh token
+- Standard OIDC authorization code flow returns session refresh tokens WITHOUT requiring `offline_access`
+- Blathers' assumption "without offline_access, providers don't issue refresh tokens" is incorrect for Keycloak
+
+**Root Cause:**
+- Confusion between "offline tokens" (long-lived, provider-specific) and "session refresh tokens" (standard code flow)
+- Attempt to copy Entra's scope pattern to generic OIDC without understanding provider-specific semantics
+
+**Recommendation:**
+- **Remove `offline_access` from `GenericOidcBrowserScopes`** → `"openid profile"` only
+- Keep Entra path unchanged: `"openid profile offline_access {clientId}/.default"`
+- Keycloak will still return session-bound refresh tokens for standard code flow
+- If a generic provider doesn't return refresh tokens, session expires gracefully (acceptable for demo/dev)
+
+**Security Principle:** Least Privilege
+- Offline tokens are an elevated capability (longer-lived, persist beyond SSO session)
+- Should only be enabled after explicit feature need and security review
+- Should NOT be the default for local dev/demo flows
+- Do not widen provider permissions to mask app-scope configuration bugs
+
+**Risk Assessment:**
+- Security: ✅ Positive (reduces credential lifetime and attack surface)
+- Compatibility: ✅ Low risk (standard scopes work across providers)
+- Functionality: ✅ Keycloak returns session refresh tokens without offline_access
+- User Impact: ✅ Positive (fresh clones work without manual Keycloak config)
+
+**Alignment:**
+- `.squad/skills/generic-oidc-offline-token-policy/SKILL.md`: Default to session-bound browser auth
+- `.squad/skills/keycloak-refresh-scope/SKILL.md`: Prefer standard scopes for fresh-clone local auth
+
+**Key Learning:**
+- `offline_access` is NOT required for refresh tokens in standard OIDC authorization code flow
+- Different providers interpret `offline_access` differently (Keycloak = offline tokens, Entra = session refresh)
+- Generic OIDC paths should use minimal standard scopes; provider-specific features stay in provider-specific paths
+- Always validate runtime behavior against actual provider configuration, not just unit tests
+
+**Artifacts:** `.squad/decisions/inbox/copper-oidc-scope-review.md` (complete analysis and recommendation for Blathers implementation)
+

@@ -38,6 +38,10 @@
 - **TestSite demo pages:** For complex interactive demos (e.g., workflow forms engine), create a dedicated document type with route-hijacking controller + Razor view. Properties drive configuration (e.g., workflow key, completion redirect). Member authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` on controller. Seed demo content via startup notification handler pattern (same as VinylVaultSeeder, DemoMobileNavSeeder).
 - **Aspire launch profile matching matters for UmbracoPrism.TestSite.** The AppHost launches projects by matching the AppHost profile name first (`https` here). Because TestSite only exposed `IIS Express` and `Umbraco.Web.UI`, Aspire missed its `applicationUrl` endpoints until `AddProject(..., launchProfileName: "Umbraco.Web.UI")` was specified explicitly.
 - **Aspire dashboard browser timing in VS Code:** For this repo's AppHost, the outer host logs `Now listening on:` before the dashboard process is fully ready. To avoid blank/half-ready dashboard loads, keep AppHost `launchBrowser` off and let VS Code open `https://localhost:17214` from a `coreclr` `serverReadyAction` keyed to `Distributed application started.`
+- **Clean TestSite auth-flow contract:** For deterministic localhost auth/workflow runs, seed and preserve five Umbraco nodes — `Home` (`/`), `Dashboard` (`/dashboard`), `Get in Touch` (`workflowKey = community-enquiry`, `/get-in-touch/`), `My Workflows` (`/my-workflows/`), and `Settings` with mobile nav for Home/Dashboard/My Workflows. Razor views should resolve those links from the published tree, not from root-node order or hardcoded assumptions.
+- **Live Aspire readiness should be machine-readable.** For this repo's localhost auth suite, brittle hero-copy probes caused false negatives on a healthy clean boot. The reliable pattern is `data-prism-home-ready="true"` on the rendered home page plus `/api/prism/downstream-demo/seed-contract-ready`, which verifies the published Home/Dashboard/Get in Touch/My Workflows/Settings contract and the expected `/auth/login?ReturnUrl=%2Fmy-workflows` challenge path.
+- **Normalize Umbraco content URLs before treating them as a contract.** Published Umbraco URLs can include trailing slashes even when the intended route contract is `/dashboard`, `/get-in-touch`, or `/my-workflows`. `TestSiteSeedContract.NormalizeUrl()` should be the shared normalizer for readiness payloads and Razor link resolution so the browser journey stays stable.
+- **Full AppHost restarts still invalidate pre-restart localhost Keycloak access tokens.** The TestSite can keep its Prism cookie session alive and now retries downstream calls with a forced refresh-token exchange, but the live restart API contract still needs deeper Keycloak/AppHost session persistence work outside the Umbraco route/readiness fix.
 
 ---
 
@@ -1621,3 +1625,28 @@ builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.c
 - **Aspire container endpoint naming is not TLS termination.** On this repo's Keycloak `start-dev` container, `WithHttpsEndpoint(port: 8443, targetPort: 8080)` created a host listener that still served plain HTTP. Verify local "HTTPS" IdP routes with `curl`/`openssl` before seeding browser-facing authorities from them.
 - **Umbraco v17 navigation in Razor should use typed extension methods, not deprecated tree properties.** In TestSite templates, prefer `Children<T>()` and `Parent<T>()` over `IPublishedContent.Children` / `Parent`; it removes obsolete warnings and keeps document-type intent explicit in `Views/VinylGenreLanding.cshtml`, `Views/VinylVaultHome.cshtml`, and `Views/VinylRecord.cshtml`.
 - **MVC partial rendering in Razor layouts should stay async.** Use `@await Html.PartialAsync(...)` in shared Umbraco layouts like `Views/Shared/Master.cshtml` to avoid MVC1000 warnings and match the rest of the TestSite partial-rendering pattern.
+- **Workflow hub contract:** `workflowHub` is protected member content. Its `RenderController` should use `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`, and resume links must resolve the actual `workflowPage` content node from Umbraco content (`workflowKey`) instead of guessing a `/{workflowKey}` URL.
+- **Workflow layouts:** Route-hijacked workflow views in `src/UmbracoPrism.TestSite/Views/WorkflowHub.cshtml` and `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml` are stable when they set `Layout = "~/Views/Shared/Master.cshtml"`; filename-only `Master`/`Master.cshtml` is brittle in this area.
+- **Workflow regression assertions:** The stable Playwright contract for the member workflow area is user-visible: `/my-workflows` requires the Prism member session, renders shared chrome plus the `My Workflows` heading, and every CTA in that area should lead to the seeded workflow content page (`/get-in-touch` today) via content-tree resolution rather than workflow-key URL guesses.
+
+## Phase 1 Completion Summary (2026-04-13)
+
+**Status:** ✅ Clean-boot readiness fix complete. Live localhost Playwright suite passes startup/auth/navigation tests.
+
+### Deliverables
+
+1. **Stable Umbraco Seed Contract** — Single canonical seed path for TestSite authenticated demo (Home → Dashboard → Workflow pages)
+2. **Machine-Readable Readiness Endpoint** — `GET /api/prism/downstream-demo/seed-contract-ready` replaces rendered-text probe; includes normalized URLs and auth challenge contract
+3. **Keycloak HTTPS on 8443** — Browser-facing issuer `https://localhost:8443/realms/prism-dev` with restart-stable cookie flow
+4. **Build Warnings Elimination** — Typed Umbraco navigation in views; app-rooted layout paths (`~/Views/Shared/Master.cshtml`)
+
+### Test Results
+
+- ✅ Live Playwright suite: startup pass
+- ✅ Live Playwright suite: auth pass
+- ✅ Live Playwright suite: navigation pass
+- ⚠️ Scoped blocker: restart-only downstream API case (Blathers follow-up)
+
+### Follow-up
+
+Blathers spawned to fix restart-only downstream API failure; Tangy to validate after fix.
