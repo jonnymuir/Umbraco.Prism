@@ -5,6 +5,7 @@ Press-play local development with Keycloak OIDC authentication.
 ## Prerequisites (One-Time Setup)
 
 - **.NET 10 SDK** — install the current .NET 10 SDK ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
+- **Trust the .NET dev certificate** — run `dotnet dev-certs https --trust` (one-time setup)
 - **Docker Desktop** — must be running ([Download](https://www.docker.com/products/docker-desktop/))
 - **Node.js 20+** — for frontend assets ([Download](https://nodejs.org/))
 - **Frontend dependencies:** `cd src/UmbracoPrism.Client && npm install`
@@ -20,7 +21,7 @@ In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for 
 
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)
-- **Keycloak** at `http://localhost:8080` (OIDC provider)
+- **Keycloak** at `https://localhost:8443` (OIDC provider with TLS proxy)
 - **TestSite** at `https://localhost:44345` and `http://localhost:9250`
 
 ## What Gets Configured
@@ -32,8 +33,7 @@ This launches:
 - **Keycloak admin:** `admin` / `admin`
 
 The realm configuration is imported from `keycloak/realm-export.json`.
-The AppHost exposes Keycloak on host HTTP only. Aspire's `WithHttpsEndpoint(...)` annotation does not create a real TLS listener for this HTTP-only container, so `https://localhost:8443` is not a usable browser route in the current repo state.
-If you need Safari/WebKit-safe browser HTTPS locally, add a real cert-backed reverse proxy (for example Caddy, nginx, or Traefik) or enable Keycloak native HTTPS with a trusted localhost certificate.
+The AppHost includes a lightweight HTTPS reverse proxy (`UmbracoPrism.KeycloakProxy`) that terminates TLS at `https://localhost:8443` and forwards requests to Keycloak's HTTP endpoint on port 8080. The proxy uses the .NET development certificate that is already trusted on most dev machines (via `dotnet dev-certs https --trust`). This setup ensures Safari/WebKit-compatible authentication flows that require secure cookies while keeping Keycloak's own configuration simple.
 For localhost auth, the Keycloak client is pinned to those two TestSite URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
 
 ## Localhost Tenant (Auto-Seeded)
@@ -93,8 +93,8 @@ The `AddOidcAuthorityColumns` migration adds the new columns to the `prismTenant
 - On Apple Silicon Macs, the AppHost now adds `JAVA_OPTS_APPEND=-XX:UseSVE=0` for the Keycloak container to avoid the known OpenJDK 21 `SIGILL` crash during JVM startup on affected ARM64 Docker environments
 
 **TestSite can't reach Keycloak:**
-- Ensure the `OidcAuthority` uses the AppHost-provided `KEYCLOAK_URL` (currently `http://localhost:8080` under Aspire, or `http://localhost:8080` when running TestSite standalone)
-- If you need a browser-usable HTTPS IdP origin, the repo needs a real TLS proxy or Keycloak native HTTPS; the AppHost alone does not provide that.
+- Ensure the `OidcAuthority` uses the AppHost-provided `KEYCLOAK_URL` (currently `https://localhost:8443` under Aspire, or `https://localhost:8443` when running TestSite standalone)
+- Verify the .NET dev certificate is trusted: `dotnet dev-certs https --trust`
 - If Keycloak shows `Invalid parameter: redirect_uri`, recreate the local Keycloak realm/container so it re-imports the exact localhost redirect URIs from `keycloak/realm-export.json`
 
 **Token validation fails:**

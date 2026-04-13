@@ -6,9 +6,7 @@ var needsKeycloakSveWorkaround =
     OperatingSystem.IsMacOS() &&
     RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
-// Add Keycloak as a container resource.
-// The pinned start-dev flow is HTTP-only in this repo; a real browser-facing HTTPS
-// endpoint would require Keycloak native TLS or a separate cert-backed reverse proxy.
+// Add Keycloak as a container resource on HTTP 8080.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
     .WithEnvironment("KEYCLOAK_ADMIN", "admin")
@@ -23,12 +21,19 @@ if (needsKeycloakSveWorkaround)
     keycloak = keycloak.WithEnvironment("JAVA_OPTS_APPEND", "-XX:UseSVE=0");
 }
 
-// Add TestSite with environment variable pointing to Keycloak.
+// Add HTTPS proxy for Keycloak that terminates TLS at localhost:8443.
+// The proxy creates a self-signed certificate on startup and forwards requests
+// to Keycloak's HTTP endpoint with X-Forwarded headers so Keycloak knows the
+// external origin is HTTPS. This enables Safari/WebKit-safe authentication flows.
+var keycloakProxy = builder.AddProject<Projects.UmbracoPrism_KeycloakProxy>("keycloak-proxy")
+    .WaitFor(keycloak);
+
+// Add TestSite with environment variable pointing to Keycloak HTTPS proxy.
 // The Umbraco project uses a custom launch profile name, so select it explicitly
 // so Aspire can discover the applicationUrl endpoints and advertise them.
 builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
-    .WithEnvironment("KEYCLOAK_URL", "http://localhost:8080")
-    .WaitFor(keycloak);
+    .WithEnvironment("KEYCLOAK_URL", "https://localhost:8443")
+    .WaitFor(keycloakProxy);
 
 // Add MockBusinessApp — runs alongside TestSite for the full dev stack
 builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj");

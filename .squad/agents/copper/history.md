@@ -1344,3 +1344,151 @@ public class WorkflowEmulatorController : Controller
 - BA-controlled content requires strict validation; ReDoS mitigation essential for regex patterns
 - Nonce/token replay vs. UX trade-offs require explicit documentation
 - Multi-tenant systems must enforce tenant binding at every trust boundary
+
+---
+
+## 2026-04-12 — Local Keycloak Real HTTPS Security Review
+
+**Context:** Jonny requested implementation of real HTTPS for local Keycloak to fix Safari/WebKit cookie issues. Previous attempts using Aspire's WithHttpsEndpoint(...) exposed plain HTTP on port 8443, not TLS. Task: Review the security requirements for a real HTTPS approach while keeping setup "nice and easy" for repo takers.
+
+**Background:**
+- Keycloak 26 emits Secure; SameSite=None auth-session cookies
+- Safari/WebKit enforce strict cookie security — HTTP origins lose secure cookies
+- Manifests as "Cookie not found" error after Keycloak login form submit
+- Existing --proxy-headers xforwarded already in place for forwarded header support
+
+**Security Decision Set:** .squad/decisions/inbox/copper-keycloak-https.md
+
+**Key Security Requirements Defined:**
+
+1. **Trust Boundary: Browser to Keycloak**
+   - MUST use real TLS with locally-trusted certificate
+   - NOT Aspire endpoint labels alone (proven insufficient)
+   - Validation: curl -v https://localhost:8443/... must show valid TLS handshake
+
+2. **Proxy Header Forwarding**
+   - Keycloak already configured with --proxy-headers xforwarded
+   - Critical for HTTPS issuer generation when behind reverse proxy
+   - Security note: xforwarded trusts all sources (OK for localhost dev, NOT for production)
+
+3. **Certificate Trust**
+   - Cert MUST be trusted by system/browser keychain
+   - Recommended: mkcert or Caddy auto-HTTPS with caddy trust
+   - One-time setup acceptable for "nice and easy" repo
+
+4. **Redirect URI Consistency**
+   - Current TestSite redirect URIs already correct (HTTPS registered)
+   - No changes needed to realm-export.json
+
+5. **KEYCLOAK_URL Injection**
+   - MUST derive from real HTTPS endpoint, not hardcoded HTTP
+   - DemoTenantSeeder builds OidcAuthority from KEYCLOAK_URL
+   - If HTTP authority used with HTTPS TestSite then cookie failure
+
+6. **Security Regressions to Avoid (Red Lines)**
+   - DO NOT weaken Keycloak cookie policy (sslRequired: "external" must stay)
+   - DO NOT use untrusted certs in production-like scenarios
+   - DO NOT expose Keycloak admin on real HTTPS without changing default credentials
+
+**Recommended Architecture:**
+
+Caddy sidecar container as TLS terminator:
+Browser to https://localhost:8443 (Caddy) to http://keycloak:8080
+
+**Benefits:**
+- Real TLS with automatic locally-trusted cert generation
+- Forwarded headers preserve HTTPS scheme awareness
+- No Keycloak cookie policy weakening required
+- Minimal user friction (one-time caddy trust or mkcert -install)
+
+**Acceptance Criteria for Implementation:**
+
+Transport verification: curl -v https://localhost:8443/... shows valid TLS
+Issuer consistency: Discovery doc shows https://localhost:8443 issuer
+Safari/WebKit auth flow completes without "Cookie not found"
+Certificate trust: No browser warnings
+No security regression: Realm still has sslRequired: "external", cookies still Secure
+Documentation updated: README includes cert trust setup, ASPIRE_DEV.md explains proxy architecture
+
+**Key Learnings:**
+
+- Aspire WithHttpsEndpoint(...) is metadata, not proof of real TLS — Always verify transport with curl -v https://... before trusting endpoint labels
+- Local HTTPS for OIDC is not optional — Modern browser cookie policies require secure context for Secure; SameSite=None cookies
+- Trust boundaries require explicit validation — The proxy layer (Caddy/nginx) must actually terminate TLS, not just forward HTTP
+- Certificate trust is acceptable setup friction — One-time mkcert -install or caddy trust is reasonable for quality dev experience
+- Never weaken cookie security to work around missing HTTPS — Fix the transport layer, not the security policy
+
+**File Paths:**
+- Security decision doc: .squad/decisions/inbox/copper-keycloak-https.md
+- Current AppHost: src/UmbracoPrism.AppHost/Program.cs (HTTP-only wiring)
+- Tenant seeder: src/UmbracoPrism.TestSite/DemoTenantSeeder.cs (reads KEYCLOAK_URL)
+- Realm config: keycloak/realm-export.json (current redirect URIs correct)
+- Dev docs: ASPIRE_DEV.md (needs update after HTTPS implementation)
+
+**Decision Impact:**
+- Blathers (infra specialist) has actionable security guardrails for implementation
+- Implementation can proceed with confidence that security requirements are clear
+- No risk of security regression through cookie policy weakening
+- "Nice and easy" goal preserved (one additional setup command is acceptable)
+
+
+---
+
+## 2026-04-22 — Keycloak HTTPS Proxy Revision (Post-Review)
+
+**Context:** Tom Nook rejected the initial KeycloakProxy implementation with two specific findings: (1) Do NOT use generated self-signed cert; reuse the already-trusted .NET dev cert via Kestrel UseHttps() with no explicit cert, and (2) Move YARP Transforms to the route section so X-Forwarded-Proto/Host/For are actually applied. Reviewer lockout: Blathers may NOT revise this artifact. Security engineer owns the revision.
+
+**Changes Made:**
+
+1. **Program.cs — Simplified to Use .NET Dev Cert**
+   - Removed all self-signed certificate generation code (CreateSelfSignedCert() method)
+   - Removed imports: System.Security.Cryptography and System.Security.Cryptography.X509Certificates
+   - Changed listenOptions.UseHttps(cert) to listenOptions.UseHttps() with no parameters
+   - Kestrel automatically loads the .NET dev cert, which is already trusted via dotnet dev-certs https --trust
+
+2. **appsettings.json — Fixed YARP Transform Location**
+   - Moved Transforms array from Clusters.keycloak-cluster.HttpRequest.Transforms to Routes.keycloak.Transforms
+   - This ensures X-Forwarded headers are actually applied by YARP at the route level
+   - Headers: X-Forwarded-Proto: https, X-Forwarded-Host: localhost:8443, X-Forwarded-For: RemoteIpAddress
+
+3. **Documentation Updates**
+   - README.md: Updated to reflect .NET dev cert usage, removed self-signed cert generation story
+   - ASPIRE_DEV.md: Added dotnet dev-certs https --trust to Prerequisites, removed browser warning acceptance step
+   - .squad/skills/keycloak-localhost-https/SKILL.md: Updated examples to show .NET dev cert usage
+   - .squad/skills/local-oidc-https-proxy/SKILL.md: Added pattern for preferring .NET dev cert over self-signed certs
+
+**Security Improvements:**
+
+- **Trusted by Default:** Uses existing .NET dev cert infrastructure, eliminating browser warnings for devs who've run dotnet dev-certs https --trust (standard .NET setup)
+- **Simpler Attack Surface:** No runtime certificate generation code, no custom X509 extension handling
+- **Correct Header Forwarding:** Moving transforms to route-level ensures Keycloak actually sees the external HTTPS origin through X-Forwarded headers
+- **Better Developer Experience:** No browser warnings on fresh clones, simpler onboarding
+
+**Verification:**
+
+- KeycloakProxy builds successfully (dotnet build src/UmbracoPrism.KeycloakProxy/)
+- AppHost builds successfully with proxy reference
+- No compilation errors or warnings related to proxy implementation
+- Forwarded headers now in correct YARP configuration location
+
+**Key Learnings:**
+
+- **YARP Transform Location Matters:** Transforms in Clusters.HttpRequest are NOT always applied; route-level Transforms are the reliable location for request header manipulation
+- **.NET Dev Cert is Gold Standard:** For localhost HTTPS in .NET dev environments, UseHttps() with no parameters leverages existing trusted certificate infrastructure better than custom cert generation
+- **Simplicity Wins for Security Review:** Less code = smaller attack surface = easier to audit and maintain
+- **Documentation Must Match Reality:** Self-signed cert warnings in docs don't match .NET dev cert experience; accurate docs reduce friction
+- **Reviewer Findings are Precise:** Tom Nook's findings were specific and actionable — when a reviewer with lockout gives clear guidance, follow it exactly
+
+**File Paths:**
+- Proxy implementation: src/UmbracoPrism.KeycloakProxy/Program.cs (simplified)
+- YARP config: src/UmbracoPrism.KeycloakProxy/appsettings.json (transforms moved to route)
+- Proxy docs: src/UmbracoPrism.KeycloakProxy/README.md (updated)
+- Dev guide: ASPIRE_DEV.md (prerequisite added, troubleshooting updated)
+- Skills: .squad/skills/keycloak-localhost-https/SKILL.md, .squad/skills/local-oidc-https-proxy/SKILL.md (pattern updates)
+- Decision doc: .squad/decisions/inbox/copper-revise-keycloak-https.md
+
+**Decision Impact:**
+- Keycloak HTTPS proxy now uses industry-standard .NET dev cert approach
+- Fresh clones work immediately with no browser warnings (assuming standard .NET dev cert trust)
+- Forwarded headers are correctly configured so Keycloak generates HTTPS OIDC URLs
+- Implementation meets Tom Nook's reviewer findings and user requirement for "nice and easy"

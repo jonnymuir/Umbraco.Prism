@@ -1794,3 +1794,32 @@ Implemented member dashboard for managing multiple workflow instances:
 - For VS Code's `dotnet` Aspire launch config, an explicit `.vscode/launch.json` `launchUrl` opens the dashboard eagerly, before the AppHost has finished startup and before Aspire is ready to serve it.
 - The repo already has the correct deferred browser-launch source in `src/UmbracoPrism.AppHost/Properties/launchSettings.json` (`launchBrowser: true` on the `https` profile), so the smallest fix is to remove the VS Code `launchUrl` override and let AppHost/browser launch happen at readiness time.
 - Validation for this class of change is config-focused: keep the AppHost `launchBrowser` setting intact, ensure `.vscode/launch.json` still parses, and confirm the solution still builds after the edit.
+
+## 2026-04-12: Local Keycloak HTTPS Proxy
+
+### Context
+Safari/WebKit requires real HTTPS for OIDC authentication flows due to secure cookie handling. The previous fake HTTPS setup (Aspire WithHttpsEndpoint on HTTP-only container) was not providing real TLS.
+
+### Solution
+Created UmbracoPrism.KeycloakProxy project:
+- Lightweight YARP-based reverse proxy
+- Terminates TLS at https://localhost:8443
+- Generates self-signed certificate on startup
+- Forwards to Keycloak HTTP endpoint with X-Forwarded headers
+- Repo-owned, zero external dependencies
+
+### Key Files
+- src/UmbracoPrism.KeycloakProxy/Program.cs - Proxy entry point with cert generation
+- src/UmbracoPrism.KeycloakProxy/appsettings.json - YARP configuration
+- src/UmbracoPrism.AppHost/Program.cs - Aspire orchestration updated
+- src/UmbracoPrism.TestSite/DemoTenantSeeder.cs - HTTPS authority default
+
+### Patterns
+- Self-signed cert generation: Use CertificateRequest.CreateSelfSigned() directly instead of obsolete constructor pattern
+- YARP configuration: Set X-Forwarded-Proto/Host/For headers in transforms
+- Aspire dependency order: TestSite waits for proxy, proxy waits for Keycloak
+- Verification approach: Test both https:// (should work) and http:// (should fail) on same port to confirm real TLS
+
+### User Preferences
+- "Nice and easy for when people take the repo" - prefer repo-owned solutions over external tool requirements
+- Fresh clone should work without manual setup steps

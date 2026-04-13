@@ -21,6 +21,13 @@ Use this pattern when a local app runs on HTTPS and you want the browser-facing 
 - Keep browser navigations to the IdP on HTTPS even in local development.
 - If the IdP itself only listens on HTTP inside orchestration, front it with a real local HTTPS reverse proxy or enable the IdP's native TLS instead of downgrading cookie policy.
 
+### Use the .NET dev certificate for trusted HTTPS
+
+- Prefer the .NET development certificate (via Kestrel's `UseHttps()` with no explicit cert parameter) for localhost HTTPS in development.
+- This certificate is already trusted on most dev machines via `dotnet dev-certs https --trust`.
+- Avoids runtime certificate generation complexity and browser certificate warnings.
+- Falls back to self-signed certificate generation only if the .NET dev cert approach doesn't meet specific requirements (e.g., non-.NET reverse proxies).
+
 ### Verify transport, not just endpoint names
 
 - Probe the advertised HTTPS route with `curl`/`openssl` before trusting it.
@@ -44,9 +51,10 @@ Use this pattern when a local app runs on HTTPS and you want the browser-facing 
 
 ## Examples
 
-- `src/UmbracoPrism.AppHost/Program.cs` now seeds `KEYCLOAK_URL` from Keycloak's real HTTP endpoint because the previous fake HTTPS route was not TLS-capable.
-- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` builds `OidcAuthority` from `KEYCLOAK_URL` with a fallback to standalone `http://localhost:8080`.
-- `ASPIRE_DEV.md` documents the current HTTP-only limitation and the need for a real TLS proxy for Safari/WebKit-friendly browser auth.
+- `src/UmbracoPrism.KeycloakProxy/` is a YARP reverse proxy project that terminates TLS using the .NET dev certificate and forwards to Keycloak's HTTP port. It listens on `https://localhost:8443` with Kestrel's `UseHttps()`.
+- `src/UmbracoPrism.AppHost/Program.cs` wires the proxy as a project resource, waits for it to start, then seeds `KEYCLOAK_URL=https://localhost:8443` so the browser-facing auth flow stays on HTTPS.
+- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` builds `OidcAuthority` from `KEYCLOAK_URL` with a fallback to `https://localhost:8443` for standalone runs.
+- The proxy's YARP configuration sets `X-Forwarded-Proto: https` and `X-Forwarded-Host: localhost:8443` in the route transforms so Keycloak builds HTTPS URLs in its OIDC metadata.
 
 ## Anti-Patterns
 

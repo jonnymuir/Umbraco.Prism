@@ -25,7 +25,7 @@ public class DemoTenantSeeder(
     // Keycloak values from keycloak/realm-export.json (Aspire dev environment).
     private const string LocalhostHostname = "localhost";
     private const string TenantName        = "Local Dev (Keycloak)";
-    private const string DefaultKeycloakBaseUrl = "http://localhost:8080";
+    private const string DefaultKeycloakBaseUrl = "https://localhost:8443";
     private const string OidcClientId      = "prism-client";
     private const string OidcClientSecret  = "prism-dev-secret";
 

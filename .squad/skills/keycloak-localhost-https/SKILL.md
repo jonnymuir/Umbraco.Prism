@@ -35,8 +35,10 @@ Use this when local Keycloak login works in Chromium-like browsers but fails in 
 
 ## Examples
 
-- `src/UmbracoPrism.AppHost/Program.cs` exposes Keycloak on both HTTP and HTTPS, injects `KEYCLOAK_URL` from the HTTPS endpoint, and passes `--proxy-headers xforwarded`.
-- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` uses `KEYCLOAK_URL` for the seeded localhost tenant authority, falling back to plain HTTP only outside the AppHost flow.
+- `src/UmbracoPrism.KeycloakProxy/` is a YARP-based HTTPS proxy that terminates TLS at `https://localhost:8443` using the .NET dev certificate and forwards to Keycloak's HTTP endpoint at port 8080.
+- `src/UmbracoPrism.AppHost/Program.cs` wires the proxy as a project resource and seeds `KEYCLOAK_URL=https://localhost:8443` for TestSite. Keycloak container receives `--proxy-headers xforwarded`.
+- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` uses `KEYCLOAK_URL` for the seeded localhost tenant authority, defaulting to the HTTPS proxy endpoint.
+- The proxy uses Kestrel's `UseHttps()` with no explicit certificate parameter, which automatically loads the .NET dev cert that most developers already trust via `dotnet dev-certs https --trust`.
 
 ## Anti-Patterns
 
