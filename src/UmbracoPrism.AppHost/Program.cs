@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 
 var builder = DistributedApplication.CreateBuilder(args);
+const string KeycloakProxyUrl = "https://localhost:8443";
+const string BusinessAppUrl = "https://localhost:7245";
 
 var needsKeycloakSveWorkaround =
     OperatingSystem.IsMacOS() &&
@@ -22,20 +24,22 @@ if (needsKeycloakSveWorkaround)
 }
 
 // Add HTTPS proxy for Keycloak that terminates TLS at localhost:8443.
-// The proxy creates a self-signed certificate on startup and forwards requests
-// to Keycloak's HTTP endpoint with X-Forwarded headers so Keycloak knows the
-// external origin is HTTPS. This enables Safari/WebKit-safe authentication flows.
-var keycloakProxy = builder.AddProject<Projects.UmbracoPrism_KeycloakProxy>("keycloak-proxy")
+// Uses the .NET dev certificate (already trusted via `dotnet dev-certs https --trust`)
+// and forwards requests to Keycloak's HTTP endpoint with X-Forwarded headers so
+// Keycloak knows the external origin is HTTPS. Enables Safari/WebKit-safe auth flows.
+var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj", launchProfileName: "https")
     .WaitFor(keycloak);
 
 // Add TestSite with environment variable pointing to Keycloak HTTPS proxy.
 // The Umbraco project uses a custom launch profile name, so select it explicitly
 // so Aspire can discover the applicationUrl endpoints and advertise them.
-builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
-    .WithEnvironment("KEYCLOAK_URL", "https://localhost:8443")
-    .WaitFor(keycloakProxy);
+var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj", launchProfileName: "https")
+    .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{KeycloakProxyUrl}/realms/prism-dev");
 
-// Add MockBusinessApp — runs alongside TestSite for the full dev stack
-builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj");
+builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
+    .WithEnvironment("KEYCLOAK_URL", KeycloakProxyUrl)
+    .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", BusinessAppUrl)
+    .WaitFor(keycloakProxy)
+    .WaitFor(businessApp);
 
 builder.Build().Run();

@@ -27,8 +27,8 @@ public static class WorkflowBuilderExtensions
     /// The Business App is the authoritative source for all workflow state and definitions.
     /// Umbraco uses this client to ask "what's the next step?" and to submit collected data.
     /// 
-    /// In development, configure <c>PrismBusinessApp:WorkflowApiBaseUrl</c> to the HTTP endpoint
-    /// (e.g. <c>http://localhost:5163</c>) to avoid self-signed certificate issues with localhost HTTPS.
+    /// In development, configure <c>PrismBusinessApp:WorkflowApiBaseUrl</c> to the local HTTPS endpoint
+    /// (e.g. <c>https://localhost:7245</c>) so browser and server-side flows share the same trusted origin.
     /// </remarks>
     public static IUmbracoBuilder AddPrismWorkflowEngine(this IUmbracoBuilder builder)
     {

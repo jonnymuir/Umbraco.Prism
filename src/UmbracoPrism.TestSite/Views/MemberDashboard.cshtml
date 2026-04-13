@@ -118,7 +118,7 @@
                         Click the button below to call the Mock Business App API using your current Prism Bearer token.
                         The API will validate the token, resolve your tenant, and return your registered role.
                     </p>
-                    <button onclick="callDownstreamApi()" class="btn btn-primary" id="api-btn"
+                    <button onclick="callDownstreamApi()" class="btn btn-primary" id="api-btn" type="button"
                             style="font-size: var(--prism-text-size-sm, 13px); padding: 8px 16px;">
                         Call Mock Business App API
                     </button>
@@ -128,20 +128,21 @@
                     </div>
                 </div>
 
-                <div id="api-loading" style="display:none; padding: 16px 0; color: var(--prism-muted, #64748b); font-size: var(--prism-text-size-sm, 13px);">
+                <div id="api-loading" role="status" aria-live="polite" style="display:none; padding: 16px 0; color: var(--prism-muted, #64748b); font-size: var(--prism-text-size-sm, 13px);">
                     ⏳ Calling Mock Business App…
                 </div>
 
-                <div id="api-result" style="display:none;">
+                <div id="api-result" style="display:none;" aria-live="polite">
                     <div id="api-status-bar" style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
                         <span id="api-status-badge" style="display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:var(--prism-text-size-sm,13px); font-weight:700; font-family:monospace;"></span>
                         <span id="api-url-label" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace; word-break:break-all;"></span>
                         <span id="api-timing" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); margin-left:auto;"></span>
                     </div>
+                    <p id="api-summary" aria-live="polite" style="margin:0 0 12px; font-size:var(--prism-text-size-sm,13px);"></p>
                     <div style="background:var(--prism-surface-alt,#f8fafc); border:1px solid var(--prism-border,#e2e8f0); border-radius:10px; overflow:hidden;">
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:var(--prism-surface,#fff); border-bottom:1px solid var(--prism-border,#e2e8f0);">
                             <span id="api-content-type" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace;"></span>
-                            <button onclick="resetApiDemo()" style="background:none; border:none; color:var(--prism-muted,#64748b); cursor:pointer; font-size:var(--prism-text-size-sm,13px); padding:2px 6px;">✕ Reset</button>
+                            <button onclick="resetApiDemo()" type="button" style="background:none; border:none; color:var(--prism-muted,#64748b); cursor:pointer; font-size:var(--prism-text-size-sm,13px); padding:2px 6px;">✕ Reset</button>
                         </div>
                         <pre id="api-body" style="margin:0; padding:16px; font-size:var(--prism-text-size-sm,13px); overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--prism-text,#0f172a);"></pre>
                     </div>
@@ -150,43 +151,170 @@
         </div>
 
         <script>
+            const downstreamDemoEndpoint = '/api/prism/downstream-demo';
+
+            function getApiElements() {
+                return {
+                    button: document.getElementById('api-btn'),
+                    loading: document.getElementById('api-loading'),
+                    result: document.getElementById('api-result'),
+                    badge: document.getElementById('api-status-badge'),
+                    url: document.getElementById('api-url-label'),
+                    timing: document.getElementById('api-timing'),
+                    contentType: document.getElementById('api-content-type'),
+                    body: document.getElementById('api-body'),
+                    summary: document.getElementById('api-summary')
+                };
+            }
+
+            function setApiButtonBusy(isBusy) {
+                const { button } = getApiElements();
+                if (!button) return;
+
+                button.disabled = isBusy;
+                button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+                button.textContent = isBusy ? 'Calling Mock Business App API…' : 'Call Mock Business App API';
+            }
+
+            function readApiBody(payload, rawText, fallbackMessage) {
+                if (payload && typeof payload.body === 'string' && payload.body.trim()) {
+                    return payload.body.trim();
+                }
+
+                if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+                    return payload.error.trim();
+                }
+
+                if (payload && typeof payload.message === 'string' && payload.message.trim()) {
+                    return payload.message.trim();
+                }
+
+                if (typeof rawText === 'string' && rawText.trim()) {
+                    return rawText.trim();
+                }
+
+                return fallbackMessage;
+            }
+
+            function createApiSummary(statusCode, statusText) {
+                if (statusCode >= 200 && statusCode < 300) {
+                    return 'Mock Business App responded successfully.';
+                }
+
+                if (statusCode === 401 || statusCode === 403) {
+                    return 'Your Prism session is no longer valid. Sign in again, then retry the call.';
+                }
+
+                if (statusCode === 0 || statusText === 'Timeout' || statusText === 'Network Error') {
+                    return 'We could not reach the Mock Business App. Check that it is running, then try again.';
+                }
+
+                if (statusCode >= 500) {
+                    return 'The Mock Business App returned a server error. Please try again in a moment.';
+                }
+
+                return 'The Mock Business App call did not complete successfully.';
+            }
+
+            function renderApiResult(model) {
+                const elements = getApiElements();
+                if (!elements.loading || !elements.badge || !elements.result || !elements.url || !elements.timing || !elements.contentType || !elements.body || !elements.summary) {
+                    return;
+                }
+
+                const ok = model.statusCode >= 200 && model.statusCode < 300;
+                elements.loading.style.display = 'none';
+                elements.result.style.display = 'block';
+                elements.badge.textContent = `${model.statusCode} ${model.statusText}`;
+                elements.badge.style.background = ok ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
+                elements.badge.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
+                elements.url.textContent = model.url;
+                elements.timing.textContent = typeof model.elapsedMs === 'number' ? `${model.elapsedMs}ms` : '';
+                elements.contentType.textContent = model.contentType || 'unknown';
+                elements.body.textContent = model.body;
+                elements.summary.textContent = model.summary;
+                elements.summary.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
+            }
+
+            async function parseApiResponse(res) {
+                const rawText = await res.text();
+                let payload = null;
+
+                if (rawText.trim()) {
+                    try {
+                        payload = JSON.parse(rawText);
+                    } catch {
+                        payload = null;
+                    }
+                }
+
+                const statusCode = Number.isFinite(payload?.statusCode) ? payload.statusCode : (res.status || 0);
+                const statusText = typeof payload?.statusText === 'string' && payload.statusText.trim()
+                    ? payload.statusText.trim()
+                    : (res.statusText || (res.ok ? 'OK' : 'Request Failed'));
+                const url = typeof payload?.url === 'string' && payload.url.trim()
+                    ? payload.url.trim()
+                    : (res.url || downstreamDemoEndpoint);
+                const contentType = typeof payload?.contentType === 'string' && payload.contentType.trim()
+                    ? payload.contentType.trim()
+                    : (res.headers.get('content-type')?.split(';')[0] || 'unknown');
+                const elapsedMs = Number.isFinite(payload?.elapsedMs) ? payload.elapsedMs : null;
+                const summary = createApiSummary(statusCode, statusText);
+                const body = readApiBody(payload, rawText, summary);
+
+                return {
+                    statusCode,
+                    statusText,
+                    url,
+                    elapsedMs,
+                    contentType,
+                    body,
+                    summary
+                };
+            }
+
             async function callDownstreamApi() {
-                document.getElementById('api-idle').style.display = 'none';
-                document.getElementById('api-result').style.display = 'none';
-                document.getElementById('api-loading').style.display = 'block';
+                const elements = getApiElements();
+                if (!elements.loading || !elements.result) return;
+
+                setApiButtonBusy(true);
+                elements.result.style.display = 'none';
+                elements.loading.style.display = 'block';
 
                 try {
-                    const res = await fetch('/api/prism/downstream-demo', { credentials: 'include' });
-                    const data = await res.json();
-
-                    document.getElementById('api-loading').style.display = 'none';
-                    document.getElementById('api-result').style.display = 'block';
-
-                    const ok = data.statusCode >= 200 && data.statusCode < 300;
-                    const badge = document.getElementById('api-status-badge');
-                    badge.textContent = `${data.statusCode} ${data.statusText}`;
-                    badge.style.background = ok ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
-                    badge.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
-
-                    document.getElementById('api-url-label').textContent = data.url;
-                    document.getElementById('api-timing').textContent = `${data.elapsedMs}ms`;
-                    document.getElementById('api-content-type').textContent = data.contentType;
-                    document.getElementById('api-body').textContent = data.body;
+                    const res = await fetch(downstreamDemoEndpoint, { credentials: 'include' });
+                    const model = await parseApiResponse(res);
+                    renderApiResult(model);
                 } catch (err) {
-                    document.getElementById('api-loading').style.display = 'none';
-                    document.getElementById('api-result').style.display = 'block';
-                    const badge = document.getElementById('api-status-badge');
-                    badge.textContent = '0 Client Error';
-                    badge.style.background = 'rgba(239,68,68,0.12)';
-                    badge.style.color = 'var(--prism-danger,#ef4444)';
-                    document.getElementById('api-url-label').textContent = '/api/prism/downstream-demo';
-                    document.getElementById('api-body').textContent = err.toString();
+                    renderApiResult({
+                        statusCode: 0,
+                        statusText: 'Client Error',
+                        url: downstreamDemoEndpoint,
+                        elapsedMs: null,
+                        contentType: 'none',
+                        body: err instanceof Error ? err.message : String(err),
+                        summary: 'The dashboard could not complete the request. Please try again.'
+                    });
+                } finally {
+                    setApiButtonBusy(false);
                 }
             }
 
             function resetApiDemo() {
-                document.getElementById('api-result').style.display = 'none';
-                document.getElementById('api-idle').style.display = 'block';
+                const elements = getApiElements();
+                if (!elements.result || !elements.loading || !elements.body || !elements.summary || !elements.timing || !elements.contentType || !elements.url || !elements.badge) {
+                    return;
+                }
+
+                setApiButtonBusy(false);
+                elements.loading.style.display = 'none';
+                elements.result.style.display = 'none';
+                elements.badge.textContent = '';
+                elements.url.textContent = '';
+                elements.timing.textContent = '';
+                elements.contentType.textContent = '';
+                elements.summary.textContent = '';
+                elements.body.textContent = '';
             }
         </script>
 
@@ -194,4 +322,3 @@
             <a href="/auth/logout" class="btn btn-outline">Sign Out</a>
         </div>
     </main>
-

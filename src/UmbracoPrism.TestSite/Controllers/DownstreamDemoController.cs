@@ -16,17 +16,19 @@ namespace UmbracoPrism.TestSite.Controllers;
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class DownstreamDemoController(
     IHttpClientFactory httpClientFactory,
+    IConfiguration configuration,
     IPrismContext prismContext) : ControllerBase
 {
     private static readonly JsonSerializerOptions PrettyPrint = new() { WriteIndented = true };
 
     [HttpGet]
-    public async Task<IActionResult> Get([FromQuery] string url = "http://localhost:5163/api/backoffice/me")
+    public async Task<IActionResult> Get([FromQuery] string? url = null)
     {
         var authHeader = await prismContext.GetAuthorizationHeaderAsync();
         if (authHeader == null)
             return Unauthorized(new { error = "No Prism session — please sign in again." });
 
+        var targetUrl = BuildTargetUrl(url);
         var client = httpClientFactory.CreateClient("prism-downstream-demo");
         client.DefaultRequestHeaders.Authorization = authHeader;
         client.Timeout = TimeSpan.FromSeconds(10);
@@ -34,7 +36,7 @@ public class DownstreamDemoController(
         var sw = Stopwatch.StartNew();
         try
         {
-            var response = await client.GetAsync(url);
+            var response = await client.GetAsync(targetUrl);
             sw.Stop();
 
             var rawBody = await response.Content.ReadAsStringAsync();
@@ -55,7 +57,7 @@ public class DownstreamDemoController(
             {
                 statusCode = (int)response.StatusCode,
                 statusText = response.StatusCode.ToString(),
-                url,
+                url = targetUrl,
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = response.Content.Headers.ContentType?.MediaType ?? "unknown",
                 body = displayBody
@@ -68,7 +70,7 @@ public class DownstreamDemoController(
             {
                 statusCode = 0,
                 statusText = "Timeout",
-                url,
+                url = targetUrl,
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
                 body = "Request timed out after 10 seconds. Is MockBusinessApp running?"
@@ -81,11 +83,23 @@ public class DownstreamDemoController(
             {
                 statusCode = 0,
                 statusText = "Network Error",
-                url,
+                url = targetUrl,
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
                 body = $"Could not reach the service: {ex.Message}\n\nMake sure MockBusinessApp is running:\n  dotnet run --project src/UmbracoPrism.MockBusinessApp"
             });
         }
+    }
+
+    private string BuildTargetUrl(string? url)
+    {
+        if (!string.IsNullOrWhiteSpace(url))
+            return url;
+
+        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+
+        return $"{baseUrl}/api/backoffice/me";
     }
 }
