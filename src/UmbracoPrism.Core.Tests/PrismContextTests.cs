@@ -206,10 +206,94 @@ public class PrismContextTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_ReturnsBearer_WhenGenericOidcPrincipalMatchesCurrentTenant()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "access-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(10).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var vault = new Mock<ISecretVaultService>();
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().NotBeNull();
+        header!.Scheme.Should().Be("Bearer");
+        header.Parameter.Should().Be("access-token");
+    }
+
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_ReturnsNull_WhenGenericOidcPrincipalDoesNotMatchCurrentTenant()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "access-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(10).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/other", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var vault = new Mock<ISecretVaultService>();
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().BeNull();
+    }
+
     private static ClaimsPrincipal CreatePrincipalWithTenant(string tenantId)
     {
         var identity = new ClaimsIdentity("Test");
         identity.AddClaim(new Claim("tid", tenantId));
+        return new ClaimsPrincipal(identity);
+    }
+
+    private static ClaimsPrincipal CreatePrincipalForGenericOidc(string issuer, string clientId)
+    {
+        var identity = new ClaimsIdentity("Test");
+        identity.AddClaim(new Claim("iss", issuer));
+        identity.AddClaim(new Claim("aud", clientId));
         return new ClaimsPrincipal(identity);
     }
 

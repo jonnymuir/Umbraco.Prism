@@ -1,8 +1,11 @@
 using FluentAssertions;
+using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
 using UmbracoPrism.Core.Auth;
@@ -13,6 +16,32 @@ namespace UmbracoPrism.Core.Tests;
 
 public class PrismOidcConfigurationTests
 {
+    [Fact]
+    public void GetRequestedScope_ReturnsStandardOidcScopes_ForGenericProvider()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client"
+        };
+
+        PrismOidcConfiguration.GetRequestedScope(tenant).Should().Be("openid profile");
+    }
+
+    [Fact]
+    public void GetRequestedScope_RetainsOfflineAccess_ForEntraTenants()
+    {
+        var tenant = new PrismTenant
+        {
+            EntraTenantId = "tenant-a",
+            EntraClientId = "client-a"
+        };
+
+        PrismOidcConfiguration.GetRequestedScope(tenant)
+            .Should()
+            .Be("openid profile offline_access client-a/.default");
+    }
+
     [Fact]
     public async Task PostConfigure_TriggersBackgroundRefreshWithoutBlocking_WhenKidIsMissingFromCache()
     {
@@ -157,21 +186,143 @@ public class PrismOidcConfigurationTests
         refreshRelease.TrySetResult();
     }
 
-    private static OpenIdConnectOptions ConfigureOptions(IPrismSigningKeyCache signingKeyCache, PrismTenant tenant)
+    [Fact]
+    public async Task PostConfigure_GenericOidcRedirect_DoesNotRequestOfflineAccess()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client"
+        };
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, tenant);
+
+        var context = CreateRedirectContext(options, tenant);
+
+        await options.Events.OnRedirectToIdentityProvider(context);
+
+        context.ProtocolMessage.Scope.Should().Be("openid profile");
+    }
+
+    [Fact]
+    public void CreateAuthenticationTokens_PersistsIdToken_ForLaterLogout()
+    {
+        using var payload = JsonDocument.Parse("""
+            {
+              "access_token": "access-token",
+              "id_token": "id-token",
+              "refresh_token": "refresh-token",
+              "expires_in": 300
+            }
+            """);
+
+        var tokens = PrismOidcConfiguration.CreateAuthenticationTokens(
+            payload.RootElement,
+            new DateTimeOffset(2026, 4, 12, 0, 0, 0, TimeSpan.Zero));
+
+        tokens.Should().Contain(t => t.Name == "id_token" && t.Value == "id-token");
+    }
+
+    [Fact]
+    public async Task PostConfigure_GenericOidcLogout_LoadsIdTokenHint_FromCookieTokens()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client"
+        };
+
+        var authProperties = new AuthenticationProperties();
+        authProperties.StoreTokens([new AuthenticationToken { Name = "id_token", Value = "id-token" }]);
+        var authTicket = new AuthenticationTicket(
+            new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity("PrismMemberCookie")),
+            authProperties,
+            "PrismMemberCookie");
+        var authenticationService = new StubAuthenticationService(AuthenticateResult.Success(authTicket));
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, tenant, authenticationService);
+
+        var context = CreateRedirectContext(options, tenant, authenticationService);
+
+        await options.Events.OnRedirectToIdentityProviderForSignOut(context);
+
+        context.ProtocolMessage.IssuerAddress.Should().Be("https://localhost:8443/realms/prism-dev/protocol/openid-connect/logout");
+        context.ProtocolMessage.ClientId.Should().Be("prism-client");
+        context.ProtocolMessage.IdTokenHint.Should().Be("id-token");
+    }
+
+    [Fact]
+    public async Task PostConfigure_GenericOidcLogout_FallsBackToClientId_WhenIdTokenHintMissing()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client"
+        };
+
+        var authenticationService = new StubAuthenticationService(AuthenticateResult.NoResult());
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, tenant, authenticationService);
+
+        var context = CreateRedirectContext(options, tenant, authenticationService);
+
+        await options.Events.OnRedirectToIdentityProviderForSignOut(context);
+
+        context.ProtocolMessage.IssuerAddress.Should().Be("https://localhost:8443/realms/prism-dev/protocol/openid-connect/logout");
+        context.ProtocolMessage.ClientId.Should().Be("prism-client");
+        context.ProtocolMessage.IdTokenHint.Should().BeNull();
+    }
+
+    private static OpenIdConnectOptions ConfigureOptions(
+        IPrismSigningKeyCache signingKeyCache,
+        PrismTenant tenant,
+        IAuthenticationService? authenticationService = null)
     {
         var prismContext = new TestPrismContext { CurrentTenant = tenant };
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(prismContext)
+            .AddSingleton(authenticationService ?? new StubAuthenticationService(AuthenticateResult.NoResult()))
             .BuildServiceProvider();
 
         var httpContext = new DefaultHttpContext { RequestServices = services };
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var configuration = new PrismOidcConfiguration(httpContextAccessor, signingKeyCache, NullLogger<PrismOidcConfiguration>.Instance);
         var options = new OpenIdConnectOptions();
+        options.Events.OnRedirectToIdentityProvider = _ => Task.CompletedTask;
+        options.Events.OnRedirectToIdentityProviderForSignOut = _ => Task.CompletedTask;
 
         configuration.PostConfigure("PrismEntraID", options);
 
         return options;
+    }
+
+    private static RedirectContext CreateRedirectContext(
+        OpenIdConnectOptions options,
+        PrismTenant tenant,
+        IAuthenticationService? authenticationService = null)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton(authenticationService ?? new StubAuthenticationService(AuthenticateResult.NoResult()))
+            .BuildServiceProvider();
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = services
+        };
+        var scheme = new Microsoft.AspNetCore.Authentication.AuthenticationScheme(
+            "PrismEntraID",
+            "PrismEntraID",
+            typeof(OpenIdConnectHandler));
+
+        var context = new RedirectContext(
+            httpContext,
+            scheme,
+            options,
+            new AuthenticationProperties())
+        {
+            ProtocolMessage = new OpenIdConnectMessage()
+        };
+
+        context.HttpContext.RequestServices = services;
+
+        return context;
     }
 
     private static SecurityKey CreateSigningKey(string keyId)
@@ -188,5 +339,23 @@ public class PrismOidcConfigurationTests
 
         public Task<System.Net.Http.Headers.AuthenticationHeaderValue?> GetAuthorizationHeaderAsync() =>
             Task.FromResult<System.Net.Http.Headers.AuthenticationHeaderValue?>(null);
+    }
+
+    private sealed class StubAuthenticationService(AuthenticateResult authenticateResult) : IAuthenticationService
+    {
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) =>
+            Task.FromResult(authenticateResult);
+
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
+
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
+
+        public Task SignInAsync(HttpContext context, string? scheme, System.Security.Claims.ClaimsPrincipal principal, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
+
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
     }
 }

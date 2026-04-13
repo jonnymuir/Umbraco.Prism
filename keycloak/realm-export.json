@@ -22,10 +22,12 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "prism-dev-secret",
-      "redirectUris": [
-        "http://localhost:9250/signin-oidc",
-        "https://localhost:44345/signin-oidc"
-      ],
+        "redirectUris": [
+          "http://localhost:9250/signin-oidc",
+          "https://localhost:44345/signin-oidc",
+          "http://localhost:9250/signout-callback-oidc",
+          "https://localhost:44345/signout-callback-oidc"
+        ],
       "webOrigins": [
         "http://localhost:9250",
         "https://localhost:44345"
@@ -49,7 +51,6 @@
       "optionalClientScopes": [
         "address",
         "phone",
-        "offline_access",
         "microprofile-jwt"
       ]
     }

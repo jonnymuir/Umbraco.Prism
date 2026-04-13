@@ -25,6 +25,43 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 {
 
     private const string PrismNoncePropertiesKey = ".prism_nonce";
+    private const string GenericOidcBrowserScopes = "openid profile";
+
+    internal static string GetRequestedScope(PrismTenant tenant)
+    {
+        if (!string.IsNullOrWhiteSpace(tenant.OidcAuthority))
+        {
+            return GenericOidcBrowserScopes;
+        }
+
+        return $"openid profile offline_access {tenant.EntraClientId}/.default";
+    }
+
+    internal static List<AuthenticationToken> CreateAuthenticationTokens(JsonElement payload, DateTimeOffset issuedAtUtc)
+    {
+        var tokens = new List<AuthenticationToken>
+        {
+            new() { Name = "access_token", Value = payload.GetProperty("access_token").GetString() ?? string.Empty },
+            new() { Name = "expires_at", Value = issuedAtUtc.AddSeconds(payload.GetProperty("expires_in").GetInt32()).ToString("o") }
+        };
+
+        var idToken = payload.GetProperty("id_token").GetString();
+        if (!string.IsNullOrWhiteSpace(idToken))
+        {
+            tokens.Add(new AuthenticationToken { Name = "id_token", Value = idToken });
+        }
+
+        if (payload.TryGetProperty("refresh_token", out var refreshTokenElement))
+        {
+            var refreshToken = refreshTokenElement.GetString();
+            if (!string.IsNullOrWhiteSpace(refreshToken))
+            {
+                tokens.Add(new AuthenticationToken { Name = "refresh_token", Value = refreshToken });
+            }
+        }
+
+        return tokens;
+    }
 
     /// <summary>
     /// Applies Prism dynamic OIDC settings for the named authentication scheme.
@@ -54,7 +91,6 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         // Add scopes cooperatively
         if (!options.Scope.Contains("openid")) options.Scope.Add("openid");
         if (!options.Scope.Contains("profile")) options.Scope.Add("profile");
-        if (!options.Scope.Contains("offline_access")) options.Scope.Add("offline_access");
 
         options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
         {
@@ -142,6 +178,14 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             //    registration), otherwise default to "select_account".
             if (tenant != null)
             {
+                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+                {
+                    // Request standard session-bound refresh semantics for generic OIDC providers.
+                    // Offline tokens are longer-lived and require an explicit product need plus
+                    // separate provider-side authorization.
+                    context.ProtocolMessage.Scope = GenericOidcBrowserScopes;
+                }
+
                 var promptOverride = context.Properties.Items.TryGetValue(
                     "PrismPrompt", out var p) ? p : null;
                 context.ProtocolMessage.Prompt = !string.IsNullOrEmpty(promptOverride)
@@ -179,17 +223,17 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
                     clientId = tenant.OidcClientId ?? string.Empty;
                     secret = tenant.OidcClientSecret ?? string.Empty;
-                    scope = "openid profile offline_access";
+                    scope = GetRequestedScope(tenant);
                 }
                 else
                 {
                     // Entra-specific path (existing behavior with Key Vault)
                     var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
                     secret = await vault.GetSecretAsync(tenant.SecretKeyName ?? string.Empty);
-                    
+
                     authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
                     clientId = tenant.EntraClientId ?? string.Empty;
-                    scope = $"openid profile offline_access {tenant.EntraClientId}/.default";
+                    scope = GetRequestedScope(tenant);
                 }
 
                 var redirectUri = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{options.CallbackPath}";
@@ -219,12 +263,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
                 var payload = json.RootElement;
 
-                var tokens = new List<AuthenticationToken>
-                {
-                    new() { Name = "access_token", Value = payload.GetProperty("access_token").GetString() ?? string.Empty },
-                    new() { Name = "refresh_token", Value = payload.GetProperty("refresh_token").GetString() ?? string.Empty},
-                    new() { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddSeconds(payload.GetProperty("expires_in").GetInt32()).ToString("o") }
-                };
+                var tokens = CreateAuthenticationTokens(payload, DateTimeOffset.UtcNow);
 
                 // Use the existing properties from the context (which contain the PKCE verifier, etc.)
                 var props = context.Properties ?? new AuthenticationProperties();
@@ -371,6 +410,25 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 {
                     // Generic OIDC provider logout
                     context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/logout";
+                    if (string.IsNullOrWhiteSpace(context.ProtocolMessage.ClientId))
+                    {
+                        context.ProtocolMessage.ClientId = tenant.OidcClientId;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(context.ProtocolMessage.IdTokenHint))
+                    {
+                        var idTokenHint = await context.HttpContext.GetTokenAsync("PrismMemberCookie", "id_token");
+                        if (!string.IsNullOrWhiteSpace(idTokenHint))
+                        {
+                            context.ProtocolMessage.IdTokenHint = idTokenHint;
+                        }
+                        else
+                        {
+                            logger.LogWarning(
+                                "OIDC logout for tenant {Authority} is missing an ID token hint; provider sign-out may be rejected.",
+                                tenant.OidcAuthority);
+                        }
+                    }
                 }
                 else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
                 {

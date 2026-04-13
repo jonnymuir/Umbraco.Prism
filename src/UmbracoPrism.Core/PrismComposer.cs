@@ -96,7 +96,7 @@ public class PrismComposer : IComposer
             identityOptions.TenantId = "common";
             identityOptions.ClientId = "DYNAMIC_PLACEHOLDER";
             identityOptions.CallbackPath = "/signin-oidc";
-            identityOptions.SignedOutCallbackPath = "/signout-oidc";
+            identityOptions.SignedOutCallbackPath = "/signout-callback-oidc";
             
             // Note: We no longer need TEMPORARY_PLACEHOLDER for the secret 
             // because the presence of an IClientAssertionProvider tells MSAL to use that instead.

@@ -145,7 +145,17 @@ public class PrismContext(
 
     private bool IsPrincipalBoundToCurrentTenant(ClaimsPrincipal principal)
     {
-        var tenantId = CurrentTenant?.EntraTenantId;
+        if (CurrentTenant == null)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(CurrentTenant.OidcAuthority))
+        {
+            return IsGenericOidcPrincipalBoundToCurrentTenant(principal);
+        }
+
+        var tenantId = CurrentTenant.EntraTenantId;
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             return false;
@@ -156,5 +166,47 @@ public class PrismContext(
 
         return !string.IsNullOrWhiteSpace(principalTenantId)
             && string.Equals(principalTenantId, tenantId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsGenericOidcPrincipalBoundToCurrentTenant(ClaimsPrincipal principal)
+    {
+        if (CurrentTenant == null || string.IsNullOrWhiteSpace(CurrentTenant.OidcAuthority))
+        {
+            return false;
+        }
+
+        var principalIssuer = principal.FindFirstValue("iss");
+        if (!UrisMatch(principalIssuer, CurrentTenant.OidcAuthority))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(CurrentTenant.OidcClientId))
+        {
+            return true;
+        }
+
+        var audienceMatches = principal.FindAll("aud")
+            .Select(claim => claim.Value)
+            .Any(audience => string.Equals(audience, CurrentTenant.OidcClientId, StringComparison.OrdinalIgnoreCase));
+        var authorizedPartyMatches = string.Equals(
+            principal.FindFirstValue("azp"),
+            CurrentTenant.OidcClientId,
+            StringComparison.OrdinalIgnoreCase);
+
+        return audienceMatches || authorizedPartyMatches;
+    }
+
+    private static bool UrisMatch(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            left.TrimEnd('/'),
+            right.TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
     }
 }
