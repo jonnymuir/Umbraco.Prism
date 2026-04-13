@@ -41,6 +41,11 @@ Use this when Playwright coverage must hit the real localhost app and at least o
 - If the pre-restart login/API/navigation contracts pass but restart-specific contracts fail, keep those tests as the desired product behaviour.
 - Document the real failure mode from the live browser (`401 Unauthorized`, Keycloak logout error page, etc.) rather than weakening assertions to match it.
 
+### Assert page-specific affordances after navigation
+
+- When two signed-in pages share welcome copy or headings, do not use that shared text as the post-navigation readiness signal.
+- Wait for a dashboard-only affordance such as `View Workflows` or `Call Mock Business App API` so routing regressions fail immediately and explainably instead of hanging on a later click.
+
 ## Examples
 
 - Live suite: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`

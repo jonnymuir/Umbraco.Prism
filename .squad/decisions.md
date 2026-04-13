@@ -21,6 +21,22 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 **Session Log:** `.squad/log/2026-04-13T23:05:08Z-dashboard-test-investigation.md`
 
+### Tangy — Dashboard navigation trace
+
+**Decision:** Live dashboard Playwright coverage should assert dashboard-only UI after navigation, not shared welcome copy.
+
+**Why:** In the localhost auth/session repro on 2026-04-13, a signed-in member remained on `/` after both direct `page.goto('/dashboard')` and clicking the authored `Go to Dashboard` CTA. The home page still showed `Welcome back, Demo User`, so that heading could not distinguish a successful dashboard navigation from a failed one.
+
+**Contract impact:**
+- Keep the desired user contract: signed-in members should reach `/dashboard` and see dashboard-only actions.
+- In Playwright helpers, treat `View Workflows` and `Call Mock Business App API` as the readiness signals for the dashboard.
+- If those elements never appear, report an app routing break rather than letting the test hang on a later click.
+
+**Evidence:**
+- `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`
+- `src/UmbracoPrism.TestSite/Views/HomePage.cshtml`
+- `src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml`
+
 ---
 
 ## 📌 2026-03-28: P1 #5 Completed — Tenant Cache Invalidation Strategy

@@ -979,3 +979,33 @@ Blathers completed restart-only downstream auth investigation/fix pass. Outcome:
 **Learning:** Playwright test stability improves when tests follow authored content-tree navigation rather than direct route access. This pattern aligns test behavior with user-visible navigation and reduces false negatives.
 
 **Orchestration Log:** `.squad/orchestration-log/2026-04-13T23:05:08Z-tangy.md`
+
+## Learnings — 2026-04-13 — Dashboard navigation trace
+
+- The live localhost auth repro for `signed-in member can call the mock business app API` is stuck **after a failed navigation**, not before sign-in: after Keycloak login, both `page.goto('/dashboard')` and clicking the authored `Go to Dashboard` CTA leave the browser at `https://localhost:44345/`.
+- The home page and dashboard both render the `Welcome back, Demo User` heading, so that heading is not a safe readiness signal for dashboard tests. Dashboard helpers should wait for dashboard-only affordances such as `View Workflows` and `Call Mock Business App API`.
+- Useful trace points for this contract: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`, `src/UmbracoPrism.TestSite/Views/HomePage.cshtml`, `src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml`, and `src/UmbracoPrism.TestSite/TestSiteSeedContract.cs`.
+
+## Tasks — 2026-04-13 — Dashboard Route Contract Validation (parallel spawn batch)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-13T23:42:20Z-tangy.md`
+
+**Spawned:** Brewster, Blathers, Tangy for parallel investigation of dashboard redirect behavior
+
+**Task Summary:**
+- Brewster: Confirm `/dashboard` route validity and auth challenge behavior ✅
+- Blathers: Inspect auth/session redirect flow ⏳
+- Tangy: Complete dashboard navigation trace and identify test readiness signals ✅
+
+**Tangy Findings:**
+- Identified that home page and dashboard both render `Welcome back, Demo User` heading
+- This shared heading is NOT a safe readiness signal for dashboard tests
+- Dashboard-only affordances: `View Workflows` and `Call Mock Business App API` are the correct test readiness signals
+- If those elements never appear, report an app routing break rather than letting the test hang
+
+**Decision Merged:** Consolidated findings into `.squad/decisions.md` under "📌 2026-04-13: Brewster — Dashboard Route Contract" with sub-section "Tangy — Dashboard navigation trace"
+
+**Contract Impact:**
+- Keep desired user contract: signed-in members should reach `/dashboard` and see dashboard-only actions
+- In Playwright helpers, treat `View Workflows` and `Call Mock Business App API` as readiness signals
+- Report app routing breaks when dashboard-only elements do not appear

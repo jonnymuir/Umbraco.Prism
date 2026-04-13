@@ -45,6 +45,7 @@
 - **Normalize Umbraco content URLs before treating them as a contract.** Published Umbraco URLs can include trailing slashes even when the intended route contract is `/dashboard`, `/get-in-touch`, or `/my-workflows`. `TestSiteSeedContract.NormalizeUrl()` should be the shared normalizer for readiness payloads and Razor link resolution so the browser journey stays stable.
 - **Full AppHost restarts still invalidate pre-restart localhost Keycloak access tokens.** The TestSite can keep its Prism cookie session alive and now retries downstream calls with a forced refresh-token exchange, but the live restart API contract still needs deeper Keycloak/AppHost session persistence work outside the Umbraco route/readiness fix.
 - **Dashboard route contract is direct, but browser tests should enter via the authored CTA.** The seeded TestSite contract still requires `memberDashboard` to publish at `/dashboard`, and unauthenticated requests correctly challenge through `/auth/login?ReturnUrl=%2Fdashboard`. For live Playwright flows, the most stable path is to assert the signed-in home page's `Go to Dashboard` link resolves to `/dashboard`, then click it so the test follows the same Umbraco-authored navigation editors see.
+- **`/dashboard` itself does not bounce to `/`.** In the current localhost stack, an anonymous `GET /dashboard` challenges to `/auth/login?ReturnUrl=%2Fdashboard`, and a direct dashboard login returns from `/signin-oidc` back to `/dashboard`. The 302 to `/` appears when login starts from the home-page `Sign In` CTA, because `AccountController.Login()` defaults `returnUrl` to `/` when no `ReturnUrl` query string was supplied.
 
 ---
 
@@ -1653,3 +1654,22 @@ builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.c
 ### Follow-up
 
 Blathers spawned to fix restart-only downstream API failure; Tangy to validate after fix.
+
+## Tasks — 2026-04-13 — Dashboard Route Contract Validation (parallel spawn batch)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-13T23:42:20Z-brewster.md`
+
+**Spawned:** Brewster, Blathers, Tangy for parallel investigation of dashboard redirect behavior
+
+**Task Summary:**
+- Brewster: Confirm `/dashboard` route validity and auth challenge behavior ✅
+- Blathers: Inspect auth/session redirect flow ⏳
+- Tangy: Complete dashboard navigation trace and identify test readiness signals ✅
+
+**Brewster Findings:**
+- `/dashboard` is a valid published route with correct auth challenge behavior
+- Unauthenticated requests correctly redirect to `/auth/login?ReturnUrl=%2Fdashboard`
+- App-side route wiring is sound
+- Route contract is valid; redirect behavior is login flow specific
+
+**Decision Merged:** Consolidated Brewster and Tangy findings into `.squad/decisions.md` section "📌 2026-04-13: Brewster — Dashboard Route Contract" with sub-section "Tangy — Dashboard navigation trace"
