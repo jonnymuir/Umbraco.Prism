@@ -683,3 +683,100 @@ All layers are correctly scoped (model constraints → HTML5 → tamper-proofing
 
 **Routed to:** Copper (Security Engineer) — Blathers under reviewer lockout.
 **Decision file:** `.squad/decisions/inbox/tom-nook-keycloak-https-review.md`
+
+---
+
+## Learnings
+
+### Secure Local Development Pattern — Architectural Review (2026-04-12)
+
+**Task:** Evaluate whether Aspire should include a local vault-backed secret pattern for generic OIDC secrets, or maintain the current inline-demo + production-vault approach.
+
+**Evaluation dimensions:** Fresh clone experience, maintenance burden, portability, code consistency, infrastructure cost-benefit.
+
+**Key Finding:** Current pattern (inline demo secrets + production vault) is architecturally superior. Proposed local vault would trade five critical attributes (simplicity, portability, maintenance, DX, platform compatibility) for false infrastructure parity that doesn't improve the actual code path.
+
+**Why Local Vault Was Rejected:**
+
+1. **Fresh Clone:** Current one-liner unchanged (5 min); vault variant adds setup friction and platform-specific issues.
+2. **Maintenance:** Zero ongoing work vs. vault image versioning, health checks, mount/cleanup lifecycle.
+3. **Portability:** Works everywhere now; vault introduces WSL2 paths, Apple Silicon, Linux uid/gid concerns.
+4. **Code Path:** Already consistent—both local and production use same `PrismOidcConfiguration` logic. Vault storage difference is intentional.
+5. **Infrastructure:** Vault adds complexity without security gain. Demo secrets are secure-by-design (valid only against ephemeral local Keycloak).
+
+**Pattern Codified:** "One code path, two operational models"—same `PrismOidcConfiguration` everywhere; local uses in-memory demo secrets, production uses `SecretVaultService` → Azure Key Vault. Progressive disclosure: developers clone and run; production teams set `Prism:VaultUri` and authenticate.
+
+**Standing Decision:** Keep `DemoTenantSeeder` with `prism-dev-secret` hardcoded. No local vault in Aspire. Principle remains: "Make it easy to do the right thing"—fresh clone should work without any vault knowledge.
+
+**Decision file:** `.squad/decisions/inbox/tom-nook-secure-dev-pattern.md`
+
+**Related patterns:** Keycloak localhost redirect URIs (exact pinning, no wildcards), Aspire launch profile selection (explicit naming for determinism), principle of least surprise (developer installs, everything works).
+
+### Generic OIDC Secret Contract — Secure-by-Default Implementation (2026-03-22)
+
+**Task:** Establish a concrete, secure-by-default contract for generic OIDC client secrets that unifies the Entra and generic OIDC patterns, removes the security gap of inline secrets in production, and preserves the frictionless localhost demo.
+
+**Five Concrete Answers Determined:**
+
+1. **Tenant Fields:**
+   - Remove `OidcClientSecret` (currently inline, violates secure-by-default)
+   - Add `OidcClientSecretKeyName` (nullable string, same pattern as Entra's `SecretKeyName`)
+   - This field stores the KEY VAULT REFERENCE, not the secret itself
+
+2. **Production Path—Raw Secrets Nowhere:**
+   - Real tenants never store raw secrets; only vault references
+   - `PrismOidcConfiguration` resolves `OidcClientSecretKeyName` via `ISecretVaultService.GetSecretAsync()`
+   - Returns empty string if no vault reference exists (graceful degradation)
+
+3. **Demo Exception—Intentional and Tagged:**
+   - `DemoTenantSeeder` sets `OidcClientSecretKeyName = "demo-keycloak-dev"` (marker string)
+   - Secret is **never persisted**; resolved dynamically at runtime from environment variable (`DEMO_OIDC_SECRET`) or hardcoded constant
+   - `ResolveDemoKeycloakSecret()` checks env var first, falls back to `"prism-dev-secret"`
+   - Fresh clones work immediately; Aspire can optionally override via parameter
+
+4. **Management API—No Secret Exposure:**
+   - `PrismTenantRequest` DTO removes both `OidcClientSecret` and `OidcClientSecretKeyName` entirely
+   - API responses (GET list, GET detail) omit these fields completely — do not return null values
+   - POST/PUT handlers silently ignore if these fields are sent
+   - Admins manage secrets offline in Key Vault, reference only the key name in non-secret fields
+   - This closes the "API echoes secret back into edit form" anti-pattern
+
+5. **Documentation Obligations:**
+   - README.md: Add "Secret Management" subsection explaining the three paths (Entra, generic OIDC, local demo)
+   - ASPIRE_DEV.md: Update "New Columns" and "PrismOidcConfiguration Fallback Logic" sections
+   - New docs/secret-management.md for operational teams (how to set up production generic OIDC tenants)
+   - Inline code: Update docstrings to clarify `OidcClientSecretKeyName` is a vault reference, not a secret
+
+**Design Properties:**
+- ✅ Matches Entra pattern exactly (consistent security posture across all identity types)
+- ✅ Fresh clone still works (no vault bootstrap needed)
+- ✅ Production secrets always vault-backed
+- ✅ Demo is explicit and separate from real tenants
+- ✅ Management API is "write-only" for secrets (configure offline, reference online)
+- ✅ Backward-incompatible but necessary (removes security hole)
+
+**Key Pattern Learned:** "Reference-based secrets" is the unifying pattern for multi-provider auth. Inline secrets are only acceptable for transient local-dev-only flows with repo ownership. Once something moves toward production use, it must use a reference model with provider-backed resolution.
+
+**Decision file:** `.squad/decisions/inbox/tom-nook-generic-oidc-secret-contract.md`
+
+**Handoff to implementation:** Coding agents should read the contract document in full. The five answers are concrete; no design ambiguity remains.
+
+---
+
+## Session: 2026-04-13 — Generic OIDC Secret Refactor (Locked Contract & Architecture)
+
+**Role:** Lead architect; contract ownership.
+
+**Outcomes:**
+- Locked the reference-based secret resolution contract (decision notebook)
+- Defined five concrete answers: tenant fields, raw-secret boundaries, management API contract, demo resolution, documentation obligations
+- Established secure-by-default properties (vault-backed for production, repo-owned demo marker)
+
+**Key Learnings:**
+- Reference-based secrets is the unifying pattern for multi-provider auth systems
+- Inline secrets only acceptable for transient dev-only flows with clear repo ownership
+- API contracts should reflect the security model: no secret echo, only metadata and provider state
+- Fresh-clone experience and production security are not in conflict when the demo is explicitly tagged
+
+**Status:** ✅ Complete; handed off to implementation team.
+

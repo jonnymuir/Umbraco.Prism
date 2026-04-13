@@ -1004,3 +1004,89 @@ Two comprehensive guides in `docs/guides/`:
 - Quickstart flow before deep architecture docs improves onboarding experience
 
 **Files Changed:** 2 markdown files (README.md, ASPIRE_DEV.md)
+
+---
+
+## 2026-04-13 — Generic OIDC Secret Posture Documentation: Completed
+
+**Task:** Implement public documentation around the new secure-by-default generic OIDC secret model after Tom Nook completed the implementation.
+
+**Changes Made:**
+
+1. **README.md:**
+   - Updated "How It Works" to emphasize secure-by-default secrets and vault-backed references
+   - Added "Secret Management" subsection in Architecture section explaining three paths (Entra, generic OIDC, demo)
+   - Updated documentation table to add Secret Management guide as top entry
+   - Emphasized fail-closed behavior for missing secret references
+
+2. **ASPIRE_DEV.md:**
+   - Replaced "New Columns" section: `OidcClientSecretKeyName` (reference) instead of `OidcClientSecret` (raw value)
+   - Updated "PrismOidcConfiguration Fallback Logic" code block with demo marker detection and reference-based resolution
+   - Added new `ResolveDemoKeycloakSecret()` subsection explaining runtime resolution from env var or hardcoded constant
+   - Updated "What Gets Configured" to clarify demo secret is repo-owned and resolved at runtime, never persisted
+   - Enhanced "Localhost Tenant (Auto-Seeded)" with explanation of demo marker and runtime resolution
+   - Updated troubleshooting section with reference to demo marker and secure-by-default behavior
+
+3. **docs/secret-management.md (NEW):**
+   - Comprehensive 400-line operational guide for DevOps/SRE
+   - Three paths documented: Entra (production), Generic OIDC (production), Local dev demo
+   - Management API section showing contracts with explicit security behavior (no secret fields ever exposed)
+   - Setup checklist for production generic OIDC (5 steps: create tenant, store in vault, record reference, verify, rotation)
+   - Local dev environment variable override section with DEMO_OIDC_SECRET example
+   - FAQ (8 questions) covering Key Vault naming, fail-closed behavior, migration paths, demo marker detection
+   - Developer guidance for local vault testing
+   - Cross-references to ASPIRE_DEV.md, README.md, and umbraco-setup.md
+
+**Alignment with Contracts:**
+
+✅ **Tom Nook Secret Contract:**
+- Separated paths clearly (Entra, generic OIDC, demo all documented distinctly)
+- Demo marker explained with environment variable override
+- Management API contract explicit: never accepts/returns secret values or references
+- Fresh-clone frictionless (demo works immediately without vault)
+- Concrete Key Vault naming examples for operators
+- Migration path documented for existing generic OIDC tenants
+- Fail-closed behavior documented
+
+✅ **Copper Security Review:**
+- No implication of inline production secrets
+- Demo exception is isolated and explicit
+- Management API never echoes secrets (contracts shown)
+- Fail-closed behavior documented in setup and FAQ
+- Regression test guidance provided (verify API does not return secret fields)
+
+**Writing Style Applied:**
+- Operator-focused: Key Vault setup, secret rotation, troubleshooting
+- Plain language with concrete examples
+- Anticipates common confusion (Entra vs. generic OIDC, demo marker behavior)
+- Cross-references show integration points with local dev and production paths
+
+**Files Changed:** 3 markdown files (README.md, ASPIRE_DEV.md, docs/secret-management.md created)
+**Decision Document Created:** .squad/decisions/inbox/mabel-generic-oidc-secret-docs.md
+
+**Outcomes:**
+- Fresh-clone path remains frictionless (demo works immediately)
+- Production path is explicitly secure-by-default in public documentation
+- Operators have clear guidance for Key Vault configuration and secret rotation
+- All documentation internally consistent with Tom Nook contract and Copper security constraints
+- Migration path for existing generic OIDC tenants is documented
+
+---
+
+## Session: 2026-04-13 — Generic OIDC Secret Refactor (Documentation Reconciliation)
+
+**Role:** Technical writer; documentation alignment and admin guidance.
+
+**Outcomes:**
+- Reconciled README.md with "Secret Management" section explaining three paths
+- Updated ASPIRE_DEV.md with provider/reference model and demo marker logic
+- Created docs/secret-management.md for DevOps/SRE operational guidance
+- All documentation aligns with implementation, security review, and contract
+
+**Key Learnings:**
+- Multi-level documentation is essential: architects need README; developers need ASPIRE_DEV; operators need dedicated guidance
+- Field names and exact API contracts should be documented explicitly (not vaguely)
+- Distinction between secret masking (no echo) and secret presence (HasOidcClientSecret) is subtle but important to explain
+
+**Status:** ✅ Complete; admin knowledge gap closed.
+

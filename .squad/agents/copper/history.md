@@ -1509,3 +1509,42 @@ Documentation updated: README includes cert trust setup, ASPIRE_DEV.md explains 
 - Prism’s downstream bearer for the local generic OIDC path is the session `access_token`, released only after `PrismContext` confirms the cookie principal is bound to the resolved tenant via `iss` plus `aud`/`azp`.
 - Mock Business App must keep fail-closed issuer, audience, lifetime, and signing-key validation in `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`; the 401 should be fixed by aligning trusted authority configuration, not by disabling validators.
 - Key file paths: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`, `src/UmbracoPrism.MockBusinessApp/appsettings.json`, `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`.
+
+### 2026-04-13 — Generic OIDC tenant secret posture
+- Generic OIDC currently stores `OidcClientSecret` directly in `prismTenants`, hydrates it through `TenantService`, returns it from the management API, and preloads it back into the backoffice edit modal; treat that pattern as acceptable only for repo-owned demo/local scenarios, not for production tenants.
+- Production-confidential OIDC clients should follow the Entra-style indirection model: persist a secret reference in tenant config and resolve the actual secret through a vault/provider abstraction at runtime.
+- Preserve press-play local development by keeping the repo-owned Keycloak demo secret inline in the dev seed path and realm export, while making non-demo/production tenants use secret references instead of database-stored secrets.
+- Key file paths: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core/Controllers/TenantManagementController.cs`, `src/UmbracoPrism.Core/Persistence/PrismTenantSchema.cs`, `src/UmbracoPrism.Core/Services/TenantService.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`, `keycloak/realm-export.json`, `ASPIRE_DEV.md`.
+
+### 2026-04-13 — Aspire local vault posture
+- Do not make a local vault container part of the default Aspire press-play stack for this repo. For repo-owned demo credentials, shipping a seeded vault plus bootstrap access just moves the same demo secret into another box and adds new failure modes without materially improving confidentiality.
+- Azure Key Vault remains the right production secret source, but it is not a realistic fresh-clone dependency for local test because it requires Azure identity, vault provisioning, RBAC, and network reachability before the app can start.
+- If Prism wants a stronger dev/prod story, prefer a secret-provider abstraction with three modes: repo-owned inline demo secret for the seeded Keycloak path, optional local overrides via Aspire parameters/user-secrets or environment variables, and vault-backed resolution for real tenants.
+- Even with a local vault, risks remain: bootstrap/admin credentials still have to exist somewhere, secrets can still surface in env vars/logs/container state, local machine compromise still wins, and Prism’s current generic OIDC path still stores/echoes `OidcClientSecret` in the tenant row/API until that model is refactored.
+- Key file paths: `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`, `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core/Controllers/TenantManagementController.cs`, `src/UmbracoPrism.Core/Services/SecretVaultService.cs`, `ASPIRE_DEV.md`, `README.md`, `keycloak/realm-export.json`.
+
+### 2026-04-13 — Generic OIDC secret refactor security gate
+- The current implementation-in-progress does **not** yet remove raw generic OIDC secrets from normal tenant flows: `PrismTenantSchema`, `TenantService`, `PrismTenant`, `PrismTenantRequest`, and `TenantManagementController` still persist, hydrate, accept, and return `OidcClientSecret`.
+- The localhost demo exception is at least isolated to `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`, but it is not the only path because the same inline-secret field remains available to normal backoffice tenant management.
+- Runtime token exchange for generic OIDC still reads `tenant.OidcClientSecret` directly in `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`; there is no secret-reference field, no provider-backed resolution path for generic OIDC, and no fail-closed guard when a confidential client lacks a resolvable secret.
+- Security review evidence should focus on these paths: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core/Services/TenantService.cs`, `src/UmbracoPrism.Core/Controllers/TenantManagementController.cs`, `src/UmbracoPrism.Core/Controllers/Models/PrismTenantRequest.cs`, `src/UmbracoPrism.Core/Models/PrismTenant.cs`, `src/UmbracoPrism.Core/Persistence/PrismTenantSchema.cs`, `src/UmbracoPrism.Core/Persistence/AddOidcAuthorityColumns.cs`, `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`, `README.md`, `ASPIRE_DEV.md`.
+- Validation snapshot for this review: `dotnet build UmbracoPrism.sln` succeeded with pre-existing warnings, and `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests` passed.
+
+---
+
+## Session: 2026-04-13 — Generic OIDC Secret Refactor (Security Review & Blocker Identification)
+
+**Role:** Security engineer; threat model validation.
+
+**Outcomes:**
+- Reviewed initial implementation against four required security outcomes
+- Identified concrete blocker: raw secrets still in database, management API still echoing references
+- Defined regression test scope (5 scenarios covering secret echo, demo isolation, fail-closed behavior)
+
+**Key Learnings:**
+- Security reviews must catch architectural divergence early: generic OIDC was heading toward a weaker model than Entra
+- Fail-closed behavior for confidential clients without resolvable secrets is critical; default-to-empty-string is a security liability
+- Regression test scope should focus on behavioral contracts, not implementation details
+
+**Status:** ✅ Complete; blocker resolved by implementation team.
+

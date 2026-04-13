@@ -278,6 +278,13 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **Downstream demo URL pattern**: Demo controllers should not hardcode their own downstream base URLs. `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` now derives its default target from `PrismBusinessApp:WorkflowApiBaseUrl`, matching `BusinessAppWorkflowClient` and preventing dashboard/demo drift.
 - **Key files**: `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json`, `src/UmbracoPrism.MockBusinessApp/Properties/launchSettings.json`, `src/UmbracoPrism.TestSite/appsettings.Development.json`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `ASPIRE_DEV.md`, `README.md`.
 
+## Learnings (2026-04-13 — Generic OIDC create-path vault reference regression)
+
+- **Management API contract split**: For generic OIDC tenants, the public create/edit payload still uses `PrismTenantRequest.SecretKeyName` as the admin-entered Azure Key Vault reference, while the database/runtime model persists that value into `OidcClientSecretProvider = AzureKeyVault` plus `OidcClientSecretReference`. The controller now has to translate between the public shorthand and the internal provider/reference storage.
+- **Secure-by-default response shape**: `TenantManagementController.ToTenantResponse` must not echo generic OIDC secret references back through `SecretKeyName`; only `HasOidcClientSecret` and `OidcClientSecretProvider` are safe response metadata for generic tenants.
+- **Regression hotspot**: The generic secret validation helper in `src/UmbracoPrism.Core/Controllers/TenantManagementController.cs` is where create/update flows decide whether a request is a valid Key Vault-backed confidential client, an allowed localhost inline demo, or an invalid inline/non-secret submission.
+- **Focused verification**: The relevant backend safety net for this area is `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --filter "FullyQualifiedName~TenantManagementControllerTests|FullyQualifiedName~PrismOidcConfigurationTests|FullyQualifiedName~PrismContextTests"`.
+
 ## Learnings (2026-04-12 — Mock Business App 401 after local Keycloak sign-in)
 
 - **Downstream issuer must match the browser-facing authority**: For the local Keycloak demo, the forwarded bearer token carries `iss=https://localhost:8443/realms/prism-dev`, so `src/UmbracoPrism.MockBusinessApp/appsettings.json` and the Aspire override in `src/UmbracoPrism.AppHost/Program.cs` must trust that HTTPS proxy authority, not the container's internal `http://localhost:8080` URL.
@@ -1900,3 +1907,35 @@ Created UmbracoPrism.KeycloakProxy project:
 - Reusable commit pattern: when repo knowledge artifacts (`README.md`, `ASPIRE_DEV.md`, `.squad/skills/*`) explain the same runtime change, keep them in a follow-up docs commit instead of mixing them into the behavior-changing code commit.
 - User preference: Jonny prefers conservative focused commits and would rather leave unrelated squad history noise uncommitted than bundle it into a backend cleanup commit.
 - Key file paths for this packaging pass: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `README.md`, `ASPIRE_DEV.md`.
+
+## Learnings (2026-04-13 — generic OIDC secret provider model)
+
+- `src/UmbracoPrism.Core/Services/ISecretVaultService.cs` now needs two modes: `GetSecretAsync(secretName)` for unchanged Entra flows and `ResolveSecretAsync(provider, reference)` for generic OIDC provider/reference resolution.
+- Generic OIDC runtime paths must all share the same secret resolution contract: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` for authorization-code redemption and `src/UmbracoPrism.Core/Models/PrismContext.cs` for refresh-token redemption both fail closed when `OidcClientSecretProvider`/`OidcClientSecretReference` cannot resolve a secret.
+- The repo-owned localhost Keycloak demo stays press-play by seeding `OidcClientSecretProvider = "inline"` plus `OidcClientSecretReference = "prism-dev-secret"` in `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs`; runtime only accepts `inline` for that explicit localhost/demo path.
+- Management API contract lives in `src/UmbracoPrism.Core/Controllers/TenantManagementController.cs` + `src/UmbracoPrism.Core/Controllers/Models/PrismTenantRequest.cs` + `src/UmbracoPrism.Core/Controllers/Models/PrismTenantResponse.cs`: admins send provider/reference metadata, responses expose `HasOidcClientSecret`/provider state, and updates preserve or reset secret metadata without echoing the stored reference.
+- Persistence shape now includes `OidcClientSecretProvider` and `OidcClientSecretReference` on `src/UmbracoPrism.Core/Persistence/PrismTenantSchema.cs`, with `src/UmbracoPrism.Core/Persistence/AddOidcSecretProviderColumns.cs` backfilling legacy inline secrets for compatibility.
+- Regression coverage for this slice lives in `src/UmbracoPrism.Core.Tests/TenantManagementControllerTests.cs`, `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs`, and `src/UmbracoPrism.Core.Tests/PrismContextTests.cs`; use those three harnesses together when changing generic OIDC secret behavior again.
+
+---
+
+## Session: 2026-04-13 — Generic OIDC Secret Provider/Reference Model (Implementation)
+
+**Role:** Backend developer; core implementation and regression fix.
+
+**Outcomes:**
+- Implemented provider/reference model for generic OIDC secrets
+- Updated PrismOidcConfiguration to resolve through ISecretVaultService
+- Added demo marker detection (inline provider reserved for localhost only)
+- Database migration: dropped OidcClientSecret, added provider/reference columns
+- Fixed create/update regression: management API now accepts and preserves secret metadata correctly
+- All backend tests passing
+
+**Key Learnings:**
+- Secret resolution path must be consistent across all OAuth flows (auth-code, refresh, etc.)
+- Demo detection at runtime allows safe seeding without special cases in production code
+- Management API shorthand (accepting SecretKeyName for generic OIDC) smooths the UX transition while keeping internal model clean
+- Backward compatibility in migrations requires careful seeding to preserve existing tenant behavior
+
+**Status:** ✅ Complete; all regression tests passing.
+

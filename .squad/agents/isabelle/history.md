@@ -75,6 +75,7 @@
 
 ## Learnings
 
+- 2026-04-13: Generic OIDC tenant editing now treats `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts` as a secure-by-default replace surface: production tenants use the **OIDC Key Vault Secret Name (replace only)** field, edit mode keeps that field blank to preserve the current reference unless the user explicitly replaces or resets it, and only the repo-owned localhost Keycloak story/path uses the inline replace field. Backend contract comes from `src/UmbracoPrism.Core/Controllers/TenantManagementController.cs`, which maps generic OIDC Key Vault references through `SecretKeyName` and reserves `OidcClientSecretProvider/OidcClientSecretReference` for the localhost inline exception.
 - 2026-04-12: The TestSite downstream API demo in `src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml` must normalize incomplete or non-demo payloads client-side (for example `401 { error: ... }`) and fall back to the `fetch` response metadata for status, URL, and content type. Keep `#api-btn` mounted, disable it while loading, and announce a human summary through `#api-summary`/`aria-live` so failures never degrade to `undefined undefined` or console-only feedback.
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
 - 2026-03-28: Fixed SecurityError in "Produce Mobile" download — Umbraco's SPA router was intercepting the programmatic anchor click and trying to navigate to the blob: URL. Solution: Add `target="_blank"` and `rel="noopener noreferrer"` to download anchors, plus `preventDefault()` / `stopPropagation()` on button handlers. This prevents the router from capturing the click event.
@@ -1536,3 +1537,24 @@ Member dashboard for managing multiple workflow instances.
 ### Backend Integration
 
 Backend PrismTenantRequest model already has OidcAuthority, OidcClientId, OidcClientSecret as nullable strings (confirmed in task context). Frontend sends these fields as camelCase (oidcAuthority, etc.) which ASP.NET Core automatically binds to PascalCase C# properties. Empty strings become undefined in the payload, which ASP.NET Core binds to null for nullable types.
+
+---
+
+## Session: 2026-04-13 — Generic OIDC Secret Refactor (UI Alignment)
+
+**Role:** Frontend developer; tenant modal and Storybook alignment.
+
+**Outcomes:**
+- Updated tenant modal to treat generic OIDC secret editing as replace-only surface
+- Secret field starts blank on edit (preserves existing reference unless user explicitly replaces)
+- Added explicit reset action for clearing secrets
+- Updated Storybook stories documenting demo vs. production behavior
+- Client build passing; UI tests passing
+
+**Key Learnings:**
+- UI preservation semantics mirror backend avoid-echo semantics: mask the reference, show presence via metadata
+- Visual distinction between demo (inline, repo-owned) and production (vault-backed) is critical for admin understanding
+- Blank-on-load for secret fields is a UX pattern that works well with backend preservation behavior
+
+**Status:** ✅ Complete; UI aligned to secure-by-default model.
+

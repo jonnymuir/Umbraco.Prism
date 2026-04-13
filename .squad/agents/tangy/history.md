@@ -732,6 +732,11 @@ Two test issues identified by Jonny Muir:
 ## Learnings
 
 - 2026-04-12 (Dashboard/local endpoint validation): locked in the Aspire localhost contract for the member dashboard downstream demo.
+- 2026-04-13 (Generic OIDC secret regressions): Added backend coverage in `PrismOidcConfigurationTests.cs` and `TenantManagementControllerTests.cs` for secure-by-default generic OIDC secret resolution.
+- The management API contract is now to expose `OidcClientSecretProvider` and `HasOidcClientSecret`, while never echoing raw generic OIDC secrets or references back to the UI.
+- The tenant modal contract in `src/UmbracoPrism.Client/src/backoffice/prism-create-tenant-modal.ts` is to keep the generic secret-reference field blank on edit and rely on explicit preserve/clear behaviour instead of rehydrating stored values.
+- The repo-owned Keycloak demo remains the only allowed inline-secret path: seeded `localhost` tenant, `https://localhost:8443/realms/prism-dev`, `prism-client`.
+- Validation for this work passed with the Core test suite, the tenant modal Playwright suite, and the client production build.
 - Aspire should advertise the Keycloak proxy at `https://localhost:8443`, TestSite via the explicit `Umbraco.Web.UI` profile, and MockBusinessApp via its explicit `https` profile so both `https://localhost:7245` and `http://localhost:5163` stay visible/usable in local orchestration.
 - `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` now treats the Business App target as configuration-driven and keeps the graceful inline failure payload contract testable when the service is down.
 - Validation coverage now lives in `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`; relevant wiring lives in `src/UmbracoPrism.AppHost/Program.cs`, `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json`, and `src/UmbracoPrism.TestSite/appsettings.Development.json`.
@@ -739,3 +744,24 @@ Two test issues identified by Jonny Muir:
 - 2026-04-13 (Persistent downstream 401): the dashboard-to-BusinessApp repro was still live on the running Aspire stack (`https://localhost:7245/api/backoffice/me` returned `401 Unauthorized` after real Keycloak sign-in), but a rebuilt standalone MockBusinessApp on `https://localhost:7246` succeeded once `PrismAuthExtensions` stopped calling `JsonWebToken.GetClaim(...)` for optional `tid`/`azp`/`iss` lookups.
 - Generic Keycloak access tokens in this flow arrive as `JsonWebToken` instances without a `tid` claim, so safe claim enumeration is required before falling back to the OIDC issuer path; otherwise downstream bearer validation fails before issuer/audience matching can run.
 - The smallest reliable regression guard for this hop is validator-level coverage in `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs` using browser-shaped `JsonWebToken` payloads, plus a manual smoke check that stale `7245` processes still need a restart to pick up the fix.
+
+---
+
+## Session: 2026-04-13 — Generic OIDC Secret Refactor (Regression Testing & Validation)
+
+**Role:** QA/testing; regression coverage across backend and frontend.
+
+**Outcomes:**
+- Added regression test contract (5 scenarios from Copper's security review)
+- Implemented unit tests: provider resolution, demo marker fallback, vault integration
+- Implemented integration tests: seeder idempotence, management API filtering, fail-closed behavior
+- Implemented UI tests: tenant modal preservation semantics, Storybook coverage
+- All tests passing; no unexpected breakage
+
+**Key Learnings:**
+- Behavioral test contracts (no raw-secret echo, demo isolation, fail-closed) are more durable than implementation-detail tests
+- Multi-layer testing (backend + UI + integration) catches subtle regressions in complex workflows
+- Fresh-clone verification is essential: demo must work immediately without vault bootstrap
+
+**Status:** ✅ Complete; all changed surfaces validated.
+
