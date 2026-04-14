@@ -30,6 +30,12 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - Local success plus `dotnet dev-certs https --check` finding a valid/trusted localhost certificate is strong evidence that the failure is environment-specific.
 - GitHub Actions workflows that only run `actions/setup-dotnet` do not automatically prove the runner trusts the dev cert used by an in-process test server.
 
+### On GitHub Ubuntu, `dotnet dev-certs https --trust` needs OpenSSL trust wiring
+- If a GitHub-hosted Linux runner fails immediately in the certificate bootstrap step with exit code `4`, and the log says `$HOME/.aspnet/dev-certs/trust` must be listed in `SSL_CERT_DIR`, classify that as workflow setup, not app behavior.
+- In that case the lane has not yet told you anything about Playwright, Aspire, Docker, or auth behavior; the trust bootstrap itself is the blocker.
+- The next action is to export `SSL_CERT_DIR` so it includes `$HOME/.aspnet/dev-certs/trust` (alongside the system cert directories) before calling `dotnet dev-certs https --trust`, or use another explicit test-only trust mechanism.
+- In GitHub Actions, persist that environment variable to later steps (for example via `$GITHUB_ENV`), because the localhost auth lane starts multiple .NET processes after the trust step and they also need the OpenSSL trust directory.
+
 ### Bootstrap the full localhost lane explicitly in GitHub Actions
 - For the real Aspire-backed auth/session lane in this repo, the minimal Ubuntu recipe is:
   1. `actions/setup-node` with Node `22.17.1`,
@@ -37,7 +43,7 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
   3. `npm ci` in `src/UmbracoPrism.Client`,
   4. `npx playwright install --with-deps chromium`,
   5. `dotnet dev-certs https`,
-  6. `dotnet dev-certs https --trust`,
+  6. export/persist `SSL_CERT_DIR` to include `$HOME/.aspnet/dev-certs/trust` plus the system cert directories, then run `dotnet dev-certs https --trust`,
   7. `node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite`,
   8. `npm run test:playwright:localhost-auth`.
 - Prefer calling the existing npm script for the lane instead of duplicating AppHost start/stop behavior in YAML; the script already owns the prereq check and the Playwright config.
@@ -67,6 +73,7 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - Real localhost lane entry point: `src/UmbracoPrism.Client/package.json` script `test:playwright:localhost-auth`
 - Prereq guard: `scripts/validate-aspire-prereqs.mjs`
 - CI bootstrap location: `.github/workflows/ci-tests.yml`
+- GitHub Actions bootstrap failure example: run `24415783660`, job `localhost-auth-playwright`, where `dotnet dev-certs https --trust` failed before Aspire startup because `SSL_CERT_DIR` did not include `$HOME/.aspnet/dev-certs/trust`
 
 ## Anti-Patterns
 - Assuming an auth redirect regression just because all redirect-contract tests failed together.

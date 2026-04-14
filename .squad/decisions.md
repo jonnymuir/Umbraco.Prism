@@ -37,6 +37,45 @@ Umbraco.Prism team decisions. Append-only ledger.
 
 ---
 
+## 📌 2026-04-14: Tangy & Blathers — GitHub Actions localhost-auth-playwright Bootstrap Failure Classification
+
+**Session Log:** `.squad/log/2026-04-14T19:12:55Z-auth-failure-investigation.md`
+
+**Merged From Inbox (Deduplicated):**
+- `.squad/decisions/inbox/tangy-auth-failure-investigation.md`
+- `.squad/decisions/inbox/blathers-auth-failure-investigation.md` (complementary analysis confirming shared root cause)
+
+### Unified Decision
+
+Treat GitHub Actions run `24415783660` (`localhost-auth-playwright` lane) as a **workflow bootstrap / Linux certificate trust setup failure**, not as a product or Playwright regression.
+
+The failed job stopped at **Trust .NET development certificate** with exit code `4` and never reached `Validate Aspire prerequisites` or `npm run test:playwright:localhost-auth`. The runner log explicitly reported: `For OpenSSL trust to take effect, '$HOME/.aspnet/dev-certs/trust' must be listed in the SSL_CERT_DIR environment variable`.
+
+### Root Cause
+
+- `dotnet dev-certs https --trust` failed on Ubuntu runner due to missing `SSL_CERT_DIR` environment variable configuration.
+- Linux OpenSSL trust backend requires explicit `SSL_CERT_DIR` wiring; the runtime default does not include `$HOME/.aspnet/dev-certs/trust`.
+
+### Smallest Correct Fix Next
+
+1. Update `.github/workflows/ci-tests.yml` to export/persist `SSL_CERT_DIR` on Ubuntu runners so it includes both `$HOME/.aspnet/dev-certs/trust` and system certificate directories.
+2. Set this environment variable before the `dotnet dev-certs https --trust` step.
+3. Rerun the lane and only then investigate Docker/Aspire/runtime issues if the job proceeds past certificate setup.
+
+### Why This Fix Is Safe & Complete
+
+- The workflow path filters already include the full Aspire auth graph (AppHost, TestSite, MockBusinessApp, Keycloak, shared auth files, and the prereq script).
+- Job structure is sound: Node, .NET, Docker, and Playwright dependencies already install successfully.
+- The job's `working-directory: src/UmbracoPrism.Client` correctly matches the relative prereq-script path `../../scripts/validate-aspire-prereqs.mjs`.
+- No existing contract changes needed; only certificate bootstrap needs Linux-specific wiring.
+
+### Notes
+
+- Playwright config already sets `ignoreHTTPSErrors: true`, so the immediate trust problem is for .NET/OpenSSL-based localhost calls inside the stack (AppHost, Keycloak, TestSite), not the browser launch itself.
+- Persisting `SSL_CERT_DIR` matters beyond the trust step because the lane later starts multiple .NET processes that may also need the same trust context.
+
+---
+
 ## 📌 2026-03-28: P1 #5 Completed — Tenant Cache Invalidation Strategy
 
 **Decision:** Centralize tenant-cache invalidation in `ITenantService` and instrument cache behavior with runtime counters.

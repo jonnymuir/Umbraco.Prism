@@ -192,3 +192,27 @@ Both must be handled for restart resilience.
 - `src/UmbracoPrism.Client/package.json` already contains the right executable contract for the lane; the CI job should call that script instead of re-encoding AppHost lifecycle logic in YAML.
 - Local validation matters for this slice: on 2026-04-14 the full `npm run test:playwright:localhost-auth` suite passed `8/8`, confirming the real Aspire-backed lane is runnable end-to-end before wiring GitHub Actions to it.
 - User preference reinforced: preserve the existing Storybook and core test jobs, add the smallest separate auth job that starts the real lane, and avoid unrelated CI refactors.
+
+## Learnings (2026-04-14, localhost-auth-playwright failure investigation)
+
+- GitHub Actions run `24415783660` failed in workflow setup, not in Aspire startup or Playwright execution: `localhost-auth-playwright` never reached the prereq script or the suite because the `Trust .NET development certificate` step exited `4`.
+- On GitHub-hosted Ubuntu, `dotnet dev-certs https --trust` is not self-sufficient for this lane; the runner log explicitly requires `$HOME/.aspnet/dev-certs/trust` to be included in `SSL_CERT_DIR` for OpenSSL-based trust to take effect.
+- The smallest next fix is workflow-only: keep the existing Node/.NET/browser/path-filter/working-directory setup, but export `SSL_CERT_DIR="$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs"` (persisted for later steps) before running `dotnet dev-certs https --trust`, then rerun the job to see whether Aspire/Docker/app behavior has any remaining issues.
+- Evidence against the other suspected buckets in this run: Playwright Chromium + Linux deps installed successfully, the workflow paths already cover the full auth graph, `../../scripts/validate-aspire-prereqs.mjs` resolves correctly from `src/UmbracoPrism.Client`, and no Docker/Aspire logs exist yet because the job stopped before those steps.
+
+
+## Team Update — 2026-04-14T19:12:55Z — Auth Failure Investigation Complete
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T19:12:55Z-blathers.md`
+
+**Session Log:** `.squad/log/2026-04-14T19:12:55Z-auth-failure-investigation.md`
+
+**Outcome:** Scribe merged Tangy and Blathers decisions into `.squad/decisions.md` under **2026-04-14: Tangy & Blathers — GitHub Actions localhost-auth-playwright Bootstrap Failure Classification**.
+
+**Decision Finalized:** GitHub Actions run `24415783660` (localhost-auth-playwright) is a **workflow bootstrap failure**. Workflow and job structure are sound; only the certificate bootstrap for Linux runners needs `SSL_CERT_DIR` wiring before `dotnet dev-certs https --trust`.
+
+**Smallest Correct Fix:** Update `.github/workflows/ci-tests.yml` to export/persist `SSL_CERT_DIR` on Ubuntu, including `$HOME/.aspnet/dev-certs/trust` and system directories, then rerun lane.
+
+**Inbox Files:** Deleted after merge (deduplication confirmed).
+
+---

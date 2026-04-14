@@ -191,3 +191,26 @@ Pre-deployment validation should:
 - The suite depends on fixed localhost HTTPS ports and the Aspire-owned lifecycle in `src/UmbracoPrism.Client/tests/support/live-app-host.ts` (`17214`, `15135`, `21233`, `22194`, `44345`, `8443`, `7245`); that is appropriate for an isolated CI runner but too broad to piggyback on every generic client-only path trigger without more selective gating.
 - The biggest CI readiness risk is certificate trust, not browser automation: AppHost intentionally serves TestSite, Keycloak proxy, and MockBusinessApp on HTTPS localhost, while `PrismOidcConfiguration` still performs token exchange and OIDC discovery with bare `HttpClient`/`HttpDocumentRetriever` against `https://localhost:8443`, which can fail on runners that do not trust the .NET dev certificate.
 - Key review paths for this lane are `.github/workflows/ci-tests.yml`, `src/UmbracoPrism.Client/package.json`, `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`, `src/UmbracoPrism.Client/tests/support/live-app-host.ts`, `scripts/validate-aspire-prereqs.mjs`, `src/UmbracoPrism.AppHost/Program.cs`, and `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`.
+
+## Learnings — 2026-04-14 — Localhost auth Playwright CI bootstrap failure
+
+- GitHub Actions run `24415783660` failed in job `localhost-auth-playwright` after about 70 seconds, but the first meaningful failure happened before any Aspire startup or Playwright test execution.
+- The failing step was `.github/workflows/ci-tests.yml` step **Trust .NET development certificate**, not `Validate Aspire prerequisites` or `npm run test:playwright:localhost-auth`.
+- Runner log excerpt: `dotnet dev-certs https --trust` reported `[110] For OpenSSL trust to take effect, '$HOME/.aspnet/dev-certs/trust' must be listed in the SSL_CERT_DIR environment variable` and then exited with code `4`.
+- That makes this a **workflow/bootstrap certificate-trust failure on Ubuntu GitHub Actions**, not a test-behavior regression, not Docker/Aspire startup, and not a browser automation problem.
+- The concrete next action is to teach the workflow's certificate-trust step the Linux trust-store wiring (for example by exporting `SSL_CERT_DIR` to include `$HOME/.aspnet/dev-certs/trust` before `dotnet dev-certs https --trust`) or use an equivalent explicit test-only trust strategy, then rerun the lane to reach real AppHost/test behavior.
+
+
+## Team Update — 2026-04-14T19:12:55Z — Auth Failure Investigation Complete
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T19:12:55Z-tangy.md`
+
+**Session Log:** `.squad/log/2026-04-14T19:12:55Z-auth-failure-investigation.md`
+
+**Outcome:** Scribe merged Tangy and Blathers decisions into `.squad/decisions.md` under **2026-04-14: Tangy & Blathers — GitHub Actions localhost-auth-playwright Bootstrap Failure Classification**.
+
+**Decision Finalized:** GitHub Actions run `24415783660` is a **workflow bootstrap / Linux certificate trust setup failure**. The next fix is in `.github/workflows/ci-tests.yml`: export/persist `SSL_CERT_DIR` on Ubuntu runners to include `$HOME/.aspnet/dev-certs/trust` before running `dotnet dev-certs https --trust`.
+
+**Inbox Files:** Deleted after merge (deduplication confirmed).
+
+---
