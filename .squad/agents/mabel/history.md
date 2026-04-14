@@ -49,6 +49,69 @@
 
 7. ✅ **Tunnel behavior explanation (LOW)** — Added brief sentence in "Redirect URI rotation behavior" section: "This prevents redirect URI sprawl accumulating in Entra over repeated dev sessions."
 
+## Security Regression Test Diagnosis (2026-04-14)
+
+### Committed: Auth/Restart Fix
+- ✅ Committed scoped auth/restart fix (da1983f) including Keycloak H2 persistence + OIDC signing-key refresh logic
+- Fixed files: Program.cs, IPrismSigningKeyCache, PrismSigningKeyCache, PrismAuthExtensions, PrismAuthExtensionsSecurityTests, .gitignore
+- Playwright localhost auth suite: 8/8 passing ✅
+
+### Pre-Existing Security Regression Tests: Diagnosis
+
+**Phase 1 Security Regression Tests: 13/19 PASSING, 6 FAILING**
+
+#### Genuine Issues (Actual Bugs to Fix)
+
+1. **AccountController open redirect hardening (4 failing tests)** — GENUINE BUG
+   - Tests: `AccountController_Login_RejectsExternalRedirect` (all 4 URL variants)
+   - Issue: Login action accepts malicious returnUrl values but relies SOLELY on LocalRedirect() to validate. However, the controller passes user input directly into AuthenticationProperties.RedirectUri without pre-validation.
+   - Test logic: Expects InvalidOperationException when LocalRedirect() is called with external URL. Currently no exception thrown.
+   - Root cause: The test assumes LocalRedirect() will throw, but LocalRedirect() doesn't validate during call—ASP.NET validates at execution time (after HTTP response is committed). By then, attack has already succeeded in a real HTTP context.
+   - Fix needed: Add explicit Url.IsLocalUrl() validation BEFORE LocalRedirect() in AccountController.Login (and Register).
+   - Severity: MEDIUM (attack surface exists only in practice; unit tests use mocks that bypass execution-time validation)
+
+2. **OIDC configuration null coalescing logic (1 failing test)** — GENUINE BUG (Minor)
+   - Test: `PrismOidcConfiguration_OnAuthorizationCodeReceived_SanitizesReturnUrl`
+   - Issue: Test writes `string.Empty ?? "/"` which evaluates to empty string (null coalescing doesn't trigger). Test is checking that the OIDC handler defaults RedirectUri to "/" when null, but the test itself has a typo.
+   - Fix needed: Test should use `(string?)null ?? "/"` to properly test null coalescing behavior.
+   - Severity: LOW (test bug, not production bug)
+
+#### False Positives (Documentation Tests, Not Real Failures)
+
+3. **PrismDebugTagHelper production guard (1 failing test)** — FALSE POSITIVE
+   - Test: `PrismDebugTagHelper_ShouldNotRenderInProduction`
+   - Status: ✅ **ACTUALLY FIXED**
+   - Evidence: Tag helper source (lines 34-42) shows check: `environment.IsDevelopment() || config.GetValue<bool>("Prism:EnableDebugPanel", false)`
+   - Why test fails: Test calls `CheckIfDebugTagHelperIsGuarded()` which intentionally returns `false` with comment "EXPECTED TO FAIL until fix applied". This is a documentation/placeholder test, not a real assertion.
+   - Action: Update test to reflect that the fix IS in place. Replace `return false;` with proper reflection-based verification.
+
+4. **PrismVinylNotificationController admin authorization (1 failing test - but actually passes)** — FALSE POSITIVE / NO TEST
+   - Test: `PrismVinylNotificationController_RequiresAdminAuthorization`
+   - Status: Not actually tested (incomplete test in Phase 1)
+   - Evidence: Test only checks for [Authorize] attribute presence; doesn't verify admin role requirement.
+   - Action: Separate from Phase 1 scope. Punt to a dedicated `PrismVinylNotificationAdminAuthorizationTests` when admin role policy is implemented.
+
+5. **Downstream demo (5 tests) — All pass** ✅
+   - Tests: URL allowlist, development/production environment gating, explicit enable flag
+   - Status: All 5 tests pass. No action needed.
+
+6. **Vinyl notification tenant scoping (1 test)** — Passes ✅
+   - Test: `PrismVinylNotificationController_DeriveTenantIdFromServerContext`
+   - Status: Pass. TenantId properly removed from request model.
+
+### Action Items for Next Sprint
+
+**HIGH Priority (Genuine Security):**
+- Fix AccountController.Login/Register to call Url.IsLocalUrl() before LocalRedirect()
+- Update Phase1SecurityRegressionTests.cs to fix null-coalescing test typo
+
+**MEDIUM Priority (Test Maintenance):**
+- Update PrismDebugTagHelper test to replace placeholder `return false;` with actual reflection check
+- Move incomplete notification admin authorization test to separate dedicated test file
+
+**LOW Priority (Documentation):**
+- Add comment to Phase1SecurityRegressionTests explaining test maturity levels (some document expected fixes, others validate implemented fixes)
+
 **Files modified:**
 - `README.md` — 8 targeted edits, ~150 lines of new/updated content
 - `umbraco-marketplace.json` — 1 edit to Description field

@@ -108,6 +108,8 @@
 - 2026-04-12: For downstream calls, a valid Prism session is not just “has PrismMemberCookie”; it must include a current `access_token` plus provider-specific tenant binding to the resolved host tenant: Entra via `tid` ↔ `CurrentTenant.EntraTenantId`, generic OIDC via `iss` ↔ `CurrentTenant.OidcAuthority`.
 - 2026-04-12: The localhost 401 on `api/prism/downstream-demo` is security-relevant because `src/UmbracoPrism.Core/Models/PrismContext.cs` still treats `tid` as the only binding signal, while the local Keycloak tenant seeded by `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` is issuer-bound and has no Entra tenant id.
 - 2026-04-12: Any Blathers fix for downstream session forwarding must preserve the existing encrypted `PrismMemberCookie`, keep host/tenant resolution as the trust anchor, and avoid fallbacks that accept bearer forwarding without tenant-bound claim validation.
+- 2026-04-14: Treat auth redirect tests as exploit-path checks, not single-method assertions; in Prism the real trust boundary is `returnUrl` flowing from `/auth/login` or `/auth/register` into `AuthenticationProperties.RedirectUri` and back out through `PrismOidcConfiguration.OnAuthorizationCodeReceived`.
+- 2026-04-14: A security regression test that hardcodes its own failure state or never executes production code is not authoritative; replace placeholders with behavioral tests that prove the safe default path and the attacker-controlled path.
 
 ## 2026-03-29 — Biometric Authentication Security Analysis
 
