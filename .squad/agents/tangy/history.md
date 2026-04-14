@@ -1061,3 +1061,37 @@ Blathers completed restart-only downstream auth investigation/fix pass. Outcome:
 **Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
 
 **Team Consensus:** Security contracts must be behavior-driven with executable test harnesses.
+
+
+## 2026-04-14: Release v1.8.0 — Pre-Deployment Validation
+
+**Session:** Release orchestration (v1.7.1 → v1.8.0)
+
+### Work Performed
+
+1. **Solution Build Verification** — `dotnet build UmbracoPrism.sln` passed; no errors, no new warnings
+2. **File Consistency Check** — Verified version sync across all 5 release files (CHANGELOG, .csproj, package.json×2, marketplace.json)
+3. **Integration Validation** — Frontend artifacts generated, backend NuGet metadata correct, marketplace synchronized
+4. **Readiness Assessment** — All pre-deployment checks passed; release ready for git tag creation
+
+### Key Verifications
+
+- ✅ Solution builds cleanly (dotnet build UmbracoPrism.sln)
+- ✅ Version consistency: 1.8.0 across CHANGELOG, .csproj, package.json (root + client), marketplace.json
+- ✅ No orphaned version references
+- ✅ package-lock.json regenerated cleanly
+- ✅ No build artifacts require regeneration before deployment
+- ✅ Release date correctly set (2026-04-14)
+
+### Outputs
+
+- Orchestration log: `.squad/orchestration-log/2026-04-14T16:55:12Z-tangy.md`
+
+### Pattern for Future Validation
+
+Pre-deployment validation should:
+1. Build the entire solution to catch any compile errors
+2. Verify version strings match across all deployment surfaces
+3. Confirm no orphaned references to old versions
+4. Validate marketplace/CDN metadata in sync with package versions
+5. Generate clean build artifacts with no warnings introduced

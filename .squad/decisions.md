@@ -2,8 +2,6 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
----
-
 ## 📌 2026-04-13: Brewster — Dashboard Route Contract
 
 **Decision:** Keep the seeded Umbraco dashboard contract as a direct published route at `/dashboard`, but have browser tests reach it from the signed-in home page CTA while asserting that CTA resolves to `/dashboard`.
@@ -6090,3 +6088,85 @@ That means the app can observe a narrow window where the published tree can alre
 - `.squad/orchestration-log/2026-04-14T12:39:42Z-copper.md`
 - `.squad/orchestration-log/2026-04-14T12:39:42Z-brewster.md`
 - `.squad/orchestration-log/2026-04-14T12:39:42Z-mabel.md`
+
+
+---
+
+## 📌 2026-04-14: Release v1.8.0 — Semver & Implementation
+
+### Tom Nook — Semver Bump Recommendation (v1.7.1 → v1.8.0)
+
+**Decision:** MINOR bump to v1.8.0
+
+**Analysis:** 92 commits since v1.7.1 containing ~20 feature commits, ~14 fix commits (including security hardening), and ~7 refactor commits.
+
+**Justification:**
+- ✅ New features: Workflow forms engine, generic OIDC (Keycloak), mobile nav models, bearer token forwarding, media library picker
+- ✅ Security hardening: Open redirect mitigation, token refresh hardening, demo endpoint gating, OIDC flow hardening
+- ✅ No breaking changes: All refactors internal; public API signatures stable; new fields optional
+- ✅ Backward compatible: Existing integrations continue unchanged; all changes additive
+
+**Why MINOR and not PATCH?** Workflow forms engine alone is substantial user-facing feature set; multiple new features exceed patch scope.
+
+**Why not MAJOR?** No contract-breaking changes to public APIs; no deprecated features removed; no incompatible dependency upgrades.
+
+### Mabel — Release Preparation & Version Sync
+
+**Decision:** Bump versions across all release surfaces; fix marketplace version lag; structure changelog with three-section format.
+
+**Files Updated:**
+- `CHANGELOG.md` — v1.8.0 entry added (dated 2026-04-14)
+- `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` — 1.8.0
+- `src/UmbracoPrism.Client/package.json` — 1.8.0
+- `package.json` — 1.8.0
+- `umbraco-marketplace.json` — 1.8.0 (fixed from stale 1.6.1)
+- `package-lock.json` — regenerated
+
+**Changelog Structure:** Three sections (New Features, Security Enhancements, Bug Fixes & Improvements)
+
+**Marketplace Sync Decision:** Fixed 2-version lag (1.6.1 → 1.8.0) to prevent future confusion and support clarity.
+
+**Rationale for Marketplace Sync:**
+- Version mismatch creates support confusion ("Which version am I on?")
+- Marketplace listing shows outdated version to potential users
+- No cost to update; single field in JSON
+- Prevents future drift by synchronizing all surfaces in one operation
+
+### Mabel — Security Commit Scope
+
+**Decision:** Isolated redirect hardening security work in single, tightly scoped commit (commit 64419c6).
+
+**Scope:** 6 files (3 production, 3 test) focusing on production fixes and targeted test coverage; excluded unrelated TestSite auto-generated models.
+
+**Rationale:**
+1. **Security Auditability:** Isolated commits enable clearer future audits and backport decisions
+2. **CI/CD Clarity:** Auto-generated code changes handled separately from intentional code changes
+3. **Changelog Accuracy:** Focused commit ensures CHANGELOG reflects security hardening without infrastructure noise
+4. **Team Communication:** Clear scope signals reviewers exactly what changed in auth layer
+
+### Tangy — Release Validation
+
+**Decision:** Release v1.8.0 passes all pre-deployment validation checks.
+
+**Verifications:**
+- ✅ `dotnet build UmbracoPrism.sln` — PASSED
+- ✅ Version consistency across all release files verified
+- ✅ Frontend build artifacts generated
+- ✅ Backend NuGet package metadata correct
+- ✅ Marketplace metadata synchronized
+- ✅ No orphaned version references
+- ✅ File integrity verified
+
+**Release Readiness:** 🟢 **READY FOR TAG CREATION AND DEPLOYMENT**
+
+---
+
+**Session recorded by:** Scribe (2026-04-14T16:55:12Z)
+
+**Orchestration logs:**
+- `.squad/orchestration-log/2026-04-14T16:55:12Z-mabel.md`
+- `.squad/orchestration-log/2026-04-14T16:55:12Z-tom-nook.md`
+- `.squad/orchestration-log/2026-04-14T16:55:12Z-tangy.md`
+
+**Session log:**
+- `.squad/log/2026-04-14T16:55:12Z-release-v1-8-0.md`
