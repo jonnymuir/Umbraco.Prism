@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
@@ -346,10 +347,12 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     // Generic OIDC provider - use standard OIDC discovery
                     try
                     {
+                        var metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
+                        var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
                         var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
-                            $"{tenant.OidcAuthority}/.well-known/openid-configuration",
+                            metadataAddress,
                             new OpenIdConnectConfigurationRetriever(),
-                            new System.Net.Http.HttpClient());
+                            new HttpDocumentRetriever(new System.Net.Http.HttpClient()) { RequireHttps = requireHttps });
 
                         var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
 

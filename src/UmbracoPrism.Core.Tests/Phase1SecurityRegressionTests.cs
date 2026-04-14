@@ -393,6 +393,8 @@ public class Phase1SecurityRegressionTests
 
     private static async Task<string> ExecutePostLoginRedirectAsync(string? returnUrl, LoopbackOidcProvider oidcProvider)
     {
+        // These redirect-contract tests intentionally execute the real callback path so PrismOidcConfiguration
+        // performs token exchange, discovery, nonce validation, cookie sign-in, and the final redirect.
         var tenant = new PrismTenant
         {
             Hostname = "northwind.example",
@@ -531,7 +533,7 @@ public class Phase1SecurityRegressionTests
             var port = GetAvailableLocalhostPort();
             var builder = WebApplication.CreateBuilder();
             builder.Logging.ClearProviders();
-            builder.WebHost.UseUrls($"https://localhost:{port}");
+            builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
             var app = builder.Build();
             var provider = new LoopbackOidcProvider(app, rsa, signingKey);
