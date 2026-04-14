@@ -5793,3 +5793,132 @@ Generic OIDC and Entra now follow the same vault-backed, reference-based secret 
 **Orchestration Log:** `.squad/orchestration-log/2026-04-13T21:56:27Z-blathers.md`
 
 **Recorded by:** Scribe (2026-04-13T21:56:27Z)
+
+---
+
+## 📌 2026-04-14: E2E Readiness Strategy — Cold-Start Flake Gating
+
+### Tangy — Layered Readiness Strategy for Localhost Aspire E2E
+
+**Decision:** Keep the localhost auth/session Playwright suite split into distinct readiness layers instead of letting behavioural tests implicitly prove startup stability.
+
+**Context:** On a cold Aspire boot, seeded child routes can briefly resolve as `/` before the published route contract converges. That can make sign-in, dashboard, and workflow tests fail for startup reasons even when the behavioural contract is correct once the stack settles.
+
+**Strategy:**
+1. **Infrastructure readiness gate before interaction** — Wait on machine-readable signals only:
+   - Home-page ready marker
+   - `/api/prism/downstream-demo/seed-contract-ready` reporting `ready: true`
+   - Protected workflow hub challenging to `/auth/login?ReturnUrl=%2Fmy-workflows`
+   - Keycloak discovery
+   - MockBusinessApp responding on its expected unauthenticated path
+2. **Page readiness gate before each click** — Assert the authored `href` first (`/dashboard`, `/my-workflows`, `/get-in-touch`); navigate via the real CTA/nav element; wait for page-specific affordances, not shared signed-in copy
+3. **Behaviour assertion last** — Only once the first two layers are satisfied should a spec assert sign-in, restart persistence, workflow UX, or downstream API behaviour
+
+**Why:**
+- Separates "the stack is still converging" from "the app behaviour is broken"
+- Keeps tests aligned with the same authored content routes members actually use
+- Makes failures easier to triage (startup contracts vs user-visible behaviour regression)
+
+**Consequences:**
+- A bare `200` from `/` or shared text like `Welcome back, Demo User` is not enough to prove route readiness
+- Direct deep-link tests remain valuable but should be explicit route-contract coverage rather than hidden setup
+
+**Session Log:** `.squad/log/2026-04-14T08:03:15Z-e2e-readiness-strategy.md`
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T08:03:15Z-tangy.md`
+
+### Tangy — Flaky Dashboard Flow Evidence
+
+**Decision:** Keep the live localhost auth/session tests aligned to the real user flow, but add bounded Playwright diagnostics around sign-in and dashboard navigation so redirect loops fail with evidence instead of hanging.
+
+**Why:**
+- In live Aspire repros against the current TestSite, the unauthenticated home-page CTA points to `/auth/login?returnUrl=%2Fdashboard`
+- After a successful Keycloak POST, the app returns `302 /signin-oidc -> /dashboard`, then repeatedly returns `302 /dashboard -> /dashboard` until Chromium gives `net::ERR_TOO_MANY_REDIRECTS`
+- Refreshing that blank error page can later land on valid rendered `/dashboard`, which feels flaky even though the response chain is stable
+
+**Implications:**
+- Do not weaken the auth/session Playwright suite to bypass the home CTA just to keep tests green
+- When sign-in or dashboard navigation fails, capture recent `response` events (status, URL, `Location`) and short body preview so failure output names the redirect loop explicitly
+- Treat any follow-up fix as app-routing work, not a test-only issue
+
+**Evidence:**
+- `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`
+- `src/UmbracoPrism.TestSite/Views/HomePage.cshtml`
+- Live Playwright repro on 2026-04-14: `signin-oidc -> /dashboard -> /dashboard... -> net::ERR_TOO_MANY_REDIRECTS`
+
+### Brewster — Classify Transient Seeded Child Route Collapse
+
+**Decision:** Classify a seeded child page briefly resolving to `/` during first boot as a startup convergence artefact, not as normal steady-state Umbraco routing.
+
+**Context:** The TestSite boots against an optional isolated runtime root, can wipe that runtime on cold start, performs unattended install, and then creates/publishes the demo content contract in `WorkflowPageSeeder` when `UmbracoApplicationStartedNotification` fires. Razor views such as `HomePage.cshtml` and `Shared/Master.cshtml` immediately derive navigation targets from `Umbraco.ContentAtRoot()` plus `IPublishedContent.Url()`.
+
+That means the app can observe a narrow window where the published tree can already surface the dashboard/workflow nodes, but the final hierarchical route for a child page has not fully converged yet, so `Url()` can transiently read as `/`.
+
+**Why:**
+- Avoids over-diagnosing the symptom as "Umbraco normally routes child pages to `/` on startup"
+- Avoids blaming the seeder alone; behaviour emerges from interaction between fresh runtime provisioning, development seeding, publish/cache convergence, and immediate route consumption in Razor
+- Framing helps future fixes target readiness/fallbacks and startup sequencing instead of redesigning the authored route contract
+
+**Consequences:**
+- Team should describe symptom as app-specific exposure of an Umbraco startup edge, not expected day-to-day behaviour
+- Warm environments with stable published cache should be treated as baseline; persistent `/` resolution would indicate real defect
+
+### Brewster — Umbraco Readiness Strategy for Seeded Routes
+
+**Decision:** Treat `GET /api/prism/downstream-demo/seed-contract-ready` as the authoritative readiness gate for the seeded Umbraco route contract. Use the home-page `data-prism-home-ready="true"` marker only as a smoke check that the real Razor home page is serving, and keep behavioural assertions strict once the contract reports ready.
+
+**Why:**
+- On a cold boot with the isolated runtime DB reset, seeded child nodes can briefly resolve to `/` before Umbraco's route cache finishes converging
+- That transient `/` is a startup artefact of this repo's seeding/runtime pattern, not the steady-state behaviour tests should learn to accept
+- Waiting on the contract endpoint lets the harness distinguish "site is listening" from "seeded authored routes are actually ready"
+
+**Implications:**
+- Harness startup should not scrape hero copy as the main readiness signal
+- Before driving child-page journeys, the harness should wait for `ready: true` / `routeContractReady: true` and, where relevant, confirm the protected authored URL challenges with the expected `ReturnUrl`
+- Behaviour tests should continue asserting the real authored destinations (`/dashboard`, `/get-in-touch`, `/my-workflows`) instead of allowing `/` as an alternate success path
+
+### Brewster — Dashboard Login Return Target
+
+**Decision:** Public TestSite CTAs that are meant to take members into protected authored content should pass the authored content URL as the login `returnUrl`.
+
+**Context:** The dashboard route itself is still content-owned and healthy: the seeded contract expects `/dashboard`, and prior tracing showed the normal unauthenticated challenge is `/auth/login?ReturnUrl=%2Fdashboard`. The confusing home bounce came from the unauthenticated home-page `Sign In` CTA using `/auth/login` without a return target, so the OIDC callback legitimately redirected back to `/`.
+
+**Why:**
+- Removes the ambiguous "signed-in home page" intermediate state for members whose next intent is clearly the dashboard
+- Keeps the TestSite aligned with Umbraco-authored navigation by reusing the published dashboard URL rather than hardcoding a separate auth target
+- Narrows future dashboard-flake investigations: a bounce to `/` after sign-in now points away from the public CTA wiring
+
+**Implementation Note:** `src/UmbracoPrism.TestSite/Views/HomePage.cshtml` now builds the sign-in link from the content-resolved dashboard URL: `/auth/login?returnUrl={dashboardUrl}`
+
+### Blathers — Classify Seeded Startup Route Instability
+
+**Decision:** Treat the transient `/` route collapse as mainly introduced/amplified by the TestSite's startup model, not as normal steady-state Umbraco behavior.
+
+**Why:**
+- The TestSite seeds and republishes critical content on `UmbracoApplicationStartedNotification`, so child pages can exist in published content before their final hierarchical routes have fully converged
+- The app often runs against a reset isolated runtime root with unattended install enabled, which makes this fresh-boot window common in local/dev flows
+- Home page and shared layout immediately turn published URLs into navigation links and auth `returnUrl` values, so a brief `content.Url() == "/"` leak becomes a persisted redirect target through `AccountController` and `PrismOidcConfiguration`
+- The repo already models this as a readiness concern via `/api/prism/downstream-demo/seed-contract-ready`, which indicates the route contract is expected to stabilize after boot rather than being trustworthy from the first render
+
+**Implications:**
+- Do not describe this as a generic Umbraco routing guarantee or a steady-state platform limitation
+- For local/demo flows, wait for the seeded contract readiness probe or use authored fallback routes when startup-published URLs are still collapsing to `/`
+
+### Blathers — Prefer Seeded Fallback Routes During Cold-Start Route Convergence
+
+**Decision:** When resolving seeded TestSite navigation/auth targets, treat `/` as unstable for non-home pages and keep the authored fallback route instead of trusting the transient published URL.
+
+**Why:**
+- The symptom pattern ("first login may land blank/home, dashboard clicks stay on home before eventually working") matches route/readiness convergence better than cookie issuance timing
+- The same shared helper feeds the home-page sign-in CTA and multiple seeded navigation links, so fixing the helper is a bounded, low-risk backend change
+- Existing readiness diagnostics (`/api/prism/downstream-demo/seed-contract-ready`) already model this as a route contract problem, not an OIDC state/cookie problem
+
+**Consequences:**
+- Cold-start navigation is more stable even while Umbraco's published route cache catches up
+- This does not replace broader readiness gating; it simply prevents transient root-route collapse from surfacing to users
+
+**Orchestration Logs:**
+- `.squad/orchestration-log/2026-04-14T08:03:15Z-brewster.md`
+- `.squad/orchestration-log/2026-04-14T08:03:15Z-blathers.md`
+
+**Recorded by:** Scribe (2026-04-14T08:03:15Z)
