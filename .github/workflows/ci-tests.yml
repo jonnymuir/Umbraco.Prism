@@ -4,15 +4,33 @@ on:
   pull_request:
     paths:
       - 'src/UmbracoPrism.Client/**'
+      - 'src/UmbracoPrism.AppHost/**'
       - 'src/UmbracoPrism.Core/**'
       - 'src/UmbracoPrism.Core.Tests/**'
+      - 'src/UmbracoPrism.KeycloakProxy/**'
+      - 'src/UmbracoPrism.MockBusinessApp/**'
+      - 'src/UmbracoPrism.ServiceDefaults/**'
+      - 'src/UmbracoPrism.Shared/**'
+      - 'src/UmbracoPrism.TestSite/**'
+      - 'keycloak/**'
+      - 'scripts/validate-aspire-prereqs.mjs'
+      - 'ASPIRE_DEV.md'
       - '.github/workflows/ci-tests.yml'
   push:
     branches: [ main ]
     paths:
       - 'src/UmbracoPrism.Client/**'
+      - 'src/UmbracoPrism.AppHost/**'
       - 'src/UmbracoPrism.Core/**'
       - 'src/UmbracoPrism.Core.Tests/**'
+      - 'src/UmbracoPrism.KeycloakProxy/**'
+      - 'src/UmbracoPrism.MockBusinessApp/**'
+      - 'src/UmbracoPrism.ServiceDefaults/**'
+      - 'src/UmbracoPrism.Shared/**'
+      - 'src/UmbracoPrism.TestSite/**'
+      - 'keycloak/**'
+      - 'scripts/validate-aspire-prereqs.mjs'
+      - 'ASPIRE_DEV.md'
       - '.github/workflows/ci-tests.yml'
 
 jobs:
@@ -52,3 +70,41 @@ jobs:
 
       - name: Run core tests
         run: dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+
+  localhost-auth-playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src/UmbracoPrism.Client
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.1
+          cache: 'npm'
+          cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Trust .NET development certificate
+        run: |
+          dotnet dev-certs https
+          dotnet dev-certs https --trust
+
+      - name: Validate Aspire prerequisites
+        run: node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite
+
+      - name: Run localhost auth/session Playwright lane
+        run: npm run test:playwright:localhost-auth
