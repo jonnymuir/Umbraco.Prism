@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -39,8 +40,10 @@ public class BusinessAppWorkflowClient(
 
         try
         {
-            var client = await CreateClientAsync();
-            var response = await client.PostAsync(url, null, cancellationToken);
+            var response = await SendWithTokenRefreshRetryAsync(
+                client => client.PostAsync(url, null, cancellationToken),
+                allowRefreshRetry: true,
+                cancellationToken);
             return await ReadEnvelopeAsync(response, cancellationToken);
         }
         catch (HttpRequestException ex)
@@ -72,8 +75,10 @@ public class BusinessAppWorkflowClient(
 
         try
         {
-            var client = await CreateClientAsync();
-            var response = await client.PostAsJsonAsync(url, payload, cancellationToken);
+            var response = await SendWithTokenRefreshRetryAsync(
+                client => client.PostAsJsonAsync(url, payload, cancellationToken),
+                allowRefreshRetry: true,
+                cancellationToken);
             return await ReadEnvelopeAsync(response, cancellationToken);
         }
         catch (HttpRequestException ex)
@@ -84,7 +89,9 @@ public class BusinessAppWorkflowClient(
     }
 
     /// <inheritdoc/>
-    public async Task<WorkflowInstanceListEnvelope> GetInstancesAsync(CancellationToken cancellationToken = default)
+    public async Task<WorkflowInstanceListEnvelope> GetInstancesAsync(
+        bool allowRefreshRetry = true,
+        CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/api/workflow/instances";
 
@@ -92,8 +99,10 @@ public class BusinessAppWorkflowClient(
 
         try
         {
-            var client = await CreateClientAsync();
-            var response = await client.GetAsync(url, cancellationToken);
+            var response = await SendWithTokenRefreshRetryAsync(
+                client => client.GetAsync(url, cancellationToken),
+                allowRefreshRetry,
+                cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -138,13 +147,34 @@ public class BusinessAppWorkflowClient(
     }
 
     /// <summary>Creates an HTTP client for calling the Business App, with the member's Bearer token attached.</summary>
-    private async Task<HttpClient> CreateClientAsync()
+    private async Task<HttpClient> CreateClientAsync(bool forceRefresh = false)
     {
         var client = httpClientFactory.CreateClient("PrismBusinessApp");
-        var authHeader = await prismContext.GetAuthorizationHeaderAsync();
+        var authHeader = await prismContext.GetAuthorizationHeaderAsync(forceRefresh);
         if (authHeader != null)
             client.DefaultRequestHeaders.Authorization = authHeader;
         return client;
+    }
+
+    private async Task<HttpResponseMessage> SendWithTokenRefreshRetryAsync(
+        Func<HttpClient, Task<HttpResponseMessage>> send,
+        bool allowRefreshRetry,
+        CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync();
+        var response = await send(client);
+        if (response.StatusCode != HttpStatusCode.Unauthorized || !allowRefreshRetry)
+        {
+            return response;
+        }
+
+        logger.LogInformation("Business App returned 401; forcing a refresh-token exchange before retrying the request.");
+        response.Dispose();
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var refreshedClient = await CreateClientAsync(forceRefresh: true);
+        return await send(refreshedClient);
     }
 
     /// <summary>

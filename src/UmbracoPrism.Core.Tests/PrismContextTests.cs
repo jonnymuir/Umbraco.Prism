@@ -66,6 +66,179 @@ public class PrismContextTests
     }
 
     [Fact]
+    public async Task GetAuthorizationHeaderAsync_ForceRefreshes_WhenAccessTokenIsStillMarkedValid()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "stale-access-token" },
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(10).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"))
+            .ReturnsAsync("prism-dev-secret");
+
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted))
+            .ReturnsAsync(new TokenRefreshResult(true, "refreshed-access-token", "refreshed-refresh-token", 3600));
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client",
+                OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+                OidcClientSecretReference = "prism-dev-secret"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync(forceRefresh: true);
+
+        header.Should().NotBeNull();
+        header!.Parameter.Should().Be("refreshed-access-token");
+        tokenRefreshService.Verify(
+            t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_RefreshesPreRestartGenericOidcToken_OnFirstUseInNewRuntime()
+    {
+        var props = new AuthenticationProperties
+        {
+            IssuedUtc = DateTimeOffset.UtcNow.AddHours(-1)
+        };
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "stale-pre-restart-access-token" },
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(10).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"))
+            .ReturnsAsync("prism-dev-secret");
+
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted))
+            .ReturnsAsync(new TokenRefreshResult(true, "fresh-post-restart-access-token", "fresh-refresh-token", 3600));
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client",
+                OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+                OidcClientSecretReference = "prism-dev-secret"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().NotBeNull();
+        header!.Parameter.Should().Be("fresh-post-restart-access-token");
+        tokenRefreshService.Verify(
+            t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAuthorizationHeaderAsync_RefreshesWhenAccessTokenMissingButRefreshTokenExists()
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(10).ToString("o") }
+        });
+
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"))
+            .ReturnsAsync("prism-dev-secret");
+
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted))
+            .ReturnsAsync(new TokenRefreshResult(true, "recovered-access-token", "fresh-refresh-token", 3600));
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client",
+                OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+                OidcClientSecretReference = "prism-dev-secret"
+            }
+        };
+
+        var header = await prismContext.GetAuthorizationHeaderAsync();
+
+        header.Should().NotBeNull();
+        header!.Parameter.Should().Be("recovered-access-token");
+        tokenRefreshService.Verify(
+            t => t.RefreshAsync(
+                "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                httpContext.RequestAborted),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task GetAuthorizationHeaderAsync_ReturnsNull_WhenPrincipalTenantDoesNotMatchCurrentTenant()
     {
         var props = new AuthenticationProperties();
@@ -335,7 +508,7 @@ public class PrismContextTests
         header!.Parameter.Should().Be("new-access-token");
         postedForm.Should().NotBeNull();
         postedForm!["client_secret"].Should().Be("resolved-secret");
-        postedForm["scope"].Should().Be("openid profile offline_access");
+        postedForm["scope"].Should().Be("openid profile");
     }
 
     [Fact]

@@ -1,4 +1,3 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "~/Views/Shared/Master.cshtml";
@@ -13,9 +12,9 @@
     var isLimitedEdition = Model.Value<bool>("isLimitedEdition");
     
     // Get parent genre page
-    var genrePage = Model.Parent<VinylGenreLanding>();
-    var genreName = genrePage?.Genre ?? genre;
-    var vaultHomePage = Model.Root()?.Children<VinylVaultHome>().FirstOrDefault();
+    var genrePage = Model.Parent();
+    var genreName = genrePage?.Value<string>("genre") ?? genre;
+    var vaultHomePage = Model.Root()?.Children().FirstOrDefault(child => child.ContentType.Alias == "vinylVaultHome");
 }
 
 <div class="vinyl-detail">

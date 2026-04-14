@@ -14,6 +14,7 @@
     "test-storybook:ci": "start-server-and-test storybook http://127.0.0.1:6006 test-storybook",
     "test-storybook:ci:all": "start-server-and-test storybook http://127.0.0.1:6006 \"npm run test-storybook:all\"",
     "test:playwright": "playwright test",
+    "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:ui": "playwright test --ui"
   },
   "dependencies": {

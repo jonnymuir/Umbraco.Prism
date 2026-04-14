@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
+using Umbraco.Extensions;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Controllers;
@@ -27,8 +28,10 @@ public class MemberDashboardController(
     /// the login page (the <c>[Authorize]</c> challenge handles this via the
     /// PrismMemberCookie scheme's configured <c>LoginPath</c>, but we also
     /// guard explicitly for any edge cases).
-    /// Proactively warms up (and refreshes if expired) the Prism access token
-    /// so the downstream API demo works immediately without a page reload.
+    /// The dashboard no longer performs token warmup during the initial page
+    /// render because auth-cookie renewal on first navigation can trigger a
+    /// self-redirect loop before the page settles. Downstream API actions
+    /// still refresh on demand when the user invokes them.
     /// </summary>
     // 'override' matches the base RenderController.Index() signature exactly, ensuring
     // only one endpoint is registered for this route. ASP.NET Core has no
@@ -37,19 +40,6 @@ public class MemberDashboardController(
     {
         if (User.Identity?.IsAuthenticated != true)
             return Redirect("/auth/login?returnUrl=/dashboard");
-
-        // Warm up the token — triggers a silent refresh if near expiry.
-        // Wrapped in try/catch so infrastructure failures (vault, HTTP factory)
-        // degrade gracefully: page still renders, user can navigate, and downstream
-        // API calls will surface their own errors rather than crashing the dashboard.
-        try
-        {
-            prismContext.GetAuthorizationHeaderAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Token warmup failed during dashboard page load; continuing with potentially stale token");
-        }
 
         ViewBag.DisplayName = User.FindFirst("name")?.Value
                               ?? User.FindFirst("preferred_username")?.Value
@@ -62,6 +52,9 @@ public class MemberDashboardController(
                           ?? "";
         ViewBag.Tenant = prismContext.CurrentTenant;
 
-        return CurrentTemplate(CurrentPage!);
+        // Render the authored dashboard view directly. On the first authenticated
+        // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle
+        // into a self-redirect loop on /dashboard under the local Aspire stack.
+        return View("~/Views/MemberDashboard.cshtml", CurrentPage!);
     }
 }

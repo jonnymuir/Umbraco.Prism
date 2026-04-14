@@ -25,7 +25,8 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 {
 
     private const string PrismNoncePropertiesKey = ".prism_nonce";
-    private const string GenericOidcBrowserScopes = "openid profile offline_access";
+    private const string GenericOidcBrowserScopes = "openid profile";
+    private const string LocalDemoOfflineScopes = "openid profile offline_access";
     private const string LocalDemoHostname = "localhost";
     private const string LocalDemoClientId = "prism-client";
 
@@ -33,10 +34,22 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
     {
         if (!string.IsNullOrWhiteSpace(tenant.OidcAuthority))
         {
-            return GenericOidcBrowserScopes;
+            return IsRepoOwnedLocalDemoTenant(tenant)
+                ? LocalDemoOfflineScopes
+                : GenericOidcBrowserScopes;
         }
 
         return $"openid profile offline_access {tenant.EntraClientId}/.default";
+    }
+
+    internal static string? GetRefreshScope(PrismTenant tenant)
+    {
+        if (IsRepoOwnedLocalDemoTenant(tenant))
+        {
+            return null;
+        }
+
+        return GetRequestedScope(tenant);
     }
 
     internal static async Task<string> ResolveClientSecretAsync(PrismTenant tenant, ISecretVaultService vault)
@@ -219,10 +232,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             {
                 if (!string.IsNullOrEmpty(tenant.OidcAuthority))
                 {
-                    // Request standard session-bound refresh semantics for generic OIDC providers.
-                    // Offline tokens are longer-lived and require an explicit product need plus
-                    // separate provider-side authorization.
-                    context.ProtocolMessage.Scope = GenericOidcBrowserScopes;
+                    // The repo-owned localhost demo opts into offline tokens so downstream calls can
+                    // survive a full local AppHost restart. Other generic OIDC tenants keep the
+                    // standard minimal browser scopes unless product requirements say otherwise.
+                    context.ProtocolMessage.Scope = GetRequestedScope(tenant);
                 }
 
                 var promptOverride = context.Properties.Items.TryGetValue(
@@ -311,6 +324,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
                 // Use the existing properties from the context (which contain the PKCE verifier, etc.)
                 var props = context.Properties ?? new AuthenticationProperties();
+                props.IssuedUtc = DateTimeOffset.UtcNow;
                 props.StoreTokens(tokens);
 
                 // Validate the ID token — parse header first to get kid for cache lookup (no claim trust at this stage)
@@ -426,8 +440,11 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
                 var identity = new ClaimsIdentity(jwt.Claims, "PrismEntraID", "name", "role");
                 var principal = new ClaimsPrincipal(identity);
+                var returnUrl = props.RedirectUri ?? "/";
 
-                // We pass 'props' here. This is what writes the encrypted cookie.
+                // Persist the Prism member session without carrying the one-off post-login
+                // redirect target forward into later authenticated requests.
+                props.RedirectUri = null;
                 await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
 
                 // Tell the OIDC middleware to STOP. 
@@ -435,7 +452,6 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 context.HandleResponse();
 
                 // Redirect manually
-                var returnUrl = props.RedirectUri ?? "/";
                 context.Response.Redirect(returnUrl);
             }
         };
@@ -459,10 +475,27 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                         context.ProtocolMessage.ClientId = tenant.OidcClientId;
                     }
 
-                    // Generic OIDC logout: omit id_token_hint to avoid provider rejection.
-                    // Keycloak and other providers support logout with just client_id and post_logout_redirect_uri.
-                    // Sending id_token_hint from cookie can cause "Invalid parameter: id_token_hint" errors
-                    // if the token doesn't match provider expectations (e.g., cross-tenant cookie reuse).
+                    if (string.IsNullOrWhiteSpace(context.ProtocolMessage.IdTokenHint))
+                    {
+                        var authResult = await context.HttpContext.AuthenticateAsync("PrismMemberCookie");
+                        var idToken = authResult.Properties?.GetTokens()
+                            ?.FirstOrDefault(token => token.Name == "id_token")
+                            ?.Value;
+
+                        if (!string.IsNullOrWhiteSpace(idToken))
+                        {
+                            context.ProtocolMessage.IdTokenHint = idToken;
+                            logger.LogDebug(
+                                "Prism OIDC logout restored id_token_hint from PrismMemberCookie for generic authority {Authority}",
+                                tenant.OidcAuthority);
+                        }
+                        else
+                        {
+                            logger.LogWarning(
+                                "Prism OIDC logout is missing id_token_hint for generic authority {Authority}; logout will fall back to client_id only",
+                                tenant.OidcAuthority);
+                        }
+                    }
                 }
                 else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
                 {

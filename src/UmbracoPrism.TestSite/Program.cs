@@ -1,4 +1,14 @@
+using UmbracoPrism.TestSite;
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+var runtimeLayout = TestSiteRuntimeLayout.Apply(builder);
+
+if (runtimeLayout.IsEnabled)
+{
+    Console.WriteLine(
+        $"PRISM TESTSITE: Using isolated runtime root '{runtimeLayout.RuntimeRoot}' " +
+        $"(db: '{runtimeLayout.DatabasePath}', reset: {runtimeLayout.WasReset}).");
+}
 
 builder.CreateUmbracoBuilder()
     .AddBackOffice()

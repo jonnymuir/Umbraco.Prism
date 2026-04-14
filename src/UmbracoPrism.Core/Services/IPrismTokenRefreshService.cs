@@ -25,4 +25,5 @@ public interface IPrismTokenRefreshService
 /// <param name="AccessToken">The new access token, or null on failure.</param>
 /// <param name="RefreshToken">The new refresh token, or null when not returned.</param>
 /// <param name="ExpiresIn">Lifetime in seconds of the new access token, or null when not returned.</param>
-public record TokenRefreshResult(bool Success, string? AccessToken, string? RefreshToken, int? ExpiresIn);
+/// <param name="FailureReason">High-level refresh failure category for diagnostics, or null on success.</param>
+public record TokenRefreshResult(bool Success, string? AccessToken, string? RefreshToken, int? ExpiresIn, string? FailureReason = null);

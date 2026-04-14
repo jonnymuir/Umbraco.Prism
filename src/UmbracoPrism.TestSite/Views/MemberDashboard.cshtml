@@ -1,11 +1,18 @@
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
 @{
-    Layout = "Master";
+    Layout = "~/Views/Shared/Master.cshtml";
 
     var tenant = PrismContext.CurrentTenant;
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
+    var rootContent = Umbraco.ContentAtRoot().ToList();
+    var workflowHubUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.WorkflowHubAlias),
+        TestSiteSeedContract.WorkflowHubUrl);
+    var workflowPageUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.WorkflowKey),
+        TestSiteSeedContract.WorkflowPageUrl);
 }
 
 <main class="dash-page">
@@ -35,13 +42,13 @@
                 <div class="dash-card__icon dash-card__icon--workflow">📋</div>
                 <h3>My Workflows</h3>
                 <p>View all your active and completed workflow submissions in one place.</p>
-                <a href="/my-workflows" class="btn btn-primary" style="margin-top: 12px;">View Workflows</a>
+                <a href="@workflowHubUrl" class="btn btn-primary" style="margin-top: 12px;">View Workflows</a>
             </div>
             <div class="dash-card dash-card--cta">
                 <div class="dash-card__icon dash-card__icon--workflow">📝</div>
                 <h3>Get in Touch</h3>
                 <p>Submit an inquiry or request using our workflow system with pre-filled details.</p>
-                <a href="/get-in-touch" class="btn btn-primary" style="margin-top: 12px;">Start Workflow</a>
+                <a href="@workflowPageUrl" class="btn btn-primary" style="margin-top: 12px;">Start Workflow</a>
             </div>
         </div>
 

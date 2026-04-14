@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  testIgnore: ['**/localhost-auth-session.spec.ts'],
   timeout: 30_000,
   retries: 1,
   use: {

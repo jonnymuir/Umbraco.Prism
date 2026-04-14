@@ -114,6 +114,16 @@
 - Total test count: 168 (165 existing + 3 new), 0 failures.
 - Gotcha: `GetAwaiter().GetResult()` on `WarmAsync` inside `ResolveSigningKeys` means blocking the calling thread; for concurrency tests use `Task.Run` callers to avoid deadlock on the test thread. Use `warmStarted` TCS to ensure callers are blocking before releasing the gate — avoids `Task.Delay` timing fragility.
 
+## Learnings
+
+- 2026-04-14 (localhost Aspire auth flake strategy): For the live Playwright suite, split readiness into three layers: machine-readable startup probes first, page-specific CTA/affordance checks second, and only then the behaviour assertion being tested.
+- Do not let unrelated auth or workflow tests use direct deep links as generic setup during cold start. In this repo, deep links like `/dashboard`, `/my-workflows`, and `/get-in-touch` should either come from authored CTAs with asserted `href`s or be exercised as explicit route-contract checks after `/api/prism/downstream-demo/seed-contract-ready` is true.
+- In the current localhost auth flow, a home-page sign-in CTA that carries `returnUrl=/dashboard` can hide a dashboard redirect loop behind a browser blank page. Capture recent 302 `Location` headers around sign-in/dashboard navigation so Playwright failures show `signin-oidc -> /dashboard -> /dashboard...` instead of hanging.
+- 2026-04-14 (localhost startup diagnosis): The Aspire-backed harness does reach its readiness gate on a clean boot; current startup blockers were harness-side observability and rerun hygiene, not the readiness contract itself.
+- Use listener-based port ownership checks for the localhost Aspire lane, not HTTP/root probes, because the Aspire resource-service port (`22194`) can be bound without answering a readiness GET and stale listeners can otherwise slip past preflight.
+- Immediate reruns after a start/stop or failed lane can spend ~30s draining listeners; give the prereq gate and `LiveAppHost.ensurePortsAreAvailable()` a bounded grace period before failing fast, and include occupied PIDs plus per-check readiness details in timeout errors.
+- With startup stable, the current full-lane product failure reproduced at `signed-in member can still call the mock business app API after the whole stack restarts`, where the dashboard shows `401 Request Failed` after restart even though the pre-restart startup/auth path passed.
+
 ## 2026-03-29 — OIDC Signing Key Cold-Start Test Coverage
 
 **Session:** OIDC Signing Key Fix  
@@ -1009,3 +1019,12 @@ Blathers completed restart-only downstream auth investigation/fix pass. Outcome:
 - Keep desired user contract: signed-in members should reach `/dashboard` and see dashboard-only actions
 - In Playwright helpers, treat `View Workflows` and `Call Mock Business App API` as readiness signals
 - Report app routing breaks when dashboard-only elements do not appear
+
+## Learnings — 2026-04-14 — Restart API call diagnostics
+
+- Enhanced callBusinessAppApi helper with detailed error diagnostics to expose the actual API response when the 200 OK assertion fails.
+- The failing test 'signed-in member can still call the mock business app API after the whole stack restarts' now shows clear failure mode: **401 Request Failed** with message **Your Prism session is no longer valid. Sign in again, then retry the call.**
+- The behavioural contract violation is specific: after a restart, the frontend auth state persists (user can access home page, dashboard, and see their profile), but the backend Prism session for downstream API calls is lost.
+- Adding await expectSignedInHome(page) before the API call confirms the user is still logged in from the frontend perspective, isolating the failure to the downstream bearer token contract.
+- This diagnostic improvement provides actionable signal for Blathers: the restart-stale session detection is working for the frontend, but the downstream API bearer token is not being refreshed or reestablished after restart.
+- Test suite now runs reliably with 5/8 passing; the 3 restart-related tests remain red as expected until Blathers lands the downstream refresh fix.

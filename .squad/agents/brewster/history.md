@@ -46,6 +46,7 @@
 - **Full AppHost restarts still invalidate pre-restart localhost Keycloak access tokens.** The TestSite can keep its Prism cookie session alive and now retries downstream calls with a forced refresh-token exchange, but the live restart API contract still needs deeper Keycloak/AppHost session persistence work outside the Umbraco route/readiness fix.
 - **Dashboard route contract is direct, but browser tests should enter via the authored CTA.** The seeded TestSite contract still requires `memberDashboard` to publish at `/dashboard`, and unauthenticated requests correctly challenge through `/auth/login?ReturnUrl=%2Fdashboard`. For live Playwright flows, the most stable path is to assert the signed-in home page's `Go to Dashboard` link resolves to `/dashboard`, then click it so the test follows the same Umbraco-authored navigation editors see.
 - **`/dashboard` itself does not bounce to `/`.** In the current localhost stack, an anonymous `GET /dashboard` challenges to `/auth/login?ReturnUrl=%2Fdashboard`, and a direct dashboard login returns from `/signin-oidc` back to `/dashboard`. The 302 to `/` appears when login starts from the home-page `Sign In` CTA, because `AccountController.Login()` defaults `returnUrl` to `/` when no `ReturnUrl` query string was supplied.
+- **Cold-start can change authored link targets before route convergence finishes.** In this TestSite, Razor builds CTAs/nav from `Umbraco.ContentAtRoot()` plus `content.Url()` during the request, while `WorkflowPageSeeder` only seeds/publishes on `UmbracoApplicationStartedNotification` against a fresh runtime DB. On a clean boot, a seeded page can already be discoverable in the published tree but still report `"/"` until Umbraco's hierarchical route cache finishes converging, so a home-page CTA can momentarily emit `/auth/login?returnUrl=%2F` and bounce the member back to Home even though the eventual page contract is `/dashboard`, `/get-in-touch`, or `/my-workflows`.
 
 ---
 
@@ -1663,6 +1664,11 @@ Blathers spawned to fix restart-only downstream API failure; Tangy to validate a
 
 **Task Summary:**
 - Brewster: Confirm `/dashboard` route validity and auth challenge behavior ✅
+
+## Learnings (2026-04-14 — Dashboard home-bounce diagnosis)
+
+- **A signed-in bounce back to `/` is more likely a home-owned auth entry point than broken Umbraco dashboard routing.** In this repo the dashboard CTA already resolves from published content to `/dashboard`, and the known `/ -> login -> /` loop comes from the unauthenticated home-page `Sign In` link omitting a `returnUrl`, which makes `AccountController.Login` and the OIDC callback fall back to `/`.
+- **For member-area CTAs on public TestSite pages, carry the authored target into the login link.** `Views/HomePage.cshtml` should build `/auth/login?returnUrl={dashboardUrl}` from the same content-resolved dashboard URL it shows after sign-in, so the first successful login lands on the intended member page instead of the ambiguous signed-in home page.
 - Blathers: Inspect auth/session redirect flow ⏳
 - Tangy: Complete dashboard navigation trace and identify test readiness signals ✅
 
@@ -1673,3 +1679,26 @@ Blathers spawned to fix restart-only downstream API failure; Tangy to validate a
 - Route contract is valid; redirect behavior is login flow specific
 
 **Decision Merged:** Consolidated Brewster and Tangy findings into `.squad/decisions.md` section "📌 2026-04-13: Brewster — Dashboard Route Contract" with sub-section "Tangy — Dashboard navigation trace"
+
+## Learnings (2026-04-14 — Classifying transient seeded child routes)
+
+- **A seeded child briefly resolving to `/` on first boot is not normal steady-state Umbraco behaviour; it is mainly a cold-start convergence artefact of this app's runtime pattern.** In this repo we intentionally boot against a reset isolated runtime DB, run unattended install, then publish the demo tree in `WorkflowPageSeeder` on `UmbracoApplicationStartedNotification` while Razor immediately resolves links from `ContentAtRoot()` + published `Url()`. That combination can expose a short window where the node exists in published discovery before Umbraco has finished computing the final hierarchical child path.
+- **So the right classification is "Umbraco can transiently do this during startup, but our seeding/runtime design is what makes it visible and user-facing."** A warm, already-settled Umbraco site should not keep returning `/` for a valid child page; our development-only reset/seeding flow and eager route consumption are the primary reasons the wrong-route symptom shows up here.
+
+## Learnings (2026-04-14 — Route-readiness strategy for cold boots)
+
+- **The test harness should wait for the seeded route contract, not for page copy.** In this repo the authoritative startup signal is `GET /api/prism/downstream-demo/seed-contract-ready` returning `ready: true` / `routeContractReady: true`, with the home-page `data-prism-home-ready="true"` marker acting only as a smoke check that the real Razor site is serving.
+- **Behaviour tests should never absorb cold-start convergence quirks into their assertions.** Once readiness says the contract is settled, tests should require the authored URLs and expected auth challenge targets (`/dashboard`, `/get-in-touch`, `/my-workflows`), rather than tolerating a transient `/` fallback that only exists during fresh-runtime bootstrapping.
+
+## Learnings (2026-04-14 — Auth cookie redirect leakage and seeded routes)
+
+- **Do not persist the one-off OIDC post-login `RedirectUri` inside `PrismMemberCookie`.** In this repo, storing `/dashboard` on the auth ticket let later protected requests such as `/my-workflows` collapse back to the previous login target even after `seed-contract-ready` reported the authored route contract as settled. Capture the return target for the immediate `/signin-oidc` redirect, then clear `AuthenticationProperties.RedirectUri` before issuing the long-lived member cookie.
+- **A seeded-route readiness probe can be truly correct while a persisted auth redirect still falsifies later browser navigation.** `GET /api/prism/downstream-demo/seed-contract-ready` remained authoritative for Umbraco route convergence, but the browser could still be bounced from `/my-workflows` to `/dashboard` until the auth cookie stopped carrying stale redirect state. Treat that as a separate auth-session leak layered on top of the startup contract, not as proof the seed probe is wrong.
+
+## Learnings (2026-04-14 — Restart auth recovery and offline_access scope strategy)
+
+- **The restart auth recovery was already implemented correctly in working-tree changes.** The fix required three coordinated pieces: (1) PrismContext.ShouldRefreshForRuntimeRestart() detects when IssuedUtc < ProcessStartedUtc and forces a token refresh, (2) PrismOidcConfiguration.GetRefreshScope() returns null for the localhost demo tenant (signaling "omit scope parameter, use original scopes from initial login"), and (3) PrismOidcConfiguration.OnAuthorizationCodeReceived sets IssuedUtc = DateTimeOffset.UtcNow on the auth properties before persisting the cookie, ensuring future runtimes can detect the pre-restart session.
+- **Generic OIDC tenants should NOT request offline_access by default.** The repo-owned localhost demo (localhost:8443/realms/prism-dev) is special-cased to request "openid profile offline_access" for restart-tolerant demos, but other generic OIDC tenants default to "openid profile" only (standard browser session scopes). This prevents production tenants from accidentally requesting long-lived refresh tokens without explicit product requirements and provider-side authorization.
+- **Keycloak refresh token calls should omit the scope parameter entirely when using tokens issued with offline_access.** When the initial login included offline_access, the refresh_token grant should not restate scopes — Keycloak uses the original scopes bound to that refresh token. Sending scope=openid profile on refresh (without offline_access) can cause Keycloak to reject the call. The correct fix is GetRefreshScope() returning null for localhost demo, which PrismContext converts to an empty string, which then skips adding scope to the form parameters.
+- **Pre-existing Phase1SecurityRegressionTests failures are unrelated to this work.** The AccountController_Login_RejectsExternalRedirect tests expect an InvalidOperationException to be thrown when calling LocalRedirect() with an external URL, but the test setup creates an unauthenticated principal, so the controller returns Challenge() instead of entering the LocalRedirect() branch. These tests were failing before the working-tree changes and remain failing after — they need separate investigation/correction.
+- **The full localhost auth suite (8 tests) now passes, including the restart test.** All Playwright contracts pass: sign-in flow, API call, My Workflows navigation, seeded workflow page, dashboard navigation, restart + API call, sign-out, and restart + sign-out. The Core unit tests (PrismContextTests, PrismOidcConfigurationTests) also pass (26 tests total).

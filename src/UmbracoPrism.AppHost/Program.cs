@@ -3,12 +3,26 @@ using System.Runtime.InteropServices;
 var builder = DistributedApplication.CreateBuilder(args);
 const string KeycloakProxyUrl = "https://localhost:8443";
 const string BusinessAppUrl = "https://localhost:7245";
+const string TestSiteRuntimeRootEnvironmentVariable = "PRISM_TESTSITE_RUNTIME_ROOT";
+const string ResetTestSiteRuntimeEnvironmentVariable = "PRISM_TESTSITE_RESET_RUNTIME";
+
+var defaultTestSiteRuntimeRoot = Path.GetFullPath(
+    Path.Combine(builder.Environment.ContentRootPath, "..", "..", "artifacts", "aspire", "testsite-runtime"));
+var defaultKeycloakDataRoot = Path.GetFullPath(
+    Path.Combine(builder.Environment.ContentRootPath, "..", "..", "artifacts", "aspire", "keycloak-data"));
+var testSiteRuntimeRoot =
+    Environment.GetEnvironmentVariable(TestSiteRuntimeRootEnvironmentVariable) ?? defaultTestSiteRuntimeRoot;
+var keycloakDataRoot =
+    Environment.GetEnvironmentVariable("PRISM_KEYCLOAK_DATA_ROOT") ?? defaultKeycloakDataRoot;
+var resetTestSiteRuntime =
+    Environment.GetEnvironmentVariable(ResetTestSiteRuntimeEnvironmentVariable) ?? bool.FalseString;
 
 var needsKeycloakSveWorkaround =
     OperatingSystem.IsMacOS() &&
     RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
 // Add Keycloak as a container resource on HTTP 8080.
+// Data directory is bind-mounted to persist sessions/tokens across restarts.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
     .WithEnvironment("KEYCLOAK_ADMIN", "admin")
@@ -16,6 +30,7 @@ var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26
     .WithEnvironment("KC_HEALTH_ENABLED", "true")
     .WithEnvironment("KC_METRICS_ENABLED", "true")
     .WithBindMount("../../keycloak", "/opt/keycloak/data/import")
+    .WithBindMount(keycloakDataRoot, "/opt/keycloak/data/h2")
     .WithArgs("start-dev", "--import-realm", "--proxy-headers", "xforwarded");
 
 if (needsKeycloakSveWorkaround)
@@ -39,6 +54,8 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
 builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", KeycloakProxyUrl)
     .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", BusinessAppUrl)
+    .WithEnvironment(TestSiteRuntimeRootEnvironmentVariable, testSiteRuntimeRoot)
+    .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
     .WaitFor(businessApp);
 

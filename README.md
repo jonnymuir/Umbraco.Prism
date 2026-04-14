@@ -43,6 +43,7 @@ Then:
 The repo-owned local Keycloak flow uses standard OIDC code-flow scopes, so a fresh clone does not need Keycloak offline tokens enabled.
 The imported local Keycloak client also includes the Prism sign-out callback URLs, and Prism now preserves the OIDC `id_token` in the session so RP-initiated logout can send Keycloak the required `id_token_hint`.
 The downstream MockBusinessApp also trusts that same HTTPS Keycloak authority (`https://localhost:8443`), so the dashboard demo and workflow calls validate the forwarded bearer token against the browser-facing issuer rather than Keycloak's internal `http://localhost:8080` container URL.
+Aspire also keeps the TestSite SQLite DB and cookie key ring under `artifacts/aspire/testsite-runtime/`, so the full-stack demo and restart-heavy Playwright suite do not mutate the standalone `src/UmbracoPrism.TestSite/umbraco/Data/` database.
 
 > For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](ASPIRE_DEV.md).
 
@@ -310,6 +311,25 @@ npm ci
 npx playwright install --with-deps
 npm run test-storybook:ci:all
 ```
+
+### Localhost auth/session Playwright regressions
+
+These behavioural-contract tests run against the real Aspire stack rather than Storybook. The suite validates Aspire prerequisites, boots its own `UmbracoPrism.AppHost` session, waits for the dashboard plus seeded app resources to be ready, then signs into the seeded Keycloak demo user and restarts the whole localhost stack mid-run to verify session continuity.
+
+**Before running:**
+
+- Docker Desktop must be running
+- `dotnet dev-certs https --trust` must already be done
+- The default Aspire ports (`17214`, `44345`, `7245`, `8443`) must be free because the suite owns the stack lifecycle and will not attach to an existing or partial stack
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test:playwright:localhost-auth
+```
+
+The suite uses the seeded demo identity from `keycloak/realm-export.json`: `demo@prism.local` / `password`.
+
+**Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/workflow flows use — `Home` (`/`), `Dashboard` (`/dashboard`), `Get in Touch` (`/get-in-touch`, workflow key `community-enquiry`), `My Workflows` (`/my-workflows`), plus the `Settings` node mobile nav entries for Home/Dashboard/My Workflows. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
 
 ### Core Tests (UmbracoPrism.Core)
 

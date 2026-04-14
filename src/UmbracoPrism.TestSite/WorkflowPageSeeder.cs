@@ -9,9 +9,9 @@ using Umbraco.Cms.Core.Services;
 namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Seeds a demo "Get in Touch" content node of type <c>workflowPage</c> at
-/// <c>/get-in-touch</c> so the route-hijacking controller has a real content
-/// node to intercept.  Development-only, idempotent.
+/// Ensures the seeded member journey content contract exists for the local
+/// auth/workflow flows: Home, Dashboard, Get in Touch, and My Workflows.
+/// Development-only and idempotent.
 /// </summary>
 public class WorkflowPageSeeder(
     IContentService contentService,
@@ -30,6 +30,7 @@ public class WorkflowPageSeeder(
 
         try
         {
+            EnsureHomeAndDashboard();
             CleanupOldRetirementQuotePage();
             EnsureCommunityEnquiryPage();
             EnsureWorkflowHubPage();
@@ -44,10 +45,8 @@ public class WorkflowPageSeeder(
 
     private void CleanupOldRetirementQuotePage()
     {
-        // Delete the old "Retirement Quote" demo node if it exists
-        var oldPage = contentService
-            .GetRootContent()
-            .FirstOrDefault(c => c.ContentType.Alias == "workflowPage"
+        var oldPage = EnumerateContentTree()
+            .FirstOrDefault(c => c.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
                               && (string.Equals(c.Name, "Retirement Quote", StringComparison.OrdinalIgnoreCase)
                                   || string.Equals(c.GetValue<string>("workflowKey"), "retirement-quote", StringComparison.OrdinalIgnoreCase)));
 
@@ -62,82 +61,171 @@ public class WorkflowPageSeeder(
         }
     }
 
+    private void EnsureHomeAndDashboard()
+    {
+        var homeType = contentTypeService.Get(TestSiteSeedContract.HomePageAlias);
+        if (homeType == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: homePage doc type not found; skipping home/dashboard seed");
+            return;
+        }
+
+        var homePage = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.HomePageAlias);
+        if (homePage == null)
+        {
+            logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded home page");
+            homePage = contentService.Create(TestSiteSeedContract.HomePageName, Constants.System.Root, TestSiteSeedContract.HomePageAlias);
+        }
+
+        SaveAndPublishIfNeeded(homePage, TestSiteSeedContract.HomePageName, null, "seeded home page");
+
+        var dashboardType = contentTypeService.Get(TestSiteSeedContract.DashboardAlias);
+        if (dashboardType == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: memberDashboard doc type not found; skipping dashboard seed");
+            return;
+        }
+
+#pragma warning disable CS0618
+        var dashboardPage = contentService.GetPagedChildren(homePage.Id, 0, 100, out _)
+#pragma warning restore CS0618
+            .FirstOrDefault(c => c.ContentType.Alias == TestSiteSeedContract.DashboardAlias)
+            ?? TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.DashboardAlias);
+
+        if (dashboardPage == null)
+        {
+            logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded dashboard page");
+            dashboardPage = contentService.Create(TestSiteSeedContract.DashboardName, homePage.Id, TestSiteSeedContract.DashboardAlias);
+        }
+
+        SaveAndPublishIfNeeded(dashboardPage, TestSiteSeedContract.DashboardName, null, "seeded dashboard page");
+    }
+
     private void EnsureCommunityEnquiryPage()
     {
-        var contentType = contentTypeService.Get("workflowPage");
+        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
         if (contentType == null)
         {
             logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping (run again after seeder)");
             return;
         }
 
-        // Check if the new community-enquiry node already exists (by name OR workflowKey)
-        var existing = contentService
-            .GetRootContent()
-            .FirstOrDefault(c => c.ContentType.Alias == "workflowPage"
-                              && (string.Equals(c.Name, "Get in Touch", StringComparison.OrdinalIgnoreCase)
-                                  || string.Equals(c.GetValue<string>("workflowKey"), "community-enquiry", StringComparison.OrdinalIgnoreCase)));
+        var existing = TestSiteSeedContract.FindWorkflowContent(contentService, TestSiteSeedContract.WorkflowKey);
 
         if (existing != null)
         {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: 'Get in Touch' content node already exists");
+            SaveAndPublishIfNeeded(
+                existing,
+                TestSiteSeedContract.WorkflowPageName,
+                page => page.SetValue("workflowKey", TestSiteSeedContract.WorkflowKey),
+                "seeded workflow page");
             return;
         }
 
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating 'Get in Touch' content node");
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded workflow page");
 
-        var page = contentService.Create("Get in Touch", Constants.System.Root, "workflowPage");
-        page.SetValue("workflowKey", "community-enquiry");
-
-        var saveResult = contentService.Save(page);
-        if (!saveResult.Success)
-        {
-            logger.LogWarning("WORKFLOW PAGE SEEDER: Save failed — {Reason}", saveResult.Result);
-            return;
-        }
-
-        var publishResult = contentService.Publish(page, Array.Empty<string>());
-        if (publishResult.Success)
-            logger.LogInformation("WORKFLOW PAGE SEEDER: 'Get in Touch' published (id={Id})", page.Id);
-        else
-            logger.LogWarning("WORKFLOW PAGE SEEDER: Publish failed — {Reason}", publishResult.Result);
+        var page = contentService.Create(TestSiteSeedContract.WorkflowPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
+        page.SetValue("workflowKey", TestSiteSeedContract.WorkflowKey);
+        SaveAndPublishIfNeeded(page, TestSiteSeedContract.WorkflowPageName, null, "seeded workflow page");
     }
 
     private void EnsureWorkflowHubPage()
     {
-        var contentType = contentTypeService.Get("workflowHub");
+        var homePage = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.HomePageAlias);
+        if (homePage == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: homePage not found; skipping workflow hub seed");
+            return;
+        }
+
+        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowHubAlias);
         if (contentType == null)
         {
             logger.LogDebug("WORKFLOW PAGE SEEDER: workflowHub doc type not found; skipping (run again after seeder)");
             return;
         }
 
-        // Check if the workflow hub node already exists
-        var existing = contentService
-            .GetRootContent()
-            .FirstOrDefault(c => c.ContentType.Alias == "workflowHub"
-                              && string.Equals(c.Name, "My Workflows", StringComparison.OrdinalIgnoreCase));
+        var existing =
+#pragma warning disable CS0618
+            contentService.GetPagedChildren(homePage.Id, 0, 100, out _)
+#pragma warning restore CS0618
+                .FirstOrDefault(c => c.ContentType.Alias == TestSiteSeedContract.WorkflowHubAlias)
+            ?? TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.WorkflowHubAlias);
+
+        if (existing != null && existing.ParentId != homePage.Id)
+        {
+            logger.LogInformation(
+                "WORKFLOW PAGE SEEDER: Replacing workflow hub at parent {ParentId} so the seeded route stays under Home",
+                existing.ParentId);
+            var deleteResult = contentService.Delete(existing);
+            if (!deleteResult.Success)
+            {
+                logger.LogWarning("WORKFLOW PAGE SEEDER: Delete failed — {Reason}", deleteResult.Result);
+                return;
+            }
+
+            existing = null;
+        }
 
         if (existing != null)
         {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: 'My Workflows' content node already exists");
+            SaveAndPublishIfNeeded(existing, TestSiteSeedContract.WorkflowHubName, null, "seeded workflow hub");
             return;
         }
 
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating 'My Workflows' content node");
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded workflow hub");
 
-        var page = contentService.Create("My Workflows", Constants.System.Root, "workflowHub");
+        var page = contentService.Create(TestSiteSeedContract.WorkflowHubName, homePage.Id, TestSiteSeedContract.WorkflowHubAlias);
+        SaveAndPublishIfNeeded(page, TestSiteSeedContract.WorkflowHubName, null, "seeded workflow hub");
+    }
 
-        var saveResult = contentService.Save(page);
+    private IEnumerable<Umbraco.Cms.Core.Models.IContent> EnumerateContentTree()
+    {
+        foreach (var root in contentService.GetRootContent())
+        {
+            yield return root;
+
+#pragma warning disable CS0618
+            foreach (var descendant in contentService.GetPagedDescendants(root.Id, 0, 2048, out _))
+#pragma warning restore CS0618
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private void SaveAndPublishIfNeeded(
+        Umbraco.Cms.Core.Models.IContent content,
+        string expectedName,
+        Action<Umbraco.Cms.Core.Models.IContent>? mutate,
+        string label)
+    {
+        var changed = false;
+
+        if (!string.Equals(content.Name, expectedName, StringComparison.Ordinal))
+        {
+            content.Name = expectedName;
+            changed = true;
+        }
+
+        if (mutate != null)
+        {
+            mutate(content);
+            changed = true;
+        }
+
+        var saveResult = contentService.Save(content);
         if (!saveResult.Success)
         {
             logger.LogWarning("WORKFLOW PAGE SEEDER: Save failed — {Reason}", saveResult.Result);
             return;
         }
 
-        var publishResult = contentService.Publish(page, Array.Empty<string>());
+        var publishResult = contentService.Publish(content, Array.Empty<string>());
         if (publishResult.Success)
-            logger.LogInformation("WORKFLOW PAGE SEEDER: 'My Workflows' published (id={Id})", page.Id);
+        {
+            logger.LogInformation("WORKFLOW PAGE SEEDER: {Label} published (id={Id}, changed={Changed})", label, content.Id, changed);
+        }
         else
             logger.LogWarning("WORKFLOW PAGE SEEDER: Publish failed — {Reason}", publishResult.Result);
     }

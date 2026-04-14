@@ -10,6 +10,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Models.PublishedContent;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.TestSite.Controllers;
 
@@ -389,13 +391,17 @@ public class Phase1SecurityRegressionTests
         clientFactory.Setup(f => f.CreateClient("prism-downstream-demo")).Returns(client);
         
         var prismContext = new Mock<IPrismContext>();
-        prismContext.Setup(c => c.GetAuthorizationHeaderAsync())
+        prismContext.Setup(c => c.GetAuthorizationHeaderAsync(It.IsAny<bool>()))
             .ReturnsAsync(new AuthenticationHeaderValue("Bearer", "test-token"));
+        var publishedContentQuery = new Mock<IPublishedContentQuery>();
+        publishedContentQuery.Setup(query => query.ContentAtRoot())
+            .Returns(Array.Empty<IPublishedContent>());
         
         return new DownstreamDemoController(
             clientFactory.Object,
             config,
             prismContext.Object,
+            publishedContentQuery.Object,
             environment);
     }
 

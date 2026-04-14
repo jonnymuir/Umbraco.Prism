@@ -35,8 +35,24 @@ Use this when a live local environment still returns `401 Unauthorized` from a d
 - Fresh comparison instance: `ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=https://localhost:9345 dotnet run --project src/UmbracoPrism.MockBusinessApp --no-launch-profile`
 - Relevant files: `src/UmbracoPrism.MockBusinessApp/Program.cs`, `src/UmbracoPrism.MockBusinessApp/appsettings.json`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`
 
+## Runtime Restart Detection
+
+### Detect pre-restart sessions using IssuedUtc timestamp
+
+- When a protected session should survive an app restart (for example, using `offline_access` refresh tokens), add runtime restart detection to force token refresh on first use after restart.
+- Store `AuthenticationProperties.IssuedUtc = DateTimeOffset.UtcNow` when creating the session cookie.
+- On each downstream API call, compare `IssuedUtc` against a process-startup timestamp (`ProcessStartedUtc = DateTimeOffset.UtcNow` at class initialization).
+- If `IssuedUtc < ProcessStartedUtc`, force a token refresh even if the access token hasn't expired yet.
+
+### Omit scope parameter from refresh calls when using offline_access tokens
+
+- When the initial login requested `offline_access`, the refresh token is already bound to those scopes.
+- For Keycloak and similar providers, restating scopes in the refresh call (especially without `offline_access`) can cause rejection.
+- The correct pattern: return `null` from `GetRefreshScope()` for tenants using `offline_access`, and skip adding the `scope` parameter to the refresh form data.
+
 ## Anti-Patterns
 
 - Assuming a persistent 401 after a fix always means the code change was incomplete.
 - Resetting SQLite or re-importing Keycloak before proving whether the same token works on a fresh current build.
 - Relying only on unit tests when the suspected issue is a stale long-running local process.
+- Adding the same `scope` value to refresh calls that was used in the initial authorization request when using `offline_access` tokens.

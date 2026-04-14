@@ -504,3 +504,4 @@ umbraco-package-schema.json
 .trycloudflared.log.*
 # Explicit for clarity (already covered by artifacts/)
 /artifacts/logs/trycloudflared/
+artifacts/aspire/keycloak-data/

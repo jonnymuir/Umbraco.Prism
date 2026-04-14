@@ -22,12 +22,12 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "prism-dev-secret",
-        "redirectUris": [
-          "http://localhost:9250/signin-oidc",
-          "https://localhost:44345/signin-oidc",
-          "http://localhost:9250/signout-callback-oidc",
-          "https://localhost:44345/signout-callback-oidc"
-        ],
+      "redirectUris": [
+        "http://localhost:9250/signin-oidc",
+        "https://localhost:44345/signin-oidc",
+        "http://localhost:9250/signout-callback-oidc",
+        "https://localhost:44345/signout-callback-oidc"
+      ],
       "webOrigins": [
         "http://localhost:9250",
         "https://localhost:44345"
@@ -51,7 +51,8 @@
       "optionalClientScopes": [
         "address",
         "phone",
-        "microprofile-jwt"
+        "microprofile-jwt",
+        "offline_access"
       ]
     }
   ],
@@ -71,7 +72,8 @@
         }
       ],
       "realmRoles": [
-        "user"
+        "user",
+        "offline_access"
       ]
     }
   ],
@@ -80,11 +82,16 @@
       {
         "name": "user",
         "description": "User role"
+      },
+      {
+        "name": "offline_access",
+        "description": "Offline access role"
       }
     ]
   },
   "defaultRoles": [
-    "user"
+    "user",
+    "offline_access"
   ],
   "scopeMappings": [],
   "clientScopeMappings": {},

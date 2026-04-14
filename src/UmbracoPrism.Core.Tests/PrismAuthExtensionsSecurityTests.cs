@@ -352,7 +352,7 @@ public class PrismAuthExtensionsSecurityTests
             .ToArray();
 
         keys.Should().ContainSingle().Which.KeyId.Should().Be("oidc-key");
-        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -378,6 +378,7 @@ public class PrismAuthExtensionsSecurityTests
             LocalOidcAuthority,
             $"{LocalOidcAuthority}/.well-known/openid-configuration",
             true,
+            "oidc-key",
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -395,7 +396,7 @@ public class PrismAuthExtensionsSecurityTests
             .ToArray();
 
         keys.Should().BeEmpty();
-        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        cache.Verify(c => c.WarmAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static JwtBearerOptions BuildJwtOptions(IReadOnlyDictionary<string, string?> values)
@@ -553,7 +554,7 @@ public class PrismAuthExtensionsSecurityTests
         public Task WarmAsync(string entraTenantId, bool forceRefresh = false, CancellationToken cancellationToken = default)
             => warmAsync(entraTenantId, forceRefresh, cancellationToken);
 
-        public Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, CancellationToken cancellationToken = default)
+        public Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, string? requiredKeyId = null, CancellationToken cancellationToken = default)
             => warmAsync(tenantKey, forceRefresh, cancellationToken);
 
         public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)
@@ -588,7 +589,7 @@ public class PrismAuthExtensionsSecurityTests
             }
         }
 
-        public Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, CancellationToken cancellationToken = default)
+        public Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, string? requiredKeyId = null, CancellationToken cancellationToken = default)
             => WarmAsync(tenantKey, forceRefresh, cancellationToken);
 
         public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)

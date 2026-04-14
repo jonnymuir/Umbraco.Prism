@@ -101,7 +101,7 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
         if (string.IsNullOrWhiteSpace(tokenEndpoint))
         {
             _logger.LogWarning("Token refresh skipped: token endpoint is missing");
-            return new TokenRefreshResult(false, null, null, null);
+            return new TokenRefreshResult(false, null, null, null, "missing-token-endpoint");
         }
 
         var normalizedEndpoint = tokenEndpoint.Trim();
@@ -123,18 +123,38 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
         catch (BrokenCircuitException)
         {
             _logger.LogWarning("Token refresh skipped: circuit breaker is open");
-            return new TokenRefreshResult(false, null, null, null);
+            return new TokenRefreshResult(false, null, null, null, "circuit-open");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogWarning("Token refresh failed: {ExceptionType}", ex.GetType().Name);
-            return new TokenRefreshResult(false, null, null, null);
+            return new TokenRefreshResult(false, null, null, null, ex.GetType().Name);
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Token refresh failed with HTTP {Status}", (int)response.StatusCode);
-            return new TokenRefreshResult(false, null, null, null);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            string? failureReason = null;
+
+            try
+            {
+                using var json = JsonDocument.Parse(body);
+                if (json.RootElement.TryGetProperty("error", out var error))
+                {
+                    failureReason = error.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+            }
+
+            failureReason ??= $"http-{(int)response.StatusCode}";
+
+            _logger.LogWarning(
+                "Token refresh failed with HTTP {Status} ({FailureReason})",
+                (int)response.StatusCode,
+                failureReason);
+            return new TokenRefreshResult(false, null, null, null, failureReason);
         }
 
         try
@@ -152,7 +172,7 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
         catch (JsonException ex)
         {
             _logger.LogWarning("Token refresh response could not be parsed: {Message}", ex.Message);
-            return new TokenRefreshResult(false, null, null, null);
+            return new TokenRefreshResult(false, null, null, null, "invalid-json");
         }
     }
 }

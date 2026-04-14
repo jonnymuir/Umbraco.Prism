@@ -22,9 +22,10 @@ public interface IPrismSigningKeyCache
     /// <param name="tenantKey">The cache key for the tenant (e.g. the OidcAuthority URL).</param>
     /// <param name="metadataAddress">The OpenID Connect metadata URL to fetch signing keys from.</param>
     /// <param name="forceRefresh">When <see langword="true"/>, bypasses TTL checks and refreshes cached keys immediately.</param>
+    /// <param name="requiredKeyId">Optional key identifier that must be present. Bypasses forced-refresh cooldown if missing.</param>
     /// <param name="cancellationToken">Cancellation token for the metadata retrieval operation.</param>
     /// <returns>A task that completes when the cache warm operation finishes.</returns>
-    Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, CancellationToken cancellationToken = default);
+    Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, string? requiredKeyId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the cached signing-key state for a tenant, including freshness and key-id match information.

@@ -1,10 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Umbraco.Extensions;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -12,21 +16,27 @@ namespace UmbracoPrism.Core.Controllers;
 /// Umbraco route-hijacking controller for the <c>workflowHub</c> document type.
 /// Displays all workflow instances for the authenticated member.
 /// </summary>
+[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class WorkflowHubController : RenderController
 {
     private readonly IBusinessAppWorkflowClient _workflowClient;
     private readonly IPublishedValueFallback _publishedValueFallback;
+    private readonly IPublishedContentQuery _publishedContentQuery;
+    private readonly ILogger<WorkflowHubController> _logger;
 
     public WorkflowHubController(
         ILogger<WorkflowHubController> logger,
         ICompositeViewEngine compositeViewEngine,
         IUmbracoContextAccessor umbracoContextAccessor,
         IBusinessAppWorkflowClient workflowClient,
-        IPublishedValueFallback publishedValueFallback)
+        IPublishedValueFallback publishedValueFallback,
+        IPublishedContentQuery publishedContentQuery)
         : base(logger, compositeViewEngine, umbracoContextAccessor)
     {
+        _logger = logger;
         _workflowClient = workflowClient;
         _publishedValueFallback = publishedValueFallback;
+        _publishedContentQuery = publishedContentQuery;
     }
 
     public override IActionResult Index()
@@ -43,7 +53,7 @@ public class WorkflowHubController : RenderController
             .Select(i => new WorkflowInstanceViewModel
             {
                 Summary = i,
-                ResumeUrl = $"/{i.WorkflowKey}" // Simple resolution for MVP
+                ResumeUrl = ResolveWorkflowPageUrl(i)
             })
             .ToList();
 
@@ -52,7 +62,7 @@ public class WorkflowHubController : RenderController
             .Select(i => new WorkflowInstanceViewModel
             {
                 Summary = i,
-                ResumeUrl = $"/{i.WorkflowKey}"
+                ResumeUrl = ResolveWorkflowPageUrl(i)
             })
             .ToList();
 
@@ -63,5 +73,30 @@ public class WorkflowHubController : RenderController
         };
 
         return CurrentTemplate(vm);
+    }
+
+    private string ResolveWorkflowPageUrl(WorkflowInstanceSummary summary)
+    {
+        if (!string.IsNullOrWhiteSpace(summary.WorkflowPageUrl) && Url.IsLocalUrl(summary.WorkflowPageUrl))
+            return summary.WorkflowPageUrl;
+
+        if (string.IsNullOrWhiteSpace(summary.WorkflowKey))
+            return CurrentPage?.Url() ?? "/";
+
+        var workflowPage = _publishedContentQuery
+            .ContentAtRoot()
+            .SelectMany(root => root.DescendantsOrSelf())
+            .FirstOrDefault(content =>
+                content.ContentType.Alias == "workflowPage"
+                && string.Equals(content.Value<string>("workflowKey"), summary.WorkflowKey, StringComparison.OrdinalIgnoreCase));
+
+        if (workflowPage != null)
+            return workflowPage.Url();
+
+        _logger.LogWarning(
+            "Workflow hub could not resolve a content-driven URL for workflow key {WorkflowKey}; defaulting to the hub page",
+            summary.WorkflowKey);
+
+        return CurrentPage?.Url() ?? "/";
     }
 }

@@ -199,6 +199,7 @@ public static class PrismAuthExtensions
                 cacheKey,
                 metadataAddress,
                 forceRefresh: true,
+                requiredKeyId: keyId,
                 cancellationToken: CancellationToken.None).GetAwaiter().GetResult();
 
             oidcSnapshot = signingKeyCache.GetSnapshot(cacheKey, keyId);

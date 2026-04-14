@@ -1,4 +1,3 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "~/Views/Shared/Master.cshtml";
@@ -6,7 +5,9 @@
     var description = Model.Value<string>("description") ?? "";
     
     // Get all vinyl records in this genre
-    var vinyls = Model.Children<VinylRecord>().ToList();
+    var vinyls = Model.Children()
+        .Where(child => child.ContentType.Alias == "vinylRecord")
+        .ToList();
 }
 
 <div class="genre-landing">

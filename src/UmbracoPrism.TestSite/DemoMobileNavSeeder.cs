@@ -13,15 +13,17 @@ using Umbraco.Cms.Core.Services;
 namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Seeds the TestSite Settings node with two default mobile nav items (Home + Dashboard),
+/// Seeds the TestSite Settings node with the stable auth-flow mobile nav items
+/// (Home, Dashboard, My Workflows),
 /// each backed by an SVG icon written to /media/prism-nav-icons/ and registered in the
 /// Umbraco media library under a "Prism Navigation Icons" folder.
 ///
-/// Runs idempotently in Development only — skips if mobileNavLinks is already populated.
+/// Runs idempotently in Development only and repairs stale/missing nav contracts.
 /// </summary>
 public class DemoMobileNavSeeder(
     IWebHostEnvironment env,
     IContentService contentService,
+    IContentTypeService contentTypeService,
     IMediaService mediaService,
     IRuntimeState runtimeState,
     ILogger<DemoMobileNavSeeder> logger)
@@ -77,9 +79,7 @@ public class DemoMobileNavSeeder(
 
     private Task SeedAsync(CancellationToken ct)
     {
-        var settings = contentService
-            .GetRootContent()
-            .FirstOrDefault(c => c.ContentType.Alias == "settings");
+        var settings = EnsureSettingsNode();
 
         if (settings == null)
         {
@@ -97,20 +97,20 @@ public class DemoMobileNavSeeder(
         var existing = settings.GetValue<string>("mobileNavLinks");
         if (!string.IsNullOrWhiteSpace(existing))
         {
-            // Only skip if already populated with a v14+ block list that includes the expose array
-            // AND all three expected nav items (home, dashboard, my-workflows).
             bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
                                && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal)
                                && existing.Contains("\"expose\":", StringComparison.Ordinal);
-            bool hasWorkflowsItem = existing.Contains("/my-workflows", StringComparison.Ordinal);
+            bool hasHomeItem = existing.Contains(TestSiteSeedContract.HomePageUrl, StringComparison.Ordinal);
+            bool hasDashboardItem = existing.Contains(TestSiteSeedContract.DashboardUrl, StringComparison.Ordinal);
+            bool hasWorkflowsItem = existing.Contains(TestSiteSeedContract.WorkflowHubUrl, StringComparison.Ordinal);
 
-            if (isV14BlockList && hasWorkflowsItem)
+            if (isV14BlockList && hasHomeItem && hasDashboardItem && hasWorkflowsItem)
             {
                 logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
                 return Task.CompletedTask;
             }
 
-            logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks (missing workflows item or old format).");
+            logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks to restore the seeded auth-flow contract.");
         }
 
         var blockListJson = BuildBlockListJson(homeKey, dashKey, workflowsKey);
@@ -123,6 +123,41 @@ public class DemoMobileNavSeeder(
 
         logger.LogInformation("DEMO SEEDER: Seeded mobile nav with Home, Dashboard, and My Workflows items.");
         return Task.CompletedTask;
+    }
+
+    private IContent? EnsureSettingsNode()
+    {
+        var settings = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.SettingsAlias);
+        if (settings != null)
+        {
+            return settings;
+        }
+
+        var settingsType = contentTypeService.Get(TestSiteSeedContract.SettingsAlias);
+        if (settingsType == null)
+        {
+            return null;
+        }
+
+        logger.LogInformation("DEMO SEEDER: Creating seeded Settings node for mobile navigation.");
+        settings = contentService.Create(TestSiteSeedContract.SettingsName, Constants.System.Root, TestSiteSeedContract.SettingsAlias);
+        var saveResult = contentService.Save(settings);
+        if (!saveResult.Success)
+        {
+            logger.LogWarning("DEMO SEEDER: Could not create Settings node — {Reason}", saveResult.Result);
+            return null;
+        }
+
+#pragma warning disable CS0618
+        var publishResult = contentService.Publish(settings, Array.Empty<string>(), Constants.Security.SuperUserId);
+#pragma warning restore CS0618
+        if (!publishResult.Success)
+        {
+            logger.LogWarning("DEMO SEEDER: Could not publish Settings node — {Reason}", publishResult.Result);
+            return null;
+        }
+
+        return settings;
     }
 
     private void WriteSvgFiles()
@@ -256,9 +291,9 @@ public class DemoMobileNavSeeder(
                 )
             },
             ["contentData"] = new JsonArray(
-                BuildBlockItem(homeKey,      "Home",         "/",             homeMediaKey),
-                BuildBlockItem(dashKey,      "Dashboard",    "/dashboard",    dashMediaKey),
-                BuildBlockItem(workflowsKey, "My Workflows", "/my-workflows", workflowsMediaKey)
+                BuildBlockItem(homeKey,      "Home",         TestSiteSeedContract.HomePageUrl,   homeMediaKey),
+                BuildBlockItem(dashKey,      "Dashboard",    TestSiteSeedContract.DashboardUrl,  dashMediaKey),
+                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.WorkflowHubUrl, workflowsMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(

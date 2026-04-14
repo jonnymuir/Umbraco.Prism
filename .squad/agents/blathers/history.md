@@ -203,6 +203,7 @@
 - 2026-04-13 (fresh SQLite bootstrap): A clean isolated TestSite SQLite file does not self-bootstrap unless Umbraco unattended install is enabled for that path; wiring unattended install into the isolated runtime root is what makes fresh-clone AppHost starts reproducible.
 - 2026-04-13 (Prism migration timing): Prism package migrations must run on `UmbracoApplicationStartedNotification`, not `UmbracoApplicationStartingNotification`, otherwise a fresh unattended install can serve requests before `prismTenants` exists.
 - 2026-04-13 (deterministic localhost tenant): The localhost Keycloak demo tenant should be reconciled back to its expected OIDC/provider fields on every Development startup, not only inserted once, so isolated restarts do not inherit drift.
+- 2026-04-14 (localhost startup auth): The real startup blocker for the live auth suite was server-side work during the first protected dashboard render — proactively warming Prism bearer tokens on `/dashboard` can churn the auth cookie and recreate redirect loops before Playwright reaches any assertions.
 - 2026-04-13 (runtime-stale downstream auth): `PrismContext` should treat a cookie issued before the current process start as restart-stale and try a refresh before reusing a still-unexpired downstream bearer token. Key files: `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core.Tests/PrismContextTests.cs`.
 - 2026-04-13 (local demo offline-token contract): The repo-owned localhost Keycloak demo now requests `offline_access` on the browser auth flow, but omits `scope` on the refresh-token grant so Keycloak can reuse the granted offline scopes. Key files: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, `src/UmbracoPrism.Core/Models/PrismContext.cs`, `src/UmbracoPrism.Core.Tests/LocalhostGenericOidcRegressionTests.cs`, `keycloak/realm-export.json`.
 - 2026-04-13 (downstream auth diagnostics): `IPrismContext.LastAuthorizationFailureReason` and the dev-only downstream session-contract probe give a sanitized reason when Prism cannot mint a downstream bearer header after restart, without exposing token values.
@@ -218,6 +219,14 @@
 - GitHub Release creation is unconditional (not gated on `NUGET_API_KEY`); NuGet publish remains gated as before.
 
 **CHANGELOG extraction pattern (Mabel's format):**
+
+## Learnings
+
+- 2026-04-14 (cold-start auth routing): The first-login blank/home bounce on localhost was not a cookie issuance or OIDC callback race. The stronger smell was Umbraco route readiness: `TestSiteSeedContract.ResolveUrl` previously trusted `content.Url()` even when cold-start published routing briefly returned `/` for seeded child pages, which collapsed dashboard/workflow CTAs back to Home.
+- 2026-04-14 (bounded fix): Keep authored fallback routes (`/dashboard`, `/get-in-touch`, `/my-workflows`) when a non-home published URL resolves to `/` during startup convergence. This stabilizes the home-page sign-in CTA and seeded nav links without changing the auth cookie/OIDC flow itself.
+- 2026-04-14 (evidence): Warm live probes showed `seed-contract-ready` already reports the seeded route contract as a readiness concept, and a focused regression test now locks the fallback behavior in `TestSiteSeedContractTests`.
+- 2026-04-14 (startup semantics): `BootUmbracoAsync()` prevents serving before Umbraco boots, but it does not mean freshly seeded published URLs are already converged. Because TestSite CTAs/login links capture `returnUrl` from published navigation state, a transient `/` from `content.Url()` becomes a persisted redirect target through `AccountController` → `AuthenticationProperties.RedirectUri` → `PrismOidcConfiguration` callback unless callers wait for `GET /api/prism/downstream-demo/seed-contract-ready`.
+- 2026-04-14 (classification): The transient `/` is not the steady-state Umbraco contract we should design around; it is mainly a cold-start artifact of this TestSite's development setup — startup seeders publishing into a fresh isolated runtime DB, then Razor/auth CTAs consuming `content.Url()` before the seeded route contract reports ready.
 Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after the matching heading line and stops before the next `## [` line, giving the full section body without the heading itself.
 
 ## Learnings (Issue #14 — Biometric Registration Endpoint)
@@ -311,6 +320,12 @@ Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after 
 - **Generic OIDC API validation should accept `azp` as client binding**: Keycloak-style access tokens may identify the caller in `azp` even when `aud` is a shared resource such as `account`. `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` now mirrors `PrismContext` by accepting either `aud` or `azp` for generic OIDC tenants.
 - **Regression tests belong in `PrismAuthExtensionsSecurityTests`**: The downstream 401 was reproducible without UI automation by asserting issuer/audience validation directly in `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs`, including the localhost HTTPS authority and `azp` fallback path.
 - **Docs should call out the single source of authority**: `README.md` and `ASPIRE_DEV.md` now explicitly state that TestSite, MockBusinessApp, and the local Keycloak login flow must all agree on `https://localhost:8443` as the demo OIDC authority.
+
+## Learnings (2026-04-13 — Dashboard redirect trace)
+
+- **A clean localhost runtime does not redirect authenticated `/dashboard` requests to `/`**: with a fresh AppHost repro, signed-out `/dashboard` correctly challenges to `/auth/login?ReturnUrl=%2Fdashboard`, and signed-in `/dashboard` returns `200` and renders `MemberDashboardController`.
+- **The only current Prism auth path that intentionally redirects to `/` is the sign-in callback when login starts without a `returnUrl`**: `Views/HomePage.cshtml` links to `/auth/login`, `AccountController.Login` defaults `returnUrl` to `/`, and `PrismOidcConfiguration.OnAuthorizationCodeReceived` finishes with `context.Response.Redirect(props.RedirectUri ?? "/")`.
+- **If Playwright shows `/dashboard -> 302 -> /`, look beyond cookie challenge middleware first**: the auth middleware would send unauthenticated dashboard traffic to `/auth/login?ReturnUrl=%2Fdashboard`, so a direct redirect to `/` points to some other local runtime/navigation state rather than the normal `PrismMemberCookie` challenge path.
 
 ## Work Summary (2026-03-29)
 
@@ -2164,3 +2179,38 @@ Tangy will validate live suite behavior after this phase completes.
 
 - Blathers: Investigate live restart 401 root cause (token lifecycle during Keycloak restart)
 - Tangy: Validate live suite behavior after Razor build errors resolved
+
+## Learnings (2026-04-14, Restart 401 Fix — COMPLETE)
+
+**Issue:** Playwright test "signed-in member can still call the mock business app API after the whole stack restarts" failing with 401 after appHost.restart().
+
+**Root Causes Identified:**
+
+1. **Keycloak session loss on restart:** In-memory H2 database lost refresh_tokens when Keycloak container restarted, making token refresh impossible.
+
+2. **Signing key cache cooldown blocking fresh key fetches:** When Keycloak restarted and generated new signing keys, MockBusinessApp's PrismSigningKeyCache had a 30-second forced-refresh cooldown that prevented fetching the latest keys when a token with an unknown keyId arrived, causing 401 validation failures.
+
+**Fixes Applied:**
+
+1. **Keycloak session persistence** (UmbracoPrism.AppHost/Program.cs):
+   - Added bind mount: keycloakDataRoot to /opt/keycloak/data/h2
+   - H2 database now persists to artifacts/aspire/keycloak-data
+   - Refresh tokens survive container restarts
+
+2. **Signing key cache bypass for missing keys** (PrismSigningKeyCache.WarmAsync):
+   - Added requiredKeyId parameter to generic OIDC overload
+   - Bypass forced-refresh cooldown when requested key is missing from cache
+   - Prevents stale-key 401s after OIDC provider (Keycloak) restarts with new keys
+   - Updated IPrismSigningKeyCache, PrismAuthExtensions.ResolveSigningKeys, and test mocks
+
+**Test Results:**
+- All 8 localhost auth Playwright tests pass, including both restart tests
+- All 27 signing key cache & auth extension unit tests pass
+- Runtime restart detection (ShouldRefreshForRuntimeRestart) working correctly
+
+**Key Insight:** OIDC provider restarts invalidate tokens in two ways:
+1. Refresh tokens become invalid if sessions aren't persisted
+2. Signing keys rotate, invalidating cached access tokens
+
+Both must be handled for restart resilience.
+

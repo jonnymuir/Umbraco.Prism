@@ -25,6 +25,8 @@ This launches:
 - **TestSite** at `https://localhost:44345` and `http://localhost:9250`
 - **MockBusinessApp** at `https://localhost:7245` and `http://localhost:5163`
 
+When Aspire launches `TestSite`, it now keeps its SQLite database and ASP.NET cookie key ring under `artifacts/aspire/testsite-runtime/` instead of reusing the standalone `src/UmbracoPrism.TestSite/umbraco/Data/` database. That isolated runtime also enables Umbraco unattended install for the fresh SQLite file, so the full-stack graph can bootstrap itself from an empty database without touching your normal local Umbraco DB.
+
 ## What Gets Configured
 
 - **Keycloak realm:** `prism-dev`
@@ -32,6 +34,7 @@ This launches:
 - **Client secret:** `prism-dev-secret`
 - **Demo user:** `demo@prism.local` / `password`
 - **Keycloak admin:** `admin` / `admin`
+- **Umbraco unattended admin (isolated Aspire DB only):** `admin@prism.local` / `PrismLocal!12345`
 
 The realm configuration is imported from `keycloak/realm-export.json`.
 The AppHost includes a lightweight HTTPS reverse proxy (`UmbracoPrism.KeycloakProxy`) that terminates TLS at `https://localhost:8443` and forwards requests to Keycloak's HTTP endpoint on port 8080. The proxy uses the .NET development certificate that is already trusted on most dev machines (via `dotnet dev-certs https --trust`). This setup ensures Safari/WebKit-compatible authentication flows that require secure cookies while keeping Keycloak's own configuration simple.
@@ -39,9 +42,53 @@ The MockBusinessApp now defaults to its `https` launch profile, so both the work
 For localhost auth, the Keycloak client is pinned to the TestSite sign-in and sign-out callback URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
 The local Prism login flow intentionally requests standard OIDC scopes (`openid profile`) from Keycloak instead of `offline_access`. Keycloak still issues a normal session refresh token for code flow, and fresh clones do not need extra offline-token grants on the user or client.
 
+## Real Playwright auth/session regressions
+
+The real auth/session suite lives in `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts` and uses its own Playwright config: `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`.
+
+Run it from the client project:
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test:playwright:localhost-auth
+```
+
+What it does:
+- validates Docker/.NET plus the Aspire-owned ports before it starts
+- boots its own `UmbracoPrism.AppHost` session (real Aspire stack, not a manually assembled subset)
+- resets the isolated Aspire `TestSite` runtime root on the first boot of the suite so every run starts from a clean SQLite database
+- waits for the Aspire dashboard, TestSite home marker, seeded route contract, Keycloak discovery, MockBusinessApp, and workflow auth challenge to be ready
+- signs into the seeded localhost Keycloak demo user
+- exercises dashboard + workflow navigation against the real app
+- restarts the whole localhost stack during the run against that same isolated runtime root to verify session persistence without seed drift
+
+### Stable seeded content contract
+
+From a clean `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`, Development startup now repairs the exact Umbraco content the auth/workflow browser flows depend on:
+
+- root `homePage` named **Home** at `/`
+- child `memberDashboard` named **Dashboard** at `/dashboard`
+- `workflowPage` named **Get in Touch** with `workflowKey = community-enquiry` at `/get-in-touch`
+- `workflowHub` named **My Workflows** at `/my-workflows`
+- root `settings` node whose mobile nav includes **Home**, **Dashboard**, and **My Workflows**
+
+Because the suite owns startup, restart, and shutdown, it now fails fast if anything is already using the default Aspire ports (`17214`, `44345`, `7245`, `8443`) instead of attaching to an existing AppHost or partial stack.
+
+The TestSite views resolve those links from published content instead of assuming a specific root-node order, so fresh databases and repaired demo trees behave the same way.
+
+### Readiness-gating strategy for live E2E
+
+To avoid the cold-start flake where seeded child routes briefly collapse back to `/`, keep the localhost auth suite layered:
+
+- **Layer 1 — infrastructure readiness (before any browser interaction):** wait for machine-readable contracts only. In this repo that means the home-page ready marker, `/api/prism/downstream-demo/seed-contract-ready` returning `ready: true`, the protected workflow hub challenging to `/auth/login?ReturnUrl=%2Fmy-workflows`, Keycloak discovery, and MockBusinessApp's expected unauthenticated `401`.
+- **Layer 2 — page readiness (before each click):** assert the authored `href` first, then click, then wait for page-specific affordances. Examples: `Go to Dashboard` must resolve to `/dashboard`; dashboard readiness is `View Workflows` + `Call Mock Business App API`; workflow readiness is the page heading and form fields. Do not treat shared text such as `Welcome back, Demo User` or a bare `200 OK` from `/` as proof that child routes are ready.
+- **Layer 3 — behaviour under test:** only after layers 1 and 2 pass should the spec make assertions about sign-in, restart persistence, workflow navigation, or downstream API calls. If a scenario needs a direct deep link (`/get-in-touch`, `/my-workflows`), make that an explicit route contract assertion after readiness has converged, not the generic setup for unrelated tests.
+
+This split keeps cold-start infrastructure drift separate from product-behaviour failures: if the suite fails before interaction, it is a startup/readiness problem; if it fails after stable route and CTA assertions, it is a real auth or navigation regression.
+
 ## Localhost Tenant (Auto-Seeded)
 
-When TestSite starts in Development mode, a `DemoTenantSeeder` automatically creates the localhost tenant pointing at Keycloak — no manual database setup required. The seeder is idempotent: if a localhost tenant already exists, it is left untouched.
+When TestSite starts in Development mode, a `DemoTenantSeeder` automatically creates or repairs the localhost tenant pointing at Keycloak — no manual database setup required. On every start it reconciles the seeded `localhost` row back to the expected OIDC values so a fresh isolated database and later app restarts converge on the same demo tenant shape.
 
 The seeded tenant is the only supported inline-secret exception:
 - `Hostname = "localhost"`
@@ -98,6 +145,12 @@ else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
 ## Migration
 
 The OIDC migrations add the authority/client columns and the provider/reference columns to the `prismTenants` table. They run automatically on TestSite startup.
+
+## Resetting the Aspire TestSite Runtime
+
+- **Automatic for the live Playwright suite:** `npm run test:playwright:localhost-auth` resets `artifacts/aspire/testsite-runtime/` on the suite's first AppHost boot.
+- **Manual clean slate:** stop the Aspire stack, delete `artifacts/aspire/testsite-runtime/`, then run `dotnet run --project src/UmbracoPrism.AppHost` again.
+- **Standalone TestSite unchanged:** `dotnet run --project src/UmbracoPrism.TestSite` still uses the project's normal `umbraco/Data/Umbraco.sqlite.db`.
 
 ## Troubleshooting
 

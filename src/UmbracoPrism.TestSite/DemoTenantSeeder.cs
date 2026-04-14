@@ -12,9 +12,9 @@ namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Dev-only seeder that ensures a localhost tenant pointing at the Aspire Keycloak
-/// instance exists on startup. Only runs in Development and only creates the tenant
-/// if no tenant with hostname "localhost" already exists — any other tenants are
-/// left completely untouched.
+/// instance exists on startup. Only runs in Development and reconciles the seeded
+/// localhost row back to the expected auth shape on every start so isolated test
+/// databases can be recreated or restarted without configuration drift.
 /// </summary>
 public class DemoTenantSeeder(
     IUmbracoDatabaseFactory databaseFactory,
@@ -37,10 +37,10 @@ public class DemoTenantSeeder(
         if (runtimeState.Level < RuntimeLevel.Run) return Task.CompletedTask;
         if (!hostEnvironment.IsDevelopment())       return Task.CompletedTask;
 
-        return Task.Run(() => EnsureLocalhostTenant(), cancellationToken);
+        return Task.Run(() => ReconcileLocalhostTenant(), cancellationToken);
     }
 
-    private void EnsureLocalhostTenant()
+    private void ReconcileLocalhostTenant()
     {
         var keycloakBaseUrl = Environment.GetEnvironmentVariable("KEYCLOAK_URL");
         if (string.IsNullOrWhiteSpace(keycloakBaseUrl))
@@ -56,29 +56,88 @@ public class DemoTenantSeeder(
             "SELECT * FROM prismTenants WHERE Hostname = @0",
             [LocalhostHostname]);
 
-        if (existing != null)
+        if (existing == null)
+        {
+            var schema = CreateSeedTenant(oidcAuthority);
+            db.Insert(schema);
+
+            logger.LogInformation(
+                "DEMO SEEDER: Created localhost tenant '{Name}' pointing at Keycloak ({Authority}).",
+                TenantName,
+                oidcAuthority);
+            return;
+        }
+
+        if (!ApplySeedValues(existing, oidcAuthority))
         {
             logger.LogDebug(
-                "DEMO SEEDER: localhost tenant already exists (id={Id}) — skipping.",
+                "DEMO SEEDER: localhost tenant already matches seeded config (id={Id}).",
                 existing.Id);
             return;
         }
 
+        db.Update(existing);
+        logger.LogInformation(
+            "DEMO SEEDER: Reconciled localhost tenant '{Name}' (id={Id}) to seeded config ({Authority}).",
+            TenantName,
+            existing.Id,
+            oidcAuthority);
+    }
+
+    private static PrismTenantSchema CreateSeedTenant(string oidcAuthority)
+    {
         var schema = new PrismTenantSchema
         {
-            Name              = TenantName,
-            Hostname          = LocalhostHostname,
-            OidcAuthority     = oidcAuthority,
-            OidcClientId      = OidcClientId,
-            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
-            OidcClientSecretReference = OidcClientSecret,
-            AllowBiometricLogin = true
+            Hostname = LocalhostHostname
         };
 
-        db.Insert(schema);
+        ApplySeedValues(schema, oidcAuthority);
+        return schema;
+    }
 
-        logger.LogInformation(
-            "DEMO SEEDER: Created localhost tenant '{Name}' pointing at Keycloak ({Authority}).",
-            TenantName, oidcAuthority);
+    private static bool ApplySeedValues(PrismTenantSchema tenant, string oidcAuthority)
+    {
+        var changed = false;
+
+        changed |= SetRequiredString(tenant.Name, TenantName, value => tenant.Name = value);
+        changed |= SetRequiredString(tenant.Hostname, LocalhostHostname, value => tenant.Hostname = value);
+        changed |= SetString(tenant.OidcAuthority, oidcAuthority, value => tenant.OidcAuthority = value);
+        changed |= SetString(tenant.OidcClientId, OidcClientId, value => tenant.OidcClientId = value);
+        changed |= SetString(tenant.OidcClientSecretProvider, PrismSecretProviderNames.Inline, value => tenant.OidcClientSecretProvider = value);
+        changed |= SetString(tenant.OidcClientSecretReference, OidcClientSecret, value => tenant.OidcClientSecretReference = value);
+        changed |= SetString(tenant.OidcClientSecret, null, value => tenant.OidcClientSecret = value);
+        changed |= SetString(tenant.EntraTenantId, null, value => tenant.EntraTenantId = value);
+        changed |= SetString(tenant.EntraClientId, null, value => tenant.EntraClientId = value);
+        changed |= SetString(tenant.SecretKeyName, null, value => tenant.SecretKeyName = value);
+
+        if (!tenant.AllowBiometricLogin)
+        {
+            tenant.AllowBiometricLogin = true;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool SetString(string? currentValue, string? expectedValue, Action<string?> assign)
+    {
+        if (string.Equals(currentValue, expectedValue, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        assign(expectedValue);
+        return true;
+    }
+
+    private static bool SetRequiredString(string currentValue, string expectedValue, Action<string> assign)
+    {
+        if (string.Equals(currentValue, expectedValue, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        assign(expectedValue);
+        return true;
     }
 }

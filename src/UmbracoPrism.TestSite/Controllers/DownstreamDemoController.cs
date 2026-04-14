@@ -1,9 +1,16 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
+using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Models.Blocks;
+using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Extensions;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.TestSite.Controllers;
@@ -24,6 +31,7 @@ public class DownstreamDemoController(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     IPrismContext prismContext,
+    IPublishedContentQuery publishedContentQuery,
     IWebHostEnvironment environment) : ControllerBase
 {
     private static readonly JsonSerializerOptions PrettyPrint = new() { WriteIndented = true };
@@ -31,12 +39,7 @@ public class DownstreamDemoController(
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? url = null)
     {
-        // Phase 1 Security: Only allow downstream demo in Development environment
-        // or when explicitly enabled via Prism:EnableDownstreamDemo config
-        var isDemoEnabled = environment.IsDevelopment() 
-            || configuration.GetValue<bool>("Prism:EnableDownstreamDemo", false);
-        
-        if (!isDemoEnabled)
+        if (!IsDemoEnabled())
         {
             return StatusCode(403, new 
             { 
@@ -60,14 +63,11 @@ public class DownstreamDemoController(
             return Unauthorized(new { error = "No Prism session — please sign in again." });
 
         var targetUrl = BuildTargetUrl(url);
-        var client = httpClientFactory.CreateClient("prism-downstream-demo");
-        client.DefaultRequestHeaders.Authorization = authHeader;
-        client.Timeout = TimeSpan.FromSeconds(10);
 
         var sw = Stopwatch.StartNew();
         try
         {
-            var response = await client.GetAsync(targetUrl);
+            var response = await SendDownstreamRequestAsync(targetUrl, authHeader);
             sw.Stop();
 
             var rawBody = await response.Content.ReadAsStringAsync();
@@ -122,6 +122,86 @@ public class DownstreamDemoController(
         }
     }
 
+    [HttpGet("session-contract")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetSessionContract()
+    {
+        if (!IsDemoEnabled())
+        {
+            return StatusCode(403, new
+            {
+                error = "Downstream demo is disabled in this environment for security reasons.",
+                hint = "Set Prism:EnableDownstreamDemo to true in appsettings if you need this feature outside Development."
+            });
+        }
+
+        var authResult = await HttpContext.AuthenticateAsync("PrismMemberCookie");
+        var tokens = authResult.Properties?.GetTokens()?.ToArray() ?? [];
+        var accessToken = GetTokenValue(tokens, "access_token");
+        var refreshToken = GetTokenValue(tokens, "refresh_token");
+        var idToken = GetTokenValue(tokens, "id_token");
+        var expiresAt = GetTokenValue(tokens, "expires_at");
+        var authHeader = authResult.Succeeded ? await prismContext.GetAuthorizationHeaderAsync() : null;
+        var tenant = prismContext.CurrentTenant;
+
+        return Ok(new
+        {
+            tenant = new
+            {
+                resolved = tenant != null,
+                hostname = tenant?.Hostname,
+                mode = GetTenantMode(tenant),
+                oidcAuthority = tenant?.OidcAuthority,
+                oidcClientId = tenant?.OidcClientId,
+                entraTenantId = tenant?.EntraTenantId,
+                entraClientId = tenant?.EntraClientId
+            },
+            cookie = new
+            {
+                isAuthenticated = authResult.Succeeded,
+                hasAccessToken = !string.IsNullOrWhiteSpace(accessToken),
+                hasRefreshToken = !string.IsNullOrWhiteSpace(refreshToken),
+                hasIdToken = !string.IsNullOrWhiteSpace(idToken),
+                expiresAt,
+                accessTokenExpired = IsExpired(expiresAt)
+            },
+            downstream = new
+            {
+                authorizationHeaderReady = authHeader != null,
+                scheme = authHeader?.Scheme,
+                failureReason = prismContext.LastAuthorizationFailureReason
+            },
+            logout = new
+            {
+                endSessionEndpoint = BuildLogoutEndpoint(tenant),
+                clientId = tenant?.OidcClientId ?? tenant?.EntraClientId,
+                idTokenHintReady = !string.IsNullOrWhiteSpace(idToken),
+                signedOutCallbackPath = "/signout-callback-oidc"
+            },
+            seed = BuildSeedContract()
+        });
+    }
+
+    [HttpGet("seed-contract-ready")]
+    [AllowAnonymous]
+    public IActionResult GetSeedContractReady()
+    {
+        if (!IsDemoEnabled())
+        {
+            return StatusCode(403, new
+            {
+                error = "Downstream demo is disabled in this environment for security reasons.",
+                hint = "Set Prism:EnableDownstreamDemo to true in appsettings if you need this feature outside Development."
+            });
+        }
+
+        var contract = BuildSeedContract();
+
+        return contract.Ready
+            ? Ok(contract)
+            : StatusCode(StatusCodes.Status503ServiceUnavailable, contract);
+    }
+
     private string BuildTargetUrl(string? url)
     {
         if (!string.IsNullOrWhiteSpace(url))
@@ -132,6 +212,42 @@ public class DownstreamDemoController(
             throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
 
         return $"{baseUrl}/api/backoffice/me";
+    }
+
+    private async Task<HttpResponseMessage> SendDownstreamRequestAsync(
+        string targetUrl,
+        AuthenticationHeaderValue authHeader)
+    {
+        var response = await SendDownstreamRequestCoreAsync(targetUrl, authHeader);
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
+        {
+            return response;
+        }
+
+        response.Dispose();
+        var refreshedHeader = await prismContext.GetAuthorizationHeaderAsync(forceRefresh: true);
+        if (refreshedHeader == null)
+        {
+            return new HttpResponseMessage(HttpStatusCode.Unauthorized);
+        }
+
+        return await SendDownstreamRequestCoreAsync(targetUrl, refreshedHeader);
+    }
+
+    private async Task<HttpResponseMessage> SendDownstreamRequestCoreAsync(
+        string targetUrl,
+        AuthenticationHeaderValue authHeader)
+    {
+        var client = httpClientFactory.CreateClient("prism-downstream-demo");
+        client.DefaultRequestHeaders.Authorization = authHeader;
+        client.Timeout = TimeSpan.FromSeconds(10);
+        return await client.GetAsync(targetUrl);
+    }
+
+    private bool IsDemoEnabled()
+    {
+        return environment.IsDevelopment()
+            || configuration.GetValue<bool>("Prism:EnableDownstreamDemo", false);
     }
 
     private bool IsUrlAllowed(string url)
@@ -163,6 +279,47 @@ public class DownstreamDemoController(
         return false;
     }
 
+    private static string? GetTokenValue(IEnumerable<AuthenticationToken> tokens, string name)
+    {
+        return tokens.FirstOrDefault(token => token.Name == name)?.Value;
+    }
+
+    private static bool IsExpired(string? expiresAt)
+    {
+        return DateTimeOffset.TryParse(expiresAt, out var parsed)
+            && parsed <= DateTimeOffset.UtcNow.AddMinutes(1);
+    }
+
+    private static string GetTenantMode(PrismTenant? tenant)
+    {
+        if (!string.IsNullOrWhiteSpace(tenant?.OidcAuthority))
+        {
+            return "generic-oidc";
+        }
+
+        if (!string.IsNullOrWhiteSpace(tenant?.EntraTenantId))
+        {
+            return "entra";
+        }
+
+        return "none";
+    }
+
+    private static string? BuildLogoutEndpoint(PrismTenant? tenant)
+    {
+        if (!string.IsNullOrWhiteSpace(tenant?.OidcAuthority))
+        {
+            return $"{tenant.OidcAuthority.TrimEnd('/')}/protocol/openid-connect/logout";
+        }
+
+        if (!string.IsNullOrWhiteSpace(tenant?.EntraTenantId))
+        {
+            return $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/logout";
+        }
+
+        return null;
+    }
+
     private static bool UrlStartsWithAllowed(string url, string allowedPrefix)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var targetUri) ||
@@ -176,4 +333,116 @@ public class DownstreamDemoController(
                targetUri.Port == allowedUri.Port &&
                targetUri.AbsolutePath.StartsWith(allowedUri.AbsolutePath, StringComparison.OrdinalIgnoreCase);
     }
+
+    private SeedContractStatus BuildSeedContract()
+    {
+        var roots = publishedContentQuery.ContentAtRoot().ToList();
+        var home = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.HomePageAlias),
+            TestSiteSeedContract.HomePageAlias,
+            TestSiteSeedContract.HomePageName,
+            TestSiteSeedContract.HomePageUrl);
+        var dashboard = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.DashboardAlias),
+            TestSiteSeedContract.DashboardAlias,
+            TestSiteSeedContract.DashboardName,
+            TestSiteSeedContract.DashboardUrl);
+        var workflowPage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.WorkflowKey),
+            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.WorkflowPageName,
+            TestSiteSeedContract.WorkflowPageUrl);
+        var workflowHub = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.WorkflowHubAlias),
+            TestSiteSeedContract.WorkflowHubAlias,
+            TestSiteSeedContract.WorkflowHubName,
+            TestSiteSeedContract.WorkflowHubUrl);
+        var settings = TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.SettingsAlias);
+        var mobileNav = BuildMobileNavStatus(settings);
+        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.WorkflowHubUrl)}";
+        var routeContractReady =
+            home.MatchesExpected &&
+            dashboard.MatchesExpected &&
+            workflowPage.MatchesExpected &&
+            workflowHub.MatchesExpected &&
+            mobileNav.Ready;
+
+        return new SeedContractStatus(
+            Ready: routeContractReady,
+            RouteContractReady: routeContractReady,
+            Auth: new SeedAuthStatus("/auth/login", "/auth/logout", challengePath),
+            Home: home,
+            Dashboard: dashboard,
+            WorkflowPage: workflowPage,
+            WorkflowHub: workflowHub,
+            MobileNav: mobileNav);
+    }
+
+    private static SeededRouteStatus BuildSeededRoute(
+        IPublishedContent? content,
+        string alias,
+        string expectedName,
+        string expectedUrl)
+    {
+        var url = NormalizePath(content?.Url());
+        var matchesExpected =
+            content != null &&
+            string.Equals(content.Name, expectedName, StringComparison.Ordinal) &&
+            string.Equals(url, NormalizePath(expectedUrl), StringComparison.OrdinalIgnoreCase);
+
+        return new SeededRouteStatus(alias, expectedName, expectedUrl, content != null, url, matchesExpected);
+    }
+
+    private static MobileNavStatus BuildMobileNavStatus(IPublishedContent? settings)
+    {
+        var mobileNavLinks = settings?.Value<BlockListModel>("mobileNavLinks");
+        var navUrls = mobileNavLinks?
+            .Select(block => NormalizePath(block.Content?.Value<string>("navUrl")))
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? [];
+        var hasHome = navUrls.Contains(NormalizePath(TestSiteSeedContract.HomePageUrl));
+        var hasDashboard = navUrls.Contains(NormalizePath(TestSiteSeedContract.DashboardUrl));
+        var hasWorkflowHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.WorkflowHubUrl));
+        var ready =
+            settings != null &&
+            mobileNavLinks != null &&
+            mobileNavLinks.Any() &&
+            hasHome &&
+            hasDashboard &&
+            hasWorkflowHub;
+
+        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasWorkflowHub, ready);
+    }
+
+    private sealed record SeedContractStatus(
+        bool Ready,
+        bool RouteContractReady,
+        SeedAuthStatus Auth,
+        SeededRouteStatus Home,
+        SeededRouteStatus Dashboard,
+        SeededRouteStatus WorkflowPage,
+        SeededRouteStatus WorkflowHub,
+        MobileNavStatus MobileNav);
+
+    private sealed record SeedAuthStatus(string LoginPath, string LogoutPath, string ChallengePath);
+
+    private sealed record SeededRouteStatus(
+        string Alias,
+        string ExpectedName,
+        string ExpectedUrl,
+        bool Published,
+        string? Url,
+        bool MatchesExpected);
+
+    private sealed record MobileNavStatus(
+        bool Published,
+        int ItemCount,
+        bool HasHome,
+        bool HasDashboard,
+        bool HasWorkflowHub,
+        bool Ready);
+
+    private static string NormalizePath(string? path)
+        => TestSiteSeedContract.NormalizeUrl(path);
 }

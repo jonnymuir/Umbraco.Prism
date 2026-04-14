@@ -1,7 +1,8 @@
-﻿@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+﻿@using UmbracoPrism.TestSite.Models
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WorkflowViewModel>
 @inject Microsoft.AspNetCore.Mvc.ViewEngines.ICompositeViewEngine _viewEngine
 @{
-    Layout = "Master";
+    Layout = "~/Views/Shared/Master.cshtml";
     ViewBag.Title = Model.HasError ? "Workflow Error" : Model.StateDisplayName;
 }
 

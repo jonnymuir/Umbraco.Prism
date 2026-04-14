@@ -15,13 +15,13 @@ public class PrismMigrationHandler(
         IMigrationPlanExecutor migrationPlanExecutor,
         ICoreScopeProvider coreScopeProvider,
         IKeyValueService keyValueService,
-        IRuntimeState runtimeState) : INotificationAsyncHandler<UmbracoApplicationStartingNotification>
+        IRuntimeState runtimeState) : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     /// <summary>
     /// Handles the application starting notification to set up database migrations.
     /// </summary>
     /// <param name="notification"></param>
-    public async Task HandleAsync(UmbracoApplicationStartingNotification notification, CancellationToken cancellationToken)
+    public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         // Only run migrations if Umbraco is fully installed and ready
         if (runtimeState.Level < Umbraco.Cms.Core.RuntimeLevel.Run) return;

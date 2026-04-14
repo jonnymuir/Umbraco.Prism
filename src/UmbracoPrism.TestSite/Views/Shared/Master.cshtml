@@ -6,10 +6,21 @@
 @{
     // 1. Resolve the Tenant once at the top level
     var tenant = PrismContext.CurrentTenant;
-    
+
+    var rootContent = Umbraco.ContentAtRoot().ToList();
+
     // 2. Resolve site-wide Settings node (Paul Seal pattern)
-    var settings = Umbraco.ContentAtRoot().FirstOrDefault(x => x.ContentType.Alias == "settings");
+    var settings = TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.SettingsAlias);
     var mobileNavLinks = settings?.Value<BlockListModel>("mobileNavLinks");
+    var homeUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.HomePageAlias),
+        TestSiteSeedContract.HomePageUrl);
+    var workflowPageUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.WorkflowKey),
+        TestSiteSeedContract.WorkflowPageUrl);
+    var workflowHubUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.WorkflowHubAlias),
+        TestSiteSeedContract.WorkflowHubUrl);
 }
 
 <!DOCTYPE html>
@@ -44,9 +55,9 @@
             <strong>@(tenant?.Name ?? "Prism Portal")</strong>
         </div>
         <nav aria-label="Main navigation">
-            <a href="/">Home</a>
-            <a href="/get-in-touch">Get in Touch</a>
-            <a href="/my-workflows">My Workflows</a>
+            <a href="@homeUrl">Home</a>
+            <a href="@workflowPageUrl">Get in Touch</a>
+            <a href="@workflowHubUrl">My Workflows</a>
         </nav>
     </header>
 

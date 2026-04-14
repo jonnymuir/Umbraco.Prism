@@ -47,5 +47,12 @@ public interface IBusinessAppWorkflowClient
     /// Returns a list of all workflow instances for the calling member.
     /// The BA filters by authenticated user identity (from the bearer token).
     /// </summary>
-    Task<WorkflowInstanceListEnvelope> GetInstancesAsync(CancellationToken cancellationToken = default);
+    /// <param name="allowRefreshRetry">
+    /// When <see langword="true"/>, a downstream <c>401</c> triggers one forced
+    /// refresh-token exchange and retry. Page-render callers can disable this to
+    /// avoid mutating the member cookie during route rendering.
+    /// </param>
+    Task<WorkflowInstanceListEnvelope> GetInstancesAsync(
+        bool allowRefreshRetry = true,
+        CancellationToken cancellationToken = default);
 }

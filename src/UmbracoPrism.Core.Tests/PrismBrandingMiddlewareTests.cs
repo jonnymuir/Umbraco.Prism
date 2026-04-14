@@ -456,8 +456,9 @@ public class PrismBrandingMiddlewareTests
     private sealed class TestPrismContext : IPrismContext
     {
         public PrismTenant? CurrentTenant { get; set; }
+        public string? LastAuthorizationFailureReason => null;
 
-        public Task<System.Net.Http.Headers.AuthenticationHeaderValue?> GetAuthorizationHeaderAsync()
+        public Task<System.Net.Http.Headers.AuthenticationHeaderValue?> GetAuthorizationHeaderAsync(bool forceRefresh = false)
         {
             return Task.FromResult<System.Net.Http.Headers.AuthenticationHeaderValue?>(null);
         }

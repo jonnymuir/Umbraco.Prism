@@ -1,4 +1,3 @@
-@using Umbraco.Cms.Web.Common.PublishedModels
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = "~/Views/Shared/Master.cshtml";
@@ -6,7 +5,9 @@
     var heroSubtitle = Model.Value<string>("heroSubtitle") ?? "Your notification-powered vinyl record shop";
     
     // Get all genre landing pages (children of this node)
-    var genres = Model.Children<VinylGenreLanding>().ToList();
+    var genres = Model.Children()
+        .Where(child => child.ContentType.Alias == "vinylGenreLanding")
+        .ToList();
 }
 
 <div class="vinyl-vault-home">
@@ -38,7 +39,7 @@
             @{
                 // Get all vinyl records across all genres, sorted by create date
                 var allVinyls = genres
-                    .SelectMany(g => g.Children<VinylRecord>())
+                    .SelectMany(g => g.Children().Where(child => child.ContentType.Alias == "vinylRecord"))
                     .OrderByDescending(v => v.CreateDate)
                     .Take(8)
                     .ToList();

@@ -1,13 +1,18 @@
-@using System.Security.Claims
+﻿@using System.Security.Claims
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 
 @{
-    Layout = "Master";
+    Layout = "~/Views/Shared/Master.cshtml";
 
     var heroImage = Model?.Value<IPublishedContent>("heroImage");
     var cardImage = Model?.Value<IPublishedContent>("cardImage");
     var heroImageUrl = heroImage?.Url();
     var cardImageUrl = cardImage?.Url();
+    var rootContent = Umbraco.ContentAtRoot().ToList();
+    var dashboardUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.DashboardAlias),
+        TestSiteSeedContract.DashboardUrl);
+    var dashboardLoginUrl = $"/auth/login?returnUrl={System.Uri.EscapeDataString(dashboardUrl)}";
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
     var displayName = Context.User.FindFirst("name")?.Value
                       ?? Context.User.FindFirst("preferred_username")?.Value
@@ -37,7 +42,7 @@
         </style>
     }
 
-<div class="page">
+<div class="page" data-prism-home-ready="true">
 
         @if (isAuthenticated)
         {
@@ -47,7 +52,7 @@
                 <h1>Welcome back, @displayName</h1>
                 <p>Your secure portal is ready. Head to your dashboard to manage your account.</p>
                 <div class="hero-actions">
-                    <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+                    <a href="@dashboardUrl" class="btn btn-primary">Go to Dashboard</a>
                     <a href="/auth/logout" class="btn btn-ghost">Sign Out</a>
                 </div>
             </header>
@@ -57,13 +62,13 @@
             <!-- Unauthenticated: welcoming hero with Sign In + Register CTAs -->
             <header class="hero">
                 <span class="hero-badge">Secure Member Portal</span>
-                <h1>Your account, your&nbsp;way</h1>
+                <h1>Your account, your way</h1>
                 <p>
                     Access your documents, manage your preferences, and stay in control — all
                     in one secure place.
                 </p>
                 <div class="hero-actions">
-                    <a href="/auth/login" class="btn btn-primary">Sign In</a>
+                    <a href="@dashboardLoginUrl" class="btn btn-primary">Sign In</a>
                     <a href="/auth/register" class="btn btn-ghost">Create Account</a>
                 </div>
             </header>
@@ -571,4 +576,3 @@
             <prism-debug />
         </div>
     </div>
-

@@ -105,9 +105,10 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
     /// <param name="tenantKey">The cache key for this tenant (e.g. the OidcAuthority URL).</param>
     /// <param name="metadataAddress">The OpenID Connect metadata URL to fetch signing keys from.</param>
     /// <param name="forceRefresh">When <see langword="true"/>, bypasses TTL checks and refreshes immediately.</param>
+    /// <param name="requiredKeyId">Optional key identifier that must be present. Bypasses forced-refresh cooldown if missing.</param>
     /// <param name="cancellationToken">Cancellation token for metadata retrieval.</param>
     /// <returns>A task that completes when keys are cached.</returns>
-    public async Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, CancellationToken cancellationToken = default)
+    public async Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, string? requiredKeyId = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(tenantKey)) return;
 
@@ -125,7 +126,14 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
             if (!forceRefresh && !snapshot.ShouldRefresh)
                 return;
 
+            // Bypass forced-refresh cooldown if a required key is missing from the cache.
+            // This handles OIDC provider restarts (e.g. Keycloak) where signing keys rotate.
+            var bypassCooldownForMissingKey = !string.IsNullOrWhiteSpace(requiredKeyId)
+                && _store.TryGetValue(normalizedKey, out var existingForKeyCheck)
+                && !existingForKeyCheck.Keys.Any(k => string.Equals(k.KeyId, requiredKeyId, StringComparison.OrdinalIgnoreCase));
+
             if (forceRefresh
+                && !bypassCooldownForMissingKey
                 && _store.TryGetValue(normalizedKey, out var forcedRefreshExisting)
                 && requestStartedAt - forcedRefreshExisting.FetchedAt < ForcedRefreshCooldown)
             {
