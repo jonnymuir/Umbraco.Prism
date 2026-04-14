@@ -63,6 +63,14 @@ History trimmed for readability. Complete history in git.
 - Local reproduction with `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj -c Release --filter FullyQualifiedName~Phase1SecurityRegressionTests` passed 23/23 on a machine that already has a trusted .NET HTTPS dev certificate.
 - For this repo, any test harness that spins up loopback HTTPS with Kestrel must either establish certificate trust in CI or use an explicit test-only certificate/handler strategy; otherwise security-contract tests can fail before the behavior under test runs.
 
+## Learnings — 2026-04-14 — Phase1 redirect contract review
+
+- The failing `Phase1SecurityRegressionTests` redirect-round-trip cases are asserting the right user-facing contract at the callback boundary: hostile `returnUrl` values fall back to `/`, safe local paths survive sign-in, and missing or blank values canonicalize to `/`.
+- The unnecessary part of the current harness is not the callback execution itself; it is the dependency on a Kestrel `https://localhost` dev certificate being trusted by CI while `PrismOidcConfiguration` uses bare `HttpClient` instances for token exchange and discovery.
+- Any Blathers fix should preserve execution of `PrismOidcConfiguration.OnAuthorizationCodeReceived` and the final `Response.Redirect(...)` assertion; replacing the transport trust strategy with an explicit test-only handler/certificate is fine, but collapsing coverage back to controller-only or `PrismReturnUrl.Normalize(...)` tests would lose the callback-sink regression.
+- Concrete QA gap: `RecordingAuthenticationService` only records the sign-in scheme today, so the suite does not yet assert that `AuthenticationProperties.RedirectUri` is cleared before the `PrismMemberCookie` session is persisted.
+- Key review paths: `.github/workflows/ci-tests.yml`, `src/UmbracoPrism.Core.Tests/Phase1SecurityRegressionTests.cs`, `src/UmbracoPrism.Core/Auth/PrismReturnUrl.cs`, and `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`.
+
 ## 2026-04-14: Redirect Hardening Sprint — COMPLETE
 
 **Session:** Redirect Hardening Work (2026-04-14T12:39:42Z)
@@ -117,3 +125,16 @@ Pre-deployment validation should:
 3. Confirm no orphaned references to old versions
 4. Validate marketplace/CDN metadata in sync with package versions
 5. Generate clean build artifacts with no warnings introduced
+
+---
+
+## Session: Phase1 Security Regression CI Test Fix (2026-04-14T17:52:43Z)
+
+**Topic:** Validation of loopback OIDC regression harness change
+
+**Outcome:** ✅ Regression contract validated; confirmed loopback dependency necessary for real OIDC callback execution; validated self-signed TLS removal does not weaken security assertions.
+
+**Team Updates:**
+- Decision merged to `.squad/decisions.md`: "CI-safe loopback OIDC regression harness"
+- Blathers completed fix: loopback moved to HTTP/127.0.0.1, HTTPS requirement derived from metadata scheme
+- Session log: `.squad/log/2026-04-14T17:52:43Z-ci-test-fix.md`

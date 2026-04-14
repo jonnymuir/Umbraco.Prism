@@ -121,3 +121,25 @@ Both must be handled for restart resilience.
 **Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
 
 **Team Consensus:** No compromise on security; prefer ASP.NET Core built-in validators over custom logic when feasible.
+
+---
+
+## Session: Phase1 Security Regression CI Test Fix (2026-04-14T17:52:43Z)
+
+**Topic:** CI-safe loopback OIDC regression harness
+
+**Outcome:** ✅ Fixed Phase1SecurityRegressionTests by switching loopback OIDC harness from `https://localhost` to `http://127.0.0.1` and aligning discovery HTTPS requirements with metadata URL scheme.
+
+**Team Updates:**
+- Decision merged to `.squad/decisions.md`: "CI-safe loopback OIDC regression harness"
+- Tangy validated regression contract and security posture
+- Session log: `.squad/log/2026-04-14T17:52:43Z-ci-test-fix.md`
+
+
+## Learnings (2026-04-14, CI-safe OIDC loopback fix — COMPLETE)
+
+- `src/UmbracoPrism.Core.Tests/Phase1SecurityRegressionTests.cs` intentionally drives `PrismOidcConfiguration.OnAuthorizationCodeReceived`, so the redirect regression coverage depends on a loopback OIDC server for real token exchange, metadata discovery, nonce validation, cookie sign-in, and the final redirect sink.
+- The CI failure was transport-only: GitHub Actions did not trust the Kestrel dev certificate behind `https://localhost`, so the tests never reached the redirect assertions.
+- Smallest safe fix: keep the executable OIDC harness, but move the test provider to `http://127.0.0.1` because TLS is not the behavior under test in this slice.
+- `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` now matches `PrismSigningKeyCache`'s metadata posture by using `HttpDocumentRetriever` with `RequireHttps` derived from the metadata URL scheme, which preserves HTTPS enforcement for real HTTPS authorities while allowing HTTP loopback test doubles.
+- User preference reinforced: prefer the smallest CI-safe change that preserves regression coverage, and avoid broader production refactors when a focused harness adjustment plus narrowly coupled support code is enough.

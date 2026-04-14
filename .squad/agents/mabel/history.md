@@ -143,3 +143,16 @@ When releasing, always:
 2. Use three-section changelog structure when applicable (New Features, Security, Bug Fixes)
 3. Isolate security-critical commits by scope for audit clarity
 4. Fix stale metadata (e.g., marketplace version) during version bump to prevent future drift
+
+---
+
+## Session: Keycloak Local Dev Documentation Refactor (2026-04-14T17:52:43Z)
+
+**Topic:** README.md clarity improvement
+
+**Outcome:** ✅ Restructured "Optional: Explore Keycloak admin" section (README.md lines 42–48) from dense paragraph into intro + 4 labeled bullets for skimmability.
+
+**Team Updates:**
+- Decision merged to `.squad/decisions.md`: "Keycloak Local Dev Documentation Refactor"
+- Focused on user-facing consequences; preserved all technical accuracy
+- No follow-up needed; Keycloak README and ASPIRE_DEV.md contain deeper architecture details

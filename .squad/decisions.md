@@ -6170,3 +6170,69 @@ That means the app can observe a narrow window where the published tree can alre
 
 **Session log:**
 - `.squad/log/2026-04-14T16:55:12Z-release-v1-8-0.md`
+
+---
+
+## 📌 2026-04-14: Phase1 Security Regression CI Test Fix
+
+### Blathers — CI-safe Loopback OIDC Regression Harness
+
+**Decision:** When a unit test needs the real Prism OIDC callback path, keep the loopback OIDC harness but do not require HTTPS unless transport security itself is under test.
+
+**Context:**
+- `Phase1SecurityRegressionTests` covers post-login redirect behavior by executing `PrismOidcConfiguration.OnAuthorizationCodeReceived`.
+- That callback manually performs token exchange and OIDC metadata discovery, so the tests require a reachable authority rather than a purely mocked event context.
+- GitHub Actions failed with `UntrustedRoot` because the harness used `https://localhost` and depended on the runner trusting Kestrel's development certificate.
+
+**Outcome:**
+- The loopback test authority now runs on `http://127.0.0.1`.
+- `PrismOidcConfiguration` uses `HttpDocumentRetriever` with `RequireHttps` derived from the metadata address scheme, matching the existing `PrismSigningKeyCache` behavior.
+- Redirect-contract coverage stays behavior-based and CI-safe without weakening assertions or adding CI-specific certificate setup.
+
+### Tangy — Regression Validation
+
+**Decision:** Regression contract validated and security posture confirmed.
+
+**Validation:**
+- Loopback dependency confirmed necessary for real OIDC callback path execution
+- Self-signed TLS removal does not compromise redirect-security test coverage
+- Change is security-sound for non-TLS-transport scenarios
+- Regression contract remains intact with narrow slice and core test suite green
+
+---
+
+## Mabel — Keycloak Local Dev Documentation Refactor
+
+**Decision:** Restructure "Optional: Explore Keycloak admin" section in README.md for clarity and skimmability.
+
+**Previous State:**
+- Single dense paragraph cramming four unrelated technical details (OIDC scopes, offline tokens, session id_token, issuer trust, Aspire isolation)
+- Violated readability and structure guidelines
+
+**New Structure:**
+1. Short intro line (one sentence): where to access Keycloak admin
+2. Bulleted section: "Why this matters for local dev" — four concise bullets, one detail per line
+3. Each bullet emphasizes user-facing consequence
+
+**Changes Made (README.md, lines 42–48):**
+- Split wall-of-text into: intro + 4 labeled bullets
+- Removed jargon without sacrifice: "repo-owned local Keycloak flow" → "local Keycloak uses standard OIDC code-flow scopes"
+- Emphasized outcomes: "no offline tokens needed," "never mutate standalone TestSite database"
+- Preserved all technical accuracy
+
+**Rationale:**
+- **Skimmability:** Developer can see Keycloak admin link and understand setup in ~15 seconds
+- **Consistency:** Follows team README structure and "one concept per bullet" convention
+- **Preserved meaning:** All technical details retained, only reorganized for clarity
+- **No follow-up needed:** Only README.md touched; Keycloak README and ASPIRE_DEV.md contain deeper details unchanged
+
+---
+
+**Session recorded by:** Scribe (2026-04-14T17:52:43Z)
+
+**Orchestration logs:**
+- `.squad/orchestration-log/2026-04-14T17:52:43Z-blathers.md`
+- `.squad/orchestration-log/2026-04-14T17:52:43Z-tangy.md`
+
+**Session log:**
+- `.squad/log/2026-04-14T17:52:43Z-ci-test-fix.md`
