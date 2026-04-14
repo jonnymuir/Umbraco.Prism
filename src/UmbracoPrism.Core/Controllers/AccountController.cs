@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using UmbracoPrism.Core.Auth;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -18,12 +19,14 @@ public class AccountController : Controller
     [HttpGet("login")]
     public IActionResult Login(string returnUrl = "/")
     {
+        var safeReturnUrl = PrismReturnUrl.Normalize(returnUrl);
+
         if (User.Identity?.IsAuthenticated == true)
         {
-            return LocalRedirect(returnUrl);
+            return LocalRedirect(safeReturnUrl);
         }
 
-        var properties = new AuthenticationProperties { RedirectUri = returnUrl };
+        var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
 
         // Triggers the OIDC flow which PrismOidcConfiguration will intercept
         return Challenge(properties, "PrismEntraID");
@@ -39,12 +42,14 @@ public class AccountController : Controller
     [HttpGet("register")]
     public IActionResult Register(string returnUrl = "/")
     {
+        var safeReturnUrl = PrismReturnUrl.Normalize(returnUrl);
+
         if (User.Identity?.IsAuthenticated == true)
         {
-            return LocalRedirect(returnUrl);
+            return LocalRedirect(safeReturnUrl);
         }
 
-        var properties = new AuthenticationProperties { RedirectUri = returnUrl };
+        var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
         properties.Items["PrismPrompt"] = "create";
 
         return Challenge(properties, "PrismEntraID");

@@ -440,7 +440,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
                 var identity = new ClaimsIdentity(jwt.Claims, "PrismEntraID", "name", "role");
                 var principal = new ClaimsPrincipal(identity);
-                var returnUrl = props.RedirectUri ?? "/";
+                var returnUrl = PrismReturnUrl.Normalize(props.RedirectUri);
 
                 // Persist the Prism member session without carrying the one-off post-login
                 // redirect target forward into later authenticated requests.
@@ -451,7 +451,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
                 context.HandleResponse();
 
-                // Redirect manually
+                // Redirect manually after framework-backed local URL normalization.
                 context.Response.Redirect(returnUrl);
             }
         };

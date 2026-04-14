@@ -1,18 +1,38 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 using Moq;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
+using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.TagHelpers;
 using UmbracoPrism.TestSite.Controllers;
 
 namespace UmbracoPrism.Core.Tests;
@@ -27,125 +47,143 @@ namespace UmbracoPrism.Core.Tests;
 /// </summary>
 public class Phase1SecurityRegressionTests
 {
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
     // 1. OPEN REDIRECT HARDENING
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void AccountController_Login_DefaultsOidcChallengeToRoot_WhenReturnUrlIsOmitted()
+    {
+        var controller = BuildAccountController();
+
+        var result = controller.Login();
+
+        var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
+        challenge.AuthenticationSchemes.Should().ContainSingle().Which.Should().Be("PrismEntraID");
+        challenge.Properties?.RedirectUri.Should().Be("/",
+            "because users who do not request a destination should land back on the site root after login");
+    }
+
+    [Fact]
+    public void AccountController_Login_PreservesRequestedLocalReturnUrl_ForTheOidcRoundTrip()
+    {
+        var controller = BuildAccountController();
+
+        var result = controller.Login(returnUrl: "/dashboard");
+
+        var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
+        challenge.Properties?.RedirectUri.Should().Be("/dashboard",
+            "because the post-login flow should remember an on-site destination the user actually asked for");
+    }
 
     [Theory]
     [InlineData("https://evil.com")]
     [InlineData("//evil.com")]
     [InlineData("http://phishing.example.com/steal-tokens")]
     [InlineData("javascript:alert('xss')")]
-    public void AccountController_Login_RejectsExternalRedirect(string maliciousReturnUrl)
+    public async Task PrismOidcConfiguration_PostLoginRedirect_FallsBackToRoot_WhenReturnUrlIsExternal(string maliciousReturnUrl)
     {
-        // SECURITY: Verify that AccountController.Login uses LocalRedirect
-        // which internally calls Url.IsLocalUrl() to prevent open redirects
-        
-        // NOTE: We're testing the BEHAVIOR, not implementation details.
-        // The actual validation is in ASP.NET Core's LocalRedirect(),
-        // but we verify the controller rejects external URLs.
-        
-        var controller = BuildAccountController();
-        controller.Url = BuildMockUrlHelper(isLocalUrl: false);
-        
-        var result = controller.Login(returnUrl: maliciousReturnUrl);
-        
-        // LocalRedirect() will throw InvalidOperationException if the URL is external
-        // OR return a LocalRedirectResult which ASP.NET will validate at execution time
-        var act = () =>
-        {
-            if (result is LocalRedirectResult localRedirect)
-            {
-                // Simulate ASP.NET's runtime validation
-                if (!IsLocalUrl(maliciousReturnUrl))
-                {
-                    throw new InvalidOperationException(
-                        $"The supplied URL is not local. A URL with an absolute path is considered local if it does not have a host/authority part. URLs using virtual paths ('~/') are also local.");
-                }
-            }
-        };
-        
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*not local*");
+        await using var oidcProvider = await LoopbackOidcProvider.StartAsync();
+
+        var redirectedTo = await ExecutePostLoginRedirectAsync(maliciousReturnUrl, oidcProvider);
+
+        redirectedTo.Should().Be("/",
+            "because the authenticated callback must never turn attacker-controlled returnUrl values into an off-site redirect");
     }
 
     [Theory]
     [InlineData("/")]
     [InlineData("/dashboard")]
     [InlineData("/content/page")]
-    [InlineData("~/dashboard")]
-    public void AccountController_Login_AllowsLocalRedirect(string safeReturnUrl)
+    public async Task PrismOidcConfiguration_PostLoginRedirect_RestoresSafeLocalReturnUrl(string safeReturnUrl)
+    {
+        await using var oidcProvider = await LoopbackOidcProvider.StartAsync();
+
+        var redirectedTo = await ExecutePostLoginRedirectAsync(safeReturnUrl, oidcProvider);
+
+        redirectedTo.Should().Be(safeReturnUrl,
+            "because local paths should survive the OIDC round-trip when the user asked to return there");
+    }
+
+    [Fact]
+    public async Task PrismOidcConfiguration_PostLoginRedirect_FallsBackToRoot_WhenReturnUrlIsMissing()
+    {
+        await using var oidcProvider = await LoopbackOidcProvider.StartAsync();
+
+        var redirectedTo = await ExecutePostLoginRedirectAsync(returnUrl: null, oidcProvider);
+
+        redirectedTo.Should().Be("/",
+            "because a missing returnUrl should resolve to the default on-site landing page");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task PrismOidcConfiguration_PostLoginRedirect_FallsBackToRoot_WhenReturnUrlIsBlank(string returnUrl)
+    {
+        await using var oidcProvider = await LoopbackOidcProvider.StartAsync();
+
+        var redirectedTo = await ExecutePostLoginRedirectAsync(returnUrl, oidcProvider);
+
+        redirectedTo.Should().Be("/",
+            "because blank callback redirect targets should fail closed to the root page");
+    }
+
+    [Fact]
+    public void AccountController_Login_NormalizesBlankReturnUrl_ToRoot()
     {
         var controller = BuildAccountController();
-        controller.Url = BuildMockUrlHelper(isLocalUrl: true);
-        
-        var result = controller.Login(returnUrl: safeReturnUrl);
-        
-        // For authenticated users, LocalRedirect should succeed with safe URLs
-        // (We can't fully test the redirect without a full HTTP context,
-        // but we verify no exception is thrown)
-        result.Should().NotBeNull();
+
+        var result = controller.Login(returnUrl: string.Empty);
+
+        var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
+        challenge.Properties?.RedirectUri.Should().Be("/",
+            "because a blank returnUrl should fall back to the same safe on-site default as a missing one");
     }
 
-    [Fact]
-    public void PrismOidcConfiguration_OnAuthorizationCodeReceived_SanitizesReturnUrl()
-    {
-        // SECURITY: Verify that PrismOidcConfiguration's OnAuthorizationCodeReceived
-        // handler (line 438) does not blindly trust props.RedirectUri
-        
-        // This is a white-box test: we know the handler uses props.RedirectUri ?? "/"
-        // We verify that if an attacker somehow injects a malicious RedirectUri into
-        // the authentication properties, the response redirect is still validated.
-        
-        // NOTE: Full integration test would require mocking the entire OIDC flow.
-        // For now, we document the expected behavior and test the boundary.
-        
-        const string expectedDefaultRedirect = "/";
-        var actualDefault = string.Empty ?? expectedDefaultRedirect;
-        
-        actualDefault.Should().Be("/", 
-            "because PrismOidcConfiguration should default to '/' when RedirectUri is null");
-    }
-
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
     // 2. DEBUG UI REMOVAL FROM PRODUCTION
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
 
     [Fact]
-    public void PrismDebugTagHelper_ShouldNotRenderInProduction()
+    public async Task PrismDebugTagHelper_SuppressesOutput_InProductionByDefault()
     {
-        // SECURITY: PrismDebugTagHelper exposes claims, tokens, and internal state.
-        // It MUST NOT render in production builds.
-        
-        // Strategy: We verify the tag helper is conditionally compiled or
-        // runtime-gated. Since the current implementation has no guards,
-        // this test DOCUMENTS the expected behavior and will FAIL until fixed.
-        
-        // EXPECTED FIX: Wrap ProcessAsync with #if DEBUG or environment check
-        
-        var isDebugGuarded = CheckIfDebugTagHelperIsGuarded();
-        
-        isDebugGuarded.Should().BeTrue(
-            "because PrismDebugTagHelper MUST NOT expose sensitive data in production. " +
-            "Expected: #if DEBUG wrapper or environment.IsDevelopment() check in ProcessAsync.");
+        var tagHelper = new PrismDebugTagHelper(
+            Mock.Of<IPrismContext>(),
+            Mock.Of<IPrismUserContext>(),
+            Mock.Of<ITenantService>(),
+            new ConfigurationBuilder().Build(),
+            Mock.Of<IAuthenticationSchemeProvider>(),
+            new FakeWebHostEnvironment(isDevelopment: false));
+
+        tagHelper.ViewContext = new ViewContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+
+        var context = new TagHelperContext(
+            new TagHelperAttributeList(),
+            new Dictionary<object, object?>(),
+            Guid.NewGuid().ToString("N"));
+
+        var output = new TagHelperOutput(
+            "prism-debug",
+            new TagHelperAttributeList(),
+            (_, _) => Task.FromResult<TagHelperContent>(new DefaultTagHelperContent()));
+
+        await tagHelper.ProcessAsync(context, output);
+
+        using var writer = new StringWriter();
+        output.WriteTo(writer, HtmlEncoder.Default);
+
+        output.TagName.Should().BeNull("because suppressed production output should not emit a real tag");
+        writer.ToString().Should().BeEmpty(
+            "because the debug panel exposes sensitive runtime details and must not render in production by default");
     }
 
-    private static bool CheckIfDebugTagHelperIsGuarded()
-    {
-        // WHITE-BOX: Check if the tag helper source has conditional compilation
-        // or runtime environment checks.
-        
-        // In a real scenario, we'd use reflection or source analysis.
-        // For this test, we assume it's NOT guarded yet (pre-fix state).
-        // After Blathers adds the guard, this should return true.
-        
-        // TODO: Tangy to update this after Blathers applies the fix
-        return false; // EXPECTED TO FAIL until fix applied
-    }
-
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
     // 3. NOTIFICATION AUTHORIZATION (Broadcast Endpoint)
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
 
     [Fact]
     public void PrismVinylNotificationController_RequiresAdminAuthorization()
@@ -153,17 +191,17 @@ public class Phase1SecurityRegressionTests
         // SECURITY: Only admin users should be able to broadcast notifications.
         // Current implementation has [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
         // but does NOT enforce admin role.
-        
+
         // EXPECTED FIX: Add admin authorization policy or role check
-        
+
         // Strategy: We can't fully test without the fix in place, but we document
         // the requirement and verify the controller has SOME authorization.
-        
+
         var hasAuthorizeAttribute = HasAuthorizeAttribute<Controllers.PrismVinylNotificationController>();
-        
+
         hasAuthorizeAttribute.Should().BeTrue(
             "because PrismVinylNotificationController must require authentication");
-        
+
         // TODO: After Blathers adds admin policy, verify:
         // [Authorize(Policy = "RequireAdminRole")] or similar
     }
@@ -173,22 +211,22 @@ public class Phase1SecurityRegressionTests
     {
         // SECURITY: tenantId MUST NOT come from request body (user-controlled).
         // It should be derived from PrismContext.CurrentTenant.
-        
+
         // FIXED: Blathers has removed request.TenantId from the request model
         // and changed the controller to use prismContext.CurrentTenant.Id
-        
+
         // This test verifies the FIX is in place
         var requestModelHasTenantId = typeof(Controllers.Models.PrismVinylBackInStockRequest)
             .GetProperty("TenantId") != null;
-        
+
         requestModelHasTenantId.Should().BeFalse(
             "because tenantId must be derived from server context (PrismContext.CurrentTenant.Id), " +
             "not accepted from user-controlled request body. This prevents cross-tenant notification spoofing.");
     }
 
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
     // 4. DOWNSTREAM DEMO RESTRICTION
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
 
     [Fact]
     public async Task DownstreamDemo_BlockedInProduction_WhenNotExplicitlyEnabled()
@@ -197,19 +235,19 @@ public class Phase1SecurityRegressionTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Prism:EnableDownstreamDemo"] = "false", // explicitly disabled
+                ["Prism:EnableDownstreamDemo"] = "false",
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://api.example.com"
             })
             .Build();
-        
+
         var controller = BuildDownstreamDemoController(environment, config);
-        
+
         var result = await controller.Get();
-        
+
         var status = result.Should().BeOfType<ObjectResult>().Subject;
-        status.StatusCode.Should().Be(403, 
+        status.StatusCode.Should().Be(403,
             "because downstream demo must be blocked in production when not explicitly enabled");
-        
+
         var body = JsonSerializer.Serialize(status.Value);
         body.Should().Contain("disabled in this environment for security reasons");
     }
@@ -224,17 +262,17 @@ public class Phase1SecurityRegressionTests
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
-        
+
         var handler = new StubHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"test\":\"ok\"}", Encoding.UTF8, "application/json")
             });
-        
+
         var controller = BuildDownstreamDemoController(environment, config, handler);
-        
+
         var result = await controller.Get();
-        
+
         result.Should().BeOfType<OkObjectResult>(
             "because downstream demo should work in Development environment");
     }
@@ -246,21 +284,21 @@ public class Phase1SecurityRegressionTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Prism:EnableDownstreamDemo"] = "true", // explicitly enabled
+                ["Prism:EnableDownstreamDemo"] = "true",
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://api.example.com"
             })
             .Build();
-        
+
         var handler = new StubHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"test\":\"ok\"}", Encoding.UTF8, "application/json")
             });
-        
+
         var controller = BuildDownstreamDemoController(environment, config, handler);
-        
+
         var result = await controller.Get();
-        
+
         result.Should().BeOfType<OkObjectResult>(
             "because Prism:EnableDownstreamDemo=true should allow the endpoint in any environment");
     }
@@ -277,11 +315,11 @@ public class Phase1SecurityRegressionTests
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
-        
+
         var controller = BuildDownstreamDemoController(environment, config);
-        
+
         var result = await controller.Get(url: maliciousUrl);
-        
+
         var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
         var body = JsonSerializer.Serialize(badRequest.Value);
         body.Should().Contain("not in the allowlist");
@@ -299,24 +337,24 @@ public class Phase1SecurityRegressionTests
                 ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
-        
+
         var handler = new StubHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{}", Encoding.UTF8, "application/json")
             });
-        
+
         var controller = BuildDownstreamDemoController(environment, config, handler);
-        
+
         var result = await controller.Get(url: localhostUrl);
-        
+
         result.Should().BeOfType<OkObjectResult>(
             "because localhost URLs should be allowed in Development");
     }
 
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
     // HELPERS
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------------
 
     private sealed class FakeWebHostEnvironment : IWebHostEnvironment
     {
@@ -333,42 +371,106 @@ public class Phase1SecurityRegressionTests
         public string EnvironmentName { get; set; }
     }
 
-    private static UmbracoPrism.Core.Controllers.AccountController BuildAccountController()
+    private static UmbracoPrism.Core.Controllers.AccountController BuildAccountController(bool isAuthenticated = false)
     {
-        var controller = new UmbracoPrism.Core.Controllers.AccountController();
-        
-        // Set up minimal HttpContext
-        var httpContext = new DefaultHttpContext();
-        httpContext.User = new System.Security.Claims.ClaimsPrincipal(
-            new System.Security.Claims.ClaimsIdentity()); // Not authenticated
-        
-        controller.ControllerContext = new ControllerContext
+        var identity = isAuthenticated
+            ? new ClaimsIdentity([new Claim(ClaimTypes.Name, "Tangy")], authenticationType: "PrismMemberCookie")
+            : new ClaimsIdentity();
+
+        var controller = new UmbracoPrism.Core.Controllers.AccountController
         {
-            HttpContext = httpContext
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(identity)
+                }
+            }
         };
-        
+
         return controller;
     }
 
-    private static IUrlHelper BuildMockUrlHelper(bool isLocalUrl)
+    private static async Task<string> ExecutePostLoginRedirectAsync(string? returnUrl, LoopbackOidcProvider oidcProvider)
     {
-        var mock = new Mock<IUrlHelper>();
-        mock.Setup(h => h.IsLocalUrl(It.IsAny<string>())).Returns(isLocalUrl);
-        return mock.Object;
+        var tenant = new PrismTenant
+        {
+            Hostname = "northwind.example",
+            OidcAuthority = oidcProvider.Authority,
+            OidcClientId = LoopbackOidcProvider.ClientId,
+            OidcClientSecretProvider = PrismSecretProviderNames.AzureKeyVault,
+            OidcClientSecretReference = "northwind-oidc-secret"
+        };
+
+        var authService = new RecordingAuthenticationService();
+        var services = new ServiceCollection()
+            .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
+            .AddSingleton<IAuthenticationService>(authService)
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = services
+        };
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("tenant.example");
+        httpContext.Response.Body = new MemoryStream();
+
+        var options = ConfigureOidcOptions(httpContext);
+        var properties = new AuthenticationProperties { RedirectUri = returnUrl };
+
+        var redirectContext = new RedirectContext(
+            httpContext,
+            CreatePrismEntraIdScheme(),
+            options,
+            properties)
+        {
+            ProtocolMessage = new OpenIdConnectMessage
+            {
+                Nonce = oidcProvider.ExpectedNonce
+            }
+        };
+
+        await options.Events.OnRedirectToIdentityProvider(redirectContext);
+
+        var authorizationCodeReceivedContext = new AuthorizationCodeReceivedContext(
+            httpContext,
+            CreatePrismEntraIdScheme(),
+            options,
+            properties)
+        {
+            ProtocolMessage = new OpenIdConnectMessage
+            {
+                Code = "test-auth-code"
+            }
+        };
+
+        await options.Events.OnAuthorizationCodeReceived(authorizationCodeReceivedContext);
+
+        authService.LastSignInScheme.Should().Be("PrismMemberCookie");
+
+        return httpContext.Response.Headers.Location.ToString();
     }
 
-    private static bool IsLocalUrl(string url)
+    private static OpenIdConnectOptions ConfigureOidcOptions(HttpContext httpContext)
     {
-        // Simplified version of ASP.NET Core's IsLocalUrl logic
-        if (string.IsNullOrEmpty(url))
-            return false;
-        
-        if (url.StartsWith("//") || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) 
-            || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            return false;
-        
-        return url.StartsWith("/") || url.StartsWith("~/");
+        var configuration = new PrismOidcConfiguration(
+            new HttpContextAccessor { HttpContext = httpContext },
+            Mock.Of<IPrismSigningKeyCache>(),
+            NullLogger<PrismOidcConfiguration>.Instance);
+
+        var options = new OpenIdConnectOptions();
+        options.Events.OnRedirectToIdentityProvider = _ => Task.CompletedTask;
+        options.Events.OnRedirectToIdentityProviderForSignOut = _ => Task.CompletedTask;
+
+        configuration.PostConfigure("PrismEntraID", options);
+
+        return options;
     }
+
+    private static AuthenticationScheme CreatePrismEntraIdScheme() =>
+        new("PrismEntraID", "PrismEntraID", typeof(OpenIdConnectHandler));
 
     private static bool HasAuthorizeAttribute<T>()
     {
@@ -385,18 +487,18 @@ public class Phase1SecurityRegressionTests
             {
                 Content = new StringContent("{}", Encoding.UTF8, "application/json")
             });
-        
+
         var client = new HttpClient(handler);
         var clientFactory = new Mock<IHttpClientFactory>();
         clientFactory.Setup(f => f.CreateClient("prism-downstream-demo")).Returns(client);
-        
+
         var prismContext = new Mock<IPrismContext>();
         prismContext.Setup(c => c.GetAuthorizationHeaderAsync(It.IsAny<bool>()))
             .ReturnsAsync(new AuthenticationHeaderValue("Bearer", "test-token"));
         var publishedContentQuery = new Mock<IPublishedContentQuery>();
         publishedContentQuery.Setup(query => query.ContentAtRoot())
             .Returns(Array.Empty<IPublishedContent>());
-        
+
         return new DownstreamDemoController(
             clientFactory.Object,
             config,
@@ -409,5 +511,147 @@ public class Phase1SecurityRegressionTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(factory(request));
+    }
+
+    private sealed class LoopbackOidcProvider(WebApplication app, RSA rsa, RsaSecurityKey signingKey) : IAsyncDisposable
+    {
+        public const string ClientId = "northwind-portal";
+
+        public string Authority { get; private set; } = string.Empty;
+        public string ExpectedNonce { get; } = Guid.NewGuid().ToString("N");
+
+        public static async Task<LoopbackOidcProvider> StartAsync()
+        {
+            var rsa = RSA.Create(2048);
+            var signingKey = new RsaSecurityKey(rsa)
+            {
+                KeyId = Guid.NewGuid().ToString("N")
+            };
+
+            var port = GetAvailableLocalhostPort();
+            var builder = WebApplication.CreateBuilder();
+            builder.Logging.ClearProviders();
+            builder.WebHost.UseUrls($"https://localhost:{port}");
+
+            var app = builder.Build();
+            var provider = new LoopbackOidcProvider(app, rsa, signingKey);
+
+            app.MapGet("/.well-known/openid-configuration", () => Results.Json(new
+            {
+                issuer = provider.Authority,
+                jwks_uri = $"{provider.Authority}/jwks"
+            }));
+
+            app.MapGet("/jwks", () => Results.Text(provider.BuildJwksJson(), "application/json"));
+
+            app.MapPost("/protocol/openid-connect/token", () => Results.Json(new
+            {
+                access_token = "access-token",
+                id_token = provider.BuildIdToken(),
+                expires_in = 300
+            }));
+
+            await app.StartAsync();
+
+            provider.Authority = app.Services.GetRequiredService<IServer>()
+                .Features
+                .Get<IServerAddressesFeature>()!
+                .Addresses
+                .Single();
+
+            return provider;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            rsa.Dispose();
+        }
+
+        private string BuildIdToken()
+        {
+            var token = new JwtSecurityToken(
+                issuer: Authority,
+                audience: ClientId,
+                claims:
+                [
+                    new Claim("sub", "user-1"),
+                    new Claim("name", "Tangy Tester"),
+                    new Claim("nonce", ExpectedNonce)
+                ],
+                notBefore: DateTime.UtcNow.AddMinutes(-1),
+                expires: DateTime.UtcNow.AddMinutes(5),
+                signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256));
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private string BuildJwksJson()
+        {
+            var parameters = rsa.ExportParameters(includePrivateParameters: false);
+
+            return JsonSerializer.Serialize(new
+            {
+                keys = new[]
+                {
+                    new
+                    {
+                        kty = "RSA",
+                        use = "sig",
+                        kid = signingKey.KeyId,
+                        alg = SecurityAlgorithms.RsaSha256,
+                        n = Base64UrlEncoder.Encode(parameters.Modulus),
+                        e = Base64UrlEncoder.Encode(parameters.Exponent)
+                    }
+                }
+            });
+        }
+
+        private static int GetAvailableLocalhostPort()
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+    }
+
+    private sealed class RecordingAuthenticationService : IAuthenticationService
+    {
+        public string? LastSignInScheme { get; private set; }
+
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) =>
+            Task.FromResult(AuthenticateResult.NoResult());
+
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
+
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
+
+        public Task SignInAsync(HttpContext context, string? scheme, ClaimsPrincipal principal, AuthenticationProperties? properties)
+        {
+            LastSignInScheme = scheme;
+            return Task.CompletedTask;
+        }
+
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class StubSecretVaultService(string secret) : ISecretVaultService
+    {
+        public Task<string> GetSecretAsync(string secretName) => Task.FromResult(secret);
+
+        public Task<string> ResolveSecretAsync(string? provider, string? reference) => Task.FromResult(secret);
+    }
+
+    private sealed class TestPrismContext : IPrismContext
+    {
+        public PrismTenant? CurrentTenant { get; set; }
+        public string? LastAuthorizationFailureReason => null;
+
+        public Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync(bool forceRefresh = false) =>
+            Task.FromResult<AuthenticationHeaderValue?>(null);
     }
 }
