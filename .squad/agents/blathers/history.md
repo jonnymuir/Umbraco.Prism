@@ -1,8 +1,48 @@
 # Blathers — History
 
+## 📋 Recent Sessions
 
+---
 
+## Session: Aspire localhost auth CI job (2026-04-14T18:06:05Z)
 
+**Topic:** Add separate GitHub Actions job for the Aspire-backed localhost auth/session Playwright lane
+
+**Outcome:** ✅ Added `localhost-auth-playwright` job to `.github/workflows/ci-tests.yml`
+
+### Delivered
+
+- Implemented dedicated `localhost-auth-playwright` job alongside `storybook-tests` and `core-tests`
+- Configured Node 22.17.1 and .NET 10 runtime setup
+- Integrated Playwright Chromium browser install with system dependencies
+- Added HTTPS dev certificate generation and trust sequence
+- Implemented Aspire prerequisite validation (`validate-aspire-prereqs.mjs`)
+- Widened workflow path filters to include Aspire-backed auth graph
+
+### Validation
+
+- ✅ Local `npm run test:playwright:localhost-auth` suite passed **8/8**
+- ✅ AppHost lifecycle working (startup, two restarts, shutdown)
+- ✅ Bearer token refresh across restarts validated
+
+### Key Insights
+
+- The localhost auth lane is heavier than Storybook/core because it owns the full AppHost lifecycle, Docker Keycloak, browser automation, and whole-stack restart
+- Isolated job design allows the lane to fail independently without affecting core/storybook paths
+- Path filters must include the entire auth stack (AppHost, TestSite, MockBusinessApp, KeycloakProxy, Shared, keycloak/, scripts)
+- Tangy validated CI-readiness as GREEN with ~5–8 min expected wall-time impact per PR
+
+### Next Steps
+
+- Merge job spec to main
+- Monitor first CI run for ubuntu-latest certificate trust
+- Document wall-time expectations in team decisions for future auth-path changes
+
+**Decision Merged:** `.squad/decisions.md` — "2026-04-14: Blathers & Tangy — Aspire localhost auth CI job"
+
+---
+
+## 📋 Recent History
 ## 📋 Recent History
 
 Previous history archived to reduce file size. Recent entries below.
@@ -143,3 +183,12 @@ Both must be handled for restart resilience.
 - Smallest safe fix: keep the executable OIDC harness, but move the test provider to `http://127.0.0.1` because TLS is not the behavior under test in this slice.
 - `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` now matches `PrismSigningKeyCache`'s metadata posture by using `HttpDocumentRetriever` with `RequireHttps` derived from the metadata URL scheme, which preserves HTTPS enforcement for real HTTPS authorities while allowing HTTP loopback test doubles.
 - User preference reinforced: prefer the smallest CI-safe change that preserves regression coverage, and avoid broader production refactors when a focused harness adjustment plus narrowly coupled support code is enough.
+
+## Learnings (2026-04-14, Aspire localhost auth CI lane — COMPLETE)
+
+- The real localhost auth/session regression lane belongs beside the existing CI jobs in `.github/workflows/ci-tests.yml` as its own job, not folded into Storybook or core tests, so the heavy Aspire/Docker/browser path can fail independently without disturbing the existing slices.
+- For this repo, the workflow path filters must include the whole Aspire-backed auth graph — `src/UmbracoPrism.AppHost/`, `src/UmbracoPrism.TestSite/`, `src/UmbracoPrism.MockBusinessApp/`, `src/UmbracoPrism.KeycloakProxy/`, `src/UmbracoPrism.Shared/`, `keycloak/`, and `scripts/validate-aspire-prereqs.mjs` — or CI will miss real auth-lane changes outside the client/core projects.
+- The smallest credible GitHub Actions bootstrap on Ubuntu is: `actions/setup-node` for Node `22.17.1`, `actions/setup-dotnet` for `.NET 10`, `npm ci`, `npx playwright install --with-deps chromium`, `dotnet dev-certs https` plus `dotnet dev-certs https --trust`, then the existing repo guardrails `node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite` and `npm run test:playwright:localhost-auth`.
+- `src/UmbracoPrism.Client/package.json` already contains the right executable contract for the lane; the CI job should call that script instead of re-encoding AppHost lifecycle logic in YAML.
+- Local validation matters for this slice: on 2026-04-14 the full `npm run test:playwright:localhost-auth` suite passed `8/8`, confirming the real Aspire-backed lane is runnable end-to-end before wiring GitHub Actions to it.
+- User preference reinforced: preserve the existing Storybook and core test jobs, add the smallest separate auth job that starts the real lane, and avoid unrelated CI refactors.

@@ -30,6 +30,22 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - Local success plus `dotnet dev-certs https --check` finding a valid/trusted localhost certificate is strong evidence that the failure is environment-specific.
 - GitHub Actions workflows that only run `actions/setup-dotnet` do not automatically prove the runner trusts the dev cert used by an in-process test server.
 
+### Bootstrap the full localhost lane explicitly in GitHub Actions
+- For the real Aspire-backed auth/session lane in this repo, the minimal Ubuntu recipe is:
+  1. `actions/setup-node` with Node `22.17.1`,
+  2. `actions/setup-dotnet` with `.NET 10`,
+  3. `npm ci` in `src/UmbracoPrism.Client`,
+  4. `npx playwright install --with-deps chromium`,
+  5. `dotnet dev-certs https`,
+  6. `dotnet dev-certs https --trust`,
+  7. `node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite`,
+  8. `npm run test:playwright:localhost-auth`.
+- Prefer calling the existing npm script for the lane instead of duplicating AppHost start/stop behavior in YAML; the script already owns the prereq check and the Playwright config.
+
+### Widen workflow path filters to the full Aspire auth graph
+- If a workflow is meant to guard the real localhost auth lane, include more than `src/UmbracoPrism.Client/**` and `src/UmbracoPrism.Core/**`.
+- In this repo, changes under `src/UmbracoPrism.AppHost/`, `src/UmbracoPrism.TestSite/`, `src/UmbracoPrism.MockBusinessApp/`, `src/UmbracoPrism.KeycloakProxy/`, `src/UmbracoPrism.Shared/`, `keycloak/`, and `scripts/validate-aspire-prereqs.mjs` can all break the lane and should trigger it.
+
 ### Preserve the callback contract while removing transport fragility
 - In Prism redirect tests, the user-facing behavior under test is the callback-side cookie sign-in plus the final normalized `Response.Redirect(...)` target.
 - The unnecessary dependency is CI trust of the loopback HTTPS transport, not execution of `PrismOidcConfiguration.OnAuthorizationCodeReceived` itself.
@@ -48,9 +64,14 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - HTTPS loopback host: `LoopbackOidcProvider.StartAsync()` at `src/UmbracoPrism.Core.Tests/Phase1SecurityRegressionTests.cs`
 - Token exchange call site: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`
 - CI-safe fix: switch the Phase 1 loopback provider to `http://127.0.0.1` and use `HttpDocumentRetriever(...){ RequireHttps = false }` for that metadata URL.
+- Real localhost lane entry point: `src/UmbracoPrism.Client/package.json` script `test:playwright:localhost-auth`
+- Prereq guard: `scripts/validate-aspire-prereqs.mjs`
+- CI bootstrap location: `.github/workflows/ci-tests.yml`
 
 ## Anti-Patterns
 - Assuming an auth redirect regression just because all redirect-contract tests failed together.
 - Weakening the assertions when the real problem is that CI never trusted the loopback HTTPS endpoint.
 - Treating local pass + CI `UntrustedRoot` as flaky behavior without checking certificate setup.
 - Keeping HTTPS in unit-test loopback harnesses when the suite does not care about TLS behavior and the only result is environment-dependent certificate trust failures.
+- Adding a live auth lane to CI but leaving workflow path filters scoped to client-only files, which lets AppHost/TestSite/Keycloak changes bypass the gate.
+- Re-implementing the localhost lane directly in YAML instead of invoking the repo-owned script and prereq checks.

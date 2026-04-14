@@ -1,6 +1,51 @@
 # Tangy — History
 
-## Project Context
+## Session: Aspire localhost auth CI job QA (2026-04-14T18:06:05Z)
+
+**Topic:** Add separate GitHub Actions job for the Aspire-backed localhost auth/session Playwright lane
+
+**Outcome:** ✅ CI-readiness QA verdict: GREEN
+
+### Review Scope
+
+Evaluated Blathers' `localhost-auth-playwright` job spec for:
+- CI environment prerequisites (Node, .NET, Docker, Playwright)
+- HTTPS certificate trust strategy
+- Aspire lifecycle automation
+- Port collision and resource constraints
+- Regression contract alignment with existing tests
+
+### Key QA Findings
+
+**✅ Passed**
+- Certificate trust strategy sound
+- Aspire prerequisites properly validated
+- Browser automation dependencies correctly sequenced
+- Existing test contracts executable end-to-end (8/8 passing locally)
+- Port usage isolated to localhost auth lane
+
+**⚠️ Notes**
+- Expected wall-time impact: +3–5 min per PR
+- Monitor ubuntu-latest runner certificate trust
+- Consider conditional triggers on auth-path changes for future gating
+
+### Performance Expectations
+
+- AppHost startup: ~30–60 seconds
+- Keycloak container init: ~20–30 seconds
+- Playwright browser install: ~40–60 seconds (cached)
+- Test execution: ~2–3 minutes
+- **Total wall time: 5–8 minutes per PR**
+
+### Recommendation
+
+**APPROVE for merge.** Monitor first few runs for certificate trust issues on ubuntu-latest; if present, add explicit certificate PIN or test-only certificate bundle strategy.
+
+**Decision Merged:** `.squad/decisions.md` — "2026-04-14: Blathers & Tangy — Aspire localhost auth CI job"
+
+---
+
+## 📋 Recent Sessions
 
 **Project:** Umbraco.Prism — Multi-tenancy package for Umbraco v17+
 - Dynamic branding with CSS variable overrides
@@ -138,3 +183,11 @@ Pre-deployment validation should:
 - Decision merged to `.squad/decisions.md`: "CI-safe loopback OIDC regression harness"
 - Blathers completed fix: loopback moved to HTTP/127.0.0.1, HTTPS requirement derived from metadata scheme
 - Session log: `.squad/log/2026-04-14T17:52:43Z-ci-test-fix.md`
+
+## Learnings — 2026-04-14 — Aspire localhost auth CI lane review
+
+- The live localhost auth/session suite is already behaviorally green on a real machine: `npm run test:playwright:localhost-auth` passed 8/8 in about 168 seconds, after owning AppHost startup, two full-stack restarts, and shutdown.
+- Current CI baseline is much lighter: GitHub Actions `CI Tests` run `24414635647` finished `core-tests` in about 47 seconds and `storybook-tests` in about 1 minute 54 seconds, so a new Aspire-backed lane would materially increase PR wall time once Node install, Playwright browser install, Docker cold start, and image pulls are included.
+- The suite depends on fixed localhost HTTPS ports and the Aspire-owned lifecycle in `src/UmbracoPrism.Client/tests/support/live-app-host.ts` (`17214`, `15135`, `21233`, `22194`, `44345`, `8443`, `7245`); that is appropriate for an isolated CI runner but too broad to piggyback on every generic client-only path trigger without more selective gating.
+- The biggest CI readiness risk is certificate trust, not browser automation: AppHost intentionally serves TestSite, Keycloak proxy, and MockBusinessApp on HTTPS localhost, while `PrismOidcConfiguration` still performs token exchange and OIDC discovery with bare `HttpClient`/`HttpDocumentRetriever` against `https://localhost:8443`, which can fail on runners that do not trust the .NET dev certificate.
+- Key review paths for this lane are `.github/workflows/ci-tests.yml`, `src/UmbracoPrism.Client/package.json`, `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`, `src/UmbracoPrism.Client/tests/support/live-app-host.ts`, `scripts/validate-aspire-prereqs.mjs`, `src/UmbracoPrism.AppHost/Program.cs`, and `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`.

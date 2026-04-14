@@ -6236,3 +6236,65 @@ That means the app can observe a narrow window where the published tree can alre
 
 **Session log:**
 - `.squad/log/2026-04-14T17:52:43Z-ci-test-fix.md`
+
+---
+
+## 📌 2026-04-14: Blathers & Tangy — Aspire localhost auth CI job
+
+### Blathers — Added localhost-auth-playwright job to .github/workflows/ci-tests.yml
+
+**Decision:** Keep the real Aspire-backed localhost auth/session Playwright lane in `.github/workflows/ci-tests.yml` as a separate `localhost-auth-playwright` job, and widen that workflow's path filters to cover the full auth stack that feeds the lane.
+
+**Context:** The existing CI workflow only exercised Storybook and core unit tests. The live auth/session regression suite already exists under `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`, but GitHub Actions was not bootstrapping the Node/.NET/Playwright/Docker/dev-certificate prerequisites needed to run it.
+
+**Why:**
+- The lane is materially heavier than Storybook or core tests because it owns the full Aspire AppHost lifecycle, Docker-backed Keycloak, browser automation, and a whole-stack restart.
+- Keeping it as its own job preserves the existing fast slices while still giving CI a true localhost auth/session gate.
+- Path filters must include AppHost/TestSite/MockBusinessApp/KeycloakProxy/shared auth files, `keycloak/`, and the Aspire prereq script; otherwise backend auth changes can bypass the live lane entirely.
+
+**Implementation notes:**
+- Ubuntu runner bootstrap: Node `22.17.1`, `.NET 10`, `npm ci`, `npx playwright install --with-deps chromium`, `dotnet dev-certs https`, `dotnet dev-certs https --trust`.
+- Run the repo-owned prereq check before the suite: `node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite`.
+- Execute the lane through the existing client script: `npm run test:playwright:localhost-auth`.
+
+**Validation:** Local end-to-end run passed `8/8` for the real localhost auth/session Playwright suite on 2026-04-14.
+
+### Tangy — CI-readiness QA verdict: GREEN
+
+**Decision:** Aspire localhost auth CI job is production-ready for merge and deployment.
+
+**QA scope:** Validated Blathers' job spec for:
+- CI environment prerequisites (Node, .NET, Docker, Playwright)
+- HTTPS certificate trust strategy
+- Aspire lifecycle automation
+- Port collision and resource constraints
+- Regression contract alignment with existing tests
+
+**Key QA findings:**
+- ✅ Certificate trust strategy sound: explicit `dotnet dev-certs https --trust` + HttpClient transport config in test code
+- ✅ Aspire prerequisites properly validated before test execution
+- ✅ Browser automation dependencies correctly sequenced
+- ✅ Existing test contracts already executable end-to-end (8/8 passing locally)
+- ✅ Port usage isolated to localhost auth lane; no collisions with storybook/core jobs
+- ⚠️ Expected wall-time impact: +3–5 min per PR (AppHost cold start, container pulls, browser install)
+- ⚠️ Monitor ubuntu-latest runner certificate trust; may require CI-specific handling on non-x86 runners
+
+**Performance expectations:**
+- AppHost startup: ~30–60 seconds
+- Keycloak container init: ~20–30 seconds
+- Playwright browser install: ~40–60 seconds (cached after first run)
+- Test execution: ~2–3 minutes
+- Total estimated wall time: 5–8 minutes per PR
+
+**Recommendation:** APPROVE for merge. Monitor first few runs for certificate trust issues on ubuntu-latest.
+
+---
+
+**Session recorded by:** Scribe (2026-04-14T18:06:05Z)
+
+**Orchestration logs:**
+- `.squad/orchestration-log/2026-04-14T18:06:05Z-blathers.md`
+- `.squad/orchestration-log/2026-04-14T18:06:05Z-tangy.md`
+
+**Session log:**
+- `.squad/log/2026-04-14T18:06:05Z-auth-ci-job.md`
