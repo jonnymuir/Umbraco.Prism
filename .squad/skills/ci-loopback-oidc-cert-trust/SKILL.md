@@ -18,9 +18,25 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - `LoopbackOidcProvider` uses `builder.WebHost.UseUrls($"https://localhost:{port}")`, which relies on Kestrel's development certificate.
 - A bare `new HttpClient()` will validate that certificate against the machine trust store.
 
+### Prefer transport-light loopback when TLS is not the assertion
+- If the test's purpose is callback behavior (token exchange, discovery, nonce validation, cookie sign-in, redirect sink) rather than certificate trust, keep the loopback OIDC provider but serve it on `http://127.0.0.1`.
+- This preserves executable regression coverage while removing the CI dependency on a trusted localhost development certificate.
+
+### Mirror metadata HTTPS requirements to the authority scheme
+- If Prism callback code performs OIDC discovery directly, create the `ConfigurationManager<OpenIdConnectConfiguration>` with an `HttpDocumentRetriever` whose `RequireHttps` flag matches the metadata URL scheme.
+- This keeps real HTTPS authorities strict while allowing explicit HTTP loopback test doubles to fetch discovery metadata.
+
 ### Compare CI with local trust posture
 - Local success plus `dotnet dev-certs https --check` finding a valid/trusted localhost certificate is strong evidence that the failure is environment-specific.
 - GitHub Actions workflows that only run `actions/setup-dotnet` do not automatically prove the runner trusts the dev cert used by an in-process test server.
+
+### Preserve the callback contract while removing transport fragility
+- In Prism redirect tests, the user-facing behavior under test is the callback-side cookie sign-in plus the final normalized `Response.Redirect(...)` target.
+- The unnecessary dependency is CI trust of the loopback HTTPS transport, not execution of `PrismOidcConfiguration.OnAuthorizationCodeReceived` itself.
+- Preferred mitigation order:
+  1. keep the callback event and final redirect assertion under test,
+  2. remove TLS-trust fragility with an explicit test-only transport/certificate strategy,
+  3. avoid downgrading coverage to controller-only or `PrismReturnUrl.Normalize(...)` tests, because those do not exercise the callback sink that previously regressed.
 
 ### Report the smallest credible hypothesis
 - State that the product/auth logic is not yet implicated when the HTTPS handshake fails first.
@@ -31,8 +47,10 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - Failing tests: `src/UmbracoPrism.Core.Tests/Phase1SecurityRegressionTests.cs`
 - HTTPS loopback host: `LoopbackOidcProvider.StartAsync()` at `src/UmbracoPrism.Core.Tests/Phase1SecurityRegressionTests.cs`
 - Token exchange call site: `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`
+- CI-safe fix: switch the Phase 1 loopback provider to `http://127.0.0.1` and use `HttpDocumentRetriever(...){ RequireHttps = false }` for that metadata URL.
 
 ## Anti-Patterns
 - Assuming an auth redirect regression just because all redirect-contract tests failed together.
 - Weakening the assertions when the real problem is that CI never trusted the loopback HTTPS endpoint.
 - Treating local pass + CI `UntrustedRoot` as flaky behavior without checking certificate setup.
+- Keeping HTTPS in unit-test loopback harnesses when the suite does not care about TLS behavior and the only result is environment-dependent certificate trust failures.
