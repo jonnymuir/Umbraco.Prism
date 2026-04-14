@@ -89,6 +89,30 @@ History trimmed for readability. Complete history in git.
 
 **Pattern Observed:** When staging security-critical changes, it's important to isolate the scope and leave unrelated auto-generated files for separate handling—this keeps the git history clean and makes security audits easier.
 
+## 2026-04-15: README Keycloak Documentation Refactor
+
+**Session:** Keycloak local dev docs cleanup
+
+**Task:** Rewrite dense Keycloak paragraph in README.md to meet documentation standards — improve skimmability while preserving all technical meaning.
+
+**Work Performed:**
+- Located original passage (lines 42–46): single 4-sentence paragraph mixing OIDC scopes, session preservation, downstream trust, and runtime isolation
+- Restructured as: short intro line + labeled "Why this matters for local dev" section with 4 concise bullets
+- Each bullet focused on one concept with clear user-facing benefit
+- Preserved 100% of technical accuracy: no details removed, only reorganized for clarity
+
+**Key Improvements:**
+- **Skimmability:** 15-second scan to understand why Keycloak "just works"
+- **Structure:** Intro + bullets aligns with team documentation standards
+- **Tone:** Active voice, present tense, developer-first clarity
+- **Preservation:** OIDC scopes, id_token session handling, cross-app trust, runtime isolation all retained
+
+**Decision Record:** `.squad/decisions/inbox/mabel-readme-keycloak-docs.md`
+
+**Team Learning:** Dense technical explanations can be made readable without losing accuracy by separating the "what" (intro) from the "why" (bullets), and ensuring one concept per bullet.
+
+---
+
 ## 2026-04-14: Release v1.8.0 — Technical Writer & Release Lead
 
 **Session:** Release orchestration (v1.7.1 → v1.8.0)

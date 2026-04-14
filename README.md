@@ -39,11 +39,13 @@ Then:
 3. Browse **My Workflows** to see the demo workflow in action
 4. The MockBusinessApp runs alongside at `https://localhost:7245` — it accepts the same demo credentials and powers the workflow engine
 
-**Optional:** Explore the Keycloak admin at `https://localhost:8443/admin` (`admin` / `admin`).
-The repo-owned local Keycloak flow uses standard OIDC code-flow scopes, so a fresh clone does not need Keycloak offline tokens enabled.
-The imported local Keycloak client also includes the Prism sign-out callback URLs, and Prism now preserves the OIDC `id_token` in the session so RP-initiated logout can send Keycloak the required `id_token_hint`.
-The downstream MockBusinessApp also trusts that same HTTPS Keycloak authority (`https://localhost:8443`), so the dashboard demo and workflow calls validate the forwarded bearer token against the browser-facing issuer rather than Keycloak's internal `http://localhost:8080` container URL.
-Aspire also keeps the TestSite SQLite DB and cookie key ring under `artifacts/aspire/testsite-runtime/`, so the full-stack demo and restart-heavy Playwright suite do not mutate the standalone `src/UmbracoPrism.TestSite/umbraco/Data/` database.
+**Optional:** Explore Keycloak admin at `https://localhost:8443/admin` (`admin` / `admin`).
+
+**Why this matters for local dev:**
+- The local Keycloak uses standard OIDC code-flow scopes — no offline tokens needed for a fresh clone.
+- Prism preserves the `id_token` in the session, enabling logout callbacks to Keycloak with the required `id_token_hint`.
+- MockBusinessApp trusts the browser-facing Keycloak authority (`https://localhost:8443`), so the workflow dashboard validates bearer tokens against the public issuer, not the internal container URL (`http://localhost:8080`).
+- Aspire runtime state lives under `artifacts/aspire/testsite-runtime/` — the demo and Playwright suite never mutate the standalone TestSite database at `src/UmbracoPrism.TestSite/umbraco/Data/`.
 
 > For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](ASPIRE_DEV.md).
 

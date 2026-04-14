@@ -55,6 +55,14 @@ History trimmed for readability. Complete history in git.
 - This diagnostic improvement provides actionable signal for Blathers: the restart-stale session detection is working for the frontend, but the downstream API bearer token is not being refreshed or reestablished after restart.
 - Test suite now runs reliably with 5/8 passing; the 3 restart-related tests remain red as expected until Blathers lands the downstream refresh fix.
 
+## Learnings — 2026-04-14 — CI loopback OIDC certificate trust
+
+- The `CI Tests` workflow run `24413418473` failed only in `core-tests`; `storybook-tests` stayed green.
+- All 10 failures came from `Phase1SecurityRegressionTests` redirect-round-trip cases that start `LoopbackOidcProvider` on `https://localhost:{port}` and then hit it through `new HttpClient()`.
+- GitHub Actions failed during token exchange in `PrismOidcConfiguration` with `HttpRequestException` → `AuthenticationException` → `UntrustedRoot`, which points to certificate trust rather than redirect logic.
+- Local reproduction with `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj -c Release --filter FullyQualifiedName~Phase1SecurityRegressionTests` passed 23/23 on a machine that already has a trusted .NET HTTPS dev certificate.
+- For this repo, any test harness that spins up loopback HTTPS with Kestrel must either establish certificate trust in CI or use an explicit test-only certificate/handler strategy; otherwise security-contract tests can fail before the behavior under test runs.
+
 ## 2026-04-14: Redirect Hardening Sprint — COMPLETE
 
 **Session:** Redirect Hardening Work (2026-04-14T12:39:42Z)
