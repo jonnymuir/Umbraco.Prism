@@ -50,11 +50,11 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
-		/// Mobile Navigation Links: Up to 4 navigation items for the mobile app bottom bar. Each item has a label, URL, icon (from media library), and open-in-new-tab toggle.
+		/// Mobile Navigation Links: Configure up to 4 navigation links for the mobile app bottom navigation bar (max 4 items recommended)
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "17.2.2+11a412c")]
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
 		[ImplementPropertyType("mobileNavLinks")]
-		public virtual global::Umbraco.Cms.Core.Models.Blocks.BlockListModel MobileNavLinks => this.Value<global::Umbraco.Cms.Core.Models.Blocks.BlockListModel>(_publishedValueFallback, "mobileNavLinks");
+		public virtual global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.Link> MobileNavLinks => this.Value<global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.Link>>(_publishedValueFallback, "mobileNavLinks");
 	}
 }

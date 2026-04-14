@@ -1174,3 +1174,26 @@ Two comprehensive guides in `docs/guides/`:
 **Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
 
 **Team Consensus:** Security test diagnostics must be transparent and actionable for cross-team coordination.
+
+## 2026-04-14: Security Hardening Commit — COMPLETE
+
+**Task:** Commit redirect hardening work from active development branch.
+
+**Delivered:**
+- Scoped commit (SHA: `64419c6`) isolating security hardening files only
+- Excluded unrelated TestSite auto-generated model changes
+- Proper conventional commit message with security focus and test coverage notes
+- Copilot co-author trailer included per team requirements
+
+**Commit Contents (6 files):**
+- `PrismReturnUrl.cs` (new) — callback-safe URL validation utility
+- `AccountController.cs` (modified) — logout and callback endpoint hardening
+- `PrismOidcConfiguration.cs` (modified) — explicit returnUrl validation support
+- `AccountControllerTests.cs` (new) — 0-to-49 test coverage
+- `PrismReturnUrlTests.cs` (new) — utility-layer test cases
+- `Phase1SecurityRegressionTests.cs` (modified) — comprehensive regression coverage
+
+**Left Unstaged (intentionally):**
+- 5 TestSite auto-generated model changes (unrelated to security work)
+
+**Pattern Observed:** When staging security-critical changes, it's important to isolate the scope and leave unrelated auto-generated files for separate handling—this keeps the git history clean and makes security audits easier.
