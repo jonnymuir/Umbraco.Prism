@@ -227,6 +227,8 @@
 - 2026-04-14 (evidence): Warm live probes showed `seed-contract-ready` already reports the seeded route contract as a readiness concept, and a focused regression test now locks the fallback behavior in `TestSiteSeedContractTests`.
 - 2026-04-14 (startup semantics): `BootUmbracoAsync()` prevents serving before Umbraco boots, but it does not mean freshly seeded published URLs are already converged. Because TestSite CTAs/login links capture `returnUrl` from published navigation state, a transient `/` from `content.Url()` becomes a persisted redirect target through `AccountController` → `AuthenticationProperties.RedirectUri` → `PrismOidcConfiguration` callback unless callers wait for `GET /api/prism/downstream-demo/seed-contract-ready`.
 - 2026-04-14 (classification): The transient `/` is not the steady-state Umbraco contract we should design around; it is mainly a cold-start artifact of this TestSite's development setup — startup seeders publishing into a fresh isolated runtime DB, then Razor/auth CTAs consuming `content.Url()` before the seeded route contract reports ready.
+- 2026-04-14 (framework returnUrl validation): For shared auth redirect checks outside MVC controllers, prefer `.NET 10`'s `RedirectHttpResult.IsLocalUrl(...)` over a handwritten parser so controller and callback code share the same local-URL contract.
+- 2026-04-14 (callback redirect sink): The OIDC callback still uses `Response.Redirect(...)`, so the important boundary is to normalize `AuthenticationProperties.RedirectUri` with the framework helper immediately before the callback redirect and fail closed to `/` for null/blank/external inputs.
 Headings: `## [v1.2.0] — 2026-03-28`. The `awk` script starts capturing after the matching heading line and stops before the next `## [` line, giving the full section body without the heading itself.
 
 ## Learnings (Issue #14 — Biometric Registration Endpoint)
@@ -2214,3 +2216,34 @@ Tangy will validate live suite behavior after this phase completes.
 
 Both must be handled for restart resilience.
 
+## Learnings (2026-04-14, Open Redirect Fix — COMPLETE)
+
+- The auth redirect boundary spans both `AccountController` and `PrismOidcConfiguration`; sanitizing only the authenticated `LocalRedirect(...)` branch is not enough because unauthenticated requests carry `AuthenticationProperties.RedirectUri` through OIDC state and the callback later issues `Response.Redirect(...)`.
+- The safest contract is to normalize `returnUrl` twice with the same helper: once before creating the challenge state, and again immediately before the callback redirect sink. This preserves safe local routes while failing closed to `/` for absolute, scheme-relative, or script-style inputs.
+- Minimal behavior coverage for this slice is:
+  1. login/register challenge state stores `/` for hostile return URLs,
+  2. safe local paths survive unchanged,
+  3. authenticated users still land on local destinations only,
+  4. callback redirect normalization uses the same shared rule.
+
+## 2026-04-14: Redirect Hardening Sprint — COMPLETE
+
+**Session:** Redirect Hardening Work (2026-04-14T12:39:42Z)
+
+**Delivered:**
+- Open-redirect mitigation: hardened login/callback returnUrl flow against open-redirect vulnerabilities
+- Framework integration: replaced handwritten returnUrl parsing with ASP.NET Core `RedirectHttpResult.IsLocalUrl()` validator
+- Restart resilience: Keycloak session persistence + signing key cache bypass for provider restarts
+- Validation: Targeted security tests 49/49 passed; Core slice 400/400 passed
+
+**Key Outcomes:**
+- Used framework-backed local-only validation for all auth redirect paths
+- Normalized returnUrl both at ingress (AccountController) and callback (PrismOidcConfiguration)
+- Kept LocalRedirect for controller redirects; used IsLocalUrl() for callback contexts
+- Hardened blank/null/external callback targets to default `/`
+- OIDC token validation now resilient to provider restarts with key rotation
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T12:39:42Z-blathers.md`
+**Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
+
+**Team Consensus:** No compromise on security; prefer ASP.NET Core built-in validators over custom logic when feasible.

@@ -30,6 +30,7 @@ Use this when a security regression suite starts failing after the product or te
 ### Default/fallback safety is a runtime contract
 
 - For redirect safety, cover malicious, null, and empty values explicitly.
+- In C#, `value ?? "/"` does not normalize `""` or whitespace. If the safe default is root, tests should prove explicit canonicalization rather than assuming null-coalescing covers blank input.
 - Assert the final redirect target or suppressed output, not the exact internal line of code used to get there.
 
 ## Examples

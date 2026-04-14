@@ -33,4 +33,13 @@
 
 - `returnUrl` is security-sensitive across both `AccountController` and `PrismOidcConfiguration`.
 - A check on the authenticated `LocalRedirect(...)` branch alone is insufficient if unauthenticated users carry the value through OIDC state and the callback later issues `Response.Redirect(...)`.
+- For auth redirects, prefer a shared normalization helper at both boundaries:
+  1. sanitize before persisting `AuthenticationProperties.RedirectUri`,
+  2. sanitize again immediately before the final redirect sink.
+  This gives defense in depth against both direct query-string input and any later state tampering while preserving valid local paths.
+- Prefer framework local-url validators over custom parsing wherever the execution context allows it:
+  - controller/view context: `Url.IsLocalUrl(...)` and `LocalRedirect(...)`,
+  - non-controller callback context: `RedirectHttpResult.IsLocalUrl(...)` via a shared normalizer before `Response.Redirect(...)`, so controller and callback share the same framework URL contract.
+- Treat an explicit redirect whitelist as a stricter product policy, not the default fix for CWE-601. Use it when the app should only return to a bounded set of in-app routes; local-only validation is sufficient when the requirement is simply “never leave this origin”.
+- When callback behavior matters, use a loopback HTTPS OIDC test provider so the production callback runs real token exchange, metadata discovery, nonce validation, cookie sign-in, and the final redirect sink. This is the quickest way to separate a real exploit from a stale controller-only or source-shape test.
 - For operationally sensitive debug surfaces, default-production suppression matters more than whether the code uses `#if DEBUG`; explicit opt-in may be acceptable if the default state is non-rendering.

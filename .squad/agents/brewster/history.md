@@ -1702,3 +1702,30 @@ Blathers spawned to fix restart-only downstream API failure; Tangy to validate a
 - **Keycloak refresh token calls should omit the scope parameter entirely when using tokens issued with offline_access.** When the initial login included offline_access, the refresh_token grant should not restate scopes — Keycloak uses the original scopes bound to that refresh token. Sending scope=openid profile on refresh (without offline_access) can cause Keycloak to reject the call. The correct fix is GetRefreshScope() returning null for localhost demo, which PrismContext converts to an empty string, which then skips adding scope to the form parameters.
 - **Pre-existing Phase1SecurityRegressionTests failures are unrelated to this work.** The AccountController_Login_RejectsExternalRedirect tests expect an InvalidOperationException to be thrown when calling LocalRedirect() with an external URL, but the test setup creates an unauthenticated principal, so the controller returns Challenge() instead of entering the LocalRedirect() branch. These tests were failing before the working-tree changes and remain failing after — they need separate investigation/correction.
 - **The full localhost auth suite (8 tests) now passes, including the restart test.** All Playwright contracts pass: sign-in flow, API call, My Workflows navigation, seeded workflow page, dashboard navigation, restart + API call, sign-out, and restart + sign-out. The Core unit tests (PrismContextTests, PrismOidcConfigurationTests) also pass (26 tests total).
+
+
+## 2026-04-14: Redirect Hardening Sprint — COMPLETE
+
+**Session:** Redirect Hardening Work (2026-04-14T12:39:42Z)
+
+**Delivered:**
+- Restart auth recovery: runtime restart detection combined with refresh-token scope strategy
+- Umbraco startup contract: established dashboard route contract and verified seeded TestSite availability
+- Auth redirect state management: stripped transient post-login redirect targets from persisted member cookie
+
+**Key Outcomes:**
+- PrismContext.ShouldRefreshForRuntimeRestart() detects pre-restart sessions via AuthenticationProperties.IssuedUtc
+- Localhost demo tenant requests openid profile offline_access for long-lived refresh tokens
+- Other OIDC tenants request only openid profile unless explicitly configured
+- IssuedUtc = DateTimeOffset.UtcNow on cookie creation ensures fresh restart detection timestamp
+- All 8 Playwright localhost auth tests pass; all 26 Core unit tests pass
+
+**Route Contract Improvements:**
+- Keep published Umbraco routes as single source of truth
+- Do not persist transient post-login AuthenticationProperties.RedirectUri into long-lived member cookie
+- Treat route readiness and persisted auth redirect state as separate debugging layers
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T12:39:42Z-brewster.md`
+**Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
+
+**Team Consensus:** Separation of concerns between cold-start route readiness and authenticated session redirect state improves maintainability.

@@ -5922,3 +5922,171 @@ That means the app can observe a narrow window where the published tree can alre
 - `.squad/orchestration-log/2026-04-14T08:03:15Z-blathers.md`
 
 **Recorded by:** Scribe (2026-04-14T08:03:15Z)
+
+
+---
+
+## 📌 2026-04-14: Redirect Hardening Sprint — Security and Framework Validation
+
+**Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
+
+### Blathers — Backend Startup Behavior
+
+**Decision:** Do not proactively warm or refresh downstream Prism bearer tokens during the first protected dashboard page render.
+
+**Why:**
+- The localhost auth Playwright suite was being blocked before meaningful assertions because `/signin-oidc` returned to `/dashboard` and the dashboard request could loop in auth/cookie renewal work instead of settling on a renderable page.
+- The downstream API paths already refresh on demand, so forcing token work during the HTML page request is unnecessary for startup readiness.
+
+**Consequences:**
+- Protected page GETs should prefer stable rendering over eager downstream token refresh.
+- Startup/readiness checks can treat a settled dashboard render as the contract; downstream bearer renewal remains the responsibility of API/demo actions that actually need the token.
+
+### Blathers — Normalize Auth Return URLs at Ingress and Callback
+
+**Decision:** Use one shared local-URL normalization rule for Prism auth redirects and apply it in two places:
+1. before storing `AuthenticationProperties.RedirectUri` in `AccountController.Login/Register`
+2. immediately before the callback issues the final redirect in `PrismOidcConfiguration`
+
+**Why:**
+- `returnUrl` enters the system through `AccountController` but is replayed later from `AuthenticationProperties.RedirectUri` inside `PrismOidcConfiguration` after sign-in completes. Validating only the authenticated `LocalRedirect(...)` branch leaves a gap where hostile values can survive the OIDC round trip and reach `Response.Redirect(...)`.
+- This keeps backend auth behavior consistent, avoids duplicated local-URL logic, and provides defense in depth if future changes touch only one side of the redirect flow.
+
+**Implementation:** Unsafe values fail closed to `/`; safe in-app paths such as `/dashboard` and `~/dashboard` are preserved.
+
+### Blathers — Framework-Backed ReturnUrl Normalization
+
+**Decision:** Use ASP.NET Core's built-in local URL helpers for Prism auth return targets: `RedirectHttpResult.IsLocalUrl(...)` for shared normalization, plus MVC `LocalRedirect(...)` where controller context exists.
+
+**Why:**
+- The same `returnUrl` crosses both MVC controller and non-controller OIDC callback code, so the safest reusable contract is the framework's own local-URL validation rather than a handwritten parser.
+- A static whitelist is not a good fit right now because Prism supports arbitrary tenant-local authored routes and query strings; a narrow allowlist would either drift constantly or break legitimate in-site destinations.
+- Framework local-URL enforcement still fails closed against schemeful, hosted, and protocol-relative URLs while preserving valid tenant-local paths such as `/dashboard` and `~/dashboard`.
+
+**Implications:**
+- Normalize before storing `AuthenticationProperties.RedirectUri`.
+- Normalize again immediately before the callback redirect, then only redirect the normalized value.
+- Keep the safe fallback as `/` for null, empty, blank, or non-local values.
+
+**Validation:** Targeted security tests 49/49 passed; Core slice 400/400 passed.
+
+### Blathers — Restart-Resilient OIDC Token Validation
+
+**Decision:** Bypass the forced-refresh cooldown in `PrismSigningKeyCache` when a required signing key is missing from the cache, and persist Keycloak sessions across Aspire restarts.
+
+**Context:**
+- Keycloak sessions were not persisted; when the Keycloak container restarted, all refresh_tokens were lost because the H2 database was in-memory only.
+- Stale signing key cache after OIDC provider restart prevented `MockBusinessApp` from fetching the latest keys when validating tokens signed with new keys.
+
+**Solution:**
+- Modified `UmbracoPrism.AppHost/Program.cs` to add a bind mount for Keycloak's H2 database directory.
+- Modified `PrismSigningKeyCache.WarmAsync` to accept an optional `requiredKeyId` parameter; when this key is missing, the forced-refresh cooldown is bypassed.
+- Updated `PrismAuthExtensions.ResolveSigningKeys` to pass the `keyId` when calling `WarmAsync`.
+
+**Outcomes:**
+- All 8 localhost auth Playwright tests pass, including restart scenarios.
+- OIDC token validation is resilient to provider restarts with key rotation.
+- Refresh tokens survive Aspire restarts, enabling seamless session continuation.
+
+### Tangy — Rewrite Security Regression Tests
+
+**Decision:** Phase 1 security regression tests should assert runtime behaviour with executable harnesses, not source-shape checks or exception-timing proxies.
+
+**Context:**
+- The old Phase 1 suite mixed one real redirect concern with stale false positives.
+- `returnUrl` security spans both `AccountController` and `PrismOidcConfiguration`, so controller-only assertions were incomplete.
+- `PrismDebugTagHelper` already had production suppression; the failing test was stale because it never executed the tag helper.
+
+**Outcome:**
+- Use a loopback HTTPS OIDC provider in tests when the callback redirect contract matters.
+- Assert post-login outcomes in human terms: external destinations are blocked, safe local destinations round-trip, missing state falls back safely, and production debug output renders nothing.
+- Avoid source inspection helpers and inert expressions for security regressions in this area going forward.
+
+### Tangy — Audit Regression Tests
+
+**Decision:** Document legacy Phase1 regression test failure patterns and provide targeted remediation guidance for behavior-based security contracts.
+
+**Coverage:** Account controller login rejection, external redirect blocking, normalized local-URL handling.
+
+### Copper — Redirect Hardening Review
+
+**Decision:** Treat post-login redirect targets as a two-stage trust boundary: validate and normalize `returnUrl` before it enters `AuthenticationProperties.RedirectUri`, and enforce the same relative-only rule again before any callback-side `Response.Redirect(...)`.
+
+**Why:**
+- In the current flow, `AccountController.Login` and `Register` only use `LocalRedirect(...)` for already-authenticated users.
+- Unauthenticated requests still persist raw `returnUrl` into `AuthenticationProperties.RedirectUri`.
+- `PrismOidcConfiguration.OnAuthorizationCodeReceived` later reads that value and sends it to `Response.Redirect(returnUrl)`, which re-opens an external redirect path unless the callback validates it too.
+- `props.RedirectUri ?? "/"` is not sufficient fallback hardening because blank strings and whitespace survive null-coalescing.
+
+**Required Properties to Preserve:**
+1. Final post-login targets must stay **relative-only / local-only**; never trust absolute URLs, scheme-relative URLs, or non-HTTP schemes from auth state.
+2. Blank, whitespace, and omitted redirect values must all canonicalize to `/`.
+3. Error and logout flows should remain pinned to fixed local routes (`/error?...`, `/`), not user-controlled values.
+4. The OIDC protocol `redirect_uri` built from request scheme/host/path base is a separate operational trust boundary; proxy/header changes must remain fail-closed with trusted forwarded-header configuration and host validation.
+
+### Copper — Framework Redirect Review
+
+**Decision:** For the current Prism auth flow, framework-backed **local-only** redirect validation is the right immediate control. A redirect whitelist is optional hardening for a later product-policy decision, not a blocker for this code path.
+
+**Why:**
+1. The exploit to stop here is CWE-601: attacker-controlled `returnUrl` escaping the app origin.
+2. The current flow already enforces relative/local redirect semantics at both boundaries via `PrismReturnUrl.Normalize(...)`, and the regression tests prove malicious off-site values fall back to `/` while safe local paths survive the OIDC round-trip.
+3. A whitelist would be a stricter business rule ("only these pages are valid post-login destinations"), not a prerequisite for open-redirect safety.
+
+**Caveat:** `Url.IsLocalUrl(...)` is available in controller code, but not inside `OnAuthorizationCodeReceived`. In callback contexts, use the framework-equivalent local-url validator with the same semantics before `Response.Redirect(...)`, and keep `/` as the fail-closed fallback.
+
+### Brewster — Restart Auth Recovery
+
+**Decision:** Runtime restart detection combined with refresh-token scope strategy enables restart-resilient auth.
+
+**Key Mechanisms:**
+- `PrismContext.ShouldRefreshForRuntimeRestart()` detects pre-restart sessions by comparing `AuthenticationProperties.IssuedUtc` against process-startup timestamp.
+- Localhost demo tenant requests `openid profile offline_access` for long-lived refresh tokens.
+- Other generic OIDC tenants request only `openid profile` unless explicitly configured.
+- `PrismOidcConfiguration.GetRefreshScope()` returns appropriate scope for refresh calls.
+- `IssuedUtc = DateTimeOffset.UtcNow` on cookie creation ensures fresh timestamp for restart detection.
+
+**Validation:** All 8 Playwright localhost auth tests pass; all 26 Core unit tests pass.
+
+### Brewster — Umbraco Startup Contract
+
+**Decision:** Keep the seeded Umbraco dashboard contract as a direct published route at `/dashboard`, but do not persist the transient post-login `AuthenticationProperties.RedirectUri` into the long-lived member cookie.
+
+**Why:**
+- Cold-start validation showed the published Umbraco contract was genuinely converged: Home `/`, Dashboard `/dashboard`, Get in Touch `/get-in-touch`, My Workflows `/my-workflows`, plus the expected anonymous workflow-hub challenge.
+- A separate issue remained after readiness: the authenticated browser could be redirected from `/my-workflows` back to `/dashboard` due to the login journey persisting `AuthenticationProperties.RedirectUri = "/dashboard"` into the long-lived member cookie.
+
+**Implications:**
+- Treat route readiness and persisted auth redirect state as separate layers when debugging localhost startup.
+- The readiness probe should stay focused on published route/auth contract convergence, not on authenticated session internals.
+- When issuing or renewing the Prism member cookie, do not carry forward the transient post-login redirect target once the immediate `/signin-oidc` response has used it.
+
+### Mabel — Security Test Diagnosis
+
+**Decision:** Document Phase1 regression test failure patterns and provide comprehensive test execution guidance for redirect hardening sprint.
+
+**Coverage:** Cross-cutting assessment of Phase1 test suite against new auth hardening; identification of working tests vs. tests requiring focused remediation.
+
+---
+
+## 🎯 User Directives (2026-04-14)
+
+### Directive: No Compromise on Security
+**Captured:** 2026-04-14T11:43:54Z by Jonny Muir  
+**Scope:** All redirect hardening and auth security work
+
+### Directive: Prefer Framework Validators Over Custom Logic
+**Captured:** 2026-04-14T11:58:00Z by Jonny Muir  
+**Scope:** Auth returnUrl validation, redirect security logic  
+**Rationale:** ASP.NET Core built-in local redirect validation is preferred over custom implementations when feasible; no compromise on redirect security
+
+---
+
+**Session recorded by:** Scribe (2026-04-14T12:39:42Z)
+
+**Orchestration logs:**
+- `.squad/orchestration-log/2026-04-14T12:39:42Z-blathers.md`
+- `.squad/orchestration-log/2026-04-14T12:39:42Z-tangy.md`
+- `.squad/orchestration-log/2026-04-14T12:39:42Z-copper.md`
+- `.squad/orchestration-log/2026-04-14T12:39:42Z-brewster.md`
+- `.squad/orchestration-log/2026-04-14T12:39:42Z-mabel.md`

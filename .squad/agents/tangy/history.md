@@ -147,6 +147,12 @@
    - Tests `ConcurrentDictionary` case-insensitive lookup
    - Validates mixed-case `tid` claims are handled correctly
 
+## Learnings
+
+- 2026-04-14 (Phase 1 security regression rewrite): For auth `returnUrl` contracts, use a loopback HTTPS OIDC provider so `PrismOidcConfiguration` executes its real token-exchange, discovery, nonce-validation, and final redirect path during tests.
+- Rewritten Phase 1 coverage now asserts runtime behaviour instead of source shape: omitted/blank login `returnUrl` values normalize to `/`, missing callback redirect state falls back to `/`, local paths round-trip, and production `prism-debug` output renders nothing by default.
+- Validation for this rewrite: focused `Phase1SecurityRegressionTests` passed 21/21, full Core suite passed 394/394, and Playwright passed 42/42.
+
 **Architectural Insights Documented:**
 - Exception propagation is intentional (fail-loud, not fail-open)
 - Deduplication barrier lives in `PrismSigningKeyCache.WarmAsync`, not in `ResolveSigningKeys`
@@ -1034,3 +1040,24 @@ Blathers completed restart-only downstream auth investigation/fix pass. Outcome:
 - Adding await expectSignedInHome(page) before the API call confirms the user is still logged in from the frontend perspective, isolating the failure to the downstream bearer token contract.
 - This diagnostic improvement provides actionable signal for Blathers: the restart-stale session detection is working for the frontend, but the downstream API bearer token is not being refreshed or reestablished after restart.
 - Test suite now runs reliably with 5/8 passing; the 3 restart-related tests remain red as expected until Blathers lands the downstream refresh fix.
+
+## 2026-04-14: Redirect Hardening Sprint — COMPLETE
+
+**Session:** Redirect Hardening Work (2026-04-14T12:39:42Z)
+
+**Delivered:**
+- Rewrote stale Phase1 regression tests into behavior-based security contracts
+- Converted legacy test patterns to modern contract-driven testing
+- Comprehensive Phase1 regression test audit and remediation guidance
+- Validation: Phase1 tests passed; full Core suite passed; Playwright end-to-end green
+
+**Key Outcomes:**
+- Security tests now assert runtime behavior with executable harnesses
+- External destinations blocked; safe local destinations round-trip verified
+- Missing state falls back safely; production debug output renders nothing
+- Avoid source inspection helpers and inert expressions for security regressions
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T12:39:42Z-tangy.md`
+**Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
+
+**Team Consensus:** Security contracts must be behavior-driven with executable test harnesses.
