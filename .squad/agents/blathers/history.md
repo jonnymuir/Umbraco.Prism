@@ -200,6 +200,12 @@ Both must be handled for restart resilience.
 - The smallest next fix is workflow-only: keep the existing Node/.NET/browser/path-filter/working-directory setup, but export `SSL_CERT_DIR="$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs"` (persisted for later steps) before running `dotnet dev-certs https --trust`, then rerun the job to see whether Aspire/Docker/app behavior has any remaining issues.
 - Evidence against the other suspected buckets in this run: Playwright Chromium + Linux deps installed successfully, the workflow paths already cover the full auth graph, `../../scripts/validate-aspire-prereqs.mjs` resolves correctly from `src/UmbracoPrism.Client`, and no Docker/Aspire logs exist yet because the job stopped before those steps.
 
+## Learnings (2026-04-14, CI workflow manual auth rerun — COMPLETE)
+
+- The smallest safe GitHub Actions fix for the Ubuntu localhost-auth lane is workflow-only: persist `SSL_CERT_DIR` to `$GITHUB_ENV` before `dotnet dev-certs https --trust`, keeping the runner's dev-cert trust directory alongside the system cert directories for later .NET/OpenSSL consumers in the job.
+- Adding top-level `workflow_dispatch:` to `.github/workflows/ci-tests.yml` makes the existing `localhost-auth-playwright` job manually runnable from both the GitHub UI and `gh workflow run`, without changing the existing push/pull-request job topology.
+- For this repo, manual rerun support belongs at the workflow trigger layer, not by duplicating or renaming the localhost auth job; preserving the existing job name keeps prior diagnostics, history, and references stable.
+
 
 ## Team Update — 2026-04-14T19:12:55Z — Auth Failure Investigation Complete
 
@@ -216,3 +222,20 @@ Both must be handled for restart resilience.
 **Inbox Files:** Deleted after merge (deduplication confirmed).
 
 ---
+
+## Team Update — 2026-04-14T19:52:39Z — CI workflow patch finalized
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T19:52:39Z-blathers.md`
+
+**Session Log:** `.squad/log/2026-04-14T19:52:39Z-auth-workflow-fix.md`
+
+**Outcome:** Scribe finalized workflow patch orchestration, merged Blathers decision into `.squad/decisions.md`, and updated team histories.
+
+**Patch Summary:** `.github/workflows/ci-tests.yml` now includes:
+- Top-level `workflow_dispatch:` trigger for manual GitHub UI and `gh` CLI reruns.
+- `SSL_CERT_DIR` wired on Ubuntu runners: `$HOME/.aspnet/dev-certs/trust:/etc/ssl/certs:/usr/lib/ssl/certs` before `dotnet dev-certs https --trust`.
+- Existing `pull_request` and `push` triggers and job topology unchanged.
+
+**QA Verdict:** Tangy approved patch as production-ready.
+
+**Status:** Ready for merge.

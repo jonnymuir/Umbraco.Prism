@@ -2,6 +2,19 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
+## 📌 2026-04-14: Blathers — CI workflow manual auth rerun + Linux cert trust wiring
+
+**Decision:** Keep `.github/workflows/ci-tests.yml` as the single CI workflow, add top-level `workflow_dispatch:` for manual runs, and fix Ubuntu localhost-auth certificate bootstrap by persisting `SSL_CERT_DIR` before `dotnet dev-certs https --trust`.
+
+**Why:** The failure mode was workflow bootstrap on GitHub-hosted Ubuntu, not app/test logic, so the smallest correct change is to wire Linux trust in-place. Adding `workflow_dispatch` makes the existing `localhost-auth-playwright` lane rerunnable from GitHub UI/`gh` without duplicating jobs or changing the established job topology.
+
+**Implications:**
+- Manual CI runs now include the existing `localhost-auth-playwright` job.
+- Later steps in that job inherit the same OpenSSL trust context via `$GITHUB_ENV`.
+- Existing `pull_request` and `push` triggers and job names remain unchanged.
+
+---
+
 ## 📌 2026-04-13: Brewster — Dashboard Route Contract
 
 **Decision:** Keep the seeded Umbraco dashboard contract as a direct published route at `/dashboard`, but have browser tests reach it from the signed-in home page CTA while asserting that CTA resolves to `/dashboard`.

@@ -214,3 +214,27 @@ Pre-deployment validation should:
 **Inbox Files:** Deleted after merge (deduplication confirmed).
 
 ---
+
+## Learnings — 2026-04-14 — Reviewed localhost auth workflow fix
+
+- The current workflow fix wires Linux trust in the right place: it persists `SSL_CERT_DIR` before the trust command, so the following `dotnet dev-certs https --trust` step can see `$HOME/.aspnet/dev-certs/trust` and should avoid the exact Ubuntu exit-4 failure we previously classified.
+- Keeping `/etc/ssl/certs` and `/usr/lib/ssl/certs` in that persisted value preserves normal system CA lookup while adding the ASP.NET dev-certs trust directory for the localhost auth lane.
+- Adding top-level `workflow_dispatch:` is a safe manual repro hook here because it leaves the existing path-gated `pull_request` trigger and `push`-to-`main` trigger untouched; only human-invoked runs gain an extra entry point.
+
+## Team Update — 2026-04-14T19:52:39Z — CI workflow patch review finalized
+
+**Orchestration Log:** `.squad/orchestration-log/2026-04-14T19:52:39Z-tangy.md`
+
+**Session Log:** `.squad/log/2026-04-14T19:52:39Z-auth-workflow-fix.md`
+
+**Outcome:** Scribe finalized workflow patch orchestration, merged Tangy and Blathers decisions into `.squad/decisions.md`, and updated team histories.
+
+**QA Verdict:** ✅ **APPROVED** — Patch is safe and production-ready.
+- SSL_CERT_DIR wiring correctly places trust directory before system paths.
+- System CA paths preserved for normal lookup.
+- workflow_dispatch safe because it doesn't affect existing pull_request/push triggers.
+- Environment variable persistence correct via GITHUB_ENV.
+
+**Risk Assessment:** No regressions detected. Expected wall-time impact: +3–5 min per PR.
+
+**Status:** Ready for merge.

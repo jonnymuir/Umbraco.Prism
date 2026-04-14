@@ -35,6 +35,11 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
 - In that case the lane has not yet told you anything about Playwright, Aspire, Docker, or auth behavior; the trust bootstrap itself is the blocker.
 - The next action is to export `SSL_CERT_DIR` so it includes `$HOME/.aspnet/dev-certs/trust` (alongside the system cert directories) before calling `dotnet dev-certs https --trust`, or use another explicit test-only trust mechanism.
 - In GitHub Actions, persist that environment variable to later steps (for example via `$GITHUB_ENV`), because the localhost auth lane starts multiple .NET processes after the trust step and they also need the OpenSSL trust directory.
+- In this repo, a workflow step like `echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/etc/ssl/certs:/usr/lib/ssl/certs" >> "$GITHUB_ENV"` before the trust step is a reasonable minimal Ubuntu wiring.
+
+### Add manual repro without widening automatic gates
+- If maintainers need a safe way to rerun the localhost auth lane on demand, add top-level `workflow_dispatch:` to the same workflow that already has path-filtered `pull_request` and `push` triggers.
+- This does not weaken the existing automatic gates; it only adds an explicit manual trigger for diagnostics or post-fix verification on a chosen ref.
 
 ### Bootstrap the full localhost lane explicitly in GitHub Actions
 - For the real Aspire-backed auth/session lane in this repo, the minimal Ubuntu recipe is:
