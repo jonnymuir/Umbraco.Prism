@@ -8,6 +8,14 @@ File has been trimmed to recent entries for readability. Complete history availa
 
 ---
 
+## Learnings (2026-04-14 — Umbraco v17 solution review)
+
+- **Prism is strongest when Umbraco owns the route and authored page shell while the business app owns workflow state.** The repo's best-aligned path is the `workflowPage`/`workflowHub` pattern: route-hijacked pages, protected member access, server-rendered Razor, and content-resolved navigation (`src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`, `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs`, `src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml`).
+- **The current workflow/member journey is close to idiomatic v17, but its document-type design is still thinner than a reference Umbraco site.** `PrismContentTypeSeeder` creates minimal types and templates, yet does not model site structure/editor affordances such as richer page fields or explicit child relationships; `workflowPage` is allowed as root and is seeded as its own root node, while `workflowHub` is intended under Home (`src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`, `src/UmbracoPrism.TestSite/WorkflowPageSeeder.cs`).
+- **The main Umbraco-specific risks are drift away from strongly typed route hijacking and content-owned routing.** The route-hijack controllers currently omit `[ModelType("alias")]`, `MemberDashboardController` hardcodes `/dashboard` and bypasses `CurrentTemplate()` with a direct view path, and `HomePage.cshtml` is untyped while reading a raw `cardImage` alias that is not present on the generated model (`src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs`, `src/UmbracoPrism.TestSite/Views/HomePage.cshtml`, `src/UmbracoPrism.TestSite/umbraco/models/HomePage.generated.cs`).
+- **The backoffice dashboard uses the correct Umbraco 17 extension stack, but its information architecture is muddled.** The package manifest is v17-native (manifest JSON + Lit/UUI web components), yet it registers a custom `Prism.Section` while the actual dashboard is conditioned into `Umb.Section.Content`, so the custom section is effectively unused (`src/UmbracoPrism.Core/wwwroot/umbraco-package.json`, `src/UmbracoPrism.Client/src/backoffice/index.ts`).
+- **There is unfinished workflow-demo surface area that should not be treated as the canonical Umbraco pattern.** `workflowDemoPage` and `Views/WorkflowDemoPage.cshtml` still point at a placeholder `prism-workflow-shell` bundle that does not exist in the client assets, and the instance-picker UI is present in Razor but never activated by controller logic (`src/UmbracoPrism.TestSite/Views/WorkflowDemoPage.cshtml`, `src/UmbracoPrism.TestSite/Views/Partials/_WorkflowHub-InstancePicker.cshtml`).
+
 
 ### Follow-up
 
@@ -93,3 +101,39 @@ Blathers spawned to fix restart-only downstream API failure; Tangy to validate a
 **Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
 
 **Team Consensus:** Separation of concerns between cold-start route readiness and authenticated session redirect state improves maintainability.
+
+## 2026-04-14T20:24:57Z: Umbraco 17 Specialist Review — Architecture Assessment
+
+**Session:** Umbraco 17 specialist review of workflow pages, supporting components, and dashboard (parallel with Tom Nook)
+
+**Work Performed:**
+1. Assessed route-hijacked controller pattern against Umbraco 17 idioms
+2. Identified missing `[ModelType]` attributes and untyped models
+3. Found hardcoded dashboard routing and direct view-path workarounds
+4. Reviewed document type design and backoffice extension architecture
+5. Classified unfinished demo surfaces
+6. Ranked follow-up technical debt
+
+**Key Findings:**
+- ✅ Route-hijacked pattern is correct (strong Umbraco 17 fit)
+- ⚠️ Missing typed models and ModelType attributes
+- ⚠️ Hardcoded `/dashboard` route needs CurrentTemplate() refactor
+- ⚠️ Document types are skeletal; content IA needs enrichment
+- ⚠️ Backoffice dashboard has unused custom section registration
+- ⚠️ Demo surface (`workflowDemoPage`) unfinished
+
+**Highest-Value Follow-ups (Ranked):**
+1. Add `[ModelType]` to route hijackers
+2. Fix `HomePage.cshtml` type mapping and unmapped aliases
+3. Refactor `MemberDashboardController` to use `CurrentTemplate()`
+4. Complete or mark `workflowDemoPage` as in-progress
+5. Hide unused backoffice section
+6. Model richer page fields in content seeder
+
+**Outcome:**
+- Findings synthesized for team consensus
+- Pattern documented for future workflow work
+- Debt prioritized by impact
+- ✅ Review complete: `.squad/orchestration-log/2026-04-14T20:24:57Z-brewster.md`
+
+**Status:** Specialist review phase complete; awaiting Tom Nook architectural fit decision and team prioritization

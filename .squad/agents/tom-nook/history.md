@@ -89,3 +89,33 @@ When assessing version bumps:
 3. Confirm all new features are backward-compatible
 4. Document rationale for MAJOR/MINOR/PATCH choice per semver.org
 5. High confidence in recommendation ensures smooth release
+
+## Learnings
+
+- 2026-04-14 — Prism/Umbraco 17 fit review: the strongest pattern is **Umbraco owns authored routes and page shell; Prism owns tenant/auth/session plumbing; the Business App remains the workflow source of truth**. Keep `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`, `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs`, and `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs` aligned to that boundary.
+- The current workflow UI stack is strongest where server components stay thin: `PrismWorkflowFormTagHelper`, `PrismFieldTagHelper`, and the archetype partials are a good Prism fit because they render contracts from the Business App rather than inventing workflow rules locally.
+- Main architectural debt to watch: `TestSiteSeedContract`/seeded route fallbacks and content-tree scanning are useful demo stabilisers, but they can quietly couple dashboards and hubs to seeded paths instead of authored content structure if they leak beyond TestSite/demo concerns.
+- User preference observed: review-only architecture work should synthesise strengths, design debt, coupling risks, and highest-value follow-up actions in human terms rather than drifting into implementation.
+
+## 2026-04-14T20:24:57Z: Architecture Review Session Complete
+
+**Session:** Umbraco 17 and Prism-fit review (parallel with Brewster)
+
+**Work Performed:**
+1. Reviewed route-hijacked page pattern against Umbraco 17 idioms
+2. Validated Business App boundary and workflow state externalization
+3. Identified architectural strengths and coupling risks
+4. Ranked follow-up actions by impact
+5. Synthesized decision for team consensus
+
+**Key Decision Made:**
+- Approved current route-hijacked pattern as canonical for member dashboard, workflow pages, and hubs
+- Confirmed good fit for Prism provided boundary stays explicit
+- Documented architectural debt: demo coupling, tree scanning, unfinished surfaces
+
+**Outcome:**
+- ✅ Decision merged to `.squad/decisions.md`
+- ✅ Session recorded in `.squad/log/2026-04-14T20:24:57Z-umbraco-review.md`
+- ✅ Orchestration complete: `.squad/orchestration-log/2026-04-14T20:24:57Z-tom-nook.md`
+
+**Status:** Review-only session complete; awaiting team consensus and planning for follow-up sprints

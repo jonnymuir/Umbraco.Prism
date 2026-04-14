@@ -6350,3 +6350,43 @@ That means the app can observe a narrow window where the published tree can alre
 
 **Session log:**
 - `.squad/log/2026-04-14T18:06:05Z-auth-ci-job.md`
+
+---
+
+## 📌 2026-04-14: Tom Nook — Prism Workflow/Dashboard Fit Review
+
+**Decision:** Keep the current route-hijacked page pattern as the canonical architecture for member dashboard, workflow pages, and workflow hubs. Approve the current design as a **good fit for Prism and Umbraco 17**, provided the boundary between Umbraco, Prism, and Business App remains explicit.
+
+**Architectural Boundary (Canonical):**
+1. **Umbraco** owns content-driven routing and page composition
+2. **Prism** owns tenant resolution, auth/session renewal, and server-side workflow safety checks
+3. **Business App** owns workflow state, field semantics, and progression rules
+4. **Client-side code** stays progressive-enhancement only, never the source of workflow truth
+
+**Why This Pattern Works:**
+- Route-hijacked `RenderController`s and authored document types follow idiomatic Umbraco v17 conventions
+- `WorkflowPageController` plus nonce/validator services keep Prism acting as a secure workflow shell, not a second workflow engine
+- `BusinessAppWorkflowClient` cleanly externalizes workflow state — the right posture for tenant-aware integrations
+- Server components stay thin: `PrismWorkflowFormTagHelper`, `PrismFieldTagHelper`, and archetype partials render Business App contracts rather than inventing local workflow rules
+
+**Canonical Components to Preserve:**
+- `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`
+- `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs`
+- `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs`
+
+**Architectural Debt to Prioritise (Follow-up):**
+1. Reduce demo-only route coupling (`TestSiteSeedContract`, seeded fallback URLs, direct view-path workaround in `MemberDashboardController`)
+2. Avoid duplicating workflow truth in Prism UI layers (no claim-based prepopulation that bypasses Business App intent)
+3. Replace repeated published-content tree scans with a clearer resolver/index if workflow hubs grow beyond demo scale
+
+**Future Work Expectations:**
+- Preserve the authored-content shell as the routing source of truth
+- Do not move workflow/business rules into dashboard pages or browser scripts
+- New dashboard surfaces must maintain Business App as external source of truth
+
+**Approval:** ✅ Approved as the current direction for the repo
+
+**Session Log:** `.squad/log/2026-04-14T20:24:57Z-umbraco-review.md`  
+**Orchestration Logs:** 
+- `.squad/orchestration-log/2026-04-14T20:24:57Z-tom-nook.md`
+- `.squad/orchestration-log/2026-04-14T20:24:57Z-brewster.md`
