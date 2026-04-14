@@ -23,8 +23,11 @@ var needsKeycloakSveWorkaround =
 
 // Add Keycloak as a container resource on HTTP 8080.
 // Data directory is bind-mounted to persist sessions/tokens across restarts.
+// HTTP health check uses Keycloak's built-in /health/ready endpoint which includes
+// realm import validation, ensuring the container is fully initialized before dependent services start.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
+    .WithHttpHealthCheck("/health/ready")
     .WithEnvironment("KEYCLOAK_ADMIN", "admin")
     .WithEnvironment("KEYCLOAK_ADMIN_PASSWORD", "admin")
     .WithEnvironment("KC_HEALTH_ENABLED", "true")
