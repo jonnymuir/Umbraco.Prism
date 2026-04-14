@@ -2,6 +2,30 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.8.0] — 2026-04-14
+
+### New Features
+
+- **Generic OIDC provider support:** Prism now supports any OIDC-compliant identity provider (not just Azure AD). Configure custom OIDC endpoints per tenant for full flexibility in identity routing.
+- **Tenant API and model enhancements:** Expanded tenant entity with new fields and API endpoints for runtime tenant management, enabling dynamic provisioning workflows.
+- **Workflow and forms capabilities:** Embedded workflow state machine and forms engine for automation and user-friendly data collection within tenant contexts.
+- **Mobile app UI polish:** Refined responsive design, improved accessibility across mobile and desktop views, and enhanced component library with sticky action buttons.
+
+### Security Enhancements
+
+- **JWKS and nonce validation:** Implemented per-tenant JWKS validation for ID token signatures and strict nonce replay protection in OIDC flows.
+- **Structured auth logging:** Replaced debug output with secure structured logging to prevent accidental exposure of sensitive tenant data in production logs.
+- **Key Vault 404 fallback:** Graceful handling of missing secrets in Azure Key Vault with fallback to local config, allowing safe dev/staging workflows.
+
+### Bug Fixes & Improvements
+
+- **Android biometric compatibility:** Fixed GNU sed incompatibility on macOS by using Perl for biometric manifest injection. Auto-upgraded Gradle to support Java 25.
+- **Singleton-scoped service resolution:** Fixed `InvalidOperationException` in background services by using `IServiceScopeFactory` for transient scoped service resolution.
+- **Modal scrolling and layout:** Restored vertical scrolling in maximized modals and preserved `uui-dialog-layout` component with full accessibility compliance.
+- **Design system:** Refactored to ITCSS for improved cascade management, added responsive CSS variables with inheritance chain indicators, and comprehensive ARIA improvements.
+
+---
+
 ## [v1.7.1] — 2026-04-06
 
 ### Security Improvements
