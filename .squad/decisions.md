@@ -250,3 +250,69 @@ var keycloakProxy = builder.AddProject(...)
 **Inbox Decisions Merged:**
 - `tangy-keycloak-container-ci.md` → consolidated into this record
 - `blathers-keycloak-container-ci.md` → consolidated into this record
+
+---
+
+## 📌 2026-04-14 (FINAL): Tangy & Blathers — Keycloak Health Check Endpoint Consensus
+
+**Status:** Investigation complete; team consensus achieved; smallest fix identified.
+
+**Context:**
+- GitHub Actions run: `24426777068` (localhost-auth-playwright timeout after ~240 seconds)
+- Both Tangy (QA) and Blathers (Backend) investigated independently and reached identical root cause
+- Keycloak marked "Ready" by Aspire, but HTTP connections refused by downstream services
+
+**Team Consensus:**
+
+Both agents identified the same issue independently:
+
+| Agent | Finding | Evidence |
+|-------|---------|----------|
+| **Tangy (QA)** | `/health/ready` doesn't validate realm import; only checks process state | Run 24426777068: "service ready" yet "connection refused" on realm endpoint |
+| **Blathers (Backend)** | Commit eb19498 used wrong endpoint; `/health/ready` insufficient for realm-dependent services | Container check needs realm discovery endpoint validation |
+
+**Root Cause Chain:**
+
+1. **Commit `6b203ec`**: Correct container endpoint (`/realms/.../openid-configuration`) ✅ but circular proxy check ❌
+2. **Commit `0497571`**: Removed ALL health checks (over-correction) ❌
+3. **Commit `eb19498`**: Restored container check but wrong endpoint (`/health/ready`) ❌
+4. **Current failure**: Process started, realm import still in progress when Aspire marks ready ❌
+
+**Smallest Correct Fix:**
+
+**File:** `src/UmbracoPrism.AppHost/Program.cs` **Line:** 30
+
+```csharp
+// FROM:
+.WithHttpHealthCheck("/health/ready")
+
+// TO:
+.WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")
+```
+
+**Why Correct:**
+
+1. **Non-circular:** Container's own HTTP port (8080), not proxy (8443)
+2. **Validates realm:** Discovery endpoint requires realm import to complete
+3. **Proven:** This exact endpoint was correct in `6b203ec`
+4. **Aligned:** Playwright also probes this same endpoint
+
+**Pattern for Future:**
+
+- ✅ Container `.WithHttpHealthCheck("/realms/.../openid-configuration")` → validates realm availability
+- ✅ Container `.WithHttpHealthCheck("/health")` → basic liveness
+- ❌ Container `.WithHttpHealthCheck("/health/ready")` → insufficient for realm-dependent services
+- ❌ Resource `.WithHealthCheck(customCheckName)` → resource's own HTTPS proxy (circular deadlock)
+
+**Risk:** LOW — restores proven working endpoint from `6b203ec` without circular proxy dependency
+
+**Assigned To:** Blathers (implementation)
+
+**Session Logs:**
+- Tangy Investigation: `.squad/orchestration-log/2026-04-14T22:58:28Z-tangy-latest-keycloak-followup-archived.md`
+- Blathers Analysis: `.squad/orchestration-log/2026-04-14T22:58:28Z-blathers-keycloak-health-check-archived.md`
+- Merge & Consensus: `.squad/orchestration-log/2026-04-14T23:00:00Z-scribe-decision-merge-final.md`
+
+**Inbox Decisions Merged:**
+- `tangy-latest-keycloak-followup.md` → archived
+- `blathers-keycloak-health-check.md` → archived

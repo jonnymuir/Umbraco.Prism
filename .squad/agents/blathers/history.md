@@ -261,3 +261,13 @@ Both must be handled for restart resilience.
 - The correct fix is surgical: restore .WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration") to the Keycloak container (non-circular, gates on actual HTTP readiness) while keeping the keycloakProxy free of custom health checks (avoiding the circular dependency).
 - This pattern generalizes: container health checks should target the container's own HTTP endpoints, not dependent proxy services. AppHost .WithHealthCheck() on a resource should never point to that resource's own HTTPS proxy because the proxy can't serve requests until the resource is marked ready.
 - Commit 933f97f restores only the Keycloak container HTTP health check, preserving the circular dependency fix while ensuring proper startup sequencing in CI.
+
+## Learnings (2026-04-14, Keycloak health check endpoint fix — FIX READY)
+
+- The `/health/ready` endpoint added in commit eb19498 only checks Keycloak process health, not realm import completion, causing Aspire to mark the container Ready before the realm is actually available.
+- CI run 24426777068 showed: Keycloak marked Ready → immediate TCP connection refused → Playwright timeout because realm discovery endpoint `/realms/prism-dev/.well-known/openid-configuration` was unavailable.
+- Initial investigation suspected a port mismatch (health endpoints on port 9000 vs Aspire checking port 8080), but the actual issue is simpler: using the wrong health check endpoint.
+- The correct approach is to check `/realms/prism-dev/.well-known/openid-configuration` directly—this endpoint is always on port 8080 and only responds when the realm is fully imported and ready.
+- This was the working configuration in commit 6b203ec (before the circular proxy dependency was added), confirming the approach is proven.
+- The fix is simpler than adding Keycloak flags: just change the health check path from `/health/ready` to `/realms/prism-dev/.well-known/openid-configuration`.
+- Pattern reinforced: container health checks should validate the specific capability you need (realm availability), not just general process health.
