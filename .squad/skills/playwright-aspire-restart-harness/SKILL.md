@@ -82,6 +82,17 @@ Use this when Playwright coverage must hit the real localhost app and at least o
 - In this repo, a decisive AppHost clue is `Aspire.Hosting.Dcp.dcpctrl.ServiceReconciler.Proxy` logging `Error handling TCP connection` for service `keycloak` with `connect: connection refused` to an ephemeral localhost port. That means the HTTPS proxy path is alive enough to try the upstream hop, but the Keycloak container itself is not yet accepting connections.
 - The next fix belongs in the Aspire resource/readiness contract (for example, gating on real Keycloak HTTP health/discovery before dependent resources proceed), not in the browser assertions.
 
+### Watch for silent container startup failures in CI
+
+- Aspire DCP can mark a container service as "Ready" based on container state alone, even if the container never actually starts or serves HTTP.
+- In GitHub Actions ubuntu-24.04 runners, Keycloak container startup can fail silently: no image pull logs, no container startup logs, but Aspire reports the service as Ready and moves on.
+- Evidence of this failure mode: container network connection added, service marked Ready, but `dial tcp 127.0.0.1:{ephemeral-port}: connect: connection refused` when the proxy tries to connect.
+- Diagnosis: Check CI logs for Docker image pull activity. If the Playwright browser downloads appear but the Keycloak image pull does not, the container is not starting.
+- Mitigation options:
+  1. Add explicit HTTP health checks to the container resource (e.g., `.WithHttpHealthCheck("/health/ready")`) to force Aspire to wait for HTTP availability
+  2. Pre-pull the container image in CI workflow before running tests to isolate image pull vs startup failures
+  3. Add verbose container logging to surface silent startup errors
+
 ## Examples
 
 - Redirect-loop diagnostic failure:

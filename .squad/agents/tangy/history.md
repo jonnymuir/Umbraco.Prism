@@ -245,6 +245,24 @@ Pre-deployment validation should:
 
 **Status:** Ready for merge.
 
+## Learnings — 2026-04-14 — Keycloak container not starting in CI after health check removal (run 24425752344)
+
+- GitHub Actions run `24425752344` for commit `0497571` (health check removal fix) still fails in `localhost-auth-playwright` job.
+- The circular health check problem was correctly fixed, but a deeper issue remains: **the Keycloak Docker container never actually starts in CI**.
+- Evidence from logs:
+  1. **No Docker image pull logs** for `quay.io/keycloak/keycloak:26.0.0` (contrast with successful Playwright browser downloads)
+  2. **No container startup logs** despite Aspire creating container ID `a20ce8c876b44da2cc31d908e2701a5cca560946df82dbaea71b193612d0512b`
+  3. **Aspire marks service `/keycloak` as Ready** (reconciliation 23) based on container-level state
+  4. **keycloak-proxy starts successfully** (PID 4931) and waits for Keycloak
+  5. **Proxy receives connection refused** when trying to connect to `127.0.0.1:32768` (the Keycloak container port)
+- Root cause classification: **Keycloak container HTTP endpoint not ready despite container state being Ready**
+- Aspire's `.WaitFor(keycloak)` only waits for container state, not HTTP availability
+- Playwright readiness probes correctly detect the failure: `Keycloak: no response — no HTTP response; body missing "\"issuer\":\"https://localhost:8443/realms/prism-dev\""`
+- **Fix applied in commit `933f97f`:** Added `.WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")` to the Keycloak container resource
+- This ensures Aspire waits for the realm discovery endpoint to respond before marking Keycloak as ready
+- The fix distinguishes between the Keycloak container's non-circular HTTP health check (needed) and the keycloakProxy's circular custom health check (not needed)
+- CI run `24426243314` is validating the fix
+
 ## Learnings — 2026-04-14 — Latest CI Tests failure after Linux cert-trust fix
 
 - The latest failed `CI Tests` run is `24420087047`; `core-tests` and `storybook-tests` passed, and only `localhost-auth-playwright` failed.

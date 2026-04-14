@@ -82,3 +82,62 @@
 - `.squad/orchestration-log/2026-04-14T08:03:15Z-blathers.md`
 
 **Key Finding:** Cold-start route instability is a repo-specific seeding/runtime pattern, not a platform limitation. Layered readiness gating separates infrastructure drift from product behaviour failures.
+
+## Session: 2026-04-14 — CI Regression Fix: Remove Custom Health Checks
+
+**Spawn Request:** Address CI failure regression after latest commit; consolidate team consensus on root cause and fix approach (assigned to Blathers; reported by Jonny Muir).
+
+**Context:**
+- GitHub Actions run `24423772285` (localhost-auth-playwright job timeout ~4 minutes)
+- Regression triggered by commit `6b203ec` which added custom health checks to Keycloak readiness orchestration
+- Latest investigation by Tangy concluded custom proxy health check at `https://localhost:8443` is root cause
+
+**Participants:**
+- Tangy (🧪 Tester) — Investigation and root cause classification
+- Blathers (🔧 Backend Specialist) — Assigned to implement fix
+- Scribe (📚 Documentation Specialist) — Orchestration and decision consolidation
+
+**Outcomes:**
+- **Root Cause Confirmed:** Commit `6b203ec` added `.WithHttpHealthCheck()` and `.WithHealthCheck()` on keycloakProxy, creating circular dependency
+- **Diagnosis:** Health check probes proxy's own endpoint; Aspire waits for health check before marking proxy ready, but health check can't pass until proxy serves requests
+- **Decision Made:** Remove custom health check registration; keep container-level readiness; rely on Playwright's comprehensive readiness probes
+- **Safety Verified:** Local testing before regression showed 8/8 tests passing; 240-second Playwright timeout with app-level checks is sufficient
+- **Team Consensus:** Both Tangy and Blathers independently reached the same conclusion—strong confidence in fix direction
+
+**Decision Merged:** `2026-04-14: Tangy & Blathers — CI Regression Fix: Remove Custom Health Checks`
+
+**Implementation Steps (Assigned to Blathers):**
+1. Remove `builder.Services.AddHealthChecks()` block from `src/UmbracoPrism.AppHost/Program.cs`
+2. Remove `.WithHttpHealthCheck(...)` from Keycloak container
+3. Remove `.WithHealthCheck(KeycloakProxyHealthCheckName)` from keycloakProxy
+4. Keep `.WaitFor(keycloak)` dependency chain
+5. Verify CI passes with `localhost-auth-playwright` job
+
+**Session Log:** `.squad/orchestration-log/2026-04-14T21:37:00Z-scribe-ci-regression-session.md`
+
+**Key Finding:** Aspire's built-in container readiness is sufficient for this orchestration pattern. Custom health checks that probe dependent services create timing/circular dependencies. Playwright's app-level readiness probes are the appropriate abstraction layer for CI validation.
+
+## Session: 2026-04-14 (Ongoing) — Post-Deadlock Fix CI Failure Investigation
+
+**Spawn Request:** After Blathers applied health check deadlock fix (commit 0497571), CI run still fails with Keycloak container connectivity. Spawn parallel investigations: Tangy to diagnose latest failure; Blathers to trace AppHost startup path and recommend smallest fix (reported by Jonny Muir).
+
+**Context:**
+- Commit `0497571` removed `.WithHealthCheck()` and custom health check registrations from AppHost (fixing the circular dependency regression)
+- Latest CI run post-0497571 still fails with different error: "connection refused" on port 32768
+- Previous run `24425752344`: keycloak-proxy starts successfully, but Keycloak container unreachable
+
+**Participants:**
+- Tangy (🧪 Testing Specialist) — Latest CI run diagnostics; Keycloak container log analysis; root cause classification
+- Blathers (🔧 Backend Specialist) — AppHost Keycloak resource definition trace; startup path analysis; smallest fix recommendation
+- Scribe (📚 Documentation Specialist) — Orchestration coordination and decision consolidation
+
+**Spawn Logs:**
+- `.squad/orchestration-log/2026-04-14T22:29:46Z-tangy-ci-keycloak-investigation.md`
+- `.squad/orchestration-log/2026-04-14T22:29:46Z-blathers-apphost-keycloak-fix.md`
+
+**Status:** Investigation in progress (awaiting Tangy & Blathers findings)
+
+**Expected Outcomes:**
+- **From Tangy:** Latest CI run failure classification (port binding? networking? startup sequence? environment?)
+- **From Blathers:** AppHost Keycloak resource trace and implementation options
+- **Next Decision:** Merge into canonical `.squad/decisions.md` entry once analysis complete

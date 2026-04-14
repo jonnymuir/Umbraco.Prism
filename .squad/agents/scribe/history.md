@@ -146,3 +146,49 @@ The archived decisions remain valid but are now in historical record:
 These principles remain standing even after archiving.
 
 ---
+
+## 2026-04-14T21:34:14Z — CI Failure Investigation Session Orchestration
+
+### Session Context
+- **Topic:** Latest CI failure still failing after readiness fix (Ubuntu cert-trust + workflow_dispatch)
+- **Run ID:** 24420087047
+- **Agents:** Tangy (classification), Blathers (trace + smallest fix)
+- **User:** Jonnymuir
+
+### Orchestration Tasks Completed
+
+1. **Session Log Entry:**
+   - Created orchestration log: `.squad/orchestration-log/2026-04-14T21:34:14Z-scribe-ci-failure-session.md`
+   - Captured session context, agent roles, key findings, and proposed action
+
+2. **Decision Inbox Merge:**
+   - Read both inbox entries (blathers, tangy)
+   - Both teams converged on same root cause: Keycloak HTTP readiness gap
+   - Merged into unified decision record in `decisions.md`
+   - Deleted merged inbox files
+
+3. **Decisions Ledger Update:**
+   - Appended new decision: "2026-04-14: Tangy & Blathers — Latest CI Failure Root Cause Classification"
+   - Consolidated evidence, root cause analysis, and smallest fix recommendation
+   - Added canonical references to AppHost, readiness probes, and CI workflow files
+
+4. **Session History:**
+   - Created log entry: `.squad/log/2026-04-14T21:34:14Z-scribe-session-log.md`
+   - Documented agent findings, consensus, and action alignment
+
+### Key Decision Consensus
+- **Root Cause:** AppHost dependency contract incomplete; Keycloak marked ready before HTTP endpoints available
+- **Classification:** Not cert bootstrap, not auth logic—container/HTTP readiness mismatch
+- **Next Action:** Add HTTP health gate to Keycloak in `src/UmbracoPrism.AppHost/Program.cs`
+
+### Files Created/Modified
+- Created: `.squad/orchestration-log/2026-04-14T21:34:14Z-scribe-ci-failure-session.md`
+- Created: `.squad/log/2026-04-14T21:34:14Z-scribe-session-log.md`
+- Modified: `.squad/decisions.md` (appended new consolidated decision)
+- Deleted: `.squad/decisions/inbox/blathers-latest-ci-failure.md`
+- Deleted: `.squad/decisions/inbox/tangy-latest-ci-failure.md`
+
+### Status
+✅ Session complete—ready for AppHost hardening phase
+
+---
