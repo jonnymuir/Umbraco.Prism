@@ -245,3 +245,10 @@ Both must be handled for restart resilience.
 **QA Verdict:** Tangy approved patch as production-ready.
 
 **Status:** Ready for merge.
+
+## Learnings (2026-04-14, latest CI Tests failure classification)
+
+- Latest failed CI Tests run is `24420087047` (`run_number: 106`) on `main`; the only failing job is `localhost-auth-playwright`, and workflow/bootstrap now succeeds through Node/.NET setup, Playwright install, Linux certificate trust, and `validate-aspire-prereqs.mjs`.
+- The remaining blocker is no longer workflow certificate setup: the suite times out in `LiveAppHost.waitForReadiness()` because only the Keycloak discovery probe stays unready while Aspire dashboard, TestSite, seed-contract, workflow challenge, and MockBusinessApp all report ready.
+- The decisive runner evidence is `Error handling TCP connection {"Service":{"name":"keycloak"},"error":"Could not establish TCP connection to endpoint: dial tcp 127.0.0.1:32768: connect: connection refused"}` immediately after Aspire marks `/keycloak` and `/keycloak-proxy` ready, which means Aspire's current readiness contract is too weak for the Keycloak container/proxy path on GitHub-hosted Ubuntu.
+- Smallest next fix to try is AppHost/readiness-only: gate the localhost auth lane on actual Keycloak HTTP readiness (for example Keycloak health/discovery) rather than container/service-ready state alone, and only widen the Playwright timeout if cold-start evidence still shows legitimate-but-slow Keycloak startup after that gate is added.

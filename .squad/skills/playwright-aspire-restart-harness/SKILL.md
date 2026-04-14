@@ -76,6 +76,12 @@ Use this when Playwright coverage must hit the real localhost app and at least o
 - If the live AppHost readiness gate times out, report each readiness check with its latest HTTP status and missing header/body expectations.
 - This separates "dashboard up but seed contract not converged" from "nothing is listening" without forcing the reader to infer state from raw AppHost logs alone.
 
+### Distinguish IdP-upstream startup failure from browser-contract failure
+
+- If the only missing readiness probe is Keycloak/OIDC discovery while TestSite, seed contract, workflow challenge, and downstream API probes are all green, treat the lane as blocked on IdP startup rather than on a Playwright auth assertion.
+- In this repo, a decisive AppHost clue is `Aspire.Hosting.Dcp.dcpctrl.ServiceReconciler.Proxy` logging `Error handling TCP connection` for service `keycloak` with `connect: connection refused` to an ephemeral localhost port. That means the HTTPS proxy path is alive enough to try the upstream hop, but the Keycloak container itself is not yet accepting connections.
+- The next fix belongs in the Aspire resource/readiness contract (for example, gating on real Keycloak HTTP health/discovery before dependent resources proceed), not in the browser assertions.
+
 ## Examples
 
 - Redirect-loop diagnostic failure:

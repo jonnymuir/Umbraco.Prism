@@ -244,3 +244,11 @@ Pre-deployment validation should:
 **Risk Assessment:** No regressions detected. Expected wall-time impact: +3–5 min per PR.
 
 **Status:** Ready for merge.
+
+## Learnings — 2026-04-14 — Latest CI Tests failure after Linux cert-trust fix
+
+- The latest failed `CI Tests` run is `24420087047`; `core-tests` and `storybook-tests` passed, and only `localhost-auth-playwright` failed.
+- The first meaningful failure is still before any browser behaviour assertion: test `[1/8] logged-out member can complete the localhost Keycloak sign-in flow` never got past `appHost.start()` in `tests/localhost-auth-session.spec.ts` because `LiveAppHost.waitForReadiness()` timed out.
+- The decisive readiness miss is Keycloak discovery, not TestSite or MockBusinessApp: the readiness dump showed `Keycloak: no response` while every other probe was ready.
+- The strongest AppHost signal is `Aspire.Hosting.Dcp.dcpctrl.ServiceReconciler.Proxy` reporting `Error handling TCP connection` for service `keycloak` with `dial tcp 127.0.0.1:32768: connect: connection refused`, which means the HTTPS proxy lane reached the upstream Keycloak hop and found it not accepting connections.
+- Concrete next step for the team: treat this as a real Aspire/Keycloak startup-readiness problem in CI, inspect/fix the Keycloak container or its AppHost readiness contract (for example by gating on real Keycloak HTTP health/discovery instead of bare `.WaitFor(keycloak)`), then rerun `localhost-auth-playwright`.

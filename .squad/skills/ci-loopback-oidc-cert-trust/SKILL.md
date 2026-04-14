@@ -53,6 +53,12 @@ Use this when Prism tests pass locally but fail in GitHub Actions while talking 
   8. `npm run test:playwright:localhost-auth`.
 - Prefer calling the existing npm script for the lane instead of duplicating AppHost start/stop behavior in YAML; the script already owns the prereq check and the Playwright config.
 
+### After cert trust is fixed, reclassify single-probe Keycloak failures carefully
+- If the GitHub Actions localhost auth lane gets past `dotnet dev-certs https --trust` and the prereq script, but `LiveAppHost.waitForReadiness()` times out with **only** the Keycloak discovery probe still failing while Aspire dashboard, TestSite, workflow seed-contract, and MockBusinessApp are all ready, do not keep treating it as a workflow bootstrap/certificate issue.
+- In this repo, that pattern means the remaining defect is likely in the AppHost readiness contract for the Keycloak container/proxy path: Aspire may mark `/keycloak` ready before the forwarded HTTP endpoint is actually accepting traffic.
+- Strong evidence is an Aspire proxy log like `Could not establish TCP connection to endpoint: dial tcp 127.0.0.1:<ephemeral-port>: connect: connection refused` immediately after `/keycloak` or `/keycloak-proxy` enters Ready state.
+- Smallest next fix is to gate downstream startup/readiness on real Keycloak HTTP health/discovery, then rerun before changing auth/product code. Increase the Playwright/AppHost timeout only if logs later prove Keycloak is merely slow rather than falsely marked ready.
+
 ### Widen workflow path filters to the full Aspire auth graph
 - If a workflow is meant to guard the real localhost auth lane, include more than `src/UmbracoPrism.Client/**` and `src/UmbracoPrism.Core/**`.
 - In this repo, changes under `src/UmbracoPrism.AppHost/`, `src/UmbracoPrism.TestSite/`, `src/UmbracoPrism.MockBusinessApp/`, `src/UmbracoPrism.KeycloakProxy/`, `src/UmbracoPrism.Shared/`, `keycloak/`, and `scripts/validate-aspire-prereqs.mjs` can all break the lane and should trigger it.

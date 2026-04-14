@@ -227,6 +227,8 @@ public class DashboardLocalEndpointsValidationTests
 
         program.Should().Contain("AddProject(\"keycloak-proxy\", \"../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj\", launchProfileName: \"https\")");
         program.Should().Contain("AddProject(\"businessapp\", \"../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj\", launchProfileName: \"https\")");
+        program.Should().Contain(".WithHttpHealthCheck(\"/realms/prism-dev/.well-known/openid-configuration\")");
+        program.Should().Contain(".WithHealthCheck(KeycloakProxyHealthCheckName)");
     }
 
     [Fact]
