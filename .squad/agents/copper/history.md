@@ -1639,3 +1639,27 @@ Documentation updated: README includes cert trust setup, ASPIRE_DEV.md explains 
 
 **Artifacts:** `.squad/decisions/inbox/copper-oidc-scope-review.md` (complete analysis and recommendation for Blathers implementation)
 
+## 2026-04-14 — Token Refresh RedirectUri Hygiene
+
+**Context:** Localhost Playwright auth/session test reported 401 from mock business app API after full stack restart, even though dashboard rendered successfully. Restart detection via ProcessStartedUtc comparison was correct, but AuthenticationProperties state hygiene during token refresh needed hardening.
+
+**Finding:** PrismContext.RefreshTokenAsync was reusing the complete AuthenticationProperties object from the pre-refresh cookie when writing the post-refresh cookie. While IssuedUtc and token values were being updated, other properties such as RedirectUri were being carried forward indefinitely.
+
+**Security Impact:**
+- Low direct security risk: RedirectUri is only read during the initial OIDC callback flow, not during token refresh or downstream API calls.
+- Hygiene concern: persisting one-off login state across long-lived token refresh cycles contradicts fail-closed session management principles.
+- Consistency issue: login flow explicitly clears RedirectUri before issuing the PrismMemberCookie; token refresh flow did not maintain the same hygiene.
+
+**Fix Applied:**
+- Added props.RedirectUri = null at line 197 of PrismContext.cs, immediately after token value updates and before SignInAsync.
+- Matches the pattern established in PrismOidcConfiguration.cs where the login callback clears RedirectUri before persisting the member cookie.
+
+**Testing:**
+- All PrismContextTests passed (12/12), including restart scenario test.
+- Pre-existing Phase1SecurityRegressionTests failures (6/19) remain unrelated to this change.
+
+**Decision:**
+- Cookie AuthenticationProperties must be treated as append-only during refresh: update only specific properties needed for new token state, and explicitly null any one-off flow properties.
+
+**Files Modified:**
+- src/UmbracoPrism.Core/Models/PrismContext.cs (line 197)

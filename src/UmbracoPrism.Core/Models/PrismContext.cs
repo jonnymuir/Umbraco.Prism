@@ -19,21 +19,27 @@ public class PrismContext(
     ISecretVaultService vault,
     IPrismTokenRefreshService tokenRefreshService) : IPrismContext
 {
+    private static readonly DateTimeOffset ProcessStartedUtc = DateTimeOffset.UtcNow;
+
     /// <summary>
     /// Gets or sets the current tenant.
     /// </summary>
     public PrismTenant? CurrentTenant { get; set; }
 
+    /// <inheritdoc />
+    public string? LastAuthorizationFailureReason { get; private set; }
+
     /// <summary>
     /// Gets a valid bearer authorization header for downstream tenant-aware API calls.
     /// </summary>
     /// <returns>A bearer header when available; otherwise <see langword="null"/>.</returns>
-    public async Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync()
+    public async Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync(bool forceRefresh = false)
     {
         var context = httpContextAccessor.HttpContext;
 
         if(context == null)
         {
+            LastAuthorizationFailureReason = "missing-http-context";
             return null;
         }
 
@@ -41,12 +47,14 @@ public class PrismContext(
         var authResult = await context.AuthenticateAsync("PrismMemberCookie");
         if (!authResult.Succeeded || authResult.Principal == null)
         {
+            LastAuthorizationFailureReason = "missing-cookie-principal";
             return null;
         }
 
         if (!IsPrincipalBoundToCurrentTenant(authResult.Principal))
         {
             Log.Warning("Rejecting token usage because principal tenant claim does not match resolved tenant context");
+            LastAuthorizationFailureReason = "tenant-mismatch";
             return null;
         }
 
@@ -55,16 +63,32 @@ public class PrismContext(
         var accessToken = tokens?.FirstOrDefault(t => t.Name == "access_token")?.Value;
         var refreshToken = tokens?.FirstOrDefault(t => t.Name == "refresh_token")?.Value;
         var expiresAtStr = tokens?.FirstOrDefault(t => t.Name == "expires_at")?.Value;
+        var shouldRefreshForRuntimeRestart = ShouldRefreshForRuntimeRestart(authResult.Properties);
 
-        if (string.IsNullOrEmpty(accessToken)) return null;
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            LastAuthorizationFailureReason = refreshToken == null
+                ? "missing-access-token"
+                : "refresh-required";
+            return refreshToken == null ? null : await RefreshTokenAsync(context, authResult, refreshToken);
+        }
 
         // Check if expired (with a 1-minute buffer)
-        if (DateTimeOffset.TryParse(expiresAtStr, out var expiresAt) && expiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
+        if (!forceRefresh &&
+            !shouldRefreshForRuntimeRestart &&
+            DateTimeOffset.TryParse(expiresAtStr, out var expiresAt) &&
+            expiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
         {
+            LastAuthorizationFailureReason = null;
             return new AuthenticationHeaderValue("Bearer", accessToken);
         }
 
         // EXPIRED: Manual Refresh
+        LastAuthorizationFailureReason = forceRefresh
+            ? "forced-refresh-required"
+            : shouldRefreshForRuntimeRestart
+                ? "runtime-restart-refresh-required"
+                : "token-expired";
         return refreshToken == null ? null : await RefreshTokenAsync(context, authResult, refreshToken);
     }
 
@@ -73,12 +97,14 @@ public class PrismContext(
         if (CurrentTenant == null)
         {
             Log.Error("Cannot refresh token: CurrentTenant is null.");
+            LastAuthorizationFailureReason = "missing-current-tenant";
             return null;
         }
 
         if (authResult.Principal == null || !IsPrincipalBoundToCurrentTenant(authResult.Principal))
         {
             Log.Warning("Rejecting token refresh because principal tenant claim does not match resolved tenant context");
+            LastAuthorizationFailureReason = "tenant-mismatch";
             return null;
         }
 
@@ -92,25 +118,28 @@ public class PrismContext(
             if (string.IsNullOrWhiteSpace(CurrentTenant.OidcClientId))
             {
                 Log.Error("Cannot refresh token: CurrentTenant is missing generic OIDC client configuration");
+                LastAuthorizationFailureReason = "missing-oidc-client-config";
                 return null;
             }
 
             tokenEndpoint = $"{CurrentTenant.OidcAuthority.TrimEnd('/')}/protocol/openid-connect/token";
             clientId = CurrentTenant.OidcClientId;
             clientSecret = await vault.ResolveSecretAsync(CurrentTenant.OidcClientSecretProvider, CurrentTenant.OidcClientSecretReference);
-            scope = PrismOidcConfiguration.GetRequestedScope(CurrentTenant);
+            scope = PrismOidcConfiguration.GetRefreshScope(CurrentTenant) ?? string.Empty;
         }
         else
         {
             if (string.IsNullOrWhiteSpace(CurrentTenant.EntraTenantId) || string.IsNullOrWhiteSpace(CurrentTenant.EntraClientId))
             {
                 Log.Error("Cannot refresh token: CurrentTenant is missing Entra tenant/client configuration");
+                LastAuthorizationFailureReason = "missing-entra-client-config";
                 return null;
             }
 
             if (string.IsNullOrWhiteSpace(CurrentTenant.SecretKeyName))
             {
                 Log.Error("Cannot refresh token: CurrentTenant secret reference is missing");
+                LastAuthorizationFailureReason = "missing-secret-reference";
                 return null;
             }
 
@@ -123,6 +152,7 @@ public class PrismContext(
         if (string.IsNullOrWhiteSpace(clientSecret))
         {
             Log.Error("Cannot refresh token: client secret could not be resolved from configured provider");
+            LastAuthorizationFailureReason = "missing-client-secret";
             return null;
         }
 
@@ -131,14 +161,21 @@ public class PrismContext(
             { "client_id", clientId },
             { "client_secret", clientSecret },
             { "grant_type", "refresh_token" },
-            { "refresh_token", refreshToken },
-            { "scope", scope }
+            { "refresh_token", refreshToken }
         };
+
+        if (!string.IsNullOrWhiteSpace(scope))
+        {
+            formParameters["scope"] = scope;
+        }
 
         var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters, context.RequestAborted);
 
         if (!result.Success || result.AccessToken == null)
+        {
+            LastAuthorizationFailureReason = result.FailureReason ?? "refresh-failed";
             return null;
+        }
 
         var newExpires = DateTimeOffset.UtcNow
             .AddSeconds(result.ExpiresIn ?? 3600)
@@ -148,22 +185,30 @@ public class PrismContext(
         if (props == null)
         {
             Log.Error("Cannot refresh token: AuthenticationProperties is null.");
+            LastAuthorizationFailureReason = "missing-auth-properties";
             return null;
         }
 
+        props.IssuedUtc = DateTimeOffset.UtcNow;
         props.UpdateTokenValue("access_token", result.AccessToken);
         if (result.RefreshToken != null)
             props.UpdateTokenValue("refresh_token", result.RefreshToken);
         props.UpdateTokenValue("expires_at", newExpires);
+        
+        // Clear any one-off redirect URI to prevent stale navigation state from
+        // persisting across token refresh cycles (matches login flow hygiene)
+        props.RedirectUri = null;
 
         if (authResult.Principal == null)
         {
             Log.Error("Cannot refresh token: Principal is null.");
+            LastAuthorizationFailureReason = "missing-cookie-principal";
             return null;
         }
 
         await context.SignInAsync("PrismMemberCookie", authResult.Principal, props);
 
+        LastAuthorizationFailureReason = null;
         return new AuthenticationHeaderValue("Bearer", result.AccessToken);
     }
 
@@ -232,5 +277,11 @@ public class PrismContext(
             left.TrimEnd('/'),
             right.TrimEnd('/'),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldRefreshForRuntimeRestart(AuthenticationProperties? properties)
+    {
+        var issuedUtc = properties?.IssuedUtc;
+        return issuedUtc.HasValue && issuedUtc.Value < ProcessStartedUtc;
     }
 }
