@@ -1,6 +1,7 @@
 name: CI Tests
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'src/UmbracoPrism.Client/**'
@@ -97,6 +98,9 @@ jobs:
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+
+      - name: Configure Linux certificate trust
+        run: echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/etc/ssl/certs:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
 
       - name: Trust .NET development certificate
         run: |
