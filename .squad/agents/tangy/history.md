@@ -218,6 +218,12 @@
 **Session:** Key Vault Security Review  
 **Work Type:** Code review, edge case analysis, production readiness assessment
 
+## Learnings
+
+- 2026-04-14 (Phase1 security regression audit): The current failing `Phase1SecurityRegressionTests` are mixed signal, not a single broken feature. `AccountController.Login/Register` plus `PrismOidcConfiguration.OnAuthorizationCodeReceived` still form a genuine open-redirect boundary because unauthenticated requests preserve arbitrary `returnUrl` values and the callback later issues `Response.Redirect(returnUrl)` without a locality check.
+- When auditing security regressions in this repo, reject tests that only assert source patterns or helper stubs. `PrismOidcConfiguration_OnAuthorizationCodeReceived_SanitizesReturnUrl` never invokes production code (`string.Empty ?? "/"`), and `PrismDebugTagHelper_ShouldNotRenderInProduction` hardcodes failure via `return false`, so both should be replaced with runtime-behaviour tests.
+- Preferred behavioural contracts here: drive the auth callback with malicious, null, and empty `RedirectUri` values and assert the final redirect target is safe; execute `PrismDebugTagHelper.ProcessAsync` in Production with `Prism:EnableDebugPanel=false` and assert output is suppressed by default.
+
 **Context:** Jonny requested a thorough pre-release review of the new Key Vault integration (`PrismKeyVaultConfigureOptions.cs`) before shipping to production. He can't easily test in production, so this review acts as the quality gate.
 
 **Scope:** 8 files, ~676 lines reviewed across configuration, services, tests, and extensions.
