@@ -1,5 +1,11 @@
 # Blathers — History
 
+## Core Context
+
+This agent manages backend services, authentication infrastructure, and CI/CD workflows. File has grown to reflect extensive project history. Complete work context in git history and Recent Sessions below.
+
+**Key domains:** Auth/OIDC, Aspire local dev, CI infrastructure, Database services, Security hardening
+
 ## 📋 Recent Sessions
 
 ---

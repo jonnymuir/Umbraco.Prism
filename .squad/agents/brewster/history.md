@@ -1,6 +1,10 @@
 # Brewster — History
 
+## Core Context
 
+This agent specializes in Umbraco v17 architecture, routing patterns, and workflow integration. File has grown to reflect detailed technical work. Complete history in git and Summary/Learnings sections below.
+
+**Key domains:** Umbraco 17 patterns, Route hijacking, Workflow/dashboard pages, Document type design, Auth flow validation
 
 ## 📋 Summary
 

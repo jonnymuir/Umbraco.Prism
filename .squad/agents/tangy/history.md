@@ -1,5 +1,11 @@
 # Tangy — History
 
+## Core Context
+
+This agent leads QA validation, test coverage analysis, and edge-case identification. File reflects extensive testing and validation work. Complete history in git; Recent Sessions below.
+
+**Key domains:** Playwright testing, E2E validation, Edge case coverage, CI/CD readiness, Performance/load testing
+
 ## Session: Aspire localhost auth CI job QA (2026-04-14T18:06:05Z)
 
 **Topic:** Add separate GitHub Actions job for the Aspire-backed localhost auth/session Playwright lane
