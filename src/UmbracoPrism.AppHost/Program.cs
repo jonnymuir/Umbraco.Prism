@@ -1,11 +1,7 @@
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = DistributedApplication.CreateBuilder(args);
 const string KeycloakProxyUrl = "https://localhost:8443";
-const string KeycloakDiscoveryUrl = "https://localhost:8443/realms/prism-dev/.well-known/openid-configuration";
-const string KeycloakProxyHealthCheckName = "keycloak-proxy-discovery";
 const string BusinessAppUrl = "https://localhost:7245";
 const string TestSiteRuntimeRootEnvironmentVariable = "PRISM_TESTSITE_RUNTIME_ROOT";
 const string ResetTestSiteRuntimeEnvironmentVariable = "PRISM_TESTSITE_RESET_RUNTIME";
@@ -25,35 +21,10 @@ var needsKeycloakSveWorkaround =
     OperatingSystem.IsMacOS() &&
     RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
-builder.Services.AddHealthChecks()
-    .AddAsyncCheck(KeycloakProxyHealthCheckName, async cancellationToken =>
-    {
-        using var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-        using var client = new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(5)
-        };
-
-        using var response = await client.GetAsync(KeycloakDiscoveryUrl, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return HealthCheckResult.Unhealthy($"Keycloak discovery returned HTTP {(int)response.StatusCode}.");
-        }
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        return body.Contains("\"issuer\":\"https://localhost:8443/realms/prism-dev\"", StringComparison.Ordinal)
-            ? HealthCheckResult.Healthy()
-            : HealthCheckResult.Unhealthy("Keycloak discovery did not advertise the expected localhost issuer.");
-    });
-
 // Add Keycloak as a container resource on HTTP 8080.
 // Data directory is bind-mounted to persist sessions/tokens across restarts.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
-    .WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")
     .WithEnvironment("KEYCLOAK_ADMIN", "admin")
     .WithEnvironment("KEYCLOAK_ADMIN_PASSWORD", "admin")
     .WithEnvironment("KC_HEALTH_ENABLED", "true")
@@ -72,7 +43,6 @@ if (needsKeycloakSveWorkaround)
 // and forwards requests to Keycloak's HTTP endpoint with X-Forwarded headers so
 // Keycloak knows the external origin is HTTPS. Enables Safari/WebKit-safe auth flows.
 var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj", launchProfileName: "https")
-    .WithHealthCheck(KeycloakProxyHealthCheckName)
     .WaitFor(keycloak);
 
 // Add TestSite with environment variable pointing to Keycloak HTTPS proxy.
