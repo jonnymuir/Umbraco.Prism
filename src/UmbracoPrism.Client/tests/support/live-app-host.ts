@@ -12,6 +12,7 @@ const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;
 const responsePreviewLength = 220;
 const notableHeaders = ['location', 'content-type', 'server', 'x-powered-by'] as const;
+const resourceLogTerms = ['keycloak', 'keycloak-proxy', 'testsite', 'businessapp', 'aspire-dashboard'] as const;
 
 const readinessChecks = [
   { name: 'Aspire dashboard', url: 'https://localhost:17214/', allowedStatuses: [200, 302] },
@@ -51,6 +52,7 @@ const requiredPorts = [
   { name: 'Aspire dashboard HTTP', port: 15135 },
   { name: 'Aspire dashboard OTLP', port: 21233 },
   { name: 'Aspire resource service', port: 22194 },
+  { name: 'Keycloak upstream', port: 8080 },
   { name: 'TestSite', port: 44345 },
   { name: 'Keycloak proxy', port: 8443 },
   { name: 'MockBusinessApp', port: 7245 }
@@ -158,8 +160,8 @@ export class LiveAppHost {
       .map(line => `[${stream}] ${line}`);
 
     this.logs.push(...lines);
-    if (this.logs.length > 200) {
-      this.logs.splice(0, this.logs.length - 200);
+    if (this.logs.length > 400) {
+      this.logs.splice(0, this.logs.length - 400);
     }
   }
 
@@ -238,7 +240,10 @@ export class LiveAppHost {
 
     throw new Error(
       `Timed out waiting ${formatDuration(readinessTimeoutMs)} for the Aspire localhost stack to become ready.\n\n` +
-        `Readiness diagnostics:\n${formatReadinessDiagnostics(latestStatuses)}\n\nRecent logs:\n${this.formatLogs()}`
+        `Readiness diagnostics:\n${formatReadinessDiagnostics(latestStatuses)}\n\n` +
+        `Port diagnostics:\n${formatPortDiagnostics()}\n\n` +
+        `Relevant resource logs:\n${this.formatResourceLogs()}\n\n` +
+        `Recent logs:\n${this.formatLogs()}`
     );
   }
 
@@ -308,9 +313,11 @@ export class LiveAppHost {
         }
 
         lastObservedFailure.set(status.check.name, fingerprint);
-        return `  - ${status.check.name}: expected ${formatExpectations(status.check)}; observed ${formatObserved(
-          status.response
-        )}; failures: ${status.failures.join('; ')}`;
+        return (
+          `  - ${status.check.name}: expected ${formatExpectations(status.check)}; observed ${formatObserved(
+            status.response
+          )}; listener ${describeUrlListener(status.check.url)}; failures: ${status.failures.join('; ')}`
+        );
       })
       .filter((line): line is string => line !== null);
 
@@ -326,6 +333,12 @@ export class LiveAppHost {
     }
 
     return checkpointDue ? elapsedMs : lastCheckpointAt;
+  }
+
+  private formatResourceLogs(): string {
+    const pattern = new RegExp(resourceLogTerms.join('|'), 'i');
+    const matchingLines = this.logs.filter(line => pattern.test(line));
+    return matchingLines.length > 0 ? matchingLines.join('\n') : '(no matching AppHost resource log lines captured)';
   }
 }
 
@@ -397,6 +410,7 @@ function formatReadinessDiagnostics(statuses: ReadinessStatus[]): string {
         `  url: ${check.url}`,
         `  expected: ${formatExpectations(check)}`,
         `  observed: ${formatObserved(response)}`,
+        `  listener: ${describeUrlListener(check.url)}`,
         `  result: ${result}`
       ].join('\n');
     })
@@ -471,6 +485,29 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
+
+function formatPortDiagnostics(): string {
+  return requiredPorts
+    .map(({ name, port }) => `- ${name} (${port}): ${describePortListener(port)}`)
+    .join('\n');
+}
+
+function describeUrlListener(urlString: string): string {
+  const url = new URL(urlString);
+  const port =
+    url.port.length > 0
+      ? Number(url.port)
+      : url.protocol === 'https:'
+        ? 443
+        : 80;
+
+  return describePortListener(port);
+}
+
+function describePortListener(port: number): string {
+  const pids = findListeningPids(port);
+  return pids.length > 0 ? `listening [pid ${pids.join(', ')}]` : 'not listening';
 }
 
 function waitForExit(child: ChildProcessWithoutNullStreams): Promise<void> {
