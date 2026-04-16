@@ -242,6 +242,7 @@ export class LiveAppHost {
       `Timed out waiting ${formatDuration(readinessTimeoutMs)} for the Aspire localhost stack to become ready.\n\n` +
         `Readiness diagnostics:\n${formatReadinessDiagnostics(latestStatuses)}\n\n` +
         `Port diagnostics:\n${formatPortDiagnostics()}\n\n` +
+        `Keycloak container logs:\n${captureDockerContainerLogs('keycloak')}\n\n` +
         `Relevant resource logs:\n${this.formatResourceLogs()}\n\n` +
         `Recent logs:\n${this.formatLogs()}`
     );
@@ -595,4 +596,28 @@ function delay(ms: number): Promise<void> {
 
 function isMissingProcess(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ESRCH';
+}
+
+function captureDockerContainerLogs(namePattern: string): string {
+  const psResult = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
+  if (psResult.status !== 0 || psResult.error) {
+    return `(docker ps failed: ${psResult.error?.message ?? psResult.stderr?.trim() ?? 'unknown error'})`;
+  }
+
+  const allNames = psResult.stdout.trim().split(/\r?\n/).filter(Boolean);
+  const matching = allNames.filter(name => name.toLowerCase().includes(namePattern.toLowerCase()));
+
+  if (matching.length === 0) {
+    return `(no matching containers found for pattern: ${JSON.stringify(namePattern)})`;
+  }
+
+  return matching
+    .map(containerName => {
+      const logsResult = spawnSync('docker', ['logs', '--tail', '100', containerName], {
+        encoding: 'utf8'
+      });
+      const output = [logsResult.stdout, logsResult.stderr].filter(Boolean).join('');
+      return `--- ${containerName} ---\n${output.trim() || '(no output)'}`;
+    })
+    .join('\n\n');
 }
