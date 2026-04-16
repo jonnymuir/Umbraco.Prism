@@ -6,6 +6,12 @@ import path from 'node:path';
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const appHostProject = path.join(repoRoot, 'src/UmbracoPrism.AppHost');
 const isolatedTestSiteRuntimeRoot = path.join(repoRoot, 'artifacts', 'aspire', 'testsite-runtime');
+const readinessTimeoutMs = 180_000;
+const readinessPollIntervalMs = 10_000;
+const readinessCheckpointIntervalMs = 30_000;
+const probeTimeoutMs = 5_000;
+const responsePreviewLength = 220;
+const notableHeaders = ['location', 'content-type', 'server', 'x-powered-by'] as const;
 
 const readinessChecks = [
   { name: 'Aspire dashboard', url: 'https://localhost:17214/', allowedStatuses: [200, 302] },
@@ -54,6 +60,7 @@ type ProbeResult = {
   status: number | null;
   headers: Record<string, string>;
   body: string;
+  error: string | null;
 };
 
 type ReadinessStatus = {
@@ -204,22 +211,34 @@ export class LiveAppHost {
   }
 
   private async waitForReadiness(): Promise<void> {
-    const timeoutMs = 240_000;
     const start = Date.now();
     let latestStatuses: ReadinessStatus[] = [];
+    const firstReadyAt = new Map<string, number>();
+    const lastObservedFailure = new Map<string, string>();
+    let lastCheckpointAt = -readinessCheckpointIntervalMs;
 
-    while (Date.now() - start < timeoutMs) {
+    while (Date.now() - start < readinessTimeoutMs) {
+      if (this.child && this.child.exitCode !== null) {
+        throw new Error(
+          `AppHost exited before the Aspire localhost stack became ready.\n\n` +
+            `Recent logs:\n${this.formatLogs()}`
+        );
+      }
+
       latestStatuses = await this.getReadinessStatuses();
+      const elapsedMs = Date.now() - start;
+      lastCheckpointAt = this.logReadinessProgress(latestStatuses, elapsedMs, firstReadyAt, lastObservedFailure, lastCheckpointAt);
       if (latestStatuses.every(status => status.ok)) {
+        console.log(`[readiness] ${formatDuration(elapsedMs)} all localhost auth dependencies are ready.`);
         return;
       }
 
-      await delay(1_000);
+      await delay(readinessPollIntervalMs);
     }
 
     throw new Error(
-      `Timed out waiting for Aspire localhost stack to become ready.\n\n` +
-        `Readiness status:\n${formatReadinessStatuses(latestStatuses)}\n\nRecent logs:\n${this.formatLogs()}`
+      `Timed out waiting ${formatDuration(readinessTimeoutMs)} for the Aspire localhost stack to become ready.\n\n` +
+        `Readiness diagnostics:\n${formatReadinessDiagnostics(latestStatuses)}\n\nRecent logs:\n${this.formatLogs()}`
     );
   }
 
@@ -258,6 +277,56 @@ export class LiveAppHost {
       })
     );
   }
+
+  private logReadinessProgress(
+    statuses: ReadinessStatus[],
+    elapsedMs: number,
+    firstReadyAt: Map<string, number>,
+    lastObservedFailure: Map<string, string>,
+    lastCheckpointAt: number
+  ): number {
+    const lines: string[] = [];
+    const checkpointDue = elapsedMs - lastCheckpointAt >= readinessCheckpointIntervalMs;
+
+    for (const status of statuses) {
+      if (!status.ok || firstReadyAt.has(status.check.name)) {
+        continue;
+      }
+
+      firstReadyAt.set(status.check.name, elapsedMs);
+      lastObservedFailure.delete(status.check.name);
+      lines.push(`[readiness] ${formatDuration(elapsedMs)} ${status.check.name} became ready (${formatObserved(status.response)}).`);
+    }
+
+    const pending = statuses.filter(status => !status.ok);
+    const pendingLines = pending
+      .map(status => {
+        const fingerprint = `${status.failures.join('|')}|${formatObserved(status.response)}`;
+        const changed = lastObservedFailure.get(status.check.name) !== fingerprint;
+        if (!changed && !checkpointDue) {
+          return null;
+        }
+
+        lastObservedFailure.set(status.check.name, fingerprint);
+        return `  - ${status.check.name}: expected ${formatExpectations(status.check)}; observed ${formatObserved(
+          status.response
+        )}; failures: ${status.failures.join('; ')}`;
+      })
+      .filter((line): line is string => line !== null);
+
+    if (pendingLines.length > 0) {
+      lines.push(
+        `[readiness] ${formatDuration(elapsedMs)} waiting on ${pending.map(status => status.check.name).join(', ')}.`
+      );
+      lines.push(...pendingLines);
+    }
+
+    if (lines.length > 0) {
+      console.log(lines.join('\n'));
+    }
+
+    return checkpointDue ? elapsedMs : lastCheckpointAt;
+  }
 }
 
 async function probe(urlString: string): Promise<ProbeResult> {
@@ -265,6 +334,16 @@ async function probe(urlString: string): Promise<ProbeResult> {
   const client = url.protocol === 'https:' ? https : http;
 
   return new Promise(resolve => {
+    let settled = false;
+    const settle = (result: ProbeResult) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      resolve(result);
+    };
+
     const request = client.request(
       url,
       {
@@ -281,39 +360,117 @@ async function probe(urlString: string): Promise<ProbeResult> {
           }
         });
         response.on('end', () =>
-          resolve({
+          settle({
             status: response.statusCode ?? null,
             headers: Object.fromEntries(
               Object.entries(response.headers).map(([name, value]) => [name, Array.isArray(value) ? value.join(', ') : value ?? ''])
             ),
-            body
+            body,
+            error: null
           })
         );
       }
     );
 
-    request.setTimeout(5_000, () => {
+    request.setTimeout(probeTimeoutMs, () => {
       request.destroy();
-      resolve({ status: null, headers: {}, body: '' });
+      settle({ status: null, headers: {}, body: '', error: `request timed out after ${probeTimeoutMs}ms` });
     });
 
-    request.on('error', () => resolve({ status: null, headers: {}, body: '' }));
+    request.on('error', error =>
+      settle({ status: null, headers: {}, body: '', error: error instanceof Error ? error.message : String(error) })
+    );
     request.end();
   });
 }
 
-function formatReadinessStatuses(statuses: ReadinessStatus[]): string {
+function formatReadinessDiagnostics(statuses: ReadinessStatus[]): string {
   if (statuses.length === 0) {
     return '(no readiness probes captured)';
   }
 
   return statuses
     .map(({ check, response, ok, failures }) => {
-      const statusLabel = response.status === null ? 'no response' : `HTTP ${response.status}`;
-      const details = ok ? 'ready' : failures.join('; ');
-      return `- ${check.name}: ${statusLabel} — ${details}`;
+      const result = ok ? 'ready' : failures.join('; ');
+      return [
+        `- ${check.name}`,
+        `  url: ${check.url}`,
+        `  expected: ${formatExpectations(check)}`,
+        `  observed: ${formatObserved(response)}`,
+        `  result: ${result}`
+      ].join('\n');
     })
     .join('\n');
+}
+
+function formatExpectations(check: (typeof readinessChecks)[number]): string {
+  const parts: string[] = [];
+  const allowedStatuses = check.allowedStatuses ?? [200];
+  parts.push(
+    allowedStatuses.length === 1
+      ? `HTTP ${allowedStatuses[0]}`
+      : `HTTP one of [${allowedStatuses.join(', ')}]`
+  );
+
+  for (const header of check.headerIncludes ?? []) {
+    parts.push(`header ${header.name} includes ${JSON.stringify(header.valueIncludes)}`);
+  }
+
+  for (const bodyText of check.bodyIncludes ?? []) {
+    parts.push(`body includes ${JSON.stringify(bodyText)}`);
+  }
+
+  return parts.join(', ');
+}
+
+function formatObserved(response: ProbeResult): string {
+  const statusLabel = response.status === null ? 'no HTTP response' : `HTTP ${response.status}`;
+  const details = [statusLabel];
+  if (response.error) {
+    details.push(`error=${JSON.stringify(response.error)}`);
+  }
+
+  const headerSummary = summarizeHeaders(response.headers);
+  if (headerSummary) {
+    details.push(`headers=${headerSummary}`);
+  }
+
+  const bodySummary = summarizeBody(response.body);
+  if (bodySummary) {
+    details.push(`body=${JSON.stringify(bodySummary)}`);
+  }
+
+  return details.join('; ');
+}
+
+function summarizeHeaders(headers: Record<string, string>): string {
+  const pairs = notableHeaders
+    .map(name => [name, headers[name]])
+    .filter((entry): entry is [string, string] => Boolean(entry[1] && entry[1].trim()));
+
+  if (pairs.length === 0) {
+    return '';
+  }
+
+  return pairs.map(([name, value]) => `${name}=${JSON.stringify(value)}`).join(', ');
+}
+
+function summarizeBody(body: string): string {
+  const normalized = body.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized.length > responsePreviewLength
+    ? `${normalized.slice(0, responsePreviewLength)}…`
+    : normalized;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1_000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 }
 
 function waitForExit(child: ChildProcessWithoutNullStreams): Promise<void> {

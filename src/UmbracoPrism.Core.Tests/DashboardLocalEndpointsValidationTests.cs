@@ -231,6 +231,19 @@ public class DashboardLocalEndpointsValidationTests
     }
 
     [Fact]
+    public void AppHost_UsesRealmDiscoveryHealthCheck_ForKeycloakReadiness()
+    {
+        var program = File.ReadAllText(Path.Combine(
+            RepoRoot,
+            "src",
+            "UmbracoPrism.AppHost",
+            "Program.cs"));
+
+        program.Should().Contain(".WithHttpHealthCheck(\"/realms/prism-dev/.well-known/openid-configuration\")");
+        program.Should().NotContain(".WithHttpHealthCheck(\"/health/ready\")");
+    }
+
+    [Fact]
     public async Task DownstreamDemo_SessionContract_ReportsCookieTokens_AndLogoutHintReadiness()
     {
         var authProperties = new AuthenticationProperties();
