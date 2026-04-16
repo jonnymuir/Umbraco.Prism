@@ -102,6 +102,9 @@ jobs:
       - name: Configure Linux certificate trust
         run: echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/etc/ssl/certs:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
 
+      - name: Pre-pull Keycloak container image
+        run: docker pull quay.io/keycloak/keycloak:26.0.0
+
       - name: Trust .NET development certificate
         run: |
           dotnet dev-certs https

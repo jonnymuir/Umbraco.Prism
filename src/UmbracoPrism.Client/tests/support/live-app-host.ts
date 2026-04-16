@@ -6,7 +6,7 @@ import path from 'node:path';
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const appHostProject = path.join(repoRoot, 'src/UmbracoPrism.AppHost');
 const isolatedTestSiteRuntimeRoot = path.join(repoRoot, 'artifacts', 'aspire', 'testsite-runtime');
-const readinessTimeoutMs = 180_000;
+const readinessTimeoutMs = 300_000;
 const readinessPollIntervalMs = 10_000;
 const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;
@@ -599,25 +599,34 @@ function isMissingProcess(error: unknown): boolean {
 }
 
 function captureDockerContainerLogs(namePattern: string): string {
-  const psResult = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
+  // Try docker first (includes stopped containers with -a flag)
+  let psResult = spawnSync('docker', ['ps', '-a', '--format', '{{.Names}}'], { encoding: 'utf8' });
+  let runtime = 'docker';
+  
+  // Fall back to podman if docker returns no results
+  if (psResult.status !== 0 || !psResult.stdout.trim()) {
+    psResult = spawnSync('podman', ['ps', '-a', '--format', '{{.Names}}'], { encoding: 'utf8' });
+    runtime = 'podman';
+  }
+  
   if (psResult.status !== 0 || psResult.error) {
-    return `(docker ps failed: ${psResult.error?.message ?? psResult.stderr?.trim() ?? 'unknown error'})`;
+    return `(${runtime} ps failed: ${psResult.error?.message ?? psResult.stderr?.trim() ?? 'unknown error'})`;
   }
 
   const allNames = psResult.stdout.trim().split(/\r?\n/).filter(Boolean);
   const matching = allNames.filter(name => name.toLowerCase().includes(namePattern.toLowerCase()));
 
   if (matching.length === 0) {
-    return `(no matching containers found for pattern: ${JSON.stringify(namePattern)})`;
+    return `(no matching containers found for pattern: ${JSON.stringify(namePattern)} using ${runtime})`;
   }
 
   return matching
     .map(containerName => {
-      const logsResult = spawnSync('docker', ['logs', '--tail', '100', containerName], {
+      const logsResult = spawnSync(runtime, ['logs', '--tail', '100', containerName], {
         encoding: 'utf8'
       });
       const output = [logsResult.stdout, logsResult.stderr].filter(Boolean).join('');
-      return `--- ${containerName} ---\n${output.trim() || '(no output)'}`;
+      return `--- ${containerName} (${runtime}) ---\n${output.trim() || '(no output)'}`;
     })
     .join('\n\n');
 }
