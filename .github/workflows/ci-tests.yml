@@ -105,6 +105,11 @@ jobs:
       - name: Pre-pull Keycloak container image
         run: docker pull quay.io/keycloak/keycloak:26.0.0
 
+      - name: Create Keycloak data directory
+        run: |
+          mkdir -p ../../artifacts/aspire/keycloak-data
+          chmod 777 ../../artifacts/aspire/keycloak-data
+
       - name: Trust .NET development certificate
         run: |
           dotnet dev-certs https
