@@ -270,3 +270,9 @@ Pre-deployment validation should:
 - The decisive readiness miss is Keycloak discovery, not TestSite or MockBusinessApp: the readiness dump showed `Keycloak: no response` while every other probe was ready.
 - The strongest AppHost signal is `Aspire.Hosting.Dcp.dcpctrl.ServiceReconciler.Proxy` reporting `Error handling TCP connection` for service `keycloak` with `dial tcp 127.0.0.1:32768: connect: connection refused`, which means the HTTPS proxy lane reached the upstream Keycloak hop and found it not accepting connections.
 - Concrete next step for the team: treat this as a real Aspire/Keycloak startup-readiness problem in CI, inspect/fix the Keycloak container or its AppHost readiness contract (for example by gating on real Keycloak HTTP health/discovery instead of bare `.WaitFor(keycloak)`), then rerun `localhost-auth-playwright`.
+
+## Learnings — 2026-04-15 — Keycloak CI readiness contract review
+
+- The behavioural readiness contract in `src/UmbracoPrism.Client/tests/support/live-app-host.ts` is correct for CI Linux because it probes the same user-facing surfaces the auth flow actually depends on: TestSite HTTPS, the protected-route challenge, the Keycloak HTTPS proxy at `https://localhost:8443`, and the mock business app's auth boundary.
+- For this stack, the Keycloak readiness probe must stay on the HTTPS proxy discovery document and keep asserting the issuer value `https://localhost:8443/realms/prism-dev`; swapping that probe to raw container HTTP (`:8080`) or to `/health/ready` would create a false positive where infrastructure looks alive but the browser-visible auth contract is still broken.
+- `src/UmbracoPrism.AppHost/Program.cs` using `.WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")` on the Keycloak container is the right orchestration-side direction, but CI run `24427460363` still failed after that change, so QA cannot treat that AppHost tweak alone as proof the Linux readiness problem is solved.

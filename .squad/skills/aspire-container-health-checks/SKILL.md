@@ -84,6 +84,31 @@ If Playwright or test harnesses probe specific endpoints for readiness, **use th
 
 Example: If tests probe `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration` via the proxy, the container health check should probe `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration` directly.
 
+### Do not weaken behavioural probes to match container internals
+
+- **Container/AppHost check:** may probe the container's own HTTP endpoint to gate orchestration startup.
+- **Behavioural test check:** should stay on the user-facing/proxy-facing endpoint if that is what browsers and middleware actually use.
+
+For this repo, the live auth contract is `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration` with issuer `https://localhost:8443/realms/prism-dev`. Replacing the Playwright probe with `http://localhost:8080/...` or `/health/ready` would hide proxy, issuer, and forwarded-header failures behind a misleading "ready" signal.
+
+### Proxy upstreams must use AppHost endpoint injection, not hardcoded localhost ports
+
+- If an Aspire-hosted proxy forwards to a container, do **not** assume the upstream is always `http://localhost:<fixed-port>`.
+- Keep the user-facing proxy port fixed if needed (for example `https://localhost:8443`), but inject the upstream destination from the resource endpoint that Aspire actually allocates.
+
+```csharp
+var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj", launchProfileName: "https")
+    .WithEnvironment(
+        "ReverseProxy__Clusters__keycloak-cluster__Destinations__keycloak__Address",
+        keycloak.GetEndpoint("http"))
+    .WaitFor(keycloak);
+```
+
+**Why this matters:**
+- Local Docker runs may coincidentally expose `localhost:8080`, hiding the bug.
+- CI/container-runtime combinations can allocate a different host endpoint even though the Keycloak resource itself is healthy.
+- Injecting the AppHost-resolved endpoint keeps the proxy aligned with Aspire's actual runtime wiring without changing the browser contract.
+
 ## Examples
 
 ### Keycloak container health check evolution
@@ -109,6 +134,7 @@ Example: If tests probe `https://localhost:8443/realms/prism-dev/.well-known/ope
 - **Proxy health checks** — Custom health checks on proxy resources that probe their own endpoints create circular dependencies
 - **Mismatched health vs test endpoints** — If tests expect realm discovery, health check should validate realm availability, not just Keycloak process state
 - **Copying health endpoints without validation** — Verify the endpoint actually waits for the initialization step you care about
+- **Hardcoded proxy upstream localhost ports** — They can pass locally but break in CI when Aspire allocates a different runtime endpoint
 
 ## Related Skills
 

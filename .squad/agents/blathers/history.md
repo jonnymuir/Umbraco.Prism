@@ -271,3 +271,10 @@ Both must be handled for restart resilience.
 - This was the working configuration in commit 6b203ec (before the circular proxy dependency was added), confirming the approach is proven.
 - The fix is simpler than adding Keycloak flags: just change the health check path from `/health/ready` to `/realms/prism-dev/.well-known/openid-configuration`.
 - Pattern reinforced: container health checks should validate the specific capability you need (realm availability), not just general process health.
+
+## Learnings (2026-04-16, Keycloak proxy upstream must come from AppHost endpoint wiring)
+
+- `src/UmbracoPrism.AppHost/Program.cs` must inject `ReverseProxy__Clusters__keycloak-cluster__Destinations__keycloak__Address` into the `keycloak-proxy` project from `keycloak.GetEndpoint("http")`; hardcoding `http://localhost:8080` only works when Aspire happens to publish that loopback port.
+- The concrete CI symptom for this repo is: Keycloak container reaches Aspire `Ready`, but `https://localhost:8443/...openid-configuration` and every `testsite` probe stay dark because `testsite` waits on `keycloak-proxy` and the browser-facing Keycloak path never comes up.
+- Local validation can still pass with the hardcoded proxy because Aspire may expose a loopback listener on `localhost:8080` in Docker-based runs; that makes the bug environment-sensitive rather than disproving it.
+- Keep the browser contract on `https://localhost:8443` via `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json`, but source the proxy's upstream target from Aspire runtime endpoint resolution instead of assuming a fixed host port.

@@ -46,6 +46,7 @@ if (needsKeycloakSveWorkaround)
 // and forwards requests to Keycloak's HTTP endpoint with X-Forwarded headers so
 // Keycloak knows the external origin is HTTPS. Enables Safari/WebKit-safe auth flows.
 var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj", launchProfileName: "https")
+    .WithEnvironment("ReverseProxy__Clusters__keycloak-cluster__Destinations__keycloak__Address", keycloak.GetEndpoint("http"))
     .WaitFor(keycloak);
 
 // Add TestSite with environment variable pointing to Keycloak HTTPS proxy.

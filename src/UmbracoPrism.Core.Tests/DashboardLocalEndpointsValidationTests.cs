@@ -226,6 +226,7 @@ public class DashboardLocalEndpointsValidationTests
             "Program.cs"));
 
         program.Should().Contain("AddProject(\"keycloak-proxy\", \"../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj\", launchProfileName: \"https\")");
+        program.Should().Contain(".WithEnvironment(\"ReverseProxy__Clusters__keycloak-cluster__Destinations__keycloak__Address\", keycloak.GetEndpoint(\"http\"))");
         program.Should().Contain("AddProject(\"businessapp\", \"../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj\", launchProfileName: \"https\")");
     }
 

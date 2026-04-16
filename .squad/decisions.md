@@ -316,3 +316,48 @@ Both agents identified the same issue independently:
 **Inbox Decisions Merged:**
 - `tangy-latest-keycloak-followup.md` → archived
 - `blathers-keycloak-health-check.md` → archived
+
+---
+
+## 📌 2026-04-16: Tangy — Playwright Readiness Contract (Strict HTTPS Proxy Boundary)
+
+**Decision:** Keep the browser-facing Keycloak contract on `https://localhost:8443` and do not weaken readiness probes to raw HTTP or generic liveness endpoints.
+
+**Why:**
+- Localhost auth flow requires HTTPS proxy visibility for issuer validation
+- Generic container health checks can pass while proxy chain is broken
+- CI evidence: run `24427460363` passed container health but failed browser-facing proxy, proving this boundary is not optional
+
+**Implications:**
+- Playwright readiness contract is correct as-is; no weakening allowed
+- Never accept `/health/ready` as equivalent to discovery endpoint probe
+- Contract is non-negotiable for CI stability
+
+**Session Log:** `.squad/log/2026-04-16T08:11:04Z-keycloak-ci-resolution-session.md`
+
+---
+
+## 📌 2026-04-16: Blathers — AppHost Endpoint Injection (Dynamic Proxy Binding)
+
+**Decision:** Have `src/UmbracoPrism.AppHost/Program.cs` inject `ReverseProxy__Clusters__keycloak-cluster__Destinations__keycloak__Address` from `keycloak.GetEndpoint("http")` into the keycloak-proxy project.
+
+**Why:**
+- Preserves local proxy design (browser/tests still talk to `https://localhost:8443`)
+- Lets Aspire decide the actual Keycloak HTTP endpoint; removes hardcoded port assumptions
+- Hardcoded `http://localhost:8080` in `appsettings.json` is unstable in CI container environments where port allocation is dynamic
+
+**Implications:**
+- keycloak-proxy no longer owns upstream endpoint knowledge; AppHost owns runtime discovery
+- Proxy is stateless configuration consumer; startup no longer depends on specific loopback port
+- HTTPS proxy contract preserved; downstream routing and browser-facing contracts unaffected
+
+**Changes:**
+- `src/UmbracoPrism.AppHost/Program.cs` — Injects endpoint at startup
+- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs` — Added regression assertion
+
+**Validation:**
+- ✅ `dotnet build UmbracoPrism.sln`
+- ✅ `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests`
+- ✅ `npm run test:playwright:localhost-auth`
+
+**Session Log:** `.squad/log/2026-04-16T08:11:04Z-keycloak-ci-resolution-session.md`
