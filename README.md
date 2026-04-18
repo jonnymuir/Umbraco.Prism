@@ -21,22 +21,20 @@ Multi-tenant website branding and identity at runtime. Add a mobile app with one
 
 Click the button to spin up the full Umbraco Prism stack in a browser — no local setup, no Docker, no .NET install. GitHub handles everything. The Codespace is completely throwaway when you're done.
 
-**Once the Codespace is ready:**
-1. Run `dotnet run --project src/UmbracoPrism.AppHost` in the terminal
-2. When the Aspire Dashboard port opens, click through to it
-3. Click the TestSite URL → log in with `demo@prism.local` / `password` (Keycloak SSO)
-4. Browse **My Workflows** to see the demo workflow in action
+**The stack starts automatically** — watch the terminal at the bottom of your screen. It polls until Keycloak, the Aspire Dashboard, and the TestSite are all ready (first boot: ~3 minutes), then prints the URLs and credentials. When the Aspire Dashboard port is detected VS Code opens it in your browser automatically.
+
+1. Wait for the terminal to print **🎉 Umbraco Prism is ready!**
+2. Click the TestSite URL → log in with `demo@prism.local` / `password` (Keycloak SSO)
+3. Browse **My Workflows** to see the demo workflow in action
 
 **Credentials at a glance:**
 
-| What | URL | Username | Password |
-|------|-----|----------|----------|
-| TestSite (SSO) | TestSite port in Aspire dashboard | `demo@prism.local` | `password` |
-| Umbraco backoffice | `{testsite-url}/umbraco` | `admin@prism.local` | `PrismLocal!12345` |
-| Keycloak admin | Keycloak port in Aspire dashboard `/admin` | `admin` | `admin` |
+| What | Username | Password |
+|------|----------|----------|
+| TestSite (Keycloak SSO) | `demo@prism.local` | `password` |
+| Umbraco backoffice (`/umbraco`) | `admin@prism.local` | `PrismLocal!12345` |
+| Keycloak admin console | `admin` | `admin` |
 
-> First boot takes 2–3 minutes while Keycloak starts and Umbraco bootstraps from a fresh database.
->
 > **When you're done:** go to [github.com/codespaces](https://github.com/codespaces), find your Codespace, and click **Stop** (or **Delete** to free quota immediately). Stopping halts billing; the Codespace resumes from where you left off.
 
 ---

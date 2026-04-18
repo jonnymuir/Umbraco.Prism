@@ -11,6 +11,10 @@ dotnet dev-certs https --trust || true
 echo "📦 Restoring .NET packages..."
 dotnet restore UmbracoPrism.sln
 
+# Pre-warm the build cache so the first `on-start.sh` run is faster
+echo "🔨 Building solution (pre-warming compilation cache)..."
+dotnet build UmbracoPrism.sln --no-restore
+
 # Install Node.js frontend dependencies
 echo "📦 Installing Node.js dependencies..."
 cd src/UmbracoPrism.Client && npm install && cd ../..

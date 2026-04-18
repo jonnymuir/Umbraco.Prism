@@ -15,6 +15,7 @@
     }
   },
   "postCreateCommand": "bash .devcontainer/on-create.sh",
+  "postStartCommand": "bash .devcontainer/on-start.sh",
   "portsAttributes": {
     "17214": {
       "label": "Aspire Dashboard",
