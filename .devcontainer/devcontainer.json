@@ -1,0 +1,58 @@
+{
+  "name": "Umbraco Prism",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true"
+    },
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0",
+      "installUsingApt": false
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/on-create.sh",
+  "portsAttributes": {
+    "17214": {
+      "label": "Aspire Dashboard",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "44345": {
+      "label": "TestSite (HTTPS)",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "9250": {
+      "label": "TestSite (HTTP)",
+      "visibility": "public"
+    },
+    "7245": {
+      "label": "MockBusinessApp (HTTPS)",
+      "visibility": "public"
+    },
+    "5163": {
+      "label": "MockBusinessApp (HTTP)",
+      "visibility": "public"
+    },
+    "8443": {
+      "label": "Keycloak (HTTPS Proxy)",
+      "visibility": "public"
+    },
+    "8080": {
+      "label": "Keycloak (HTTP, internal)",
+      "visibility": "private"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp"
+      ]
+    }
+  }
+}

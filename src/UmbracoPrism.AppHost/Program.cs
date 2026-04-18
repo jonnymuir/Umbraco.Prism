@@ -1,7 +1,10 @@
 using System.Runtime.InteropServices;
 
 var builder = DistributedApplication.CreateBuilder(args);
-const string KeycloakProxyUrl = "https://localhost:8443";
+// In GitHub Codespaces the browser can't reach localhost, so KEYCLOAK_URL is set to the
+// Codespace-forwarded address by .devcontainer/on-create.sh. Falls back to localhost for
+// normal local development.
+var keycloakProxyUrl = Environment.GetEnvironmentVariable("KEYCLOAK_URL") ?? "https://localhost:8443";
 const string BusinessAppUrl = "https://localhost:7245";
 const string TestSiteRuntimeRootEnvironmentVariable = "PRISM_TESTSITE_RUNTIME_ROOT";
 const string ResetTestSiteRuntimeEnvironmentVariable = "PRISM_TESTSITE_RESET_RUNTIME";
@@ -53,10 +56,10 @@ var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.Keyclo
 // The Umbraco project uses a custom launch profile name, so select it explicitly
 // so Aspire can discover the applicationUrl endpoints and advertise them.
 var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj", launchProfileName: "https")
-    .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{KeycloakProxyUrl}/realms/prism-dev");
+    .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev");
 
 builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
-    .WithEnvironment("KEYCLOAK_URL", KeycloakProxyUrl)
+    .WithEnvironment("KEYCLOAK_URL", keycloakProxyUrl)
     .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", BusinessAppUrl)
     .WithEnvironment(TestSiteRuntimeRootEnvironmentVariable, testSiteRuntimeRoot)
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)

@@ -15,7 +15,23 @@ Multi-tenant website branding and identity at runtime. Add a mobile app with one
 
 ---
 
-## Try the Demo — No Azure Required
+## Try it Now — No Install Required
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/jonnymuir/Umbraco.Prism)
+
+Click the button to spin up the full Umbraco Prism stack in a browser — no local setup, no Docker, no .NET install. GitHub handles everything. The Codespace is completely throwaway when you're done.
+
+**Once the Codespace is ready:**
+1. Run `dotnet run --project src/UmbracoPrism.AppHost` in the terminal
+2. When the Aspire Dashboard port opens, click through to it
+3. Click the TestSite URL → log in with `demo@prism.local` / `password`
+4. Browse **My Workflows** to see the demo workflow in action
+
+> First boot takes 2–3 minutes while Keycloak starts and Umbraco bootstraps from a fresh database.
+
+---
+
+## Try the Demo — Local Setup
 
 Get from clone to running in five minutes. No Azure account needed.
 
