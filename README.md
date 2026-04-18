@@ -24,10 +24,20 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 **Once the Codespace is ready:**
 1. Run `dotnet run --project src/UmbracoPrism.AppHost` in the terminal
 2. When the Aspire Dashboard port opens, click through to it
-3. Click the TestSite URL → log in with `demo@prism.local` / `password`
+3. Click the TestSite URL → log in with `demo@prism.local` / `password` (Keycloak SSO)
 4. Browse **My Workflows** to see the demo workflow in action
 
+**Credentials at a glance:**
+
+| What | URL | Username | Password |
+|------|-----|----------|----------|
+| TestSite (SSO) | TestSite port in Aspire dashboard | `demo@prism.local` | `password` |
+| Umbraco backoffice | `{testsite-url}/umbraco` | `admin@prism.local` | `PrismLocal!12345` |
+| Keycloak admin | Keycloak port in Aspire dashboard `/admin` | `admin` | `admin` |
+
 > First boot takes 2–3 minutes while Keycloak starts and Umbraco bootstraps from a fresh database.
+>
+> **When you're done:** go to [github.com/codespaces](https://github.com/codespaces), find your Codespace, and click **Stop** (or **Delete** to free quota immediately). Stopping halts billing; the Codespace resumes from where you left off.
 
 ---
 

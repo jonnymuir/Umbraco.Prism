@@ -5,6 +5,10 @@ var builder = DistributedApplication.CreateBuilder(args);
 // Codespace-forwarded address by .devcontainer/on-create.sh. Falls back to localhost for
 // normal local development.
 var keycloakProxyUrl = Environment.GetEnvironmentVariable("KEYCLOAK_URL") ?? "https://localhost:8443";
+var keycloakProxyUri = new Uri(keycloakProxyUrl);
+var keycloakHostname = keycloakProxyUri.Host;
+// -1 means "use the scheme's default port" (443 for HTTPS). For local dev on 8443 we pass the explicit port.
+var keycloakHostnamePort = keycloakProxyUri.IsDefaultPort ? "-1" : keycloakProxyUri.Port.ToString();
 const string BusinessAppUrl = "https://localhost:7245";
 const string TestSiteRuntimeRootEnvironmentVariable = "PRISM_TESTSITE_RUNTIME_ROOT";
 const string ResetTestSiteRuntimeEnvironmentVariable = "PRISM_TESTSITE_RESET_RUNTIME";
@@ -35,6 +39,8 @@ var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26
     .WithEnvironment("KEYCLOAK_ADMIN_PASSWORD", "admin")
     .WithEnvironment("KC_HEALTH_ENABLED", "true")
     .WithEnvironment("KC_METRICS_ENABLED", "true")
+    .WithEnvironment("KC_HOSTNAME", keycloakHostname)
+    .WithEnvironment("KC_HOSTNAME_PORT", keycloakHostnamePort)
     .WithBindMount("../../keycloak", "/opt/keycloak/data/import")
     .WithBindMount(keycloakDataRoot, "/opt/keycloak/data/h2")
     .WithArgs("start-dev", "--import-realm", "--proxy-headers", "xforwarded");
