@@ -532,7 +532,7 @@ public class PrismContentTypeSeeder(
         if (template == null)
         {
             var attempt = await templateService.CreateForContentTypeAsync(
-                contentType.Alias, templateName, Constants.Security.SuperUserKey);
+                templateName, contentType.Alias, contentType.Alias, Constants.Security.SuperUserKey);
             template = attempt.Result;
         }
 
