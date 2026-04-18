@@ -1,14 +1,33 @@
 using System.Runtime.InteropServices;
 
 var builder = DistributedApplication.CreateBuilder(args);
-// In GitHub Codespaces the browser can't reach localhost, so KEYCLOAK_URL is set to the
-// Codespace-forwarded address by .devcontainer/on-create.sh. Falls back to localhost for
-// normal local development.
-var keycloakProxyUrl = Environment.GetEnvironmentVariable("KEYCLOAK_URL") ?? "https://localhost:8443";
+
+// CODESPACE_NAME is a built-in GitHub Codespaces env var available to all processes
+// (no ~/.bashrc dependency). Use it to derive the public Keycloak and TestSite URLs.
+var codespaceName = Environment.GetEnvironmentVariable("CODESPACE_NAME");
+var codespacePortDomain = Environment.GetEnvironmentVariable("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN") ?? "app.github.dev";
+
+// Keycloak proxy public URL: Codespace-forwarded address when in Codespaces,
+// otherwise KEYCLOAK_URL env var (for custom deployments), or localhost for local dev.
+var keycloakProxyUrl = codespaceName != null
+    ? $"https://{codespaceName}-8443.{codespacePortDomain}"
+    : (Environment.GetEnvironmentVariable("KEYCLOAK_URL") ?? "https://localhost:8443");
+
 var keycloakProxyUri = new Uri(keycloakProxyUrl);
 var keycloakHostname = keycloakProxyUri.Host;
 // -1 means "use the scheme's default port" (443 for HTTPS). For local dev on 8443 we pass the explicit port.
 var keycloakHostnamePort = keycloakProxyUri.IsDefaultPort ? "-1" : keycloakProxyUri.Port.ToString();
+// X-Forwarded-Host value for the YARP proxy: host:port for non-default ports (local dev),
+// or just host for standard HTTPS (Codespaces — port 443 is implied by the scheme).
+var keycloakExternalHost = keycloakProxyUri.IsDefaultPort
+    ? keycloakHostname
+    : $"{keycloakHostname}:{keycloakProxyUri.Port}";
+
+// In Codespaces, the TestSite's public URL is needed so OIDC generates the correct
+// redirect_uri — GitHub Codespaces does not forward the public hostname in the Host header.
+var testSitePublicUrl = codespaceName != null
+    ? $"https://{codespaceName}-44345.{codespacePortDomain}"
+    : null;
 const string BusinessAppUrl = "https://localhost:7245";
 const string TestSiteRuntimeRootEnvironmentVariable = "PRISM_TESTSITE_RUNTIME_ROOT";
 const string ResetTestSiteRuntimeEnvironmentVariable = "PRISM_TESTSITE_RESET_RUNTIME";
@@ -56,6 +75,10 @@ if (needsKeycloakSveWorkaround)
 // Keycloak knows the external origin is HTTPS. Enables Safari/WebKit-safe auth flows.
 var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj", launchProfileName: "https")
     .WithEnvironment("ReverseProxy__Clusters__keycloak-cluster__Destinations__keycloak__Address", keycloak.GetEndpoint("http"))
+    // Override the hardcoded X-Forwarded-Host in appsettings.json with the correct public hostname.
+    // Keycloak 26 with --proxy-headers xforwarded uses X-Forwarded-Host for form action URLs;
+    // it must match what the browser uses so login POSTs reach the right address.
+    .WithEnvironment("ReverseProxy__Routes__keycloak__Transforms__1__Set", keycloakExternalHost)
     .WaitFor(keycloak);
 
 // Add TestSite with environment variable pointing to Keycloak HTTPS proxy.
@@ -64,12 +87,16 @@ var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.Keyclo
 var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj", launchProfileName: "https")
     .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev");
 
-builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
+var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", keycloakProxyUrl)
     .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", BusinessAppUrl)
     .WithEnvironment(TestSiteRuntimeRootEnvironmentVariable, testSiteRuntimeRoot)
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
     .WaitFor(businessApp);
+
+// In Codespaces, tell the TestSite its public URL so OIDC generates the correct redirect_uri.
+if (testSitePublicUrl != null)
+    testsite.WithEnvironment("TESTSITE_PUBLIC_URL", testSitePublicUrl);
 
 builder.Build().Run();
