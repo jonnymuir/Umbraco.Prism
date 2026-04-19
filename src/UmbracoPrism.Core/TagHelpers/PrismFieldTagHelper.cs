@@ -79,6 +79,9 @@ public class PrismFieldTagHelper : TagHelper
             case "checkboxes":
                 RenderCheckboxList(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
                 break;
+            case "date-input":
+                RenderDateInput(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
+                break;
             case "select":
                 RenderSelect(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
                 break;
@@ -266,6 +269,45 @@ public class PrismFieldTagHelper : TagHelper
         sb.AppendLine("</textarea>");
     }
 
+    private void RenderDateInput(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid)
+    {
+        sb.AppendLine(@"    <fieldset class=""govuk-fieldset"" role=""group"">");
+        sb.Append($@"        <legend class=""govuk-fieldset__legend"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
+        sb.AppendLine("</legend>");
+
+        if (hasHint) sb.AppendLine($@"        <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"        <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
+
+        var submittedDay = Values?.GetValueOrDefault($"{field.FieldKey}-day") ?? "";
+        var submittedMonth = Values?.GetValueOrDefault($"{field.FieldKey}-month") ?? "";
+        var submittedYear = Values?.GetValueOrDefault($"{field.FieldKey}-year") ?? "";
+
+        sb.AppendLine(@"        <div class=""govuk-date-input"">");
+
+        foreach (var (part, label, width, value) in new[] {
+            ("day", "Day", "govuk-input--width-2", submittedDay),
+            ("month", "Month", "govuk-input--width-2", submittedMonth),
+            ("year", "Year", "govuk-input--width-4", submittedYear)
+        })
+        {
+            var partId = $"{field.FieldKey}-{part}";
+            sb.AppendLine($@"            <div class=""govuk-date-input__item"">");
+            sb.AppendLine($@"                <div class=""govuk-form-group"">");
+            sb.AppendLine($@"                    <label class=""govuk-label govuk-date-input__label"" for=""{Encode(partId)}"">{label}</label>");
+            sb.Append($@"                    <input class=""govuk-input govuk-date-input__input {width}"" type=""text"" inputmode=""numeric"" id=""{Encode(partId)}"" name=""fields[{Encode(partId)}]"" value=""{Encode(value)}"" autocomplete=""off""");
+            sb.Append(requiredAttr);
+            sb.Append(ariaRequired);
+            sb.Append(ariaInvalid);
+            sb.AppendLine(" />");
+            sb.AppendLine("                </div>");
+            sb.AppendLine("            </div>");
+        }
+
+        sb.AppendLine("        </div>");
+        sb.AppendLine("    </fieldset>");
+    }
+
     private void RenderInput(StringBuilder sb, FieldRenderPayload field, string fieldType, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string patternAttr, string minAttr, string maxAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
     {
         var inputType = fieldType switch
@@ -298,6 +340,14 @@ public class PrismFieldTagHelper : TagHelper
             constraintAttrs = minAttr + maxAttr;
         }
 
+        var hasPrefix = !string.IsNullOrEmpty(field.Prefix);
+        if (hasPrefix)
+        {
+            sb.AppendLine(@"    <div class=""govuk-input__wrapper"">");
+            sb.AppendLine($@"        <div class=""govuk-input__prefix"" aria-hidden=""true"">{Encode(field.Prefix)}</div>");
+            sb.Append(@"        ");
+        }
+
         sb.Append($@"    <input class=""govuk-input{readonlyCssClass}"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}"" data-label=""{Encode(field.Label)}""");
         sb.Append(step);
         sb.Append(requiredAttr);
@@ -307,6 +357,8 @@ public class PrismFieldTagHelper : TagHelper
         sb.Append(describedBy);
         sb.Append(readonlyAttr);
         sb.AppendLine(" />");
+
+        if (hasPrefix) sb.AppendLine("    </div>");
     }
 
     private static string Encode(string? value) => System.Net.WebUtility.HtmlEncode(value ?? "");

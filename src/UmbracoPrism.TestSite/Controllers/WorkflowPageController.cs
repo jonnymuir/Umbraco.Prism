@@ -182,6 +182,21 @@ public class WorkflowPageController(
             kvp => kvp.Key,
             kvp => (object?)kvp.Value);
 
+        // Combine date-input parts into a display value stored under the field's own key.
+        // The engine needs a single value (e.g. "15/6/2025") to display on check-answers.
+        foreach (var field in authoritativeFields.Where(f => f.FieldType.Equals("date-input", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (fieldValues.TryGetValue($"{field.FieldKey}-day", out var day) &&
+                fieldValues.TryGetValue($"{field.FieldKey}-month", out var month) &&
+                fieldValues.TryGetValue($"{field.FieldKey}-year", out var year) &&
+                !string.IsNullOrWhiteSpace(day?.ToString()) &&
+                !string.IsNullOrWhiteSpace(month?.ToString()) &&
+                !string.IsNullOrWhiteSpace(year?.ToString()))
+            {
+                fieldValues[field.FieldKey] = $"{day}/{month}/{year}";
+            }
+        }
+
         if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(action))
         {
             logger.LogWarning("Workflow POST: missing InstanceId or Action");

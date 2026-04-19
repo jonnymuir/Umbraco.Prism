@@ -413,12 +413,13 @@ public class BusinessAppWorkflowEngine
             FieldType = f.FieldType,
             Required = f.Required,
             Options = f.Options,
-            Value = savedValues.TryGetValue(f.FieldKey, out var v) ? v : null,
+            Value = GetDisplayValue(f, savedValues),
             MinLength = f.MinLength,
             MaxLength = f.MaxLength,
             Pattern = f.Pattern,
             Min = f.Min,
             Max = f.Max,
+            Prefix = f.Prefix,
             ConditionalOn = f.ConditionalOn,
             VisibleWhen = f.VisibleWhen
         }).ToArray();
@@ -429,6 +430,17 @@ public class BusinessAppWorkflowEngine
             DisplayName = group.DisplayName,
             Fields = fields
         };
+    }
+
+    private static object? GetDisplayValue(FieldFile f, Dictionary<string, object?> savedValues)
+    {
+        var raw = savedValues.TryGetValue(f.FieldKey, out var v) ? v : null;
+        if (raw == null) return null;
+
+        if (f.FieldType.Equals("currency", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(f.Prefix))
+            return $"{f.Prefix}{raw}";
+
+        return raw;
     }
 
     // -----------------------------------------------------------------------
