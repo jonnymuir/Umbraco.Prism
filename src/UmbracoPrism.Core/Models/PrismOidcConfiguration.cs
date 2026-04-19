@@ -309,6 +309,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 string? verifier = null;
                 context.Properties?.Items.TryGetValue("Prism_PKCE_Verifier", out verifier);
 
+                logger.LogDebug(
+                    "Prism: token exchange POST → {Authority} | redirect_uri={RedirectUri} | client_id={ClientId} | scope={Scope}",
+                    authority, redirectUri, clientId, scope);
+
                 // 1. Manually exchange the code for tokens via simple HTTP
                 using var client = new HttpClient();
                 var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
@@ -327,6 +331,14 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     var body = await response.Content.ReadAsStringAsync();
                     var statusCode = (int)response.StatusCode;
                     var detail = string.IsNullOrWhiteSpace(body) ? "(empty body)" : body;
+
+                    // Capture response headers to distinguish proxy rejections from Keycloak errors.
+                    // Keycloak always sets WWW-Authenticate on 401; a missing header fingerprints a proxy block.
+                    var headers = string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"));
+                    logger.LogError(
+                        "Prism: token exchange failed. Status={Status} Authority={Authority} Body={Body} ResponseHeaders=[{Headers}] RedirectUri={RedirectUri}",
+                        statusCode, authority, detail, headers, redirectUri);
+
                     throw new AuthenticationException(
                         $"Token exchange failed. Status: {statusCode}, Authority: {authority}, Body: {detail}");
                 }
