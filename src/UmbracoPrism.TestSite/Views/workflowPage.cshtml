@@ -7,30 +7,35 @@
 }
 
 <div class="workflow-page">
-    <div class="workflow-page__header">
-        <h1 class="workflow-page__title">@(Model.HasError ? "Workflow Error" : Model.StateDisplayName)</h1>
-    </div>
-
     @if (Model.HasError)
     {
+        <div class="workflow-page__header">
+            <h1 class="workflow-page__title">Workflow Error</h1>
+        </div>
         <div class="workflow-alert workflow-alert--error">
             <p>@Model.ErrorMessage</p>
         </div>
     }
-    @* Instance picker — shown when instancePolicy = "prompt" and an active instance exists *@
+    @* Instance picker — shown when instancePolicy = "prompt" and an active instance exists.
+       The picker partial uses h2, so we provide the page h1 here. *@
     else if (Model.ShowInstancePicker)
     {
+        <div class="workflow-page__header">
+            <h1 class="workflow-page__title">@Model.StateDisplayName</h1>
+        </div>
         @await Html.PartialAsync("~/Views/Partials/_WorkflowHub-InstancePicker.cshtml", Model)
     }
     else
     {
-        // Map Archetype to the appropriate partial view name
+        @* Step partials own the page h1. The outer template does not render one here.
+           Step type names follow the workflow definition JSON ("question", "check-answers",
+           "confirmation", "status-timeline"). Legacy aliases kept for backward compatibility. *@
         var partialName = Model.Archetype.ToLowerInvariant() switch
         {
-            "collect" => "_WorkflowStep-Question",
-            "review" => "_WorkflowStep-Review",
-            "completion" => "_WorkflowStep-Completion",
-            "statustimeline" => "_WorkflowStep-StatusTimeline",
+            "question" or "collect" => "_WorkflowStep-Question",
+            "check-answers" or "review" => "_WorkflowStep-Review",
+            "confirmation" or "completion" => "_WorkflowStep-Completion",
+            "status-timeline" or "statustimeline" => "_WorkflowStep-StatusTimeline",
             _ => $"_WorkflowStep-{Model.Archetype}"
         };
         var partialPath = $"~/Views/Partials/{partialName}.cshtml";
@@ -41,6 +46,9 @@
         }
         else
         {
+            <div class="workflow-page__header">
+                <h1 class="workflow-page__title">@Model.StateDisplayName</h1>
+            </div>
             <div class="workflow-alert workflow-alert--warn">
                 <p>No template found for step type: <code>@Model.Archetype</code></p>
             </div>

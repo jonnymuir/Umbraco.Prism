@@ -120,3 +120,13 @@ jobs:
 
       - name: Run localhost auth/session Playwright lane
         run: npm run test:playwright:localhost-auth
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            src/UmbracoPrism.Client/test-results/
+            src/UmbracoPrism.Client/playwright-report/
+          retention-days: 7
