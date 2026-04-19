@@ -17,9 +17,14 @@
   "postCreateCommand": "bash .devcontainer/on-create.sh",
   "postStartCommand": "bash .devcontainer/on-start.sh",
   "portsAttributes": {
+    "3000": {
+      "label": "🚀 Startup Status",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
     "17214": {
       "label": "Aspire Dashboard",
-      "onAutoForward": "openBrowser",
+      "onAutoForward": "notify",
       "visibility": "public"
     },
     "44345": {

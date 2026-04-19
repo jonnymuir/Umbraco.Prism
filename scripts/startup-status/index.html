@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Umbraco Prism — Starting up</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --prism-blue:   #1d70b8;
+      --prism-green:  #00703c;
+      --prism-red:    #d4351c;
+      --prism-yellow: #ffdd00;
+      --prism-grey:   #505a5f;
+      --prism-light:  #f3f2f1;
+      --prism-dark:   #0b0c0c;
+    }
+
+    body {
+      font-family: "GDS Transport", "Helvetica Neue", Arial, sans-serif;
+      background: var(--prism-light);
+      color: var(--prism-dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    header {
+      background: var(--prism-dark);
+      padding: 10px 30px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .crown {
+      width: 36px;
+      fill: white;
+    }
+    .brand {
+      color: white;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .brand span {
+      color: var(--prism-yellow);
+    }
+
+    /* ── Main ────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      max-width: 680px;
+      width: 100%;
+      margin: 48px auto 60px;
+      padding: 0 20px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      line-height: 1.15;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--prism-grey);
+      font-size: 1rem;
+      margin-bottom: 36px;
+    }
+
+    /* ── Service list ────────────────────────────────────────── */
+    .service-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border-top: 1px solid #b1b4b6;
+    }
+
+    .service-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid #b1b4b6;
+      transition: opacity .2s;
+    }
+
+    .service-icon {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+    }
+
+    /* spinner */
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border: 3px solid #b1b4b6;
+      border-top-color: var(--prism-blue);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .service-name {
+      flex: 1;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .service-badge {
+      font-size: .85rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 3px;
+    }
+    .badge-pending { background: #e8f0fe; color: var(--prism-blue); }
+    .badge-ready   { background: #e3f5ec; color: var(--prism-green); }
+    .badge-error   { background: #fde8e4; color: var(--prism-red);   }
+
+    /* ── Ready panel ─────────────────────────────────────────── */
+    #ready-panel {
+      display: none;
+      margin-top: 36px;
+      border-left: 6px solid var(--prism-green);
+      padding: 20px 24px;
+      background: white;
+    }
+    #ready-panel h2 {
+      font-size: 1.3rem;
+      margin-bottom: 16px;
+      color: var(--prism-green);
+    }
+
+    .link-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .link-list a {
+      color: var(--prism-blue);
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .link-list a:hover { text-decoration: none; }
+
+    .creds-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+      margin-top: 4px;
+    }
+    .creds-table th {
+      text-align: left;
+      color: var(--prism-grey);
+      font-weight: 600;
+      padding: 6px 8px 6px 0;
+      border-bottom: 1px solid #b1b4b6;
+    }
+    .creds-table td {
+      padding: 8px 8px 8px 0;
+      border-bottom: 1px solid #e8e8e8;
+      font-family: "Lucida Console", monospace;
+      font-size: .88rem;
+    }
+
+    .creds-label {
+      font-family: "GDS Transport", Arial, sans-serif;
+      font-weight: 600;
+      font-size: .8rem;
+      color: var(--prism-grey);
+    }
+
+    /* ── Log tail ────────────────────────────────────────────── */
+    .log-section {
+      margin-top: 36px;
+    }
+    .log-section summary {
+      cursor: pointer;
+      color: var(--prism-blue);
+      font-size: .9rem;
+      font-weight: 600;
+      user-select: none;
+    }
+    #log-box {
+      margin-top: 12px;
+      background: var(--prism-dark);
+      color: #c8ffc8;
+      font-size: .78rem;
+      font-family: "Lucida Console", monospace;
+      padding: 14px 16px;
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    footer {
+      background: #f3f2f1;
+      border-top: 1px solid #b1b4b6;
+      padding: 16px 30px;
+      font-size: .78rem;
+      color: var(--prism-grey);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <!-- Simplified crown SVG -->
+    <svg class="crown" viewBox="0 0 40 34" aria-hidden="true">
+      <path d="M20 0 L24 10 L32 4 L28 16 L38 14 L32 22 L34 32 L20 28 L6 32 L8 22 L2 14 L12 16 L8 4 L16 10 Z"/>
+    </svg>
+    <span class="brand">Umbraco <span>Prism</span></span>
+  </header>
+
+  <main>
+    <h1 id="page-title">Starting up…</h1>
+    <p class="subtitle" id="page-subtitle">Setting up your development environment. This takes about 2–3 minutes.</p>
+
+    <ul class="service-list" id="service-list" aria-live="polite" aria-label="Service startup status">
+      <!-- populated by JS -->
+    </ul>
+
+    <div id="ready-panel" role="status" aria-live="polite">
+      <h2>✅ Everything is ready!</h2>
+      <ul class="link-list" id="links-list">
+        <!-- populated by JS -->
+      </ul>
+
+      <p style="font-weight:700; margin-bottom:8px;">Credentials</p>
+      <table class="creds-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Username</th>
+            <th>Password</th>
+          </tr>
+        </thead>
+        <tbody id="creds-body">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <details class="log-section">
+      <summary>Show AppHost log tail</summary>
+      <pre id="log-box" aria-label="AppHost log output">Waiting for log…</pre>
+    </details>
+  </main>
+
+  <footer>
+    Umbraco Prism · GitHub Codespace environment
+    &nbsp;·&nbsp; <a href="https://github.com/jonnymuir/Umbraco.Prism" style="color: var(--prism-blue)">View source</a>
+  </footer>
+
+  <script>
+    const POLL_INTERVAL = 4000;  // ms between /api/status calls
+    const LOG_INTERVAL  = 8000;  // ms between /api/log calls
+
+    let allReady = false;
+
+    function icon(status) {
+      if (status === 'ready')   return '✅';
+      if (status === 'error')   return '❌';
+      return null; // spinner
+    }
+
+    function badgeClass(status) {
+      if (status === 'ready') return 'badge-ready';
+      if (status === 'error') return 'badge-error';
+      return 'badge-pending';
+    }
+
+    function badgeText(status) {
+      if (status === 'ready') return 'Ready';
+      if (status === 'error') return 'Error';
+      return 'Starting…';
+    }
+
+    function renderServices(services) {
+      const list = document.getElementById('service-list');
+      list.innerHTML = '';
+      for (const svc of services) {
+        const li = document.createElement('li');
+        li.className = 'service-item';
+        const ic = icon(svc.status);
+        li.innerHTML = `
+          <span class="service-icon" aria-hidden="true">
+            ${ic ? ic : '<span class="spinner"></span>'}
+          </span>
+          <span class="service-name">${svc.name}</span>
+          <span class="service-badge ${badgeClass(svc.status)}">${badgeText(svc.status)}</span>
+        `;
+        list.appendChild(li);
+      }
+    }
+
+    function renderReady(data) {
+      const panel = document.getElementById('ready-panel');
+      panel.style.display = 'block';
+
+      document.getElementById('page-title').textContent = 'Ready to go!';
+      document.getElementById('page-subtitle').textContent =
+        'Your Umbraco Prism environment is fully started.';
+
+      const links = [
+        { label: '🏛️  TestSite (your demo site)',     url: data.urls.testSite },
+        { label: '📊  Aspire Dashboard',               url: data.urls.aspire },
+        { label: '🔑  Keycloak admin console',         url: data.urls.keycloak },
+      ];
+      const linksList = document.getElementById('links-list');
+      linksList.innerHTML = '';
+      for (const l of links) {
+        const li = document.createElement('li');
+        li.innerHTML = `<a href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`;
+        linksList.appendChild(li);
+      }
+
+      const creds = [
+        { label: 'TestSite SSO',   ...data.credentials.sso },
+        { label: 'Umbraco back-office', ...data.credentials.backoffice },
+        { label: 'Keycloak admin', ...data.credentials.keycloak },
+      ];
+      const tbody = document.getElementById('creds-body');
+      tbody.innerHTML = '';
+      for (const c of creds) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="creds-label">${c.label}</td><td>${c.user}</td><td>${c.pass}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function poll() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        renderServices(data.services);
+        if (data.phase === 'ready' && !allReady) {
+          allReady = true;
+          renderReady(data);
+        }
+      } catch (_) {
+        // server not yet responding — keep waiting
+      }
+      if (!allReady) {
+        setTimeout(poll, POLL_INTERVAL);
+      }
+    }
+
+    // kick off immediately
+    poll();
+  </script>
+</body>
+</html>
