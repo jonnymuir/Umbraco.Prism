@@ -72,9 +72,11 @@ public class PrismFieldTagHelper : TagHelper
                 RenderCheckbox(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr);
                 break;
             case "radio":
+            case "radios":
                 RenderRadio(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
                 break;
             case "checkboxlist":
+            case "checkboxes":
                 RenderCheckboxList(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
                 break;
             case "select":

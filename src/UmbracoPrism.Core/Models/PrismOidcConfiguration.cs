@@ -324,8 +324,11 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new AuthenticationException($"Token exchange failed: {error}");
+                    var body = await response.Content.ReadAsStringAsync();
+                    var statusCode = (int)response.StatusCode;
+                    var detail = string.IsNullOrWhiteSpace(body) ? "(empty body)" : body;
+                    throw new AuthenticationException(
+                        $"Token exchange failed. Status: {statusCode}, Authority: {authority}, Body: {detail}");
                 }
 
                 var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());

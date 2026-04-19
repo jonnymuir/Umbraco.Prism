@@ -23,6 +23,11 @@
       "visibility": "public"
     },
     "17214": {
+      "label": "Aspire Dashboard (local HTTPS)",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "18888": {
       "label": "Aspire Dashboard",
       "onAutoForward": "notify",
       "visibility": "public"

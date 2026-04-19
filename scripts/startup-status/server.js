@@ -31,9 +31,14 @@ function probe(url) {
   });
 }
 
+// In Codespaces, the Aspire dashboard runs on HTTP port 18888 (ASPIRE_ALLOW_UNSECURED_TRANSPORT=true).
+// Locally it runs on HTTPS port 17214.
+const ASPIRE_PORT = CODESPACE_NAME ? 18888 : 17214;
+const ASPIRE_PROBE_URL = CODESPACE_NAME ? `http://localhost:18888` : `https://localhost:17214`;
+
 async function getStatus() {
   const [aspire, testsite, keycloak, mocbiz] = await Promise.all([
-    probe(`https://localhost:17214`),
+    probe(ASPIRE_PROBE_URL),
     probe(`https://localhost:44345`),
     probe(`https://localhost:8443/realms/prism-dev`),
     probe(`https://localhost:7245`),
@@ -44,14 +49,14 @@ async function getStatus() {
   return {
     phase: allReady ? 'ready' : 'starting',
     services: [
-      { id: 'aspire',   name: 'Aspire Dashboard',    status: aspire,   url: codespacesUrl(17214) },
+      { id: 'aspire',   name: 'Aspire Dashboard',    status: aspire,   url: codespacesUrl(ASPIRE_PORT) },
       { id: 'testsite', name: 'TestSite (Umbraco)',   status: testsite, url: codespacesUrl(44345) },
       { id: 'keycloak', name: 'Keycloak (SSO)',        status: keycloak, url: `${codespacesUrl(8443)}/admin` },
       { id: 'mocbiz',   name: 'MockBusinessApp',       status: mocbiz,   url: codespacesUrl(7245) },
     ],
     urls: {
       testSite:    codespacesUrl(44345),
-      aspire:      codespacesUrl(17214),
+      aspire:      codespacesUrl(ASPIRE_PORT),
       keycloak:    `${codespacesUrl(8443)}/admin`,
     },
     credentials: {
