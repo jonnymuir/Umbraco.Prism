@@ -99,4 +99,10 @@ var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoP
 if (testSitePublicUrl != null)
     testsite.WithEnvironment("TESTSITE_PUBLIC_URL", testSitePublicUrl);
 
+// In Codespaces, the GitHub forwarded-port proxy blocks unauthenticated server-side backchannel
+// calls to the external Keycloak URL. Point token exchange at Keycloak's internal HTTP endpoint
+// directly so it bypasses the proxy (and avoids any localhost dev-cert trust issues on Ubuntu).
+if (codespaceName != null)
+    testsite.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
+
 builder.Build().Run();

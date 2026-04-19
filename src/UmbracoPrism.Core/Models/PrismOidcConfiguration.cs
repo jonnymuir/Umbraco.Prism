@@ -284,7 +284,20 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 if (!string.IsNullOrEmpty(tenant.OidcAuthority))
                 {
                     // Generic OIDC provider (Keycloak, Okta, etc.)
-                    authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
+                    // KEYCLOAK_BACKCHANNEL_URL allows server-side token exchange to use an internal URL
+                    // (e.g. http://localhost:8080) while OidcAuthority remains the external URL used for
+                    // browser redirects and token validation. This is needed in GitHub Codespaces where
+                    // the forwarded port proxy blocks unauthenticated server-side backchannel calls.
+                    var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                    if (!string.IsNullOrEmpty(backchannelBase))
+                    {
+                        var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
+                        authority = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
+                    }
+                    else
+                    {
+                        authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
+                    }
                     clientId = tenant.OidcClientId ?? string.Empty;
                     secret = await ResolveClientSecretAsync(tenant, vault);
                     scope = GetRequestedScope(tenant);
