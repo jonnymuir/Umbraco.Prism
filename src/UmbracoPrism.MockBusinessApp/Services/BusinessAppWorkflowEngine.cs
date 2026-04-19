@@ -364,7 +364,16 @@ public class BusinessAppWorkflowEngine
                 Style = ActionStyle(t.Action)
             }).ToArray();
 
-        var fieldGroups = state.FieldGroupKeys
+        // For check-answers, aggregate all field groups from all states across the workflow.
+        // The check-answers step has no fieldGroupKeys of its own — it's a read-only summary.
+        var effectiveKeys = state.StepType == "check-answers"
+            ? definition.States
+                .SelectMany(s => s.FieldGroupKeys)
+                .Distinct()
+                .ToArray()
+            : state.FieldGroupKeys;
+
+        var fieldGroups = effectiveKeys
             .Select(key => _fieldGroups.TryGetValue(key, out var fg) ? BuildFieldGroup(fg, instance.FieldValues) : null)
             .Where(fg => fg != null)
             .Cast<FormSection>()
