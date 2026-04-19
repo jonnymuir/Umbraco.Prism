@@ -95,12 +95,17 @@ public class WorkflowPageController(
         // Pre-populate fields from authenticated user claims before building nonce
         var updatedEnvelope = PrePopulateFieldsFromClaims(envelope);
 
-        // Collect all fields from the render payload for nonce caching
-        var allFields = updatedEnvelope.Render?.FieldGroups
-            .SelectMany(g => g.Fields)
-            .ToList() ?? new List<FieldRenderPayload>();
+        // Collect fields for nonce caching.
+        // Check-answers is a read-only summary — it has no fields to validate on POST,
+        // so we pass an empty list. All field values were validated on their own steps.
+        var stepType = updatedEnvelope.Render?.StepType ?? string.Empty;
+        var nonceFields = stepType == "check-answers"
+            ? new List<FieldRenderPayload>()
+            : updatedEnvelope.Render?.FieldGroups
+                .SelectMany(g => g.Fields)
+                .ToList() ?? new List<FieldRenderPayload>();
 
-        var nonce = await nonceService.CreateAsync(allFields);
+        var nonce = await nonceService.CreateAsync(nonceFields);
         var vm = BuildViewModel(updatedEnvelope, workflowKey, problems, formValues);
         vm.Nonce = nonce;
         return CurrentTemplate(vm);
