@@ -6,6 +6,12 @@
 
 DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 
+# Open the welcome/orientation file in the VS Code editor immediately.
+# This gives the user something to read while the stack starts up.
+if [ -n "$CODESPACE_NAME" ]; then
+    code CODESPACES.md 2>/dev/null || true
+fi
+
 # If AppHost is already running (resumed Codespace), just print the URLs and exit.
 if pgrep -f "UmbracoPrism.AppHost" > /dev/null 2>&1; then
     echo "✅ Umbraco Prism stack is already running."
