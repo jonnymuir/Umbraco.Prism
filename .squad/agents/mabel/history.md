@@ -15,6 +15,65 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## 2026-04-16: Interactive Walkthrough Guide — COMPLETE
+
+**Session:** New user onboarding walkthrough creation
+
+**Task:** Create a comprehensive step-by-step guide showing new users how to run the project in Codespaces and walk through the `planning-notification-v1` demo workflow end-to-end, with behind-the-scenes explanations.
+
+### Delivered
+
+1. **README.md — New section: "🚀 Interactive Walkthrough — Apply for Planning Permission"**
+   - **Part 1: Log In and Start the Workflow** — Concrete steps for Codespaces and local, including what OIDC authentication does at each step
+   - **Part 2: Walk Through the Workflow Steps** — Step-by-step walkthrough with exact data to enter, field validation explanations, and state transitions:
+     - Step 1: "Describe your project" (question step with text/textarea fields)
+     - Step 2: "Type of work" (question step with dropdown)
+     - Step 3: "Timeline and cost" (date and currency fields)
+     - Step 4: "Affected parties" (multi-select checkboxes)
+     - Step 5: "Check your answers" (check-answers step type, review and edit)
+     - Step 6: "Application received" (confirmation step type with reference number)
+   - **Part 3: Behind the Scenes** — Detailed explanations of:
+     - Workflow definition JSON structure (`planning-notification-v1.json`)
+     - Field group definitions and field types
+     - BusinessAppWorkflowEngine service logic
+     - BusinessAppWorkflowClient HTTP integration
+     - WorkflowResponseEnvelope response structure
+     - Umbraco view rendering (`WorkflowPage.cshtml` → step-type-specific partials)
+     - Backoffice content management (page properties, workflow key binding)
+     - Keycloak OIDC token flow and authorization
+   - **Exploring Further** — Bonus sections:
+     - How to view the workflow definition JSON
+     - How to check engine logs in the Aspire Dashboard
+     - How to edit workflow content in the backoffice
+     - How to test multi-browser/multi-tab instance sharing
+
+2. **ASPIRE_DEV.md — Quick Start Callout**
+   - Added a note after the Quick Start section pointing new users to the README walkthrough
+
+### Key Learnings
+
+- **Concrete examples matter:** "Click here, enter this text" is far more effective than "Configure your environment" for first-time users
+- **Layered explanation:** Users want to see the workflow in action (Part 2) before understanding the architecture (Part 3)
+- **Field groups as reusable patterns:** Explaining how field groups are referenced by states helps users understand why the same fields can appear in different steps
+- **Step type mapping:** Showing how `question`, `check-answers`, and `confirmation` step types map to different Razor partials helps developers understand how to extend the system
+- **Keycloak as invisible infrastructure:** Explaining what happens during login (OIDC flow, token issuance, authorization) removes mystery and helps developers understand token validation errors
+- **In-memory instance management:** Explaining the engine's instance lookup by `{tenantId}:{userId}:{workflowKey}` helps developers understand multi-user and multi-workflow scenarios
+
+### Style Decisions
+
+- **Callouts:** Used 💡 for architecture/implementation details, ✅ for user-facing features, and ℹ️ for reference
+- **Code blocks:** Inline `code` for property names and URLs; full JSON blocks for structure examples
+- **Tone:** Active voice, present tense, developer-first ("what this means to you" rather than "the system does")
+- **Navigation:** Section headings are scannable; step-by-step flows use numbered lists; architecture sections use labeled subsections
+
+### Outputs
+
+- Updated `/README.md` with 400+ lines of walkthrough content (inserted after credentials table, before "Try the Demo — Local Setup" section)
+- Updated `/ASPIRE_DEV.md` with Quick Start callout linking to the new walkthrough
+- Decision record: `.squad/decisions/inbox/mabel-walkthrough-guide.md`
+
+---
+
 - Created docs/secret-management.md for DevOps/SRE operational guidance
 - All documentation aligns with implementation, security review, and contract
 
@@ -156,3 +215,53 @@ When releasing, always:
 - Decision merged to `.squad/decisions.md`: "Keycloak Local Dev Documentation Refactor"
 - Focused on user-facing consequences; preserved all technical accuracy
 - No follow-up needed; Keycloak README and ASPIRE_DEV.md contain deeper architecture details
+
+---
+
+## Session: GDS Phase 2 — Interactive Walkthrough & Documentation (2026-04-19)
+
+**Topic:** Create comprehensive onboarding guide showing new users how to use the planning-notification-v1 workflow demo
+
+**Outcome:** ✅ Complete — Multi-part walkthrough added to README, ASPIRE_DEV callout updated, decision documented
+
+### Delivered
+
+**1. README.md: "🚀 Interactive Walkthrough — Apply for Planning Permission"**
+
+Comprehensive 3-part guide (15–20 minute onboarding):
+
+- **Part 1: Log In and Start** (3–5 minutes)
+  - Concrete steps for Codespaces and local setup
+  - OIDC authentication flow explanation at each step
+  
+- **Part 2: Walk Through the Workflow** (10–15 minutes)
+  - Step-by-step workflow navigation with exact data to enter
+  - Field validation explanations
+  - State transitions between steps
+  - Multi-step completion walkthrough
+  
+- **Part 3: Behind the Scenes** (optional, 15+ minutes)
+  - Workflow definition JSON structure
+  - Field group validation and conditional fields
+  - BusinessAppWorkflowEngine processing
+  - Razor partial rendering
+  - Bonus exploration: viewing definitions, checking logs, editing in backoffice
+
+**2. ASPIRE_DEV.md: Added Callout**
+
+Added contextual link from quick-start to README walkthrough for users who want guided experience vs. independent exploration.
+
+**3. Style Decisions**
+
+- **Emoji callouts** (💡 learning, ✅ features, ℹ️ reference) for visual hierarchy
+- **Concrete-then-abstract** pattern — actionable steps before conceptual explanation
+- **Developer-first tone** — active voice, present tense, practical examples
+- **Real code examples** — JSON from `planning-notification-v1.json` and field group files
+
+**Validation:**
+- ✅ Walkthrough renders correctly
+- ✅ Callouts placed appropriately
+- ✅ Cross-references between README and ASPIRE_DEV verified
+- ✅ End-to-end workflow path tested for accuracy
+
+**Key Insight:** Breaking onboarding into three depth levels (quick start, guided walkthrough, deep dive) meets users where they are — some want to run fast, others want to understand the architecture first. Users can choose their own journey.

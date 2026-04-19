@@ -34,7 +34,7 @@ public class WorkflowViewModel : PublishedContentWrapped
     public string StateDisplayName { get; set; } = string.Empty;
 
     /// <summary>Field groups to render in Collect steps.</summary>
-    public IReadOnlyList<FieldGroupRenderPayload> FieldGroups { get; set; } = Array.Empty<FieldGroupRenderPayload>();
+    public IReadOnlyList<FormSection> FieldGroups { get; set; } = Array.Empty<FormSection>();
 
     /// <summary>Actions the user can take (e.g. continue, submit, back).</summary>
     public IReadOnlyList<WorkflowAction> AvailableActions { get; set; } = Array.Empty<WorkflowAction>();

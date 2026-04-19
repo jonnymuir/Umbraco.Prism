@@ -33,6 +33,7 @@ public class WorkflowPageSeeder(
             EnsureHomeAndDashboard();
             CleanupOldRetirementQuotePage();
             EnsureCommunityEnquiryPage();
+            EnsurePlanningWorkflowPage();
             EnsureWorkflowHubPage();
         }
         catch (Exception ex)
@@ -127,6 +128,34 @@ public class WorkflowPageSeeder(
         var page = contentService.Create(TestSiteSeedContract.WorkflowPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
         page.SetValue("workflowKey", TestSiteSeedContract.WorkflowKey);
         SaveAndPublishIfNeeded(page, TestSiteSeedContract.WorkflowPageName, null, "seeded workflow page");
+    }
+
+    private void EnsurePlanningWorkflowPage()
+    {
+        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
+        if (contentType == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping planning workflow page");
+            return;
+        }
+
+        var existing = TestSiteSeedContract.FindWorkflowContent(contentService, TestSiteSeedContract.PlanningWorkflowKey);
+
+        if (existing != null)
+        {
+            SaveAndPublishIfNeeded(
+                existing,
+                TestSiteSeedContract.PlanningWorkflowPageName,
+                page => page.SetValue("workflowKey", TestSiteSeedContract.PlanningWorkflowKey),
+                "seeded planning workflow page");
+            return;
+        }
+
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded planning workflow page");
+
+        var page = contentService.Create(TestSiteSeedContract.PlanningWorkflowPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
+        page.SetValue("workflowKey", TestSiteSeedContract.PlanningWorkflowKey);
+        SaveAndPublishIfNeeded(page, TestSiteSeedContract.PlanningWorkflowPageName, null, "seeded planning workflow page");
     }
 
     private void EnsureWorkflowHubPage()

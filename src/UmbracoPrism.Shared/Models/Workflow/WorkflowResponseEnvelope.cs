@@ -12,7 +12,7 @@ public record WorkflowResponseEnvelope
 
     /// <summary>
     /// Gets the response state indicating what the client should do next.
-    /// Valid values: ask_now, wait, complete, error.
+    /// Valid values: render, defer, complete, error.
     /// </summary>
     public required string ResponseState { get; init; }
 
@@ -33,15 +33,15 @@ public record WorkflowResponseEnvelope
 
     /// <summary>
     /// Gets the recommended polling interval in milliseconds (nullable).
-    /// Only present when ResponseState is "wait".
+    /// Only present when ResponseState is "defer".
     /// </summary>
     public int? PollAfterMs { get; init; }
 
     /// <summary>
     /// Gets the render payload for UI presentation (nullable).
-    /// Only present when ResponseState is "ask_now".
+    /// Only present when ResponseState is "render".
     /// </summary>
-    public WorkflowRenderPayload? Render { get; init; }
+    public StepContent? Render { get; init; }
 
     /// <summary>
     /// Gets the instance policy from the workflow definition.
@@ -58,7 +58,7 @@ public record WorkflowResponseEnvelope
 /// <summary>
 /// Render payload for UI presentation.
 /// </summary>
-public record WorkflowRenderPayload
+public record StepContent
 {
     /// <summary>
     /// Gets the step type for UI rendering (question, check-answers, confirmation, status-timeline, task-list).
@@ -73,7 +73,7 @@ public record WorkflowRenderPayload
     /// <summary>
     /// Gets the field groups to render.
     /// </summary>
-    public required IReadOnlyList<FieldGroupRenderPayload> FieldGroups { get; init; }
+    public required IReadOnlyList<FormSection> FieldGroups { get; init; }
 
     /// <summary>
     /// Gets the available actions the user can take.
@@ -84,7 +84,7 @@ public record WorkflowRenderPayload
 /// <summary>
 /// Field group render payload.
 /// </summary>
-public record FieldGroupRenderPayload
+public record FormSection
 {
     /// <summary>
     /// Gets the field group key.

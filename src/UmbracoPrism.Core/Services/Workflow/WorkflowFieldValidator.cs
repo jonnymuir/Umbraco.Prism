@@ -200,9 +200,14 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                     return $"{field.Label} must include day, month, and year.";
                 }
                 // Parse the reconstructed date (YYYY-MM-DD format)
-                if (!DateTime.TryParse(raw, out _))
+                if (!DateTime.TryParse(raw, out var parsedDate))
                 {
                     return $"{field.Label} must be a valid date.";
+                }
+                // Year range check: 1900-2100 inclusive
+                if (parsedDate.Year < 1900 || parsedDate.Year > 2100)
+                {
+                    return $"{field.Label} year must be between 1900 and 2100.";
                 }
                 break;
 

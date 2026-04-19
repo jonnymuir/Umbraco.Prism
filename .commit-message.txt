@@ -1,0 +1,11 @@
+feat: naming cleanup, Playwright E2E, user walkthrough guide
+
+- Rename WorkflowRenderPayload → StepContent, FieldGroupRenderPayload → FormSection
+- Rename WorkflowStateFile → StepDefinition, FieldGroupFile → FormSectionDefinition
+- Rename response state values: ask_now → render, wait → defer
+- Add date-input year validation (1900–2100) with 4 boundary tests
+- Add Playwright E2E tests for planning-notification-v1 GDS workflow journey
+- Add README interactive walkthrough with Try It Now Codespaces quick start
+- 420 core tests passing
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

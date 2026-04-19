@@ -17,7 +17,7 @@ public record WorkflowDefinitionFile
     /// <summary>Instance creation policy: "single" (reuse existing), "multiple" (always create new), "prompt" (ask user).</summary>
     public string InstancePolicy { get; init; } = "single";
     /// <summary>All states defined in this workflow.</summary>
-    public IReadOnlyList<WorkflowStateFile> States { get; init; } = Array.Empty<WorkflowStateFile>();
+    public IReadOnlyList<StepDefinition> States { get; init; } = Array.Empty<StepDefinition>();
     /// <summary>All state transitions (edges) defined in this workflow.</summary>
     public IReadOnlyList<WorkflowTransitionFile> Transitions { get; init; } = Array.Empty<WorkflowTransitionFile>();
 }
@@ -26,7 +26,7 @@ public record WorkflowDefinitionFile
 /// JSON-deserialized shape of a workflow state within a definition.
 /// Describes what to collect/display when the instance reaches this state.
 /// </summary>
-public record WorkflowStateFile
+public record StepDefinition
 {
     /// <summary>The unique identifier for this state within the workflow (e.g. "collect-details").</summary>
     public string StateKey { get; init; } = "";
@@ -63,7 +63,7 @@ public record WorkflowTransitionFile
 /// JSON-deserialized shape of a field group seed file.
 /// A reusable collection of fields that can be rendered in one or more workflow states.
 /// </summary>
-public record FieldGroupFile
+public record FormSectionDefinition
 {
     /// <summary>The unique identifier for this field group (e.g. "personal-info").</summary>
     public string GroupKey { get; init; } = "";

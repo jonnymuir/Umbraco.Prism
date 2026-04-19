@@ -454,3 +454,78 @@ Both must be handled for restart resilience.
 - **Tangy:** Added 10 test cases for new field types
 - **Scribe:** Merged decisions, created session log, coordinated git commit
 
+
+---
+
+## Learnings (2026-01-22, Naming Cleanup + Date-Input Year Validation)
+
+**Context:** User confirmed naming directive: use clear, ubiquitous language across all workflow models.
+
+**Renames Completed:**
+- `WorkflowRenderPayload` → `StepContent` — the payload passed to a view to render one step
+- `FieldGroupRenderPayload` → `FormSection` — a group of fields within a step (a section of a form)
+- `WorkflowStateFile` → `StepDefinition` — defines one step in the workflow seed file
+- `FieldGroupFile` → `FormSectionDefinition` — defines a form section in the seed file
+- `"ask_now"` → `"render"` — render this step to the user now
+- `"wait"` → `"defer"` — defer this step, don't render it yet
+
+**Files Updated:**
+- `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs` — renamed types and string values in comments
+- `src/UmbracoPrism.MockBusinessApp/Services/WorkflowDefinitionFile.cs` — renamed seed file model types
+- `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs` — renamed types, string values, method signatures
+- `src/UmbracoPrism.TestSite/Models/WorkflowViewModel.cs` — updated view model property type
+- `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` — updated controller type references
+
+**Date-Input Year Validation:**
+- Added explicit year range check in `WorkflowFieldValidator.cs`: year must be between 1900 and 2100 (inclusive)
+- Added 4 tests in `WorkflowFieldValidatorTests.cs`:
+  - `DateInput_YearBelow1900_ReturnsValidationError`
+  - `DateInput_YearAbove2100_ReturnsValidationError`
+  - `DateInput_YearAtBoundary1900_IsValid`
+  - `DateInput_YearAtBoundary2100_IsValid`
+
+**Validation:**
+- ✅ Build clean — 0 errors, 1 pre-existing warning
+- ✅ All 420 Core tests passing (4 new tests added)
+
+**Key Insight:** Using grep to find ALL usages before renaming prevented missing any references. No JSON seed files needed updating because they use string keys, not type names.
+
+---
+
+## Session: GDS Phase 2 — Naming Cleanup & Validation (2026-04-19)
+
+**Topic:** Complete naming standardization and boundary validation for workflow models
+
+**Outcome:** ✅ Complete — Ubiquitous language implemented, year validation hardened, decision documented
+
+### Delivered
+
+**1. Ubiquitous Language Naming Cleanup**
+- Renamed 4 workflow types for clarity:
+  - `WorkflowRenderPayload` → `StepContent` (the content to render for one workflow step)
+  - `FieldGroupRenderPayload` → `FormSection` (a logical form section within a step)
+  - `WorkflowStateFile` → `StepDefinition` (defines one step in a workflow seed file)
+  - `FieldGroupFile` → `FormSectionDefinition` (defines a form section in a seed file)
+- Renamed 2 string state values:
+  - `"ask_now"` → `"render"` (render this step now)
+  - `"wait"` → `"defer"` (defer rendering this step)
+
+**Files Updated:**
+- `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs`
+- `src/UmbracoPrism.MockBusinessApp/Services/WorkflowDefinitionFile.cs`
+- `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`
+- `src/UmbracoPrism.TestSite/Models/WorkflowViewModel.cs`
+- `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`
+
+**2. Date-Input Year Validation**
+- Extended `WorkflowFieldValidator.cs` with explicit year boundary validation (1900–2100)
+- Added 4 comprehensive test cases covering lower bound, upper bound, and mid-range valid values
+- Tests validated that out-of-range years (< 1900, > 2100) trigger validation errors
+
+**Validation:**
+- ✅ Build clean — 0 errors
+- ✅ All 420 tests passing
+- ✅ Grep verification confirmed all type usages updated
+- ✅ No JSON seed changes needed (seeds use string keys, not C# type names)
+
+**Key Insight:** Ubiquitous language improves code readability and accelerates contributor onboarding. New names directly reflect the purpose each class serves in the workflow engine. This is the final naming cleanup needed for GDS alignment.

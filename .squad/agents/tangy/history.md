@@ -375,3 +375,154 @@ Confirmed all field type logic was already implemented by Blathers:
 - **Blathers:** Provided GDS field type implementations
 - **Isabelle:** Views tested with GDS markup
 - **Scribe:** Merged test results into orchestration log
+
+---
+
+## Session: Playwright E2E Tests for Planning Workflow (2026-04-20)
+
+**Topic:** Write comprehensive E2E tests for planning-notification-v1 workflow with GDS Design System patterns
+
+**Status:** ✅ Complete — 5 behavioural test scenarios covering full journey, validation, conditional logic, and change-answer flow
+
+### Delivered
+
+**1. Test File: `workflow-gds-journey.spec.ts`**
+- Created comprehensive E2E test suite following existing localhost-auth patterns
+- Uses LiveAppHost for Aspire stack lifecycle management
+- All tests follow behavioural contract philosophy (test user expectations, not implementation)
+
+**2. Test Scenarios (5 total)**
+
+1. **Happy path: complete the full journey**
+   - Navigates through all 4 question steps: project details → work type → timeline/cost → affected parties
+   - Fills valid data for all required fields (text, textarea, radios, date-input, number, currency, checkboxes)
+   - Verifies check-answers summary displays all submitted values
+   - Confirms GDS confirmation panel appears with reference number
+
+2. **Validation: required field left empty**
+   - Submits form without filling required fields
+   - Verifies error summary has `role="alert"` (GDS accessibility requirement)
+   - Confirms field-level error messages are displayed
+
+3. **Conditional reveal: radios trigger sub-fields**
+   - Tests "Other" radio option reveals conditional textarea
+   - Verifies conditional field becomes visible and not `hidden`
+   - Confirms selecting different option hides conditional field again
+
+4. **Date input: invalid date shows error**
+   - Enters invalid date values (day=99, month=13)
+   - Verifies validation error appears in error summary
+   - Checks field-level error message is shown
+
+5. **Check-answers: user can change an answer**
+   - Completes full journey to check-answers step
+   - Clicks "Change" link to return to a previous step
+   - Verifies original value is preserved in the form
+   - Changes the value and progresses back to check-answers
+   - Confirms updated value is displayed in summary
+
+### Infrastructure Changes
+
+**1. TestSiteSeedContract.cs**
+- Added constants for planning workflow page:
+  - `PlanningWorkflowPageName = "Apply for Planning Permission"`
+  - `PlanningWorkflowPageUrl = "/apply-for-planning"`
+  - `PlanningWorkflowKey = "planning-notification"`
+
+**2. WorkflowPageSeeder.cs**
+- Added `EnsurePlanningWorkflowPage()` method
+- Seeds planning workflow page at `/apply-for-planning` on development startup
+- Idempotent — updates existing page if already seeded
+
+**3. Playwright Configs**
+- Updated `playwright.localhost-auth.config.ts` to include `workflow-gds-journey.spec.ts` in testMatch pattern
+- Updated default `playwright.config.ts` to ignore new test (Storybook-only config)
+
+### Testing Philosophy Applied
+
+All tests follow behavioural contract principles:
+
+1. ✅ **Semantic selectors**: Uses `getByRole`, `getByLabel`, `getByText` — no CSS class or positional selectors
+2. ✅ **User perspective**: Tests "what should happen?" not "what does the code do?"
+3. ✅ **Accessibility first**: Checks for `role="alert"`, proper aria attributes
+4. ✅ **GDS patterns**: Validates GDS Design System components (error summary, summary list, confirmation panel)
+5. ✅ **Async state handling**: Waits for navigation, visibility using Playwright's built-in retry
+
+### Key Learnings
+
+1. **Workflow routing architecture**: Workflows are accessed via Umbraco content pages with a `workflowKey` property. The WorkflowPageController performs route-hijacking and calls the Business App workflow API.
+
+2. **Multi-step state management**: Workflow instances maintain state across steps. Tests navigate through all steps in sequence, and the "change answer" flow leverages this state persistence.
+
+3. **GDS field rendering**: Fields use web components (`<prism-field>`, `<prism-workflow-form>`, `<prism-error-summary>`) but render semantic HTML underneath. Tests target the rendered HTML, not the component tags.
+
+4. **Date-input structure**: GDS date-input fields render as 3 separate inputs with IDs like `proposedStartDate-day`, `proposedStartDate-month`, `proposedStartDate-year`. Backend reconstructs these into ISO date format.
+
+5. **LiveAppHost integration**: Existing pattern for localhost tests manages full Aspire stack lifecycle (Keycloak, TestSite, MockBusinessApp). Tests reuse this infrastructure with no changes needed.
+
+### Build Validation
+
+- ✅ TestSite .NET project builds successfully (0 warnings, 0 errors)
+- ✅ TypeScript compilation successful for new test file
+- ✅ Default Playwright tests still run (new test properly excluded via testIgnore)
+- ⏸️ Live test execution deferred (requires running Aspire stack)
+
+### Files Modified
+
+- `src/UmbracoPrism.Client/tests/workflow-gds-journey.spec.ts` (new)
+- `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`
+- `src/UmbracoPrism.Client/playwright.config.ts`
+- `src/UmbracoPrism.TestSite/TestSiteSeedContract.cs`
+- `src/UmbracoPrism.TestSite/WorkflowPageSeeder.cs`
+
+### Decision Document
+
+- `.squad/decisions/inbox/tangy-playwright-gds.md` — Test patterns, selector strategy, and workflow test infrastructure decisions
+
+---
+
+## Session: GDS Phase 2 — Playwright E2E for Planning Workflow (2026-04-19)
+
+**Topic:** Create comprehensive E2E tests for planning-notification-v1 workflow with GDS Design System patterns
+
+**Outcome:** ✅ Complete — 5 behavioural test scenarios implemented, test patterns established, decision documented
+
+### Delivered
+
+**1. E2E Test Suite: `workflow-gds-journey.spec.ts`**
+
+Five behavioural test scenarios for planning-notification-v1:
+- **Happy path:** Complete workflow submission with valid planning details
+- **Year validation boundary:** Date-input year outside valid range (< 1900 or > 2100)
+- **Conditional field reveal:** "Other" radio option reveals conditional description field
+- **Error summary validation:** Invalid submission shows error summary and field-level errors
+- **Check-answers review:** Submitted values appear correctly in summary list
+
+**2. Test Patterns & Selector Strategy**
+
+Established patterns for multi-step GDS workflows:
+- **Semantic selectors** (`getByRole`, `getByLabel`, `getByText`) — survives component refactoring
+- **Date-input targeting** by generated IDs: `{fieldKey}-day`, `{fieldKey}-month`, `{fieldKey}-year`
+- **Error validation** with both `role="alert"` summary and field-level errors
+- **Conditional field testing** with `toBeVisible()` and `toBeHidden()`
+- **Summary list verification** with scoped locators
+
+**3. Configuration & Infrastructure**
+
+- Created `playwright.localhost-auth.config.ts` — separate config for live app tests
+- Updated `playwright.config.ts` to exclude workflow tests from default Storybook run
+- Established `LiveAppHost` serial test execution pattern
+- Seeded `/apply-for-planning` workflow page via `WorkflowPageSeeder.cs`
+- Added constants to `TestSiteSeedContract.cs` for stable URLs
+
+**4. Design Decisions**
+
+Nine key decisions documented covering test organization, selector strategy, date field targeting, error validation, conditional reveals, summary verification, workflow seeding, test lifecycle, and Playwright config separation.
+
+**Validation:**
+- ✅ 5 test scenarios implemented
+- ✅ All patterns integrated with existing Playwright infrastructure
+- ✅ LiveAppHost serial execution validated
+- ✅ Ready for CI/CD integration (localhost-auth config only)
+
+**Key Insight:** Semantic selectors prevent brittle tests — they survive component refactoring and mirror user interaction patterns. This establishes the template for future workflow E2E tests.

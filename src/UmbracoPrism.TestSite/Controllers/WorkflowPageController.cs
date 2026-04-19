@@ -273,7 +273,7 @@ public class WorkflowPageController(
             ReturnUrl = HttpContext.Request.PathBase + HttpContext.Request.Path,
             Archetype = render?.StepType ?? string.Empty,
             StateDisplayName = render?.StateDisplayName ?? string.Empty,
-            FieldGroups = render?.FieldGroups ?? Array.Empty<FieldGroupRenderPayload>(),
+            FieldGroups = render?.FieldGroups ?? Array.Empty<FormSection>(),
             AvailableActions = render?.AvailableActions ?? Array.Empty<WorkflowAction>(),
             Problems = problems ?? Array.Empty<WorkflowProblem>(),
             FormValues = formValues ?? new Dictionary<string, string>()

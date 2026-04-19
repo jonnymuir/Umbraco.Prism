@@ -750,3 +750,337 @@ Add an explicit prerequisite validation step to the repo-owned VS Code full-stac
 
 Aspire tooling binaries are an external machine prerequisite and cannot be bundled by the AppHost project itself. Repo-level preflight validation is the smallest reliable fix: it preserves the existing launch flow on correctly configured machines while turning a confusing runtime crash into an actionable setup message.
 
+---
+
+## Decision: Workflow Model Naming Cleanup
+
+**Date:** 2026-01-22  
+**Author:** Blathers (Backend Dev)  
+**Status:** ✅ Complete  
+**Scope:** C# workflow models, Business App engine, TestSite controllers
+
+### Decision
+
+Rename workflow types and state values to use clear, ubiquitous language that reflects their actual purpose in the workflow engine.
+
+### Rationale
+
+The user confirmed a naming directive: **use clear, ubiquitous language** across all workflow models. The previous names (`WorkflowRenderPayload`, `FieldGroupRenderPayload`, `WorkflowStateFile`, `FieldGroupFile`) were technically accurate but not intuitive. The new names better describe what each concept represents:
+
+- **StepContent** — the content to render for one step of a workflow (clearer than "render payload")
+- **FormSection** — a logical section of a form within a step (clearer than "field group render payload")
+- **StepDefinition** — defines one step in a workflow seed file (clearer than "workflow state file")
+- **FormSectionDefinition** — defines a form section in a seed file (clearer than "field group file")
+
+String state values also renamed for clarity:
+- **"render"** — render this step to the user now (clearer than "ask_now")
+- **"defer"** — defer this step, don't render it yet (clearer than "wait")
+
+### Changes
+
+#### Type Renames
+1. `WorkflowRenderPayload` → `StepContent`
+2. `FieldGroupRenderPayload` → `FormSection`
+3. `WorkflowStateFile` → `StepDefinition`
+4. `FieldGroupFile` → `FormSectionDefinition`
+
+#### String Value Renames
+1. `"ask_now"` → `"render"`
+2. `"wait"` → `"defer"`
+
+#### Files Updated
+- `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs`
+- `src/UmbracoPrism.MockBusinessApp/Services/WorkflowDefinitionFile.cs`
+- `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`
+- `src/UmbracoPrism.TestSite/Models/WorkflowViewModel.cs`
+- `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`
+
+### Impact
+
+- **Backend:** Type renames across shared models, Business App engine, and TestSite
+- **Frontend:** No impact — view models and Razor views use the updated types seamlessly
+- **JSON Seeds:** No changes needed — seed files use string keys, not type names
+- **Tests:** All 420 Core tests passing
+
+### Validation
+
+- ✅ Build succeeded with 0 errors
+- ✅ All 420 tests passing
+- ✅ Comprehensive grep search confirmed all usages updated
+
+### Additional Work
+
+**Date-Input Year Validation:** Added explicit year range check (1900-2100 inclusive) to `WorkflowFieldValidator.cs` for `date-input` field type, with 4 new test cases.
+
+---
+
+## Decision: Playwright E2E Test Patterns for GDS Workflow Journeys
+
+**Date:** 2026-04-20  
+**Author:** Tangy (Tester)  
+**Status:** ✅ Implemented
+
+### Context
+
+Writing comprehensive E2E tests for the planning-notification-v1 workflow required establishing test patterns for multi-step GDS Design System workflows that integrate with the existing localhost Aspire test infrastructure.
+
+### Decisions
+
+#### 1. Test File Organization
+
+**Decision:** Use separate test files per workflow type, excluded from default Storybook config, included in localhost-auth config.
+
+**Pattern:**
+```typescript
+// tests/workflow-{workflow-name}.spec.ts
+test.describe('{Workflow} GDS journey behavioural contracts', () => {
+  test.describe.configure({ mode: 'serial' });
+  // ... tests
+});
+```
+
+**Rationale:** Each workflow is a distinct user journey deserving its own test suite. Serial mode required because tests share LiveAppHost lifecycle and state. Clear naming convention makes it easy to identify workflow tests vs component tests.
+
+#### 2. Selector Strategy for GDS Components
+
+**Decision:** Always use semantic selectors that target rendered HTML, never web component tags or CSS classes.
+
+**Preferred selector hierarchy:**
+1. `getByRole` (buttons, links, headings, checkboxes, radios)
+2. `getByLabel` (form inputs)
+3. `getByText` (summary values, error messages)
+4. Locator with semantic attributes (`role="alert"`, `.govuk-summary-list`)
+
+**Examples:**
+```typescript
+// ✅ Good
+await page.getByRole('heading', { name: 'Check your answers' });
+await page.getByLabel('Project name').fill('...');
+await page.locator('[role="alert"]').first();
+
+// ❌ Avoid
+await page.locator('prism-field'); // web component tag
+await page.locator('.prism-input'); // CSS class
+await page.locator('input[name="fields[projectName]"]'); // implementation detail
+```
+
+**Rationale:** Tests survive component refactoring. Mirrors user interaction. Enforces accessibility (semantic HTML is a prerequisite).
+
+#### 3. Date Input Field Targeting
+
+**Decision:** Target GDS date-input sub-fields by their generated IDs: `{fieldKey}-day`, `{fieldKey}-month`, `{fieldKey}-year`.
+
+**Pattern:**
+```typescript
+await page.locator('#proposedStartDate-day').fill('15');
+await page.locator('#proposedStartDate-month').fill('6');
+await page.locator('#proposedStartDate-year').fill('2025');
+```
+
+**Rationale:** GDS Design System standard structure (3 separate inputs). IDs are stable contract (generated from fieldKey). No semantic alternative (no label per sub-input).
+
+#### 4. Error Validation Testing
+
+**Decision:** Always verify both error summary AND field-level errors. Check `role="alert"` on error summary.
+
+**Pattern:**
+```typescript
+// Submit invalid form
+await page.getByRole('button', { name: 'Continue' }).click();
+
+// Verify error summary (GDS accessibility requirement)
+const errorSummary = page.locator('[role="alert"]').first();
+await expect(errorSummary).toBeVisible();
+await expect(errorSummary).toContainText('There is a problem');
+
+// Verify field-level error
+await expect(page.locator('.prism-field-error').first()).toBeVisible();
+```
+
+**Rationale:** GDS Design System requires both summary and field-level errors. `role="alert"` is accessibility requirement (screen reader announcement). Tests enforce full error UX.
+
+#### 5. Conditional Field Reveal Testing
+
+**Decision:** Test both reveal and hide behaviour. Use `toBeVisible()` and `toBeHidden()`, not attribute checks.
+
+**Pattern:**
+```typescript
+// Select option with conditional field
+await page.getByRole('radio', { name: 'Other' }).check();
+const conditionalField = page.getByLabel('Describe the type of work');
+await expect(conditionalField).toBeVisible();
+
+// Select different option
+await page.getByRole('radio', { name: 'Extension or alteration' }).check();
+await expect(conditionalField).toBeHidden();
+```
+
+**Rationale:** `toBeVisible()` checks display, visibility, and hidden attribute (comprehensive). Tests both directions (show/hide) catches one-way bugs. Playwright's retry logic handles animation/transition timing.
+
+#### 6. Check-Answers Summary Validation
+
+**Decision:** Verify submitted values appear in the GDS summary list, not the entire HTML structure.
+
+**Pattern:**
+```typescript
+const summaryList = page.locator('.govuk-summary-list');
+await expect(summaryList.getByText('Garden extension')).toBeVisible();
+await expect(summaryList.getByText('£25000')).toBeVisible();
+```
+
+**Rationale:** Scoped locator prevents false positives from header/footer. Tests user-facing value display. Allows for layout changes without breaking tests.
+
+#### 7. Workflow Routing and Seeding
+
+**Decision:** Seed workflow pages in `WorkflowPageSeeder` with stable URLs and workflow keys. Use constants in `TestSiteSeedContract`.
+
+**Pattern:**
+```csharp
+// TestSiteSeedContract.cs
+public const string PlanningWorkflowKey = "planning-notification";
+public const string PlanningWorkflowPageUrl = "/apply-for-planning";
+
+// WorkflowPageSeeder.cs
+private void EnsurePlanningWorkflowPage() {
+    var page = contentService.Create(
+        TestSiteSeedContract.PlanningWorkflowPageName,
+        Constants.System.Root,
+        TestSiteSeedContract.WorkflowPageAlias
+    );
+    page.SetValue("workflowKey", TestSiteSeedContract.PlanningWorkflowKey);
+    SaveAndPublishIfNeeded(page, ...);
+}
+```
+
+**Rationale:** Tests use stable URLs instead of dynamic Umbraco routes. Seeding is idempotent (development-only, runs on app start). Constants centralized for reuse across controllers, tests, documentation.
+
+#### 8. Test Lifecycle and AppHost Management
+
+**Decision:** Reuse existing `LiveAppHost` pattern for localhost workflow tests. One instance per test file, serial test execution.
+
+**Pattern:**
+```typescript
+const appHost = new LiveAppHost();
+
+test.beforeAll(async () => {
+  await appHost.start();
+});
+
+test.afterAll(async () => {
+  await appHost.stop();
+});
+```
+
+**Rationale:** LiveAppHost already handles Aspire stack (Keycloak, TestSite, MockBusinessApp). Serial mode avoids test isolation issues (shared workflow state). Restarting Aspire per test is too slow (5+ minutes startup time).
+
+#### 9. Playwright Config Separation
+
+**Decision:** Maintain two Playwright configs — default for Storybook, localhost-auth for live app tests.
+
+**Pattern:**
+```typescript
+// playwright.config.ts (default)
+testIgnore: ['**/localhost-auth-session.spec.ts', '**/workflow-gds-journey.spec.ts']
+
+// playwright.localhost-auth.config.ts
+testMatch: /(localhost-auth-session|workflow-gds-journey)\.spec\.ts/
+```
+
+**Rationale:** Default config runs fast Storybook tests (no external dependencies). Localhost-auth config explicitly opts into slow tests (requires Aspire stack). Clear separation prevents accidental CI slowdown.
+
+### Future Considerations
+
+1. **Multi-workflow test efficiency**: If we add many workflow test files, consider a shared AppHost fixture at suite level instead of file level.
+2. **Dynamic workflow discovery**: Current approach seeds specific workflows. Future: test framework could discover all workflow definitions and generate test scaffolds.
+3. **Conditional field mapping**: Manual mapping of conditional fields in tests. Future: data-driven approach using workflow seed JSON.
+4. **Change-answer navigation**: Current test manually progresses through all steps after changing an answer. Workflow may support direct navigation to check-answers in future.
+
+### Related Files
+
+- `src/UmbracoPrism.Client/tests/workflow-gds-journey.spec.ts`
+- `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`
+- `src/UmbracoPrism.TestSite/WorkflowPageSeeder.cs`
+- `src/UmbracoPrism.TestSite/TestSiteSeedContract.cs`
+
+---
+
+## Decision: Interactive Walkthrough Guide in README
+
+**Date:** 2026-04-16  
+**Author:** Mabel (Technical Writer & Release Manager)  
+**Status:** Complete  
+**Scope:** Developer onboarding, documentation, user experience
+
+### Problem
+
+New users landing on the Umbraco.Prism repository had quick-start instructions but no guided tour showing them how to actually *use* the demo workflow. Developers unfamiliar with the system couldn't see:
+
+- The end-to-end user experience of filling out a multi-step workflow
+- How the workflow definition, field groups, engine, and Umbraco views connect
+- What Keycloak authentication does behind the scenes
+- How Umbraco backoffice content relates to the frontend workflow
+
+### Solution
+
+Created a comprehensive **Interactive Walkthrough** section in README.md that:
+
+1. **Walks users through the demo workflow step-by-step** with concrete data to enter at each step, making it immediately runnable
+2. **Explains what's happening at each step** with callouts showing:
+   - OIDC authentication flow details
+   - Workflow state transitions and field validation
+   - Instance management and data persistence
+3. **Maps the user experience to the code** by showing:
+   - The workflow definition JSON structure
+   - Field group references and validation rules
+   - How the BusinessAppWorkflowEngine processes requests
+   - How BusinessAppWorkflowClient integrates with Umbraco
+   - How Umbraco Razor partials render different step types
+4. **Provides bonus exploration sections** for users who want to dig deeper:
+   - How to view workflow definitions
+   - How to check engine logs
+   - How to edit content in the backoffice
+   - How to test multi-browser scenarios
+
+### Structure
+
+The walkthrough is organized as three distinct parts, allowing users to read at different depths:
+
+- **Part 1: Log In and Start** — Quick, actionable steps (3-5 minutes)
+- **Part 2: Walk Through Steps** — Guided workflow execution with concrete data (10-15 minutes)
+- **Part 3: Behind the Scenes** — Deep-dive architecture and code explanations (optional, 15+ minutes)
+
+### Style Decisions
+
+- **Callouts:** Used emoji-based callouts (💡 for learning, ✅ for features, ℹ️ for reference) to break up dense text and highlight different types of information
+- **Code examples:** Showed real JSON from `planning-notification-v1.json` and field group files so developers can reference actual code
+- **Tone:** Developer-first ("here's what this means to you"), active voice, present tense
+- **Concrete vs. abstract:** Always paired abstract concepts with concrete steps ("Click here, enter 'Extension'") before explaining why
+
+### Related Files
+
+- `/README.md` — Main walkthrough section added after credentials table
+- `/ASPIRE_DEV.md` — Added callout linking quick-start users to the README walkthrough
+- `.squad/agents/mabel/history.md` — Learnings and session record
+
+### Impact
+
+- **Reduces onboarding friction:** Users can get from "clone repo" to "completed workflow demo" in 15-20 minutes
+- **Clarifies architecture:** Developers understand the connection between workflow JSON, field groups, the engine, and Umbraco views
+- **Enables self-service learning:** Users don't need to ask teammates how to run the demo
+- **Supports future contributors:** Contributors can understand the workflow system well enough to extend it
+
+### Alternatives Considered
+
+1. **Separate walkthrough document** — Rejected; keeping it in README maximizes visibility and reduces doc fragmentation
+2. **Video walkthrough** — Rejected; text-based guide is easier to maintain and works in all environments (including Codespaces terminal)
+3. **Interactive tour** — Rejected; out of scope; text guide is sufficient for initial onboarding
+
+### Maintenance
+
+- The walkthrough should be updated if:
+  - Workflow definition changes (e.g., new steps, different field types)
+  - Field group structure evolves
+  - OIDC flow changes (e.g., different scopes or claims)
+  - Umbraco backoffice UI changes significantly
+- Version it in git alongside code changes; don't let docs drift
+

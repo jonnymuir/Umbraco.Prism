@@ -15,7 +15,7 @@ public class BusinessAppWorkflowEngine
 {
     private readonly ILogger<BusinessAppWorkflowEngine> _logger;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, FieldGroupFile> _fieldGroups = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, FormSectionDefinition> _fieldGroups = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
 
     /// <summary>
@@ -302,7 +302,7 @@ public class BusinessAppWorkflowEngine
             {
                 try
                 {
-                    var fg = JsonSerializer.Deserialize<FieldGroupFile>(File.ReadAllText(file), JsonOptions);
+                    var fg = JsonSerializer.Deserialize<FormSectionDefinition>(File.ReadAllText(file), JsonOptions);
                     if (fg != null)
                     {
                         _fieldGroups[fg.GroupKey] = fg;
@@ -367,10 +367,10 @@ public class BusinessAppWorkflowEngine
         var fieldGroups = state.FieldGroupKeys
             .Select(key => _fieldGroups.TryGetValue(key, out var fg) ? BuildFieldGroup(fg, instance.FieldValues) : null)
             .Where(fg => fg != null)
-            .Cast<FieldGroupRenderPayload>()
+            .Cast<FormSection>()
             .ToArray();
 
-        var render = new WorkflowRenderPayload
+        var render = new StepContent
         {
             StepType = state.StepType,
             StateDisplayName = state.DisplayName,
@@ -380,9 +380,9 @@ public class BusinessAppWorkflowEngine
 
         var responseState = state.StepType switch
         {
-            "status-timeline" => "wait",
+            "status-timeline" => "defer",
             "confirmation" => "complete",
-            _ => "ask_now"
+            _ => "render"
         };
 
         return new WorkflowResponseEnvelope
@@ -398,12 +398,12 @@ public class BusinessAppWorkflowEngine
     }
 
     /// <summary>
-    /// Builds a FieldGroupRenderPayload from a field group definition, pre-populating field values.
+    /// Builds a FormSection from a field group definition, pre-populating field values.
     /// </summary>
     /// <param name="group">The field group definition.</param>
     /// <param name="savedValues">Previously collected field values to populate.</param>
-    /// <returns>A FieldGroupRenderPayload ready to render in the UI.</returns>
-    private static FieldGroupRenderPayload BuildFieldGroup(FieldGroupFile group, Dictionary<string, object?> savedValues)
+    /// <returns>A FormSection ready to render in the UI.</returns>
+    private static FormSection BuildFieldGroup(FormSectionDefinition group, Dictionary<string, object?> savedValues)
     {
         var fields = group.Fields.Select(f => new FieldRenderPayload
         {
@@ -423,7 +423,7 @@ public class BusinessAppWorkflowEngine
             VisibleWhen = f.VisibleWhen
         }).ToArray();
 
-        return new FieldGroupRenderPayload
+        return new FormSection
         {
             GroupKey = group.GroupKey,
             DisplayName = group.DisplayName,

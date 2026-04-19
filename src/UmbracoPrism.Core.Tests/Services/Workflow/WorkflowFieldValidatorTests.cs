@@ -962,4 +962,86 @@ public class WorkflowFieldValidatorTests
 
         result.IsValid.Should().Be(expectedValid);
     }
+
+    // ------------------------------------------------------------------ Date-Input Year Validation
+
+    [Fact]
+    public void DateInput_YearBelow1900_ReturnsValidationError()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["event-date-day"] = "1",
+            ["event-date-month"] = "1",
+            ["event-date-year"] = "1899"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("event-date");
+        result.Errors["event-date"].Should().Be("Event date year must be between 1900 and 2100.");
+    }
+
+    [Fact]
+    public void DateInput_YearAbove2100_ReturnsValidationError()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["event-date-day"] = "31",
+            ["event-date-month"] = "12",
+            ["event-date-year"] = "2101"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("event-date");
+        result.Errors["event-date"].Should().Be("Event date year must be between 1900 and 2100.");
+    }
+
+    [Fact]
+    public void DateInput_YearAtBoundary1900_IsValid()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["event-date-day"] = "1",
+            ["event-date-month"] = "1",
+            ["event-date-year"] = "1900"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void DateInput_YearAtBoundary2100_IsValid()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["event-date-day"] = "31",
+            ["event-date-month"] = "12",
+            ["event-date-year"] = "2100"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
 }
