@@ -361,3 +361,216 @@ Both agents identified the same issue independently:
 - ✅ `npm run test:playwright:localhost-auth`
 
 **Session Log:** `.squad/log/2026-04-16T08:11:04Z-keycloak-ci-resolution-session.md`
+
+---
+
+## 📌 2026-04-16: Blathers — Timeout Diagnostics & Readiness Probes
+
+**Decision:** For the localhost auth readiness timeout class:
+1. Keep existing browser-facing readiness contract
+2. Change readiness loop to poll every 10 seconds with structured state-change/checkpoint logs
+3. Fail after 3 minutes instead of 4
+
+**Why:**
+- Improved diagnostic signal distinguishes TestSite, proxy, and upstream failures without log flooding
+- 10-second poll interval balances feedback speed with noise reduction
+- Reduces timeout from 240s to 180s for faster feedback while preserving headroom for observed cold-start paths (~20–30s locally)
+
+**Implications:**
+- CI timeout failures now identify missing HTTP response vs. wrong status vs. bad redirect vs. unexpected body content
+- If CI shows legitimate cold starts approaching 3 minutes, review whether budget is too aggressive
+
+---
+
+## 📌 2026-04-16: Tangy — Localhost Auth Readiness Diagnostics Direction
+
+**Decision:** Move to implementation of AppHost/Keycloak startup fix rather than continuing broad diagnostic passes. The current evidence already isolates the break to the Keycloak upstream/proxy hop.
+
+**Why:**
+- Failure repeats at same boundary: `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration` never returns while surrounding ports listen
+- Another diagnostic pass would likely reproduce the same symptom without narrowing root cause materially
+- Highest-value logging improvement is actual Keycloak container stdout/stderr, best done alongside the fix
+
+**Single recommended logging addition:**
+- On readiness timeout, append actual Keycloak container stdout/stderr log
+- This distinguishes "container never finished booting" vs. "realm import failed" vs. "proxy not serving"
+
+**Implication for team:**
+- Prioritize AppHost/Keycloak startup-path fix first
+- Treat additional logging as surgical support, not replacement for fix
+
+---
+
+## 📌 2026-04-16: Tangy — Readiness Log Analysis (TestSite/Keycloak Split)
+
+**Decision:** Reclassify current `localhost-auth-playwright` CI blocker from **Keycloak-only** to broader **browser-facing readiness failure**: Aspire and MockBusinessApp come up, but both TestSite (`https://localhost:44345`) and browser-facing Keycloak discovery endpoint remain non-responsive.
+
+**Why:**
+- Improved readiness harness proves two dependencies become ready (Aspire dashboard, MockBusinessApp) while four others never do
+- TestSite home marker times out repeatedly; lane fails on auth/discovery AND Umbraco/TestSite surface itself
+- Failing endpoints share same symptom (request timeout after 5000ms), stronger evidence of hanging requests or upstream waits
+
+**Implications:**
+- Do not describe lane as blocked on Keycloak alone
+- Next investigation: why TestSite requests hang while MockBusinessApp is healthy; whether TestSite startup/auth middleware stalls on Keycloak metadata
+- Current Playwright readiness contract is valuable and should stay strict—it exposes real browser-facing failure boundary
+
+---
+
+## 📌 2026-04-16: Tangy — Timeout Diagnostics Review
+
+**Decision:** For localhost auth readiness timeout class, best QA direction is:
+1. Keep AppHost fix direction (Program.cs realm discovery health check + dynamic proxy upstream injection)
+2. Add readiness diagnostics: log **service-ready transitions with elapsed time** plus **expected-vs-actual probe output**
+3. Keep polling **finer than 10 seconds** while allowing modestly shorter timeout if CI data supports it
+
+**Why:**
+- This failure mode is about *which dependency is still lagging* or *what it returned when lagged*; transition timestamps and probe values are missing signal
+- 10-second poll interval too coarse for CI triage; hides ordering, flapping, near-ready behavior
+- Keycloak readiness endpoint is repeated regression point; tiny regression assertion on Program.cs worth keeping close
+
+**QA recommendation:**
+- Record when each readiness probe first becomes healthy; include elapsed times in timeout output
+- On failure, print expected vs. actual status/header/body snippets instead of only "missing X"
+- Prefer **2-second polling** with roughly **90-120 seconds** total timeout for auth lane once current startup path is stable; keep 240 seconds only if CI shows legitimate cold-start variance above that band
+- Preserve browser-facing Keycloak probe on `https://localhost:8443/.../.well-known/openid-configuration`
+
+**Tightly coupled guard:**
+- Add/keep small regression assertion that `src/UmbracoPrism.AppHost/Program.cs` uses `.WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")` and NOT `.WithHttpHealthCheck("/health/ready")`
+
+---
+
+## 📌 2026-04-16: Blathers — Keycloak Container Log Capture at Readiness Timeout
+
+**Decision:** Added `captureDockerContainerLogs(namePattern: string): string` helper to `src/UmbracoPrism.Client/tests/support/live-app-host.ts`. At readiness timeout, runs `docker ps` and `docker logs --tail 100` for any container matching pattern (case-insensitive), includes output in timeout error message.
+
+**Why:**
+- Zero-cost at normal run time (only executes on timeout)
+- Uses already-imported `spawnSync`—no new imports
+- Surfaces Keycloak's realm import outcome and HTTP bind status directly in CI logs
+- Self-contained and safe: handles Docker-unavailable and no-match cases gracefully
+
+**Initial usage:** Captures Keycloak container logs via `captureDockerContainerLogs('keycloak')`
+
+---
+
+## 📌 2026-04-16: Blathers — Keycloak CI Pull Fix
+
+**Root Cause:** `localhost-auth-playwright` CI timeout caused by Docker image pull time for `quay.io/keycloak/keycloak:26.0.0` exceeding readiness budget.
+
+**Evidence:**
+- `docker ps` at timeout returned zero matching containers—container still being pulled, not yet created
+- Port 8080 listening but connection attempts failed with `connection refused`
+- keycloakProxy and testsite have `.WaitFor(keycloak)` dependencies and never received process-start log lines
+- Keycloak health check (realm discovery endpoint) never passed
+
+**Timeline estimate:**
+- Docker pull: ~90-120s
+- Keycloak startup: ~60s
+- Realm import: ~30s
+- Total: 3-4 minutes (previous timeout was 180s)
+
+**Fix (Commit `778ef48`) — Three changes:**
+
+1. **Pre-pull Keycloak image in CI** (`.github/workflows/ci-tests.yml`)
+   - Added step before test run: `docker pull quay.io/keycloak/keycloak:26.0.0`
+   - Why: Eliminates Docker pull time from hot path during Aspire startup
+
+2. **Increase readiness timeout** (`src/UmbracoPrism.Client/tests/support/live-app-host.ts`)
+   - Changed `readinessTimeoutMs` from `180_000` (3 min) to `300_000` (5 min)
+   - Why: Provides safety headroom if Docker pull not pre-pulled
+
+3. **Fix container log capture** (`src/UmbracoPrism.Client/tests/support/live-app-host.ts`)
+   - Updated `captureDockerContainerLogs()`: add `-a` flag to include stopped containers, fall back to `podman ps -a` if docker unavailable
+   - Why: Aspire on GitHub Actions may use Podman; both installed on Ubuntu runners
+
+**Pattern for Future:**
+- Always pre-pull container images in CI before starting Aspire AppHost
+- Set readiness timeout with headroom beyond typical startup time
+- Account for: pull time + startup time + application-specific bootstrap (realm import, etc.)
+- Readiness timeout budget: 3 min local dev (images cached), 5 min CI (first-run scenarios), never rely on Aspire container readiness alone
+
+---
+
+## 📌 2026-04-16: Blathers — Next Step for Localhost Auth Timeout
+
+**Decision:** Take one more targeted logging pass before next code fix.
+
+**Why:** Failing revision already contains previously agreed AppHost changes (WithHttpHealthCheck on Keycloak discovery + dynamic proxy endpoint injection), yet CI still shows `/keycloak` marked Ready immediately before `connect: connection refused` on Aspire's resolved endpoint. Log never shows keycloak-proxy or testsite process-start lines.
+
+**Missing fact to capture:** At moment Aspire marks `/keycloak` Ready, did Keycloak container itself finish realm import and bind HTTP endpoint, or only DCP/service proxy becoming routable?
+
+**Next logging target:** Extend `src/UmbracoPrism.Client/tests/support/live-app-host.ts` timeout diagnostics to include Keycloak container's own startup/output (and explicitly resource-start lines for keycloak-proxy/testsite) so next CI failure tells whether break is in Keycloak bootstrap, Aspire readiness, or downstream process launch.
+
+---
+
+## 📌 2026-04-19: Copilot — GDS Extensibility Model Directive
+
+**User Input:** Jonny Muir (2026-04-19T07:57:49Z)
+
+**Direction:** Custom/override GDS components should be definable as Umbraco 17 element types in backoffice, with HTML template provided on element type — think Block Grid / Block List pattern. If new component needed, describe in backoffice and supply template; workflow renderer picks up automatically.
+
+**Rationale:** User request for extensibility/override story for GDS workflow engine.
+
+**Implementation delegate:** Brewster to design formal element type extensibility spec; Isabelle to prototype component binding.
+
+---
+
+## 📌 2026-04-19: Tom Nook & Brewster — GDS Step Descriptor Protocol & Element Type Extensibility
+
+**Status:** Proposed architecture; two background design sessions completed.
+
+**Decision:** Establish BA-as-brain pattern with Step Descriptor Protocol as single JSON contract and element type extensibility for new field/component types.
+
+**Core Components:**
+
+### 1. Workflow Engine Architecture
+- **Business App owns:** workflow logic, routing, validation, state machines
+- **Umbraco is:** component renderer, descriptor consumer, UI input collector
+- **Key benefit:** Zero workflow knowledge in UI; enables multiple UI consumers to use same BA contract
+
+### 2. Step Descriptor Protocol
+JSON response returned by BA for every workflow interaction. Contains all rendering requirements for one page.
+
+**Envelope:**
+- Session management: workflowId, instanceId, sessionToken, stateVersion
+- Step identity: stepId, stepType, progress
+- Content: varies by stepType (question, task-list, check-answers, confirmation, error)
+- Actions: dynamic button/link set (continue, save-and-return, change, start-section, etc.)
+
+**Content Variants:**
+- QuestionContent: fieldId, fieldType, label, hint, validation, defaultValue, required
+- TaskListContent: tasks with status (todo, in-progress, completed), descriptions, links
+- CheckAnswersContent: sections with question-answer pairs for review
+- ConfirmationContent: title, message, referenceNumber, nextSteps
+- ErrorContent: errorCode, message, userMessage, recoveryPath
+
+### 3. Extensibility via Element Types
+New question types, task list variants, confirmation patterns added via pluggable element type system:
+- BA returns new fieldType in descriptor (e.g., "custom-widget")
+- Umbraco element type system renders fieldType via registered handler
+- HTML template provided on element type definition
+- No BA/Umbraco coordination required for new types
+
+**Why Correct:**
+1. **Non-circular:** Container's own HTTP port, not dependent service
+2. **Extensible:** fieldType enum expansion adds new types without API changes
+3. **Proven:** Block Grid/Block List pattern in Umbraco 17 validates approach
+4. **Safe:** Umbraco owns UI component binding; BA owns workflow logic
+
+**Pattern for Future:**
+- Container `.WithHttpHealthCheck("/realms/.../openid-configuration")` → validates realm availability
+- Container `.WithHttpHealthCheck("/health")` → basic liveness
+- ❌ Container `.WithHttpHealthCheck("/health/ready")` → insufficient for realm-dependent services
+- ❌ Resource `.WithHealthCheck(customCheckName)` → resource's own HTTPS proxy (circular deadlock)
+
+**Implementation Plan:**
+1. Backend API contract alignment (Blathers)
+2. Element type registration spec (Brewster)
+3. GDS component rendering prototype (Isabelle)
+4. Test contract and fixtures (Tangy)
+
+**Session Logs:**
+- Design: `.squad/log/2026-04-19T07:59:21Z-gds-workflow-engine-design.md`
+- Orchestration: `.squad/orchestration-log/2026-04-19T07:59:21Z-tom-nook-gds-workflow-design.md`
+- Orchestration: `.squad/orchestration-log/2026-04-19T07:59:21Z-tom-nook-gds-protocol-design.md`

@@ -141,3 +141,47 @@ Blathers spawned to fix restart-only downstream API failure; Tangy to validate a
 - ✅ Review complete: `.squad/orchestration-log/2026-04-14T20:24:57Z-brewster.md`
 
 **Status:** Specialist review phase complete; awaiting Tom Nook architectural fit decision and team prioritization
+
+---
+
+## 2026-04-19: GDS Element Type Extensibility — Design Delegation
+
+**Session:** GDS Workflow Engine & Protocol Finalization (2026-04-19T07:59:21Z)
+
+**Background:** Tom Nook completed two background design sessions finalizing the GDS workflow engine architecture and Step Descriptor Protocol.
+
+**Core Protocol Summary:**
+- BA-as-brain pattern: Business App owns workflow logic (routing, validation, state machines); Umbraco is component renderer
+- Step Descriptor: single JSON response from BA for every workflow interaction; contains all UI rendering requirements
+- Extensibility: new field types (custom-widget) added via Umbraco 17 element types with HTML templates; no BA/Umbraco coordination required
+
+**Brewster Assigned Work:**
+
+1. **Element Type Extensibility Spec** — Formalize registration pattern for new field types
+   - How element types register in Umbraco 17 backoffice
+   - HTML template binding on element type definition
+   - How workflow renderer discovers and activates new field types
+   - Validation/editor config for element type properties
+
+2. **Umbraco 17 Component Integration** — Define how element types bind to GDS components
+   - Component library pattern (Block Grid analogy)
+   - Template syntax for rendering from descriptor fieldType
+   - Fallback strategy for unknown fieldTypes
+   - Test contract for element type rendering
+
+3. **Document Pattern Alignment** — Ensure GDS workflow pages follow Umbraco 17 conventions
+   - Route hijacking for workflow pages (proven pattern from 2026-04-14 review)
+   - Document type design for workflow content surfaces
+   - Editor UI for workflow configuration in backoffice
+
+**Key Design Principle:** Block Grid / Block List analogy: workflows define new component types via descriptors; backoffice defines how to render each type via element types.
+
+**Handoff Notes:**
+- Tom Nook's protocol definition complete; Brewster can begin extensibility spec immediately
+- No BA/Umbraco coordination required; protocol is stable
+- Element type spec drives Isabelle's GDS component library prototype
+- Ready for concurrent implementation: backend API contract (Blathers), component rendering (Isabelle), test fixtures (Tangy)
+
+**Session Log:** `.squad/log/2026-04-19T07:59:21Z-gds-workflow-engine-design.md`
+**Decision Merged:** `.squad/decisions.md` — "2026-04-19: Tom Nook & Brewster — GDS Step Descriptor Protocol & Element Type Extensibility"
+

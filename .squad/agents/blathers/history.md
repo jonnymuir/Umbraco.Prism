@@ -278,3 +278,62 @@ Both must be handled for restart resilience.
 - The concrete CI symptom for this repo is: Keycloak container reaches Aspire `Ready`, but `https://localhost:8443/...openid-configuration` and every `testsite` probe stay dark because `testsite` waits on `keycloak-proxy` and the browser-facing Keycloak path never comes up.
 - Local validation can still pass with the hardcoded proxy because Aspire may expose a loopback listener on `localhost:8080` in Docker-based runs; that makes the bug environment-sensitive rather than disproving it.
 - Keep the browser contract on `https://localhost:8443` via `src/UmbracoPrism.KeycloakProxy/Properties/launchSettings.json`, but source the proxy's upstream target from Aspire runtime endpoint resolution instead of assuming a fixed host port.
+
+---
+
+## 2026-04-19: GDS Workflow Backend API Contract — Parallel Design Gates
+
+**Session:** GDS Workflow Engine & Protocol Finalization (2026-04-19T07:59:21Z)
+
+**Background:** Tom Nook completed two background design sessions finalizing the GDS workflow engine architecture and Step Descriptor Protocol.
+
+**Core Protocol Summary:**
+- BA-as-brain pattern: Business App owns workflow logic; Umbraco is component renderer
+- Step Descriptor: single JSON response from BA containing session management, step identity, content, and actions
+- No UI-side orchestration: UI zero workflow knowledge; renders exactly what descriptor specifies
+- Extensibility: new field types via Umbraco 17 element types; no API changes needed for new types
+
+**Step Descriptor Envelope:**
+```typescript
+{
+  workflowId, instanceId, sessionToken, stateVersion,  // Session management
+  stepId, stepType, progress?,                          // Step identity
+  content: QuestionContent | TaskListContent | ...,     // Rendering data
+  actions: Action[]                                      // Button/link set
+}
+```
+
+**Content Variants:** QuestionContent, TaskListContent, CheckAnswersContent, ConfirmationContent, ErrorContent
+
+**Blathers Assigned Work:**
+
+1. **Backend API Contract** — Define BA endpoint signatures and HTTP semantics
+   - GET /workflow/{workflowId}/{instanceId} (retrieve current step)
+   - POST /workflow/{workflowId}/{instanceId}/submit (submit answer + get next step)
+   - Session token rotation/validation strategy
+   - Concurrency control via stateVersion
+   - Error response mapping to error step vs. HTTP error codes
+
+2. **Serialization & Validation** — Implement BA→Umbraco contract layer
+   - StepDescriptor model serialization (JSON schema)
+   - Field type validation rules deserialization
+   - Field value type marshalling (text, number, date, file, etc.)
+   - Error deserialization and error step rendering
+
+3. **Stateless Token Strategy** — Define how opaque sessionToken replaces nonce
+   - Token generation (HMAC-SHA256 or equivalent)
+   - Token validation on submit
+   - Token rotation on each step transition
+   - Tamper-detection and replay protection
+
+**Key Design Principle:** BA returns complete descriptor; Umbraco consumes statefully but is otherwise dumb renderer.
+
+**Handoff Notes:**
+- Protocol is stable; no breaking changes expected
+- Element type system (Brewster) runs in parallel; doesn't block API contract
+- Backend contract drives component rendering test fixtures (Tangy)
+- Ready for concurrent implementation with Brewster/Isabelle/Tangy
+
+**Session Log:** `.squad/log/2026-04-19T07:59:21Z-gds-workflow-engine-design.md`
+**Decision Merged:** `.squad/decisions.md` — "2026-04-19: Tom Nook & Brewster — GDS Step Descriptor Protocol & Element Type Extensibility"
+
