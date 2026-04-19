@@ -61,7 +61,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     await expect(summaryList.getByText('Building a conservatory at the rear of the property')).toBeVisible();
     await expect(summaryList.getByText('Extension or alteration')).toBeVisible();
     await expect(summaryList.getByText('15/6/2025')).toBeVisible();
-    await expect(summaryList.getByText('12')).toBeVisible();
+    await expect(summaryList.getByText('12', { exact: true })).toBeVisible();
     await expect(summaryList.getByText('£25000')).toBeVisible();
     await expect(summaryList.getByText('Neighbouring properties')).toBeVisible();
 
