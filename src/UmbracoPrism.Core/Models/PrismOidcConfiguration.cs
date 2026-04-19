@@ -72,7 +72,14 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
     internal static bool IsRepoOwnedLocalDemoTenant(PrismTenant tenant)
     {
-        if (!string.Equals(tenant.Hostname, LocalDemoHostname, StringComparison.OrdinalIgnoreCase))
+        // The incoming-request hostname is the tenant routing key.
+        // Accept localhost (local Aspire dev) or *.app.github.dev (GitHub Codespaces).
+        var hostname = tenant.Hostname;
+        var isRepoDemoHost =
+            string.Equals(hostname, LocalDemoHostname, StringComparison.OrdinalIgnoreCase)
+            || (hostname?.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase) == true);
+
+        if (!isRepoDemoHost)
         {
             return false;
         }
@@ -87,7 +94,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             return false;
         }
 
-        return string.Equals(authority.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+        // The Keycloak authority must also be repo-owned demo infrastructure.
+        var authorityHost = authority.Host;
+        return string.Equals(authorityHost, "localhost", StringComparison.OrdinalIgnoreCase)
+            || authorityHost.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static List<AuthenticationToken> CreateAuthenticationTokens(JsonElement payload, DateTimeOffset issuedAtUtc)

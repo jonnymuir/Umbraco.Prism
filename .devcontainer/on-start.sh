@@ -40,10 +40,18 @@ fi
 echo ""
 
 # ── Aspire Dashboard anonymous access ────────────────────────────────────────
-# The Codespaces port proxy intercepts Blazor's JS files and returns HTML unless
-# the dashboard runs without its built-in token auth.
+# In Codespaces, the port proxy can't serve Blazor's JS files correctly when the
+# dashboard uses HTTPS + browser token auth. Two env vars fix this:
+#   DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true  — disable the browser token
+#   DOTNET_DASHBOARD_FRONTEND_ENDPOINT_URLS           — keep port 17214 but switch
+#                                                       to HTTP so Codespaces proxy
+#                                                       handles TLS termination
 if [ -n "$CODESPACE_NAME" ]; then
     export DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+    export DOTNET_DASHBOARD_FRONTEND_ENDPOINT_URLS=http://localhost:17214
+    DASHBOARD_URL=http://localhost:17214
+else
+    DASHBOARD_URL=https://localhost:17214
 fi
 
 # ── Wait for Docker-in-Docker ─────────────────────────────────────────────────
@@ -72,7 +80,7 @@ nohup dotnet run --project src/UmbracoPrism.AppHost > /tmp/prism-apphost.log 2>&
 echo -n "   Waiting for all services"
 for i in $(seq 1 150); do
     # Check Aspire + TestSite + Keycloak + MockBiz
-    A=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:17214 2>/dev/null)
+    A=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" "$DASHBOARD_URL" 2>/dev/null)
     T=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:44345 2>/dev/null)
     K=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:8443/realms/prism-dev 2>/dev/null)
     M=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:7245 2>/dev/null)

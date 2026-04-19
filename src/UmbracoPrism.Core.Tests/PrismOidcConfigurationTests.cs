@@ -64,6 +64,30 @@ public class PrismOidcConfigurationTests
     }
 
     [Fact]
+    public async Task ResolveClientSecretAsync_UsesInlineSecret_ForCodespacesRepoDemoTenant()
+    {
+        // DemoTenantSeeder seeds a second tenant for Codespaces whose hostname and
+        // Keycloak authority both use the *.app.github.dev domain. The inline secret
+        // is the same well-known demo credential committed in this repo.
+        var tenant = new PrismTenant
+        {
+            Hostname = "turbo-space-giggle-xrjwx5649xcpx9w-44345.app.github.dev",
+            OidcAuthority = "https://turbo-space-giggle-xrjwx5649xcpx9w-8443.app.github.dev/realms/prism-dev",
+            OidcClientId = "prism-client",
+            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+            OidcClientSecretReference = "prism-dev-secret"
+        };
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(service => service.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"))
+            .ReturnsAsync("prism-dev-secret");
+
+        var secret = await PrismOidcConfiguration.ResolveClientSecretAsync(tenant, vault.Object);
+
+        secret.Should().Be("prism-dev-secret");
+        vault.Verify(service => service.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"), Times.Once);
+    }
+
+    [Fact]
     public async Task ResolveClientSecretAsync_UsesVaultReference_ForGenericOidcTenantsOutsideLocalDemoPath()
     {
         var tenant = new PrismTenant
