@@ -11,15 +11,34 @@
         {
             <h2 class="govuk-heading-m">@group.DisplayName</h2>
             <dl class="govuk-summary-list">
-                @foreach (var field in group.Fields)
+                @foreach (var field in group.Fields.Where(f => string.IsNullOrEmpty(f.ConditionalOn)))
                 {
                     <div class="govuk-summary-list__row">
                         <dt class="govuk-summary-list__key">@field.Label</dt>
                         <dd class="govuk-summary-list__value">@(field.Value ?? "Not answered")</dd>
                         <dd class="govuk-summary-list__actions">
-                            <a class="govuk-link" href="#">
-                                Change<span class="govuk-visually-hidden"> @field.Label.ToLower()</span>
-                            </a>
+                            @if (!string.IsNullOrEmpty(group.SourceStateKey))
+                            {
+                                <form method="post" action="@Model.ReturnUrl" style="display:inline">
+                                    @token
+                                    <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
+                                    <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
+                                    <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
+                                    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                                    <input type="hidden" name="Nonce" value="@Model.Nonce" />
+                                    <button type="submit" name="Action" value="change:@group.SourceStateKey"
+                                            class="govuk-link govuk-link--no-visited-state"
+                                            style="background:none;border:none;cursor:pointer;padding:0;font-size:inherit;font-family:inherit;text-decoration:underline">
+                                        Change<span class="govuk-visually-hidden"> @field.Label.ToLower()</span>
+                                    </button>
+                                </form>
+                            }
+                            else
+                            {
+                                <a class="govuk-link" href="#">
+                                    Change<span class="govuk-visually-hidden"> @field.Label.ToLower()</span>
+                                </a>
+                            }
                         </dd>
                     </div>
                 }

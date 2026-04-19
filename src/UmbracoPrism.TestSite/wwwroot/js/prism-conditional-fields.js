@@ -38,15 +38,18 @@
         
         if (shouldShow) {
           fieldWrapper.removeAttribute('hidden');
+          // Re-enable inputs so they participate in constraint validation and submission
+          const inputs = fieldWrapper.querySelectorAll('input, select, textarea');
+          inputs.forEach(function (input) { input.disabled = false; });
           // Focus the first input when it appears
-          const firstInput = fieldWrapper.querySelector('input, select, textarea');
+          const firstInput = fieldWrapper.querySelector('input:not([type="hidden"]), select, textarea');
           if (firstInput) {
             // Small delay for layout reflow
             setTimeout(function () { firstInput.focus(); }, 50);
           }
         } else {
           fieldWrapper.setAttribute('hidden', '');
-          // Clear value when hidden (prevent stale data)
+          // Clear value and disable inputs (prevents constraint validation & stale submission)
           const inputs = fieldWrapper.querySelectorAll('input, select, textarea');
           inputs.forEach(function (input) {
             if (input.type === 'checkbox' || input.type === 'radio') {
@@ -54,6 +57,7 @@
             } else {
               input.value = '';
             }
+            input.disabled = true;
           });
         }
         

@@ -283,6 +283,19 @@ public class PrismFieldTagHelper : TagHelper
         var submittedMonth = Values?.GetValueOrDefault($"{field.FieldKey}-month") ?? "";
         var submittedYear = Values?.GetValueOrDefault($"{field.FieldKey}-year") ?? "";
 
+        // If no TempData parts, fall back to field.Value stored as "day/month/year" by the engine
+        if (string.IsNullOrEmpty(submittedDay) && string.IsNullOrEmpty(submittedMonth) && string.IsNullOrEmpty(submittedYear))
+        {
+            var storedValue = field.Value?.ToString() ?? "";
+            var parts = storedValue.Split('/');
+            if (parts.Length == 3)
+            {
+                submittedDay = parts[0];
+                submittedMonth = parts[1];
+                submittedYear = parts[2];
+            }
+        }
+
         sb.AppendLine(@"        <div class=""govuk-date-input"">");
 
         foreach (var (part, label, width, value) in new[] {
@@ -329,6 +342,12 @@ public class PrismFieldTagHelper : TagHelper
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
         var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
+
+        // Strip prefix from currency field value (the prefix is rendered separately in the input wrapper)
+        if (!string.IsNullOrEmpty(field.Prefix) && currentValue.StartsWith(field.Prefix, StringComparison.Ordinal))
+        {
+            currentValue = currentValue[field.Prefix.Length..];
+        }
 
         var constraintAttrs = string.Empty;
         if (inputType == "text" || inputType == "email")

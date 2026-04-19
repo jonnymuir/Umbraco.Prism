@@ -118,14 +118,30 @@ public class BusinessAppWorkflowEngine
         if (!_definitions.TryGetValue(instance.WorkflowKey, out var definition))
             return ErrorEnvelope($"Workflow '{instance.WorkflowKey}' not found.", "DEFINITION_NOT_FOUND");
 
+        // Handle change-link navigation: jump directly to a named state (from check-answers).
+        if (action.StartsWith("change:", StringComparison.OrdinalIgnoreCase))
+        {
+            var targetStateKey = action["change:".Length..];
+            if (definition.States.All(s => s.StateKey != targetStateKey))
+                return ErrorEnvelope($"State '{targetStateKey}' not found in definition.", "STATE_NOT_FOUND");
+
+            var jumped = instance with
+            {
+                CurrentState = targetStateKey,
+                StateVersion = instance.StateVersion + 1,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            _instancesById[instanceId] = jumped;
+            _logger.LogInformation("Change-link: jumped instance {Id} to state '{State}'", instanceId, targetStateKey);
+            return BuildEnvelope(jumped, definition);
+        }
+
         var transition = definition.Transitions.FirstOrDefault(
             t => t.FromState == instance.CurrentState && t.Action == action && t.RequiresRole == null);
 
         if (transition == null)
             return ErrorEnvelope(
                 $"Action '{action}' is not valid from state '{instance.CurrentState}'.", "INVALID_TRANSITION");
-
-        // BA cross-field validation: Technical Support requires diagnostic info
         if (fieldValues != null &&
             fieldValues.TryGetValue("enquiry-type", out var enquiryTypeObj) &&
             enquiryTypeObj?.ToString() == "Technical support" &&
@@ -277,6 +293,17 @@ public class BusinessAppWorkflowEngine
         return true;
     }
 
+    /// <summary>
+    /// Removes all in-memory workflow instances. Test-only — resets the engine to its initial state
+    /// so each test starts with a fresh workflow.
+    /// </summary>
+    public void ResetAll()
+    {
+        _instancesById.Clear();
+        _instanceLookup.Clear();
+        _logger.LogInformation("ResetAll: all workflow instances cleared");
+    }
+
     // -----------------------------------------------------------------------
     // Seed loading
     // -----------------------------------------------------------------------
@@ -366,18 +393,29 @@ public class BusinessAppWorkflowEngine
 
         // For check-answers, aggregate all field groups from all states across the workflow.
         // The check-answers step has no fieldGroupKeys of its own — it's a read-only summary.
-        var effectiveKeys = state.StepType == "check-answers"
-            ? definition.States
-                .SelectMany(s => s.FieldGroupKeys)
-                .Distinct()
-                .ToArray()
-            : state.FieldGroupKeys;
-
-        var fieldGroups = effectiveKeys
-            .Select(key => _fieldGroups.TryGetValue(key, out var fg) ? BuildFieldGroup(fg, instance.FieldValues) : null)
-            .Where(fg => fg != null)
-            .Cast<FormSection>()
-            .ToArray();
+        FormSection[] fieldGroups;
+        if (state.StepType == "check-answers")
+        {
+            fieldGroups = definition.States
+                .SelectMany(s => s.FieldGroupKeys.Select(key => (s.StateKey, key)))
+                .DistinctBy(x => x.key)
+                .Select(x => _fieldGroups.TryGetValue(x.key, out var fg)
+                    ? BuildFieldGroup(fg, instance.FieldValues) with { SourceStateKey = x.StateKey }
+                    : null)
+                .Where(fg => fg != null)
+                .Cast<FormSection>()
+                .ToArray();
+        }
+        else
+        {
+            fieldGroups = state.FieldGroupKeys
+                .Select(key => _fieldGroups.TryGetValue(key, out var fg)
+                    ? BuildFieldGroup(fg, instance.FieldValues)
+                    : null)
+                .Where(fg => fg != null)
+                .Cast<FormSection>()
+                .ToArray();
+        }
 
         var render = new StepContent
         {
@@ -414,30 +452,61 @@ public class BusinessAppWorkflowEngine
     /// <returns>A FormSection ready to render in the UI.</returns>
     private static FormSection BuildFieldGroup(FormSectionDefinition group, Dictionary<string, object?> savedValues)
     {
-        var fields = group.Fields.Select(f => new FieldRenderPayload
+        var fields = new List<FieldRenderPayload>();
+        foreach (var f in group.Fields)
         {
-            FieldKey = f.FieldKey,
-            Label = f.Label,
-            Hint = f.Hint,
-            FieldType = f.FieldType,
-            Required = f.Required,
-            Options = f.Options,
-            Value = GetDisplayValue(f, savedValues),
-            MinLength = f.MinLength,
-            MaxLength = f.MaxLength,
-            Pattern = f.Pattern,
-            Min = f.Min,
-            Max = f.Max,
-            Prefix = f.Prefix,
-            ConditionalOn = f.ConditionalOn,
-            VisibleWhen = f.VisibleWhen
-        }).ToArray();
+            fields.Add(new FieldRenderPayload
+            {
+                FieldKey = f.FieldKey,
+                Label = f.Label,
+                Hint = f.Hint,
+                FieldType = f.FieldType,
+                Required = f.Required,
+                Options = f.Options,
+                Value = GetDisplayValue(f, savedValues),
+                MinLength = f.MinLength,
+                MaxLength = f.MaxLength,
+                Pattern = f.Pattern,
+                Min = f.Min,
+                Max = f.Max,
+                Prefix = f.Prefix,
+                ConditionalOn = f.ConditionalOn,
+                VisibleWhen = f.VisibleWhen
+            });
+
+            // Flatten any option-triggered sub-fields, setting ConditionalOn/VisibleWhen so the UI can show/hide them
+            if (f.ConditionalFields == null) continue;
+            foreach (var (optionValue, subFields) in f.ConditionalFields)
+            {
+                foreach (var sub in subFields)
+                {
+                    fields.Add(new FieldRenderPayload
+                    {
+                        FieldKey = sub.FieldKey,
+                        Label = sub.Label,
+                        Hint = sub.Hint,
+                        FieldType = sub.FieldType,
+                        Required = sub.Required,
+                        Options = sub.Options,
+                        Value = GetDisplayValue(sub, savedValues),
+                        MinLength = sub.MinLength,
+                        MaxLength = sub.MaxLength,
+                        Pattern = sub.Pattern,
+                        Min = sub.Min,
+                        Max = sub.Max,
+                        Prefix = sub.Prefix,
+                        ConditionalOn = f.FieldKey,
+                        VisibleWhen = optionValue
+                    });
+                }
+            }
+        }
 
         return new FormSection
         {
             GroupKey = group.GroupKey,
             DisplayName = group.DisplayName,
-            Fields = fields
+            Fields = fields.ToArray()
         };
     }
 

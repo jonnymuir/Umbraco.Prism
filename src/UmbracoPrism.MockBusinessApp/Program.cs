@@ -117,6 +117,13 @@ app.MapGet("/api/workflow/instances", (
     return Results.Ok(envelope);
 }).RequireAuthorization();
 
+app.MapDelete("/api/test/reset", (BusinessAppWorkflowEngine engine, ILogger<Program> logger) =>
+{
+    engine.ResetAll();
+    logger.LogInformation("Test reset: all workflow instances cleared via /api/test/reset");
+    return Results.Ok(new { cleared = true });
+});
+
 app.Run();
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);

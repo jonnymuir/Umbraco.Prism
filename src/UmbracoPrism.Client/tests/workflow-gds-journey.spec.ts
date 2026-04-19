@@ -20,6 +20,14 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     await appHost.stop();
   });
 
+  test.beforeEach(async ({ request }) => {
+    // Reset all workflow instances before each test so tests start with a clean slate.
+    // The MockBusinessApp /api/test/reset endpoint is test-only infrastructure.
+    await request.delete('https://localhost:7245/api/test/reset', {
+      ignoreHTTPSErrors: true
+    });
+  });
+
   test('signed-in member can complete the full planning workflow journey', async ({ page }) => {
     await signIn(page);
     await page.goto('/apply-for-planning-permission');
@@ -144,8 +152,8 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     const errorSummary = page.locator('[role="alert"]').first();
     await expect(errorSummary).toBeVisible();
     
-    // Should have field-level error for the date
-    await expect(page.locator('.prism-field-error')).toBeVisible();
+    // Should have field-level error for the date (server-rendered GDS error message)
+    await expect(page.locator('.govuk-error-message')).toBeVisible();
   });
 
   test('check-answers allows changing an answer via Change link', async ({ page }) => {
@@ -177,8 +185,8 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     await expect(page.getByRole('heading', { name: 'Check your answers' })).toBeVisible();
     await expect(page.getByText('Original project name')).toBeVisible();
 
-    // Click "Change" link for project name
-    const changeLinks = page.getByRole('link', { name: /Change/ });
+    // Click "Change" button for project name
+    const changeLinks = page.getByRole('button', { name: /Change/ });
     await changeLinks.first().click();
 
     // Should navigate back to first step

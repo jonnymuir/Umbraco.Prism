@@ -100,6 +100,13 @@ public record FormSection
     /// Gets the fields in this group.
     /// </summary>
     public required IReadOnlyList<FieldRenderPayload> Fields { get; init; }
+
+    /// <summary>
+    /// The workflow state key this field group belongs to.
+    /// Populated on check-answers steps so the UI can render Change links
+    /// that navigate back to the correct step.
+    /// </summary>
+    public string? SourceStateKey { get; init; }
 }
 
 /// <summary>

@@ -319,16 +319,74 @@
                 validateField(input);
             });
 
+            // Collect errors for summary: one entry per error element
+            const errorEntries = [];
+            form.querySelectorAll('.prism-field-error').forEach(el => {
+                if (el.textContent.trim()) {
+                    errorEntries.push({ id: el.id, message: el.textContent.trim() });
+                }
+            });
+            showErrorSummary(form, errorEntries);
+
             // Re-find error fields after validation
             const updatedErrorFields = Array.from(form.querySelectorAll('[aria-invalid="true"]'));
-            scrollToFirstError(updatedErrorFields);
+            scrollToErrorSummary(form);
             
             return;
         }
 
+        // Remove any client-side summary if the form is now valid
+        removeErrorSummary(form);
+
         // If form is valid but there are server-rendered errors, scroll to them
         if (errorFields.length > 0) {
             scrollToFirstError(errorFields);
+        }
+    }
+
+    /**
+     * Show or update the GDS error summary at the top of the form
+     */
+    function showErrorSummary(form, errors) {
+        const SUMMARY_ID = 'prism-client-error-summary';
+        let summary = document.getElementById(SUMMARY_ID);
+
+        if (!summary) {
+            summary = document.createElement('div');
+            summary.id = SUMMARY_ID;
+            summary.className = 'govuk-error-summary';
+            summary.setAttribute('data-module', 'govuk-error-summary');
+            form.insertBefore(summary, form.firstChild);
+        }
+
+        const items = errors.map(e => {
+            const href = e.id ? ` href="#${e.id}"` : '';
+            return `<li><a${href}>${e.message}</a></li>`;
+        }).join('');
+
+        summary.innerHTML = `<div role="alert">
+            <h2 class="govuk-error-summary__title">There is a problem</h2>
+            <div class="govuk-error-summary__body">
+                <ul class="govuk-list govuk-error-summary__list">${items}</ul>
+            </div>
+        </div>`;
+    }
+
+    /**
+     * Remove the client-side error summary from the form
+     */
+    function removeErrorSummary(form) {
+        const summary = document.getElementById('prism-client-error-summary');
+        if (summary) summary.remove();
+    }
+
+    /**
+     * Scroll to the error summary at the top of the form
+     */
+    function scrollToErrorSummary(form) {
+        const summary = document.getElementById('prism-client-error-summary');
+        if (summary) {
+            summary.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
 
