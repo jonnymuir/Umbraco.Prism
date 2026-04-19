@@ -10,7 +10,7 @@ const readinessTimeoutMs = 300_000;
 const readinessPollIntervalMs = 10_000;
 const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;
-const responsePreviewLength = 220;
+const responsePreviewLength = 2000;
 const notableHeaders = ['location', 'content-type', 'server', 'x-powered-by'] as const;
 const resourceLogTerms = ['keycloak', 'keycloak-proxy', 'testsite', 'businessapp', 'aspire-dashboard'] as const;
 

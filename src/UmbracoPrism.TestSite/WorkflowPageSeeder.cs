@@ -139,7 +139,13 @@ public class WorkflowPageSeeder(
             return;
         }
 
-        var existing = TestSiteSeedContract.FindWorkflowContent(contentService, TestSiteSeedContract.PlanningWorkflowKey);
+        // Use exact-key-only search — no alias fallback. FindWorkflowContent's fallback would
+        // corrupt an existing community-enquiry page on a fresh DB because it returns the first
+        // workflowPage found when no key match exists.
+        var existing = EnumerateContentTree()
+            .FirstOrDefault(content =>
+                content.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
+                && string.Equals(content.GetValue<string>("workflowKey"), TestSiteSeedContract.PlanningWorkflowKey, StringComparison.OrdinalIgnoreCase));
 
         if (existing != null)
         {

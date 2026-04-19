@@ -22,7 +22,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
   test('signed-in member can complete the full planning workflow journey', async ({ page }) => {
     await signIn(page);
-    await page.goto('/apply-for-planning');
+    await page.goto('/apply-for-planning-permission');
 
     // Step 1: Project details
     await expect(page.getByRole('heading', { name: 'Describe your project' })).toBeVisible();
@@ -75,7 +75,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
   test('required field validation shows error summary and field error', async ({ page }) => {
     await signIn(page);
-    await page.goto('/apply-for-planning');
+    await page.goto('/apply-for-planning-permission');
 
     await expect(page.getByRole('heading', { name: 'Describe your project' })).toBeVisible();
     
@@ -93,7 +93,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
   test('conditional radio reveals sub-fields when specific option selected', async ({ page }) => {
     await signIn(page);
-    await page.goto('/apply-for-planning');
+    await page.goto('/apply-for-planning-permission');
 
     // Navigate to work type step
     await page.getByLabel('Project name').fill('Test project');
@@ -118,7 +118,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
   test('date input shows validation error for invalid date', async ({ page }) => {
     await signIn(page);
-    await page.goto('/apply-for-planning');
+    await page.goto('/apply-for-planning-permission');
 
     // Navigate to timeline step
     await page.getByLabel('Project name').fill('Test project');
@@ -150,7 +150,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
   test('check-answers allows changing an answer via Change link', async ({ page }) => {
     await signIn(page);
-    await page.goto('/apply-for-planning');
+    await page.goto('/apply-for-planning-permission');
 
     // Complete journey to check-answers
     await page.getByLabel('Project name').fill('Original project name');

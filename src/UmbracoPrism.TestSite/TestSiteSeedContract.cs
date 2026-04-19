@@ -24,7 +24,7 @@ public static class TestSiteSeedContract
     public const string WorkflowKey = "community-enquiry";
 
     public const string PlanningWorkflowPageName = "Apply for Planning Permission";
-    public const string PlanningWorkflowPageUrl = "/apply-for-planning";
+    public const string PlanningWorkflowPageUrl = "/apply-for-planning-permission";
     public const string PlanningWorkflowKey = "planning-notification";
 
     public const string WorkflowHubAlias = "workflowHub";
