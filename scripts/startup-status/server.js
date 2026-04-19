@@ -31,10 +31,11 @@ function probe(url) {
   });
 }
 
-// In Codespaces, the Aspire dashboard runs on HTTP port 18888 (ASPIRE_ALLOW_UNSECURED_TRANSPORT=true).
-// Locally it runs on HTTPS port 17214.
-const ASPIRE_PORT = CODESPACE_NAME ? 18888 : 17214;
-const ASPIRE_PROBE_URL = CODESPACE_NAME ? `http://localhost:18888` : `https://localhost:17214`;
+// The Aspire dashboard always runs on HTTPS port 17214 — ASPIRE_ALLOW_UNSECURED_TRANSPORT only
+// affects OtlpExporter transport, not the dashboard listener. probe() uses rejectUnauthorized:false
+// so the self-signed dev cert is accepted in both local and Codespace environments.
+const ASPIRE_PORT = 17214;
+const ASPIRE_PROBE_URL = `https://localhost:17214`;
 
 async function getStatus() {
   const [aspire, testsite, keycloak, mocbiz] = await Promise.all([
@@ -69,11 +70,32 @@ async function getStatus() {
 
 const HTML = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 
+const LOG_FILE = '/tmp/prism-apphost.log';
+const LOG_TAIL_LINES = 50;
+
+function getLogTail() {
+  if (!fs.existsSync(LOG_FILE)) {
+    return 'AppHost not started yet — log file not found.';
+  }
+  try {
+    const content = fs.readFileSync(LOG_FILE, 'utf8');
+    const lines = content.split('\n');
+    return lines.slice(-LOG_TAIL_LINES).join('\n').trim() || '(log is empty)';
+  } catch (e) {
+    return `Error reading log: ${e.message}`;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.url === '/api/status') {
     const status = await getStatus();
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     res.end(JSON.stringify(status));
+    return;
+  }
+  if (req.url === '/api/log') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(getLogTail());
     return;
   }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

@@ -265,9 +265,10 @@
 
   <script>
     const POLL_INTERVAL = 4000;  // ms between /api/status calls
-    const LOG_INTERVAL  = 8000;  // ms between /api/log calls
+    const LOG_INTERVAL  = 3000;  // ms between /api/log calls
 
     let allReady = false;
+    let logPolling = false;
 
     function icon(status) {
       if (status === 'ready')   return '✅';
@@ -357,8 +358,20 @@
       }
     }
 
-    // kick off immediately
+    async function pollLog() {
+      try {
+        const res = await fetch('/api/log');
+        const text = await res.text();
+        const logBox = document.getElementById('log-box');
+        const atBottom = logBox.scrollHeight - logBox.scrollTop <= logBox.clientHeight + 20;
+        logBox.textContent = text;
+        if (atBottom) logBox.scrollTop = logBox.scrollHeight;
+      } catch (_) {}
+      setTimeout(pollLog, LOG_INTERVAL);
+    }
+
     poll();
+    pollLog();
   </script>
 </body>
 </html>

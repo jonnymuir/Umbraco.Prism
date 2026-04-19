@@ -18,7 +18,7 @@ if pgrep -f "UmbracoPrism.AppHost" > /dev/null 2>&1; then
     if [ -n "$CODESPACE_NAME" ]; then
         echo ""
         echo "   Startup status    https://${CODESPACE_NAME}-3000.${DOMAIN}"
-        echo "   Aspire Dashboard  https://${CODESPACE_NAME}-18888.${DOMAIN}"
+        echo "   Aspire Dashboard  https://${CODESPACE_NAME}-17214.${DOMAIN}"
         echo "   TestSite          https://${CODESPACE_NAME}-44345.${DOMAIN}"
     fi
     exit 0
@@ -46,22 +46,16 @@ fi
 echo ""
 
 # ── Aspire Dashboard anonymous access ────────────────────────────────────────
-# In Codespaces, the port proxy can't serve Blazor's JS files correctly when the
-# dashboard uses HTTPS + browser token auth. Two env vars fix this:
-#   DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true  — disable the browser token
-#   ASPIRE_ALLOW_UNSECURED_TRANSPORT=true            — Aspire switches dashboard to
-#                                                      HTTP on port 18888 so the
-#                                                      Codespaces proxy can serve it
-#
-# Note: DOTNET_DASHBOARD_FRONTEND_ENDPOINT_URLS is overridden by Aspire itself and
-# cannot reliably pin the port; ASPIRE_ALLOW_UNSECURED_TRANSPORT is the correct knob.
+# In Codespaces, DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS disables the browser
+# login token so the Codespaces port proxy doesn't redirect to the token login page.
+# ASPIRE_ALLOW_UNSECURED_TRANSPORT is also set — this relaxes OTLP exporter transport
+# security for service-to-service communication inside the stack. Note: it does NOT
+# move the dashboard from HTTPS 17214 to HTTP 18888; the dashboard stays on HTTPS 17214.
 if [ -n "$CODESPACE_NAME" ]; then
     export DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
-    DASHBOARD_URL=http://localhost:18888
-else
-    DASHBOARD_URL=https://localhost:17214
 fi
+DASHBOARD_URL=https://localhost:17214
 
 # ── Wait for Docker-in-Docker ─────────────────────────────────────────────────
 echo "⏳ Waiting for Docker..."
@@ -114,7 +108,7 @@ echo ""
 
 if [ -n "$CODESPACE_NAME" ]; then
     echo "   Status page       https://${CODESPACE_NAME}-3000.${DOMAIN}"
-    echo "   Aspire Dashboard  https://${CODESPACE_NAME}-18888.${DOMAIN}"
+    echo "   Aspire Dashboard  https://${CODESPACE_NAME}-17214.${DOMAIN}"
     echo "   TestSite          https://${CODESPACE_NAME}-44345.${DOMAIN}"
     echo "   Keycloak admin    https://${CODESPACE_NAME}-8443.${DOMAIN}/admin"
 else
