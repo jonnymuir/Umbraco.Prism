@@ -112,6 +112,42 @@ function getLogTail() {
   }
 }
 
+// Locate the most-recently modified Umbraco trace log file across several
+// candidate paths (source-tree location when Aspire runs the project in-place,
+// plus the runtime-root override in case it was redirected in future).
+const UMBRACO_LOG_DIRS = [
+  path.join(__dirname, '../../src/UmbracoPrism.TestSite/umbraco/Logs'),
+];
+if (process.env.PRISM_TESTSITE_RUNTIME_ROOT) {
+  UMBRACO_LOG_DIRS.unshift(
+    path.join(process.env.PRISM_TESTSITE_RUNTIME_ROOT, 'umbraco/Logs'),
+  );
+}
+
+function getUmbracoLogTail() {
+  let latestFile = null;
+  let latestMtime = 0;
+  for (const dir of UMBRACO_LOG_DIRS) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const files = fs.readdirSync(dir).filter(f => f.startsWith('UmbracoTraceLog') && f.endsWith('.json'));
+      for (const f of files) {
+        const full = path.join(dir, f);
+        const { mtimeMs } = fs.statSync(full);
+        if (mtimeMs > latestMtime) { latestMtime = mtimeMs; latestFile = full; }
+      }
+    } catch (_) {}
+  }
+  if (!latestFile) return null; // no log yet — TestSite hasn't written anything
+  try {
+    const content = fs.readFileSync(latestFile, 'utf8');
+    const lines = content.split('\n').filter(l => l.trim());
+    return { file: path.basename(latestFile), tail: lines.slice(-80).join('\n') };
+  } catch (e) {
+    return { file: path.basename(latestFile), tail: `Error reading log: ${e.message}` };
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.url === '/api/status') {
     const status = await getStatus();
@@ -122,6 +158,17 @@ const server = http.createServer(async (req, res) => {
   if (req.url === '/api/log') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(getLogTail());
+    return;
+  }
+  if (req.url === '/api/testsite-log') {
+    const result = getUmbracoLogTail();
+    if (!result) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify({ available: false, message: 'No Umbraco log found yet — TestSite may still be in early startup or has not started.' }));
+    } else {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify({ available: true, file: result.file, tail: result.tail }));
+    }
     return;
   }
   if (req.url === '/api/diag') {

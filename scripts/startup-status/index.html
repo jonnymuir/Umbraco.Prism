@@ -179,6 +179,32 @@
       color: var(--prism-grey);
     }
 
+    /* ── Hint banner ─────────────────────────────────────────── */
+    #hint-banner {
+      margin-top: 24px;
+      padding: 12px 16px;
+      background: #fff8c5;
+      border-left: 4px solid #e8a000;
+      font-size: .88rem;
+      display: none;
+    }
+    #hint-banner strong { display: block; margin-bottom: 4px; }
+
+    /* ── Aspire link (during startup) ───────────────────────── */
+    #aspire-link-row {
+      margin-top: 20px;
+      font-size: .88rem;
+      display: none;
+    }
+    #aspire-link-row a { color: var(--prism-blue); font-weight: 700; }
+
+    /* ── Elapsed time ────────────────────────────────────────── */
+    #elapsed {
+      font-size: .8rem;
+      color: var(--prism-grey);
+      margin-top: 8px;
+    }
+
     /* ── Log tail ────────────────────────────────────────────── */
     .log-section {
       margin-top: 36px;
@@ -188,8 +214,16 @@
       font-weight: 600;
       color: var(--prism-blue);
       margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
     }
-    #log-box {
+    .log-section-label .toggle-icon { font-size: .75rem; color: var(--prism-grey); }
+    .log-collapsible { display: none; }
+    .log-collapsible.open { display: block; }
+    #log-box, #umbraco-log-box {
       margin-top: 12px;
       background: var(--prism-dark);
       color: #c8ffc8;
@@ -197,10 +231,16 @@
       font-family: "Lucida Console", monospace;
       padding: 14px 16px;
       border-radius: 4px;
-      max-height: 200px;
+      max-height: 240px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
+    }
+    #umbraco-log-file {
+      font-size: .75rem;
+      color: var(--prism-grey);
+      margin-bottom: 6px;
+      font-family: "Lucida Console", monospace;
     }
 
     /* ── Footer ──────────────────────────────────────────────── */
@@ -225,10 +265,21 @@
   <main>
     <h1 id="page-title">Starting up…</h1>
     <p class="subtitle" id="page-subtitle">Setting up your development environment. This takes about 2–3 minutes.</p>
+    <p id="elapsed"></p>
 
     <ul class="service-list" id="service-list" aria-live="polite" aria-label="Service startup status">
       <!-- populated by JS -->
     </ul>
+
+    <div id="hint-banner">
+      <strong>⏳ Umbraco first boot detected</strong>
+      On first start, Umbraco installs its database and seeds content — this can take <strong>10–20 minutes</strong>.
+      The Aspire Dashboard shows live Umbraco logs if you need to see progress.
+    </div>
+
+    <div id="aspire-link-row">
+      📊 Watch live logs: <a id="aspire-link-during-startup" href="#" target="_blank" rel="noopener">Aspire Dashboard → testsite</a>
+    </div>
 
     <div id="ready-panel" role="status" aria-live="polite">
       <h2>✅ Everything is ready!</h2>
@@ -251,9 +302,23 @@
       </table>
     </div>
 
+    <div class="log-section" id="umbraco-log-section" style="display:none">
+      <p class="log-section-label" onclick="toggleLog('umbraco')">
+        Umbraco TestSite log <span class="toggle-icon" id="umbraco-toggle-icon">▶ expand</span>
+      </p>
+      <div class="log-collapsible" id="umbraco-log-collapsible">
+        <p id="umbraco-log-file"></p>
+        <pre id="umbraco-log-box" aria-label="Umbraco log output"></pre>
+      </div>
+    </div>
+
     <div class="log-section">
-      <p class="log-section-label">AppHost log</p>
-      <pre id="log-box" aria-label="AppHost log output">Waiting for log…</pre>
+      <p class="log-section-label" onclick="toggleLog('apphost')">
+        AppHost log <span class="toggle-icon" id="apphost-toggle-icon">▶ expand</span>
+      </p>
+      <div class="log-collapsible" id="apphost-log-collapsible">
+        <pre id="log-box" aria-label="AppHost log output">Waiting for log…</pre>
+      </div>
     </div>
   </main>
 
@@ -264,10 +329,29 @@
 
   <script>
     const POLL_INTERVAL = 4000;  // ms between /api/status calls
-    const LOG_INTERVAL  = 3000;  // ms between /api/log calls
+    const LOG_INTERVAL  = 5000;  // ms between log calls
+    const START_TIME    = Date.now();
 
     let allReady = false;
-    let logPolling = false;
+    let testsiteStuckFor = 0;  // seconds TestSite has been non-ready
+    let aspireUrl = null;
+
+    // ── Elapsed time ─────────────────────────────────────────
+    setInterval(() => {
+      if (allReady) return;
+      const secs = Math.floor((Date.now() - START_TIME) / 1000);
+      const m = Math.floor(secs / 60), s = secs % 60;
+      document.getElementById('elapsed').textContent =
+        `Waiting ${m > 0 ? m + 'm ' : ''}${s}s…`;
+    }, 1000);
+
+    // ── Collapsible log sections ─────────────────────────────
+    function toggleLog(name) {
+      const col = document.getElementById(name + '-log-collapsible');
+      const icon = document.getElementById(name + '-toggle-icon');
+      const open = col.classList.toggle('open');
+      icon.textContent = open ? '▼ collapse' : '▶ expand';
+    }
 
     function icon(status) {
       if (status === 'ready')   return '✅';
@@ -312,6 +396,9 @@
       document.getElementById('page-title').textContent = 'Ready to go!';
       document.getElementById('page-subtitle').textContent =
         'Your Umbraco Prism environment is fully started.';
+      document.getElementById('elapsed').textContent = '';
+      document.getElementById('hint-banner').style.display = 'none';
+      document.getElementById('aspire-link-row').style.display = 'none';
 
       const links = [
         { label: '🏛️  TestSite (your demo site)',     url: data.urls.testSite },
@@ -345,6 +432,27 @@
         const res = await fetch('/api/status');
         const data = await res.json();
         renderServices(data.services);
+
+        // Track how long TestSite has been Starting
+        const testsite = data.services.find(s => s.id === 'testsite');
+        if (testsite && testsite.status !== 'ready') {
+          testsiteStuckFor += POLL_INTERVAL / 1000;
+        } else {
+          testsiteStuckFor = 0;
+        }
+
+        // Show hint + Aspire link after 90 seconds of TestSite not ready
+        if (testsiteStuckFor >= 90 && !allReady) {
+          document.getElementById('hint-banner').style.display = 'block';
+          // Wire up Aspire link now that we have the URL
+          if (data.urls && data.urls.aspire) {
+            aspireUrl = data.urls.aspire;
+            const a = document.getElementById('aspire-link-during-startup');
+            a.href = aspireUrl + '/resources'; // Aspire resources page
+            document.getElementById('aspire-link-row').style.display = 'block';
+          }
+        }
+
         if (data.phase === 'ready' && !allReady) {
           allReady = true;
           renderReady(data);
@@ -369,8 +477,34 @@
       setTimeout(pollLog, LOG_INTERVAL);
     }
 
+    async function pollUmbracoLog() {
+      try {
+        const res = await fetch('/api/testsite-log');
+        const data = await res.json();
+        const section = document.getElementById('umbraco-log-section');
+        if (data.available) {
+          section.style.display = 'block';
+          document.getElementById('umbraco-log-file').textContent = data.file;
+          const box = document.getElementById('umbraco-log-box');
+          const atBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 20;
+          box.textContent = data.tail;
+          if (atBottom) box.scrollTop = box.scrollHeight;
+          // Auto-expand the first time we get Umbraco log content
+          const col = document.getElementById('umbraco-log-collapsible');
+          if (!col.classList.contains('open')) {
+            col.classList.add('open');
+            document.getElementById('umbraco-toggle-icon').textContent = '▼ collapse';
+          }
+        } else {
+          section.style.display = 'none';
+        }
+      } catch (_) {}
+      if (!allReady) setTimeout(pollUmbracoLog, LOG_INTERVAL);
+    }
+
     poll();
     pollLog();
+    pollUmbracoLog();
   </script>
 </body>
 </html>
