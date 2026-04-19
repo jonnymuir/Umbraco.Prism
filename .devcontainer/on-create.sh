@@ -38,3 +38,19 @@ echo "   dotnet run --project src/UmbracoPrism.AppHost"
 echo ""
 echo "   Then open the Aspire Dashboard at https://localhost:17214"
 echo "   Log in with  demo@prism.local / password"
+
+# Attempt to open the welcome file in VS Code.
+# postCreateCommand runs before VS Code is fully attached, so the code CLI
+# may not be available — that's fine, on-start.sh tries again each start.
+if [ -n "$CODESPACE_NAME" ]; then
+    echo ""
+    echo "ℹ️  [on-create] Attempting to open CODESPACES.md in VS Code editor..."
+    echo "   which code:      $(which code 2>/dev/null || echo 'NOT FOUND in PATH')"
+    echo "   VSCODE_IPC_HOOK: ${VSCODE_IPC_HOOK:-not set}"
+    echo "   TERM_PROGRAM:    ${TERM_PROGRAM:-not set}"
+    if code CODESPACES.md 2>&1; then
+        echo "   ✅ code command exited 0"
+    else
+        echo "   ⚠️  code command exited $? — expected if VS Code not yet attached"
+    fi
+fi

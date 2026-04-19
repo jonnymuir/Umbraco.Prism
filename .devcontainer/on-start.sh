@@ -9,7 +9,15 @@ DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 # Open the welcome/orientation file in the VS Code editor immediately.
 # This gives the user something to read while the stack starts up.
 if [ -n "$CODESPACE_NAME" ]; then
-    code CODESPACES.md 2>/dev/null || true
+    echo "ℹ️  [on-start] Attempting to open CODESPACES.md in VS Code editor..."
+    echo "   which code:      $(which code 2>/dev/null || echo 'NOT FOUND in PATH')"
+    echo "   VSCODE_IPC_HOOK: ${VSCODE_IPC_HOOK:-not set}"
+    echo "   TERM_PROGRAM:    ${TERM_PROGRAM:-not set}"
+    if code CODESPACES.md 2>&1; then
+        echo "   ✅ code command exited 0"
+    else
+        echo "   ⚠️  code command exited $? — may be normal in postStartCommand context"
+    fi
 fi
 
 # If AppHost is already running (resumed Codespace), just print the URLs and exit.
@@ -104,6 +112,20 @@ done
 
 echo ""
 echo "🎉 Umbraco Prism is ready!"
+echo ""
+
+# ── Aspire Dashboard diagnostics ──────────────────────────────────────────────
+# Always emit — tells us exactly what the dashboard is serving so we can
+# debug proxy/Blazor issues without guessing.
+echo "🔍 Aspire Dashboard diagnostics:"
+echo "   DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=${DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS:-not set}"
+echo "   ASPIRE_ALLOW_UNSECURED_TRANSPORT=${ASPIRE_ALLOW_UNSECURED_TRANSPORT:-not set}"
+DASH_ROOT_STATUS=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" https://localhost:17214/ 2>/dev/null || echo "curl-failed")
+echo "   / (root) HTTP status:             ${DASH_ROOT_STATUS}"
+BLAZOR_LINE=$(curl -sk --max-time 5 -o /dev/null -w "HTTP %{http_code}  content-type: %{content_type}" https://localhost:17214/_framework/blazor.web.js 2>/dev/null || echo "curl-failed")
+echo "   /_framework/blazor.web.js:        ${BLAZOR_LINE}"
+DASH_BASEHREF=$(curl -sk --max-time 5 https://localhost:17214/ 2>/dev/null | grep -o '<base href="[^"]*"' | head -1 || echo "(grep found nothing)")
+echo "   <base href> in dashboard HTML:    ${DASH_BASEHREF:-not found}"
 echo ""
 
 if [ -n "$CODESPACE_NAME" ]; then

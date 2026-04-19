@@ -31,6 +31,32 @@ function probe(url) {
   });
 }
 
+// Probe a URL and return status + key response headers + first 500 chars of body.
+// Used by /api/diag to inspect the Aspire dashboard without the browser proxy in the way.
+function probeWithHeaders(url) {
+  return new Promise((resolve) => {
+    const lib = url.startsWith('https') ? https : http;
+    const req = lib.get(url, { rejectUnauthorized: false, timeout: 5000 }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { if (body.length < 500) body += chunk; });
+      res.on('end', () => {
+        resolve({
+          status: res.statusCode,
+          headers: {
+            'content-type':           res.headers['content-type']           || '(none)',
+            'x-content-type-options': res.headers['x-content-type-options'] || '(none)',
+            'content-security-policy': res.headers['content-security-policy'] ? '(present)' : '(none)',
+            'location':               res.headers['location']               || null,
+          },
+          bodyPreview: body,
+        });
+      });
+    });
+    req.on('error', (e) => resolve({ error: e.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ error: 'timeout' }); });
+  });
+}
+
 // The Aspire dashboard always runs on HTTPS port 17214 — ASPIRE_ALLOW_UNSECURED_TRANSPORT only
 // affects OtlpExporter transport, not the dashboard listener. probe() uses rejectUnauthorized:false
 // so the self-signed dev cert is accepted in both local and Codespace environments.
@@ -96,6 +122,29 @@ const server = http.createServer(async (req, res) => {
   if (req.url === '/api/log') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(getLogTail());
+    return;
+  }
+  if (req.url === '/api/diag') {
+    const [root, blazor] = await Promise.all([
+      probeWithHeaders('https://localhost:17214/'),
+      probeWithHeaders('https://localhost:17214/_framework/blazor.web.js'),
+    ]);
+    const baseHref = root.bodyPreview
+      ? (root.bodyPreview.match(/<base href="([^"]*)"/)?.[1] || '(not found in response)')
+      : '(no body)';
+    const diag = {
+      timestamp: new Date().toISOString(),
+      env: {
+        DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: process.env.DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS || '(not set)',
+        ASPIRE_ALLOW_UNSECURED_TRANSPORT:           process.env.ASPIRE_ALLOW_UNSECURED_TRANSPORT           || '(not set)',
+        CODESPACE_NAME:                             process.env.CODESPACE_NAME ? '(set)' : '(not set)',
+      },
+      dashboard_root:  { url: 'https://localhost:17214/', ...root,   bodyPreview: undefined },
+      blazor_web_js:   { url: 'https://localhost:17214/_framework/blazor.web.js', ...blazor, bodyPreview: undefined },
+      base_href: baseHref,
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify(diag, null, 2));
     return;
   }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

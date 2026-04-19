@@ -183,12 +183,11 @@
     .log-section {
       margin-top: 36px;
     }
-    .log-section summary {
-      cursor: pointer;
-      color: var(--prism-blue);
+    .log-section-label {
       font-size: .9rem;
       font-weight: 600;
-      user-select: none;
+      color: var(--prism-blue);
+      margin-bottom: 8px;
     }
     #log-box {
       margin-top: 12px;
@@ -252,10 +251,10 @@
       </table>
     </div>
 
-    <details class="log-section">
-      <summary>Show AppHost log tail</summary>
+    <div class="log-section">
+      <p class="log-section-label">AppHost log</p>
       <pre id="log-box" aria-label="AppHost log output">Waiting for log…</pre>
-    </details>
+    </div>
   </main>
 
   <footer>
