@@ -61,9 +61,9 @@ public record WorkflowResponseEnvelope
 public record WorkflowRenderPayload
 {
     /// <summary>
-    /// Gets the archetype for UI rendering.
+    /// Gets the step type for UI rendering (question, check-answers, confirmation, status-timeline, task-list).
     /// </summary>
-    public required string Archetype { get; init; }
+    public required string StepType { get; init; }
 
     /// <summary>
     /// Gets the state display name.
@@ -153,6 +153,17 @@ public record FieldRenderPayload
     /// Gets the options for select/radio fields (nullable).
     /// </summary>
     public IReadOnlyList<string>? Options { get; init; }
+
+    /// <summary>
+    /// Gets the currency/unit prefix displayed before the input (e.g., "£").
+    /// </summary>
+    public string? Prefix { get; init; }
+
+    /// <summary>
+    /// For radios/checkboxes: sub-fields revealed when the parent option is selected.
+    /// Key is the option value; value is the list of fields shown when that option is active.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<FieldRenderPayload>>? ConditionalFields { get; init; }
 
     /// <summary>
     /// Gets the minimum character length for text/textarea fields (nullable).

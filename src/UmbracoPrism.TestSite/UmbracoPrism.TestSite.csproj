@@ -41,4 +41,10 @@
     <RazorCompileOnPublish>true</RazorCompileOnPublish>
   </PropertyGroup>
 
+  <Target Name="InstallGovukFrontend" BeforeTargets="BeforeBuild">
+    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Copy SourceFiles="node_modules/govuk-frontend/dist/govuk/govuk-frontend.min.css" DestinationFolder="wwwroot/css" />
+    <Copy SourceFiles="node_modules/govuk-frontend/dist/govuk/govuk-frontend.min.js" DestinationFolder="wwwroot/js" />
+  </Target>
+
 </Project>

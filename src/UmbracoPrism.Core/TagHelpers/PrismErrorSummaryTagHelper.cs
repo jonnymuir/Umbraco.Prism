@@ -20,20 +20,18 @@ public class PrismErrorSummaryTagHelper : TagHelper
 
         output.TagName = "div";
         output.TagMode = TagMode.StartTagAndEndTag;
-        output.Attributes.SetAttribute("class", "prism-error-summary");
-        output.Attributes.SetAttribute("role", "alert");
-        output.Attributes.SetAttribute("aria-labelledby", "prism-error-summary-title");
-        output.Attributes.SetAttribute("tabindex", "-1");
+        output.Attributes.SetAttribute("class", "govuk-error-summary");
+        output.Attributes.SetAttribute("data-module", "govuk-error-summary");
 
         var sb = new StringBuilder();
-        sb.AppendLine(@"<h2 class=""prism-error-summary__title"" id=""prism-error-summary-title"">");
-        sb.AppendLine("        There is a problem");
-        sb.AppendLine("    </h2>");
-        sb.AppendLine(@"    <ul class=""prism-error-summary__list"">");
+        sb.AppendLine(@"<div role=""alert"">");
+        sb.AppendLine(@"    <h2 class=""govuk-error-summary__title"">There is a problem</h2>");
+        sb.AppendLine(@"    <div class=""govuk-error-summary__body"">");
+        sb.AppendLine(@"        <ul class=""govuk-list govuk-error-summary__list"">");
 
         foreach (var problem in Problems)
         {
-            sb.Append("        <li>");
+            sb.Append("            <li>");
             if (!string.IsNullOrEmpty(problem.FieldKey))
             {
                 sb.Append($@"<a href=""#{System.Net.WebUtility.HtmlEncode(problem.FieldKey)}"">{System.Net.WebUtility.HtmlEncode(problem.Message)}</a>");
@@ -45,7 +43,9 @@ public class PrismErrorSummaryTagHelper : TagHelper
             sb.AppendLine("</li>");
         }
 
-        sb.AppendLine("    </ul>");
+        sb.AppendLine("        </ul>");
+        sb.AppendLine("    </div>");
+        sb.AppendLine("</div>");
 
         output.Content.SetHtmlContent(sb.ToString());
     }

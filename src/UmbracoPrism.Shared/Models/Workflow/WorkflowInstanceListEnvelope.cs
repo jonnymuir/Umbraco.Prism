@@ -12,7 +12,8 @@ public class WorkflowInstanceSummary
     public string WorkflowDisplayName { get; init; } = string.Empty;
     public string CurrentStateKey { get; init; } = string.Empty;
     public string CurrentStateDisplayName { get; init; } = string.Empty;
-    public string Archetype { get; init; } = "Collect";
+    /// <summary>Step type for this instance (question, check-answers, confirmation, status-timeline, task-list).</summary>
+    public string Archetype { get; init; } = "question";
     public DateTime CreatedAt { get; init; }
     public DateTime LastUpdatedAt { get; init; }
     public bool CanContinue { get; init; }

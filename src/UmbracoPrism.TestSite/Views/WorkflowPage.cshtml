@@ -24,7 +24,15 @@
     }
     else
     {
-        var partialName = $"_WorkflowStep-{Model.Archetype}";
+        // Map Archetype to the appropriate partial view name
+        var partialName = Model.Archetype.ToLowerInvariant() switch
+        {
+            "collect" => "_WorkflowStep-Question",
+            "review" => "_WorkflowStep-Review",
+            "completion" => "_WorkflowStep-Completion",
+            "statustimeline" => "_WorkflowStep-StatusTimeline",
+            _ => $"_WorkflowStep-{Model.Archetype}"
+        };
         var partialPath = $"~/Views/Partials/{partialName}.cshtml";
         var viewResult = _viewEngine.GetView(null, partialPath, false);
         if (viewResult.Success)

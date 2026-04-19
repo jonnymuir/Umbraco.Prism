@@ -33,10 +33,10 @@ public record WorkflowStateFile
     /// <summary>User-facing display name for this state.</summary>
     public string DisplayName { get; init; } = "";
     /// <summary>
-    /// The rendering archetype for this state: "Collect" (render fields), "StatusTimeline" (read-only status), 
-    /// or "Completion" (final state).
+    /// The step type for this state: "question" (render fields), "check-answers" (review), 
+    /// "confirmation" (final state), "status-timeline" (read-only status), or "task-list" (task list pattern).
     /// </summary>
-    public string Archetype { get; init; } = "Collect";
+    public string StepType { get; init; } = "question";
     /// <summary>Allowed actions from this state (legacy field, not currently used).</summary>
     public IReadOnlyList<string> AllowedActions { get; init; } = Array.Empty<string>();
     /// <summary>Keys of field groups to render when in this state.</summary>
@@ -107,6 +107,13 @@ public record FieldFile
     public string? ConditionalOn { get; init; }
     /// <summary>The value that makes this field visible when ConditionalOn is set.</summary>
     public string? VisibleWhen { get; init; }
+    /// <summary>Currency/unit prefix displayed before the input (e.g., "£").</summary>
+    public string? Prefix { get; init; }
+    /// <summary>
+    /// For radios/checkboxes: sub-fields revealed when the parent option is selected.
+    /// Key is the option value; value is the list of fields shown when that option is active.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<FieldFile>>? ConditionalFields { get; init; }
 }
 
 /// <summary>

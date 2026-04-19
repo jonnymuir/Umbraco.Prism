@@ -241,11 +241,11 @@ public class BusinessAppWorkflowEngine
                     WorkflowDisplayName = definition?.DisplayName ?? instance.WorkflowKey,
                     CurrentStateKey = instance.CurrentState,
                     CurrentStateDisplayName = state?.DisplayName ?? instance.CurrentState,
-                    Archetype = state?.Archetype ?? "Collect",
+                    Archetype = state?.StepType ?? "question",
                     CreatedAt = instance.CreatedAt.DateTime,
                     LastUpdatedAt = instance.UpdatedAt.DateTime,
-                    CanContinue = state?.Archetype != "Completion",
-                    IsCompleted = state?.Archetype == "Completion",
+                    CanContinue = state?.StepType != "confirmation",
+                    IsCompleted = state?.StepType == "confirmation",
                     WorkflowPageUrl = null // Controller will resolve this
                 };
             })
@@ -372,16 +372,16 @@ public class BusinessAppWorkflowEngine
 
         var render = new WorkflowRenderPayload
         {
-            Archetype = state.Archetype,
+            StepType = state.StepType,
             StateDisplayName = state.DisplayName,
             FieldGroups = fieldGroups,
             AvailableActions = actions
         };
 
-        var responseState = state.Archetype switch
+        var responseState = state.StepType switch
         {
-            "StatusTimeline" => "wait",
-            "Completion" => "complete",
+            "status-timeline" => "wait",
+            "confirmation" => "complete",
             _ => "ask_now"
         };
 

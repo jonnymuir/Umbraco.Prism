@@ -3,45 +3,50 @@
     var token = Html.AntiForgeryToken();
 }
 
-<div class="prism-workflow--review prism-workflow">
-    <p class="prism-review__intro">Please check your answers before submitting.</p>
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-l">Check your answers</h1>
 
-    @foreach (var group in Model.FieldGroups)
-    {
-        <div class="prism-review__group">
-            <h2 class="prism-review__group-title">@group.DisplayName</h2>
-            <dl class="prism-review__list">
+        @foreach (var group in Model.FieldGroups)
+        {
+            <h2 class="govuk-heading-m">@group.DisplayName</h2>
+            <dl class="govuk-summary-list">
                 @foreach (var field in group.Fields)
                 {
-                    <div class="prism-review__item">
-                        <dt class="prism-review__label">@field.Label</dt>
-                        <dd class="prism-review__value">@(field.Value ?? "—")</dd>
+                    <div class="govuk-summary-list__row">
+                        <dt class="govuk-summary-list__key">@field.Label</dt>
+                        <dd class="govuk-summary-list__value">@(field.Value ?? "Not answered")</dd>
+                        <dd class="govuk-summary-list__actions">
+                            <a class="govuk-link" href="#">
+                                Change<span class="govuk-visually-hidden"> @field.Label.ToLower()</span>
+                            </a>
+                        </dd>
                     </div>
                 }
             </dl>
-        </div>
-    }
+        }
 
-    <form method="post" action="@Model.ReturnUrl">
-        @token
-        <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
-        <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
-        <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
-        <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+        <form method="post" action="@Model.ReturnUrl">
+            @token
+            <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
+            <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
+            <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
+            <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
 
-        <div class="prism-workflow__actions">
-            @foreach (var action in Model.AvailableActions)
-            {
-                var btnClass = action.Style switch
+            <div class="govuk-button-group">
+                @foreach (var action in Model.AvailableActions)
                 {
-                    "primary" => "prism-button prism-button--primary",
-                    "destructive" => "prism-button prism-button--destructive",
-                    _ => "prism-button prism-button--secondary"
-                };
-                <button type="submit" name="Action" value="@action.ActionKey" class="@btnClass">
-                    @action.Label
-                </button>
-            }
-        </div>
-    </form>
+                    var btnClass = action.Style switch
+                    {
+                        "primary" => "govuk-button",
+                        "destructive" => "govuk-button govuk-button--warning",
+                        _ => "govuk-button govuk-button--secondary"
+                    };
+                    <button type="submit" name="Action" value="@action.ActionKey" class="@btnClass" data-module="govuk-button">
+                        @action.Label
+                    </button>
+                }
+            </div>
+        </form>
+    </div>
 </div>

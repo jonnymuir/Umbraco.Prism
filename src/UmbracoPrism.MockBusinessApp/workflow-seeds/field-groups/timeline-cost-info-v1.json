@@ -1,0 +1,32 @@
+{
+  "groupKey": "timeline-cost-info",
+  "displayName": "Timeline and cost",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "proposedStartDate",
+      "label": "Proposed start date",
+      "hint": "For example, 27 3 2025",
+      "fieldType": "date-input",
+      "required": true
+    },
+    {
+      "fieldKey": "estimatedDuration",
+      "label": "Estimated duration in weeks",
+      "hint": "How long do you expect the work to take?",
+      "fieldType": "number",
+      "required": true,
+      "min": 1,
+      "max": 260
+    },
+    {
+      "fieldKey": "estimatedCost",
+      "label": "Estimated cost of works",
+      "hint": "Enter the amount in pounds (do not include commas or the £ symbol)",
+      "fieldType": "currency",
+      "required": true,
+      "prefix": "£",
+      "min": 0
+    }
+  ]
+}

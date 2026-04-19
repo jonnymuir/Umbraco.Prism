@@ -574,3 +574,307 @@ New question types, task list variants, confirmation patterns added via pluggabl
 - Design: `.squad/log/2026-04-19T07:59:21Z-gds-workflow-engine-design.md`
 - Orchestration: `.squad/orchestration-log/2026-04-19T07:59:21Z-tom-nook-gds-workflow-design.md`
 - Orchestration: `.squad/orchestration-log/2026-04-19T07:59:21Z-tom-nook-gds-protocol-design.md`
+
+---
+
+## 📌 2026-04-20: Blathers — GDS Models Evolution
+
+**Date:** 2026-04-20  
+**Agent:** Blathers (Backend Dev)  
+**Context:** Evolving C# workflow models and Business App engine to support full GDS (GOV.UK Design System) step types and field types
+
+### Changes Made
+
+#### 1. Renamed `Archetype` → `StepType` Throughout Stack
+
+**Models Updated:**
+- `WorkflowRenderPayload.Archetype` → `WorkflowRenderPayload.StepType` (UmbracoPrism.Shared)
+- `WorkflowStateFile.Archetype` → `WorkflowStateFile.StepType` (MockBusinessApp)
+- Updated `WorkflowInstanceSummary` default from `"Collect"` → `"question"`
+
+**Step Type Values (Old → New):**
+- `"Collect"` → `"question"` — form fields collection
+- `"Review"` → `"check-answers"` — review submitted answers
+- `"Completion"` → `"confirmation"` — final confirmation page
+- `"StatusTimeline"` → `"status-timeline"` — read-only status display
+- Added: `"task-list"` — GOV.UK task list pattern (not yet wired in engine)
+
+**Engine Logic Updated:**
+- `BusinessAppWorkflowEngine.BuildEnvelope`: uses `state.StepType` for response state mapping
+- `BusinessAppWorkflowEngine.GetInstances`: uses `state.StepType` for completion checks
+
+**Controller Bridge Updated:**
+- `WorkflowPageController.BuildViewModel`: maps `render?.StepType` to ViewModel's `Archetype` property (preserves front-end contract)
+
+#### 2. Extended Field Models with GDS Properties
+
+**Added to `FieldFile` and `FieldRenderPayload`:**
+
+```csharp
+/// <summary>Currency/unit prefix displayed before the input (e.g., "£").</summary>
+public string? Prefix { get; init; }
+
+/// <summary>
+/// For radios/checkboxes: sub-fields revealed when the parent option is selected.
+/// Key is the option value; value is the list of fields shown when that option is active.
+/// </summary>
+public IReadOnlyDictionary<string, IReadOnlyList<FieldFile>>? ConditionalFields { get; init; }
+```
+
+#### 3. Updated `WorkflowFieldValidator` for New Field Types
+
+**New Field Types Supported:**
+
+1. **`radios`** — alias for `radio` (backward compatible)
+2. **`checkboxes`** — alias for `checkboxlist` (backward compatible)
+3. **`date-input`** — 3-part GDS date input (`{key}-day`, `{key}-month`, `{key}-year`)
+   - Validates each part as integer in correct range
+   - Reconstructs as ISO date string (`YYYY-MM-DD`)
+   - Partial submissions flagged with `"PARTIAL"` marker
+4. **`currency`** — decimal validation with InvariantCulture (no commas/currency symbols)
+   - Rejects `"1,234.56"` ✅
+   - Rejects `"£100"` ✅
+   - Accepts `"1234.56"` ✅
+5. **`file`** — whitelisted for now (no validation logic yet)
+
+**Backward Compatibility Preserved:**
+- `"date"` — single `<input type="date">` still supported
+- `"radio"` — still works (treated as `radios`)
+- `"checkboxlist"` — still works (treated as `checkboxes`)
+
+**Culture-Safe Decimal Parsing:**
+- Used `NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign` with `CultureInfo.InvariantCulture`
+- Ensures commas are never accepted in currency/number fields
+
+#### 4. Updated Workflow Seeds
+
+**Existing Seeds Updated:**
+- `information-request-v1.json`: `archetype` → `stepType` with new values
+- `community-enquiry-v1.json`: `archetype` → `stepType` with new values
+- `personal-details-v1.json`: `dateOfBirth` changed from `"date"` to `"date-input"`
+- `request-details-v1.json`: `urgency` changed from `"radio"` to `"radios"`
+
+**New Seed Created: `planning-notification-v1.json`**
+
+A realistic GOV.UK-style planning permission application demonstrating all new field types:
+
+**Workflow Steps:**
+1. `project-details` (question) — project description
+2. `work-type` (question) — radios with conditional reveal
+3. `timeline-cost` (question) — date-input + currency
+4. `affected-parties` (question) — checkboxes
+5. `check-answers` (check-answers) — review page
+6. `complete` (confirmation) — success page
+
+**Field Groups Created:**
+- `project-info-v1.json` — text + textarea fields
+- `work-type-info-v1.json` — **radios with `conditionalFields`** (reveals textarea when "Other" selected)
+- `timeline-cost-info-v1.json` — **date-input** + **currency** (with `prefix: "£"`)
+- `affected-parties-info-v1.json` — **checkboxes** + radios
+
+### Test Results
+
+✅ **All 416 Core tests passing**
+
+Key validations:
+- Currency field rejects commas: `"1,234.56"` → invalid ✅
+- Currency field accepts plain decimals: `"1234.56"` → valid ✅
+- Currency field rejects prefixes: `"£100"` → invalid ✅
+- Date-input validation added (no existing tests to break)
+
+### Breaking Changes
+
+⚠️ **API Contract Change:**
+
+- `WorkflowRenderPayload.Archetype` is now `WorkflowRenderPayload.StepType`
+- Front-end consumers (Razor views, Storybook) must update to use `StepType`
+- Controller bridge updated to map `StepType` → ViewModel `Archetype` for transition period
+
+### Status
+
+✅ Complete — All changes validated, tests passing, build clean
+
+---
+
+## 📌 2026-04-20: Isabelle — GDS View Layer for Workflow Engine
+
+**Date:** 2026-04-19  
+**Author:** Isabelle (Frontend Dev)  
+**Type:** Major UI refactor
+
+### Decision
+
+Replaced workflow views with GOV.UK Design System (GDS) patterns:
+- Installed `govuk-frontend` 5.9.0 via npm in TestSite
+- Renamed `_WorkflowStep-Collect.cshtml` → `_WorkflowStep-Question.cshtml`
+- Updated all workflow step partials to use `govuk-*` CSS classes
+- Updated `PrismFieldTagHelper` to emit GDS-compliant HTML markup
+- Updated `PrismErrorSummaryTagHelper` to match GDS error summary pattern
+- Added MSBuild target to install govuk-frontend before build
+
+### Why
+
+The GDS provides:
+- Proven, accessible UI patterns used across UK government services
+- Mobile-first responsive design
+- WCAG 2.1 AA compliance out of the box
+- Familiar patterns for UK public sector users
+
+The workflow engine is the primary user-facing interaction surface, so using GDS strengthens accessibility and user trust.
+
+### Changes Made
+
+#### npm/Build Infrastructure
+- `src/UmbracoPrism.TestSite/package.json`: Added `govuk-frontend: ^5.9.0`
+- `src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj`: Added `InstallGovukFrontend` target to run `npm ci` and copy CSS/JS to wwwroot before build
+- `src/UmbracoPrism.TestSite/wwwroot/css/govuk-frontend.min.css`: Copied from node_modules (129KB)
+- `src/UmbracoPrism.TestSite/wwwroot/js/govuk-frontend.min.js`: Copied from node_modules (47KB)
+
+#### Master.cshtml
+- Added `class="govuk-template"` to `<html>`
+- Added `class="govuk-template__body"` to `<body>`
+- Added `<link>` to `govuk-frontend.min.css` (before site CSS)
+- Added `<script>` for `govuk-frontend.min.js` with `GOVUKFrontend.initAll()`
+- Kept existing Prism CSS for non-workflow areas (header, nav, etc.)
+
+#### Workflow Step Partials
+
+**_WorkflowStep-Question.cshtml** (NEW, replaces Collect):
+- GDS one-thing-per-page pattern
+- Single-field groups: unwrapped with h1-level labels
+- Multi-field groups: `govuk-fieldset` with legend
+- Buttons use `govuk-button`, `govuk-button--secondary`, `govuk-button--warning`
+
+**_WorkflowStep-Review.cshtml**:
+- GDS check-answers pattern with `govuk-summary-list`
+- "Change" links with visually-hidden context
+- Two-column grid layout
+
+**_WorkflowStep-Completion.cshtml**:
+- GDS confirmation panel (`govuk-panel govuk-panel--confirmation`)
+- Reference number in panel body
+- "What happens next" section
+
+**_WorkflowStep-StatusTimeline.cshtml**:
+- Updated to use `govuk-heading-l`, `govuk-body`, `govuk-button-group`
+
+**_WorkflowStep-TaskList.cshtml** (NEW):
+- GDS task list pattern
+- Status tags: `govuk-tag`, `govuk-tag--blue` (in progress), `govuk-tag--grey` (not started)
+- Section completion tracking
+
+#### WorkflowPage.cshtml Dispatch
+- Added mapping logic: `Archetype.ToLowerInvariant() switch { "collect" => "Question", "review" => "Review", ... }`
+- Routes lowercase archetype values to appropriate partials
+
+#### TagHelpers
+
+**PrismFieldTagHelper.cs**:
+- Updated all CSS classes from `prism-*` to `govuk-*`:
+  - `prism-form-group` → `govuk-form-group`
+  - `prism-label` → `govuk-label`
+  - `prism-hint` → `govuk-hint`
+  - `prism-field-error` → `govuk-error-message` (with `<span class="govuk-visually-hidden">Error:</span>` prefix)
+  - `prism-input` → `govuk-input`
+  - `prism-textarea` → `govuk-textarea`
+  - `prism-select` → `govuk-select`
+  - `prism-fieldset` → `govuk-fieldset`
+  - `prism-legend` → `govuk-fieldset__legend`
+  - `prism-radio-item` → `govuk-radios__item`
+  - `prism-radio` → `govuk-radios__input`
+  - `prism-checkbox-item` → `govuk-checkboxes__item`
+  - `prism-checkbox` → `govuk-checkboxes__input`
+- Changed required indicator from `<span class="prism-required">*</span>` to `<span class="govuk-visually-hidden">(required)</span>`
+- Added `data-module="govuk-radios"` and `data-module="govuk-checkboxes"` for GDS JS enhancement
+- Wrapped radio/checkbox options in `govuk-radios` / `govuk-checkboxes` containers
+
+**PrismErrorSummaryTagHelper.cs**:
+- Changed wrapper class from `prism-error-summary` to `govuk-error-summary`
+- Added `data-module="govuk-error-summary"`
+- Wrapped content in `<div role="alert">` with nested structure:
+  - `govuk-error-summary__title`
+  - `govuk-error-summary__body` containing `govuk-list govuk-error-summary__list`
+
+### Backward Compatibility
+
+- **Prism CSS still loaded**: Non-workflow pages (home, vinyl catalog, etc.) still use `prism-*` classes
+- **Conditional fields**: Kept `prism-field--conditional` class and `data-conditional-on`/`data-visible-when` attributes for backward compat with existing `prism-conditional-fields.js`
+- **Form class**: `PrismWorkflowFormTagHelper` still emits `class="prism-workflow"` — this is fine as it doesn't conflict with GDS
+- **Old field types**: `radio` and `checkboxlist` still work (rendered identically to GDS `radios`/`checkboxes`)
+
+### Status
+
+✅ Complete — All views rebuilt with GDS patterns, tests passing, build clean
+
+---
+
+## 📌 2026-04-20: Tangy — GDS Field Type Test Coverage
+
+**Date:** 2026-04-15  
+**Author:** Tangy (Tester)  
+**Status:** Tests added and passing
+
+### Summary
+
+Added comprehensive test coverage for new GDS-style field types to `WorkflowFieldValidatorTests.cs`:
+- `radios` (alias for `radio`)
+- `checkboxes` (alias for `checkboxlist`)  
+- `date-input` (3-part date input: day/month/year)
+- `currency` (decimal validation)
+- `file` (whitelisted, no additional validation)
+
+### Test Coverage Added
+
+#### Integration into Existing Theory Test
+Extended the `GivenFieldType_WhenValidValue_ThenIsValidTrue` theory test to include:
+- `radios` with options whitelist
+- `checkboxes` with options whitelist
+- `currency` with decimal values
+- `file` as a whitelisted type
+
+#### New date-input Tests
+Added 4 dedicated tests for the complex 3-part date-input field:
+1. `GivenDateInputField_WhenAllPartsProvided_ThenIsValidTrue` — validates complete date (day/month/year)
+2. `GivenDateInputField_WhenDayPartMissing_WhenRequired_ThenIsValidFalse` — tests required validation
+3. `GivenDateInputField_WhenYearInvalid_ThenIsValidFalse` — tests 2-digit year rejection
+4. `GivenDateInputField_WhenNotRequired_WhenAllEmpty_ThenIsValidTrue` — tests optional date fields
+
+#### New currency Test
+Added parameterized test `GivenCurrencyField_WhenValueSubmitted_ThenValidatesCorrectly`:
+- Valid: `1234.56`, `999`, `0`
+- Invalid: `1,234.56` (commas), `£100` (currency symbol), `abc` (non-numeric)
+
+### Validation Implementation Status
+
+✅ **All field type logic implemented by Blathers:**
+- **currency:** Validated as `decimal` (same logic as `number`)
+- **radios:** Options whitelist validation (same as `radio`)
+- **checkboxes:** Options whitelist + comma-separated values (same as `checkboxlist`)
+- **date-input:** Complex 3-part validation with ISO date reconstruction
+- **file:** Whitelisted in field key allowlist
+
+### Test Results
+
+- **Before:** 406 tests passing
+- **After:** 416 tests (406 + 10 new GDS field type tests)
+- ✅ All 416 tests passing
+
+### Status
+
+✅ Complete — All GDS field type tests passing, build clean
+
+---
+
+## 📌 2026-04-19: Copilot — Ubiquitous Language Directive
+
+**By:** Jonny Muir  
+**What:** Use clear, ubiquitous language throughout the codebase. Avoid jargon or abstract terminology when plain terms exist. Specific example: `StepType` is preferred over `Archetype` — "Archetype" is opaque domain jargon; "StepType" communicates exactly what it is. Apply this principle to all naming: models, methods, properties, seed files, comments.
+
+**Why:** User request — captured for team memory. Affects all future naming decisions across Blathers, Isabelle, Brewster, and Tangy work.
+
+**Applied to GDS Phase 1:**
+- Renamed `Archetype` → `StepType` (step naming now: `question`, `check-answers`, `confirmation`, `task-list`, `status-timeline`)
+- Renamed `_WorkflowStep-Collect.cshtml` → `_WorkflowStep-Question.cshtml`
+- Field types: `radios`, `checkboxes`, `date-input`, `currency` (plain names, not `SelectRadio`, `NumericCurrencyField`, etc.)
+
+**Pattern for team:** When choosing a name, ask: "Does this term clearly communicate what it is to someone reading the codebase for the first time?" If not, use a clearer term.

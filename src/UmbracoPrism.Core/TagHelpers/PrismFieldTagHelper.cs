@@ -46,7 +46,7 @@ public class PrismFieldTagHelper : TagHelper
 
         // Readonly handling
         var readonlyAttr = Field.ReadOnly ? @" readonly aria-readonly=""true""" : string.Empty;
-        var readonlyCssClass = Field.ReadOnly ? " prism-field__input--readonly" : string.Empty;
+        var readonlyCssClass = Field.ReadOnly ? " govuk-input--readonly" : string.Empty;
 
         var minLengthAttr = Field.MinLength.HasValue ? $@" minlength=""{Field.MinLength.Value}""" : string.Empty;
         var maxLengthAttr = Field.MaxLength.HasValue ? $@" maxlength=""{Field.MaxLength.Value}""" : string.Empty;
@@ -64,7 +64,7 @@ public class PrismFieldTagHelper : TagHelper
         var ariaHiddenAttr = isConditional ? @" aria-hidden=""true""" : string.Empty;
 
         var sb = new StringBuilder();
-        sb.AppendLine($@"<div class=""prism-form-group {(hasFieldError ? "prism-form-group--error" : "")}{conditionalClass}""{conditionalAttrs}{hiddenAttr}{ariaHiddenAttr}>");
+        sb.AppendLine($@"<div class=""govuk-form-group {(hasFieldError ? "govuk-form-group--error" : "")}{conditionalClass}""{conditionalAttrs}{hiddenAttr}{ariaHiddenAttr}>");
 
         switch (fieldType)
         {
@@ -101,8 +101,9 @@ public class PrismFieldTagHelper : TagHelper
             ? "true".Equals(currentValue, StringComparison.OrdinalIgnoreCase)
             : (field.Value is true || "true".Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase));
 
-        sb.AppendLine(@"    <div class=""prism-form-group__checkbox-wrapper"">");
-        sb.Append($@"        <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""true"" data-label=""{Encode(field.Label)}""");
+        sb.AppendLine(@"    <div class=""govuk-checkboxes"" data-module=""govuk-checkboxes"">");
+        sb.AppendLine(@"        <div class=""govuk-checkboxes__item"">");
+        sb.Append($@"            <input class=""govuk-checkboxes__input"" type=""checkbox"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""true"" data-label=""{Encode(field.Label)}""");
         if (isChecked) sb.Append(" checked");
         sb.Append(requiredAttr);
         sb.Append(ariaRequired);
@@ -110,110 +111,112 @@ public class PrismFieldTagHelper : TagHelper
         sb.Append(describedBy);
         if (field.ReadOnly) sb.Append(@" disabled");
         sb.AppendLine(" />");
-        sb.Append($@"        <label class=""prism-label prism-label--inline"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
+        sb.Append($@"            <label class=""govuk-label govuk-checkboxes__label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
         sb.AppendLine("</label>");
+        sb.AppendLine("        </div>");
         sb.AppendLine("    </div>");
 
-        if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
+        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
     }
 
     private void RenderRadio(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid)
     {
-        sb.AppendLine(@"    <fieldset class=""prism-fieldset"">");
-        sb.Append($@"        <legend class=""prism-legend"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
+        sb.AppendLine(@"    <fieldset class=""govuk-fieldset"">");
+        sb.Append($@"        <legend class=""govuk-fieldset__legend"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
         sb.AppendLine("</legend>");
 
-        if (hasHint) sb.AppendLine($@"        <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"        <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
+        if (hasHint) sb.AppendLine($@"        <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"        <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
         var currentValue = submittedValue ?? field.Value?.ToString();
 
+        sb.AppendLine(@"        <div class=""govuk-radios"" data-module=""govuk-radios"">");
         if (field.Options != null)
         {
             foreach (var option in field.Options)
             {
-                // Prefix with "opt-" to prevent DOM ID collision with sibling field keys (e.g. enquiry-type-other)
                 var radioId = $"opt-{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
                 var isChecked = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
 
-                sb.AppendLine(@"        <div class=""prism-radio-item"">");
-                sb.Append($@"            <input class=""prism-radio"" type=""radio"" id=""{Encode(radioId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
+                sb.AppendLine(@"            <div class=""govuk-radios__item"">");
+                sb.Append($@"                <input class=""govuk-radios__input"" type=""radio"" id=""{Encode(radioId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
                 if (isChecked) sb.Append(" checked");
                 sb.Append(requiredAttr);
                 sb.Append(ariaRequired);
                 sb.Append(ariaInvalid);
                 sb.AppendLine(" />");
-                sb.AppendLine($@"            <label class=""prism-label prism-label--inline"" for=""{Encode(radioId)}"">{Encode(option)}</label>");
-                sb.AppendLine("        </div>");
+                sb.AppendLine($@"                <label class=""govuk-label govuk-radios__label"" for=""{Encode(radioId)}"">{Encode(option)}</label>");
+                sb.AppendLine("            </div>");
             }
         }
+        sb.AppendLine("        </div>");
 
         sb.AppendLine("    </fieldset>");
     }
 
     private void RenderCheckboxList(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid)
     {
-        sb.AppendLine(@"    <fieldset class=""prism-fieldset"">");
-        sb.Append($@"        <legend class=""prism-legend"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
+        sb.AppendLine(@"    <fieldset class=""govuk-fieldset"">");
+        sb.Append($@"        <legend class=""govuk-fieldset__legend"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
         sb.AppendLine("</legend>");
 
-        if (hasHint) sb.AppendLine($@"        <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"        <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
+        if (hasHint) sb.AppendLine($@"        <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"        <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
         var currentValue = submittedValue ?? field.Value?.ToString();
         var checkedValues = currentValue?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             ?? Array.Empty<string>();
 
+        sb.AppendLine(@"        <div class=""govuk-checkboxes"" data-module=""govuk-checkboxes"">");
         if (field.Options != null)
         {
             foreach (var option in field.Options)
             {
-                // Prefix with "opt-" to prevent DOM ID collision with sibling field keys
                 var cbId = $"opt-{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
                 var isChecked = checkedValues.Contains(option, StringComparer.OrdinalIgnoreCase);
 
-                sb.AppendLine(@"        <div class=""prism-checkbox-item"">");
-                sb.Append($@"            <input class=""prism-checkbox"" type=""checkbox"" id=""{Encode(cbId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
+                sb.AppendLine(@"            <div class=""govuk-checkboxes__item"">");
+                sb.Append($@"                <input class=""govuk-checkboxes__input"" type=""checkbox"" id=""{Encode(cbId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
                 if (isChecked) sb.Append(" checked");
                 sb.Append(requiredAttr);
                 sb.Append(ariaRequired);
                 sb.Append(ariaInvalid);
                 sb.AppendLine(" />");
-                sb.AppendLine($@"            <label class=""prism-label prism-label--inline"" for=""{Encode(cbId)}"">{Encode(option)}</label>");
-                sb.AppendLine("        </div>");
+                sb.AppendLine($@"                <label class=""govuk-label govuk-checkboxes__label"" for=""{Encode(cbId)}"">{Encode(option)}</label>");
+                sb.AppendLine("            </div>");
             }
         }
+        sb.AppendLine("        </div>");
 
         sb.AppendLine("    </fieldset>");
     }
 
     private void RenderSelect(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
     {
-        sb.Append($@"    <label class=""prism-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
+        sb.Append($@"    <label class=""govuk-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
         sb.AppendLine("</label>");
 
-        if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
+        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
         var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString();
 
         if (field.ReadOnly)
         {
-            // Render as plain text with hidden input for readonly select
-            sb.AppendLine($@"    <div class=""prism-field__readonly-display"">{Encode(currentValue ?? "")}</div>");
+            sb.AppendLine($@"    <div class=""govuk-body"">{Encode(currentValue ?? "")}</div>");
             sb.AppendLine($@"    <input type=""hidden"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue ?? "")}"">");
         }
         else
         {
-            sb.Append($@"    <select class=""prism-select{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" data-label=""{Encode(field.Label)}""");
+            sb.Append($@"    <select class=""govuk-select{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" data-label=""{Encode(field.Label)}""");
             sb.Append(requiredAttr);
             sb.Append(ariaRequired);
             sb.Append(ariaInvalid);
@@ -238,17 +241,17 @@ public class PrismFieldTagHelper : TagHelper
 
     private void RenderTextarea(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
     {
-        sb.Append($@"    <label class=""prism-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
+        sb.Append($@"    <label class=""govuk-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
         sb.AppendLine("</label>");
 
-        if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
+        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
         var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
 
-        sb.Append($@"    <textarea class=""prism-textarea{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" rows=""5"" data-label=""{Encode(field.Label)}""");
+        sb.Append($@"    <textarea class=""govuk-textarea{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" rows=""5"" data-label=""{Encode(field.Label)}""");
         sb.Append(requiredAttr);
         sb.Append(minLengthAttr);
         sb.Append(maxLengthAttr);
@@ -273,12 +276,12 @@ public class PrismFieldTagHelper : TagHelper
         };
         var step = fieldType == "decimal" ? @" step=""any""" : string.Empty;
 
-        sb.Append($@"    <label class=""prism-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""prism-required"" aria-hidden=""true"">*</span>");
+        sb.Append($@"    <label class=""govuk-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
+        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
         sb.AppendLine("</label>");
 
-        if (hasHint) sb.AppendLine($@"    <div class=""prism-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""prism-field-error"" id=""{errorId}"" role=""alert"">{Encode(fieldError!)}</p>");
+        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
+        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
 
         var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
         var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
@@ -293,7 +296,7 @@ public class PrismFieldTagHelper : TagHelper
             constraintAttrs = minAttr + maxAttr;
         }
 
-        sb.Append($@"    <input class=""prism-input{readonlyCssClass}"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}"" data-label=""{Encode(field.Label)}""");
+        sb.Append($@"    <input class=""govuk-input{readonlyCssClass}"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}"" data-label=""{Encode(field.Label)}""");
         sb.Append(step);
         sb.Append(requiredAttr);
         sb.Append(constraintAttrs);

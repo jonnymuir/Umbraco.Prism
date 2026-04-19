@@ -7,21 +7,21 @@
     {
       "stateKey": "collecting-info",
       "displayName": "Tell us about yourself",
-      "archetype": "Collect",
+      "stepType": "question",
       "allowedActions": ["submit", "save-draft"],
       "fieldGroupKeys": ["personal-details", "request-details"]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your request is being reviewed",
-      "archetype": "StatusTimeline",
+      "stepType": "status-timeline",
       "allowedActions": [],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "complete",
       "displayName": "Request Complete",
-      "archetype": "Completion",
+      "stepType": "confirmation",
       "allowedActions": ["start-another"],
       "fieldGroupKeys": []
     }

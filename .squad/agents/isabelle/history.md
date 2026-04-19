@@ -9,6 +9,35 @@ Previous history archived to reduce file size. Recent entries below.
 
 ---
 
+## Session: 2026-04-19 — GDS View Layer for Workflow Engine
+
+**Role:** Frontend developer; GOV.UK Design System integration for workflow views.
+
+**Outcomes:**
+- Installed govuk-frontend 5.9.0 in TestSite via npm
+- Added MSBuild target to install govuk-frontend and copy assets before build
+- Updated Master.cshtml with GDS template classes and govuk-frontend.min.css/js
+- Renamed _WorkflowStep-Collect.cshtml → _WorkflowStep-Question.cshtml
+- Updated all workflow step partials (_Review, _Completion, _StatusTimeline) to use GDS patterns
+- Created new _WorkflowStep-TaskList.cshtml with GDS task list pattern
+- Refactored PrismFieldTagHelper to emit govuk-* classes instead of prism-*
+- Updated PrismErrorSummaryTagHelper to match GDS error summary structure
+- Updated WorkflowPage.cshtml dispatch to map archetype names to new partial names
+- Build passes with no errors
+
+**Key Learnings:**
+- GDS requires govuk-template and govuk-template__body classes on html/body for proper styling
+- GDS error messages need `<span class="govuk-visually-hidden">Error:</span>` prefix for screen readers
+- GDS required indicators use visually-hidden text, not asterisks
+- GDS radios/checkboxes need data-module attributes for progressive enhancement
+- GDS fieldset legends use govuk-fieldset__legend class, not govuk-legend
+- MSBuild targets can run npm commands before build to keep frontend dependencies fresh
+- Prism CSS can coexist with GDS CSS; only workflow views use GDS classes
+
+**Status:** ✅ Complete; workflow views now use GOV.UK Design System patterns.
+
+---
+
 
 ## Session: 2026-04-13 — Generic OIDC Secret Refactor (UI Alignment)
 
@@ -113,8 +142,72 @@ Security audit identified dangerous debug/demo surfaces exposed inappropriately:
 - Prism:EnableDownstreamDemo (bool) — Enables downstream demo outside Development
 - Prism:DownstreamDemo:AllowedUrls (string[]) — Additional URLs for token forwarding
 
+- Tests document expected behavior
+   - Future refactoring won't accidentally weaken security
+
+**Files Modified:**
+- src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs — environment gating
+- src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs — environment gating + URL allowlist
+- src/UmbracoPrism.TestSite/Views/HomePage.cshtml — documentation comment
+- src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml — documentation comment
+- src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs — 5 new security tests
+
+**Configuration Options Introduced:**
+- Prism:EnableDebugPanel (bool) — Enables debug panel outside Development
+- Prism:EnableDownstreamDemo (bool) — Enables downstream demo outside Development
+- Prism:DownstreamDemo:AllowedUrls (string[]) — Additional URLs for token forwarding
+
 **Impact:**
 Production deployments are now safe from:
 - Unintentional exposure of sensitive claim/tenant data via debug panel
 - Token forwarding to attacker-controlled URLs
 - While preserving full developer ergonomics in local Development environment
+
+---
+
+## Session: GDS View Layer Phase 1 Completion (2026-04-20)
+
+**Topic:** Rebuild workflow views with GOV.UK Design System patterns
+
+**Status:** ✅ Complete — All views GDS-compliant, 416 tests passing, build clean
+
+### Delivered
+
+**1. npm & Build Infrastructure**
+- Added `govuk-frontend: ^5.9.0` to package.json
+- Created MSBuild `InstallGovukFrontend` target (runs `npm ci`, copies assets to wwwroot before build)
+- Copied govuk-frontend.min.css (129KB) and govuk-frontend.min.js (47KB) to wwwroot
+
+**2. Master Layout Updates**
+- Added `class="govuk-template"` to `<html>`
+- Added `class="govuk-template__body"` to `<body>`
+- Linked govuk-frontend.min.css before site CSS
+- Added govuk-frontend.min.js with `GOVUKFrontend.initAll()`
+- Kept Prism CSS for non-workflow areas (header, nav)
+
+**3. Workflow Step Partials**
+- **_WorkflowStep-Question.cshtml** (NEW, replaces Collect) — GDS one-thing-per-page
+- **_WorkflowStep-Review.cshtml** — GDS check-answers with `govuk-summary-list`
+- **_WorkflowStep-Completion.cshtml** — GDS confirmation panel pattern
+- **_WorkflowStep-StatusTimeline.cshtml** — Updated with GDS typography/buttons
+- **_WorkflowStep-TaskList.cshtml** (NEW) — GDS task list with status tags
+
+**4. TagHelper Refactoring**
+- **PrismFieldTagHelper:** Emit `govuk-*` classes (form-group, label, hint, error-message, input, textarea, select, radios, checkboxes)
+- **PrismErrorSummaryTagHelper:** GDS error summary structure with `data-module`, alert role, nested elements
+
+**5. View Dispatch**
+- Updated WorkflowPage.cshtml switch: maps lowercase archetype values to correct partial names
+
+**6. Backward Compatibility**
+- Prism CSS still loads for non-workflow pages
+- Conditional fields attributes preserved for existing `prism-conditional-fields.js`
+- Old field types (radio, checkboxlist) render identically to GDS (radios, checkboxes)
+
+### Orchestration Log
+- `.squad/orchestration-log/2026-04-20T08:40:50Z-isabelle-gds-views.md`
+
+### Cross-Agent Coordination
+- **Blathers:** Provided StepType models and field extensions
+- **Tangy:** Validated with 416 tests
+- **Scribe:** Merged decisions, orchestrated git commit

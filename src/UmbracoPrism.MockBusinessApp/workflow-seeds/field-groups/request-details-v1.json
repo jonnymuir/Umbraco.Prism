@@ -27,7 +27,7 @@
       "fieldKey": "urgency",
       "label": "How urgent is this?",
       "hint": "",
-      "fieldType": "radio",
+      "fieldType": "radios",
       "required": true,
       "options": [
         "Standard (5-7 working days)",

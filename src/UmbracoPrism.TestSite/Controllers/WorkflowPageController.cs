@@ -271,7 +271,7 @@ public class WorkflowPageController(
             StateVersion = envelope.StateVersion,
             WorkflowKey = workflowKey,
             ReturnUrl = HttpContext.Request.PathBase + HttpContext.Request.Path,
-            Archetype = render?.Archetype ?? string.Empty,
+            Archetype = render?.StepType ?? string.Empty,
             StateDisplayName = render?.StateDisplayName ?? string.Empty,
             FieldGroups = render?.FieldGroups ?? Array.Empty<FieldGroupRenderPayload>(),
             AvailableActions = render?.AvailableActions ?? Array.Empty<WorkflowAction>(),

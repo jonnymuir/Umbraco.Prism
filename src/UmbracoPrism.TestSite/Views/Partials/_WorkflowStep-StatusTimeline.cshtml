@@ -1,10 +1,29 @@
 @model UmbracoPrism.TestSite.Models.WorkflowViewModel
 
-<div class="prism-workflow prism-workflow--status">
-    <div class="prism-status__icon" aria-hidden="true">⏳</div>
-    <h2 class="prism-status__heading">@Model.StateDisplayName</h2>
-    <p class="prism-status__body">
-        We've received your submission and it's currently being reviewed.
-        You'll hear from us soon — no further action is needed right now.
-    </p>
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-l">@Model.StateDisplayName</h1>
+        <p class="govuk-body">
+            We've received your submission and it's currently being reviewed.
+            You'll hear from us soon — no further action is needed right now.
+        </p>
+        
+        @if (Model.AvailableActions.Any())
+        {
+            <div class="govuk-button-group">
+                @foreach (var action in Model.AvailableActions)
+                {
+                    var btnClass = action.Style switch
+                    {
+                        "primary" => "govuk-button",
+                        "destructive" => "govuk-button govuk-button--warning",
+                        _ => "govuk-button govuk-button--secondary"
+                    };
+                    <a href="/" class="@btnClass" data-module="govuk-button">
+                        @action.Label
+                    </a>
+                }
+            </div>
+        }
+    </div>
 </div>

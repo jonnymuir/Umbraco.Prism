@@ -1,0 +1,62 @@
+{
+  "definitionKey": "planning-notification",
+  "displayName": "Apply for Planning Permission",
+  "version": 1,
+  "instancePolicy": "single",
+  "initialState": "project-details",
+  "states": [
+    {
+      "stateKey": "project-details",
+      "displayName": "Describe your project",
+      "stepType": "question",
+      "allowedActions": ["continue"],
+      "fieldGroupKeys": ["project-info"]
+    },
+    {
+      "stateKey": "work-type",
+      "displayName": "Type of work",
+      "stepType": "question",
+      "allowedActions": ["continue", "back"],
+      "fieldGroupKeys": ["work-type-info"]
+    },
+    {
+      "stateKey": "timeline-cost",
+      "displayName": "Timeline and cost",
+      "stepType": "question",
+      "allowedActions": ["continue", "back"],
+      "fieldGroupKeys": ["timeline-cost-info"]
+    },
+    {
+      "stateKey": "affected-parties",
+      "displayName": "Affected parties",
+      "stepType": "question",
+      "allowedActions": ["continue", "back"],
+      "fieldGroupKeys": ["affected-parties-info"]
+    },
+    {
+      "stateKey": "check-answers",
+      "displayName": "Check your answers",
+      "stepType": "check-answers",
+      "allowedActions": ["submit", "back"],
+      "fieldGroupKeys": []
+    },
+    {
+      "stateKey": "complete",
+      "displayName": "Application received",
+      "stepType": "confirmation",
+      "allowedActions": ["start-another"],
+      "fieldGroupKeys": []
+    }
+  ],
+  "transitions": [
+    { "fromState": "project-details", "toState": "work-type", "action": "continue" },
+    { "fromState": "work-type", "toState": "timeline-cost", "action": "continue" },
+    { "fromState": "work-type", "toState": "project-details", "action": "back" },
+    { "fromState": "timeline-cost", "toState": "affected-parties", "action": "continue" },
+    { "fromState": "timeline-cost", "toState": "work-type", "action": "back" },
+    { "fromState": "affected-parties", "toState": "check-answers", "action": "continue" },
+    { "fromState": "affected-parties", "toState": "timeline-cost", "action": "back" },
+    { "fromState": "check-answers", "toState": "complete", "action": "submit" },
+    { "fromState": "check-answers", "toState": "affected-parties", "action": "back" }
+  ]
+}

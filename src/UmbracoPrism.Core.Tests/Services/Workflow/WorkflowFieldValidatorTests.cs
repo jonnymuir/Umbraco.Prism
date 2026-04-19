@@ -58,6 +58,11 @@ public class WorkflowFieldValidatorTests
     [InlineData("boolean", "true")]
     [InlineData("textarea", "Long text here")]
     [InlineData("date", "2024-04-10")]
+    [InlineData("radios", "option1")]
+    [InlineData("checkboxes", "item1")]
+    [InlineData("currency", "1234.56")]
+    [InlineData("currency", "999")]
+    [InlineData("file", "somefile.pdf")]
     public void GivenFieldType_WhenValidValue_ThenIsValidTrue(string fieldType, string value)
     {
         var authoritative = new List<FieldRenderPayload>
@@ -68,7 +73,7 @@ public class WorkflowFieldValidatorTests
                 Label = "Field",
                 FieldType = fieldType,
                 Required = true,
-                Options = fieldType is "select" or "radio" or "checkboxlist"
+                Options = fieldType is "select" or "radio" or "checkboxlist" or "radios" or "checkboxes"
                     ? new List<string> { "option1", "choice2", "item1", "item2" }
                     : null
             }
@@ -861,5 +866,100 @@ public class WorkflowFieldValidatorTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("enquiry-type-other");
+    }
+
+    // ------------------------------------------------------------------ GDS Field Types
+
+    [Fact]
+    public void GivenDateInputField_WhenAllPartsProvided_ThenIsValidTrue()
+    {
+        // date-input submits as {key}-day, {key}-month, {key}-year
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["dob-day"] = "15",
+            ["dob-month"] = "3",
+            ["dob-year"] = "1990"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenDateInputField_WhenDayPartMissing_WhenRequired_ThenIsValidFalse()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["dob-month"] = "3",
+            ["dob-year"] = "1990"
+            // day missing
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("dob");
+    }
+
+    [Fact]
+    public void GivenDateInputField_WhenYearInvalid_ThenIsValidFalse()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date-input", Required = true }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["dob-day"] = "15",
+            ["dob-month"] = "3",
+            ["dob-year"] = "99"  // 2-digit year
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GivenDateInputField_WhenNotRequired_WhenAllEmpty_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "optionalDate", Label = "Optional date", FieldType = "date-input", Required = false }
+        };
+        var submitted = new Dictionary<string, string>(); // nothing submitted
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("1234.56", true)]
+    [InlineData("999", true)]
+    [InlineData("0", true)]
+    [InlineData("1,234.56", false)]  // commas not valid decimal
+    [InlineData("£100", false)]      // prefix not valid
+    [InlineData("abc", false)]       // not a number
+    public void GivenCurrencyField_WhenValueSubmitted_ThenValidatesCorrectly(string value, bool expectedValid)
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "cost", Label = "Estimated cost", FieldType = "currency", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["cost"] = value };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().Be(expectedValid);
     }
 }

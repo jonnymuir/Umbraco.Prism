@@ -22,14 +22,21 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
     {
         var errors = new Dictionary<string, string>();
 
-        // Build authoritative field key set (including checkboxlist variations)
+        // Build authoritative field key set (including checkboxlist/checkboxes variations and date-input parts)
         var authoritativeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var field in authoritative)
         {
             authoritativeKeys.Add(field.FieldKey);
-            if (field.FieldType.Equals("checkboxlist", StringComparison.OrdinalIgnoreCase))
+            var fieldType = field.FieldType.ToLowerInvariant();
+            if (fieldType == "checkboxlist" || fieldType == "checkboxes")
             {
                 authoritativeKeys.Add($"{field.FieldKey}[]");
+            }
+            if (fieldType == "date-input")
+            {
+                authoritativeKeys.Add($"{field.FieldKey}-day");
+                authoritativeKeys.Add($"{field.FieldKey}-month");
+                authoritativeKeys.Add($"{field.FieldKey}-year");
             }
         }
 
@@ -119,11 +126,33 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
             return value;
         }
 
-        // Check for checkboxlist suffix
-        if (field.FieldType.Equals("checkboxlist", StringComparison.OrdinalIgnoreCase) &&
+        var fieldType = field.FieldType.ToLowerInvariant();
+
+        // Check for checkboxlist/checkboxes suffix
+        if ((fieldType == "checkboxlist" || fieldType == "checkboxes") &&
             submitted.TryGetValue($"{field.FieldKey}[]", out var suffixedValue))
         {
             return suffixedValue;
+        }
+
+        // Check for date-input parts
+        if (fieldType == "date-input")
+        {
+            submitted.TryGetValue($"{field.FieldKey}-day", out var day);
+            submitted.TryGetValue($"{field.FieldKey}-month", out var month);
+            submitted.TryGetValue($"{field.FieldKey}-year", out var year);
+            
+            // If all parts present, combine them
+            if (!string.IsNullOrWhiteSpace(day) && !string.IsNullOrWhiteSpace(month) && !string.IsNullOrWhiteSpace(year))
+            {
+                return $"{year}-{month}-{day}";
+            }
+            
+            // If any part is present, return a marker (required check will handle)
+            if (!string.IsNullOrWhiteSpace(day) || !string.IsNullOrWhiteSpace(month) || !string.IsNullOrWhiteSpace(year))
+            {
+                return "PARTIAL";
+            }
         }
 
         return string.Empty;
@@ -134,7 +163,9 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
         switch (field.FieldType.ToLowerInvariant())
         {
             case "number":
-                if (!decimal.TryParse(raw, out _))
+            case "currency":
+                if (!decimal.TryParse(raw, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign, 
+                    System.Globalization.CultureInfo.InvariantCulture, out _))
                 {
                     return $"{field.Label} must be a number.";
                 }
@@ -162,6 +193,19 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                 }
                 break;
 
+            case "date-input":
+                // Validation happens in GetSubmittedValue
+                if (raw == "PARTIAL")
+                {
+                    return $"{field.Label} must include day, month, and year.";
+                }
+                // Parse the reconstructed date (YYYY-MM-DD format)
+                if (!DateTime.TryParse(raw, out _))
+                {
+                    return $"{field.Label} must be a valid date.";
+                }
+                break;
+
             case "datetime":
                 if (!DateTime.TryParse(raw, out _))
                 {
@@ -181,12 +225,13 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
         }
 
         var fieldType = field.FieldType.ToLowerInvariant();
-        if (fieldType != "select" && fieldType != "radio" && fieldType != "checkboxlist")
+        if (fieldType != "select" && fieldType != "radio" && fieldType != "radios" 
+            && fieldType != "checkboxlist" && fieldType != "checkboxes")
         {
             return null;
         }
 
-        var submittedValues = fieldType == "checkboxlist"
+        var submittedValues = (fieldType == "checkboxlist" || fieldType == "checkboxes")
             ? raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : new[] { raw };
 
@@ -232,9 +277,11 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
             }
         }
 
-        // Min/Max for number fields
-        if (field.FieldType.Equals("number", StringComparison.OrdinalIgnoreCase) &&
-            decimal.TryParse(raw, out var numericValue))
+        // Min/Max for number/currency fields
+        var fieldType = field.FieldType.ToLowerInvariant();
+        if ((fieldType == "number" || fieldType == "currency") &&
+            decimal.TryParse(raw, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out var numericValue))
         {
             if (field.Min.HasValue && numericValue < field.Min.Value)
             {

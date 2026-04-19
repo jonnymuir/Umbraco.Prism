@@ -21,7 +21,7 @@
       "fieldKey": "dateOfBirth",
       "label": "Date of birth",
       "hint": "For example, 12 03 1985",
-      "fieldType": "date",
+      "fieldType": "date-input",
       "required": true
     },
     {

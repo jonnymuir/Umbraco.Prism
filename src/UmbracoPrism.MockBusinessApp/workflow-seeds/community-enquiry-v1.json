@@ -8,21 +8,21 @@
     {
       "stateKey": "collecting-details",
       "displayName": "Tell us about your enquiry",
-      "archetype": "Collect",
+      "stepType": "question",
       "allowedActions": ["submit", "save-draft"],
       "fieldGroupKeys": ["about-you", "your-enquiry"]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your enquiry is with us",
-      "archetype": "StatusTimeline",
+      "stepType": "status-timeline",
       "allowedActions": [],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "complete",
       "displayName": "We're in touch!",
-      "archetype": "Completion",
+      "stepType": "confirmation",
       "allowedActions": ["start-another"],
       "fieldGroupKeys": []
     }

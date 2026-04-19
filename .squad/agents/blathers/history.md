@@ -10,6 +10,80 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: GDS Workflow Models Evolution (2026-04-20)
+
+**Topic:** Evolve C# models and Business App engine for full GDS step descriptor protocol
+
+**Outcome:** ✅ Complete — All models updated, validator extended, new planning workflow seed created
+
+### Delivered
+
+**1. Model Evolution (Archetype → StepType)**
+- Renamed `WorkflowRenderPayload.Archetype` → `StepType` across shared models
+- Renamed `WorkflowStateFile.Archetype` → `StepType` in workflow definitions
+- Updated step type values: `"Collect"` → `"question"`, `"Review"` → `"check-answers"`, `"Completion"` → `"confirmation"`, `"StatusTimeline"` → `"status-timeline"`
+- Added new step type: `"task-list"` (for GOV.UK task list pattern)
+
+**2. Field Model Extensions**
+- Added `Prefix` property to `FieldFile` and `FieldRenderPayload` (for currency symbols like "£")
+- Added `ConditionalFields` property (dictionary mapping option values to revealed sub-fields)
+- Enables GDS radios/checkboxes with conditional reveal pattern
+
+**3. WorkflowFieldValidator Updates**
+- Added support for `radios` (alias for `radio`)
+- Added support for `checkboxes` (alias for `checkboxlist`)
+- Implemented `date-input` validation (3-part day/month/year submission, reconstructs ISO date)
+- Implemented `currency` validation (decimal with InvariantCulture, rejects commas)
+- Whitelisted `file` field type (validation deferred)
+- Culture-safe decimal parsing prevents locale-dependent comma acceptance
+
+**4. BusinessAppWorkflowEngine Updates**
+- Updated `BuildEnvelope` to use `state.StepType` for response state mapping
+- Updated `GetInstances` to use `state.StepType` for completion checks
+- Engine correctly maps `"status-timeline"` → `"wait"`, `"confirmation"` → `"complete"`
+
+**5. Workflow Seeds**
+- Updated existing seeds: `information-request-v1.json`, `community-enquiry-v1.json`
+- Updated field groups: `personal-details-v1.json` (date → date-input), `request-details-v1.json` (radio → radios)
+- Created new seed: `planning-notification-v1.json` — realistic GOV.UK planning permission application
+- Created field groups: `project-info-v1.json`, `work-type-info-v1.json` (radios with conditional reveal), `timeline-cost-info-v1.json` (date-input + currency), `affected-parties-info-v1.json` (checkboxes)
+
+**6. Controller Bridge**
+- Updated `WorkflowPageController.BuildViewModel` to map `StepType` → ViewModel `Archetype`
+- Preserves front-end contract during transition period
+
+### Validation
+
+- ✅ Build clean — no warnings or errors
+- ✅ All 416 Core tests passing
+- ✅ Currency validation rejects commas (`"1,234.56"` → invalid)
+- ✅ Currency validation accepts plain decimals (`"1234.56"` → valid)
+- ✅ Date-input field key whitelist working (`{key}-day`, `{key}-month`, `{key}-year`)
+
+### Key Insights
+
+- InvariantCulture parsing critical for predictable decimal validation across locales
+- Conditional fields stored as dictionary on parent field (clean GDS pattern)
+- Backward compatibility maintained: old field types (`date`, `radio`, `checkboxlist`) still work
+- No redundant code left behind — evolved existing structures in-place
+
+### Architecture Decisions
+
+- Renamed property (`Archetype` → `StepType`) but kept ViewModel property name for front-end stability
+- Field validator whitelist includes 3-part date submissions automatically
+- Currency fields validate as decimals (no thousand separators, no currency symbols)
+- Partial date-input submissions flagged with `"PARTIAL"` marker for clear error messages
+
+### Follow-up
+
+- Brewster/Isabelle: Update Razor views to render new field types (radios with conditional reveal, date-input 3-part, currency with prefix)
+- Tangy: Add comprehensive test coverage for new field types
+- Blathers: Wire `task-list` step type into engine logic when pattern is finalized
+
+**Decision Merged:** `.squad/decisions/inbox/blathers-gds-models.md` — "GDS Models Evolution"
+
+---
+
 ## Session: Aspire localhost auth CI job (2026-04-14T18:06:05Z)
 
 **Topic:** Add separate GitHub Actions job for the Aspire-backed localhost auth/session Playwright lane
@@ -336,4 +410,47 @@ Both must be handled for restart resilience.
 
 **Session Log:** `.squad/log/2026-04-19T07:59:21Z-gds-workflow-engine-design.md`
 **Decision Merged:** `.squad/decisions.md` — "2026-04-19: Tom Nook & Brewster — GDS Step Descriptor Protocol & Element Type Extensibility"
+
+---
+
+## Session: GDS Workflow Models Phase 1 Completion (2026-04-20)
+
+**Topic:** Complete C# model evolution for GDS workflow engine
+
+**Status:** ✅ Complete — All changes validated, 416 tests passing, build clean
+
+### Delivered
+
+**1. Model Evolution (Archetype → StepType)**
+- Renamed `WorkflowRenderPayload.Archetype` → `StepType` across shared models (UmbracoPrism.Shared, MockBusinessApp)
+- Updated step type values with GDS names: `"question"`, `"check-answers"`, `"confirmation"`, `"task-list"`, `"status-timeline"`
+- Updated `BusinessAppWorkflowEngine` to use `state.StepType` for response state mapping
+- Updated `WorkflowPageController` bridge: maps `render?.StepType` → ViewModel `Archetype` for transition period
+
+**2. Field Model Extensions**
+- Added `Prefix` property (currency symbols like "£")
+- Added `ConditionalFields` dictionary (for GDS radios/checkboxes with conditional reveal)
+
+**3. WorkflowFieldValidator Extended**
+- Added support for: `radios`, `checkboxes`, `date-input` (3-part with ISO reconstruction), `currency`, `file`
+- Backward compatible: `radio`, `checkboxlist`, `date` still work
+- Currency validation: decimal with InvariantCulture (rejects commas, symbols)
+- Date-input validation: reconstructs from day/month/year parts
+
+**4. Workflow Seeds**
+- Updated existing seeds (information-request-v1.json, community-enquiry-v1.json, personal-details-v1.json, request-details-v1.json)
+- Created new: `planning-notification-v1.json` (realistic GOV.UK planning app with all new field types)
+- Created field groups: project-info-v1.json, work-type-info-v1.json (with conditionalFields), timeline-cost-info-v1.json (date-input + currency), affected-parties-info-v1.json
+
+**5. Test Coverage**
+- 416 tests passing (406 baseline + 10 new GDS field type tests from Tangy)
+- All new field types validated
+
+### Orchestration Log
+- `.squad/orchestration-log/2026-04-20T08:40:50Z-blathers-gds-implementation.md`
+
+### Cross-Agent Coordination
+- **Isabelle:** Built views with GDS patterns (govuk-frontend 5.9.0)
+- **Tangy:** Added 10 test cases for new field types
+- **Scribe:** Merged decisions, created session log, coordinated git commit
 
