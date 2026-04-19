@@ -27,9 +27,13 @@
     }
     else
     {
-        @* Step partials own the page h1. The outer template does not render one here.
-           Step type names follow the workflow definition JSON ("question", "check-answers",
-           "confirmation", "status-timeline"). Legacy aliases kept for backward compatibility. *@
+        @* Step type names follow the workflow definition JSON ("question", "check-answers",
+           "confirmation", "status-timeline"). Legacy aliases kept for backward compatibility.
+           H1 ownership:
+             - question: outer template renders the state displayName as h1; partial has no h1.
+             - check-answers: partial owns its h1 (govuk-heading-l with state displayName).
+             - confirmation: partial owns its h1 (govuk-panel__title with state displayName).
+             - unknown: partial assumed to own its h1; outer template provides one only if no partial. *@
         var partialName = Model.Archetype.ToLowerInvariant() switch
         {
             "question" or "collect" => "_WorkflowStep-Question",
@@ -42,6 +46,12 @@
         var viewResult = _viewEngine.GetView(null, partialPath, false);
         if (viewResult.Success)
         {
+            if (partialName == "_WorkflowStep-Question")
+            {
+                <div class="workflow-page__header">
+                    <h1 class="workflow-page__title">@Model.StateDisplayName</h1>
+                </div>
+            }
             @await Html.PartialAsync(partialName, Model)
         }
         else

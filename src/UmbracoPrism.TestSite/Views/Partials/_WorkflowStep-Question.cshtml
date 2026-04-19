@@ -10,11 +10,13 @@
 
     @foreach (var group in Model.FieldGroups)
     {
+        @* The outer workflowPage.cshtml template renders the page h1 (state displayName).
+           Field group names appear as fieldset legends only — no competing h1 inside. *@
         @if (group.Fields.Count > 1)
         {
             <fieldset class="govuk-fieldset">
                 <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
-                    <h1 class="govuk-fieldset__heading">@group.DisplayName</h1>
+                    @group.DisplayName
                 </legend>
                 @foreach (var field in group.Fields)
                 {
@@ -24,10 +26,9 @@
         }
         else
         {
-            @* Single field: render with h1 label styling *@
             @foreach (var field in group.Fields)
             {
-                <prism-field field="@field" errors="@Model.FieldErrors" values="@Model.FormValues" is-page-heading="true" />
+                <prism-field field="@field" errors="@Model.FieldErrors" values="@Model.FormValues" />
             }
         }
     }
