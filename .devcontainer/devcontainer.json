@@ -60,11 +60,17 @@
     }
   },
   "customizations": {
+    "codespaces": {
+      "openFiles": ["CODESPACES.md"]
+    },
     "vscode": {
       "extensions": [
         "ms-dotnettools.csdevkit",
         "ms-dotnettools.csharp"
-      ]
+      ],
+      "settings": {
+        "workbench.startupEditor": "none"
+      }
     }
   }
 }
