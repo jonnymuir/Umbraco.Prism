@@ -69,7 +69,10 @@
         "ms-dotnettools.csharp"
       ],
       "settings": {
-        "workbench.startupEditor": "none"
+        "workbench.startupEditor": "none",
+        "workbench.editorAssociations": {
+          "**/CODESPACES.md": "vscode.markdown.preview.editor"
+        }
       }
     }
   }
