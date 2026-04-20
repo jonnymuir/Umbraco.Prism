@@ -10,7 +10,8 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DOTNET_ENVIRONMENT": "Development",
         "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21233",
-        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22194"
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22194",
+        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true"
       }
     }
   }
