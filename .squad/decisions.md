@@ -925,3 +925,53 @@ For production or shared environments, use authenticated OTLP endpoints:
 **Option B: Keep the warning** — Rejected (warnings should be addressed or explicitly suppressed)
 
 ---
+
+## 📌 2026-04-20: Copper — Aspire OTLP AuthMode Configuration
+
+**Decision:** Set `Dashboard__Otlp__AuthMode=Unsecured` explicitly in development launch configuration
+
+**Context:**
+- Aspire Dashboard showed persistent warning: "Telemetry endpoint is unsecured. Untrusted apps can send telemetry to the dashboard."
+- Previous fix attempts used `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` and `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`, but neither suppressed the warning.
+
+**Root Cause Analysis:**
+- `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS` controls dashboard **UI** authentication, not OTLP endpoint security
+- `ASPIRE_ALLOW_UNSECURED_TRANSPORT` controls whether HTTP (non-HTTPS) transport is allowed; irrelevant since OTLP endpoint is already HTTPS
+- The warning is about **missing API key authentication** on the OTLP endpoint itself — any process can push telemetry without credentials
+
+**Correct Fix:**
+The Aspire Dashboard reads `Dashboard:Otlp:AuthMode` (environment variable: `Dashboard__Otlp__AuthMode`) to determine OTLP authentication mode:
+- `Unsecured` — No API key required (development mode). Explicitly setting this value suppresses the warning because it signals intentional choice rather than accidental misconfiguration.
+- `ApiKey` — Requires API key authentication (production/non-shared environments)
+
+**Implementation:**
+Added `"Dashboard__Otlp__AuthMode": "Unsecured"` to `src/UmbracoPrism.AppHost/Properties/launchSettings.json` environment variables.
+
+**Security Posture:**
+
+### Development (Current)
+- **Mode:** `Unsecured`
+- **Risk:** Any local process can push telemetry to the dashboard
+- **Accepted:** Development environment on localhost with no sensitive telemetry data
+- **Boundary:** Machine-local only; dashboard and OTLP endpoints not exposed externally
+
+### Production Guidance
+For non-development environments (staging, production, shared dev):
+1. **Set `Dashboard__Otlp__AuthMode=ApiKey`**
+2. Configure API key via `Dashboard__Otlp__PrimaryApiKey` environment variable
+3. Distribute the API key to authorized telemetry sources via secure configuration management
+4. Consider mutual TLS for additional transport-layer authentication
+5. Ensure dashboard and OTLP endpoints are not publicly accessible
+
+**Cleanup:**
+Removed `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` from launch config — it was added in a previous fix attempt but does not affect OTLP authentication mode.
+
+**References:**
+- [Aspire Dashboard Configuration](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/dashboard/configuration)
+- ASP.NET Core environment variable double-underscore convention: `Section__Subsection__Key`
+
+**Author:** Copper (Security Engineer)  
+**Date:** 2026-04-20  
+**Files Modified:** `src/UmbracoPrism.AppHost/Properties/launchSettings.json`
+
+---
