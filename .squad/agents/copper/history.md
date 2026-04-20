@@ -84,3 +84,52 @@ Previous history archived to reduce file size. Recent entries below.
 **Session Log:** `.squad/log/2026-04-14T12:39:42Z-redirect-hardening.md`
 
 **Team Consensus:** Framework validators provide sufficient security control; whitelist is optional hardening for later policy decision.
+## 2025-01-23 — Aspire OTLP Telemetry Endpoint Security Configuration
+
+**Context:** Aspire AppHost dashboard showed security warning: "Telemetry endpoint is unsecured. Untrusted apps can send telemetry to the dashboard."
+
+**Investigation:**
+- Existing config had `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` in launchSettings.json
+- This variable controls dashboard UI access, NOT OTLP endpoint security
+- Missing `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` for Aspire 9.x OTLP endpoint
+
+**Finding:** In Aspire 9.x, the OTLP telemetry endpoint security is controlled by a separate environment variable (`ASPIRE_ALLOW_UNSECURED_TRANSPORT`), distinct from the dashboard UI authentication variable.
+
+**Security Decision:**
+- For localhost development: explicitly allow unsecured OTLP transport via `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`
+- Risk accepted: local dev environment with no sensitive data in telemetry
+- Documents acknowledgment: setting the variable explicitly acknowledges the unsecured posture
+- Production guidance documented: require API key auth or mutual TLS for non-dev environments
+
+**Fix Applied:**
+- Added `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` to `src/UmbracoPrism.AppHost/Properties/launchSettings.json` in the `https` profile
+- Build validation passed
+
+**Key Learning:**
+- Aspire 9.x separates dashboard UI security (`DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS`) from OTLP endpoint security (`ASPIRE_ALLOW_UNSECURED_TRANSPORT`)
+- Security warnings should be addressed explicitly (either fix the risk OR acknowledge it via configuration) rather than ignored
+- Development security posture should be documented with production-hardening guidance
+
+**Files Modified:**
+- `src/UmbracoPrism.AppHost/Properties/launchSettings.json`
+
+**Artifacts:** `.squad/decisions/inbox/copper-telemetry-security.md` (complete security analysis and production guidance)
+
+## 2026-04-20: Telemetry Security Configuration
+
+**Session:** 2026-04-20T21:17:20Z
+
+### Work Completed
+- Investigated unsecured Aspire OTLP telemetry endpoint warning
+- Root cause: Missing `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` in launch config
+- Added environment variable to development launch profile
+- Documented decision with security analysis and production guidance
+
+### Files Modified
+- `src/UmbracoPrism.AppHost/Properties/launchSettings.json` — Added ASPIRE_ALLOW_UNSECURED_TRANSPORT to https profile
+
+### Decision Recorded
+- `.squad/decisions.md` — Aspire OTLP telemetry endpoint security (development-scoped configuration with production guidance)
+
+### Status
+✅ Complete

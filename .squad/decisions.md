@@ -878,3 +878,50 @@ Added parameterized test `GivenCurrencyField_WhenValueSubmitted_ThenValidatesCor
 - Field types: `radios`, `checkboxes`, `date-input`, `currency` (plain names, not `SelectRadio`, `NumericCurrencyField`, etc.)
 
 **Pattern for team:** When choosing a name, ask: "Does this term clearly communicate what it is to someone reading the codebase for the first time?" If not, use a clearer term.
+
+---
+
+## 🔒 2026-04-20: Copper — Aspire OTLP Telemetry Endpoint Security
+
+**By:** Copper (Security Engineer)  
+**Decision:** Allow unsecured OTLP transport for local development environments
+
+### Context
+
+Aspire AppHost was displaying a security warning:
+> "Telemetry endpoint is unsecured. Untrusted apps can send telemetry to the dashboard."
+
+The OTLP (OpenTelemetry Protocol) endpoint was accepting telemetry without authentication.
+
+### Investigation
+
+- Root cause: Missing `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` environment variable
+- Existing `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` only controls dashboard UI access, not the telemetry endpoint
+- Aspire 9.x requires explicit acknowledgment of unsecured transport via environment variable
+
+### Decision Rationale
+
+For **local development only**, explicitly allow unsecured OTLP transport:
+1. **Development-only context:** All services run on localhost under developer control
+2. **Acceptable risk:** No sensitive data in dev telemetry; risk of untrusted telemetry is acceptable locally
+3. **Explicit acknowledgment:** Variable documents reviewed and accepted security posture
+4. **Reduces noise:** Suppresses warning so real security issues remain visible
+
+### Implementation
+
+- Added `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` to `https` launch profile in `src/UmbracoPrism.AppHost/Properties/launchSettings.json`
+- Build validation: passed
+
+### Production Guidance ⚠️
+
+For production or shared environments, use authenticated OTLP endpoints:
+- Set `Dashboard:Otlp:AuthMode=ApiKey` in production config
+- Distribute API keys securely
+- Consider network-level isolation (firewall, private networks)
+
+### Alternatives Considered
+
+**Option A: API Key Auth for Dev** — Rejected (adds complexity without security benefit in single-developer localhost)  
+**Option B: Keep the warning** — Rejected (warnings should be addressed or explicitly suppressed)
+
+---
