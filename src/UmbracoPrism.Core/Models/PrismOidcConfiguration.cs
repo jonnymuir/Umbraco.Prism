@@ -385,7 +385,22 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     // Generic OIDC provider - use standard OIDC discovery
                     try
                     {
-                        var metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
+                        // When KEYCLOAK_BACKCHANNEL_URL is set, fetch the discovery document from the
+                        // internal Keycloak HTTP address to bypass the GitHub Codespaces port-forward
+                        // proxy, which blocks unauthenticated server-side requests with an HTML page.
+                        // The ValidIssuer is set to tenant.OidcAuthority (external URL) so JWT iss
+                        // claim validation still passes regardless of what the discovery doc reports.
+                        var backchannelBaseForMetadata = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                        string metadataAddress;
+                        if (!string.IsNullOrEmpty(backchannelBaseForMetadata))
+                        {
+                            var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
+                            metadataAddress = $"{backchannelBaseForMetadata.TrimEnd('/')}{oidcPath}/.well-known/openid-configuration";
+                        }
+                        else
+                        {
+                            metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
+                        }
                         var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
                         var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
                             metadataAddress,
