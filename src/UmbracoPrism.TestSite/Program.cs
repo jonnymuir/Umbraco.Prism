@@ -36,6 +36,21 @@ if (testSitePublicUrl is not null)
 
 await app.BootUmbracoAsync();
 
+// Lightweight health check — responds immediately once Kestrel starts (which only
+// happens after BootUmbracoAsync returns). Used by the startup status page probe
+// on http://localhost:9250/api/health to reliably detect when the site is ready.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/api/health")
+    {
+        context.Response.StatusCode = 200;
+        context.Response.ContentType = "text/plain";
+        await context.Response.WriteAsync("ok");
+        return;
+    }
+    await next();
+});
+
 
 app.UseUmbraco()
     .WithMiddleware(u =>

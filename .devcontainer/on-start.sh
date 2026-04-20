@@ -78,7 +78,7 @@ echo -n "   Waiting for all services"
 for i in $(seq 1 150); do
     # Check Aspire + TestSite + Keycloak + MockBiz
     A=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" "$DASHBOARD_URL" 2>/dev/null)
-    T=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:44345 2>/dev/null)
+    T=$(curl -s --max-time 3 -o /dev/null -w "%{http_code}" http://localhost:9250/api/health 2>/dev/null)
     K=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:8443/realms/prism-dev 2>/dev/null)
     M=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:7245 2>/dev/null)
 

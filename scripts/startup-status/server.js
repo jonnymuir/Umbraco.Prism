@@ -66,7 +66,7 @@ const ASPIRE_PROBE_URL = `https://localhost:17214`;
 async function getStatus() {
   const [aspire, testsite, keycloak, mocbiz] = await Promise.all([
     probe(ASPIRE_PROBE_URL),
-    probe(`http://localhost:9250`),
+    probe(`http://localhost:9250/api/health`),
     probe(`https://localhost:8443/realms/prism-dev`),
     probe(`https://localhost:7245`),
   ]);
