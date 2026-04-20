@@ -123,4 +123,10 @@ if (testSitePublicUrl != null)
 if (codespaceName != null)
     testsite.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
 
+// BusinessApp also fetches Keycloak signing keys server-side for JWT Bearer validation.
+// Same backchannel fix: without this the external Keycloak URL is blocked by the
+// GitHub Codespaces proxy and every Bearer token is rejected with 401.
+if (codespaceName != null)
+    businessApp.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
+
 builder.Build().Run();

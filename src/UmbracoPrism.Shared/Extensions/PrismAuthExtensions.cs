@@ -189,7 +189,14 @@ public static class PrismAuthExtensions
         if (oidcTenant == null) return Enumerable.Empty<SecurityKey>();
 
         var cacheKey = oidcTenant.OidcAuthority!.TrimEnd('/');
-        var metadataAddress = $"{cacheKey}/.well-known/openid-configuration";
+        // KEYCLOAK_BACKCHANNEL_URL: in Codespaces the GitHub forwarded-port proxy blocks
+        // unauthenticated server-side requests to the external Keycloak URL. Use the
+        // internal HTTP address for metadata fetches while keeping OidcAuthority as the
+        // trusted issuer for token validation (same pattern as PrismOidcConfiguration).
+        var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+        var metadataAddress = !string.IsNullOrEmpty(backchannelBase)
+            ? $"{backchannelBase.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
+            : $"{cacheKey}/.well-known/openid-configuration";
 
         var oidcSnapshot = signingKeyCache.GetSnapshot(cacheKey, keyId);
 
