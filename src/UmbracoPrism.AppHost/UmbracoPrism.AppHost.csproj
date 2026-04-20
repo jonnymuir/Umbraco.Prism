@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Sdk Name="Aspire.AppHost.Sdk" Version="9.2.0" />
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.2.2" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.2.0" />
-    <PackageReference Include="KubernetesClient" Version="17.0.14" PrivateAssets="all" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.2.2" />
+    <PackageReference Include="KubernetesClient" Version="18.0.13" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
