@@ -85,7 +85,25 @@ var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.Keyclo
 // The Umbraco project uses a custom launch profile name, so select it explicitly
 // so Aspire can discover the applicationUrl endpoints and advertise them.
 var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj", launchProfileName: "https")
-    .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev");
+    .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev")
+    .WithUrls(ctx =>
+    {
+        var baseUrl = ctx.Urls
+            .Where(u => u.Url?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true)
+            .Select(u => new Uri(u.Url!))
+            .Select(uri => $"{uri.Scheme}://{uri.Authority}")
+            .FirstOrDefault();
+
+        if (baseUrl != null)
+        {
+            ctx.Urls.Add(new ResourceUrlAnnotation
+            {
+                Url = $"{baseUrl}/admin/workflow",
+                DisplayText = "Workflow Admin",
+                DisplayOrder = 1,
+            });
+        }
+    });
 
 var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", keycloakProxyUrl)
