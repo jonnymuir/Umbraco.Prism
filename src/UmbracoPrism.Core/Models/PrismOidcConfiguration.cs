@@ -385,35 +385,42 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     // Generic OIDC provider - use standard OIDC discovery
                     try
                     {
-                        // When KEYCLOAK_BACKCHANNEL_URL is set, fetch the discovery document from the
-                        // internal Keycloak HTTP address to bypass the GitHub Codespaces port-forward
-                        // proxy, which blocks unauthenticated server-side requests with an HTML page.
-                        // The ValidIssuer is set to tenant.OidcAuthority (external URL) so JWT iss
-                        // claim validation still passes regardless of what the discovery doc reports.
-                        var backchannelBaseForMetadata = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
-                        string metadataAddress;
-                        if (!string.IsNullOrEmpty(backchannelBaseForMetadata))
+                        // When KEYCLOAK_BACKCHANNEL_URL is set, fetch JWKS signing keys directly from
+                        // the internal Keycloak HTTP address rather than using ConfigurationManager.
+                        // ConfigurationManager fetches the discovery doc then follows the jwks_uri
+                        // embedded within it — but Keycloak sets jwks_uri using its frontend URL,
+                        // which in Codespaces is the external proxy address and is unreachable from
+                        // inside the container server-side. Fetching the JWKS directly from the known
+                        // Keycloak JWKS path bypasses that entirely.
+                        var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                        IEnumerable<SecurityKey> signingKeys;
+                        if (!string.IsNullOrEmpty(backchannelBase))
                         {
                             var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
-                            metadataAddress = $"{backchannelBaseForMetadata.TrimEnd('/')}{oidcPath}/.well-known/openid-configuration";
+                            var jwksUrl = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/certs";
+                            logger.LogDebug("Prism: fetching JWKS from backchannel URL {JwksUrl}", jwksUrl);
+                            using var jwksClient = new HttpClient();
+                            var jwksJson = await jwksClient.GetStringAsync(jwksUrl);
+                            var jwks = new Microsoft.IdentityModel.Tokens.JsonWebKeySet(jwksJson);
+                            signingKeys = jwks.GetSigningKeys();
                         }
                         else
                         {
-                            metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
+                            var metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
+                            var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+                            var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
+                                metadataAddress,
+                                new OpenIdConnectConfigurationRetriever(),
+                                new HttpDocumentRetriever(new HttpClient()) { RequireHttps = requireHttps });
+                            var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
+                            signingKeys = oidcConfig.SigningKeys;
                         }
-                        var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
-                        var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
-                            metadataAddress,
-                            new OpenIdConnectConfigurationRetriever(),
-                            new HttpDocumentRetriever(new System.Net.Http.HttpClient()) { RequireHttps = requireHttps });
-
-                        var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
 
                         var validationParameters = new TokenValidationParameters
                         {
                             ValidIssuer = tenant.OidcAuthority,
                             ValidAudience = tenant.OidcClientId,
-                            IssuerSigningKeys = oidcConfig.SigningKeys,
+                            IssuerSigningKeys = signingKeys,
                             ValidateLifetime = true,
                             ClockSkew = TimeSpan.FromMinutes(5),
                             RequireSignedTokens = true,
