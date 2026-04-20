@@ -133,3 +133,32 @@ Previous history archived to reduce file size. Recent entries below.
 
 ### Status
 ✅ Complete
+
+## Learnings
+
+### 2026-04-20 — Aspire 13.2.2 Upgrade: OTLP Telemetry Warning Resolved
+
+**Context:** Aspire 9.2.0 displayed OTLP telemetry warning. After upgrade to 13.2.2, warning persists and is understood to be correct behavior.
+
+**Root Cause:** Three distinct Aspire security controls were conflated in prior investigation attempts:
+1. `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS` → Dashboard **UI** authentication (browser access)
+2. `ASPIRE_ALLOW_UNSECURED_TRANSPORT` → HTTP vs HTTPS transport (protocol security)
+3. `Dashboard__Otlp__AuthMode` → OTLP endpoint **API key authentication** (telemetry ingestion security)
+
+**Critical Learning:** Environment variables in AppHost's `launchSettings.json` do NOT automatically propagate to the dashboard child process. AppHost controls dashboard configuration **programmatically** via `DashboardLifecycleHook.cs`. When no OTLP API key is configured, AppHost always sets `OtlpAuthMode.Unsecured`.
+
+**Security Distinction:**
+- `Unsecured` mode = any local process can push telemetry without credentials (development-only, acceptable)
+- `ApiKey` mode = requires API key for telemetry ingestion (production/staging/shared environments, required)
+
+**Decision:** Accept the warning as expected behavior in local development. Suppressing the warning requires API key configuration (unjustified for localhost). The warning correctly informs developers of the security posture.
+
+**Production Guidance:** Always use `Dashboard__Otlp__AuthMode=ApiKey` in non-development environments with secure API key distribution.
+
+**Key Learning for Squad:**
+- **Read the source code instead of guessing** — prior fix attempts could have been avoided
+- **Process boundaries matter** — parent process env vars don't automatically reach child processes
+- **Security warnings serve a purpose** — suppressing them should require understanding why they exist first
+- **Local dev vs production security** — some warnings are informational in dev but critical in production
+
+**Decision:** `.squad/decisions/2026-04-20-copper-otlp-telemetry-upgrade.md` (recorded in main decisions ledger)

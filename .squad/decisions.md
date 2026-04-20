@@ -577,6 +577,53 @@ New question types, task list variants, confirmation patterns added via pluggabl
 
 ---
 
+## 📌 2026-04-20: Copper — Aspire 13.2.2 Upgrade and OTLP Telemetry Warning Resolution
+
+**Date:** 2026-04-20  
+**Agent:** Copper (Security & Architecture), Coordinator (Release Management)  
+**Status:** Complete
+
+### Work Summary
+
+Aspire upgraded from 9.2.0 to 13.2.2; persistent telemetry warning diagnosed and accepted as informational.
+
+### Root Cause Analysis
+
+The warning "Telemetry endpoint is unsecured. Untrusted apps can send telemetry to the dashboard" is triggered by Aspire's OTLP `AuthMode.Unsecured` setting, which is set **programmatically by the AppHost**, not via environment variables.
+
+**Key Finding:** Three distinct Aspire security controls exist:
+- `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS` → Dashboard UI authentication
+- `ASPIRE_ALLOW_UNSECURED_TRANSPORT` → Protocol-layer security
+- `Dashboard__Otlp__AuthMode` → OTLP API key authentication
+
+Previous fix attempts failed because environment variables in `launchSettings.json` apply to the **AppHost process**, not the **dashboard child process**. The AppHost controls dashboard configuration via code (`DashboardLifecycleHook.cs`), which always sets OTLP to `Unsecured` when no API key is configured.
+
+### Decision
+
+**Accept the warning as expected behavior for local development:**
+- OTLP endpoint IS unsecured by design in local dev
+- Suppressing requires API key configuration (unjustified for localhost)
+- Warning correctly informs developers of security posture
+- Production hardening: configure `Dashboard__Otlp__AuthMode=ApiKey` with secure API key distribution
+
+### Changes
+
+- **Aspire:** 9.2.0 → 13.2.2
+- **KubernetesClient:** 17.0.14 → 18.0.13
+- **Build:** ✅ Passes
+
+### Evidence & References
+
+- Aspire 9.2.0 source: `DashboardWebApplication.cs` (warning emission)
+- Aspire 9.2.0 source: `PostConfigureDashboardOptions.cs` (frontend/OTLP auth separation)
+- Aspire 9.2.0 source: `DashboardLifecycleHook.cs` (programmatic dashboard config)
+
+### Session Logs
+
+- `.squad/log/2026-04-20T21:35:16Z-aspire-upgrade-and-telemetry-warning.md`
+
+---
+
 ## 📌 2026-04-20: Blathers — GDS Models Evolution
 
 **Date:** 2026-04-20  
