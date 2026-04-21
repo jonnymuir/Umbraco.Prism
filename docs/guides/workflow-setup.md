@@ -69,28 +69,28 @@ A workflow is a JSON file stored in your Business App's `workflow-seeds/` direct
     {
       "stateKey": "collecting-info",
       "displayName": "Tell us what you need",
-      "archetype": "Collect",
+      "stepType": "Collect",
       "allowedActions": ["submit", "save-draft"],
       "fieldGroupKeys": ["contact-details", "enquiry-info"]
     },
     {
       "stateKey": "review-details",
       "displayName": "Check your answers",
-      "archetype": "Review",
+      "stepType": "Review",
       "allowedActions": ["submit", "back"],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "under-review",
       "displayName": "We're looking at your enquiry",
-      "archetype": "StatusTimeline",
+      "stepType": "StatusTimeline",
       "allowedActions": [],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "complete",
       "displayName": "Thank you for reaching out",
-      "archetype": "Completion",
+      "stepType": "Completion",
       "allowedActions": ["start-another"],
       "fieldGroupKeys": []
     }
@@ -216,7 +216,7 @@ Each state in the `states` array:
 |----------|------|----------|-------------|
 | `stateKey` | string | Yes | Unique identifier for the state (used in transitions). |
 | `displayName` | string | Yes | Title shown to the user (e.g., "Check your answers"). |
-| `archetype` | string | Yes | Rendering type: `Collect`, `Review`, `StatusTimeline`, or `Completion`. |
+| `stepType` | string | Yes | Rendering type: `Collect`, `Review`, `StatusTimeline`, or `Completion`. |
 | `allowedActions` | array | Yes | List of action keys that can be triggered in this state. |
 | `fieldGroupKeys` | array | Yes | Which field groups to display in this state. Empty array `[]` for non-data states. |
 
@@ -342,11 +342,11 @@ Visit the published content page from a browser where you're authenticated as an
 ### Expected Flow
 
 1. **GET request:** Browser requests the page → `WorkflowPageController.Index()` → Calls Business App → Renders the first state (`collecting-info`)
-2. **Form display:** Partials render based on archetype (e.g., `_WorkflowStep-Collect.cshtml`)
+2. **Form display:** Partials render based on step type (e.g., `_WorkflowStep-Collect.cshtml`)
 3. **Fill form:** Member completes fields
 4. **POST request:** Form submits → Controller validates → Calls Business App advance endpoint → Redirects to page (PRG pattern)
 5. **Next state:** Page reloads, controller fetches new state, new partial renders
-6. **Completion:** Final state (`Completion` archetype) shows success message
+6. **Completion:** Final state (`Completion` step type) shows success message
 
 ### Troubleshooting
 
@@ -354,15 +354,15 @@ Visit the published content page from a browser where you're authenticated as an
 |---------|-------|----------|
 | "No workflow key configured" | `workflowKey` property is empty | Set it in Umbraco backoffice |
 | "Could not start workflow" | Business App offline or key not found | Check Business App is running; verify JSON file exists and `definitionKey` matches |
-| Form doesn't look right | Partial not found | Ensure `_WorkflowStep-{Archetype}.cshtml` exists in `Views/Partials/` |
+| Form doesn't look right | Partial not found | Ensure `_WorkflowStep-{StepType}.cshtml` exists in `Views/Partials/` |
 | Form won't submit | Antiforgery validation failed | Ensure `@Html.AntiForgeryToken()` is in the partial; check security headers |
 | Member redirected to login | Not authenticated | Member must have valid `PrismMemberCookie` session |
 
-## Archetype Reference
+## Step Type Reference
 
-Choose an archetype based on what the user should do in each state:
+Choose a step type based on what the user should do in each state:
 
-| Archetype | Purpose | Renders | Examples |
+| Step Type | Purpose | Renders | Examples |
 |-----------|---------|---------|----------|
 | `Collect` | Data entry form | Input fields from `fieldGroupKeys` | Name, email, preferences |
 | `Review` | Confirm and submit | Read-only display of collected data + submit action | "Check your answers" step |
@@ -395,21 +395,21 @@ Use this as a starting point for new workflows:
     {
       "stateKey": "step-1",
       "displayName": "Step 1: Collect Info",
-      "archetype": "Collect",
+      "stepType": "Collect",
       "allowedActions": ["continue", "save"],
       "fieldGroupKeys": ["personal"]
     },
     {
       "stateKey": "step-2",
       "displayName": "Step 2: Review",
-      "archetype": "Review",
+      "stepType": "Review",
       "allowedActions": ["submit", "back"],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "complete",
       "displayName": "Complete",
-      "archetype": "Completion",
+      "stepType": "Completion",
       "allowedActions": [],
       "fieldGroupKeys": []
     }
@@ -460,7 +460,7 @@ Prism calls your business app via HTTP endpoints. The Mock Business App implemen
 
 3. **GET `/api/workflow/{key}/history`** (optional)
    - Returns workflow history/audit trail
-   - Used by `StatusTimeline` archetype
+   - Used by `StatusTimeline` step type
 
 ### Configuring Your Business App URL
 
@@ -506,7 +506,7 @@ Prism sends and expects specific JSON shapes. The Mock Business App shows the ex
   "currentState": {
     "stateKey": "review-details",
     "displayName": "Check your answers",
-    "archetype": "Review",
+    "stepType": "Review",
     "allowedActions": ["submit", "back"],
     "fieldGroupKeys": []
   },

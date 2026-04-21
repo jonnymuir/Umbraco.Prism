@@ -4,7 +4,7 @@ A guide for designers and frontend developers to theme and extend Prism workflow
 
 ## Overview
 
-Prism provides a complete, accessible workflow rendering system out of the box. All form styling is CSS-first using CSS custom properties (CSS variables) for theming. Want to change colours, spacing, or border radius? Override a variable. Need a custom field layout or step archetype? Replace or create a partial view. No C# coding required.
+Prism provides a complete, accessible workflow rendering system out of the box. All form styling is CSS-first using CSS custom properties (CSS variables) for theming. Want to change colours, spacing, or border radius? Override a variable. Need a custom field layout or step type? Replace or create a partial view. No C# coding required.
 
 **The philosophy:** Prism provides working defaults (GDS-inspired accessibility and styling); you layer your brand on top using CSS, HTML, and Razor (the Umbraco view engine).
 
@@ -14,7 +14,7 @@ Prism provides a complete, accessible workflow rendering system out of the box. 
 > **🟠 Mock Business App** — Provided by `UmbracoPrism.MockBusinessApp` as a reference implementation. Replace this with your real workflow engine.
 
 **In this guide:**
-- 🔵 Customisation sections (CSS, partials, archetypes) describe Prism Platform features you control
+- 🔵 Customisation sections (CSS, partials, step types) describe Prism Platform features you control
 - 🟠 Workflow definitions (JSON structure, states, transitions) are your business app's responsibility
 
 For Prism customisation, you override CSS variables and Razor views. Your business app defines what workflows exist and how they behave.
@@ -199,13 +199,13 @@ Edit the partial. For example, add a custom CSS class:
 
 Umbraco will now use your version instead of the default.
 
-## Creating a Custom Archetype
+## Creating a Custom Step Type
 
-> 🔵 **Prism Platform** — Archetypes are rendering templates. Create a new partial to define a custom step type, then use it in your business app's workflow JSON.
+> 🔵 **Prism Platform** — Step types are rendering templates. Create a new partial to define a custom step type, then use it in your business app's workflow JSON.
 
-Want a new step type? Create a custom archetype without touching C#.
+Want a new step type? Create a custom step type without touching C#.
 
-### Example: "Documents" Archetype
+### Example: "Documents" Step Type
 
 Create a new partial view for document upload/download steps:
 
@@ -253,7 +253,7 @@ Create a new partial view for document upload/download steps:
     {
       "stateKey": "upload-docs",
       "displayName": "Upload Your Documents",
-      "archetype": "Documents",
+      "stepType": "Documents",
       "allowedActions": ["continue"],
       "fieldGroupKeys": []
     }
@@ -268,9 +268,297 @@ The dispatcher (`WorkflowPage.cshtml`) uses convention-based routing:
 
 No code changes needed.
 
+## GDS Design System Components
+
+> 🔵 **Prism Platform** — GDS Design System (govuk-frontend 5.9.0) is bundled automatically. All 38 components work out of the box with zero setup.
+
+All workflow step partials have full access to the GOV.UK Design System component library. You don't need to install, configure, or initialize anything—it's already wired up.
+
+### How GDS is Bundled
+
+Prism automatically installs and loads govuk-frontend as part of the build process:
+
+1. **Package declared:** `src/UmbracoPrism.TestSite/package.json` includes `"govuk-frontend": "^5.9.0"`
+2. **MSBuild target runs:** The `.csproj` file includes an `InstallGovukFrontend` target that runs `npm ci` before every build
+3. **Assets copied:** `govuk-frontend.min.css` and `govuk-frontend.min.js` are automatically copied to `wwwroot/css/` and `wwwroot/js/`
+4. **Master layout loads them:** `Master.cshtml` includes both files on every page and calls `window.GOVUKFrontend.initAll()`
+
+**Result:** Every GDS component—CSS-only and JavaScript-enhanced—works automatically on every page.
+
+### Available Components
+
+All 38 GDS components from govuk-frontend 5.9.0 are available:
+
+**Form elements:**
+- button
+- checkboxes
+- date-input
+- file-upload
+- input
+- password-input
+- radios
+- select
+- textarea
+- character-count
+
+**Layout & navigation:**
+- back-link
+- breadcrumbs
+- footer
+- header
+- pagination
+- service-navigation
+- skip-link
+- tabs
+
+**Content:**
+- accordion
+- details
+- inset-text
+- notification-banner
+- panel
+- summary-list
+- table
+- tag
+- task-list
+- warning-text
+
+**Helpers:**
+- cookie-banner
+- error-message
+- error-summary
+- exit-this-page
+- fieldset
+- hint
+- label
+- phase-banner
+
+### Using CSS-Only Components
+
+For CSS-only components (buttons, inputs, panels, etc.), just add the appropriate CSS class:
+
+```cshtml
+<!-- Primary button -->
+<button type="submit" class="govuk-button">
+    Continue
+</button>
+
+<!-- Secondary button -->
+<button type="button" class="govuk-button govuk-button--secondary">
+    Save draft
+</button>
+
+<!-- Warning button -->
+<button type="submit" class="govuk-button govuk-button--warning">
+    Delete
+</button>
+
+<!-- Text input -->
+<input type="text" id="full-name" name="full-name" class="govuk-input" />
+
+<!-- Inset text (callout) -->
+<div class="govuk-inset-text">
+    This information will be shared with the council.
+</div>
+```
+
+### Using JavaScript-Enhanced Components
+
+For components that require JavaScript (tabs, accordion, character-count, etc.), add the `data-module="govuk-{component}"` attribute. The `GOVUKFrontend.initAll()` call in `Master.cshtml` automatically picks it up:
+
+```cshtml
+<!-- Tabs -->
+<div class="govuk-tabs" data-module="govuk-tabs">
+    <h2 class="govuk-tabs__title">Contents</h2>
+    <ul class="govuk-tabs__list">
+        <li class="govuk-tabs__list-item govuk-tabs__list-item--selected">
+            <a class="govuk-tabs__tab" href="#personal">Personal details</a>
+        </li>
+        <li class="govuk-tabs__list-item">
+            <a class="govuk-tabs__tab" href="#address">Address</a>
+        </li>
+    </ul>
+    <div class="govuk-tabs__panel" id="personal">
+        <h2 class="govuk-heading-l">Personal details</h2>
+        <!-- Content here -->
+    </div>
+    <div class="govuk-tabs__panel govuk-tabs__panel--hidden" id="address">
+        <h2 class="govuk-heading-l">Address</h2>
+        <!-- Content here -->
+    </div>
+</div>
+
+<!-- Accordion -->
+<div class="govuk-accordion" data-module="govuk-accordion">
+    <div class="govuk-accordion__section">
+        <div class="govuk-accordion__section-header">
+            <h2 class="govuk-accordion__section-heading">
+                <button type="button" class="govuk-accordion__section-button">
+                    Understanding the decision
+                </button>
+            </h2>
+        </div>
+        <div class="govuk-accordion__section-content">
+            <p class="govuk-body">We'll send you a full decision letter...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Character count (auto-updates remaining characters) -->
+<div class="govuk-character-count" data-module="govuk-character-count" data-maxlength="500">
+    <div class="govuk-form-group">
+        <label class="govuk-label" for="description">Description</label>
+        <textarea class="govuk-textarea govuk-js-character-count" id="description" name="description" rows="5"></textarea>
+    </div>
+    <div class="govuk-hint govuk-character-count__message">
+        You can enter up to 500 characters
+    </div>
+</div>
+```
+
+### Real-World Example: Complex Step with Tabs
+
+Here's a step partial that uses tabs to organize a complex multi-part form:
+
+**File:** `Views/Partials/_WorkflowStep-PropertyDetails.cshtml`
+
+```cshtml
+@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+
+<div class="govuk-tabs" data-module="govuk-tabs">
+    <h2 class="govuk-tabs__title">Contents</h2>
+    <ul class="govuk-tabs__list">
+        <li class="govuk-tabs__list-item govuk-tabs__list-item--selected">
+            <a class="govuk-tabs__tab" href="#property">Property</a>
+        </li>
+        <li class="govuk-tabs__list-item">
+            <a class="govuk-tabs__tab" href="#planning">Planning</a>
+        </li>
+        <li class="govuk-tabs__list-item">
+            <a class="govuk-tabs__tab" href="#timeline">Timeline</a>
+        </li>
+    </ul>
+    
+    <div class="govuk-tabs__panel" id="property">
+        <h2 class="govuk-heading-l">Property details</h2>
+        <div class="govuk-form-group">
+            <label class="govuk-label" for="address">Property address</label>
+            <textarea class="govuk-textarea" id="address" name="address" rows="3"></textarea>
+        </div>
+    </div>
+    
+    <div class="govuk-tabs__panel govuk-tabs__panel--hidden" id="planning">
+        <h2 class="govuk-heading-l">Planning details</h2>
+        <div class="govuk-form-group">
+            <label class="govuk-label" for="works">Describe the proposed works</label>
+            <textarea class="govuk-textarea" id="works" name="works" rows="5"></textarea>
+        </div>
+    </div>
+    
+    <div class="govuk-tabs__panel govuk-tabs__panel--hidden" id="timeline">
+        <h2 class="govuk-heading-l">Timeline and cost</h2>
+        <div class="govuk-form-group">
+            <label class="govuk-label" for="start-date">Proposed start date</label>
+            <input class="govuk-input govuk-input--width-10" id="start-date" name="start-date" type="date" />
+        </div>
+    </div>
+</div>
+
+<div class="govuk-button-group">
+    <button type="submit" class="govuk-button">Continue</button>
+</div>
+```
+
+### Examples from Existing Step Partials
+
+The TestSite already demonstrates GDS usage in production step partials:
+
+**`_WorkflowStep-Question.cshtml`:**
+- `govuk-fieldset` — groups related fields
+- `govuk-fieldset__legend` — fieldset heading
+- `govuk-button-group` — action button container
+- `govuk-button` — primary/secondary actions
+
+**`_WorkflowStep-Review.cshtml`:**
+- `govuk-summary-list` — check-your-answers pattern
+- `govuk-heading-l`, `govuk-heading-m` — semantic headings
+- `govuk-grid-row` — layout grid
+- `govuk-link` — styled links with focus states
+
+**`_WorkflowStep-Completion.cshtml`:**
+- `govuk-panel` — confirmation panel
+- `govuk-panel--confirmation` — success variant
+- `govuk-panel__title`, `govuk-panel__body` — panel content
+- `govuk-body` — body text
+- `govuk-button--secondary` — secondary action
+
+### Form Field Best Practices
+
+Always wrap GDS form fields in `govuk-form-group` and use proper associations:
+
+```cshtml
+<div class="govuk-form-group">
+    <label class="govuk-label" for="email">
+        Email address
+    </label>
+    <div id="email-hint" class="govuk-hint">
+        We'll only use this to send you a receipt
+    </div>
+    <input class="govuk-input govuk-input--width-20" 
+           id="email" 
+           name="email" 
+           type="email" 
+           aria-describedby="email-hint" />
+</div>
+```
+
+**For validation errors:**
+
+```cshtml
+<div class="govuk-form-group govuk-form-group--error">
+    <label class="govuk-label" for="email">
+        Email address
+    </label>
+    <div id="email-hint" class="govuk-hint">
+        We'll only use this to send you a receipt
+    </div>
+    <p id="email-error" class="govuk-error-message">
+        <span class="govuk-visually-hidden">Error:</span> Enter an email address in the correct format, like name@example.com
+    </p>
+    <input class="govuk-input govuk-input--width-20 govuk-input--error" 
+           id="email" 
+           name="email" 
+           type="email" 
+           aria-describedby="email-hint email-error" />
+</div>
+```
+
+### Accessibility Reminders
+
+- **Always associate hints with inputs:** Use `aria-describedby` to link hint text IDs
+- **Associate errors properly:** Include both hint ID and error ID in `aria-describedby`
+- **Use semantic markup:** GDS components already follow WCAG 2.2 AA; don't break the structure
+- **Test keyboard navigation:** All interactive elements should be reachable via Tab
+- **Test with a screen reader:** VoiceOver (macOS), NVDA (Windows), or JAWS
+
+### Full Component Documentation
+
+For complete component documentation, code examples, and accessibility guidance, see the official GDS documentation:
+
+**https://design-system.service.gov.uk/components/**
+
+Each component page includes:
+- Live interactive examples
+- Complete HTML markup
+- Accessibility considerations
+- When to use / when not to use guidance
+- Research and testing notes
+
+For an even more detailed guide with code examples for every component in workflow contexts, see [Using GDS Design System Components in Workflow Steps](./workflow-gds-components.md).
+
 ## The Field Partial
 
-> 🔵 **Prism Platform** — The field renderer is part of Prism. Override it to customise how individual form fields render across all archetypes.
+> 🔵 **Prism Platform** — The field renderer is part of Prism. Override it to customise how individual form fields render across all step types.
 
 **File:** `Views/Partials/_WorkflowField.cshtml`
 
