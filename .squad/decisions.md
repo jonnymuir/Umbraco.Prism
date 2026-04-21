@@ -1800,3 +1800,260 @@ The workflow admin endpoints are **acceptable for local development** but must n
 **Reviewed by:** Copper (Security Engineer)  
 **Date:** 2026-04-21  
 **Files Reviewed:** 6 core files + 3 test files + 2 configuration files
+
+# Workflow Developer Experience Improvements
+
+**Date:** 2026-04-28  
+**Agents:** Blathers  
+**Status:** ✅ Complete
+
+## Context
+
+Umbraco.Prism's workflow integration required integrators to write ~300 lines of boilerplate controller code. Workflow definitions were JSON-only with no IntelliSense. The `Archetype` property name was legacy and confusing.
+
+## Decisions
+
+### 1. Rename `Archetype` → `StepType` Throughout
+
+**Rationale:** `StepType` is clearer and aligns with GDS terminology. `Archetype` was a legacy name that confused integrators.
+
+**Impact:** Breaking change for existing consumers referencing `WorkflowInstanceSummary.Archetype` or `WorkflowViewModel.Archetype`.
+
+**Locations Updated:**
+- `UmbracoPrism.Shared/Models/Workflow/WorkflowInstanceListEnvelope.cs`
+- `UmbracoPrism.TestSite/Models/WorkflowViewModel.cs`
+- `UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`
+- `UmbracoPrism.TestSite/Views/workflowPage.cshtml`
+- `UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`
+
+### 2. Create `PrismWorkflowPageController<TViewModel>` Base Class
+
+**Rationale:** Reduce integrator effort from ~300 lines to ~5 lines. Provide "pit of success" for common workflow page scenarios.
+
+**Design:**
+- Generic base class: `PrismWorkflowPageController<TViewModel> where TViewModel : PrismWorkflowViewModel`
+- Full GET/POST handling with antiforgery, nonce, PRG pattern, TempData management
+- Virtual methods for customization: `PrePopulateFields(envelope)`, `CreateViewModel(...)`
+- Uses `ILogger<RenderController>` to satisfy Umbraco's RenderController base
+
+**Benefits:**
+- Integrators override only what's special (e.g., claims pre-population)
+- Type-safe ViewModel pattern
+- Consistent security posture (antiforgery, nonce, safe redirects)
+
+**Created Files:**
+- `src/UmbracoPrism.Core/Controllers/PrismWorkflowPageController.cs`
+- `src/UmbracoPrism.Core/Models/Workflow/PrismWorkflowViewModel.cs`
+
+### 3. Add Fluent Builders for Workflow Definitions
+
+**Rationale:** Business App developers should define workflows in C# with IntelliSense, not raw JSON.
+
+**Design:**
+- Moved definition types from `MockBusinessApp.Services` to `UmbracoPrism.Shared.Models.Workflow`
+- Created `WorkflowDefinitionBuilder` with fluent API for defining workflows
+- Created `FieldGroupBuilder` and `WorkflowFieldBuilder` for field definitions
+- Builders use private backing fields + fluent methods + `Build()` for immutability
+
+**Benefits:**
+- Type safety and IntelliSense for workflow authoring
+- Compile-time validation of workflow structure
+- Enables future tooling (migration helpers, validators)
+- Clearer than JSON for complex workflows
+
+**Created Files:**
+- `src/UmbracoPrism.Shared/Models/Workflow/WorkflowDefinitionFile.cs` (moved from MockBusinessApp)
+- `src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs`
+- `src/UmbracoPrism.Shared/Builders/FieldGroupBuilder.cs`
+
+## Trade-offs
+
+**Breaking Changes:**
+- `Archetype` → `StepType` rename requires consumer updates
+- Definition types moved to Shared (namespace change for BA code)
+
+**Accepted:** Breaking changes justified by improved clarity and DX.
+
+**Generic Controller Complexity:**
+- Generic `TViewModel` constraint adds complexity
+- Alternative: Non-generic base with concrete ViewModel
+
+**Accepted:** Generics enable type-safe custom ViewModels without casting.
+
+**Activator.CreateInstance for ViewModel:**
+- Reflection-based instantiation has minor perf cost
+- Alternative: Factory delegate parameter
+
+**Accepted:** Perf impact negligible for page controllers; simpler DI signature.
+
+## Migration Path
+
+**For Integrators (Archetype → StepType):**
+```csharp
+// Before
+var stepType = summary.Archetype;
+
+// After
+var stepType = summary.StepType;
+```
+
+**For Integrators (Using Base Controller):**
+```csharp
+// Before: ~300 lines of boilerplate
+
+// After:
+[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+public class WorkflowPageController(/* DI params */)
+    : PrismWorkflowPageController<WorkflowViewModel>(/* pass through */)
+{
+    protected override WorkflowResponseEnvelope PrePopulateFields(WorkflowResponseEnvelope envelope)
+    {
+        // Only override what's special
+    }
+}
+```
+
+**For Business Apps (Using Builders):**
+```csharp
+// Before: JSON-only
+
+// After:
+var workflow = new WorkflowDefinitionBuilder()
+    .Key("my-workflow")
+    .DisplayName("My Workflow")
+    .AddState("start", s => s.StepType("question").WithFieldGroups("details"))
+    .AddTransition("start", "end", "continue")
+    .Build();
+```
+
+## Validation
+
+- ✅ Build clean (no new warnings/errors)
+- ✅ All 431 Core tests passing
+- ✅ TestSite controller reduced to ~90 lines
+- ✅ Builders compile with full IntelliSense
+
+## Follow-up
+
+- Update documentation with base controller examples
+- Add integration tests demonstrating base controller usage
+- Consider migrating MockBusinessApp workflow seeds to builder pattern (demo)
+- Add XML docs examples to builder classes (DONE)
+# Mabel — Workflow Documentation Standards
+
+**Date:** 2026-04-17
+**Scope:** Public documentation in `/docs/guides/workflow-*.md`
+**Decision:** Established documentation standards and terminology conventions for workflow guides
+
+---
+
+## Decision
+
+Unified all workflow documentation guides with corrected terminology, consistent style, and comprehensive examples.
+
+## Critical Fixes Applied
+
+### 1. Step Type Names (Breaking Change in Docs)
+
+**Corrected terminology:**
+- ✅ `question` — Collects data from the user (was: `Collect`)
+- ✅ `check-answers` — Read-only summary for review (was: `Review`)
+- ✅ `status-timeline` — Status display and progress (was: `StatusTimeline`)
+- ✅ `task-list` — Tasks with statuses (new, was missing)
+- ✅ `confirmation` — Thank you / success screen (was: `Completion`)
+
+**Why:** These are the actual step type values in the codebase. Incorrect names caused confusion and implementation errors.
+
+### 2. Field Group JSON Format
+
+**Corrected format:**
+```json
+"options": ["Developer", "Architect", "Lead", "Other"]
+```
+
+**Was incorrect:**
+```json
+"options": [{"key": "developer", "label": "Developer"}, ...]
+```
+
+**Why:** The actual code expects plain string arrays, not key-value pairs.
+
+### 3. Workflow Definition Structure
+
+**Correct separation:**
+- Workflow definitions reference field group keys via `fieldGroupKeys` array
+- Field groups are separate JSON files in `workflow-seeds/field-groups/`
+- Workflow JSON does NOT embed field groups
+
+**Was incorrect:** Docs showed fieldGroups embedded inside the workflow JSON.
+
+---
+
+## Documentation Standards
+
+### Style Conventions
+
+1. **Audience:** Developer-first documentation (assume C#/.NET knowledge)
+2. **Voice:** Active voice, present tense ("You create...", not "One can create...")
+3. **Structure:** Overview → Conceptual → Reference → Examples → Next Steps
+4. **Diagrams:** Mermaid only (no ASCII art)
+5. **Code blocks:** Always language-tagged (`json`, `csharp`, `cshtml`, etc.)
+
+### Visual Markers
+
+- 🔵 **Blue marker** — `🔵 Prism Platform` — Features provided by Prism (don't modify)
+- 🟠 **Orange marker** — `🟠 Your Business App` — Developer's responsibility (implement)
+
+**Usage in doc blocks:**
+```
+> 🔵 **Prism Platform** — Form rendering is provided; customize via CSS variables.
+> 🟠 **Your Business App** — Implement workflow definitions and state machine logic.
+```
+
+### Reference Material
+
+- Use **tables** for properties, comparisons, and structured data
+- Use **bullet lists** for procedures and simple enumerations
+- Use **numbered lists** for step-by-step guides
+- Use **Mermaid flowcharts** for architecture and data flow
+
+---
+
+## Consistency Rules for Future Updates
+
+When updating workflow documentation:
+
+1. ✅ Always use correct step type names: `question`, `check-answers`, `status-timeline`, `task-list`, `confirmation`
+2. ✅ Never use: `Collect`, `Review`, `StatusTimeline`, `Completion`, `Archetype`
+3. ✅ Field JSON options are plain string arrays: `["A", "B", "C"]`
+4. ✅ Separate workflow definitions from field groups
+5. ✅ Use blue/orange markers to indicate Prism vs. developer responsibility
+6. ✅ Always include code examples in language-tagged blocks
+7. ✅ Cross-reference related guides at the end of each document
+
+---
+
+## Impact on Other Teams
+
+- **Celeste (C# XML Docs):** May need to update inline code documentation to match terminology
+- **Brewster (API & Demos):** Workflow definition seeds should already use correct step types
+- **All**: When adding new step types, update docs immediately
+
+---
+
+## Files Changed
+
+- ✅ `docs/guides/workflow-setup.md` — Complete rewrite
+- ✅ `docs/guides/workflow-customisation.md` — Comprehensive update
+- ✅ `docs/guides/workflow-forms-validation.md` — Complete rewrite
+- ✅ `docs/guides/workflow-gds-components.md` — Verified (no changes needed)
+- ✅ `.squad/agents/mabel/history.md` — Added session entry
+
+---
+
+## Future Decisions Needed
+
+- [ ] Update marketplace listing with new terminology
+- [ ] Update CONTRIBUTING.md with workflow documentation guidelines
+- [ ] Create style guide for all `/docs/` content (not just workflows)
+

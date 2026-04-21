@@ -510,3 +510,32 @@ When documenting bundled dependencies:
 - Override `PrePopulateFieldsFromClaims()` only if you need to auto-fill fields from user identity claims
 - Always decorate with `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`
 
+
+---
+
+## 2026-04-21T20:58:11Z: Workflow Documentation Standards Session
+
+**Scope:** Rewrite all workflow documentation with correct terminology and examples
+
+**Changes:**
+- Rewrote workflow-setup.md with correct step types, builder API docs, base controller examples
+- Updated workflow-customisation.md with new terminology and FieldGroupBuilder examples
+- Rewrote workflow-forms-validation.md with correct step types and validation examples
+- Verified workflow-gds-components.md consistency
+
+**Critical Fixes:**
+- Step type names corrected: `question`, `check-answers`, `status-timeline`, `task-list`, `confirmation`
+- Field JSON format corrected: plain string arrays, not key-value pairs
+- Workflow/field group separation clarified
+
+**Documentation Standards Established:**
+- Developer-first audience (C#/.NET assumed knowledge)
+- Active voice, present tense
+- 🔵 Blue/🟠 Orange markers for responsibility boundaries
+- Mermaid diagrams (no ASCII art)
+- Language-tagged code blocks
+
+**Result:** ✅ All 4 guides updated, standards documented for future updates
+
+**Reference:** `.squad/orchestration-log/2026-04-21T20:58:11Z-mabel.md`, `.squad/decisions.md` (Workflow Documentation Standards)
+

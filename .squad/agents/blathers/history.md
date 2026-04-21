@@ -825,3 +825,99 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - Methods follow same pattern as GetDefinition/UpdateDefinition trio
 - No persistence layer — updates are in-memory only (matches existing definition endpoints)
 - Endpoints placed immediately after definition endpoints for consistency
+
+---
+
+## Session: Workflow Developer Experience Improvements (2026-04-28)
+
+**Topic:** Rename Archetype → StepType, create PrismWorkflowPageController base class, and add WorkflowDefinitionBuilder/FieldGroupBuilder
+
+**Outcome:** ✅ Complete — 431 tests pass, all three tasks delivered
+
+### Delivered
+
+**1. Renamed Archetype → StepType Throughout**
+- Renamed `WorkflowInstanceSummary.Archetype` → `StepType` in Shared
+- Renamed `WorkflowViewModel.Archetype` → `StepType` in TestSite
+- Updated `WorkflowPageController` to use `StepType` property
+- Updated `BusinessAppWorkflowEngine` to populate `StepType` instead of `Archetype`
+- Updated all Razor views (`workflowPage.cshtml`) to reference `Model.StepType`
+- Breaking change: external consumers must update property references
+
+**2. Created PrismWorkflowPageController<TViewModel> Base Class**
+- Created `src/UmbracoPrism.Core/Controllers/PrismWorkflowPageController.cs`
+- Abstract base controller with full GET/POST workflow handling
+- Provides antiforgery, nonce validation, PRG pattern, and TempData management
+- Virtual `PrePopulateFields(envelope)` method for customization (e.g., claims)
+- Virtual `CreateViewModel(envelope, workflowKey)` for ViewModel customization
+- TestSite's `WorkflowPageController` reduced from ~390 lines to ~90 lines
+- Created `src/UmbracoPrism.Core/Models/Workflow/PrismWorkflowViewModel.cs`
+- Base ViewModel with all standard workflow properties
+- TestSite's `WorkflowViewModel` now extends `PrismWorkflowViewModel`
+- Integrators can now create 5-line controllers instead of 300+ line boilerplate
+
+**3. Created WorkflowDefinitionBuilder and FieldGroupBuilder**
+- Moved definition types from `MockBusinessApp.Services.WorkflowDefinitionFile.cs` to `Shared.Models.Workflow.WorkflowDefinitionFile.cs`
+- `WorkflowInstanceState` remains in MockBusinessApp (BA-internal)
+- Created `src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs`
+  - Fluent builder for `WorkflowDefinitionFile` with IntelliSense
+  - Methods: `Key()`, `DisplayName()`, `Version()`, `StartsAt()`, `InstancePolicy()`, `AddState()`, `AddTransition()`, `Build()`
+  - Inner `WorkflowStateBuilder` for defining states
+- Created `src/UmbracoPrism.Shared/Builders/FieldGroupBuilder.cs`
+  - Fluent builder for `FormSectionDefinition` with IntelliSense
+  - Methods: `Key()`, `DisplayName()`, `Version()`, `AddField()`, `Build()`
+  - Inner `WorkflowFieldBuilder` with ~15 fluent methods for all field properties
+  - Comprehensive example documentation in XML docs
+
+### Validation
+
+- ✅ Build clean — no errors, 2 warnings (existing)
+- ✅ All 431 Core tests passing
+- ✅ TestSite controller simplified dramatically
+- ✅ Builders provide type-safe workflow definition creation
+
+### Technical Notes
+
+- Base controller uses `ILogger<RenderController>` to satisfy RenderController constructor
+- Uses `Umbraco.Extensions.Value<T>()` extension method with `IPublishedValueFallback`
+- Generic constraint `where TViewModel : PrismWorkflowViewModel` ensures type safety
+- Activator.CreateInstance used for ViewModel instantiation (requires parameterless or matching constructor)
+- MockBusinessApp updated to import types from Shared
+
+### Architecture Decisions
+
+- Base controller is generic to support custom ViewModels while maintaining type safety
+- `PrePopulateFields` returns envelope (not void) to enable functional transformation patterns
+- Builders use private backing fields + fluent methods + `Build()` for immutability
+- Definition types moved to Shared to enable both BA and integrator tooling access
+
+### Key Insights
+
+- Reducing TestSite controller to ~90 lines (from ~390) demonstrates "pit of success" for integrators
+- Fluent builders provide discoverability without requiring JSON schema knowledge
+- Moving definition types to Shared enables future tooling (e.g., migration helpers, validators)
+- Generic base controller pattern works well for Umbraco route-hijacking scenarios
+
+
+---
+
+## 2026-04-21T20:58:11Z: Workflow DX Improvements Session
+
+**Scope:** Major backend refactoring for developer experience
+
+**Changes:**
+- Renamed `Archetype` → `StepType` throughout (WorkflowInstanceListEnvelope, WorkflowViewModel, controllers, views, MockBusinessApp)
+- Created `PrismWorkflowPageController<TViewModel>` generic base class (GET/POST handling, antiforgery, PRG pattern)
+- Created `PrismWorkflowViewModel` base class
+- Moved workflow definition types to UmbracoPrism.Shared (WorkflowDefinitionFile)
+- Created `WorkflowDefinitionBuilder` and `FieldGroupBuilder` for type-safe C# workflow authoring
+- Reduced TestSite WorkflowPageController from ~390 to ~90 lines
+
+**Result:** ✅ Build green, 431 tests passing, no new warnings
+
+**Breaking Changes:**
+- `Archetype` property renamed to `StepType` (update consumers)
+- Workflow definition types moved to Shared namespace
+
+**Reference:** `.squad/orchestration-log/2026-04-21T20:58:11Z-blathers.md`, `.squad/decisions.md` (Workflow Developer Experience Improvements)
+

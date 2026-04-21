@@ -13,7 +13,7 @@ public class WorkflowInstanceSummary
     public string CurrentStateKey { get; init; } = string.Empty;
     public string CurrentStateDisplayName { get; init; } = string.Empty;
     /// <summary>Step type for this instance (question, check-answers, confirmation, status-timeline, task-list).</summary>
-    public string Archetype { get; init; } = "question";
+    public string StepType { get; init; } = "question";
     public DateTime CreatedAt { get; init; }
     public DateTime LastUpdatedAt { get; init; }
     public bool CanContinue { get; init; }

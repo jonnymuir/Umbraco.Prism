@@ -257,7 +257,7 @@ public class BusinessAppWorkflowEngine
                     WorkflowDisplayName = definition?.DisplayName ?? instance.WorkflowKey,
                     CurrentStateKey = instance.CurrentState,
                     CurrentStateDisplayName = state?.DisplayName ?? instance.CurrentState,
-                    Archetype = state?.StepType ?? "question",
+                    StepType = state?.StepType ?? "question",
                     CreatedAt = instance.CreatedAt.DateTime,
                     LastUpdatedAt = instance.UpdatedAt.DateTime,
                     CanContinue = state?.StepType != "confirmation",

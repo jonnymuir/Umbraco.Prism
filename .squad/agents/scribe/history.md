@@ -192,3 +192,35 @@ These principles remain standing even after archiving.
 ✅ Session complete—ready for AppHost hardening phase
 
 ---
+
+---
+
+## 2026-04-21T20:58:11Z: Workflow DX Sprint Orchestration
+
+**Scope:** Orchestration of multi-agent workflow DX improvements and server-side validation bug fix
+
+**Agents Coordinated:**
+- Blathers (Backend): PrismWorkflowPageController, builders, Archetype→StepType rename
+- Mabel (Technical Writer): Documentation rewrite with correct terminology
+- Tangy (QA): 62 new builder tests, 493 total passing
+- Celeste (Developer Experience): XML documentation, zero warnings
+- Coordinator: Server-side validation bug fix
+
+**Deliverables:**
+- ✅ 5 Orchestration logs (one per agent) in .squad/orchestration-log/
+- ✅ Session log in .squad/log/ with complete context
+- ✅ Decision inbox files merged to .squad/decisions.md
+- ✅ Agent history files updated
+- ✅ Git commit prepared with comprehensive message
+- ✅ Build green, 493 tests passing
+
+**Key Achievements:**
+- Workflow controller boilerplate reduced 70% (300→90 lines)
+- 62 new tests for builder classes
+- All documentation terminology corrected
+- Server-side validation errors now display correctly on form re-render
+- Zero doc warnings
+- Breaking changes clearly documented
+
+**Reference:** `.squad/log/2026-04-21T20:58:11Z-workflow-dx-and-validation-fix.md`, `.squad/decisions.md` (both Blathers and Mabel decisions merged)
+

@@ -34,13 +34,13 @@
              - check-answers: partial owns its h1 (govuk-heading-l with state displayName).
              - confirmation: partial owns its h1 (govuk-panel__title with state displayName).
              - unknown: partial assumed to own its h1; outer template provides one only if no partial. *@
-        var partialName = Model.Archetype.ToLowerInvariant() switch
+        var partialName = Model.StepType.ToLowerInvariant() switch
         {
             "question" or "collect" => "_WorkflowStep-Question",
             "check-answers" or "review" => "_WorkflowStep-Review",
             "confirmation" or "completion" => "_WorkflowStep-Completion",
             "status-timeline" or "statustimeline" => "_WorkflowStep-StatusTimeline",
-            _ => $"_WorkflowStep-{Model.Archetype}"
+            _ => $"_WorkflowStep-{Model.StepType}"
         };
         var partialPath = $"~/Views/Partials/{partialName}.cshtml";
         var viewResult = _viewEngine.GetView(null, partialPath, false);
@@ -60,7 +60,7 @@
                 <h1 class="workflow-page__title">@Model.StateDisplayName</h1>
             </div>
             <div class="workflow-alert workflow-alert--warn">
-                <p>No template found for step type: <code>@Model.Archetype</code></p>
+                <p>No template found for step type: <code>@Model.StepType</code></p>
             </div>
         }
     }

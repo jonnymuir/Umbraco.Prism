@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.Shared.Models.Workflow;
 
 var builder = WebApplication.CreateBuilder(args);
 
