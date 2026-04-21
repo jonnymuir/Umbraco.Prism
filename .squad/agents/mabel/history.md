@@ -539,3 +539,50 @@ When documenting bundled dependencies:
 
 **Reference:** `.squad/orchestration-log/2026-04-21T20:58:11Z-mabel.md`, `.squad/decisions.md` (Workflow Documentation Standards)
 
+
+---
+
+## 2025-01-XX: Added WaitWith() Builder and Waiting State Documentation
+
+**Scope:** Implement the `WaitWith()` fluent method and document the new waiting state feature
+
+**Changes Made:**
+
+1. **Builder API (WorkflowStateBuilder.cs)**
+   - Added `_waitingConfig` field to store waiting configuration
+   - Added `WaitWith()` method with comprehensive XML docs and examples
+   - Updated `StepType()` XML doc to include `waiting` in valid values and prefer `WaitWith()`
+   - Updated `Build()` method to include `WaitingConfig` in returned `StepDefinition`
+
+2. **Documentation (workflow-setup.md)**
+   - Updated Step Types Reference table to include `waiting` (6 types now, was 5)
+   - Updated guidance to explain when to use waiting states vs. other types
+   - Updated State Properties table to:
+     - Add `waiting` to `stepType` valid values
+     - Add `waitingConfig` property reference
+   - Added comprehensive "Waiting States" section including:
+     - When to use (payment gateway, queue-based workflows, background jobs, SLA timers)
+     - When NOT to use (instant transitions, status displays, optional actions)
+     - Configuration reference table (message, expectedWaitSeconds, pollIntervalMs, allowDefer, deferMessage)
+     - Complete JSON definition example (3-step payment workflow)
+     - C# builder API example with `WaitWith()` method
+     - Flow diagram (Mermaid) showing polling mechanism
+     - Accessibility notes (ARIA live region, defer option, back button prevention)
+
+3. **Build Verification**
+   - `dotnet build UmbracoPrism.sln` succeeded with 0 errors, 7 non-blocking warnings
+
+**Key Design Decisions:**
+- `WaitWith()` automatically sets step type to `"waiting"` — developers don't call `StepType("waiting")`
+- Configuration is explicit (all 5 parameters documented) with sensible defaults
+- Documented polling flow and accessibility features (ARIA live region)
+- Payment workflow example used as the primary use case for clarity
+
+**Learnings:**
+- Waiting states are essential for async/external processing workflows (payment, approval queues, background jobs)
+- The auto-polling mechanism requires proper error handling on the server side
+- Default poll interval (3000ms) balances responsiveness with server load
+- Defer option improves UX when processing can take longer than expected
+
+**Result:** ✅ Builder API complete, documentation comprehensive, build passes
+

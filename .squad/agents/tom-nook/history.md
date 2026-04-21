@@ -96,6 +96,7 @@ When assessing version bumps:
 - The current workflow UI stack is strongest where server components stay thin: `PrismWorkflowFormTagHelper`, `PrismFieldTagHelper`, and the archetype partials are a good Prism fit because they render contracts from the Business App rather than inventing workflow rules locally.
 - Main architectural debt to watch: `TestSiteSeedContract`/seeded route fallbacks and content-tree scanning are useful demo stabilisers, but they can quietly couple dashboards and hubs to seeded paths instead of authored content structure if they leak beyond TestSite/demo concerns.
 - User preference observed: review-only architecture work should synthesise strengths, design debt, coupling risks, and highest-value follow-up actions in human terms rather than drifting into implementation.
+- 2026-04-22 — "Waiting" step type design: nested `WaitingConfig` object in `StepDefinition` is the cleanest pattern for optional step-type-specific configuration. Lightweight JSON polling endpoint (`GET /api/prism/workflow/poll`) preferred over full page reload or SSE/WebSocket complexity. `ResponseState = "render"` is correct for waiting states (they're actively engaging UI); "defer" is reserved for passive "come back later" states like status-timeline. Workflow author controls all content (message, expected wait time, defer message) — no hard-coded strings in views.
 
 ## 2026-04-14T20:24:57Z: Architecture Review Session Complete
 

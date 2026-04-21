@@ -1,4 +1,5 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.Core.Models.Workflow;
 
@@ -87,6 +88,19 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
     /// Keys are field keys; values are the user-submitted strings.
     /// </summary>
     public IReadOnlyDictionary<string, string> FormValues { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// Configuration for waiting step types. Only populated when <see cref="StepType"/> is <c>"waiting"</c>.
+    /// Contains the message, expected wait time, polling interval, and defer option configuration.
+    /// </summary>
+    public WaitingConfig? WaitingConfig { get; set; }
+
+    /// <summary>
+    /// Recommended polling interval in milliseconds for waiting step types.
+    /// Only populated when <see cref="StepType"/> is <c>"waiting"</c>.
+    /// Sourced from <see cref="WaitingConfig.PollIntervalMs"/> via the workflow response envelope.
+    /// </summary>
+    public int? PollAfterMs { get; set; }
 
     /// <summary>
     /// Convenient lookup of the first problem message keyed by field key, for rendering inline field-level errors.

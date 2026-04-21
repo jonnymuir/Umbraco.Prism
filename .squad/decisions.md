@@ -2102,3 +2102,279 @@ When updating workflow documentation:
 - [ ] Update CONTRIBUTING.md with workflow documentation guidelines
 - [ ] Create style guide for all `/docs/` content (not just workflows)
 
+
+---
+
+## 📌 2026-04-22: Tom Nook — "Waiting" Step Type with Polling and Defer
+
+**Decision:** Introduce a new step type `"waiting"` that represents workflows paused for external processing (payments, review queues, background jobs).
+
+**Context:** Workflows need to pause and wait for external systems to complete processing while giving users two options:
+1. Stay and watch (with accessible auto-polling UI)
+2. Leave and return later (defer)
+
+**Design:**
+
+### 1. New Step Type
+- `"waiting"` joins existing types: `question`, `check-answers`, `confirmation`, `status-timeline`, `task-list`
+- Semantically distinct from `status-timeline` (historical read-only vs. active "please wait" state)
+- ResponseState = `"render"` (not `"defer"` — waiting is actively engaging the user)
+
+### 2. Workflow Definition Structure
+New nested `WaitingConfig` object (only in `"waiting"` steps):
+```json
+{
+  "stateKey": "payment-processing",
+  "stepType": "waiting",
+  "waitingConfig": {
+    "message": "Processing your payment...",
+    "expectedWaitSeconds": 30,
+    "pollIntervalMs": 3000,
+    "allowDefer": true,
+    "deferMessage": "Leave and return later"
+  }
+}
+```
+
+**Why nested:** Keeps schema clean; only waiting steps use this config.
+
+### 3. Polling Architecture
+- New endpoint: `GET /api/prism/workflow/poll?workflowKey={key}&instanceId={id}&knownStateVersion={v}`
+- Returns lightweight JSON: `{ "changed": bool, "newStateVersion": int, "stepType": string }`
+- Uses existing `GetCurrentAsync` (no duplicate resolution logic)
+- Stateless and perfect for high-frequency polling
+
+**Why lightweight JSON:** Minimal overhead vs. full page reload; enables accessible live region updates without history pollution.
+
+### 4. UI & Progressive Enhancement
+- Partial view with GDS notification banner (blue "information" style)
+- ARIA live region (`role="status" aria-live="polite"`) for accessible polling status
+- JS polling with feature detection and graceful fallback
+- Defer link works without JavaScript
+
+### 5. Builder API
+- Fluent method: `.WaitWith(message, expectedWaitSeconds, pollIntervalMs, allowDefer, deferMessage)`
+- Auto-sets `stepType = "waiting"` (no separate `.StepType("waiting")` call needed)
+- Reduces cognitive load and prevents accidental mismatches
+
+**Implications:**
+
+- Workflow authors fully control all content (message, wait time, polling interval)
+- Client polls on interval; when state changes, performs full page reload
+- Accessible: ARIA live regions, no vestibular triggers, progressive enhancement
+- No breaking changes: new step type, existing types unaffected
+
+**Success Criteria:**
+- ✅ Authors define waiting states in JSON with all content controlled
+- ✅ Users see accessible UI with expected time + polling status
+- ✅ UI auto-updates when state changes
+- ✅ Defer option works without JS
+- ✅ Zero warnings in build/test
+
+---
+
+## 📌 2026-04-22: Blathers — Waiting State Backend Implementation
+
+**Decision:** Implement waiting state as a first-class step type with dedicated configuration and API endpoints.
+
+**Implementation:**
+
+### 1. Models (UmbracoPrism.Shared)
+Added `WaitingConfig` record with properties:
+- `Message` — user-facing message during wait
+- `ExpectedWaitSeconds` — estimated duration
+- `PollIntervalMs` — client polling frequency (default: 3000ms)
+- `AllowDefer` — show "leave and return" option (default: true)
+- `DeferMessage` — custom defer text (optional)
+
+**Why Shared:** Enables both Business App engine and integrator tooling access to definition shape.
+
+### 2. Response State Semantics
+- Waiting steps use `ResponseState = "render"` (NOT `"defer"`)
+- "defer" reserved for status-timeline (passive, historical)
+- "render" for waiting (active, engaging)
+- Keeps rendering logic simple — same code path as question/check-answers
+
+### 3. Polling Endpoint
+New `WorkflowPollController`:
+- Route: `GET /api/prism/workflow/poll`
+- Params: `workflowKey`, `instanceId`, `knownStateVersion`
+- Response: `{ changed: bool, newStateVersion: int, stepType: string }`
+
+**Design rationale:**
+- Uses existing `GetCurrentAsync` (no duplicate instance resolution)
+- Stateless (perfect for high-frequency polling)
+- Minimal payload (reduces bandwidth)
+- Direct instanceId lookup (bypasses policy logic)
+
+### 4. Data Flow
+```
+WorkflowDefinitionFile.StepDefinition.WaitingConfig
+  ↓ (BuildEnvelope)
+WorkflowResponseEnvelope.Render.WaitingConfig
+  ↓ (CreateViewModel)
+PrismWorkflowViewModel.WaitingConfig
+  ↓ (View rendering)
+Frontend polling loop
+```
+
+- `PollAfterMs` flows from `WaitingConfig.PollIntervalMs` for easy client access
+
+### 5. BuildEnvelope Changes
+- `BusinessAppWorkflowEngine.BuildEnvelope` passes `state.WaitingConfig` to `StepContent`
+- Populates `PollAfterMs` from polling interval
+- No changes to core.csproj (Core already references Shared)
+
+**Seed Workflow:**
+Created `payment-demo-v1.json` with 3 states:
+- enter-details → processing-payment (waiting) → payment-complete
+- Demonstrates 30-second expected wait, 3-second poll interval, defer option
+
+**Implications:**
+- Integrators add waiting states to workflows via `"stepType": "waiting"` + `waitingConfig` block
+- C# authors use fluent `.WaitWith()` builder method
+- All 543 tests pass (19 new waiting state tests)
+
+---
+
+## 📌 2026-04-22: Isabelle — Workflow Waiting Step UI Pattern
+
+**Decision:** Create `_WorkflowStep-Waiting.cshtml` partial with accessibility-first design for the waiting UI.
+
+**Design Choices:**
+
+### 1. ARIA Live Region for Polling Status
+- `role="status" aria-live="polite" aria-atomic="true"`
+- Starts empty, updated by JS when polling detects state
+- Applied `govuk-visually-hidden` so updates announced without visual distraction
+- Prevents vestibular issues from animations
+
+### 2. Progressive Enhancement
+- All critical info visible without JavaScript (message, expected wait, defer option)
+- Polling enhances but doesn't block
+- If JS fails: user can manually refresh or use defer link
+- Hidden data carrier div (`#prism-waiting-data`) holds config for JS
+
+### 3. GDS Components
+- **Notification Banner:** `role="region" aria-labelledby` with waiting message + computed wait time
+- **Details Component:** Native `<details>/<summary>` for defer option (no JS required, degrades gracefully)
+- **Human-friendly formatting:** Seconds → minutes → hours conversion
+
+### 4. JavaScript Compatibility
+- Traditional `function() {}` syntax (not arrow functions)
+- Fetch API with `.then/.catch` (not `async/await`)
+- Feature detection: checks for element existence
+- Matches pattern from existing partials
+
+### 5. Smart Polling Behavior
+- Respects `document.hidden` (pauses when tab backgrounded)
+- Max retry limit (100) with graceful fallback message
+- URL encoding for all parameters (XSS prevention)
+- Silent retry on non-200 responses
+
+**Files:**
+- Created: `src/UmbracoPrism.TestSite/Views/Partials/_WorkflowStep-Waiting.cshtml`
+- Modified: `src/UmbracoPrism.TestSite/Views/workflowPage.cshtml` (added "waiting" case)
+
+**Accessibility Compliance (WCAG 2.2 AA):**
+- ✅ 1.3.1 Info and Relationships — proper landmark structure, semantic HTML
+- ✅ 2.2.2 Pause, Stop, Hide — no auto-moving content, live region doesn't distract
+- ✅ 2.3.1 Three Flashes — no animations or flashing
+- ✅ 4.1.3 Status Messages — ARIA live region announces changes
+
+**Dependencies:**
+- Assumes `PrismWorkflowViewModel.WaitingConfig` and `PollAfterMs` (provided by Blathers)
+- Assumes `/api/prism/workflow/poll` endpoint (Blathers)
+
+**H1 Ownership:** Partial owns its h1 (consistent with completion/review partials).
+
+**Build Status:** ✅ No errors (7 pre-existing warnings)
+
+---
+
+## 📌 2026-04-22: Mabel — WaitWith() Builder and Waiting State Documentation
+
+**Decision:** Add `WaitWith()` fluent method to `WorkflowStateBuilder` and comprehensive documentation.
+
+**Code Changes:**
+
+### 1. Builder Method
+File: `src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs`
+
+Added to `WorkflowStateBuilder`:
+- Private field: `_waitingConfig` (nullable)
+- Method: `WaitWith(message, expectedWaitSeconds, pollIntervalMs = 3000, allowDefer = true, deferMessage = null)`
+- Auto-sets `_stepType = "waiting"` (developers call one method instead of two)
+- Updated XML docs on `StepType()` to mention `waiting` type
+
+**Why auto-set stepType:** Reduces cognitive load, prevents accidental mismatches (e.g., forgetting `.StepType()`), method name clearly indicates intent.
+
+### 2. Configuration Defaults
+- `pollIntervalMs = 3000ms` — good balance between responsiveness and server load
+- `allowDefer = true` — most workflows should allow users to leave and return
+- `deferMessage = null` — server-side provides sensible defaults in UI
+
+### 3. Documentation
+File: `docs/guides/workflow-setup.md`
+
+Added sections:
+- **Step Types Reference:** Updated table to include `waiting` (6 types)
+- **State Properties:** Added `waiting` to valid `stepType` values + `waitingConfig` property
+- **New "Waiting States" Section (lines 180-337):**
+  - When to use (payment, queue-based, background jobs)
+  - When NOT to use (instant transitions, read-only status)
+  - Configuration reference table
+  - JSON example (complete 3-step payment workflow)
+  - C# builder example
+  - Mermaid flow diagram
+  - Accessibility notes (ARIA live, defer, back button)
+
+**Documentation Audience:** .NET developers; assumes C# knowledge; JSON + builder examples.
+
+**Build Status:** ✅ No errors (7 pre-existing warnings)
+
+---
+
+## 📌 2026-04-22: Tangy — Waiting State Test Patterns
+
+**Decision:** Establish three-layer test pattern for workflow engine features with JSON configuration.
+
+**Testing Layers:**
+
+### 1. Serialization Tests
+- JSON deserialization validation
+- Full and partial JSON configs with defaults
+- Null handling and type preservation
+- Must use `PropertyNameCaseInsensitive = true` (engine standard)
+
+### 2. Builder Tests
+- Each builder method independently tested
+- Fluent chaining validation (returns same instance)
+- Default values vs. explicit values
+- Validate that raw `StepType("waiting")` without `WaitWith()` leaves `WaitingConfig` null
+
+### 3. Engine Integration Tests
+- Seed workflow files via temp directories
+- Use `ResetAll()` for test isolation
+- Validate envelope properties match definition
+- Test state transitions through waiting states
+
+### Test File Structure
+```
+BusinessAppWorkflowEngine{Feature}Tests.cs
+├── {Feature}SerializationTests — JSON round-trip
+├── {Feature}BuilderTests        — Fluent API
+└── BusinessAppWorkflowEngine{Feature}Tests — Integration
+```
+
+**Key Technical Findings:**
+
+1. **Engine constructor loads workflows from disk** — Tests writing seed files after instantiation need fresh engine instance
+2. **PollAfterMs is null for non-waiting states** — Only populated when `state.WaitingConfig?.PollIntervalMs` is non-null
+3. **Waiting states render normally** — `ResponseState = "render"`; only "status-timeline" + "confirmation" get special treatment
+
+**Implementation:**
+- 31 tests written, all passing
+- Zero regression (543 total tests passing)
+- Full coverage: JSON → Builder → Engine output
+

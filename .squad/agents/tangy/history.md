@@ -703,3 +703,34 @@ Nine key decisions documented covering test organization, selector strategy, dat
 
 **Reference:** `.squad/orchestration-log/2026-04-21T20:58:11Z-tangy.md`
 
+## 2026-04-22T10:15:30Z: Waiting State Test Coverage Session
+
+**Scope:** XUnit tests for waiting state feature (serialization, builder, engine integration)
+
+**Changes:**
+- Created BusinessAppWorkflowEngineWaitingStateTests.cs (31 test cases)
+- Three test classes: WaitingConfigSerializationTests, WaitWithBuilderTests, BusinessAppWorkflowEngineWaitingStateTests
+- Coverage: JSON deserialization, WaitWith() fluent API, BuildEnvelope output for waiting states
+
+**Test Metrics:**
+- New tests: 31 XUnit test cases (5 serialization + 12 builder + 14 engine)
+- Total tests: 543 (up from 512)
+- All passing: ✅
+
+**Test Strategy:**
+- **Serialization tests:** JSON round-trip validation, default values, null handling
+- **Builder tests:** Fluent API behavior, default values, parameter propagation
+- **Engine tests:** BuildEnvelope output validation, PollAfterMs mapping, state transitions
+- Pattern reference: BusinessAppWorkflowEngineInstancePolicyTests
+
+**Learnings:**
+1. **JSON deserialization requires PropertyNameCaseInsensitive = true** — Found via JsonOptions in BusinessAppWorkflowEngine.cs. All seed file deserialization uses this; tests must match.
+2. **Engine loads workflows in constructor** — Tests that create workflow files after engine init need a fresh engine instance. Used isolated temp directories for these cases.
+3. **PollAfterMs is set from WaitingConfig.PollIntervalMs** — Line 634 in BuildEnvelope copies this value to the envelope root when state has WaitingConfig.
+4. **Waiting states render normally (ResponseState="render")** — The stepType switch (line 620) only treats "status-timeline" and "confirmation" specially; "waiting" falls through to "render".
+
+**Result:** ✅ Full coverage of waiting state feature, all tests passing, zero regression
+
+**Reference:** `.squad/orchestration-log/2026-04-22T10:15:30Z-tangy.md`
+
+

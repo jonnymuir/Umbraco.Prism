@@ -1,0 +1,22 @@
+{
+  "groupKey": "payment-demo-details",
+  "displayName": "Payment Details",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "card-holder-name",
+      "label": "Cardholder name",
+      "hint": "As it appears on your card",
+      "fieldType": "text",
+      "required": true
+    },
+    {
+      "fieldKey": "amount",
+      "label": "Amount (£)",
+      "hint": "Enter the amount to pay",
+      "fieldType": "number",
+      "required": true,
+      "min": 0.01
+    }
+  ]
+}

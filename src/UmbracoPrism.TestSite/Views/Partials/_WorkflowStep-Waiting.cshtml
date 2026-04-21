@@ -1,0 +1,129 @@
+@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-l">@Model.StateDisplayName</h1>
+
+        @if (Model.WaitingConfig != null)
+        {
+            <div class="govuk-notification-banner" role="region" aria-labelledby="prism-waiting-message">
+                <div class="govuk-notification-banner__header">
+                    <h2 class="govuk-notification-banner__title" id="prism-waiting-message">Information</h2>
+                </div>
+                <div class="govuk-notification-banner__content">
+                    <p class="govuk-body">@Model.WaitingConfig.Message</p>
+                    @{
+                        var seconds = Model.WaitingConfig.ExpectedWaitSeconds;
+                        string waitLabel;
+                        if (seconds < 60)
+                        {
+                            waitLabel = $"This usually takes about {seconds} seconds.";
+                        }
+                        else if (seconds < 120)
+                        {
+                            waitLabel = "This usually takes about 1 minute.";
+                        }
+                        else if (seconds < 3600)
+                        {
+                            var minutes = seconds / 60;
+                            waitLabel = $"This usually takes about {minutes} minutes.";
+                        }
+                        else
+                        {
+                            var hours = seconds / 3600;
+                            waitLabel = $"This usually takes about {hours} hour{(hours > 1 ? "s" : "")}.";
+                        }
+                    }
+                    <p class="govuk-body">@waitLabel</p>
+                </div>
+            </div>
+
+            <div role="status" aria-live="polite" aria-atomic="true" id="prism-poll-status" class="govuk-visually-hidden"></div>
+
+            <div id="prism-waiting-data"
+                 data-workflow-key="@Model.WorkflowKey"
+                 data-instance-id="@Model.InstanceId"
+                 data-state-version="@Model.StateVersion"
+                 data-poll-interval-ms="@(Model.PollAfterMs ?? Model.WaitingConfig.PollIntervalMs)"
+                 hidden>
+            </div>
+
+            @if (Model.WaitingConfig.AllowDefer)
+            {
+                <details class="govuk-details">
+                    <summary class="govuk-details__summary">
+                        <span class="govuk-details__summary-text">Need to leave this page?</span>
+                    </summary>
+                    <div class="govuk-details__text">
+                        <p class="govuk-body">
+                            @(Model.WaitingConfig.DeferMessage ?? "You can leave this page and return to your applications later. Your progress has been saved.")
+                        </p>
+                        <p class="govuk-body">
+                            <a href="/workflow-hub" class="govuk-link">Go to My Applications</a>
+                        </p>
+                    </div>
+                </details>
+            }
+        }
+    </div>
+</div>
+
+@if (Model.WaitingConfig != null)
+{
+    <script>
+    (function() {
+        var el = document.getElementById('prism-waiting-data');
+        if (!el) return;
+        
+        var workflowKey = el.dataset.workflowKey;
+        var instanceId = el.dataset.instanceId;
+        var stateVersion = parseInt(el.dataset.stateVersion, 10);
+        var intervalMs = parseInt(el.dataset.pollIntervalMs, 10) || 5000;
+        var statusEl = document.getElementById('prism-poll-status');
+        var retryCount = 0;
+        var maxRetries = 100;
+        var pollTimeout;
+        
+        function updateStatus(msg) {
+            if (statusEl) statusEl.textContent = msg;
+        }
+        
+        function poll() {
+            if (retryCount >= maxRetries) {
+                updateStatus('Please refresh the page to check for updates.');
+                return;
+            }
+            if (document.hidden) {
+                pollTimeout = setTimeout(poll, intervalMs);
+                return;
+            }
+            retryCount++;
+            var url = '/api/prism/workflow/poll?workflowKey=' + encodeURIComponent(workflowKey)
+                + '&instanceId=' + encodeURIComponent(instanceId)
+                + '&knownStateVersion=' + stateVersion;
+            
+            updateStatus('Checking for updates\u2026');
+            
+            fetch(url)
+                .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+                .then(function(data) {
+                    if (data.changed) {
+                        updateStatus('Update received \u2014 reloading page.');
+                        window.location.reload();
+                    } else {
+                        pollTimeout = setTimeout(poll, intervalMs);
+                    }
+                })
+                .catch(function() {
+                    pollTimeout = setTimeout(poll, intervalMs);
+                });
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', poll);
+        } else {
+            poll();
+        }
+    })();
+    </script>
+}

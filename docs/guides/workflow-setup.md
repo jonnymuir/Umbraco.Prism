@@ -62,7 +62,7 @@ Before setting up a workflow, ensure:
 
 ## Step Types Reference
 
-Every step in a workflow has a `stepType` property that controls how it's rendered. Prism provides 5 built-in step types:
+Every step in a workflow has a `stepType` property that controls how it's rendered. Prism provides 6 built-in step types:
 
 | Step Type | Purpose | Rendering | User Interaction |
 |-----------|---------|-----------|------------------|
@@ -70,13 +70,15 @@ Every step in a workflow has a `stepType` property that controls how it's render
 | `check-answers` | Read-only summary of all answers | Display-only list with "Change" links | User reviews, then confirms or goes back |
 | `status-timeline` | Shows the current status and timeline | Timeline widget, status badges | Read-only (no data entry) |
 | `task-list` | Shows tasks with individual statuses | List with status indicators (pending, in progress, complete) | Read-only; may have task-specific links |
+| `waiting` | Waiting for external processing to complete | Auto-polling spinner with message, optional defer link | Read-only; page auto-refreshes when state changes |
 | `confirmation` | Success state — thank you screen | Success message, reference number, next steps | Read-only; offers action to start another workflow |
 
 **Choose the right step type:**
 - Use `question` for data collection
 - Use `check-answers` before final submission (let users review)
-- Use `status-timeline` for waiting states (e.g., "Your application is being reviewed")
+- Use `status-timeline` for showing progress/status timelines (e.g., "Your application is being reviewed")
 - Use `task-list` when the workflow is a series of subtasks (e.g., permit application with multiple inspections)
+- Use `waiting` for external processing (e.g., payment gateway, background job, approval queue) — the page auto-polls and advances automatically
 - Use `confirmation` for the final success state
 
 ---
@@ -158,10 +160,11 @@ A workflow definition is a JSON (or C#) blueprint that describes all possible st
 |----------|------|----------|-------------|
 | `stateKey` | string | Yes | Unique identifier for this state (e.g., `"collecting-details"`). |
 | `displayName` | string | Yes | User-facing name displayed at the top of the page (e.g., `"Tell us about your enquiry"`). |
-| `stepType` | string | Yes | One of: `question`, `check-answers`, `status-timeline`, `task-list`, `confirmation`. |
+| `stepType` | string | Yes | One of: `question`, `check-answers`, `status-timeline`, `task-list`, `waiting`, `confirmation`. |
 | `allowedActions` | array | Yes | Which actions users can take from this state (e.g., `["submit", "save-draft"]`). |
 | `fieldGroupKeys` | array | Yes | References to field groups to display (e.g., `["contact-details", "enquiry-info"]`). Empty for read-only steps. |
 | `statusTimeline` | array | No | For `status-timeline` step type. Array of `{ label, completed }` objects showing progress. |
+| `waitingConfig` | object | No | For `waiting` step type. Configuration for auto-polling behavior (see Waiting State Configuration below). |
 
 ### Transition Properties
 
@@ -174,7 +177,162 @@ A workflow definition is a JSON (or C#) blueprint that describes all possible st
 
 ---
 
-## Creating Field Groups
+## Waiting States
+
+Waiting states are used when your workflow needs to pause and wait for external processing to complete — such as payment gateway processing, approval queue review, or background job completion. The page automatically polls for state changes and reloads when the workflow advances.
+
+### When to Use Waiting States
+
+Use a waiting state when:
+- **External system is processing** — Payment gateway, email verification, document processing
+- **Queue-based workflow** — Waiting for a human reviewer to approve or process the request
+- **Background job** — Long-running operation (report generation, data sync) where the user should see progress
+- **SLA timer** — You want to inform users of expected wait time
+
+Do **not** use waiting states for:
+- **Instant state transitions** — Use regular state navigation instead
+- **Read-only status display** — Use `status-timeline` instead
+- **Optional user actions** — Use `question` or `task-list` instead
+
+### Waiting State Configuration Reference
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `message` | string | — | **Required.** Main message shown to the user (e.g., `"We're processing your payment. This usually takes 30 seconds."`). Supports plain text. |
+| `expectedWaitSeconds` | number | — | **Required.** Expected duration in seconds. Used to set user expectations (e.g., 30 → `"This usually takes about 30 seconds."`). |
+| `pollIntervalMs` | number | 3000 | How often the page polls the server in milliseconds. Lower = more responsive but higher server load. Higher = less load but slower detection. Typical range: 2000–5000. |
+| `allowDefer` | boolean | true | Whether to show a "Leave and come back later" link. When true, users can navigate to their workflow hub and return to the instance later. |
+| `deferMessage` | string | null | Optional custom message for the defer option. If null, a sensible default is shown. Example: `"You can check status in My Applications."`  |
+
+### JSON Definition Example
+
+Here's a complete workflow with a waiting state:
+
+```json
+{
+  "definitionKey": "payment-application",
+  "displayName": "Submit Payment",
+  "version": 1,
+  "instancePolicy": "single",
+  "initialState": "enter-amount",
+  "states": [
+    {
+      "stateKey": "enter-amount",
+      "displayName": "Enter Payment Amount",
+      "stepType": "question",
+      "allowedActions": ["submit", "cancel"],
+      "fieldGroupKeys": ["payment-details"]
+    },
+    {
+      "stateKey": "confirm-details",
+      "displayName": "Review Your Payment",
+      "stepType": "check-answers",
+      "allowedActions": ["submit", "back"],
+      "fieldGroupKeys": []
+    },
+    {
+      "stateKey": "processing-payment",
+      "displayName": "Processing Your Payment",
+      "stepType": "waiting",
+      "allowedActions": [],
+      "fieldGroupKeys": [],
+      "waitingConfig": {
+        "message": "We are securely processing your payment. This usually takes about 30 seconds. Please do not close this page.",
+        "expectedWaitSeconds": 30,
+        "pollIntervalMs": 3000,
+        "allowDefer": true,
+        "deferMessage": "You can leave and check the status later via My Applications."
+      }
+    },
+    {
+      "stateKey": "payment-complete",
+      "displayName": "Payment Confirmed",
+      "stepType": "confirmation",
+      "allowedActions": ["start-another"],
+      "fieldGroupKeys": []
+    }
+  ],
+  "transitions": [
+    { "fromState": "enter-amount", "toState": "confirm-details", "action": "submit" },
+    { "fromState": "confirm-details", "toState": "enter-amount", "action": "back" },
+    { "fromState": "confirm-details", "toState": "processing-payment", "action": "submit" },
+    { "fromState": "processing-payment", "toState": "payment-complete", "action": "complete" },
+    { "fromState": "enter-amount", "toState": "enter-amount", "action": "cancel" }
+  ]
+}
+```
+
+### C# Builder API Example
+
+Using the fluent builder:
+
+```csharp
+var workflow = new WorkflowDefinitionBuilder()
+    .Key("payment-application")
+    .DisplayName("Submit Payment")
+    .Version(1)
+    .InstancePolicy("single")
+    .StartsAt("enter-amount")
+    .AddState("enter-amount", state => state
+        .DisplayName("Enter Payment Amount")
+        .StepType("question")
+        .AllowActions("submit", "cancel")
+        .WithFieldGroups("payment-details"))
+    .AddState("confirm-details", state => state
+        .DisplayName("Review Your Payment")
+        .StepType("check-answers")
+        .AllowActions("submit", "back")
+        .WithFieldGroups())
+    .AddState("processing-payment", state => state
+        .DisplayName("Processing Your Payment")
+        .WaitWith(
+            message: "We are securely processing your payment. This usually takes about 30 seconds. Please do not close this page.",
+            expectedWaitSeconds: 30,
+            pollIntervalMs: 3000,
+            allowDefer: true,
+            deferMessage: "You can leave and check the status later via My Applications."))
+    .AddState("payment-complete", state => state
+        .DisplayName("Payment Confirmed")
+        .StepType("confirmation")
+        .AllowActions("start-another")
+        .WithFieldGroups())
+    .AddTransition("enter-amount", "confirm-details", "submit")
+    .AddTransition("confirm-details", "enter-amount", "back")
+    .AddTransition("confirm-details", "processing-payment", "submit")
+    .AddTransition("processing-payment", "payment-complete", "complete")
+    .AddTransition("enter-amount", "enter-amount", "cancel")
+    .Build();
+```
+
+Note: The `WaitWith()` method automatically sets the step type to `"waiting"` — you do not need to call `.StepType("waiting")` separately.
+
+### How Waiting States Work
+
+```mermaid
+graph LR
+    A["User lands on<br/>waiting state"] -->|Initial GET| B["Browser renders<br/>polling UI"]
+    B -->|Polls every N ms| C["GET /workflow/current"]
+    C -->|Same state| D["UI waits<br/>continue polling"]
+    D -->|Every N ms| C
+    C -->|New state| E["Workflow advanced<br/>by external actor"]
+    E -->|Auto-reload| F["Browser navigates<br/>to new state"]
+```
+
+**Execution flow:**
+
+1. **User arrives** at a waiting state (e.g., payment gateway has begun processing)
+2. **Page renders** a spinner, message, and optional defer link
+3. **Browser polls** the Business App's `/api/workflow/current` endpoint every `pollIntervalMs` milliseconds
+4. **While waiting** — if the state hasn't changed, the UI continues polling silently
+5. **State advances** — When an external actor (e.g., payment webhook) calls `AdvanceAsync` to move to the next state, the polling detects the change
+6. **Auto-reload** — The page automatically navigates to the new state and renders its UI
+
+**Accessibility:**
+- The polling UI uses ARIA live region (`role="status"`) to announce updates to screen readers
+- Users can defer (leave) at any time if `allowDefer: true`
+- Navigation via browser back button is prevented while polling (to avoid stale state)
+
+---
 
 Field groups define the data you collect in `question` steps. Each field group is a **separate JSON file** in your Business App's `workflow-seeds/field-groups/` directory.
 

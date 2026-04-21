@@ -1026,3 +1026,85 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - Hub resume links must include instanceId for all policies to support direct navigation
 - "multiple" policy never writes to `_instanceLookup` (instances are truly independent)
 
+
+
+---
+
+## Session: Waiting State Implementation (2026-04-22)
+
+**Topic:** Implement waiting step type — backend models, engine changes, and poll controller
+
+**Outcome:** ✅ Complete — 543 tests pass (all existing waiting state tests), build green
+
+### Delivered
+
+**1. WaitingConfig Record (WorkflowDefinitionFile.cs)**
+- Added `WaitingConfig` record to `UmbracoPrism.Shared.Models.Workflow`
+- Properties: `Message`, `ExpectedWaitSeconds`, `PollIntervalMs` (default: 3000), `AllowDefer` (default: true), `DeferMessage` (nullable)
+- Added `WaitingConfig?` property to `StepDefinition` record
+
+**2. StepContent Updates (WorkflowResponseEnvelope.cs)**
+- Added `using UmbracoPrism.Shared.Models.Workflow` to enable WaitingConfig type
+- Added `WaitingConfig?` property to `StepContent` record
+- Namespace remains in `UmbracoPrism.Core.Models.Workflow` (envelope lives in Core, references Shared)
+
+**3. PrismWorkflowViewModel Updates**
+- Added `using UmbracoPrism.Shared.Models.Workflow` for WaitingConfig type
+- Added `WaitingConfig?` property (populated when StepType is "waiting")
+- Added `PollAfterMs?` property (sourced from envelope.PollAfterMs)
+
+**4. PrismWorkflowPageController.CreateViewModel Updates**
+- Populates `vm.WaitingConfig = render?.WaitingConfig`
+- Populates `vm.PollAfterMs = envelope.PollAfterMs`
+
+**5. BusinessAppWorkflowEngine.BuildEnvelope Updates**
+- Passes `WaitingConfig = state.WaitingConfig` to StepContent construction
+- Sets `PollAfterMs = state.WaitingConfig?.PollIntervalMs` on envelope
+- Response state logic unchanged: waiting steps use "render" (active UI state)
+
+**6. WorkflowPollController**
+- Created new API controller: `[Route("api/prism/workflow")]`
+- `GET /api/prism/workflow/poll` endpoint
+- Query params: `workflowKey`, `instanceId`, `knownStateVersion`
+- Returns JSON: `{ changed, newStateVersion, stepType }`
+- Uses `GetCurrentAsync(workflowKey, instanceId, action: null)` to fetch current state
+- Returns 400 if params missing, 404 if instance not found
+
+**7. Demo Workflow Seeds**
+- Created `payment-demo-v1.json` workflow definition with three states:
+  - `enter-details` (question step)
+  - `processing-payment` (waiting step with full waitingConfig)
+  - `payment-complete` (confirmation step)
+- Created `payment-demo-details-v1.json` field group with cardholder name and amount fields
+- Demonstrates 30-second expected wait, 3-second poll interval, defer option
+
+### Technical Notes
+
+- Waiting steps use `ResponseState = "render"` (not "defer") — they're active UI states
+- Only "status-timeline" uses "defer", only "confirmation" uses "complete"
+- Poll controller targets specific instanceId (bypasses policy logic)
+- WorkflowResponseEnvelope.PollAfterMs is nullable (only populated for waiting states)
+- Core project already referenced Shared project (no .csproj changes needed)
+
+### Test Results
+
+- **All 543 tests pass** (19 new waiting state tests from Tom Nook's TDD session)
+- Serialization tests validate JSON deserialization with defaults
+- Builder tests validate fluent API (WaitWith method)
+- Engine tests validate BuildEnvelope behavior and envelope properties
+- Integration tests validate dynamic workflow creation patterns
+
+### Architecture Decisions
+
+- **WaitingConfig lives in Shared** — enables both BA engine and integrator tooling to access definition shape
+- **Poll endpoint uses GetCurrentAsync** — leverages existing instance resolution logic (no duplicate code)
+- **Waiting uses "render" response state** — keeps UI rendering path simple (no special handling)
+- **PollAfterMs at envelope level** — client can use single source of truth for polling interval
+
+### Key Insights
+
+- Tom Nook's tests were comprehensive — implementation just fulfilled existing test expectations
+- Shared project as central definition source works well (Core references Shared, BA references Shared)
+- Poll controller is stateless and lightweight (perfect for high-frequency polling)
+- ResponseState abstraction correctly separates "what to render" from "step behavior"
+

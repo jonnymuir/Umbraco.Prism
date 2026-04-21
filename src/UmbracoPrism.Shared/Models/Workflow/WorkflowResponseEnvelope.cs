@@ -1,3 +1,5 @@
+using UmbracoPrism.Shared.Models.Workflow;
+
 namespace UmbracoPrism.Core.Models.Workflow;
 
 /// <summary>
@@ -79,6 +81,13 @@ public record StepContent
     /// Gets the available actions the user can take.
     /// </summary>
     public required IReadOnlyList<WorkflowAction> AvailableActions { get; init; }
+
+    /// <summary>
+    /// Configuration for "waiting" step types.
+    /// Only present when <see cref="StepType"/> is <c>"waiting"</c>.
+    /// Provides the message, expected wait time, and polling configuration for the waiting UI.
+    /// </summary>
+    public WaitingConfig? WaitingConfig { get; init; }
 }
 
 /// <summary>

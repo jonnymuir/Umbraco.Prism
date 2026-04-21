@@ -310,6 +310,8 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         vm.AvailableActions = render?.AvailableActions ?? Array.Empty<WorkflowAction>();
         vm.Problems = problems ?? Array.Empty<WorkflowProblem>();
         vm.FormValues = formValues ?? new Dictionary<string, string>();
+        vm.WaitingConfig = render?.WaitingConfig;
+        vm.PollAfterMs = envelope.PollAfterMs;
 
         return vm;
     }

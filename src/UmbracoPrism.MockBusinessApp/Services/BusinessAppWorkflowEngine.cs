@@ -613,7 +613,8 @@ public class BusinessAppWorkflowEngine
             StepType = state.StepType,
             StateDisplayName = state.DisplayName,
             FieldGroups = fieldGroups,
-            AvailableActions = actions
+            AvailableActions = actions,
+            WaitingConfig = state.WaitingConfig
         };
 
         var responseState = state.StepType switch
@@ -630,6 +631,7 @@ public class BusinessAppWorkflowEngine
             StateVersion = instance.StateVersion,
             CorrelationId = instance.InstanceId,
             ServerTimeUtc = DateTimeOffset.UtcNow,
+            PollAfterMs = state.WaitingConfig?.PollIntervalMs,
             Render = render,
             InstancePolicy = definition.InstancePolicy
         };

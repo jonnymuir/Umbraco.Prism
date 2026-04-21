@@ -1,0 +1,41 @@
+{
+  "definitionKey": "payment-demo",
+  "displayName": "Payment Demo",
+  "version": 1,
+  "initialState": "enter-details",
+  "instancePolicy": "single",
+  "states": [
+    {
+      "stateKey": "enter-details",
+      "displayName": "Enter Payment Details",
+      "stepType": "question",
+      "allowedActions": [],
+      "fieldGroupKeys": ["payment-demo-details"]
+    },
+    {
+      "stateKey": "processing-payment",
+      "displayName": "Processing Your Payment",
+      "stepType": "waiting",
+      "allowedActions": [],
+      "fieldGroupKeys": [],
+      "waitingConfig": {
+        "message": "We are processing your payment with our secure payment provider. Please do not close this page.",
+        "expectedWaitSeconds": 30,
+        "pollIntervalMs": 3000,
+        "allowDefer": true,
+        "deferMessage": "You can leave this page and return to your applications to check the status when processing is complete."
+      }
+    },
+    {
+      "stateKey": "payment-complete",
+      "displayName": "Payment Complete",
+      "stepType": "confirmation",
+      "allowedActions": [],
+      "fieldGroupKeys": []
+    }
+  ],
+  "transitions": [
+    { "fromState": "enter-details", "toState": "processing-payment", "action": "submit" },
+    { "fromState": "processing-payment", "toState": "payment-complete", "action": "complete" }
+  ]
+}

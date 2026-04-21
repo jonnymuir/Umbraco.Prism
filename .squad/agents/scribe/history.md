@@ -224,3 +224,35 @@ These principles remain standing even after archiving.
 
 **Reference:** `.squad/log/2026-04-21T20:58:11Z-workflow-dx-and-validation-fix.md`, `.squad/decisions.md` (both Blathers and Mabel decisions merged)
 
+
+---
+
+## 2026-04-22T00:10:00Z: Waiting State Feature Commit Orchestration
+
+**Scope:** Final orchestration of waiting state feature implementation across all four agents (Tom Nook, Blathers, Isabelle, Mabel, Tangy).
+
+**Deliverables:**
+- ✅ Decision inbox merged (5 files: Tom Nook design, Blathers backend, Isabelle UI, Mabel builder, Tangy tests)
+- ✅ Inbox cleared
+- ✅ Git commit prepared with comprehensive message
+- ✅ Build green: 0 errors, 543 tests passing
+
+**Files Modified:**
+- `.squad/decisions.md` — 5 new decision entries appended (waiting state design, backend impl, UI pattern, builder API, test patterns)
+- `.squad/agents/scribe/history.md` — This entry
+
+**Agents Coordinated:**
+- Tom Nook (Lead): Design decisions on waiting state semantics, polling architecture, builder API
+- Blathers (Backend): WaitingConfig models, WorkflowPollController, BuildEnvelope integration
+- Isabelle (Frontend): `_WorkflowStep-Waiting.cshtml` with ARIA accessibility, progressive enhancement
+- Mabel (Technical Writer): `WaitWith()` builder method, comprehensive documentation
+- Tangy (QA): 31 new tests with three-layer pattern (serialization, builder, engine integration)
+
+**Key Achievement:**
+Implemented waiting state as a first-class feature with full workflow engine support, accessible polling UI, fluent builder API, and comprehensive documentation. Pattern established for future workflow engine extensions.
+
+**Git Status:**
+- Build: 0 errors, 0 warnings (7 pre-existing)
+- Tests: 543 passing (31 new waiting state tests)
+- Ready for commit to current branch
+

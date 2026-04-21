@@ -40,6 +40,7 @@
             "check-answers" or "review" => "_WorkflowStep-Review",
             "confirmation" or "completion" => "_WorkflowStep-Completion",
             "status-timeline" or "statustimeline" => "_WorkflowStep-StatusTimeline",
+            "waiting" => "_WorkflowStep-Waiting",
             _ => $"_WorkflowStep-{Model.StepType}"
         };
         var partialPath = $"~/Views/Partials/{partialName}.cshtml";

@@ -41,6 +41,10 @@ public record StepDefinition
     public IReadOnlyList<string> AllowedActions { get; init; } = Array.Empty<string>();
     /// <summary>Keys of field groups to render when in this state.</summary>
     public IReadOnlyList<string> FieldGroupKeys { get; init; } = Array.Empty<string>();
+    /// <summary>
+    /// Configuration for "waiting" step types. Only present when <see cref="StepType"/> is <c>"waiting"</c>.
+    /// </summary>
+    public WaitingConfig? WaitingConfig { get; init; }
 }
 
 /// <summary>
@@ -57,6 +61,43 @@ public record WorkflowTransitionFile
     public string Action { get; init; } = "";
     /// <summary>Optional role restriction: null for any user, "reviewer" for reviewer-only actions.</summary>
     public string? RequiresRole { get; init; }
+}
+
+/// <summary>
+/// Configuration for a "waiting" step type. Defines the message, expected wait time,
+/// polling behaviour, and optional defer option shown when the workflow is paused
+/// pending external processing (e.g., payment, review queue, background job).
+/// Only present when <see cref="StepDefinition.StepType"/> is <c>"waiting"</c>.
+/// </summary>
+public record WaitingConfig
+{
+    /// <summary>
+    /// The main message displayed to the user while waiting
+    /// (e.g., "We're processing your payment. This usually takes 30 seconds.").
+    /// </summary>
+    public string Message { get; init; } = "";
+
+    /// <summary>
+    /// Expected wait time in seconds, used for user expectation management
+    /// (e.g., 30 → "This usually takes about 30 seconds.").
+    /// </summary>
+    public int ExpectedWaitSeconds { get; init; }
+
+    /// <summary>
+    /// How often the client should poll for a state change, in milliseconds (default: 3000).
+    /// </summary>
+    public int PollIntervalMs { get; init; } = 3000;
+
+    /// <summary>
+    /// Whether to show the "leave and return later" defer option (default: true).
+    /// When true, users are shown a link to the workflow hub so they can return later.
+    /// </summary>
+    public bool AllowDefer { get; init; } = true;
+
+    /// <summary>
+    /// Optional custom message for the defer option. If null or empty, a default message is shown.
+    /// </summary>
+    public string? DeferMessage { get; init; }
 }
 
 /// <summary>

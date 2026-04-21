@@ -203,6 +203,7 @@ public class WorkflowStateBuilder
     private string _stepType = "question";
     private readonly List<string> _allowedActions = new();
     private readonly List<string> _fieldGroupKeys = new();
+    private WaitingConfig? _waitingConfig;
 
     internal WorkflowStateBuilder(string stateKey)
     {
@@ -223,7 +224,7 @@ public class WorkflowStateBuilder
     /// <summary>
     /// Sets the step type, which drives partial view selection and UI rendering.
     /// </summary>
-    /// <param name="stepType">One of: "question" (form), "check-answers" (summary), "confirmation" (done), "status-timeline", "task-list".</param>
+    /// <param name="stepType">One of: "question" (form), "check-answers" (summary), "confirmation" (done), "status-timeline", "task-list", "waiting" (paused pending external action — prefer <see cref="WaitWith"/> over calling this directly).</param>
     /// <returns>This builder instance for method chaining.</returns>
     /// <remarks>
     /// The step type is not Archetype. It is the classification used by the front-end to decide which view partial to render.
@@ -262,6 +263,72 @@ public class WorkflowStateBuilder
         return this;
     }
 
+    /// <summary>
+    /// Configures this state as a "waiting" step — shown when the workflow is paused
+    /// pending external processing (e.g., payment provider, review queue, background job).
+    /// </summary>
+    /// <param name="message">
+    /// The main message to display while waiting
+    /// (e.g., "We're processing your payment. This usually takes 30 seconds.").
+    /// </param>
+    /// <param name="expectedWaitSeconds">
+    /// Expected wait time in seconds, used to set user expectations
+    /// (e.g., 30 → "This usually takes about 30 seconds.").
+    /// </param>
+    /// <param name="pollIntervalMs">
+    /// How often the client should poll for a state change, in milliseconds (default: 3000).
+    /// Lower values give a more responsive feel; higher values reduce server load.
+    /// </param>
+    /// <param name="allowDefer">
+    /// Whether to show the "leave and come back later" option (default: true).
+    /// When true, a link to the workflow hub is shown so users can return later.
+    /// </param>
+    /// <param name="deferMessage">
+    /// Optional custom message for the defer option. If null, a sensible default is used.
+    /// </param>
+    /// <returns>This builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Calling this method also sets the step type to <c>"waiting"</c> automatically —
+    /// you do not need to call <see cref="StepType"/> separately.
+    /// </para>
+    /// <para>
+    /// The waiting state renders an auto-polling UI that detects when the workflow advances
+    /// (triggered by an external actor calling AdvanceAsync) and reloads the page automatically.
+    /// </para>
+    /// <example>
+    /// <code>
+    /// .AddState("processing-payment", s => s
+    ///     .DisplayName("Processing Your Payment")
+    ///     .WaitWith(
+    ///         message: "We are processing your payment. Please do not close this page.",
+    ///         expectedWaitSeconds: 30,
+    ///         pollIntervalMs: 3000,
+    ///         allowDefer: true,
+    ///         deferMessage: "You can leave and return via My Applications when processing is complete."
+    ///     ))
+    /// </code>
+    /// </example>
+    /// </remarks>
+    public WorkflowStateBuilder WaitWith(
+        string message,
+        int expectedWaitSeconds,
+        int pollIntervalMs = 3000,
+        bool allowDefer = true,
+        string? deferMessage = null)
+    {
+        _stepType = "waiting";
+        _waitingConfig = new WaitingConfig
+        {
+            Message = message,
+            ExpectedWaitSeconds = expectedWaitSeconds,
+            PollIntervalMs = pollIntervalMs,
+            AllowDefer = allowDefer,
+            DeferMessage = deferMessage
+        };
+        return this;
+    }
+
     internal StepDefinition Build()
     {
         return new StepDefinition
@@ -270,7 +337,8 @@ public class WorkflowStateBuilder
             DisplayName = _displayName,
             StepType = _stepType,
             AllowedActions = _allowedActions,
-            FieldGroupKeys = _fieldGroupKeys
+            FieldGroupKeys = _fieldGroupKeys,
+            WaitingConfig = _waitingConfig
         };
     }
 }
