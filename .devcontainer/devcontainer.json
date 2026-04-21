@@ -23,14 +23,19 @@
       "onAutoForward": "openBrowser",
       "visibility": "public"
     },
+    "15135": {
+      "label": "Aspire Dashboard",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
     "17214": {
-      "label": "Aspire Dashboard (local HTTPS)",
+      "label": "Aspire Dashboard (HTTPS — local only)",
       "onAutoForward": "notify",
       "visibility": "public"
     },
     "18888": {
-      "label": "Aspire Dashboard",
-      "onAutoForward": "notify",
+      "label": "Aspire Dashboard (legacy — unused)",
+      "onAutoForward": "silent",
       "visibility": "public"
     },
     "44345": {

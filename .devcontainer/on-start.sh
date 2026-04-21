@@ -12,7 +12,7 @@ if pgrep -f "UmbracoPrism.AppHost" > /dev/null 2>&1; then
     if [ -n "$CODESPACE_NAME" ]; then
         echo ""
         echo "   Startup status    https://${CODESPACE_NAME}-3000.${DOMAIN}"
-        echo "   Aspire Dashboard  https://${CODESPACE_NAME}-17214.${DOMAIN}"
+        echo "   Aspire Dashboard  https://${CODESPACE_NAME}-15135.${DOMAIN}"
         echo "   TestSite          https://${CODESPACE_NAME}-44345.${DOMAIN}"
     fi
     exit 0
@@ -43,13 +43,16 @@ echo ""
 # In Codespaces, DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS disables the browser
 # login token so the Codespaces port proxy doesn't redirect to the token login page.
 # ASPIRE_ALLOW_UNSECURED_TRANSPORT is also set — this relaxes OTLP exporter transport
-# security for service-to-service communication inside the stack. Note: it does NOT
-# move the dashboard from HTTPS 17214 to HTTP 18888; the dashboard stays on HTTPS 17214.
+# security for service-to-service communication inside the stack.
+# In Codespaces, the dashboard is accessed on HTTP port 15135 (Codespaces proxy forwards HTTP,
+# not HTTPS). Locally, port 17214 HTTPS is used directly.
 if [ -n "$CODESPACE_NAME" ]; then
     export DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
+    DASHBOARD_URL=http://localhost:15135
+else
+    DASHBOARD_URL=https://localhost:17214
 fi
-DASHBOARD_URL=https://localhost:17214
 
 # ── Wait for Docker-in-Docker ─────────────────────────────────────────────────
 echo "⏳ Waiting for Docker..."
@@ -106,17 +109,17 @@ echo ""
 echo "🔍 Aspire Dashboard diagnostics:"
 echo "   DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=${DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS:-not set}"
 echo "   ASPIRE_ALLOW_UNSECURED_TRANSPORT=${ASPIRE_ALLOW_UNSECURED_TRANSPORT:-not set}"
-DASH_ROOT_STATUS=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" https://localhost:17214/ 2>/dev/null || echo "curl-failed")
+DASH_ROOT_STATUS=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "${DASHBOARD_URL}/" 2>/dev/null || echo "curl-failed")
 echo "   / (root) HTTP status:             ${DASH_ROOT_STATUS}"
-BLAZOR_LINE=$(curl -sk --max-time 5 -o /dev/null -w "HTTP %{http_code}  content-type: %{content_type}" https://localhost:17214/_framework/blazor.web.js 2>/dev/null || echo "curl-failed")
+BLAZOR_LINE=$(curl -sk --max-time 5 -o /dev/null -w "HTTP %{http_code}  content-type: %{content_type}" "${DASHBOARD_URL}/_framework/blazor.web.js" 2>/dev/null || echo "curl-failed")
 echo "   /_framework/blazor.web.js:        ${BLAZOR_LINE}"
-DASH_BASEHREF=$(curl -sk --max-time 5 https://localhost:17214/ 2>/dev/null | grep -o '<base href="[^"]*"' | head -1 || echo "(grep found nothing)")
+DASH_BASEHREF=$(curl -sk --max-time 5 "${DASHBOARD_URL}/" 2>/dev/null | grep -o '<base href="[^"]*"' | head -1 || echo "(grep found nothing)")
 echo "   <base href> in dashboard HTML:    ${DASH_BASEHREF:-not found}"
 echo ""
 
 if [ -n "$CODESPACE_NAME" ]; then
     echo "   Status page       https://${CODESPACE_NAME}-3000.${DOMAIN}"
-    echo "   Aspire Dashboard  https://${CODESPACE_NAME}-17214.${DOMAIN}"
+    echo "   Aspire Dashboard  https://${CODESPACE_NAME}-15135.${DOMAIN}"
     echo "   TestSite          https://${CODESPACE_NAME}-44345.${DOMAIN}"
     echo "   Keycloak admin    https://${CODESPACE_NAME}-8443.${DOMAIN}/admin"
 else

@@ -52,7 +52,7 @@ The status page will show all four services green and surface direct links. Here
 
 ## 💡 Useful tips
 
-- **Ports panel** (VS Code sidebar) — shows all forwarded ports with their labels and public URLs once they're ready
+- **Ports panel** (VS Code sidebar) — shows all forwarded ports with their labels and public URLs once they're ready. The Aspire Dashboard is on port **15135** in Codespaces (HTTP — the Codespaces proxy handles HTTPS at the edge)
 - **Status page** (port 3000) — stays live and updates in real time as services start or restart
 - **AppHost logs** — if anything looks stuck, run `tail -f /tmp/prism-apphost.log` in the terminal
 
