@@ -570,6 +570,93 @@ const dateFieldDescriptor = createPropertyDescriptor({
 
 ---
 
+## Decision: Field Group API Endpoints
+
+**Date:** 2026-04-21  
+**Author:** Blathers (Backend Dev)  
+**Status:** ✅ Implemented
+
+### Context
+
+The workflow admin UI at `/admin/workflow` allows editing workflow definitions via inline JSON editors. Jonny requested the same capability for field groups, so admins can view and modify field configurations (fieldType, label, options, content, etc.) alongside workflow definitions.
+
+### Decision
+
+Added field group API endpoints to `MockBusinessApp` following the exact same pattern as the existing workflow definition endpoints:
+
+#### API Endpoints
+
+- `GET /admin/workflow/field-group/{key}/json`
+  - Returns FormSectionDefinition as pretty-printed camelCase JSON
+  - 404 if field group not found
+  - Same key validation regex as definition endpoints: `^[a-zA-Z0-9\-]+$`
+
+- `PUT /admin/workflow/field-group/{key}`
+  - Deserializes FormSectionDefinition from request body
+  - Updates in-memory field group (no file persistence)
+  - Returns 200 with `{updated: key}` on success, 404 if not found
+  - BadRequest for invalid key format or malformed JSON
+
+#### Engine Methods
+
+Added three methods to `BusinessAppWorkflowEngine`:
+
+- `GetFieldGroup(string key)` — returns field group or null
+- `GetAllFieldGroups()` — returns all loaded field groups
+- `UpdateFieldGroup(string key, FormSectionDefinition updated)` — replaces in-memory field group
+
+### Rationale
+
+1. **Consistency:** Field group endpoints mirror definition endpoints exactly (validation, error handling, JSON serialization)
+2. **Minimal scope:** No changes to UI, tests, or Core library — backend-only
+3. **In-memory only:** Matches existing definition update behavior (no file persistence)
+4. **Security:** Same key validation prevents path traversal/injection
+
+### Consequences
+
+- Admins can now view and edit field group JSON inline at `/admin/workflow`
+- Updates are in-memory only — restart reverts to seed files
+- Isabelle built the UI to consume these endpoints in parallel
+- No breaking changes to existing code
+
+---
+
+## Decision: Inline Field Group Editing in Workflow Admin
+
+**Date:** 2026-04-21  
+**Decided by:** Isabelle (Frontend Dev)  
+**Status:** ✅ Implemented
+
+### Context
+
+MockBusinessApp admin workflow UI extension. Users were confused because workflow definitions show `fieldGroupKeys: ["about-you-with-context"]` but the admin page never revealed the actual field structure inside those groups.
+
+### Decision
+
+Extended `/admin/workflow` GET handler to display and edit field groups inline alongside workflow definitions. The UI now shows a "Field Groups" table within each definition card, listing all field groups referenced by states with their display names, field counts, and edit buttons.
+
+### Implementation
+
+1. **Data fetching:** Added `GetAllFieldGroups()` call at handler initialization to build a dictionary of field groups by key
+2. **UI surface:** New "Field Groups" section in definition cards with light purple background (#f4f0fb) to distinguish from state/transition tables
+3. **Modal reuse:** Extended existing ACE editor modal with `currentEditorType` variable ('definition' | 'field-group') to support both resource types
+4. **JS functions:**
+   - `openEditor(key)` — sets type to 'definition', updates modal title, fetches definition JSON
+   - `openFieldGroupEditor(key)` — sets type to 'field-group', updates modal title, fetches field group JSON
+   - `saveDefinition()` — dispatches PUT to correct endpoint based on `currentEditorType`
+
+### Rationale
+
+Inline visibility solves the two-level architecture confusion without requiring navigation to separate pages or opening multiple JSON files.
+
+### Coordination
+
+- Blathers provided field group API endpoints
+- No merge conflicts — isolated changes to GET handler
+- Clean build, all tests passing
+
+---
+
 ## Decision: v1.7.1 Security Release — Notes Format
 
 **Date:** 2026-04-06  
