@@ -36,6 +36,6 @@
   ],
   "transitions": [
     { "fromState": "enter-details", "toState": "processing-payment", "action": "submit" },
-    { "fromState": "processing-payment", "toState": "payment-complete", "action": "complete" }
+    { "fromState": "processing-payment", "toState": "payment-complete", "action": "complete", "requiresRole": "reviewer" }
   ]
 }

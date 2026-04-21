@@ -13,8 +13,8 @@
     {
       "fieldKey": "amount",
       "label": "Amount (£)",
-      "hint": "Enter the amount to pay",
-      "fieldType": "number",
+      "hint": "Enter the amount to pay (e.g. 10.50)",
+      "fieldType": "decimal",
       "required": true,
       "min": 0.01
     }

@@ -13,6 +13,9 @@
     var workflowPageUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.WorkflowKey),
         TestSiteSeedContract.WorkflowPageUrl);
+    var paymentDemoUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.PaymentDemoWorkflowKey),
+        TestSiteSeedContract.PaymentDemoPageUrl);
 }
 
 <main class="dash-page">
@@ -43,6 +46,12 @@
                 <h3>My Workflows</h3>
                 <p>View all your active and completed workflow submissions in one place.</p>
                 <a href="@workflowHubUrl" class="btn btn-primary" style="margin-top: 12px;">View Workflows</a>
+            </div>
+            <div class="dash-card dash-card--cta">
+                <div class="dash-card__icon dash-card__icon--workflow">💳</div>
+                <h3>Payment Demo</h3>
+                <p>Try the payment workflow demo with a waiting state that simulates payment processing.</p>
+                <a href="@paymentDemoUrl" class="btn btn-primary" style="margin-top: 12px;">Start Payment Demo</a>
             </div>
             <div class="dash-card dash-card--cta">
                 <div class="dash-card__icon dash-card__icon--workflow">📝</div>
