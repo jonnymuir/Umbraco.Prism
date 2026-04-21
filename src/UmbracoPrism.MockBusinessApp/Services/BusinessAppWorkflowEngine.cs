@@ -276,6 +276,24 @@ public class BusinessAppWorkflowEngine
     /// <summary>Returns all loaded workflow definitions.</summary>
     public IEnumerable<WorkflowDefinitionFile> GetAllDefinitions() => _definitions.Values;
 
+    /// <summary>Returns a specific workflow definition by key.</summary>
+    /// <param name="key">The workflow definition key.</param>
+    /// <returns>The workflow definition or null if not found.</returns>
+    public WorkflowDefinitionFile? GetDefinition(string key) =>
+        _definitions.TryGetValue(key, out var def) ? def : null;
+
+    /// <summary>Updates a workflow definition in-memory.</summary>
+    /// <param name="key">The workflow definition key to update.</param>
+    /// <param name="updated">The new workflow definition.</param>
+    /// <returns>True if the definition was found and updated; false if not found.</returns>
+    public bool UpdateDefinition(string key, WorkflowDefinitionFile updated)
+    {
+        if (!_definitions.ContainsKey(key)) return false;
+        _definitions[key] = updated;
+        _logger.LogInformation("Workflow definition updated in-memory: {Key}", key);
+        return true;
+    }
+
     /// <summary>
     /// Removes an instance from in-memory state entirely (TUI reset command).
     /// The next call to <see cref="GetCurrent"/> for the same user/tenant/key will create a fresh instance.

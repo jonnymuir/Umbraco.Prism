@@ -287,7 +287,10 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                   <strong>{Esc(def.DisplayName)}</strong>
                   <span style="color:#888;font-size:.82rem;margin-left:.5rem">({Esc(def.DefinitionKey)} v{def.Version})</span>
                 </div>
-                <div style="display:flex;gap:.5rem;align-items:center">{policyBadge}</div>
+                <div style="display:flex;gap:.5rem;align-items:center">
+                  {policyBadge}
+                  <button class="btn btn-edit" onclick="openEditor('{Esc(def.DefinitionKey)}')">✎ Edit JSON</button>
+                </div>
               </div>
               <div class="def-body">
                 <div class="def-tables">
@@ -322,6 +325,7 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           <meta charset="utf-8"/>
           <meta name="viewport" content="width=device-width,initial-scale=1"/>
           <title>Workflow Admin — MockBusinessApp</title>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"></script>
           <script type="module">
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
             mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
@@ -366,6 +370,16 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             .def-diagram .mermaid { background:#fafafa; border-radius:6px; padding:.75rem 1rem; overflow-x:auto; }
             .table-label { margin:0 0 .4rem; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:#888; font-weight:600; }
             code { background:#f0f1f4; border-radius:3px; padding:.1rem .35rem; font-size:.82em; }
+            .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:1000; }
+            .modal-box { background:#fff; border-radius:10px; width:min(900px,95vw); max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,.25); }
+            .modal-hdr { padding:.85rem 1.1rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; font-size:.95rem; }
+            .modal-close { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#666; padding:.15rem .4rem; }
+            .modal-close:hover { color:#000; }
+            #ace-editor { flex:1; min-height:400px; font-size:13px; }
+            .modal-ftr { padding:.75rem 1rem; border-top:1px solid #eee; display:flex; align-items:center; gap:.6rem; }
+            .save-msg { flex:1; font-size:.82rem; color:#b91c1c; }
+            .btn-edit { background:#f0f4ff; color:#3730a3; margin-left:.5rem; }
+            .btn-edit:hover { background:#e0e7ff; }
           </style>
         </head>
         <body>
@@ -393,6 +407,78 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             <h2>Workflow Definitions</h2>
             {{defCards}}
           </main>
+          
+          <div id="json-modal" class="modal-overlay" style="display:none" onclick="handleOverlayClick(event)">
+            <div class="modal-box">
+              <div class="modal-hdr">
+                <span>✎ Edit Workflow Definition — <strong id="modal-key"></strong></span>
+                <button class="modal-close" onclick="closeEditor()">✕</button>
+              </div>
+              <div id="ace-editor"></div>
+              <div class="modal-ftr">
+                <span id="save-msg" class="save-msg"></span>
+                <button class="btn btn-reset" onclick="closeEditor()">Cancel</button>
+                <button class="btn btn-approve" id="apply-btn" onclick="saveDefinition()">Apply Changes</button>
+              </div>
+            </div>
+          </div>
+          
+          <script>
+            let aceEditor = null;
+            let currentEditorKey = null;
+
+            async function openEditor(key) {
+              currentEditorKey = key;
+              document.getElementById('modal-key').textContent = key;
+              document.getElementById('save-msg').textContent = '';
+              document.getElementById('json-modal').style.display = 'flex';
+              
+              const res = await fetch('/admin/workflow/definition/' + encodeURIComponent(key) + '/json');
+              const json = await res.text();
+              
+              if (!aceEditor) {
+                aceEditor = ace.edit('ace-editor');
+                aceEditor.setTheme('ace/theme/tomorrow');
+                aceEditor.session.setMode('ace/mode/json');
+                aceEditor.setOptions({ fontSize: '13px', tabSize: 2, useSoftTabs: true, showPrintMargin: false });
+              }
+              aceEditor.setValue(json, -1);
+            }
+
+            function closeEditor() {
+              document.getElementById('json-modal').style.display = 'none';
+            }
+
+            function handleOverlayClick(e) {
+              if (e.target === document.getElementById('json-modal')) closeEditor();
+            }
+
+            async function saveDefinition() {
+              const json = aceEditor.getValue();
+              try { JSON.parse(json); } catch(e) {
+                document.getElementById('save-msg').textContent = '⚠ Invalid JSON: ' + e.message;
+                return;
+              }
+              
+              document.getElementById('apply-btn').disabled = true;
+              document.getElementById('save-msg').textContent = 'Saving…';
+              
+              const res = await fetch('/admin/workflow/definition/' + encodeURIComponent(currentEditorKey), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: json
+              });
+              
+              if (res.ok) {
+                closeEditor();
+                window.location.reload();
+              } else {
+                const text = await res.text();
+                document.getElementById('save-msg').textContent = '⚠ ' + text;
+                document.getElementById('apply-btn').disabled = false;
+              }
+            }
+          </script>
         </body>
         </html>
         """;
@@ -416,6 +502,38 @@ app.MapPost("/admin/workflow/reset-all", (BusinessAppWorkflowEngine engine) =>
 {
     engine.ResetAll();
     return Results.Redirect("/admin/workflow");
+});
+
+app.MapGet("/admin/workflow/definition/{key}/json", (string key, BusinessAppWorkflowEngine engine) =>
+{
+    var def = engine.GetDefinition(key);
+    if (def == null) return Results.NotFound();
+    
+    var opts = new System.Text.Json.JsonSerializerOptions
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    };
+    var json = System.Text.Json.JsonSerializer.Serialize(def, opts);
+    return Results.Content(json, "application/json");
+});
+
+app.MapPut("/admin/workflow/definition/{key}", async (string key, HttpContext ctx, BusinessAppWorkflowEngine engine) =>
+{
+    WorkflowDefinitionFile? updated;
+    try
+    {
+        updated = await System.Text.Json.JsonSerializer.DeserializeAsync<WorkflowDefinitionFile>(
+            ctx.Request.Body,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+    catch (System.Text.Json.JsonException ex)
+    {
+        return Results.BadRequest($"Invalid JSON: {ex.Message}");
+    }
+    if (updated == null) return Results.BadRequest("Empty body");
+    var success = engine.UpdateDefinition(key, updated);
+    return success ? Results.Ok(new { updated = key }) : Results.NotFound();
 });
 
 app.Run();
