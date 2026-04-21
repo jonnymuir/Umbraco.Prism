@@ -15,7 +15,7 @@ flowchart LR
     B -->|GET/POST| D
     D -->|returns WorkflowResponseEnvelope| B
     B -->|HTTP Bearer token| E["IBusinessAppWorkflowClient"]
-    E -->|renders| F["Views/Partials/<br/>_WorkflowStep-Archetype.cshtml"]
+    E -->|renders| F["Views/Partials/<br/>_WorkflowStep-{StepType}.cshtml"]
     F -->|produces| G["Rendered form"]
 ```
 
@@ -364,12 +364,12 @@ Choose a step type based on what the user should do in each state:
 
 | Step Type | Purpose | Renders | Examples |
 |-----------|---------|---------|----------|
-| `Collect` | Data entry form | Input fields from `fieldGroupKeys` | Name, email, preferences |
-| `Review` | Confirm and submit | Read-only display of collected data + submit action | "Check your answers" step |
-| `StatusTimeline` | Waiting state | Status message (no form) | "Under review", "Processing..." |
-| `Completion` | Success state | Completion message (no form) | "Quote sent!", "Application approved" |
+| `question` | Data entry form | Input fields from `fieldGroupKeys` | Name, email, preferences |
+| `check-answers` | Confirm and submit | Read-only summary of collected data + submit action | "Check your answers" step |
+| `status-timeline` | Waiting state | Status message (no form) | "Under review", "Processing..." |
+| `confirmation` | Success state | Completion message (no form) | "Quote sent!", "Application approved" |
 
-The view dispatch looks for a partial file named `_WorkflowStep-{Archetype}.cshtml` in `Views/Partials/`. Default partials ship with Prism but you can override them.
+The view dispatcher looks for a partial file named `_WorkflowStep-{StepType}.cshtml` in `Views/Partials/`. Default partials ship with Prism but you can override them — or add your own by creating a new partial with a matching name.
 
 ## Action Styles
 
