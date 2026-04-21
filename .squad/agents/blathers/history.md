@@ -691,3 +691,54 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - **Security Hardening Phase 2:** Implement 4 defence-in-depth measures identified by Copper
 - **Live JSON Editor:** Workflow definitions editable in-browser via Ace Editor (dev-only feature with `/admin/*` now blocked in production)
 
+
+---
+
+## Session: Compound Content Field Types (2026-04-22)
+
+**Topic:** Extend PrismFieldTagHelper with non-input GDS content components
+
+**Outcome:** ✅ Complete — Four new field types, demo workflow updated, 15 new tests passing
+
+### Delivered
+
+**1. FieldRenderPayload & FieldFile — Content Property**
+- Added `Content` string? property to `FieldRenderPayload` in `UmbracoPrism.Shared`
+- Added `Content` string? property to `FieldFile` in MockBusinessApp `WorkflowDefinitionFile.cs`
+- Mapped `Content = f.Content` in `BusinessAppWorkflowEngine.BuildFieldGroup`
+
+**2. PrismFieldTagHelper — Four New Cases**
+- Added early-exit switch before `govuk-form-group` wrapper for content field types
+- `inset-text`: `<div class="govuk-inset-text">` — content only, no label/input
+- `warning-text`: full GDS warning with `!` icon, visually-hidden span, strong text
+- `details`: `<details>` / `<summary>` using `Label` as summary (fallback: "More information")
+- `notification-banner`: success banner using `Label` as title (fallback: "Important"), content in `<p class="govuk-body">`
+- All four: return early, no `govuk-form-group` wrapper, HTML-encode content via `Encode()`
+- Null/empty `Content` → return early with no output
+
+**3. WorkflowFieldValidator — Content Type Guard**
+- Added content type skip guard after ReadOnly check; prevents false required-field errors
+
+**4. Demo Field Groups**
+- `about-you-with-context-v1.json`: inset-text (privacy note) + details (why we need details) mixed with form fields
+- `your-enquiry-with-context-v1.json`: inset-text (support tip) + warning-text (credential warning) mixed with form fields
+- Updated `community-enquiry-v1.json` to use new `*-with-context` field groups
+
+**5. Tests**
+- Added `src/UmbracoPrism.Core.Tests/TagHelpers/PrismFieldTagHelperContentTypesTests.cs`
+- Added `<FrameworkReference Include="Microsoft.AspNetCore.App" />` to test csproj
+- 15 new tests: rendering correctness for all 4 types, null-content guard, fallback labels, validator exclusion
+- Total: 431 tests passing (up from 416)
+
+### Key Insights
+
+- Content field types must be intercepted BEFORE the `govuk-form-group` div is added — early return pattern keeps the switch clean
+- `DefaultTagHelperContent` (from `Microsoft.AspNetCore.Razor.TagHelpers`) requires `FrameworkReference Include="Microsoft.AspNetCore.App"` in plain `Microsoft.NET.Sdk` test projects
+- The validator's field key whitelist doesn't flag content fields as "unknown submitted keys" — they're in `authoritative` so any submitted values are whitelisted (harmless)
+- `FieldFile.Label` defaults to `""` so null-label JSON is safe; fallback logic uses `!string.IsNullOrEmpty(Field.Label)`
+
+### Architecture Decisions
+
+- Content field handling lives entirely in `PrismFieldTagHelper` — no new partial views, no new tag helpers
+- Content types are excluded from validation by field type string check (not a new `IsContentOnly` bool) — keeps the model lean
+- Demo workflow uses new `*-with-context` field groups; original `about-you` and `your-enquiry` groups preserved
