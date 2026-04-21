@@ -354,3 +354,59 @@ When documenting bundled dependencies:
 2. **Explain the mechanism:** Show how the build process wires it up (MSBuild target, asset copying, etc.)
 3. **Show verification steps:** Give developers a way to confirm it's working (DevTools checks)
 4. **Provide complete examples:** Every code snippet should be copy-paste-ready
+
+---
+
+## Session: Workflow Documentation Rewrite — StepType + GDS Components (2026-04-21)
+
+**Topic:** Terminology standardization (archetype → step type) + GDS Design System component guide
+
+**Outcome:** ✅ Complete — Terminology aligned, 20+ GDS examples created, committed
+
+### Delivered
+
+**1. StepType Terminology Standardization**
+- **Context:** Design docs used "archetype"; implementation uses "stepType" JSON field
+- **Files Updated:**
+  - `docs/guides/workflow-customisation.md` — section renamed, 6 prose references updated, JSON examples fixed
+  - `docs/guides/workflow-setup.md` — state table, 4 JSON examples, troubleshooting section updated
+  - `docs/workflow-walkthrough.md` — verified correct (no changes needed)
+- **Result:** All user-facing examples now show `"stepType"` matching implementation
+
+**2. GDS Design System Component Guide (NEW)**
+- Created `docs/guides/workflow-gds-components.md`
+- **Content:**
+  - 20+ copy-paste-ready component examples
+  - Each shows HTML + Prism wrapper pattern
+  - Components: text input, email, password, number, date, currency, textarea, radios, checkboxes, select, file upload, details, inset text, warning text, error summaries, form sections
+- **Purpose:** Developers can quickly integrate GOV.UK components into workflows
+
+**3. Partial Naming Clarification**
+- Troubleshooting sections now use correct convention: `_WorkflowStep-{StepType}.cshtml`
+- Previously used legacy `_WorkflowStep-{Archetype}.cshtml` (confusing)
+- All prose consistent: "step type", "step template", "step descriptor" (as appropriate)
+
+### Verification
+
+- ✅ No instances of "archetype" in user-facing guides
+- ✅ All JSON examples use `"stepType"` (not `"archetype"`)
+- ✅ GDS component guide verified for accuracy
+- ✅ Partial naming convention clarified in troubleshooting
+
+### Impact
+
+- **Consistency:** Documentation now matches code — users copy examples without translation
+- **Searchability:** Developers searching for "stepType" find relevant docs
+- **Onboarding:** New developers learn terminology that appears in code, not legacy design terms
+- **Maintenance:** Future examples will use consistent terminology
+
+### Key Insights
+
+- Terminology mismatches create friction during onboarding and troubleshooting
+- User-facing guides should use implementation terms, not design concepts
+- Copy-paste-ready examples reduce time-to-productivity for customization
+
+### Decisions Made
+
+- **Standardize on "Step Type" Terminology:** Replace "archetype" with "step type" in all user-facing workflow documentation
+

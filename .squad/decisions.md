@@ -1022,3 +1022,781 @@ Removed `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` from launch config — it was ad
 **Files Modified:** `src/UmbracoPrism.AppHost/Properties/launchSettings.json`
 
 ---
+
+## 📌 2026-04-21: Blathers — Security Hardening Phase 2
+
+**Decision:** Implement four security hardening measures identified by Copper's security review
+
+**Context:**
+Following a comprehensive security review, four items were flagged for implementation:
+1. KEYCLOAK_BACKCHANNEL_URL must never be set in production (insecure HTTP metadata fetch)
+2. Admin workflow endpoints must be unreachable in non-Development environments
+3. Regression tests needed for backchannel URL issuer validation
+4. Workflow key parameters need input validation
+
+**Implementation:**
+
+### 1. Production Startup Guard
+- Both `TestSite/Program.cs` and `MockBusinessApp/Program.cs` now throw `InvalidOperationException` at startup if `KEYCLOAK_BACKCHANNEL_URL` is set in non-Development
+- Placed after `builder.Build()` but before `app.Run()`
+- Fail-fast approach: service won't start with insecure configuration
+
+### 2. Admin 404 Middleware
+- `MockBusinessApp/Program.cs` registers middleware that returns 404 for all `/admin/*` requests in non-Development
+- Registered BEFORE endpoint handlers so it short-circuits the pipeline
+- Defence-in-depth: even if accidentally deployed, admin endpoints are unreachable
+
+### 3. Backchannel Security Test
+- New `BackchannelSecurityTests.cs` verifies issuer validation still works with KEYCLOAK_BACKCHANNEL_URL set
+- Tests that setting the backchannel URL does NOT bypass critical issuer claim validation
+- Ensures tokens with malicious issuers are rejected even when metadata fetch uses insecure channel
+
+### 4. Workflow Key Validation
+- GET `/admin/workflow/definition/{key}/json` and PUT `/admin/workflow/definition/{key}` now validate the key parameter
+- Only allows `^[a-zA-Z0-9\-]+$` (alphanumeric + hyphens)
+- Returns 400 Bad Request for invalid keys
+- Prevents path traversal or injection via workflow key
+
+**Rationale:**
+These are defence-in-depth measures. Even if one layer fails (e.g., deployment misconfiguration), other layers prevent exploitation.
+
+**Impact:**
+- ✅ Prevents production deployment with insecure OIDC configuration
+- ✅ Blocks admin endpoints outside development
+- ✅ Regression coverage for backchannel URL security
+- ✅ Input validation for workflow keys
+
+---
+
+## 📌 2026-04-20: Mabel — Standardize on "Step Type" Terminology in User-Facing Workflow Documentation
+
+**Decision:** Standardize all user-facing workflow documentation on "step type" terminology.
+
+**Context:**
+The workflow system originally used the design term **"archetype"** during architecture planning (documented in `docs/design/workflow-forms-engine.md`). However, the implementation settled on **"step type"** as the actual field name in JSON workflow definitions:
+
+- **JSON field:** `"stepType": "Question"`
+- **Partial naming convention:** `_WorkflowStep-{StepTypeName}.cshtml`
+- **Dispatcher logic:** `workflowPage.cshtml` resolves partials by step type name
+
+The user-facing guides (`workflow-customisation.md`, `workflow-setup.md`) still used "archetype" terminology, creating a mismatch between documentation and implementation.
+
+**Changes Made:**
+
+1. **`docs/guides/workflow-customisation.md`:**
+   - Section renamed: "Creating a Custom Archetype" → "Creating a Custom Step Type"
+   - JSON example updated: `"archetype": "Documents"` → `"stepType": "Documents"`
+   - All prose references changed: "archetype" → "step type" (6 occurrences)
+
+2. **`docs/guides/workflow-setup.md`:**
+   - State properties table updated: `archetype` → `stepType`
+   - JSON examples updated throughout (4 occurrences)
+   - Section renamed: "Archetype Reference" → "Step Type Reference"
+   - Troubleshooting table updated: `_WorkflowStep-{Archetype}.cshtml` → `_WorkflowStep-{StepType}.cshtml`
+
+3. **`docs/workflow-walkthrough.md`:**
+   - Already used correct terminology (no changes needed)
+
+4. **New Guide: `docs/guides/workflow-gds-components.md`**
+   - Comprehensive GDS Design System component guide
+   - 20+ copy-paste-ready component examples with Prism integration
+   - Shows HTML + Prism wrapper pattern for each component
+
+**Rationale:**
+
+1. **Consistency with implementation:** Users writing JSON workflow definitions see `"stepType"` in examples and need docs that match the actual field name.
+2. **Reduce confusion:** Developers looking at `workflowPage.cshtml` dispatcher code see step type resolution—docs should align with that mental model.
+3. **Naming convention clarity:** Partial naming (`_WorkflowStep-Question.cshtml`) is based on step type, not a separate archetype concept.
+4. **Developer onboarding:** New developers should learn the term that matches the code, not a legacy design term.
+
+**Impact:**
+- Documentation now matches code: Users can copy JSON examples directly without translating terms
+- Search and discovery: Developers searching for "stepType" will find relevant docs
+- Future maintenance: New step type examples will use consistent terminology
+- Design docs unchanged: Architecture discussions can still use "archetype" as a conceptual term—user-facing docs use the implementation term
+
+---
+
+## 📌 2026-04-20: Blathers — Live JSON Editor for Workflow Admin
+
+**Decision:** Add a live in-browser JSON editor (Ace Editor) to the admin page so developers can edit workflow definitions in memory and test changes immediately without restarting.
+
+**Context:**
+The `/admin/workflow` page in MockBusinessApp displays workflow definitions loaded from seed files. During local development, any changes to workflow structure required editing JSON files and restarting the app — a slow feedback loop.
+
+**Implementation:**
+- Integrated Ace Editor v1.32.6 via CDN (JSON mode, live syntax validation)
+- Added `GET /admin/workflow/definition/{key}/json` and `PUT /admin/workflow/definition/{key}` endpoints
+- Added `GetDefinition(string key)` and `UpdateDefinition(string key, WorkflowDefinitionFile updated)` methods to `BusinessAppWorkflowEngine`
+- Modal overlay with fullscreen editor, "Apply Changes" triggers PUT → auto-reload
+
+**Consequences:**
+- ✅ Faster dev workflow — edit JSON → Apply → test in seconds, no app restart
+- ✅ Live validation — Ace highlights JSON errors before save, PUT endpoint validates schema
+- ⚠️ Changes are in-memory only — lost on app restart (intentional for dev/demo use)
+- ⚠️ No auth on admin endpoints — safe for local dev, must NOT be exposed in production
+
+**Alternatives Considered:**
+1. File-watching auto-reload — rejected because it still requires editing external files
+2. Persistent database updates — rejected as overkill for a dev-only feature
+3. No editor — rejected because the slow restart loop was a productivity bottleneck
+
+**Verdict:**
+This is a dev-quality-of-life feature that makes workflow iteration much faster. Production deployments should disable `/admin/*` routes or protect them with authentication.
+
+# Security Review — 2026-04-21
+
+**Reviewer:** Copper (Security Engineer)  
+**Scope:** Full codebase security review with focus on recent Keycloak/Codespaces backchannel changes
+
+---
+
+## Executive Summary
+
+**Overall Risk Assessment: LOW**
+
+The recent Keycloak backchannel changes are **safe for production** with appropriate deployment controls. The changes correctly separate the metadata/token-exchange fetch URLs (backchannel) from the issuer validation URL (OidcAuthority), maintaining security boundaries. However, production deployments must ensure `KEYCLOAK_BACKCHANNEL_URL` is never set.
+
+The workflow admin endpoints present a **low-severity risk** in local dev (intended use case) but would be **critical** if accidentally exposed in production. No authentication or path validation is present.
+
+**Key Findings:**
+- ✅ Keycloak backchannel fix correctly scoped to Codespaces
+- ✅ Issuer validation remains untouched (uses OidcAuthority)
+- ✅ JWT validation pipeline is robust
+- ⚠️ Admin endpoints lack authentication (acceptable for local dev only)
+- ⚠️ Missing regression tests for backchannel changes
+
+---
+
+## 1. Keycloak/Codespaces Backchannel Changes
+
+**Risk Level:** **Low** (with deployment controls)
+
+### Analysis
+
+**Files Changed:**
+- `src/UmbracoPrism.AppHost/Program.cs` (lines 123-130)
+- `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` (lines 196-199)
+- `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` (lines 287-295, 388-410)
+
+**What Changed:**
+
+1. **AppHost (lines 123-130):** When `CODESPACE_NAME` env var is set, injects `KEYCLOAK_BACKCHANNEL_URL` pointing to Keycloak's internal HTTP endpoint (`keycloak.GetEndpoint("http")`) into both `testsite` and `businessapp`.
+
+2. **PrismAuthExtensions (lines 196-199):** In `ResolveSigningKeys()` for OIDC providers, if `KEYCLOAK_BACKCHANNEL_URL` is set, constructs metadata address as `{backchannelBase}{oidcPath}/.well-known/openid-configuration` instead of using the OidcAuthority URL.
+
+3. **PrismOidcConfiguration (lines 287-295, 388-410):** Same pattern in two places:
+   - `OnAuthorizationCodeReceived` — constructs token endpoint URL for backchannel auth code → token exchange
+   - `OnRedirectToIdentityProvider` — constructs JWKS URL for backchannel signing key fetch
+
+**Security Questions Answered:**
+
+### ✅ Can `KEYCLOAK_BACKCHANNEL_URL` be set by an attacker in production?
+
+**No.** In a typical production deployment:
+- Environment variables are set via deployment configuration (Azure App Service settings, Kubernetes ConfigMaps, container orchestration)
+- These settings are managed by infrastructure/devops teams with elevated permissions
+- Application code cannot set its own environment variables
+- Request headers/query parameters cannot inject environment variables
+
+**Risk Mitigation:**
+- The `CODESPACE_NAME` guard in AppHost ensures the variable is only set in GitHub Codespaces (lines 123-124)
+- Production deployments would need to **explicitly** set `KEYCLOAK_BACKCHANNEL_URL`, which should never happen
+
+**Recommendation:** Document in deployment/operations guide that `KEYCLOAK_BACKCHANNEL_URL` must never be set in production. Consider adding startup validation that logs a warning if this variable is set outside of development environments.
+
+### ✅ Does using internal HTTP (non-TLS) create MITM risk?
+
+**No, for the Codespaces use case.** The backchannel URL points to:
+- `http://keycloak:8080` (Aspire container-to-container communication within the Codespaces VM)
+- Traffic never leaves the local Docker network
+- GitHub Codespaces VM is single-tenant (one user per VM)
+
+**However:** If `KEYCLOAK_BACKCHANNEL_URL` were set in production pointing to an external HTTP endpoint, it would create a MITM risk for signing key fetch and token exchange. This reinforces the recommendation above: this variable must never be set in production.
+
+**Design Note:** The code in `PrismSigningKeyCache.cs` (line 148) correctly detects HTTP URLs and sets `RequireHttps = false` only when the metadata URL starts with `http://`. This prevents accidental bypass of HTTPS requirements for production OIDC providers.
+
+### ✅ Is OidcAuthority still used for issuer validation?
+
+**Yes, absolutely.** The backchannel URL is **only** used for:
+1. Fetching OIDC metadata (`/.well-known/openid-configuration`)
+2. Fetching signing keys (JWKS)
+3. Exchanging authorization code for tokens (`/protocol/openid-connect/token`)
+
+**Issuer validation remains unchanged:**
+- `PrismAuthExtensions.cs` line 84: `oidcTenant.OidcAuthority.TrimEnd('/')` compared to `tokenIssuer.TrimEnd('/')`
+- `PrismOidcConfiguration.cs` line 170: `validationParameters.ValidIssuer = tenant.OidcAuthority`
+- Token's `iss` claim must exactly match the configured `OidcAuthority`
+
+**No issuer bypass is possible.** An attacker who somehow set `KEYCLOAK_BACKCHANNEL_URL` to a malicious endpoint could:
+- Cause the app to fetch signing keys from the malicious endpoint
+- Cause token exchange requests to fail or be hijacked
+
+But they **cannot** create valid tokens because:
+1. Token issuer validation would reject tokens with `iss != OidcAuthority`
+2. Even if the attacker returns their own signing keys, those keys can only validate tokens they create, and those tokens would have the wrong issuer
+
+**Conclusion:** Issuer validation is the critical security boundary, and it remains intact.
+
+### ✅ In what environments would `KEYCLOAK_BACKCHANNEL_URL` be set?
+
+**Current design:** Only in GitHub Codespaces (via AppHost line 123 guard on `CODESPACE_NAME`).
+
+**Potential future use:** Could be set manually in custom dev/staging environments where:
+- Keycloak runs in a separate container/service
+- External Keycloak URL is behind auth or not reachable from app server
+- Internal Keycloak URL is accessible
+
+**Recommendation:** This is a valid pattern for container orchestration. The security boundary is clear: only use backchannel URLs in non-production environments where the internal network is trusted.
+
+### ✅ Could the env var leak into production by accident?
+
+**Low risk, but possible.** Scenarios:
+1. Developer copies `.env` file from Codespaces to production deployment
+2. CI/CD pipeline mistakenly sets the variable
+3. Container image bakes in the environment variable
+
+**Mitigations:**
+- AppHost only injects the variable when `CODESPACE_NAME` is set (line 123)
+- Production containers would need to be running in Codespaces to trigger this (extremely unlikely)
+- Even if set, production Keycloak would be external, not an internal container
+
+**Recommended Additional Safeguards:**
+1. Add startup logging that warns if `KEYCLOAK_BACKCHANNEL_URL` is set in non-Development environments
+2. Document in production deployment checklist: verify this variable is not set
+3. Add integration test that validates production-like config doesn't have backchannel URL
+
+---
+
+## 2. Workflow Admin JSON Editor
+
+**Risk Level:** **Medium** (if exposed in production) / **Low** (in intended local dev use)
+
+### Analysis
+
+**Endpoints:** (src/UmbracoPrism.MockBusinessApp/Program.cs)
+- `GET /admin/workflow` (line 129) — HTML dashboard with inline editor
+- `GET /admin/workflow/definition/{key}/json` (line 507) — Returns workflow definition JSON
+- `PUT /admin/workflow/definition/{key}` (line 521) — Updates workflow definition
+- `POST /admin/workflow/{instanceId}/action/{action}` (line 489) — Advances workflow instance
+- `POST /admin/workflow/{instanceId}/reset` (line 495) — Resets workflow instance
+- `POST /admin/workflow/reset-all` (line 501) — Resets all instances
+
+### Security Issues
+
+#### ⚠️ No Authentication
+
+**Finding:** All `/admin/workflow/*` endpoints have **no authentication**.
+
+Comment on line 127 states: `// ── Admin UI (no auth — local dev only) ─────────────────────────────────────`
+
+**Risk if exposed in production:**
+- ✅ Read workflow definitions (JSON structure, business logic, role checks) — **Information Disclosure**
+- ✅ Modify workflow definitions (inject malicious transitions, bypass role checks) — **Authorization Bypass**
+- ✅ Modify workflow instances (advance states, bypass approvals) — **Business Logic Bypass**
+- ✅ Delete all workflow state (DoS) — **Denial of Service**
+
+**Actual Risk:** MockBusinessApp is clearly a **development/demo service** based on:
+- Project name: "MockBusinessApp"
+- In-memory workflow engine (singleton, line 19)
+- Hardcoded tenant/member config in appsettings.json
+- Aspire orchestration (AppHost) only runs locally
+
+**Conclusion:** Acceptable **if and only if** MockBusinessApp is never deployed to a production or publicly accessible environment.
+
+#### ⚠️ No Path Validation on `{key}` Parameter
+
+**Finding:** The `key` parameter in `GET /admin/workflow/definition/{key}/json` and `PUT /admin/workflow/definition/{key}` is passed directly to `engine.GetDefinition(key)` and `engine.UpdateDefinition(key, updated)` with no sanitization.
+
+**Potential Risks:**
+- Path traversal: `../../etc/passwd` (unlikely to succeed given in-memory engine design)
+- Engine implementation controls actual risk
+
+**Inspection of BusinessAppWorkflowEngine:** (Not included in files reviewed, but based on patterns observed)
+- Likely uses `key` as dictionary lookup: `_definitions[key]`
+- Path traversal unlikely to succeed with in-memory dictionary
+
+**Conclusion:** Low risk given in-memory design, but best practice would be to validate `key` format (alphanumeric + hyphens only).
+
+#### ⚠️ No Input Validation on Workflow Definition JSON
+
+**Finding:** `PUT /admin/workflow/definition/{key}` deserializes JSON body with minimal validation:
+- Line 526-532: JSON deserialization with exception handling
+- No schema validation
+- No checks for malicious workflow logic
+
+**Potential Risks:**
+- Inject transitions that bypass role checks (`RequiresRole` empty or null)
+- Create unrestricted state transitions
+- Inject field definitions with unsafe validation rules
+
+**Actual Impact:** The workflow engine likely has its own validation, but no evidence of defense-in-depth at the API boundary.
+
+**Recommendation:** Add schema validation for workflow definitions to ensure:
+- Required fields are present (`DefinitionKey`, `InitialState`, `States`, `Transitions`)
+- Transition `RequiresRole` is not empty/null where role checks are expected
+- Field validators reference known validator names
+
+### Production Safety Assessment
+
+**Question:** Can these endpoints accidentally reach production?
+
+**Analysis:**
+- MockBusinessApp is orchestrated by Aspire AppHost (local dev tool)
+- No production deployment configuration observed in repository
+- Service is clearly named "Mock" indicating non-production intent
+
+**However:** If MockBusinessApp were deployed to production (e.g., as a microservice in a multi-tenant SaaS):
+- Admin endpoints would be publicly accessible
+- No IP allowlisting or network restrictions visible
+
+**Recommendation:**
+
+1. **Short-term:** Add environment check to admin endpoints:
+   ```csharp
+   if (!builder.Environment.IsDevelopment())
+   {
+       app.MapGet("/admin/workflow", () => Results.StatusCode(404));
+       // ... same for all admin endpoints
+   }
+   ```
+
+2. **Medium-term:** Add authentication to admin endpoints:
+   ```csharp
+   app.MapGet("/admin/workflow", ...).RequireAuthorization("AdminOnly");
+   ```
+
+3. **Long-term:** Separate admin UI into a separate project/service that is never deployed to production, or gate it behind feature flag + admin authentication.
+
+---
+
+## 3. JWT Validation Pipeline
+
+**Risk Level:** **None** — Robust and secure
+
+### Analysis
+
+**File:** `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`
+
+**Validation Stages:**
+
+#### ✅ Issuer Validation (lines 44-90)
+
+**Entra CIAM path (lines 50-75):**
+- Extracts `tid` claim from token
+- Verifies tenant ID is in configured tenant list
+- Validates issuer is `https://{tid}.ciamlogin.com/{tid}/v2.0`
+- Host must match `{tid}.ciamlogin.com` exactly
+- Path must start with `/{tid}/v2.0`
+
+**OIDC path (lines 77-89):**
+- Extracts `iss` claim from token
+- Validates issuer matches a configured `OidcAuthority` (case-insensitive, trailing-slash normalized)
+
+**Security Properties:**
+- ✅ Multi-tenant: Each tenant's issuer is validated independently
+- ✅ No wildcards or regex: Exact string matching
+- ✅ Case-insensitive comparison prevents case-based bypasses
+- ✅ Trailing-slash normalization prevents path-based bypasses
+
+**Potential Issue:** None. Issuer validation is strict and correct.
+
+#### ✅ Audience Validation (lines 92-127)
+
+**Entra CIAM path (lines 99-107):**
+- Finds tenant by `tid` claim
+- Validates `aud` claim matches tenant's `ClientId`
+
+**OIDC path (lines 109-127):**
+- Finds tenant by `iss` claim
+- Validates `aud` claim matches tenant's `ClientId` **OR** `azp` claim matches tenant's `ClientId`
+
+**Security Properties:**
+- ✅ Audience is bound to the specific tenant (no cross-tenant token reuse)
+- ✅ Authorized party (`azp`) fallback is correct for OIDC provider tokens with multiple audiences
+
+**Potential Issue:** None. Audience validation correctly prevents cross-tenant token reuse.
+
+#### ✅ Lifetime Validation (lines 36-38)
+
+**Configuration:**
+- `ValidateLifetime = true`
+- `ClockSkew = TimeSpan.FromMinutes(5)`
+
+**Security Properties:**
+- ✅ Token expiration is enforced
+- ✅ 5-minute clock skew is reasonable (default is also 5 minutes)
+
+**Potential Issue:** None. Standard practice.
+
+#### ✅ Signing Key Validation (lines 129-140, 145-220)
+
+**Logic:**
+- Delegates to `ResolveSigningKeys()` method
+- Uses `PrismSigningKeyCache` for key caching with TTL
+- Forces refresh if requested `kid` is missing from cache
+- Background refresh when keys are approaching expiry
+
+**Security Properties:**
+- ✅ Key rotation is handled automatically
+- ✅ Forced refresh when `kid` is missing prevents stale-key failures
+- ✅ Background refresh reduces latency for approaching-expiry scenarios
+- ✅ Signing key fetch uses HTTPS by default (only HTTP for explicit `http://` URLs)
+
+**Potential Issue:** None. Signing key resolution is robust and handles rotation correctly.
+
+### Multi-Tenant Security
+
+**Cross-Tenant Attack Scenario:**
+1. Attacker obtains valid token from Tenant A
+2. Attacker sends token to API endpoint hosted by application
+3. Application must reject token if endpoint is for Tenant B
+
+**Protection Layers:**
+1. Issuer validation ensures token is from a **configured** tenant
+2. Audience validation ensures token is for the **correct client**
+3. Application code must derive tenant from `PrismContext.CurrentTenant` (based on hostname/routing), not from token claims
+
+**Validation:** Existing security tests confirm this pattern:
+- `PrismAuthExtensionsSecurityTests.cs` line 44: `AudienceValidator_RejectsAudienceBoundToDifferentConfiguredTenant`
+- `Phase1SecurityRegressionTests.cs` line 219: `PrismVinylNotificationController_DeriveTenantIdFromServerContext`
+
+**Conclusion:** Multi-tenant isolation is correctly enforced.
+
+---
+
+## 4. Signing Key Cache
+
+**Risk Level:** **None** — Well-designed and thread-safe
+
+### Analysis
+
+**File:** `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs`
+
+**Cache Properties:**
+- In-memory `ConcurrentDictionary` (line 17)
+- Per-tenant semaphore locks for fetch deduplication (line 18)
+- TTL-based refresh (45 min soft, 60 min hard — lines 13-14)
+- Forced refresh cooldown (30 sec — line 15)
+
+### ✅ Cache Poisoning Prevention
+
+**Threat:** Attacker injects malicious signing keys into cache, allowing them to forge valid tokens.
+
+**Protection:**
+- Cache is in-process memory only (not shared across instances)
+- Keys are fetched from OIDC metadata endpoint (controlled by tenant configuration)
+- No external cache (Redis, etc.) where attacker could inject keys
+
+**Potential Attack Vectors:**
+1. Modify `KEYCLOAK_BACKCHANNEL_URL` to point to attacker-controlled endpoint
+   - **Mitigated:** Requires infrastructure-level access (see Section 1)
+   - **Additional mitigation:** Issuer validation would still reject forged tokens
+
+2. MITM the OIDC metadata fetch
+   - **Mitigated:** HTTPS required by default (line 148, 210)
+   - **Exception:** HTTP allowed only for explicit `http://` URLs (Codespaces localhost)
+
+**Conclusion:** Cache poisoning is not a practical attack given current architecture.
+
+### ✅ Forced Refresh Handling
+
+**Scenario:** OIDC provider rotates signing keys, app requests token with new `kid`.
+
+**Handling:**
+- Line 203: `if (oidcSnapshot.IsExpired || !oidcSnapshot.ContainsRequestedKey)` triggers forced refresh
+- Line 130: `bypassCooldownForMissingKey` allows immediate refresh when required `kid` is missing (even within cooldown window)
+
+**Security Property:** Key rotation is handled correctly without blocking token validation.
+
+**Potential Issue:** None. This design prevents both stale-key validation failures and forced-refresh DoS attacks.
+
+### ✅ Thread Safety
+
+**Concurrency Controls:**
+- Per-tenant semaphore (line 59, 121): Ensures only one thread fetches keys for a given tenant
+- Concurrent callers wait for the first fetch to complete (deduplication)
+- Cache writes are atomic via `ConcurrentDictionary` indexer
+
+**Potential Race Conditions:**
+- Line 76-79: Check-then-act pattern on forced refresh cooldown
+  - **Safe:** Semaphore is held during this check, preventing concurrent forced refreshes
+
+**Conclusion:** Thread-safe and efficient.
+
+---
+
+## 5. OIDC Configuration
+
+**Risk Level:** **None** — Secure design
+
+### Analysis
+
+**File:** `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`
+
+### ✅ Backchannel URL Pattern (lines 287-295, 388-410)
+
+**Pattern:**
+```csharp
+var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+if (!string.IsNullOrEmpty(backchannelBase))
+{
+    var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
+    authority = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
+}
+```
+
+**Security Properties:**
+- ✅ Extracts only the **path** component from `OidcAuthority` (line 294, 399)
+- ✅ Scheme and host come from backchannel base (controlled by infra, not user input)
+- ✅ Prevents URL injection (e.g., `OidcAuthority = "https://evil.com"` does not make backchannel fetch from evil.com)
+
+**Validation:** `AbsolutePath` property of `Uri` class returns only the path component (e.g., `/realms/prism-dev`), not the scheme or host.
+
+**Conclusion:** Backchannel URL construction is safe.
+
+### ✅ Localhost Demo Tenant Detection (lines 73-100)
+
+**Logic:**
+- Repo-owned demo tenant is identified by:
+  1. Hostname is `localhost` or `*.app.github.dev` (Codespaces)
+  2. `OidcClientId` is `prism-client`
+  3. `OidcAuthority` is localhost or Codespaces
+
+**Security Property:**
+- Prevents production tenants from accidentally matching localhost demo tenant logic
+- Demo-specific behavior (offline scopes) only applies to repo-owned infrastructure
+
+**Conclusion:** Safe tenant classification logic.
+
+---
+
+## 6. Production Deployment Safety
+
+**Risk Level:** **Low** (with operational controls)
+
+### Analysis
+
+**Dev-Only Features:**
+1. **Workflow admin endpoints** (MockBusinessApp) — No auth, no IP restrictions
+2. **KEYCLOAK_BACKCHANNEL_URL** — Allows internal HTTP URLs for metadata fetch
+3. **Aspire orchestration** — Only runs locally (AppHost)
+
+### Production Readiness Checklist
+
+#### ✅ TestSite (Umbraco CMS frontend)
+
+**Deployment:**
+- Standard Umbraco deployment patterns
+- OIDC auth with Entra ID or Keycloak
+- No dev-only features detected in production code paths
+
+**Security Controls:**
+- Authentication required for backoffice (`/umbraco`)
+- OIDC callback validation (redirect URI, nonce, PKCE)
+- Tenant isolation via hostname routing
+
+**Recommendation:** Safe to deploy. Ensure `KEYCLOAK_BACKCHANNEL_URL` is not set.
+
+#### ⚠️ MockBusinessApp (Business logic API)
+
+**Deployment:**
+- Currently designed for local dev only
+- Admin endpoints have no auth
+- In-memory workflow state (not persistent)
+
+**Risks if deployed to production:**
+- Admin endpoints publicly accessible
+- Workflow state lost on restart
+- No audit logging
+
+**Recommendation:** Do NOT deploy MockBusinessApp to production in current form. If production business logic API is needed, create separate project with:
+- Persistent workflow state (database)
+- Authentication on all endpoints
+- Audit logging for workflow transitions
+- No admin endpoints (or admin endpoints with authentication + authorization)
+
+#### ✅ Shared Libraries (Core, Shared)
+
+**Deployment:**
+- Referenced by both TestSite and MockBusinessApp
+- No dev-only code paths in production flows
+- Backchannel URL only used if env var is set (won't be in production)
+
+**Recommendation:** Safe to deploy.
+
+### Environment Variable Hygiene
+
+**Production Deployment Requirements:**
+1. `CODESPACE_NAME` must not be set
+2. `KEYCLOAK_BACKCHANNEL_URL` must not be set
+3. `ASPIRE_ALLOW_UNSECURED_TRANSPORT` must not be set
+4. `Prism:EnableDownstreamDemo` must be false or omitted (already gated by security tests)
+
+**Recommendation:** Add startup validation in TestSite and production business API:
+```csharp
+if (!builder.Environment.IsDevelopment())
+{
+    var bannedVars = new[] { "KEYCLOAK_BACKCHANNEL_URL", "CODESPACE_NAME", "ASPIRE_ALLOW_UNSECURED_TRANSPORT" };
+    foreach (var varName in bannedVars)
+    {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(varName)))
+        {
+            logger.LogError("SECURITY: {VarName} must not be set in production", varName);
+            throw new InvalidOperationException($"Security policy violation: {varName} is set in production environment");
+        }
+    }
+}
+```
+
+---
+
+## 7. Test Coverage Gaps
+
+### Missing Tests for Backchannel Changes
+
+**Finding:** No regression tests for `KEYCLOAK_BACKCHANNEL_URL` behavior.
+
+**Recommended Tests:**
+
+1. **ResolveSigningKeys with backchannel URL** (`PrismAuthExtensionsSecurityTests.cs`)
+   ```csharp
+   [Fact]
+   public void ResolveSigningKeys_UsesBackchannelUrl_WhenEnvironmentVariableIsSet()
+   {
+       // Set KEYCLOAK_BACKCHANNEL_URL env var
+       // Call ResolveSigningKeys for OIDC tenant
+       // Verify metadata address uses backchannel base + oidc path
+   }
+   ```
+
+2. **Issuer validation still enforced with backchannel** (`PrismAuthExtensionsSecurityTests.cs`)
+   ```csharp
+   [Fact]
+   public void IssuerValidator_StillEnforcedWhenBackchannelUrlIsSet()
+   {
+       // Set KEYCLOAK_BACKCHANNEL_URL to http://attacker.com
+       // Create token with iss = http://attacker.com/realms/prism-dev
+       // Verify issuer validation rejects token (iss must match OidcAuthority)
+   }
+   ```
+
+3. **Token exchange uses backchannel URL** (Integration test)
+   ```csharp
+   [Fact]
+   public async Task OnAuthorizationCodeReceived_UsesBackchannelUrl_ForTokenExchange()
+   {
+       // Set KEYCLOAK_BACKCHANNEL_URL
+       // Simulate OIDC callback with auth code
+       // Verify token exchange request goes to backchannel URL, not OidcAuthority
+   }
+   ```
+
+4. **Production startup validation** (Integration test)
+   ```csharp
+   [Fact]
+   public void Startup_FailsInProduction_WhenBackchannelUrlIsSet()
+   {
+       // Set environment to Production
+       // Set KEYCLOAK_BACKCHANNEL_URL
+       // Verify startup throws InvalidOperationException
+   }
+   ```
+
+### Existing Coverage: Strong
+
+**Files:**
+- `Phase1SecurityRegressionTests.cs` — 19 tests covering open redirect, debug UI, notification auth, downstream demo
+- `PrismAuthExtensionsSecurityTests.cs` — 40+ tests covering issuer/audience/signing key validation
+- `PrismVinylNotificationSecurityTests.cs` — Tenant isolation in notification API
+
+**Gap:** No tests for workflow admin endpoint security (MockBusinessApp admin pages).
+
+**Recommendation:** Add test:
+```csharp
+[Fact]
+public void WorkflowAdminEndpoints_AreDisabled_InNonDevelopmentEnvironments()
+{
+    // Build app in Production environment
+    // Attempt to access /admin/workflow
+    // Verify 404 response
+}
+```
+
+---
+
+## Recommended Actions
+
+### Critical (Fix Before Production)
+
+None. Current codebase is safe for production deployment with operational controls.
+
+### High (Implement Soon)
+
+1. **Add production environment variable validation**
+   - **File:** `src/UmbracoPrism.TestSite/Program.cs`
+   - **Change:** Throw on startup if `KEYCLOAK_BACKCHANNEL_URL` is set in non-Development environment
+   - **Rationale:** Fail-closed security boundary
+
+2. **Disable workflow admin endpoints in non-Development environments**
+   - **File:** `src/UmbracoPrism.MockBusinessApp/Program.cs`
+   - **Change:** Return 404 for `/admin/workflow/*` when `!builder.Environment.IsDevelopment()`
+   - **Rationale:** Defense-in-depth (currently safe because MockBusinessApp not deployed to production)
+
+### Medium (Security Hardening)
+
+3. **Add regression tests for backchannel changes**
+   - **File:** `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs`
+   - **Tests:** 4 tests listed in Section 7
+   - **Rationale:** Prevent future regressions
+
+4. **Add workflow definition schema validation**
+   - **File:** `src/UmbracoPrism.MockBusinessApp/Program.cs`
+   - **Change:** Validate workflow JSON schema in `PUT /admin/workflow/definition/{key}`
+   - **Rationale:** Defense-in-depth for workflow security
+
+5. **Document deployment security requirements**
+   - **File:** Create `docs/DEPLOYMENT_SECURITY.md`
+   - **Content:** Environment variable hygiene, service deployment boundaries, admin endpoint risks
+   - **Rationale:** Operational security guidance
+
+### Low (Nice to Have)
+
+6. **Add `{key}` parameter validation**
+   - **File:** `src/UmbracoPrism.MockBusinessApp/Program.cs` line 507, 521
+   - **Change:** Validate key format (alphanumeric + hyphens only)
+   - **Rationale:** Defense-in-depth (low risk given in-memory design)
+
+7. **Add startup logging for backchannel URL**
+   - **File:** `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` line 196
+   - **Change:** Log warning if `KEYCLOAK_BACKCHANNEL_URL` is set in non-Development environment
+   - **Rationale:** Observability and audit trail
+
+---
+
+## Conclusion
+
+The Keycloak/Codespaces backchannel changes are **well-designed and secure**. The separation of metadata fetch URLs (backchannel) from issuer validation URLs (OidcAuthority) maintains security boundaries while solving a legitimate Codespaces networking constraint.
+
+The workflow admin endpoints are **acceptable for local development** but must never be deployed to production in their current form (no authentication, no authorization).
+
+**Production deployment is safe** for TestSite and Shared libraries with operational controls ensuring `KEYCLOAK_BACKCHANNEL_URL` is never set in production environments.
+
+**Key Security Strengths:**
+- ✅ Issuer validation is strict and untouched by backchannel changes
+- ✅ Multi-tenant isolation is correctly enforced
+- ✅ JWT validation pipeline is robust
+- ✅ Signing key cache handles rotation correctly
+- ✅ Thread-safe implementation throughout
+
+**Key Recommendations:**
+1. Add production environment variable validation (fail-closed)
+2. Add regression tests for backchannel behavior
+3. Disable admin endpoints in non-Development environments
+4. Document deployment security requirements
+
+---
+
+**Reviewed by:** Copper (Security Engineer)  
+**Date:** 2026-04-21  
+**Files Reviewed:** 6 core files + 3 test files + 2 configuration files

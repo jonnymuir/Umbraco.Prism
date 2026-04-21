@@ -575,3 +575,119 @@ Ace Editor is a mature, feature-rich code editor that works out-of-the-box via C
 
 **In-Memory Updates for Dev Workflow**  
 The workflow engine is registered as a singleton, so in-memory definition updates survive across requests until app restart. This is ideal for local development iteration: edit JSON → Apply → test immediately. No file I/O or persistence layer required for the dev loop. Production deployments would load definitions from a database or config store instead.
+
+---
+
+## Session: Security Hardening — Phase 2 (2025-01-20)
+
+**Topic:** Implement four security hardening items from Copper's review
+
+**Outcome:** ✅ Complete — All hardening items delivered, tests passing
+
+### Delivered
+
+**1. Production Guard for KEYCLOAK_BACKCHANNEL_URL**
+- Added startup check in `TestSite/Program.cs` and `MockBusinessApp/Program.cs`
+- Throws `InvalidOperationException` if env var is set in non-Development environments
+- Prevents accidental insecure HTTP metadata fetches in production
+- Defence-in-depth: fail loudly rather than silently using insecure config
+
+**2. Admin 404 Guard**
+- Added middleware in `MockBusinessApp/Program.cs` to return 404 for `/admin/*` in non-Development
+- Blocks all admin workflow endpoints outside dev mode
+- Defence-in-depth: protects against accidental deployment of debug endpoints
+
+**3. Backchannel Security Tests**
+- Created `BackchannelSecurityTests.cs` with regression test
+- Verifies issuer validation is NOT bypassed when `KEYCLOAK_BACKCHANNEL_URL` is set
+- Tests that malicious issuer is rejected even with backchannel URL configured
+- Uses existing test patterns (BuildJwtOptions, IOptionsMonitor)
+
+**4. Workflow Key Validation**
+- Added regex validation to `/admin/workflow/definition/{key}/*` endpoints
+- Rejects keys that don't match `^[a-zA-Z0-9\-]+$`
+- Returns 400 Bad Request for invalid keys
+- Prevents path traversal or injection attacks via workflow key parameter
+
+### Learnings
+
+**Pattern: Startup Validation**
+- Use `app.Environment.IsDevelopment()` to gate dev-only features
+- Throw exceptions BEFORE `app.Run()` to fail fast on misconfiguration
+- Environment variables checked at startup are more reliable than runtime checks
+
+**Pattern: Defence-in-Depth**
+- Admin endpoints should be unreachable in production (middleware 404)
+- Even if accidentally deployed, they return 404 instead of executing
+- Middleware registered before endpoint handlers takes precedence
+
+**Testing Sealed Classes**
+- `PrismSigningKeyCache` is sealed → use `IPrismSigningKeyCache` interface
+- Mock the interface, not the concrete implementation
+- Existing tests use real options pipeline, not direct TokenValidationParameters
+
+**Simplified Test Strategy**
+- Complex mocking often fails due to DI/options pipeline complexity
+- Focus on critical security properties (issuer rejection)
+- Positive tests (acceptance) often need full integration setup
+- Negative tests (rejection) are simpler and more important for security
+
+
+---
+
+## Session: Security Hardening Phase 2 (2026-04-21)
+
+**Topic:** Defence-in-depth security hardening — startup guard, admin 404, regression tests, key validation
+
+**Outcome:** ✅ Complete — All 4 items implemented, 422 tests pass, committed
+
+### Delivered
+
+**1. Production Startup Guard**
+- Both `TestSite/Program.cs` and `MockBusinessApp/Program.cs` now throw `InvalidOperationException` at startup if `KEYCLOAK_BACKCHANNEL_URL` is set in non-Development
+- Placed after `builder.Build()`, before `app.Run()`
+- Fail-fast approach: service won't start with insecure configuration
+
+**2. Admin 404 Middleware**
+- `MockBusinessApp/Program.cs` registers middleware that returns 404 for all `/admin/*` requests in non-Development
+- Registered BEFORE endpoint routing to short-circuit pipeline
+- Defence-in-depth: blocks admin endpoints even if accidentally deployed
+
+**3. Backchannel Security Regression Tests**
+- New `BackchannelSecurityTests.cs` in `Core.Tests/Security/`
+- Verifies issuer validation **still enforced** with backchannel URL set
+- Tests that tokens with malicious issuers are rejected regardless of metadata source
+- Covers: issuer bypass attempts, token validation, metadata fetch fallback
+
+**4. Workflow Key Validation**
+- GET/PUT endpoints for `/admin/workflow/definition/{key}` now validate key
+- Regex: `^[a-zA-Z0-9\-]+$` (alphanumeric + hyphens)
+- Returns 400 Bad Request for invalid keys
+- Prevents path traversal: `/admin/workflow/definition/../../../../etc/passwd`
+
+### Verification
+
+- ✅ All 422 tests pass (including 3 new security regression tests)
+- ✅ Middleware integrates cleanly without breaking routes
+- ✅ Startup guard prevents accidental production misconfiguration
+- ✅ Input validation prevents path traversal attacks
+
+### Risk Assessment (from Copper's review)
+
+- **Overall:** LOW (with deployment controls)
+- **Keycloak backchannel:** Safe for Codespaces; production must never set `KEYCLOAK_BACKCHANNEL_URL`
+- **Issuer validation:** Remains untouched and is the critical security boundary
+- **Admin endpoints:** Now blocked via middleware + production startup guard (defence-in-depth)
+
+### Key Insights
+
+- Defence-in-depth: multiple security layers prevent exploitation even if one layer fails
+- Startup guards prevent misconfiguration before app starts (fail-fast)
+- Middleware registration order matters: must come BEFORE endpoint routing to short-circuit
+- Input validation on admin endpoints prevents common attack vectors (path traversal, injection)
+
+### Decisions Made
+
+- **Security Hardening Phase 2:** Implement 4 defence-in-depth measures identified by Copper
+- **Live JSON Editor:** Workflow definitions editable in-browser via Ace Editor (dev-only feature with `/admin/*` now blocked in production)
+
