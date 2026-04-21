@@ -15,6 +15,82 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## 2026-04-17: Workflow Documentation Rewrite — COMPLETE
+
+**Session:** Complete rewrite of all workflow documentation guides
+
+**Task:** Fix critical errors in workflow docs (`/docs/guides/workflow-*.md`): incorrect step type names, wrong field group JSON format, outdated terminology. Rewrite with correct conventions, new sections for C# builders and controllers, comprehensive examples.
+
+### Delivered
+
+1. **workflow-setup.md — Major rewrite (primary guide)**
+   - ✅ Fixed all step type names: `question`, `check-answers`, `status-timeline`, `task-list`, `confirmation` (was incorrectly using `Collect`, `Review`, `StatusTimeline`, `Completion`)
+   - ✅ Corrected field group JSON format: plain string arrays for options (was incorrect `{key, label}` objects)
+   - ✅ Separated workflow definitions from field groups (was incorrectly embedding fieldGroups in workflow JSON)
+   - ✅ Added comprehensive section: **Implementing a Workflow Controller** — minimal controller with `PrismWorkflowPageController` base class
+   - ✅ Added comprehensive section: **Building Workflow Definitions in C#** — fluent builder API examples
+   - ✅ Complete architecture diagram (Mermaid)
+   - ✅ Step Types Reference table (all 5 types with use cases)
+   - ✅ Workflow Definition Structure with full JSON example
+   - ✅ Field Groups section with file structure
+   - ✅ Available Field Types table (11 types with examples)
+   - ✅ Conditional Logic section with `conditionalOn` / `visibleWhen`
+   - ✅ Role-Restricted Transitions section
+   - ✅ Instance Policies section
+   - ✅ Complete setup checklist
+
+2. **workflow-customisation.md — Comprehensive rewrite**
+   - ✅ All CSS variables documented with examples
+   - ✅ Complete guide to partial overrides for all 5 step types
+   - ✅ Field partial override examples
+   - ✅ Advanced styling patterns
+   - ✅ Accessibility considerations with ARIA examples
+   - ✅ JavaScript integration examples
+
+3. **workflow-forms-validation.md — Complete rewrite**
+   - ✅ All 5 validation layers explained with examples
+   - ✅ Field constraint reference table
+   - ✅ Step-by-step validation flow examples
+   - ✅ Conditional field validation explained
+   - ✅ Custom Business App validation patterns
+   - ✅ Validation best practices
+   - ✅ Testing examples (unit + integration)
+   - ✅ Validation layers summary table
+
+4. **workflow-gds-components.md — No changes needed**
+   - ✅ Verified file has no terminology errors
+   - ✅ Already comprehensive and correct
+
+### Key Corrections Made
+
+- Replaced all `stepType: "Collect"` with `stepType: "question"` throughout
+- Replaced all `stepType: "Review"` with `stepType: "check-answers"`
+- Replaced all `stepType: "StatusTimeline"` with `stepType: "status-timeline"`
+- Replaced all `stepType: "Completion"` with `stepType: "confirmation"`
+- Added `stepType: "task-list"` examples (was missing)
+- Fixed all field JSON: options now use plain string arrays, not `{key, label}` objects
+- Removed all references to embedding `fieldGroups` in workflow JSON
+- Updated terminology: "step type" throughout (never "archetype")
+- Added documentation for workflow separation: workflow JSON vs. separate field group JSON files
+
+### Style & Conventions
+
+- ✅ Blue/orange callouts (`🔵 Prism Platform` vs. `🟠 Your Business App`) used throughout
+- ✅ All code blocks language-tagged (json, csharp, cshtml, javascript, css)
+- ✅ Mermaid diagrams for architecture (no ASCII art)
+- ✅ Reference tables for all complex structures
+- ✅ Developer-first, active voice, present tense
+- ✅ Clear separation of concerns: what Prism provides vs. what developers build
+
+### Testing
+
+✅ Project builds successfully (`dotnet build UmbracoPrism.sln`)
+✅ All documentation files follow naming conventions
+✅ Cross-references between guides are correct
+✅ No broken links or orphaned sections
+
+---
+
 ## 2026-04-16: Interactive Walkthrough Guide — COMPLETE
 
 **Session:** New user onboarding walkthrough creation
@@ -409,4 +485,28 @@ When documenting bundled dependencies:
 ### Decisions Made
 
 - **Standardize on "Step Type" Terminology:** Replace "archetype" with "step type" in all user-facing workflow documentation
+
+
+---
+
+## Learnings
+
+### Workflow Documentation Terminology
+- **Prism uses `stepType` (not "Archetype"):** Current step rendering is controlled by the `stepType` property with values: `question`, `check-answers`, `status-timeline`, `task-list`, `confirmation`. Always use these exact names in documentation and code.
+- **Field groups are separate files:** Workflow definitions reference field groups by key (`fieldGroupKeys: ["group1", "group2"]`), they never embed field definitions. Field groups live in separate JSON files in `workflow-seeds/field-groups/`.
+- **Options are plain string arrays:** In field definitions, the `options` property is always a plain array of strings: `["Option A", "Option B"]`, never objects with key/label properties.
+
+### Documentation Practices for Prism
+- Always use Mermaid for architecture diagrams (no ASCII art)
+- Use blue/orange callouts to distinguish Prism Platform (🔵) from Your Business App (🟠) responsibilities
+- Code examples should include language tags (json, csharp, cshtml, javascript, css)
+- Developer-first voice: active present tense, focus on "what you do" not "what the system does"
+- Cross-link between related guides (setup → customisation → validation → components)
+- Every guide should have a section for "What You Get Automatically" (🔵 Prism) vs. "What You Define" (🟠 Business App)
+
+### Prism Controller Pattern
+- The `PrismWorkflowPageController` base class handles all GET/POST, validation, and Business App communication
+- Most workflows don't need a custom controller — the base class is sufficient
+- Override `PrePopulateFieldsFromClaims()` only if you need to auto-fill fields from user identity claims
+- Always decorate with `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`
 
