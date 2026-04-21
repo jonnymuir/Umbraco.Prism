@@ -73,6 +73,13 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                 continue;
             }
 
+            // Skip content-only field types — they carry no user-submitted value
+            var contentFieldTypes = new[] { "inset-text", "warning-text", "details", "notification-banner" };
+            if (contentFieldTypes.Contains(field.FieldType?.ToLowerInvariant()))
+            {
+                continue;
+            }
+
             // Get submitted value (handle checkboxlist suffix)
             var raw = GetSubmittedValue(field, submitted);
 

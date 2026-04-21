@@ -489,7 +489,8 @@ public class BusinessAppWorkflowEngine
                 Max = f.Max,
                 Prefix = f.Prefix,
                 ConditionalOn = f.ConditionalOn,
-                VisibleWhen = f.VisibleWhen
+                VisibleWhen = f.VisibleWhen,
+                Content = f.Content
             });
 
             // Flatten any option-triggered sub-fields, setting ConditionalOn/VisibleWhen so the UI can show/hide them

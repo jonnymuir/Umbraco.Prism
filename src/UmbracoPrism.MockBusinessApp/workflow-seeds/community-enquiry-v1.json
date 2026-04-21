@@ -10,7 +10,7 @@
       "displayName": "Tell us about your enquiry",
       "stepType": "question",
       "allowedActions": ["submit", "save-draft"],
-      "fieldGroupKeys": ["about-you", "your-enquiry"]
+      "fieldGroupKeys": ["about-you-with-context", "your-enquiry-with-context"]
     },
     {
       "stateKey": "under-review",

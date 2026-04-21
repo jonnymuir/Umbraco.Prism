@@ -114,6 +114,8 @@ public record FieldFile
     /// Key is the option value; value is the list of fields shown when that option is active.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<FieldFile>>? ConditionalFields { get; init; }
+    /// <summary>Content to render for non-input content field types (inset-text, warning-text, details, notification-banner).</summary>
+    public string? Content { get; init; }
 }
 
 /// <summary>

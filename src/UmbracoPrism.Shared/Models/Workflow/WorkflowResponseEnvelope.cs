@@ -207,6 +207,12 @@ public record FieldRenderPayload
     /// The value that makes this field visible when <see cref="ConditionalOn"/> is set.
     /// </summary>
     public string? VisibleWhen { get; init; }
+
+    /// <summary>
+    /// Gets the content to render for non-input content field types
+    /// (inset-text, warning-text, details, notification-banner).
+    /// </summary>
+    public string? Content { get; init; }
 }
 
 /// <summary>

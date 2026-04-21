@@ -64,6 +64,65 @@ public class PrismFieldTagHelper : TagHelper
         var ariaHiddenAttr = isConditional ? @" aria-hidden=""true""" : string.Empty;
 
         var sb = new StringBuilder();
+
+        // Content-only field types — rendered without govuk-form-group wrapper
+        switch (fieldType)
+        {
+            case "inset-text":
+            {
+                if (string.IsNullOrEmpty(Field.Content)) return;
+                sb.AppendLine(@"<div class=""govuk-inset-text"">");
+                sb.AppendLine($"  {Encode(Field.Content)}");
+                sb.AppendLine("</div>");
+                output.Content.SetHtmlContent(sb.ToString());
+                return;
+            }
+            case "warning-text":
+            {
+                if (string.IsNullOrEmpty(Field.Content)) return;
+                sb.AppendLine(@"<div class=""govuk-warning-text"">");
+                sb.AppendLine(@"  <span class=""govuk-warning-text__icon"" aria-hidden=""true"">!</span>");
+                sb.AppendLine(@"  <strong class=""govuk-warning-text__text"">");
+                sb.AppendLine(@"    <span class=""govuk-visually-hidden"">Warning</span>");
+                sb.AppendLine($"    {Encode(Field.Content)}");
+                sb.AppendLine("  </strong>");
+                sb.AppendLine("</div>");
+                output.Content.SetHtmlContent(sb.ToString());
+                return;
+            }
+            case "details":
+            {
+                if (string.IsNullOrEmpty(Field.Content)) return;
+                var summaryText = !string.IsNullOrEmpty(Field.Label) ? Encode(Field.Label) : "More information";
+                sb.AppendLine(@"<details class=""govuk-details"">");
+                sb.AppendLine(@"  <summary class=""govuk-details__summary"">");
+                sb.AppendLine($@"    <span class=""govuk-details__summary-text"">{summaryText}</span>");
+                sb.AppendLine("  </summary>");
+                sb.AppendLine(@"  <div class=""govuk-details__text"">");
+                sb.AppendLine($"    {Encode(Field.Content)}");
+                sb.AppendLine("  </div>");
+                sb.AppendLine("</details>");
+                output.Content.SetHtmlContent(sb.ToString());
+                return;
+            }
+            case "notification-banner":
+            {
+                if (string.IsNullOrEmpty(Field.Content)) return;
+                var bannerTitle = !string.IsNullOrEmpty(Field.Label) ? Encode(Field.Label) : "Important";
+                sb.AppendLine($@"<div class=""govuk-notification-banner govuk-notification-banner--success"" role=""region"" aria-labelledby=""{Encode(Field.FieldKey)}-banner-title"" data-module=""govuk-notification-banner"">");
+                sb.AppendLine(@"  <div class=""govuk-notification-banner__header"">");
+                sb.AppendLine($@"    <h2 class=""govuk-notification-banner__title"" id=""{Encode(Field.FieldKey)}-banner-title"">{bannerTitle}</h2>");
+                sb.AppendLine("  </div>");
+                sb.AppendLine(@"  <div class=""govuk-notification-banner__content"">");
+                sb.AppendLine($@"    <p class=""govuk-body"">{Encode(Field.Content)}</p>");
+                sb.AppendLine("  </div>");
+                sb.AppendLine("</div>");
+                output.Content.SetHtmlContent(sb.ToString());
+                return;
+            }
+        }
+
+        // Regular form fields — wrap in govuk-form-group
         sb.AppendLine($@"<div class=""govuk-form-group {(hasFieldError ? "govuk-form-group--error" : "")}{conditionalClass}""{conditionalAttrs}{hiddenAttr}{ariaHiddenAttr}>");
 
         switch (fieldType)
