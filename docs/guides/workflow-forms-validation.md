@@ -5,8 +5,8 @@ Form validation in Prism is automatic once the package is installed. You get a c
 **Prism's design principle:** Make it easy to do the right thing; principle of least surprise. Install the package and validation just works.
 
 **For context:**
-- **Setting up workflows?** Start with [Setting Up a Prism Workflow](./workflow-setup.md) to define your workflow structure and states
-- **Theming forms and customizing UI?** See [Customising Workflow UI](./workflow-customisation.md) for CSS variables and partial overrides
+- **Setting up workflows?** Start with [Setting Up a Prism Workflow](./workflow-setup.md)
+- **Theming forms and customizing UI?** See [Customising Workflow UI](./workflow-customisation.md)
 
 ## What You Get Automatically
 
@@ -72,14 +72,18 @@ Prism renders errors using GDS (GOV.UK Design System) patterns, which are access
 - **Accessibility** — error text is linked to the input via `aria-describedby`; focus is moved to the error summary
 - **User guidance** — errors explain what went wrong and how to fix it
 
-## Declaring Field Constraints in Your Business App
+---
 
-Constraints are defined in your Business App's field group JSON files. Here's what you can declare:
+## Declaring Field Constraints
+
+Constraints are defined in your Business App's field group JSON files. Here's the complete set:
+
+### Field Constraint Properties
 
 ```json
 {
   "groupKey": "contact-details",
-  "displayName": "Your Contact Information",
+  "displayName": "Contact Details",
   "version": 1,
   "fields": [
     {
@@ -87,24 +91,14 @@ Constraints are defined in your Business App's field group JSON files. Here's wh
       "label": "Full name",
       "fieldType": "text",
       "required": true,
-      "minLength": 2,
       "maxLength": 100,
-      "hint": "Enter your first and last name"
+      "minLength": 2
     },
     {
       "fieldKey": "email-address",
       "label": "Email address",
       "fieldType": "email",
-      "required": true,
-      "hint": "We'll use this to contact you"
-    },
-    {
-      "fieldKey": "message",
-      "label": "Your message",
-      "fieldType": "textarea",
-      "required": true,
-      "minLength": 10,
-      "maxLength": 500
+      "required": true
     },
     {
       "fieldKey": "age",
@@ -115,28 +109,36 @@ Constraints are defined in your Business App's field group JSON files. Here's wh
       "max": 120
     },
     {
-      "fieldKey": "phone",
-      "label": "Phone number",
+      "fieldKey": "postcode",
+      "label": "UK postcode",
       "fieldType": "text",
-      "required": false,
-      "pattern": "^[0-9\\-\\+\\s\\(\\)]{10,20}$",
-      "hint": "Format: +44 1234 567890 or 01234 567890"
+      "required": true,
+      "pattern": "^[A-Z]{1,2}\\d[A-Z\\d]?\\s?\\d[A-Z]{2}$"
+    },
+    {
+      "fieldKey": "message",
+      "label": "Your message",
+      "fieldType": "textarea",
+      "required": true,
+      "maxLength": 5000,
+      "minLength": 10
     },
     {
       "fieldKey": "enquiry-type",
       "label": "What can we help with?",
-      "fieldType": "radio",
+      "fieldType": "select",
       "required": true,
       "options": [
         "General enquiry",
         "Technical support",
-        "Partnership opportunity"
+        "Partnership",
+        "Other"
       ]
     },
     {
-      "fieldKey": "subscribe",
+      "fieldKey": "newsletter",
       "label": "Subscribe to our newsletter",
-      "fieldType": "boolean",
+      "fieldType": "checkbox",
       "required": false
     }
   ]
@@ -145,283 +147,352 @@ Constraints are defined in your Business App's field group JSON files. Here's wh
 
 ### Constraint Reference
 
-🟠 **Your Business App** — Define these in your field group JSON:
+| Property | Type | Field Types | Behavior |
+|----------|------|-------------|----------|
+| `required` | boolean | all | If true, field must not be empty. Empty is `""`, `null`, or all whitespace. |
+| `maxLength` | number | `text`, `textarea`, `email` | Maximum character length enforced client- and server-side. |
+| `minLength` | number | `text`, `textarea`, `email` | Minimum character length. |
+| `min` | number | `number`, `date-input` | Minimum numeric or date value. |
+| `max` | number | `number`, `date-input` | Maximum numeric or date value. |
+| `pattern` | string | `text`, `email` | Regex pattern for validation (e.g., `"^[0-9]{3}-[0-9]{2}-[0-9]{4}$"` for SSN). |
+| `options` | array | `select`, `radio`, `checkbox`, `checkboxes` | Whitelist of allowed values (plain strings). Submitted values must match exactly. |
+| `errorMessage` | string | all | Custom error message shown if validation fails (optional). |
 
-| Constraint | Type | Field Types | Example |
-|-----------|------|-------------|---------|
-| `required` | boolean | All | `"required": true` |
-| `minLength` | integer | text, textarea, email | `"minLength": 5` |
-| `maxLength` | integer | text, textarea, email | `"maxLength": 100` |
-| `pattern` | regex string | text, email | `"pattern": "^[A-Z][a-z]+$"` |
-| `min` | number | number, decimal | `"min": 0` |
-| `max` | number | number, decimal | `"max": 999.99` |
-| `options` | array | radio, select, checkboxlist | `"options": ["Yes", "No"]` |
+---
 
-### Real Example: "Get in Touch" (Community Enquiry)
+## How Validation Works: Step-by-Step
 
-The testsite includes a "Get in Touch" workflow (`community-enquiry`). Its enquiry message field demonstrates minLength and maxLength:
+### Example: User Submits Invalid Data
 
-```json
+1. **User fills out form** (all fields visible on screen)
+   ```
+   Full name: "J"              ← Too short (min: 2)
+   Email: "not-an-email"       ← Invalid email format
+   Age: "16"                   ← Below minimum (min: 18)
+   Message: ""                 ← Required field is empty
+   Enquiry type: "spam"        ← Not in options array
+   ```
+
+2. **Browser HTML5 validation kicks in** (before submission)
+   - Field `age` shows "Please enter a number that is greater than or equal to 18"
+   - Field `email` shows "Please include an @ in the email address"
+   - Field `message` shows "Please fill out this field"
+   - But `full-name` passes HTML5 (no minLength in simple cases), and `enquiry-type` passes (not a known value to browser)
+
+3. **User clicks Submit** (POST request sent)
+
+4. **Prism's server-side validator runs** (in WorkflowPageController)
+   - Checks nonce → valid ✅
+   - Checks field keys → all present and whitelisted ✅
+   - Checks constraints:
+     - `full-name` minLength 2 → "J" is 1 char → ❌ **Error: too short**
+     - `email-address` email format → "not-an-email" → ❌ **Error: invalid email**
+     - `age` min 18 → 16 → ❌ **Error: too low**
+     - `message` required → "" → ❌ **Error: required**
+     - `enquiry-type` options whitelist → "spam" not in list → ❌ **Error: invalid selection**
+
+5. **Validation fails; form is NOT submitted to Business App**
+   - Problems are serialized to TempData
+   - User is redirected back to the form (PRG pattern)
+
+6. **Form re-renders with errors displayed**
+   - Error summary appears at the top
+   - Each field with an error shows red border + error message
+   - Form values are pre-filled (user doesn't re-type everything)
+   - User can fix and try again
+
+### Example: Validation Passes, But Business App Returns an Error
+
+Imagine the user submits valid data, but the Business App rejects it:
+
+```csharp
+// User submitted:
 {
-  "fieldKey": "message",
-  "label": "Tell us more",
-  "hint": "Please give us enough detail to help you (20–500 characters)",
-  "fieldType": "textarea",
-  "required": true,
-  "minLength": 20,
-  "maxLength": 500
+  "email-address": "duplicate@example.com",  ← Already registered
+  "enquiry-type": "Partnership"
 }
-```
 
-Users must type between 20 and 500 characters. Browsers enforce this client-side; Prism enforces it server-side.
+// Prism's structural validation passes ✅
+// Form is submitted to Business App POST /api/workflow/advance
 
-## Tag Helpers
-
-🔵 **Prism Platform** — Three tag helpers work together to render forms with automatic validation. You use them in your Razor views—no JavaScript needed.
-
-### `<prism-workflow-form>`
-
-Wraps the entire form and handles submission:
-
-```cshtml
-<prism-workflow-form instance-id="@Model.InstanceId"
-                     state-version="@Model.StateVersion"
-                     workflow-key="@Model.WorkflowKey"
-                     return-url="@Model.ReturnUrl"
-                     nonce="@Model.Nonce">
-    <!-- content goes here -->
-</prism-workflow-form>
-```
-
-This renders as a standard HTML `<form>`, automatically:
-- Sets method to `POST`
-- Adds the antiforgery token (CSRF protection)
-- Embeds the nonce and metadata as hidden fields
-- Sets `novalidate` (Prism handles validation, not the browser's native popup errors)
-
-### `<prism-error-summary>`
-
-Displays errors at the top of the form in GDS style:
-
-```cshtml
-<prism-error-summary problems="@Model.Problems" />
-```
-
-Renders as:
-```html
-<div class="prism-error-summary" role="alert">
-    <h2 class="prism-error-summary__title">There is a problem</h2>
-    <ul class="prism-error-summary__list">
-        <li><a href="#full-name">Full name is required</a></li>
-        <li><a href="#email-address">Email address is already registered</a></li>
-    </ul>
-</div>
-```
-
-Each error (if it's a field error) is a link that jumps to that field.
-
-### `<prism-field>`
-
-Renders an individual form field with all constraints, errors, and accessibility attributes:
-
-```cshtml
-<prism-field field="@fieldDefinition" errors="@Model.FieldErrors" />
-```
-
-The field helper automatically:
-- Emits the correct HTML input type (text, email, number, date, etc.)
-- Adds `required`, `minlength`, `maxlength`, `pattern`, `min`, `max` attributes
-- Renders hints with `aria-describedby`
-- Adds error text with `aria-invalid="true"`
-- Handles radio buttons, checkboxes, select dropdowns, and text areas
-
-### Complete Example
-
-Here's the full `_WorkflowStep-Collect.cshtml` partial from the testsite:
-
-```cshtml
-@model UmbracoPrism.TestSite.Models.WorkflowViewModel
-
-<prism-workflow-form instance-id="@Model.InstanceId"
-                     state-version="@Model.StateVersion"
-                     workflow-key="@Model.WorkflowKey"
-                     return-url="@Model.ReturnUrl"
-                     nonce="@Model.Nonce">
-
-    <prism-error-summary problems="@Model.Problems" />
-
-    @foreach (var group in Model.FieldGroups)
-    {
-        <fieldset class="prism-workflow__fieldset">
-            <legend class="prism-legend">@group.DisplayName</legend>
-            @foreach (var field in group.Fields)
-            {
-                <prism-field field="@field" errors="@Model.FieldErrors" />
-            }
-        </fieldset>
-    }
-
-    <div class="prism-workflow__actions">
-        @foreach (var action in Model.AvailableActions)
-        {
-            var btnClass = action.Style switch
-            {
-                "primary" => "prism-button prism-button--primary",
-                "destructive" => "prism-button prism-button--destructive",
-                _ => "prism-button prism-button--secondary"
-            };
-            <button type="submit" name="Action" value="@action.ActionKey" class="@btnClass">
-                @action.Label
-            </button>
-        }
-    </div>
-
-</prism-workflow-form>
-```
-
-This renders a complete, validated, accessible form with error summary and field-level errors. Prism handles all the structural HTML; you just provide the data model.
-
-## Business App Validation Responses
-
-After Prism's structural validation passes, your Business App is called to process the form data. If your Business App detects additional validation problems, return them in this format:
-
-```json
+// Business App validation runs:
+// "This email is already registered in our system"
+// Responds with WorkflowResponseEnvelope:
 {
-  "responseState": "validation_error",
+  "responseState": "error",
   "problems": [
     {
       "fieldKey": "email-address",
-      "message": "This email is already registered.",
-      "code": "duplicate"
+      "message": "This email is already registered in our system. Try logging in or use a different email.",
+      "code": "duplicate_email"
+    }
+  ]
+}
+
+// Prism displays the error to the user, form re-renders
+```
+
+---
+
+## Conditional Field Validation
+
+Fields with conditional visibility (show only if another field has a certain value) are automatically validated only when they're visible.
+
+### Example: Conditional Fields
+
+```json
+{
+  "fields": [
+    {
+      "fieldKey": "enquiry-type",
+      "label": "Type of enquiry",
+      "fieldType": "select",
+      "required": true,
+      "options": ["General", "Technical", "Partnership", "Other"]
     },
     {
-      "fieldKey": "start-date",
-      "message": "Start date must be in the future.",
-      "code": "date_invalid"
-    },
-    {
-      "fieldKey": null,
-      "message": "Submissions are temporarily paused. Please try again tomorrow.",
-      "code": "unavailable"
+      "fieldKey": "technical-details",
+      "label": "Describe the technical issue",
+      "fieldType": "textarea",
+      "required": true,
+      "minLength": 20,
+      "maxLength": 5000,
+      "conditionalOn": "enquiry-type",
+      "visibleWhen": ["Technical"]
     }
   ]
 }
 ```
 
-### Response Fields
+**Behavior:**
+- If user selects "General" → `technical-details` is hidden, and validation is skipped (even though it's marked `required`)
+- If user selects "Technical" → `technical-details` is shown, and `required` + `minLength` validation applies
+- If user selects "Technical", then switches to "General", then back to "Technical" → field retains its value and can be re-validated
 
-🟠 **Your Business App** — Return these fields in your validation response:
+**Server-side:** When the form is posted, Prism checks which fields were visible based on the submitted data, and only validates those fields.
 
-| Field | Type | Required | Purpose |
-|-------|------|----------|---------|
-| `responseState` | string | Yes | Set to `"validation_error"` to signal validation failure |
-| `problems` | array | Yes | List of problems (see below) |
+---
 
-### Problem Object
+## Custom Business App Validation
 
-| Field | Type | Required | Purpose |
-|-------|------|----------|---------|
-| `fieldKey` | string or null | Yes | Field to associate error with. Use null for form-wide errors. |
-| `message` | string | Yes | Error message shown to the user (e.g., "This email is already registered.") |
-| `code` | string | No | Machine-readable error code (e.g., "duplicate", "unavailable") for logging or business logic |
+Your Business App can reject submissions for reasons beyond field structure. Examples:
 
-Prism merges Business App validation errors with field-level errors and redisplays the form with all errors visible.
+- Email already registered
+- Dates out of logical order
+- Regional restrictions
+- Business rule violations
 
-## Multi-Server / Production Configuration
+### Implementing Custom Validation
 
-### Default: Single Server (Development)
-
-Out of the box, Prism uses in-memory caching for nonces:
+**In your Business App's POST `/api/workflow/advance` endpoint:**
 
 ```csharp
-// In Program.cs (default)
-builder.Services.AddDistributedMemoryCache();
-```
-
-This is fine for development and single-server deployments. Each instance has its own nonce cache; nonces don't expire until the configured TTL.
-
-### Production: Multi-Server Deployments
-
-🟠 **Your Configuration** — If you run multiple Umbraco instances (load-balanced), you must use a shared distributed cache. Replace the in-memory cache with Redis or SQL Server:
-
-**Redis:**
-```csharp
-builder.Services.AddStackExchangeRedisCache(options =>
+public IActionResult Advance(string workflowKey, string instanceId, string action, [FromBody] IDictionary<string, object?> fields)
 {
-    options.Configuration = builder.Configuration.GetConnectionString("Redis");
-});
-```
+    // 1. Check structural constraints (Prism already did this, but you can double-check)
+    // ...
 
-Then add the connection string to `appsettings.json`:
+    // 2. Implement custom business logic validation
+    var email = fields?["email-address"]?.ToString();
+    var startDate = DateTime.TryParse(fields?["start-date"]?.ToString(), out var sd) ? sd : (DateTime?)null;
+    var endDate = DateTime.TryParse(fields?["end-date"]?.ToString(), out var ed) ? ed : (DateTime?)null;
 
-```json
-{
-  "ConnectionStrings": {
-    "Redis": "localhost:6379"
-  }
-}
-```
+    var problems = new List<WorkflowProblem>();
 
-**SQL Server:**
-```csharp
-builder.Services.AddDistributedSqlServerCache(options =>
-{
-    options.ConnectionString = builder.Configuration.GetConnectionString("Cache");
-    options.SchemaName = "dbo";
-    options.TableName = "DistributedCache";
-});
-```
-
-Run the cache initialization:
-```bash
-dotnet sql-cache create "Server=.;Database=PrismCache;..." dbo DistributedCache
-```
-
-### Nonce TTL Configuration
-
-🔵 **Prism Platform** — Nonce expiry is configurable. The default is 2 hours; increase this for slow multi-step workflows:
-
-```json
-{
-  "Prism": {
-    "Workflow": {
-      "NonceExpiry": "02:00:00"
+    // Check: email uniqueness
+    if (!string.IsNullOrEmpty(email) && EmailAlreadyRegistered(email))
+    {
+        problems.Add(new WorkflowProblem
+        {
+            FieldKey = "email-address",
+            Message = "This email is already registered. Try logging in or use a different email.",
+            Code = "duplicate_email"
+        });
     }
-  }
+
+    // Check: date order
+    if (startDate.HasValue && endDate.HasValue && startDate > endDate)
+    {
+        problems.Add(new WorkflowProblem
+        {
+            FieldKey = "end-date",
+            Message = "End date must be after start date",
+            Code = "invalid_date_range"
+        });
+    }
+
+    // If validation failed, return error response (DO NOT advance state)
+    if (problems.Count > 0)
+    {
+        return Ok(new WorkflowResponseEnvelope
+        {
+            ResponseState = "error",
+            Problems = problems
+        });
+    }
+
+    // 3. Validation passed — advance to next state
+    var nextStep = AdvanceWorkflow(workflowKey, instanceId, action, fields);
+    return Ok(nextStep);
 }
 ```
 
-Change the timespan to suit your workflow. Example: `"06:00:00"` for 6 hours.
+### Error Response Format
 
-If a user's nonce expires while they're filling out a form, the form redisplays with an error asking them to refresh the page (which generates a new nonce).
+```csharp
+public class WorkflowResponseEnvelope
+{
+    public string ResponseState { get; set; }  // "success" or "error"
+    public string InstanceId { get; set; }
+    public string StateKey { get; set; }
+    public IReadOnlyList<WorkflowProblem> Problems { get; set; }
+    public RenderPayload? Render { get; set; }  // Null if error
+}
 
-## The Testsite Demo
+public class WorkflowProblem
+{
+    public string? FieldKey { get; set; }       // Optional — ties error to a field
+    public string Message { get; set; }        // User-facing error message
+    public string? Code { get; set; }          // Machine-readable error code (optional)
+}
+```
 
-The Umbraco TestSite includes a "Get in Touch" workflow at `/get-in-touch` that demonstrates all validation features:
+**Prism will:**
+1. Display field-level errors next to their inputs (if `FieldKey` is set)
+2. Add global errors to the error summary
+3. Re-render the form with the user's submitted values pre-filled
+4. NOT advance the workflow state
 
-- **8 field types:** text, email, number, date, select, radio, checkboxlist, boolean
-- **Constraint validation:** minLength/maxLength on message field
-- **Required fields:** multiple required fields with visual indicators
-- **Multi-step workflow:** data collection → under review → completion
-- **Error display:** submit with missing required fields to see error summary and field-level errors
+---
 
-Visit the page as an authenticated member to test the full workflow. Try:
-1. Submitting with required fields empty → see error summary
-2. Entering a message under 20 characters → see inline error
-3. Correcting errors and resubmitting → workflow advances
+## Validation Best Practices
 
-## What You DON'T Need to Do
+### 1. Make Error Messages User-Friendly
 
-🔵 **Prism Platform** — These are handled automatically:
+❌ Bad:
+```
+"maxLength constraint violated"
+"pattern validation failed"
+```
 
-- ❌ **Antiforgery tokens** — Prism adds `__RequestVerificationToken` automatically
-- ❌ **Nonce generation** — Prism generates and caches nonces on GET; validates on POST
-- ❌ **Nonce validation** — Prism rejects expired nonces and redirects to GET
-- ❌ **Field key whitelist** — Prism enforces the authoritative field list; rejects injected fields
-- ❌ **Required field checking** — Prism validates required fields server-side
-- ❌ **Type coercion and constraint checking** — Prism applies minLength, maxLength, pattern, min, max rules
-- ❌ **Option whitelist validation** — Prism rejects invalid select/radio/checkbox values
-- ❌ **GDS-style error display** — Prism renders accessible error summaries and field-level errors
-- ❌ **Accessibility attributes** — Prism emits `aria-invalid`, `aria-describedby`, `aria-required`, focus management
+✅ Good:
+```
+"Name must be 100 characters or fewer"
+"Please enter a valid UK postcode (e.g., SW1A 1AA)"
+```
 
-You focus on domain validation (business rules) in your Business App. Prism handles the security, structure, and UI.
+### 2. Use Specific Field Keys
+
+When returning errors from your Business App, include the `fieldKey` so Prism can display the error next to the relevant field:
+
+```csharp
+problems.Add(new WorkflowProblem
+{
+    FieldKey = "email-address",  // ← Include this
+    Message = "This email is already registered"
+});
+```
+
+### 3. Validate Early, but Keep Business Logic in the App
+
+- **Prism validates:** Format, length, required, constraints (HTML5 + server)
+- **Your Business App validates:** Business rules, uniqueness, relationships
+
+### 4. Repopulate Forms on Error
+
+Prism automatically repopulates form fields with submitted values when validation fails (POST-redirect-GET pattern). Users don't re-type everything.
+
+### 5. Log Validation Failures
+
+In your Business App, log validation errors for debugging and analytics:
+
+```csharp
+if (problems.Count > 0)
+{
+    _logger.LogWarning(
+        "Workflow validation failed: {WorkflowKey}, Instance: {InstanceId}, Errors: {@Problems}",
+        workflowKey, instanceId, problems);
+}
+```
+
+---
+
+## Testing Validation
+
+### Unit Testing Field Constraints
+
+Test your field group definitions directly:
+
+```csharp
+[Fact]
+public void EmailField_ShouldRequireValidEmail()
+{
+    var field = new FieldDefinition
+    {
+        FieldKey = "email",
+        FieldType = "email",
+        Required = true
+    };
+
+    var result = Validator.Validate(new[] { field }, new { email = "not-an-email" });
+    Assert.False(result.IsValid);
+    Assert.Contains("email", result.Errors.Keys);
+}
+```
+
+### Integration Testing Workflows
+
+Test the full flow (form submission → validation → Business App):
+
+```csharp
+[Fact]
+public async Task CompleteWorkflow_WithValidData_ShouldSucceed()
+{
+    var formData = new Dictionary<string, string>
+    {
+        { "fields[full-name]", "John Doe" },
+        { "fields[email-address]", "john@example.com" },
+        { "fields[message]", "I have a question about your service" }
+    };
+
+    var response = await client.PostAsync("/workflow-page", new FormUrlEncodedContent(formData));
+    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    Assert.Contains("/workflow-page", response.Headers.Location.ToString());
+}
+
+[Fact]
+public async Task CompleteWorkflow_WithInvalidData_ShouldShowErrors()
+{
+    var formData = new Dictionary<string, string>
+    {
+        { "fields[full-name]", "" },  // Required field missing
+        { "fields[email-address]", "invalid" },
+        { "fields[message]", "" }  // Required field missing
+    };
+
+    var response = await client.PostAsync("/workflow-page", new FormUrlEncodedContent(formData));
+    var html = await response.Content.ReadAsStringAsync();
+    Assert.Contains("govuk-error-summary", html);  // Error summary rendered
+    Assert.Contains("error-message", html);  // Field-level errors rendered
+}
+```
+
+---
+
+## Summary: Validation Layers
+
+| Layer | Owner | When | What |
+|-------|-------|------|------|
+| HTML5 client-side | Browser | Before submission | Type checks, length limits, pattern matching |
+| Nonce tamper-proofing | 🔵 Prism | On submission | Prevents field injection / removal |
+| Structural validation | 🔵 Prism | Before Business App | Required, whitelist, constraints |
+| Business logic validation | 🟠 Your App | After Prism | Uniqueness, relationships, business rules |
+| Error display | 🔵 Prism | After validation | GDS error summary + field-level errors |
+
+Each layer is independent. All must pass for the workflow to advance.
+
+---
+
+**Next steps:**
+- [Customising Workflow UI](./workflow-customisation.md) — override partials, adjust CSS
+- [GDS Components](./workflow-gds-components.md) — available form elements and design patterns

@@ -1,809 +1,491 @@
-# Customising Workflow UI
+# Customising Workflow UI & Theme
 
-A guide for designers and frontend developers to theme and extend Prism workflow forms.
+A guide to customising the appearance and behavior of workflow forms in Umbraco.Prism.
+
+**For context:**
+- **Setting up workflows?** Start with [Setting Up a Prism Workflow](./workflow-setup.md)
+- **Understanding validation?** See [Form Validation](./workflow-forms-validation.md)
+- **Using GDS components?** See [GDS Design System Components](./workflow-gds-components.md)
+
+---
 
 ## Overview
 
-Prism provides a complete, accessible workflow rendering system out of the box. All form styling is CSS-first using CSS custom properties (CSS variables) for theming. Want to change colours, spacing, or border radius? Override a variable. Need a custom field layout or step type? Replace or create a partial view. No C# coding required.
+Prism provides sensible defaults for workflow rendering: GDS (GOV.UK Design System) styling, accessibility built-in, responsive layout. You can customise at three levels:
 
-**The philosophy:** Prism provides working defaults (GDS-inspired accessibility and styling); you layer your brand on top using CSS, HTML, and Razor (the Umbraco view engine).
+1. **CSS variables** — Change colors, spacing, fonts without touching code
+2. **Razor partial overrides** — Replace step templates to customize HTML/markup
+3. **Custom CSS** — Add your own styles on top of GDS
 
-## What's Prism and What's the Mock Business App?
+---
 
-> **🔵 Prism Platform** — Provided by `UmbracoPrism.Core`. You don't build this.
-> **🟠 Mock Business App** — Provided by `UmbracoPrism.MockBusinessApp` as a reference implementation. Replace this with your real workflow engine.
+## CSS Variables & Theme Customization
 
-**In this guide:**
-- 🔵 Customisation sections (CSS, partials, step types) describe Prism Platform features you control
-- 🟠 Workflow definitions (JSON structure, states, transitions) are your business app's responsibility
+The easiest way to customize Prism workflows: override CSS variables. All Prism styling uses custom properties (`--prism-*`), making it trivial to apply your brand colors, fonts, and spacing.
 
-For Prism customisation, you override CSS variables and Razor views. Your business app defines what workflows exist and how they behave.
+### Supported CSS Variables
 
-## The CSS File
-
-> 🔵 **Prism Platform** — The Prism design system is part of `UmbracoPrism.Core`. You override CSS variables; you don't replace the stylesheet.
-
-**Location:** `src/UmbracoPrism.TestSite/wwwroot/branding/prism-forms.css` — part of the Prism branding system, imported automatically via `prism-branding.css`
-
-This file contains:
-- All form and field styles
-- CSS custom properties (variables) for theming
-- GDS-compliant accessible defaults (focus visible, hint text associations, required field markers)
-
-**How it's loaded:**
-- Prism's layout view imports `prism-branding.css` automatically
-- `prism-branding.css` imports `prism-forms.css` (plus other Prism styles)
-- Your site's CSS loads **after** Prism branding, so you can override variables
-- Prism doesn't bundle CSS; you control what loads and in what order
-
-**What it covers:**
-- Workflow container layout
-- Form fieldsets and legends
-- Input styling (text, email, number, date, select, textarea, etc.)
-- Button and action styles
-- Error and validation states
-- Review step display
-- Status timeline
-- Completion messages
-- Accessibility (focus indicators, ARIA labels)
-
-## CSS Custom Properties Reference
-
-Below are all available `--prism-*` variables and their defaults. Override any to match your brand.
-
-### Layout & Spacing
+#### Colors
 
 ```css
---prism-workflow-max-width: 680px;           /* Container width */
---prism-workflow-padding: 1.5rem;            /* Container padding */
---prism-form-group-spacing: 1.5rem;          /* Gap between form groups */
---prism-actions-gap: 1rem;                   /* Gap between action buttons */
+/* Primary workflow colors */
+--prism-primary-color: #0b3e6f;                /* Blue - primary buttons, links, accents */
+--prism-success-color: #00703c;                /* Green - success states, valid checks */
+--prism-warning-color: #b10e1e;                /* Red - warnings, errors, destructive actions */
+--prism-neutral-color: #505a5f;                /* Grey - secondary text, disabled states */
+
+/* Input styling */
+--prism-input-border-color: #b1b4b6;           /* Border around text inputs */
+--prism-input-bg-color: #ffffff;               /* Background of input fields */
+--prism-input-text-color: #0b3e6f;             /* Text inside inputs */
+--prism-focus-color: #ffdd00;                  /* Focus ring color (yellow accessibility standard) */
+
+/* Panel backgrounds (step types) */
+--prism-panel-question-border-color: #0b3e6f; /* Question step border (blue) */
+--prism-panel-question-bg: #f3f6f9;            /* Question step background */
+
+--prism-panel-confirmation-border-color: #00703c; /* Confirmation step border (green) */
+--prism-panel-confirmation-bg: #f3faf5;        /* Confirmation step background */
+
+--prism-panel-timeline-border-color: #505a5f;  /* Timeline step border (grey) */
+--prism-panel-timeline-bg: #fafbfc;            /* Timeline step background */
+
+/* Error styling */
+--prism-error-border-color: #b10e1e;           /* Error field border */
+--prism-error-bg-color: #fef7f5;               /* Error field background */
+--prism-error-text-color: #b10e1e;             /* Error message text */
+
+/* Check-answers (review) styling */
+--prism-check-answers-dt-color: #505a5f;       /* Review field label colour */
+--prism-check-answers-item-border: 1px solid #b1b4b6; /* Review field separator */
 ```
 
-### Inputs
+#### Spacing & Layout
 
 ```css
---prism-input-border: 2px solid #0b0c0c;     /* All input borders (text, select, etc.) */
---prism-input-border-radius: 0;              /* Corner radius (0 = sharp, GDS style) */
---prism-input-padding: 0.5rem 0.625rem;      /* Padding inside inputs */
---prism-input-font-size: 1rem;               /* Font size in inputs */
---prism-input-focus-color: #ffdd00;          /* Focus background (GDS yellow) */
---prism-input-focus-outline: 3px solid #0b0c0c; /* Focus outline */
+--prism-panel-padding: 1.5rem;                 /* Padding inside panels */
+--prism-field-margin-bottom: 1.5rem;           /* Space between fields */
+--prism-button-gap: 1rem;                      /* Space between buttons */
+--prism-max-width: 960px;                      /* Max width of form container */
 ```
 
-### Labels & Hints
+#### Typography
 
 ```css
---prism-label-font-size: 1rem;               /* Label size */
---prism-label-font-weight: 700;              /* Label weight (bold by default) */
---prism-hint-font-size: 0.9375rem;           /* Hint text size */
---prism-hint-color: #505a5f;                 /* Hint text colour */
---prism-required-color: #d4351c;             /* Required field indicator (*) colour */
+--prism-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+--prism-font-size-base: 1rem;
+--prism-font-size-lg: 1.25rem;                 /* Step title font size */
+--prism-font-size-sm: 0.875rem;                /* Helper text font size */
+--prism-line-height: 1.5;
 ```
 
-### Buttons
+### How to Override CSS Variables
+
+Create a custom CSS file in your Umbraco project and reference it in your Master layout. Override any variables you want to change:
+
+**File:** `wwwroot/css/my-workflow-theme.css`
 
 ```css
---prism-button-font-size: 1rem;              /* Button text size */
---prism-button-padding: 0.625rem 1.25rem;    /* Button padding */
---prism-button-border-radius: 0;             /* Button corner radius */
-```
-
-### Panels & Review
-
-```css
---prism-panel-confirmation-border-color: #00703c;  /* Review panel border (green) */
---prism-panel-confirmation-bg: #f3faf5;           /* Review panel background */
---prism-panel-confirmation-padding: 1.5rem;       /* Review panel padding */
---prism-review-dt-color: #505a5f;                 /* Review field label colour */
---prism-review-item-border: 1px solid #b1b4b6;    /* Review field separator */
-```
-
-## Theming by Overriding Variables
-
-> 🔵 **Prism Platform** — The design system tokens are already defined in `prism-forms.css`. You override them in your own stylesheet.
-
-The Prism design system exposes CSS variables for every visual element. Override them in your site's stylesheet (which loads after Prism branding) to apply your brand.
-
-### Example 1: Change Your Brand Colours
-
-In your site's main stylesheet (or a dedicated branding file):
-
-```css
-/* Add to your site's stylesheet (loads after prism-branding.css) */
+/* My custom theme overrides */
 :root {
-  /* Use your brand primary colour */
-  --prism-input-focus-color: #0066cc;
-  --prism-input-focus-outline: 3px solid #003d7a;
-  
-  /* Custom brand green for panels */
-  --prism-panel-confirmation-border-color: #0a7a2e;
-  --prism-panel-confirmation-bg: #f0f8f3;
-  
-  /* Brand sans-serif */
-  --prism-label-font-size: 1.1rem;
+    /* Brand colors */
+    --prism-primary-color: #d32f2f;             /* My brand red instead of blue */
+    --prism-success-color: #388e3c;             /* My brand green */
+    
+    /* Custom spacing */
+    --prism-panel-padding: 2rem;                /* More breathing room */
+    --prism-field-margin-bottom: 2rem;
+    
+    /* Custom font */
+    --prism-font-family: Georgia, serif;        /* Serif font */
+    --prism-font-size-base: 1.1rem;             /* Slightly larger base */
 }
 ```
 
-That's it. Prism renders with your brand applied.
-
-### Example 2: Rounded, Spacious Design
-
-For a modern, rounded look:
-
-```css
-:root {
-  --prism-input-border-radius: 8px;
-  --prism-button-border-radius: 8px;
-  
-  --prism-workflow-max-width: 800px;
-  --prism-form-group-spacing: 2rem;
-  --prism-workflow-padding: 2rem;
-}
-```
-
-### Example 3: Compact Mobile-First Layout
-
-For tight spacing on mobile:
-
-```css
-@media (max-width: 640px) {
-  :root {
-    --prism-workflow-padding: 1rem;
-    --prism-form-group-spacing: 1rem;
-    --prism-button-padding: 0.5rem 1rem;
-  }
-}
-```
-
-## Overriding a Partial View
-
-> 🔵 **Prism Platform** — Partial views (Razor templates) are part of Prism. You override them to customise rendering, but Prism provides all the defaults.
-
-Umbraco uses a view resolution order: **your site's Views folder takes precedence** over defaults. To override any workflow partial, copy it to your site and modify.
-
-### Step 1: Identify the Partial
-
-Partials are located in `src/UmbracoPrism.TestSite/Views/Partials/`:
-- `_WorkflowStep-Collect.cshtml` — Data entry form
-- `_WorkflowStep-Review.cshtml` — Review step
-- `_WorkflowStep-StatusTimeline.cshtml` — Waiting state
-- `_WorkflowStep-Completion.cshtml` — Success state
-- `_WorkflowField.cshtml` — Individual field rendering
-- `WorkflowPage.cshtml` — Main dispatcher view
-
-### Step 2: Copy to Your Site
-
-Copy the partial to your site's `Views/Partials/` (or `Views/` if the directory structure differs):
-
-```mermaid
-graph TD
-    A["Your Site"] --> B["Views/"]
-    B --> C["Partials/"]
-    B --> D["..."]
-    C --> E["_WorkflowStep-Collect.cshtml<br/>&lt;-- copy here"]
-    C --> F["_WorkflowStep-Review.cshtml<br/>&lt;-- copy here"]
-```
-
-### Step 3: Modify
-
-Edit the partial. For example, add a custom CSS class:
+**File:** `Views/Master.cshtml`
 
 ```cshtml
-<!-- Original: -->
-<form class="workflow-form" method="post">
-
-<!-- Modified: -->
-<form class="workflow-form my-custom-form" method="post">
+<head>
+    <!-- Prism default styles (GDS-based) -->
+    <link rel="stylesheet" href="~/css/govuk-frontend.min.css">
+    <link rel="stylesheet" href="~/css/prism-workflows.min.css">
+    
+    <!-- Your custom theme overrides -->
+    <link rel="stylesheet" href="~/css/my-workflow-theme.css">
+</head>
 ```
 
-Umbraco will now use your version instead of the default.
+**Result:** All Prism workflow UI automatically uses your colors, fonts, and spacing.
 
-## Creating a Custom Step Type
+---
 
-> 🔵 **Prism Platform** — Step types are rendering templates. Create a new partial to define a custom step type, then use it in your business app's workflow JSON.
+## Overriding Razor Partials
 
-Want a new step type? Create a custom step type without touching C#.
+For deeper customization—changing HTML structure, adding custom elements, reorganizing sections—override the step-type partials.
 
-### Example: "Documents" Step Type
+### Partial File Locations
 
-Create a new partial view for document upload/download steps:
+Prism looks for partials in this order:
 
-**File:** `Views/Partials/_WorkflowStep-Documents.cshtml`
+1. **Your app's Partials folder** — `Views/Partials/_WorkflowStep-{stepType}.cshtml`
+2. **Prism package defaults** — Built-in to UmbracoPrism.Core
 
-```cshtml
-@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+To customize a step, copy the default partial to your app and modify it. Umbraco's partial resolver automatically uses your version.
 
-<div class="prism-workflow">
-    <h2 class="prism-workflow__heading">@Model.CurrentStep.DisplayName</h2>
-    
-    <div class="documents-container">
-        <h3>Required Documents</h3>
-        <ul>
-            <li>Proof of identity (passport or driving license)</li>
-            <li>Proof of address (utility bill or council tax)</li>
-            <li>Bank statement (last 3 months)</li>
-        </ul>
-    </div>
-    
-    <form method="post" action="@Model.ReturnUrl" enctype="multipart/form-data">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
-        <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
-        
-        <div class="prism-form-group">
-            <label for="upload-docs">Upload your documents:</label>
-            <input type="file" id="upload-docs" name="documents" multiple accept=".pdf,.jpg,.png" required>
-        </div>
-        
-        <div class="prism-form-group">
-            <button type="submit" class="prism-button prism-button--primary">
-                Continue
-            </button>
-        </div>
-    </form>
-</div>
-```
+### Available Partials to Override
 
-**Then use it in your workflow JSON:**
+#### 1. `_WorkflowStep-question.cshtml`
 
-```json
+Renders a `question` step — form fields for data collection.
+
+**Location to copy from:** Prism package defaults
+**Location to override:** `Views/Partials/_WorkflowStep-question.cshtml`
+
+**Model:**
+```csharp
+public class WorkflowViewModel
 {
-  "states": [
-    {
-      "stateKey": "upload-docs",
-      "displayName": "Upload Your Documents",
-      "stepType": "Documents",
-      "allowedActions": ["continue"],
-      "fieldGroupKeys": []
-    }
-  ]
+    public string StateDisplayName { get; set; }      // e.g., "Tell us about your enquiry"
+    public IEnumerable<FormSection> FieldGroups { get; set; }  // Field groups to render
+    public IEnumerable<WorkflowAction> AvailableActions { get; set; }  // Submit, Save Draft, etc.
+    public IReadOnlyList<WorkflowProblem> Problems { get; set; }  // Validation errors
+    public IReadOnlyDictionary<string, string> FormValues { get; set; }  // Submitted values for repopulation
 }
 ```
 
-The dispatcher (`WorkflowPage.cshtml`) uses convention-based routing:
-1. Looks for `_WorkflowStep-Documents.cshtml`
-2. Finds your custom partial
-3. Renders it
-
-No code changes needed.
-
-## GDS Design System Components
-
-> 🔵 **Prism Platform** — GDS Design System (govuk-frontend 5.9.0) is bundled automatically. All 38 components work out of the box with zero setup.
-
-All workflow step partials have full access to the GOV.UK Design System component library. You don't need to install, configure, or initialize anything—it's already wired up.
-
-### How GDS is Bundled
-
-Prism automatically installs and loads govuk-frontend as part of the build process:
-
-1. **Package declared:** `src/UmbracoPrism.TestSite/package.json` includes `"govuk-frontend": "^5.9.0"`
-2. **MSBuild target runs:** The `.csproj` file includes an `InstallGovukFrontend` target that runs `npm ci` before every build
-3. **Assets copied:** `govuk-frontend.min.css` and `govuk-frontend.min.js` are automatically copied to `wwwroot/css/` and `wwwroot/js/`
-4. **Master layout loads them:** `Master.cshtml` includes both files on every page and calls `window.GOVUKFrontend.initAll()`
-
-**Result:** Every GDS component—CSS-only and JavaScript-enhanced—works automatically on every page.
-
-### Available Components
-
-All 38 GDS components from govuk-frontend 5.9.0 are available:
-
-**Form elements:**
-- button
-- checkboxes
-- date-input
-- file-upload
-- input
-- password-input
-- radios
-- select
-- textarea
-- character-count
-
-**Layout & navigation:**
-- back-link
-- breadcrumbs
-- footer
-- header
-- pagination
-- service-navigation
-- skip-link
-- tabs
-
-**Content:**
-- accordion
-- details
-- inset-text
-- notification-banner
-- panel
-- summary-list
-- table
-- tag
-- task-list
-- warning-text
-
-**Helpers:**
-- cookie-banner
-- error-message
-- error-summary
-- exit-this-page
-- fieldset
-- hint
-- label
-- phase-banner
-
-### Using CSS-Only Components
-
-For CSS-only components (buttons, inputs, panels, etc.), just add the appropriate CSS class:
-
+**Example override:**
 ```cshtml
-<!-- Primary button -->
-<button type="submit" class="govuk-button">
-    Continue
-</button>
+@model WorkflowViewModel
 
-<!-- Secondary button -->
-<button type="button" class="govuk-button govuk-button--secondary">
-    Save draft
-</button>
+<div class="govuk-width-container">
+    <div class="govuk-main-wrapper">
+        <!-- Custom header -->
+        <div class="govuk-panel govuk-panel--blue">
+            <h1 class="govuk-panel__title">@Model.StateDisplayName</h1>
+            <p class="govuk-panel__body">Please provide the following information</p>
+        </div>
 
-<!-- Warning button -->
-<button type="submit" class="govuk-button govuk-button--warning">
-    Delete
-</button>
+        <!-- Error summary -->
+        @if (Model.Problems.Any())
+        {
+            <div class="govuk-error-summary">
+                <h2 class="govuk-error-summary__title">There is a problem</h2>
+                <ul class="govuk-list govuk-error-summary__list">
+                    @foreach (var problem in Model.Problems)
+                    {
+                        <li><a href="#@problem.FieldKey">@problem.Message</a></li>
+                    }
+                </ul>
+            </div>
+        }
 
-<!-- Text input -->
-<input type="text" id="full-name" name="full-name" class="govuk-input" />
+        <!-- Form -->
+        <form method="post">
+            @foreach (var fieldGroup in Model.FieldGroups)
+            {
+                <fieldset class="govuk-fieldset">
+                    <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
+                        <h2 class="govuk-fieldset__heading">@fieldGroup.DisplayName</h2>
+                    </legend>
 
-<!-- Inset text (callout) -->
-<div class="govuk-inset-text">
-    This information will be shared with the council.
+                    @foreach (var field in fieldGroup.Fields)
+                    {
+                        <!-- Render field based on type (text, email, select, etc.) -->
+                        @Html.Partial("_WorkflowField-" + field.FieldType, field)
+                    }
+                </fieldset>
+            }
+
+            <!-- Action buttons -->
+            <div class="govuk-button-group">
+                @foreach (var action in Model.AvailableActions)
+                {
+                    <button type="submit" name="Action" value="@action.Key" class="govuk-button">
+                        @action.Label
+                    </button>
+                }
+            </div>
+        </form>
+    </div>
 </div>
 ```
 
-### Using JavaScript-Enhanced Components
+#### 2. `_WorkflowStep-check-answers.cshtml`
 
-For components that require JavaScript (tabs, accordion, character-count, etc.), add the `data-module="govuk-{component}"` attribute. The `GOVUKFrontend.initAll()` call in `Master.cshtml` automatically picks it up:
+Renders a `check-answers` step — read-only review of all submitted data with "Change" links.
 
+**Location to override:** `Views/Partials/_WorkflowStep-check-answers.cshtml`
+
+**Example override:**
 ```cshtml
-<!-- Tabs -->
-<div class="govuk-tabs" data-module="govuk-tabs">
-    <h2 class="govuk-tabs__title">Contents</h2>
-    <ul class="govuk-tabs__list">
-        <li class="govuk-tabs__list-item govuk-tabs__list-item--selected">
-            <a class="govuk-tabs__tab" href="#personal">Personal details</a>
-        </li>
-        <li class="govuk-tabs__list-item">
-            <a class="govuk-tabs__tab" href="#address">Address</a>
-        </li>
-    </ul>
-    <div class="govuk-tabs__panel" id="personal">
-        <h2 class="govuk-heading-l">Personal details</h2>
-        <!-- Content here -->
-    </div>
-    <div class="govuk-tabs__panel govuk-tabs__panel--hidden" id="address">
-        <h2 class="govuk-heading-l">Address</h2>
-        <!-- Content here -->
-    </div>
-</div>
+@model WorkflowViewModel
 
-<!-- Accordion -->
-<div class="govuk-accordion" data-module="govuk-accordion">
-    <div class="govuk-accordion__section">
-        <div class="govuk-accordion__section-header">
-            <h2 class="govuk-accordion__section-heading">
-                <button type="button" class="govuk-accordion__section-button">
-                    Understanding the decision
+<div class="govuk-width-container">
+    <div class="govuk-main-wrapper">
+        <h1 class="govuk-heading-l">@Model.StateDisplayName</h1>
+        <p>Check your answers before submitting.</p>
+
+        <!-- Display all field values in a definition list -->
+        <dl class="govuk-summary-list">
+            @foreach (var fieldGroup in Model.FieldGroups)
+            {
+                <h2 class="govuk-heading-m">@fieldGroup.DisplayName</h2>
+                @foreach (var field in fieldGroup.Fields)
+                {
+                    var value = Model.FormValues.ContainsKey(field.FieldKey) 
+                        ? Model.FormValues[field.FieldKey] 
+                        : "(Not provided)";
+
+                    <div class="govuk-summary-list__row">
+                        <dt class="govuk-summary-list__key">@field.Label</dt>
+                        <dd class="govuk-summary-list__value">@value</dd>
+                        <dd class="govuk-summary-list__actions">
+                            <a class="govuk-link" href="#@field.FieldKey">Change</a>
+                        </dd>
+                    </div>
+                }
+            }
+        </dl>
+
+        <!-- Action buttons -->
+        <div class="govuk-button-group">
+            @foreach (var action in Model.AvailableActions)
+            {
+                <button type="submit" name="Action" value="@action.Key" class="govuk-button">
+                    @action.Label
                 </button>
-            </h2>
+            }
         </div>
-        <div class="govuk-accordion__section-content">
-            <p class="govuk-body">We'll send you a full decision letter...</p>
-        </div>
-    </div>
-</div>
-
-<!-- Character count (auto-updates remaining characters) -->
-<div class="govuk-character-count" data-module="govuk-character-count" data-maxlength="500">
-    <div class="govuk-form-group">
-        <label class="govuk-label" for="description">Description</label>
-        <textarea class="govuk-textarea govuk-js-character-count" id="description" name="description" rows="5"></textarea>
-    </div>
-    <div class="govuk-hint govuk-character-count__message">
-        You can enter up to 500 characters
     </div>
 </div>
 ```
 
-### Real-World Example: Complex Step with Tabs
+#### 3. `_WorkflowStep-status-timeline.cshtml`
 
-Here's a step partial that uses tabs to organize a complex multi-part form:
+Renders a `status-timeline` step — shows progress and current status.
 
-**File:** `Views/Partials/_WorkflowStep-PropertyDetails.cshtml`
+**Location to override:** `Views/Partials/_WorkflowStep-status-timeline.cshtml`
 
+#### 4. `_WorkflowStep-task-list.cshtml`
+
+Renders a `task-list` step — shows tasks with individual completion statuses.
+
+**Location to override:** `Views/Partials/_WorkflowStep-task-list.cshtml`
+
+#### 5. `_WorkflowStep-confirmation.cshtml`
+
+Renders a `confirmation` step — success message, reference number, next steps.
+
+**Location to override:** `Views/Partials/_WorkflowStep-confirmation.cshtml`
+
+**Example override:**
 ```cshtml
-@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+@model WorkflowViewModel
 
-<div class="govuk-tabs" data-module="govuk-tabs">
-    <h2 class="govuk-tabs__title">Contents</h2>
-    <ul class="govuk-tabs__list">
-        <li class="govuk-tabs__list-item govuk-tabs__list-item--selected">
-            <a class="govuk-tabs__tab" href="#property">Property</a>
-        </li>
-        <li class="govuk-tabs__list-item">
-            <a class="govuk-tabs__tab" href="#planning">Planning</a>
-        </li>
-        <li class="govuk-tabs__list-item">
-            <a class="govuk-tabs__tab" href="#timeline">Timeline</a>
-        </li>
-    </ul>
-    
-    <div class="govuk-tabs__panel" id="property">
-        <h2 class="govuk-heading-l">Property details</h2>
-        <div class="govuk-form-group">
-            <label class="govuk-label" for="address">Property address</label>
-            <textarea class="govuk-textarea" id="address" name="address" rows="3"></textarea>
+<div class="govuk-width-container">
+    <div class="govuk-main-wrapper">
+        <div class="govuk-panel govuk-panel--confirmation">
+            <h1 class="govuk-panel__title">@Model.StateDisplayName</h1>
+            <p class="govuk-panel__body">
+                Your application reference is <strong>@Model.InstanceId</strong>
+            </p>
         </div>
-    </div>
-    
-    <div class="govuk-tabs__panel govuk-tabs__panel--hidden" id="planning">
-        <h2 class="govuk-heading-l">Planning details</h2>
-        <div class="govuk-form-group">
-            <label class="govuk-label" for="works">Describe the proposed works</label>
-            <textarea class="govuk-textarea" id="works" name="works" rows="5"></textarea>
-        </div>
-    </div>
-    
-    <div class="govuk-tabs__panel govuk-tabs__panel--hidden" id="timeline">
-        <h2 class="govuk-heading-l">Timeline and cost</h2>
-        <div class="govuk-form-group">
-            <label class="govuk-label" for="start-date">Proposed start date</label>
-            <input class="govuk-input govuk-input--width-10" id="start-date" name="start-date" type="date" />
+
+        <h2 class="govuk-heading-m">What happens next?</h2>
+        <p>We'll review your application and contact you within 5 working days.</p>
+
+        <div class="govuk-button-group">
+            @foreach (var action in Model.AvailableActions)
+            {
+                <a href="/" class="govuk-button">@action.Label</a>
+            }
         </div>
     </div>
 </div>
-
-<div class="govuk-button-group">
-    <button type="submit" class="govuk-button">Continue</button>
-</div>
 ```
 
-### Examples from Existing Step Partials
+---
 
-The TestSite already demonstrates GDS usage in production step partials:
+## Overriding Field Partials
 
-**`_WorkflowStep-Question.cshtml`:**
-- `govuk-fieldset` — groups related fields
-- `govuk-fieldset__legend` — fieldset heading
-- `govuk-button-group` — action button container
-- `govuk-button` — primary/secondary actions
+Each field type has its own partial template. Override these to customize how specific fields are rendered.
 
-**`_WorkflowStep-Review.cshtml`:**
-- `govuk-summary-list` — check-your-answers pattern
-- `govuk-heading-l`, `govuk-heading-m` — semantic headings
-- `govuk-grid-row` — layout grid
-- `govuk-link` — styled links with focus states
+### Field Partial Locations
 
-**`_WorkflowStep-Completion.cshtml`:**
-- `govuk-panel` — confirmation panel
-- `govuk-panel--confirmation` — success variant
-- `govuk-panel__title`, `govuk-panel__body` — panel content
-- `govuk-body` — body text
-- `govuk-button--secondary` — secondary action
+- `Views/Partials/_WorkflowField-text.cshtml`
+- `Views/Partials/_WorkflowField-email.cshtml`
+- `Views/Partials/_WorkflowField-number.cshtml`
+- `Views/Partials/_WorkflowField-textarea.cshtml`
+- `Views/Partials/_WorkflowField-select.cshtml`
+- `Views/Partials/_WorkflowField-radio.cshtml`
+- `Views/Partials/_WorkflowField-checkbox.cshtml`
+- `Views/Partials/_WorkflowField-checkboxes.cshtml`
+- `Views/Partials/_WorkflowField-date-input.cshtml`
+- `Views/Partials/_WorkflowField-file-upload.cshtml`
 
-### Form Field Best Practices
+### Example: Custom Text Field Partial
 
-Always wrap GDS form fields in `govuk-form-group` and use proper associations:
+**File:** `Views/Partials/_WorkflowField-text.cshtml`
 
 ```cshtml
-<div class="govuk-form-group">
-    <label class="govuk-label" for="email">
-        Email address
-    </label>
-    <div id="email-hint" class="govuk-hint">
-        We'll only use this to send you a receipt
-    </div>
-    <input class="govuk-input govuk-input--width-20" 
-           id="email" 
-           name="email" 
-           type="email" 
-           aria-describedby="email-hint" />
-</div>
-```
+@model FieldRenderPayload
 
-**For validation errors:**
-
-```cshtml
-<div class="govuk-form-group govuk-form-group--error">
-    <label class="govuk-label" for="email">
-        Email address
-    </label>
-    <div id="email-hint" class="govuk-hint">
-        We'll only use this to send you a receipt
-    </div>
-    <p id="email-error" class="govuk-error-message">
-        <span class="govuk-visually-hidden">Error:</span> Enter an email address in the correct format, like name@example.com
-    </p>
-    <input class="govuk-input govuk-input--width-20 govuk-input--error" 
-           id="email" 
-           name="email" 
-           type="email" 
-           aria-describedby="email-hint email-error" />
-</div>
-```
-
-### Accessibility Reminders
-
-- **Always associate hints with inputs:** Use `aria-describedby` to link hint text IDs
-- **Associate errors properly:** Include both hint ID and error ID in `aria-describedby`
-- **Use semantic markup:** GDS components already follow WCAG 2.2 AA; don't break the structure
-- **Test keyboard navigation:** All interactive elements should be reachable via Tab
-- **Test with a screen reader:** VoiceOver (macOS), NVDA (Windows), or JAWS
-
-### Full Component Documentation
-
-For complete component documentation, code examples, and accessibility guidance, see the official GDS documentation:
-
-**https://design-system.service.gov.uk/components/**
-
-Each component page includes:
-- Live interactive examples
-- Complete HTML markup
-- Accessibility considerations
-- When to use / when not to use guidance
-- Research and testing notes
-
-For an even more detailed guide with code examples for every component in workflow contexts, see [Using GDS Design System Components in Workflow Steps](./workflow-gds-components.md).
-
-## The Field Partial
-
-> 🔵 **Prism Platform** — The field renderer is part of Prism. Override it to customise how individual form fields render across all step types.
-
-**File:** `Views/Partials/_WorkflowField.cshtml`
-
-This partial renders individual form fields (text boxes, dropdowns, etc.). Override it to customise all field rendering at once.
-
-**Default rendering:**
-- Text inputs render as `<input type="text">`
-- Select fields render as `<select>`
-- Checkboxes render as `<input type="checkbox">`
-- Etc.
-
-**Why override it:**
-- Add custom styling classes
-- Wrap fields in custom containers
-- Change label rendering
-- Add icons or custom help text
-
-### Example: Add Custom Styling
-
-```cshtml
-<!-- Custom _WorkflowField.cshtml -->
-@model Field
-
-<div class="custom-field custom-field--@Model.FieldType">
-    <label for="@Model.FieldKey" class="custom-label">
+<div class="govuk-form-group @(Model.HasError ? "govuk-form-group--error" : "")">
+    <label class="govuk-label" for="@Model.FieldKey">
         @Model.Label
-        @if (Model.Required) { <span class="required">*</span> }
+        @if (Model.Required)
+        {
+            <span class="govuk-hint">(required)</span>
+        }
     </label>
-    
-    @if (!string.IsNullOrEmpty(Model.Hint)) {
-        <p class="custom-hint">@Model.Hint</p>
+
+    @if (!string.IsNullOrEmpty(Model.HintText))
+    {
+        <div id="@(Model.FieldKey)-hint" class="govuk-hint">@Model.HintText</div>
     }
-    
-    <!-- Render the appropriate input -->
-    @if (Model.FieldType == "textarea") {
-        <textarea id="@Model.FieldKey" name="@Model.FieldKey" 
-                  class="custom-input custom-textarea"
-                  required="@Model.Required"></textarea>
-    } else {
-        <input type="@Model.FieldType" id="@Model.FieldKey" 
-               name="@Model.FieldKey" 
-               class="custom-input"
-               required="@Model.Required">
+
+    @if (Model.HasError)
+    {
+        <p id="@(Model.FieldKey)-error" class="govuk-error-message">
+            <span class="govuk-visually-hidden">Error:</span> @Model.ErrorMessage
+        </p>
     }
+
+    <input class="govuk-input @(Model.HasError ? "govuk-input--error" : "")"
+           id="@Model.FieldKey"
+           name="fields[@Model.FieldKey]"
+           type="text"
+           maxlength="@Model.MaxLength"
+           @(Model.Required ? "required" : "")
+           @(Model.ReadOnly ? "readonly" : "")
+           value="@(Model.Value ?? Model.DefaultValue ?? "")" />
 </div>
 ```
+
+---
+
+## Advanced: Custom Styling for Specific Step Types
+
+You can apply custom CSS based on the step type currently displayed. The `WorkflowViewModel` includes the `StepType` property, allowing you to apply conditional styling based on which step is active.
+
+**File:** `Views/Partials/_WorkflowStep-question.cshtml`
+
+```cshtml
+@model WorkflowViewModel
+
+<div class="govuk-width-container workflow-step workflow-step--@Model.StepType.ToLower()">
+    <!-- Step content -->
+</div>
+```
+
+**File:** `wwwroot/css/my-workflow-theme.css`
+
+```css
+/* Custom styling for question steps */
+.workflow-step--question {
+    background-color: #f3f6f9;
+    border-left: 4px solid #0b3e6f;
+    padding: 2rem;
+}
+
+/* Custom styling for confirmation steps */
+.workflow-step--confirmation {
+    text-align: center;
+    background-color: #f3faf5;
+    border-radius: 8px;
+}
+
+.workflow-step--confirmation h1 {
+    color: #00703c;
+    font-size: 2rem;
+}
+```
+
+---
+
+## Adding Custom JavaScript
+
+If you need custom behavior (e.g., analytics tracking, custom validation, dynamic field updates), add JavaScript in your layout or partial.
+
+**File:** `Views/Master.cshtml`
+
+```cshtml
+<body>
+    @RenderSection("content", required: true)
+
+    <!-- Prism core scripts -->
+    <script src="~/js/govuk-frontend.min.js"></script>
+    <script>window.GOVUKFrontend.initAll();</script>
+
+    <!-- Your custom workflow logic -->
+    <script src="~/js/workflow-custom.js"></script>
+</body>
+```
+
+**File:** `wwwroot/js/workflow-custom.js`
+
+```javascript
+// Track form submissions for analytics
+document.addEventListener('submit', (e) => {
+    if (e.target.classList.contains('workflow-form')) {
+        const formData = new FormData(e.target);
+        const action = formData.get('Action');
+        console.log(`User submitted workflow action: ${action}`);
+        // Send to analytics provider
+    }
+});
+
+// Example: Auto-save draft periodically
+setInterval(() => {
+    const form = document.querySelector('.workflow-form');
+    if (form && form.querySelector('[name="Action"][value="save-draft"]')) {
+        // Optional: submit a "save-draft" action periodically
+    }
+}, 60000); // Every 60 seconds
+```
+
+---
 
 ## Accessibility Considerations
 
-Prism workflows ship with WCAG 2.2 AA accessibility by default. When customising, maintain these standards:
+When customizing, keep these accessibility principles in mind:
 
-### Focus Indicators
+1. **Color contrast** — Ensure text meets WCAG AA standards (4.5:1 for normal text)
+2. **Focus indicators** — Never remove focus rings; use `--prism-focus-color` to style them
+3. **Error messages** — Link errors to fields using `aria-describedby`
+4. **Semantic HTML** — Use `<fieldset>` and `<legend>` for grouping, `<label>` for every input
+5. **Skip links** — Add a "skip to main content" link (see GDS documentation)
+6. **ARIA labels** — For complex components, add `aria-label`, `aria-live`, etc.
 
-The default `--prism-input-focus-color: #ffdd00` (yellow) provides high contrast on dark text. Ensure any override maintains **at least 3:1 contrast ratio** in focus state.
-
-**Good:**
-```css
---prism-input-focus-color: #ffdd00;        /* Yellow on dark = high contrast */
---prism-input-focus-outline: 3px solid #0b0c0c;
-```
-
-**Poor (avoid):**
-```css
---prism-input-focus-color: #ffddcc;        /* Light peach = low contrast */
-```
-
-### ARIA Attributes
-
-Hints are linked to inputs via `aria-describedby`:
-
-```html
-<label for="email">Email</label>
-<p id="email-hint" class="hint">We'll use this to contact you</p>
-<input id="email" type="email" aria-describedby="email-hint">
-```
-
-Don't remove this association when overriding partials.
-
-### Required Field Indicators
-
-The default asterisk `<span class="prism-field__required"> *</span>` is marked `aria-hidden="true"` (screen readers don't need it; the `required` attribute is enough). Keep this structure.
-
-### Keyboard Navigation
-
-Ensure all interactive elements (buttons, links, form fields) are reachable via Tab and Enter. The default partials already do this; maintain it in custom partials.
-
-### Colour Alone
-
-Don't rely on colour alone to communicate state:
-- Error states: use colour + icon + text
-- Success states: use colour + checkmark + text
-
-The default partials do this correctly.
-
-## Example: Brand the Community Enquiry Form
-
-Let's say you're integrating the `community-enquiry` workflow for a fictional tech company "Acme Tech" with brand colours: navy (#003d80) and gold (#d4a574).
-
-### Step 1: Create Your Theme CSS
-
-**File:** `wwwroot/css/acme-theme.css`
-
-```css
-:root {
-  /* Brand colours */
-  --prism-input-focus-color: #d4a574;
-  --prism-input-focus-outline: 3px solid #003d80;
-  
-  --prism-panel-confirmation-border-color: #003d80;
-  --prism-panel-confirmation-bg: #f5f5f5;
-  
-  /* Rounded modern style */
-  --prism-input-border-radius: 4px;
-  --prism-button-border-radius: 4px;
-  
-  /* Slightly more spacious */
-  --prism-workflow-max-width: 720px;
-  --prism-form-group-spacing: 1.75rem;
-  --prism-workflow-padding: 2rem;
-}
-```
-
-### Step 2: Override the Collect Partial
-
-**File:** `Views/Partials/_WorkflowStep-Collect.cshtml`
-
-Copy the default and add Acme branding:
-
+Example:
 ```cshtml
-@model UmbracoPrism.TestSite.Models.WorkflowViewModel
-
-<div class="prism-workflow acme-workflow">
-    <div class="acme-header">
-        <h1 class="acme-title">@Model.CurrentStep.DisplayName</h1>
-        <p class="acme-subtitle">Acme Tech contact form</p>
-    </div>
-    
-    <form class="workflow-form" method="post" action="@Model.ReturnUrl" novalidate>
-        @Html.AntiForgeryToken()
-        <!-- ... rest of form (unchanged) ... -->
-    </form>
+<div class="govuk-form-group">
+    <label for="email" class="govuk-label">Email address</label>
+    <input type="email" 
+           id="email" 
+           name="email"
+           class="govuk-input"
+           aria-describedby="email-hint email-error" />
+    <div id="email-hint" class="govuk-hint">Use your work email</div>
+    <div id="email-error" class="govuk-error-message">Invalid email format</div>
 </div>
 ```
 
-### Step 3: Add Acme-Specific Styles
+---
 
-**Add to `acme-theme.css`:**
+## Summary: Customization Approaches
 
-```css
-.acme-workflow {
-  background: #fafafa;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-}
+| Customization | Level | Effort | When to Use |
+|---------------|-------|--------|-----------|
+| CSS variables override | Light | 5 mins | Quick brand change (colors, fonts, spacing) |
+| Partial override | Medium | 30 mins | Restructure a step type's HTML |
+| Field partial override | Medium | 20 mins | Change how a specific field renders |
+| Custom CSS + JavaScript | Heavy | Hours | Advanced interactions, analytics, custom logic |
 
-.acme-header {
-  text-align: center;
-  margin-bottom: 2rem;
-  padding-bottom: 2rem;
-  border-bottom: 2px solid #d4a574;
-}
+**Recommended starting point:** Override CSS variables. If you need more control, then override partials.
 
-.acme-title {
-  color: #003d80;
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
+---
 
-.acme-subtitle {
-  color: #666;
-  font-size: 1rem;
-}
-```
-
-### Step 4: Include Both Stylesheets
-
-**In your layout/master view:**
-
-```html
-<link rel="stylesheet" href="/css/prism-workflow.css">
-<link rel="stylesheet" href="/css/acme-theme.css">
-```
-
-Now your workflow renders with:
-- Navy headers and gold focus states
-- Rounded corners and extra breathing room
-- Acme branding (company subtitle, header styling)
-- Full accessibility maintained
-
-## Responsive Design
-
-Prism workflows don't enforce responsive rules; you control them via CSS:
-
-```css
-/* Mobile first */
-:root {
-  --prism-workflow-max-width: 100%;
-  --prism-workflow-padding: 1rem;
-}
-
-/* Tablet and up */
-@media (min-width: 768px) {
-  :root {
-    --prism-workflow-max-width: 680px;
-    --prism-workflow-padding: 1.5rem;
-  }
-}
-
-/* Desktop and up */
-@media (min-width: 1024px) {
-  :root {
-    --prism-workflow-max-width: 800px;
-  }
-}
-```
-
-## Testing Your Customisations
-
-1. **Visit the workflow page** in a browser (as an authenticated member)
-2. **Inspect the form** using browser DevTools (F12)
-3. **Verify CSS variables** are applied (Elements tab → Computed)
-4. **Test keyboard navigation** (Tab through all fields)
-5. **Check focus indicators** (use Tab key to see focus state)
-6. **Test on mobile** (DevTools device mode or actual device)
-7. **Validate HTML** (use a validator to ensure your partials are valid)
-
-## Performance Considerations
-
-- **CSS custom properties** have minimal performance impact; they're native browser features
-- **Partial overrides** don't impact performance; Umbraco caches views
-- **Large field counts** (50+ fields) may slow form rendering; batch field groups or use pagination
-
-## Troubleshooting
-
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| Styles don't change | CSS not loading | Check file path in `<link>` tag; ensure no typos |
-| Variable not working | Wrong variable name | Check spelling against the reference above |
-| Override partial not rendering | File in wrong location | Ensure it's in `Views/Partials/` (or site's view root) |
-| Focus not visible | Contrast too low | Increase colour contrast or use thicker outline |
-| Form broken after override | Invalid Razor syntax | Check for missing `@` symbols, unclosed tags |
-
-## Next Steps
-
-- **Set up workflows:** See [Setting Up a Prism Workflow](./workflow-setup.md) if you haven't already
-- **Explore Umbraco views:** Learn more about Umbraco's view resolution at umbraco.com/documentation
-- **Check GDS design system:** Review GOV.UK Design System for accessibility and pattern inspiration
+**Next steps:**
+- [Form Validation](./workflow-forms-validation.md) — understand validation layers
+- [GDS Components](./workflow-gds-components.md) — available form elements and design patterns

@@ -4,194 +4,138 @@ A complete guide to building and deploying a multi-step workflow form using Umbr
 
 ## Overview
 
-A Prism workflow is a multi-step form engine that connects your Umbraco website to a Business App (a separate .NET web API). The Business App defines the workflow structure—steps, fields, validation rules—as JSON files. Umbraco renders the forms and handles authentication.
+Prism is a workflow rendering engine that connects your Umbraco website to a Business App (a separate .NET web API). The Business App defines the workflow structure—steps, fields, validation rules—as JSON files or C# code. Umbraco renders the forms, handles authentication, and collects user data.
 
-**Architecture:**
+**Key design principle:** Workflows are platform-agnostic. Prism handles presentation and validation; your Business App handles business logic and state transitions.
+
+### Architecture
 
 ```mermaid
-flowchart LR
-    A["Umbraco TestSite<br/>workflowPage content node"] -->|workflowKey property| B["WorkflowPageController"]
-    C["Business App<br/>workflow-seeds/community-enquiry.json"] -->|defines states, fields, transitions| D["WorkflowEngine"]
-    B -->|GET/POST| D
-    D -->|returns WorkflowResponseEnvelope| B
-    B -->|HTTP Bearer token| E["IBusinessAppWorkflowClient"]
-    E -->|renders| F["Views/Partials/<br/>_WorkflowStep-{StepType}.cshtml"]
-    F -->|produces| G["Rendered form"]
+graph LR
+    A["Umbraco Content<br/>(workflowPage)"] -->|workflowKey| B["WorkflowPageController<br/>(GET/POST handler)"]
+    C["Business App<br/>(workflow definitions)"] -->|HTTP API| B
+    B -->|field definitions,<br/>state machine| D["Prism Validation<br/>& Rendering"]
+    D -->|HTML5 + GDS| E["Browser Form"]
+    E -->|user input| F["POST handler"]
+    F -->|validated data| G["Business App<br/>(advance state)"]
+    G -->|next step| B
 ```
 
-Workflows support complex scenarios: multi-step data collection, review steps, approval workflows, status tracking, and completion states. Each step can validate, branch logic, or trigger backend actions.
+## What's Prism and What's Your Business App?
 
-## What's Prism and What's the Mock Business App?
+> 🔵 **Prism Platform** — Provided by the `UmbracoPrism.Core` package. You don't build this.
+> 🟠 **Your Business App** — Your workflow engine, case management system, or API. Replace the mock implementation with your real system.
 
-> **🔵 Prism Platform** — Provided by `UmbracoPrism.Core`. You don't build this.
-> **🟠 Mock Business App** — Provided by `UmbracoPrism.MockBusinessApp` as a reference implementation. Replace this with your real workflow engine.
+| Component | Owner | Customise? |
+|-----------|-------|-----------|
+| Form rendering (Razor views, CSS) | 🔵 Prism | Yes — override partials, add CSS variables |
+| HTML5 validation & nonce tamper-proofing | 🔵 Prism | No — automatic |
+| Member authentication & sessions | 🔵 Prism | No — uses PrismMemberCookie scheme |
+| Umbraco content type & routing | 🔵 Prism | No — automatically wired |
+| Workflow definitions (JSON / C#) | 🟠 Your Business App | Yes — you define these |
+| State machine & transitions | 🟠 Your Business App | Yes — you define these |
+| Business logic validation | 🟠 Your Business App | Yes — implement in endpoints |
+| `/api/workflow/*` endpoints | 🟠 Your Business App | Yes — implement these |
 
-**Responsibility breakdown:**
-
-| Component | Provided by | Replace with |
-|-----------|-------------|--------------|
-| Form rendering (Razor views, partials) | 🔵 Prism | Customise/override views — don't replace |
-| Authentication & member sessions | 🔵 Prism | No change needed |
-| Umbraco content type & routing | 🔵 Prism | No change needed |
-| CSS design system | 🔵 Prism | Override variables / add your own theme |
-| Workflow definitions (JSON files) | 🟠 Mock Business App | Your case management system's API |
-| State machine / workflow engine | 🟠 Mock Business App | Your case management system |
-| `/api/workflow/*` HTTP endpoints | 🟠 Mock Business App | Your case management system's equivalent endpoints |
-
-**In real integrations:** You replace the Mock Business App with your actual case management system (ServiceNow, Salesforce, a bespoke .NET API, etc.). Prism remains unchanged — it calls your system via HTTP.
+**In real integrations:** Your Business App is your existing case management system (ServiceNow, Salesforce, custom .NET API, etc.). Prism remains unchanged — it calls your API via HTTP and renders whatever step you return.
 
 ## Prerequisites
 
 Before setting up a workflow, ensure:
 
-1. **Prism is installed** in your Umbraco 17 package
-2. **Your Umbraco members are authenticated** using the `PrismMemberCookie` authentication scheme (Entra tenant configured)
-3. **Your Business App is running** and accessible via HTTP(S) from the Umbraco server
-4. **Business App client is configured** in Umbraco's `appsettings.json` with the correct endpoint URL and Entra token
+1. **Prism is installed** in your Umbraco 17+ project
+2. **Members are authenticated** using `PrismMemberCookie` authentication scheme (OIDC configured)
+3. **Business App is running** and accessible via HTTP(S) from Umbraco
+4. **IBusinessAppWorkflowClient is configured** in `appsettings.json` with the correct endpoint URL and bearer token
 
-## Step 1: Define the Workflow in Your Business App
+## Quick Start: 5 Steps to Running Your First Workflow
 
-> 🟠 **Mock Business App** — This step describes the mock implementation. In a real integration, your case management system hosts workflow definitions and serves them via API.
+1. **Create a workflow definition** — JSON or C# (see examples below)
+2. **Create field groups** — define the data to collect
+3. **Implement `/api/workflow/get-current` endpoint** — returns the current step and fields
+4. **Implement `/api/workflow/advance` endpoint** — processes actions and returns the next step
+5. **Create a content node** with the workflow key configured
 
-A workflow is a JSON file stored in your Business App's `workflow-seeds/` directory.
+**Result:** Users see a multi-step form. Validation happens automatically.
 
-**Create a new file:** `workflow-seeds/my-workflow.json`
+---
 
-### Complete Example: Get in Touch (Community Enquiry) Workflow
+## Step Types Reference
+
+Every step in a workflow has a `stepType` property that controls how it's rendered. Prism provides 5 built-in step types:
+
+| Step Type | Purpose | Rendering | User Interaction |
+|-----------|---------|-----------|------------------|
+| `question` | Collects data from the user | Form fields with labels, validation, error messages | User enters data, clicks next/submit |
+| `check-answers` | Read-only summary of all answers | Display-only list with "Change" links | User reviews, then confirms or goes back |
+| `status-timeline` | Shows the current status and timeline | Timeline widget, status badges | Read-only (no data entry) |
+| `task-list` | Shows tasks with individual statuses | List with status indicators (pending, in progress, complete) | Read-only; may have task-specific links |
+| `confirmation` | Success state — thank you screen | Success message, reference number, next steps | Read-only; offers action to start another workflow |
+
+**Choose the right step type:**
+- Use `question` for data collection
+- Use `check-answers` before final submission (let users review)
+- Use `status-timeline` for waiting states (e.g., "Your application is being reviewed")
+- Use `task-list` when the workflow is a series of subtasks (e.g., permit application with multiple inspections)
+- Use `confirmation` for the final success state
+
+---
+
+## Creating a Workflow Definition
+
+A workflow definition is a JSON (or C#) blueprint that describes all possible states, transitions, and actions. It does **not** contain field definitions—field definitions live in separate field group files.
+
+### Workflow Definition Structure
 
 ```json
 {
   "definitionKey": "community-enquiry",
   "displayName": "Get in Touch",
   "version": 1,
-  "initialState": "collecting-info",
+  "instancePolicy": "single",
+  "initialState": "collecting-details",
   "states": [
     {
-      "stateKey": "collecting-info",
-      "displayName": "Tell us what you need",
-      "stepType": "Collect",
+      "stateKey": "collecting-details",
+      "displayName": "Tell us about your enquiry",
+      "stepType": "question",
       "allowedActions": ["submit", "save-draft"],
       "fieldGroupKeys": ["contact-details", "enquiry-info"]
     },
     {
-      "stateKey": "review-details",
+      "stateKey": "check-answers",
       "displayName": "Check your answers",
-      "stepType": "Review",
+      "stepType": "check-answers",
       "allowedActions": ["submit", "back"],
       "fieldGroupKeys": []
     },
     {
       "stateKey": "under-review",
-      "displayName": "We're looking at your enquiry",
-      "stepType": "StatusTimeline",
+      "displayName": "Your enquiry is with us",
+      "stepType": "status-timeline",
       "allowedActions": [],
-      "fieldGroupKeys": []
+      "fieldGroupKeys": [],
+      "statusTimeline": [
+        { "label": "Received", "completed": true },
+        { "label": "Being reviewed", "completed": false },
+        { "label": "Complete", "completed": false }
+      ]
     },
     {
       "stateKey": "complete",
       "displayName": "Thank you for reaching out",
-      "stepType": "Completion",
+      "stepType": "confirmation",
       "allowedActions": ["start-another"],
       "fieldGroupKeys": []
     }
   ],
   "transitions": [
-    { "fromState": "collecting-info", "toState": "review-details", "action": "submit" },
-    { "fromState": "collecting-info", "toState": "collecting-info", "action": "save-draft" },
-    { "fromState": "review-details", "toState": "collecting-info", "action": "back" },
-    { "fromState": "review-details", "toState": "under-review", "action": "submit" },
-    { "fromState": "under-review", "toState": "complete", "action": "approve", "requiresRole": "reviewer" }
-  ],
-  "fieldGroups": [
-    {
-      "fieldGroupKey": "contact-details",
-      "displayName": "Your Details",
-      "fields": [
-        {
-          "fieldKey": "full-name",
-          "label": "Full name",
-          "fieldType": "text",
-          "required": true,
-          "hint": "Enter your first and last name"
-        },
-        {
-          "fieldKey": "email-address",
-          "label": "Email address",
-          "fieldType": "email",
-          "required": true,
-          "hint": "We'll use this to get back to you"
-        },
-        {
-          "fieldKey": "organisation",
-          "label": "Organisation (optional)",
-          "fieldType": "text",
-          "required": false,
-          "hint": "The company or organisation you represent"
-        },
-        {
-          "fieldKey": "your-role",
-          "label": "Your role",
-          "fieldType": "select",
-          "required": true,
-          "options": [
-            { "key": "executive", "label": "Executive" },
-            { "key": "developer", "label": "Developer" },
-            { "key": "designer", "label": "Designer" },
-            { "key": "other", "label": "Other" }
-          ]
-        }
-      ]
-    },
-    {
-      "fieldGroupKey": "enquiry-info",
-      "displayName": "Your Enquiry",
-      "fields": [
-        {
-          "fieldKey": "enquiry-type",
-          "label": "What's your enquiry about?",
-          "fieldType": "radio",
-          "required": true,
-          "options": [
-            { "key": "general", "label": "General enquiry" },
-            { "key": "technical", "label": "Technical support" },
-            { "key": "partnership", "label": "Partnership opportunity" },
-            { "key": "other", "label": "Other" }
-          ]
-        },
-        {
-          "fieldKey": "enquiry-type-other",
-          "label": "Please describe your enquiry",
-          "fieldType": "textarea",
-          "required": false,
-          "hint": "Visible only if you selected 'Other' above"
-        },
-        {
-          "fieldKey": "message",
-          "label": "Tell us more",
-          "fieldType": "textarea",
-          "required": true,
-          "hint": "Please provide as much detail as possible"
-        },
-        {
-          "fieldKey": "topics",
-          "label": "Topics of interest",
-          "fieldType": "checkboxlist",
-          "required": false,
-          "options": [
-            { "key": "prism-workflows", "label": "Prism Workflows" },
-            { "key": "notifications", "label": "Notifications" },
-            { "key": "mobile", "label": "Mobile" },
-            { "key": "integration", "label": "Integration" }
-          ]
-        },
-        {
-          "fieldKey": "newsletter",
-          "label": "Subscribe to our newsletter",
-          "fieldType": "boolean",
-          "required": false
-        }
-      ]
-    }
+    { "fromState": "collecting-details", "toState": "check-answers", "action": "submit" },
+    { "fromState": "collecting-details", "toState": "collecting-details", "action": "save-draft" },
+    { "fromState": "check-answers", "toState": "collecting-details", "action": "back" },
+    { "fromState": "check-answers", "toState": "under-review", "action": "submit" },
+    { "fromState": "under-review", "toState": "complete", "action": "approve", "requiresRole": "reviewer" },
+    { "fromState": "complete", "toState": "collecting-details", "action": "start-another" }
   ]
 }
 ```
@@ -200,340 +144,503 @@ A workflow is a JSON file stored in your Business App's `workflow-seeds/` direct
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `definitionKey` | string | Yes | Unique identifier matching the filename (without `.json`). Used in Umbraco `workflowKey` property. |
-| `displayName` | string | Yes | Human-readable name shown in admin interfaces. |
-| `version` | number | Yes | Version number for your workflow; increment when you modify structure. |
-| `initialState` | string | Yes | The `stateKey` to start the workflow in. |
-| `states` | array | Yes | Array of workflow states (see State Properties below). |
-| `transitions` | array | Yes | Array of allowed transitions between states (see Transition Properties). |
-| `fieldGroups` | array | Yes | Array of field groupings for data collection (see Field Group Properties). |
+| `definitionKey` | string | Yes | Unique identifier for the workflow (e.g., `"community-enquiry"`). Used in URLs and API calls. |
+| `displayName` | string | Yes | User-facing name (e.g., `"Get in Touch"`). Displayed in the backoffice. |
+| `version` | number | Yes | Semantic version. Increment when changing states or fields. |
+| `instancePolicy` | string | Yes | `"single"` (one instance per user), `"multiple"` (unlimited), or `"prompt"` (ask user). |
+| `initialState` | string | Yes | The first state users land in (e.g., `"collecting-details"`). |
+| `states` | array | Yes | Array of state objects (see State Properties below). |
+| `transitions` | array | Yes | Array of transition rules (see Transition Properties below). |
 
 ### State Properties
 
-Each state in the `states` array:
-
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `stateKey` | string | Yes | Unique identifier for the state (used in transitions). |
-| `displayName` | string | Yes | Title shown to the user (e.g., "Check your answers"). |
-| `stepType` | string | Yes | Rendering type: `Collect`, `Review`, `StatusTimeline`, or `Completion`. |
-| `allowedActions` | array | Yes | List of action keys that can be triggered in this state. |
-| `fieldGroupKeys` | array | Yes | Which field groups to display in this state. Empty array `[]` for non-data states. |
+| `stateKey` | string | Yes | Unique identifier for this state (e.g., `"collecting-details"`). |
+| `displayName` | string | Yes | User-facing name displayed at the top of the page (e.g., `"Tell us about your enquiry"`). |
+| `stepType` | string | Yes | One of: `question`, `check-answers`, `status-timeline`, `task-list`, `confirmation`. |
+| `allowedActions` | array | Yes | Which actions users can take from this state (e.g., `["submit", "save-draft"]`). |
+| `fieldGroupKeys` | array | Yes | References to field groups to display (e.g., `["contact-details", "enquiry-info"]`). Empty for read-only steps. |
+| `statusTimeline` | array | No | For `status-timeline` step type. Array of `{ label, completed }` objects showing progress. |
 
 ### Transition Properties
 
-Each transition defines a path through the workflow:
-
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `fromState` | string | Yes | Starting state (`stateKey`). |
-| `toState` | string | Yes | Destination state (`stateKey`). |
-| `action` | string | Yes | Action key (e.g., "submit", "back", "save-draft"). Must be in the `allowedActions` of `fromState`. |
-| `requiresRole` | string | No | If specified, only users with this role can trigger this transition. For backend validation. |
+| `fromState` | string | Yes | Current state key. |
+| `toState` | string | Yes | Next state key. |
+| `action` | string | Yes | Action name (e.g., `"submit"`, `"back"`, `"approve"`). Must be in `allowedActions` of the source state. |
+| `requiresRole` | string | No | If set, only members with this role can perform this action. Role is checked against user claims. |
 
-### Field Group Properties
+---
 
-Each field group in `fieldGroups`:
+## Creating Field Groups
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `fieldGroupKey` | string | Yes | Unique identifier (referenced in state `fieldGroupKeys`). |
-| `displayName` | string | Yes | Legend/heading shown above the field group. |
-| `fields` | array | Yes | Array of fields (see Field Properties). |
+Field groups define the data you collect in `question` steps. Each field group is a **separate JSON file** in your Business App's `workflow-seeds/field-groups/` directory.
 
-### Field Properties
+### Field Group File Structure
 
-Each field in a field group:
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `fieldKey` | string | Yes | Unique identifier for the field (used when collecting values). |
-| `label` | string | Yes | Label shown in the form. |
-| `fieldType` | string | Yes | Input type (see Field Types below). |
-| `required` | boolean | No | Whether the field must be filled (default: false). |
-| `hint` | string | No | Helper text displayed below the label. |
-| `options` | array | No | For `select`, `radio`, or `checkboxlist` fields. Array of `{ key, label }` objects. |
-
-### Field Types Reference
-
-| Type | HTML Element | Example |
-|------|--------------|---------|
-| `text` | `<input type="text">` | Name, username, postal code |
-| `email` | `<input type="email">` | Email address with validation |
-| `number` | `<input type="number">` | Integer values (age, quantity) |
-| `decimal` | `<input type="number" step="0.01">` | Monetary amounts, percentages |
-| `date` | `<input type="date">` | Date picker |
-| `datetime` | `<input type="datetime-local">` | Date and time picker |
-| `select` | `<select>` | Dropdown list (requires `options`) |
-| `radio` | Radio buttons | Single choice from list (requires `options`) |
-| `checkboxlist` | Checkboxes | Multiple selections (requires `options`) |
-| `textarea` | `<textarea>` | Multi-line text (comments, descriptions) |
-| `boolean` | Checkbox | Yes/no toggle |
-
-## Step 2: Register the Workflow
-
-> 🟠 **Mock Business App** — This step describes the mock implementation. A real business app would load workflows from your system's database or API.
-
-The Business App's `WorkflowEngine` automatically discovers all JSON files in the `workflow-seeds/` directory at startup. No code changes needed.
-
-**File location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`
-
-**How it works:**
-1. Business App starts up
-2. `WorkflowEngine` scans `workflow-seeds/` directory
-3. Each `.json` file is loaded and indexed by `definitionKey`
-4. When Umbraco calls `GET /api/workflow/{key}/current`, the engine returns the workflow state
-
-To reload workflows without restarting, restart the Business App.
-
-## Step 3: Set Up the Umbraco Document Type
-
-> 🔵 **Prism Platform** — This is handled by `UmbracoPrism.Core`. The content type and routing are part of Prism's built-in form engine. No changes needed for basic usage.
-
-Create a new document type in Umbraco's backoffice to represent workflow pages.
-
-1. **Create document type `workflowPage`:**
-   - Go to **Settings > Document Types > Create**
-   - Name: `Workflow Page`
-   - Alias: `workflowPage` (must match the controller name convention)
-   - Icon: Choose an icon (e.g., a form icon)
-
-2. **Add a property:**
-   - Name: `Workflow Key`
-   - Alias: `workflowKey`
-   - Type: **Text string**
-   - Description: "The key of the workflow definition (e.g., 'community-enquiry')"
-   - Required: Yes
-
-3. **Optional properties** you may want to add:
-   - `workflowDescription` (Text string) — description of the form
-   - `successRedirectUrl` (Text string) — URL to redirect to after completion
-
-4. **Save the document type**
-
-Note: The `WorkflowPageController` requires this exact alias. If you rename it, also rename the controller file (Umbraco route-hijacking uses filename conventions).
-
-## Step 4: Publish the Content Node
-
-> 🔵 **Prism Platform** — Form routing and rendering are handled by Prism. You define content in Umbraco as you would any page.
-
-Create and publish a content page using the `workflowPage` document type.
-
-1. **Create a content node:**
-   - Go to **Content**
-   - Right-click the root and select **Create > Workflow Page**
-   - Name: "Get in Touch" (or your form title)
-
-2. **Fill in the properties:**
-   - `workflowKey`: `community-enquiry` (must match the JSON `definitionKey` exactly)
-   - Any other properties you added (description, redirect URL, etc.)
-
-3. **Publish the page:**
-   - Click **Save and Publish**
-
-4. **Note the URL:**
-   - Umbraco assigns a URL like `/get-in-touch/`
-   - This is the public URL where members will visit the form
-
-## Step 5: Test It
-
-Visit the published content page from a browser where you're authenticated as an Umbraco member (with a valid `PrismMemberCookie`).
-
-### Expected Flow
-
-1. **GET request:** Browser requests the page → `WorkflowPageController.Index()` → Calls Business App → Renders the first state (`collecting-info`)
-2. **Form display:** Partials render based on step type (e.g., `_WorkflowStep-Collect.cshtml`)
-3. **Fill form:** Member completes fields
-4. **POST request:** Form submits → Controller validates → Calls Business App advance endpoint → Redirects to page (PRG pattern)
-5. **Next state:** Page reloads, controller fetches new state, new partial renders
-6. **Completion:** Final state (`Completion` step type) shows success message
-
-### Troubleshooting
-
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| "No workflow key configured" | `workflowKey` property is empty | Set it in Umbraco backoffice |
-| "Could not start workflow" | Business App offline or key not found | Check Business App is running; verify JSON file exists and `definitionKey` matches |
-| Form doesn't look right | Partial not found | Ensure `_WorkflowStep-{StepType}.cshtml` exists in `Views/Partials/` |
-| Form won't submit | Antiforgery validation failed | Ensure `@Html.AntiForgeryToken()` is in the partial; check security headers |
-| Member redirected to login | Not authenticated | Member must have valid `PrismMemberCookie` session |
-
-## Step Type Reference
-
-Choose a step type based on what the user should do in each state:
-
-| Step Type | Purpose | Renders | Examples |
-|-----------|---------|---------|----------|
-| `question` | Data entry form | Input fields from `fieldGroupKeys` | Name, email, preferences |
-| `check-answers` | Confirm and submit | Read-only summary of collected data + submit action | "Check your answers" step |
-| `status-timeline` | Waiting state | Status message (no form) | "Under review", "Processing..." |
-| `confirmation` | Success state | Completion message (no form) | "Quote sent!", "Application approved" |
-
-The view dispatcher looks for a partial file named `_WorkflowStep-{StepType}.cshtml` in `Views/Partials/`. Default partials ship with Prism but you can override them — or add your own by creating a new partial with a matching name.
-
-## Action Styles
-
-Actions define how buttons appear. Use the appropriate style for intent:
-
-| Style | Appearance | Use For |
-|-------|-----------|---------|
-| `primary` | Bold, main colour | Primary next step ("Continue", "Submit", "Approve") |
-| `secondary` | Secondary colour | Alternative action ("Go back", "Save draft", "Cancel") |
-| `destructive` | Red/alert colour | Dangerous action ("Delete", "Reject", "Cancel") |
-
-## Complete Workflow JSON Template
-
-Use this as a starting point for new workflows:
+**File:** `workflow-seeds/field-groups/contact-details-v1.json`
 
 ```json
 {
-  "definitionKey": "my-workflow",
-  "displayName": "My Workflow",
+  "groupKey": "contact-details",
+  "displayName": "Contact Details",
   "version": 1,
-  "initialState": "step-1",
-  "states": [
+  "fields": [
     {
-      "stateKey": "step-1",
-      "displayName": "Step 1: Collect Info",
-      "stepType": "Collect",
-      "allowedActions": ["continue", "save"],
-      "fieldGroupKeys": ["personal"]
+      "fieldKey": "full-name",
+      "label": "Full name",
+      "fieldType": "text",
+      "required": true,
+      "maxLength": 100
     },
     {
-      "stateKey": "step-2",
-      "displayName": "Step 2: Review",
-      "stepType": "Review",
-      "allowedActions": ["submit", "back"],
-      "fieldGroupKeys": []
+      "fieldKey": "email-address",
+      "label": "Email address",
+      "fieldType": "email",
+      "required": true
     },
     {
-      "stateKey": "complete",
-      "displayName": "Complete",
-      "stepType": "Completion",
-      "allowedActions": [],
-      "fieldGroupKeys": []
-    }
-  ],
-  "transitions": [
-    { "fromState": "step-1", "toState": "step-2", "action": "continue" },
-    { "fromState": "step-1", "toState": "step-1", "action": "save" },
-    { "fromState": "step-2", "toState": "step-1", "action": "back" },
-    { "fromState": "step-2", "toState": "complete", "action": "submit" }
-  ],
-  "fieldGroups": [
-    {
-      "fieldGroupKey": "personal",
-      "displayName": "Personal Information",
-      "fields": [
-        {
-          "fieldKey": "name",
-          "label": "Full name",
-          "fieldType": "text",
-          "required": true
-        }
-      ]
+      "fieldKey": "organisation",
+      "label": "Organisation (optional)",
+      "fieldType": "text",
+      "required": false,
+      "maxLength": 200
     }
   ]
 }
 ```
 
-## Connecting to a Real Business App
-
-> 🟠 **Mock Business App** — The `UmbracoPrism.MockBusinessApp` is a reference implementation. In production, replace it with your real case management system.
-
-The Mock Business App demonstrates what a minimal business app implementation looks like. When integrating Prism with a real system, follow this pattern:
-
-### How Prism Communicates with Your Business App
-
-Prism calls your business app via HTTP endpoints. The Mock Business App implements these endpoints; your real system should do the same.
-
-**Endpoints Prism expects:**
-
-1. **GET `/api/workflow/{key}/current`**
-   - Returns the current workflow state (form fields, available actions, etc.)
-   - Response format: `WorkflowResponseEnvelope`
-
-2. **POST `/api/workflow/{key}/advance`**
-   - Advances the workflow to the next state based on user action
-   - Accepts form data and action name
-   - Returns updated workflow state
-
-3. **GET `/api/workflow/{key}/history`** (optional)
-   - Returns workflow history/audit trail
-   - Used by `StatusTimeline` step type
-
-### Configuring Your Business App URL
-
-In Umbraco's `appsettings.json`, configure the endpoint:
+**File:** `workflow-seeds/field-groups/enquiry-info-v1.json`
 
 ```json
 {
-  "Prism": {
-    "BusinessAppUrl": "https://your-business-app.example.com",
-    "EntraToken": {
-      "Authority": "https://login.microsoftonline.com/your-tenant-id",
-      "ClientId": "your-client-id",
-      "ClientSecret": "your-client-secret"
+  "groupKey": "enquiry-info",
+  "displayName": "Your Enquiry",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "enquiry-type",
+      "label": "What's your enquiry about?",
+      "fieldType": "select",
+      "required": true,
+      "options": [
+        "General enquiry",
+        "Technical support",
+        "Partnership",
+        "Other"
+      ]
+    },
+    {
+      "fieldKey": "message",
+      "label": "Your message",
+      "fieldType": "textarea",
+      "required": true,
+      "maxLength": 5000,
+      "minLength": 10
     }
-  }
+  ]
 }
 ```
 
-When you deploy, change `BusinessAppUrl` to point to your real system instead of the Mock Business App.
+### Field Group Properties
 
-### The HTTP Contract
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `groupKey` | string | Yes | Unique identifier for the group (e.g., `"contact-details"`). Referenced in workflow states via `fieldGroupKeys`. |
+| `displayName` | string | Yes | Human-readable name (e.g., `"Contact Details"`). Used as a section heading. |
+| `version` | number | Yes | Semantic version of the field group. |
+| `fields` | array | Yes | Array of field objects (see Field Properties below). |
 
-Prism sends and expects specific JSON shapes. The Mock Business App shows the exact contract:
+### Field Properties
 
-**Request (POST `/api/workflow/{key}/advance`):**
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `fieldKey` | string | Yes | Unique identifier within the group (e.g., `"full-name"`). Used as the form input name. |
+| `label` | string | Yes | User-facing label displayed above the input (e.g., `"Full name"`). |
+| `fieldType` | string | Yes | Type of input (see Available Field Types below). |
+| `required` | bool | No | If true, field must have a value. Default: false. |
+| `maxLength` | number | No | Maximum character length (enforced client- and server-side). |
+| `minLength` | number | No | Minimum character length. |
+| `min` | number | No | Minimum numeric value (for `number` fields). |
+| `max` | number | No | Maximum numeric value (for `number` fields). |
+| `pattern` | string | No | Regex pattern for validation (e.g., `"^[A-Z]{2}\\d{1,5}$"` for postcodes). |
+| `options` | array | No | For `select`, `radio`, `checkbox`: plain string array of options (e.g., `["Option A", "Option B"]`). |
+| `defaultValue` | string | No | Pre-filled value (can be overridden by authenticated user claims). |
+| `readOnly` | bool | No | If true, field is displayed but cannot be edited. |
+| `conditionalOn` | string | No | Field key that triggers this field's visibility (see Conditional Logic below). |
+| `visibleWhen` | array | No | Values of the triggering field that make this field visible. |
+
+---
+
+## Available Field Types
+
+| Field Type | Renders As | Example | Validation |
+|-----------|-----------|---------|-----------|
+| `text` | HTML5 text input | `<input type="text">` | `maxLength`, `minLength`, `pattern` |
+| `email` | HTML5 email input | `<input type="email">` | Built-in email format validation |
+| `number` | HTML5 number input | `<input type="number">` | `min`, `max` |
+| `date-input` | GDS date input (day/month/year) | Three text inputs (gov.uk style) | Built-in date validation |
+| `textarea` | Multi-line text area | `<textarea>` | `maxLength`, `minLength` |
+| `select` | Dropdown list | `<select>` | Must match `options` array |
+| `radio` | Radio button group | `<input type="radio">` x N | Must match `options` array |
+| `checkbox` | Single checkbox | `<input type="checkbox">` | Boolean |
+| `checkboxes` | Multiple checkboxes | `<input type="checkbox">` x N | Must match `options` array; array of selected values |
+| `file-upload` | File input (scan/document) | `<input type="file">` | MIME type, max file size (configurable) |
+| `hidden` | Not displayed to user | Hidden input in form | Never visible; used for internal data |
+
+---
+
+## Using C# Fluent Builder (Alternative to JSON)
+
+Prism provides a fluent builder API as an alternative to hand-writing JSON. Use this if you prefer type-safe C# or want to generate definitions programmatically.
+
+### Workflow Definition Builder
+
+```csharp
+using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Core.Builders;
+
+var definition = new WorkflowDefinitionBuilder()
+    .Key("community-enquiry")
+    .DisplayName("Get in Touch")
+    .Version(1)
+    .InstancePolicy("single")
+    .StartsAt("collecting-details")
+    .AddState("collecting-details", state => state
+        .DisplayName("Tell us about your enquiry")
+        .StepType("question")
+        .AllowActions("submit", "save-draft")
+        .WithFieldGroups("contact-details", "enquiry-info"))
+    .AddState("check-answers", state => state
+        .DisplayName("Check your answers")
+        .StepType("check-answers")
+        .AllowActions("submit", "back")
+        .WithFieldGroups())
+    .AddState("under-review", state => state
+        .DisplayName("Your enquiry is with us")
+        .StepType("status-timeline")
+        .AllowActions()
+        .WithFieldGroups()
+        .WithTimeline(
+            ("Received", true),
+            ("Being reviewed", false),
+            ("Complete", false)))
+    .AddState("complete", state => state
+        .DisplayName("Thank you for reaching out")
+        .StepType("confirmation")
+        .AllowActions("start-another")
+        .WithFieldGroups())
+    .AddTransition("collecting-details", "check-answers", "submit")
+    .AddTransition("collecting-details", "collecting-details", "save-draft")
+    .AddTransition("check-answers", "collecting-details", "back")
+    .AddTransition("check-answers", "under-review", "submit")
+    .AddTransition("under-review", "complete", "approve", requiresRole: "reviewer")
+    .AddTransition("complete", "collecting-details", "start-another")
+    .Build();
+```
+
+### Field Group Builder
+
+```csharp
+var fieldGroup = new FieldGroupBuilder()
+    .Key("contact-details")
+    .DisplayName("Contact Details")
+    .Version(1)
+    .AddField("full-name", f => f
+        .Label("Full name")
+        .FieldType("text")
+        .Required()
+        .MaxLength(100))
+    .AddField("email-address", f => f
+        .Label("Email address")
+        .FieldType("email")
+        .Required())
+    .AddField("organisation", f => f
+        .Label("Organisation (optional)")
+        .FieldType("text")
+        .MaxLength(200))
+    .Build();
+```
+
+The builder ensures all required properties are set and provides IntelliSense guidance. Both JSON and builder approaches produce identical runtime behavior.
+
+---
+
+## Connecting to Umbraco
+
+Once your workflow definition and field groups are ready, connect them to an Umbraco content page.
+
+### Step 1: Create a Content Type
+
+> 🔵 **Prism Platform** — Prism provides a content type generator. Run this once to create the `workflowPage` content type in your Umbraco backoffice.
+
+In Umbraco's backoffice:
+1. **Content** → **Content Types**
+2. Look for **`workflowPage`** — if it exists, skip to Step 2
+3. If not, run the Prism seeding command (see ASPIRE_DEV.md for details)
+
+The `workflowPage` content type has these properties:
+- **Workflow Key** — the `definitionKey` from your workflow definition (e.g., `"community-enquiry"`)
+- **Page Title** — e.g., "Get in Touch"
+- **Page Description** — e.g., "Submit an enquiry to our team"
+
+### Step 2: Create a Content Node
+
+1. Go to **Content**
+2. Click **+ Create**
+3. Choose **`workflowPage`** as the content type
+4. Set **Workflow Key** to your workflow's `definitionKey` (e.g., `"community-enquiry"`)
+5. Publish
+6. Navigate to the published URL — you should see the first workflow step
+
+### Step 3: Verify Routing
+
+Umbraco automatically route-hijacks the `workflowPage` content type with the `WorkflowPageController` (provided by Prism). When you visit the page:
+
+- **GET request** → Controller calls Business App's `/api/workflow/get-current` endpoint
+- **Business App responds** with the current step and fields
+- **Controller renders** the appropriate Razor partial (e.g., `_WorkflowStep-question.cshtml`)
+- **User sees** the first workflow step
+
+---
+
+## Implementing a Workflow Controller
+
+Prism provides a base controller class that handles all GET/POST logic automatically. Most projects only need to use the base class as-is, or override one method to pre-populate user data from claims.
+
+### Minimal Controller Implementation
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.Extensions.Logging;
+using UmbracoPrism.Core.Controllers;
+using UmbracoPrism.Core.Services;
+using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Web;
+using Microsoft.AspNetCore.Antiforgery;
+
+namespace YourApp.Controllers;
+
+/// <summary>
+/// Handles GET/POST for workflow pages. The base class handles all routing,
+/// validation, and Business App communication. You only override PrePopulateFieldsFromClaims
+/// if you want to auto-fill fields from the authenticated user's claims.
+/// </summary>
+[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+public class WorkflowPageController(
+    ILogger<WorkflowPageController> logger,
+    ICompositeViewEngine compositeViewEngine,
+    IUmbracoContextAccessor umbracoContextAccessor,
+    IBusinessAppWorkflowClient workflowClient,
+    IPublishedValueFallback publishedValueFallback,
+    IAntiforgery antiforgery,
+    IWorkflowStepNonceService nonceService,
+    IWorkflowFieldValidator fieldValidator)
+    : PrismWorkflowPageController(logger, compositeViewEngine, umbracoContextAccessor,
+        workflowClient, publishedValueFallback, antiforgery, nonceService, fieldValidator)
+{
+    // The base class handles everything. Override PrePopulateFieldsFromClaims() below
+    // only if you need to pre-fill fields from user claims.
+}
+```
+
+### Pre-Populating Fields from User Claims (Optional)
+
+If you want to auto-fill common fields (email, name) from the authenticated user's claims, override `PrePopulateFieldsFromClaims()`:
+
+```csharp
+[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+public class WorkflowPageController(
+    ILogger<WorkflowPageController> logger,
+    ICompositeViewEngine compositeViewEngine,
+    IUmbracoContextAccessor umbracoContextAccessor,
+    IBusinessAppWorkflowClient workflowClient,
+    IPublishedValueFallback publishedValueFallback,
+    IAntiforgery antiforgery,
+    IWorkflowStepNonceService nonceService,
+    IWorkflowFieldValidator fieldValidator)
+    : PrismWorkflowPageController(logger, compositeViewEngine, umbracoContextAccessor,
+        workflowClient, publishedValueFallback, antiforgery, nonceService, fieldValidator)
+{
+    protected override WorkflowResponseEnvelope PrePopulateFieldsFromClaims(WorkflowResponseEnvelope envelope)
+    {
+        // Base implementation already handles email-address and full-name from standard claims
+        // Call base to get the standard behavior, then add custom logic below if needed
+        var updated = base.PrePopulateFieldsFromClaims(envelope);
+
+        // Example: pre-fill a custom department field from a claim
+        var department = HttpContext.User.FindFirstValue("department");
+        if (!string.IsNullOrEmpty(department))
+        {
+            // Update field groups to set department field's default value
+            // (this is an example; real implementation depends on your field group structure)
+        }
+
+        return updated;
+    }
+}
+```
+
+**What the base class provides automatically:**
+- ✅ GET: Calls Business App, renders the current step
+- ✅ POST: Validates form, advances workflow, redirects (PRG pattern)
+- ✅ Antiforgery validation
+- ✅ Nonce tamper-proofing
+- ✅ Field validation (client + server)
+- ✅ Pre-populates `email-address` and `full-name` from authenticated user claims
+- ✅ Error display and form repopulation on validation failure
+
+---
+
+## Conditional Logic
+
+Workflows often need conditional fields: show Field B only if Field A has a certain value.
+
+### Conditional Visibility
+
+Use `conditionalOn` and `visibleWhen` properties:
+
 ```json
 {
-  "instanceId": "abc-123",
-  "stateVersion": 1,
-  "action": "submit",
-  "formData": {
-    "full-name": "Jane Doe",
-    "email": "jane@example.com"
-  }
+  "groupKey": "enquiry-details",
+  "displayName": "Enquiry Details",
+  "version": 1,
+  "fields": [
+    {
+      "fieldKey": "enquiry-type",
+      "label": "Type of enquiry",
+      "fieldType": "select",
+      "required": true,
+      "options": ["General", "Technical", "Partnership", "Other"]
+    },
+    {
+      "fieldKey": "technical-issue",
+      "label": "Describe the technical issue",
+      "fieldType": "textarea",
+      "required": true,
+      "conditionalOn": "enquiry-type",
+      "visibleWhen": ["Technical"]
+    },
+    {
+      "fieldKey": "partnership-interest",
+      "label": "What kind of partnership?",
+      "fieldType": "textarea",
+      "required": true,
+      "conditionalOn": "enquiry-type",
+      "visibleWhen": ["Partnership"]
+    }
+  ]
 }
 ```
 
-**Response (WorkflowResponseEnvelope):**
+**Behavior:**
+- `technical-issue` is hidden until `enquiry-type` is set to `"Technical"`
+- `partnership-interest` is hidden until `enquiry-type` is set to `"Partnership"`
+- Users only see relevant fields
+
+**How Prism handles conditional fields:**
+- HTML5 attributes hide fields client-side (instant feedback)
+- Server-side validation skips hidden fields (no false "required" errors)
+- On `check-answers` step, hidden fields are not displayed in the review
+
+### Conditional Fields in C# Builder
+
+```csharp
+.AddField("enquiry-type", f => f
+    .Label("Type of enquiry")
+    .FieldType("select")
+    .Required()
+    .WithOptions("General", "Technical", "Partnership", "Other"))
+.AddField("technical-issue", f => f
+    .Label("Describe the technical issue")
+    .FieldType("textarea")
+    .Required()
+    .ConditionalOn("enquiry-type", "Technical"))
+.AddField("partnership-interest", f => f
+    .Label("What kind of partnership?")
+    .FieldType("textarea")
+    .Required()
+    .ConditionalOn("enquiry-type", "Partnership"))
+```
+
+---
+
+## Role-Restricted Transitions
+
+Some workflows require role checks: only managers can approve an application, only reviewers can reject.
+
+### Checking Roles on Transitions
+
+Add `requiresRole` to a transition:
+
 ```json
 {
-  "instanceId": "abc-123",
-  "currentStateKey": "review-details",
-  "currentState": {
-    "stateKey": "review-details",
-    "displayName": "Check your answers",
-    "stepType": "Review",
-    "allowedActions": ["submit", "back"],
-    "fieldGroupKeys": []
-  },
-  "collectedData": {
-    "full-name": "Jane Doe",
-    "email": "jane@example.com"
-  },
-  "stateVersion": 2,
-  "isComplete": false
+  "transitions": [
+    { "fromState": "under-review", "toState": "approved", "action": "approve", "requiresRole": "reviewer" },
+    { "fromState": "under-review", "toState": "rejected", "action": "reject", "requiresRole": "reviewer" },
+    { "fromState": "approved", "toState": "complete", "action": "send-confirmation", "requiresRole": "admin" }
+  ]
 }
 ```
 
-### Reference Implementation
+**How Prism handles role checks:**
+- The action is rendered in the UI for all users
+- When a user without the required role clicks the action, the Business App's `/api/workflow/advance` endpoint is called
+- The Business App checks the user's roles (via JWT claims) and returns an error if the user is not authorized
+- Prism displays the error message to the user
 
-The Mock Business App source code is at:
-- **Workflow definitions:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/`
-- **Workflow engine:** `src/UmbracoPrism.MockBusinessApp/Services/WorkflowEngine.cs`
-- **API endpoints:** `src/UmbracoPrism.MockBusinessApp/Controllers/WorkflowController.cs`
+**In your Business App:**
+```csharp
+// In your /api/workflow/advance endpoint
+var hasRole = claims.FirstOrDefault(c => c.Type == "roles")?.Value?.Contains(transition.RequiresRole) ?? false;
+if (!hasRole)
+{
+    return new WorkflowResponseEnvelope
+    {
+        ResponseState = "error",
+        Problems = new[] { new WorkflowProblem { Message = "You don't have permission to approve this." } }
+    };
+}
+```
 
-Review these files to understand the expected contract, then implement equivalent endpoints in your system.
+---
 
-### Real-World Examples
+## Instance Policies
 
-When replacing the Mock Business App:
-- **ServiceNow:** Wire Prism's HTTP calls to ServiceNow's Incident or Case API
-- **Salesforce:** Create Apex endpoints or use standard REST APIs to manage Cases
-- **Bespoke .NET API:** Implement the HTTP contract above in your custom service
-- **Legacy system with REST wrapper:** Add an API layer in front of your existing system
+The `instancePolicy` property controls how many workflow instances a single user can have.
 
-The key point: **Prism is workflow-agnostic.** It calls HTTP endpoints and renders the response. Your business app handles the complexity.
+| Policy | Behavior | Example |
+|--------|----------|---------|
+| `"single"` | User can have only one active instance at a time | Application form (users submit one at a time) |
+| `"multiple"` | User can have unlimited active instances | Support ticket system (users open many tickets in parallel) |
+| `"prompt"` | Ask the user: "Start a new one or continue existing?" | Multi-step process where users might abandon and restart |
+
+**How Prism uses `instancePolicy`:**
+
+When a user visits a workflow page:
+
+1. **`"single"`** — If an existing instance exists, resume it. If not, create a new one.
+2. **`"multiple"`** — Always create a new instance.
+3. **`"prompt"`** — If an existing instance exists, show the user a choice ("Continue" or "Start new").
+
+---
+
+## Summary: Complete Workflow Setup Checklist
+
+- [ ] Define workflow JSON (or use C# builder) with states and transitions
+- [ ] Create field group JSON files (separate files, in `workflow-seeds/field-groups/`)
+- [ ] Implement Business App endpoints:
+  - [ ] `GET /api/workflow/get-current` — returns current step and fields
+  - [ ] `POST /api/workflow/advance` — processes action and returns next step
+- [ ] Create `workflowPage` content type in Umbraco (auto-generated by Prism)
+- [ ] Create a content node with `workflowKey` configured
+- [ ] Implement minimal `WorkflowPageController` (or use base class as-is)
+- [ ] Publish and test
+
+**Next steps:**
+- [Customise Workflow UI](./workflow-customisation.md) — override partials, adjust CSS
+- [Form Validation](./workflow-forms-validation.md) — understand validation layers
+- [GDS Components](./workflow-gds-components.md) — available form elements and patterns
