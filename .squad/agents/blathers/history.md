@@ -528,3 +528,50 @@ Both must be handled for restart resilience.
 - ✅ No JSON seed changes needed (seeds use string keys, not C# type names)
 
 **Key Insight:** Ubiquitous language improves code readability and accelerates contributor onboarding. New names directly reflect the purpose each class serves in the workflow engine. This is the final naming cleanup needed for GDS alignment.
+
+---
+
+## Session: Live JSON Editor for Workflow Admin (2026-04-21)
+
+**Topic:** Add in-browser workflow definition editing with Ace Editor
+
+**Outcome:** ✅ Complete — Live JSON editor modal integrated with validation and auto-reload
+
+### Delivered
+
+**1. Backend API — In-Memory Definition Management**
+- Added two public methods to `BusinessAppWorkflowEngine.cs`:
+  - `GetDefinition(string key)` — retrieves a single workflow definition by key
+  - `UpdateDefinition(string key, WorkflowDefinitionFile updated)` — replaces an in-memory definition
+- Both methods use the existing `_definitions` dictionary, no persistence layer needed
+
+**2. REST API Endpoints**
+- `GET /admin/workflow/definition/{key}/json` — returns definition as pretty-printed camelCase JSON
+- `PUT /admin/workflow/definition/{key}` — accepts JSON body, deserializes to `WorkflowDefinitionFile`, updates in-memory
+
+**3. Frontend — Ace Editor Modal UI**
+- Integrated Ace Editor v1.32.6 via CDN (JSON mode, tomorrow theme, line numbers, soft tabs)
+- Modal overlay with fullscreen editor, "Apply Changes" / "Cancel" buttons
+- Live JSON validation — syntax errors displayed inline before save
+- Auto-reload on successful save — ensures updated definition is immediately reflected
+- "✎ Edit JSON" button added to each workflow definition card header
+
+**Files Modified:**
+- `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs` — added GetDefinition/UpdateDefinition methods
+- `src/UmbracoPrism.MockBusinessApp/Program.cs` — added GET/PUT endpoints, modal HTML/CSS/JS, Ace CDN script, edit button
+
+**Validation:**
+- ✅ Build clean — 0 errors, 0 warnings
+- ✅ Modal CSS uses double-dollar raw string syntax (braces are literal)
+- ✅ Edit button uses `Esc()` for safe HTML attribute encoding (not `SafeId()`)
+
+## Learnings
+
+**Raw String Syntax for Embedded HTML**  
+The outer HTML template uses `$$"""..."""` (double-dollar) so CSS braces `{ }` are treated as literal characters. Inner card templates use `$"""..."""` (single-dollar) for string interpolation. Mixing the two syntaxes incorrectly would cause compiler errors. This pattern keeps CSS readable without escape sequences.
+
+**Ace Editor CDN Integration**  
+Ace Editor is a mature, feature-rich code editor that works out-of-the-box via CDN. Key setup: `ace.edit('element-id')`, then configure theme, mode, and options. The `setValue(json, -1)` call loads content and moves cursor to start. Native JSON validation highlights syntax errors automatically — no custom validator needed.
+
+**In-Memory Updates for Dev Workflow**  
+The workflow engine is registered as a singleton, so in-memory definition updates survive across requests until app restart. This is ideal for local development iteration: edit JSON → Apply → test immediately. No file I/O or persistence layer required for the dev loop. Production deployments would load definitions from a database or config store instead.

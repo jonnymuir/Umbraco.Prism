@@ -136,6 +136,67 @@ Previous history archived to reduce file size. Recent entries below.
 
 ## Learnings
 
+### 2026-04-21 — Comprehensive Security Review: Keycloak Backchannel Changes
+
+**Context:** Full security review requested with focus on recent Keycloak/Codespaces backchannel URL changes for JWT signing key fetch and token exchange.
+
+**Scope:**
+- Keycloak backchannel URL pattern (`KEYCLOAK_BACKCHANNEL_URL` env var)
+- Workflow admin JSON editor endpoints (no auth)
+- JWT validation pipeline (issuer, audience, signing keys)
+- Signing key cache (thread safety, rotation handling)
+- OIDC configuration (tenant isolation)
+- Production deployment safety
+
+**Key Findings:**
+
+**1. Backchannel URL Pattern — SAFE ✅**
+- Correctly separates metadata/token-exchange fetch URLs (backchannel) from issuer validation (OidcAuthority)
+- Issuer validation remains strict: token `iss` claim must match configured `OidcAuthority`
+- Backchannel URL only affects WHERE keys are fetched, not WHICH issuer is trusted
+- Attack scenario mitigated: Even if attacker controls backchannel endpoint, they cannot forge valid tokens (issuer validation rejects them)
+- Scoped to Codespaces via `CODESPACE_NAME` guard in AppHost
+- Production risk: Low (requires infrastructure-level access to set env var)
+
+**2. Workflow Admin Endpoints — ACCEPTABLE FOR DEV, NEVER DEPLOY TO PRODUCTION ⚠️**
+- `/admin/workflow/*` endpoints have no authentication or authorization
+- Acceptable for MockBusinessApp (local dev/demo service with in-memory state)
+- Critical risk if accidentally deployed to production
+- Recommended: Add environment check to return 404 in non-Development environments
+
+**3. JWT Validation Pipeline — ROBUST ✅**
+- Multi-tenant issuer validation with strict host/path checks
+- Audience validation prevents cross-tenant token reuse
+- Signing key cache handles rotation automatically with forced refresh on missing `kid`
+- Thread-safe implementation with per-tenant semaphore locks
+- Forced refresh cooldown (30s) prevents DoS while allowing key rotation
+
+**4. Production Deployment Safety — SAFE WITH CONTROLS ✅**
+- TestSite and Shared libraries are production-ready
+- MockBusinessApp must NOT be deployed to production in current form
+- Environment variable hygiene critical: `KEYCLOAK_BACKCHANNEL_URL` must never be set in production
+
+**Security Design Patterns Observed:**
+- **Separation of concerns:** Backchannel URL affects metadata fetch, not trust decisions (issuer validation)
+- **Defense in depth:** Multiple validation layers (issuer, audience, lifetime, signing key)
+- **Fail-closed:** Missing keys trigger forced refresh rather than allowing unsigned tokens
+- **Multi-tenant isolation:** Tenant derived from hostname/routing, not token claims
+
+**Test Coverage:**
+- Strong: 60+ tests covering issuer/audience validation, open redirect hardening, tenant isolation
+- Gap: No regression tests for backchannel URL behavior
+- Gap: No tests for workflow admin endpoint security
+
+**Recommendations:**
+1. **High priority:** Add production environment variable validation (fail-closed on `KEYCLOAK_BACKCHANNEL_URL`)
+2. **High priority:** Disable admin endpoints in non-Development environments
+3. **Medium priority:** Add regression tests for backchannel behavior
+4. **Medium priority:** Document deployment security requirements
+
+**Overall Assessment:** **LOW RISK** — Production-safe with operational controls. Backchannel pattern is well-designed and maintains security boundaries.
+
+**Artifacts:** `.squad/decisions/inbox/copper-security-review-2026-04-21.md` (comprehensive 500+ line security review report)
+
 ### 2026-04-20 — Aspire 13.2.2 Upgrade: OTLP Telemetry Warning Resolved
 
 **Context:** Aspire 9.2.0 displayed OTLP telemetry warning. After upgrade to 13.2.2, warning persists and is understood to be correct behavior.

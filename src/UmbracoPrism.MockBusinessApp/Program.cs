@@ -21,6 +21,29 @@ builder.Services.AddHostedService<WorkflowTuiService>();
 
 var app = builder.Build();
 
+// SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
+// TLS certificate validation for OIDC metadata fetches, which is only acceptable
+// in controlled development environments. Fail loudly if misconfigured.
+if (!app.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL")))
+{
+    throw new InvalidOperationException("KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments.");
+}
+
+// SECURITY: Admin workflow endpoints should not exist outside Development mode.
+// Defence-in-depth: ensure they're unreachable even if accidentally deployed.
+if (!app.Environment.IsDevelopment())
+{
+    app.Use(async (ctx, next) =>
+    {
+        if (ctx.Request.Path.StartsWithSegments("/admin"))
+        {
+            ctx.Response.StatusCode = 404;
+            return;
+        }
+        await next();
+    });
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -506,6 +529,10 @@ app.MapPost("/admin/workflow/reset-all", (BusinessAppWorkflowEngine engine) =>
 
 app.MapGet("/admin/workflow/definition/{key}/json", (string key, BusinessAppWorkflowEngine engine) =>
 {
+    // SECURITY: Validate key format to prevent path traversal or injection
+    if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9\-]+$"))
+        return Results.BadRequest("Invalid workflow key.");
+    
     var def = engine.GetDefinition(key);
     if (def == null) return Results.NotFound();
     
@@ -520,6 +547,10 @@ app.MapGet("/admin/workflow/definition/{key}/json", (string key, BusinessAppWork
 
 app.MapPut("/admin/workflow/definition/{key}", async (string key, HttpContext ctx, BusinessAppWorkflowEngine engine) =>
 {
+    // SECURITY: Validate key format to prevent path traversal or injection
+    if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9\-]+$"))
+        return Results.BadRequest("Invalid workflow key.");
+    
     WorkflowDefinitionFile? updated;
     try
     {

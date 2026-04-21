@@ -18,6 +18,14 @@ builder.CreateUmbracoBuilder()
 
 WebApplication app = builder.Build();
 
+// SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
+// TLS certificate validation for OIDC metadata fetches, which is only acceptable
+// in controlled development environments. Fail loudly if misconfigured.
+if (!app.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL")))
+{
+    throw new InvalidOperationException("KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments.");
+}
+
 // In GitHub Codespaces, the browser accesses the app via a public URL like
 // https://{name}-44345.app.github.dev, but Codespaces does not forward that hostname
 // in the Host header — Kestrel sees localhost:44345 instead. Override Request.Host so

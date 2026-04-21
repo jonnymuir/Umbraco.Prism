@@ -31,3 +31,4 @@
 ## Learnings
 
 - 2026-03-28: Team now uses conventional commits. Read .squad/skills/conventional-commits/SKILL.md before every commit. Breaking changes must be flagged with ! or BREAKING CHANGE: footer and discussed with Tom Nook first.
+- 2026-04-14: Created `docs/DEPLOYMENT_SECURITY.md` to document deployment boundaries, environment variable hygiene, and pre-flight checks. Key learnings: security-critical guides must cover the "why" (security design intent) not just the "what" to help developers reason about risk. Backchannel URL pattern is subtle—the guide explains that it changes metadata fetch URL but not trust anchor, so developers understand it's safe when combined with strict issuer validation. Added checklist format for pre-deployment verification to make guidance immediately actionable.
