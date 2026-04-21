@@ -154,6 +154,8 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
     var instances = engine.GetAllInstances().OrderBy(i => i.CreatedAt).ToList();
     var defs = engine.GetAllDefinitions().ToList();
     var defsByKey = defs.ToDictionary(d => d.DefinitionKey, StringComparer.OrdinalIgnoreCase);
+    var allFieldGroups = engine.GetAllFieldGroups()
+        .ToDictionary(fg => fg.GroupKey, StringComparer.OrdinalIgnoreCase);
 
     string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
     string SafeId(string key) => key.Replace("-", "_").Replace(".", "_").Replace(" ", "_");
@@ -303,6 +305,56 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                 _          => $"""<span class="badge badge-policy">{Esc(def.InstancePolicy)}</span>"""
             };
 
+            // Build field groups section for states that reference field groups
+            var fieldGroupsForStates = def.States
+                .Where(s => s.FieldGroupKeys.Any())
+                .SelectMany(s => s.FieldGroupKeys.Select(key => (StateKey: s.StateKey, GroupKey: key)))
+                .GroupBy(x => x.StateKey)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.GroupKey).ToList());
+
+            var fieldGroupsRows = fieldGroupsForStates.Count == 0
+                ? ""
+                : string.Join("\n", fieldGroupsForStates.SelectMany(kvp =>
+                {
+                    var stateKey = kvp.Key;
+                    var groupKeys = kvp.Value;
+                    return groupKeys.Select(groupKey =>
+                    {
+                        if (allFieldGroups.TryGetValue(groupKey, out var fg))
+                        {
+                            return $"""
+                            <tr>
+                              <td style="font-family:monospace;font-size:.8em">{Esc(groupKey)}</td>
+                              <td>{Esc(fg.DisplayName)}</td>
+                              <td style="text-align:center">{fg.Fields.Count}</td>
+                              <td><button class="btn btn-edit" onclick="openFieldGroupEditor('{Esc(groupKey)}')">✎ Edit JSON</button></td>
+                            </tr>
+                            """;
+                        }
+                        else
+                        {
+                            return $"""
+                            <tr>
+                              <td style="font-family:monospace;font-size:.8em">{Esc(groupKey)}</td>
+                              <td colspan="3"><span style="color:#b91c1c">⚠ Field group not found</span></td>
+                            </tr>
+                            """;
+                        }
+                    });
+                }));
+
+            var fieldGroupsSection = fieldGroupsForStates.Count == 0
+                ? ""
+                : $"""
+                  <div style="margin-top:1rem">
+                    <p class="table-label">Field Groups ({fieldGroupsForStates.Values.Sum(v => v.Count)})</p>
+                    <table style="background:#f4f0fb">
+                      <thead style="background:#e9dff7"><tr><th>Group Key</th><th>Display Name</th><th>Field Count</th><th></th></tr></thead>
+                      <tbody>{fieldGroupsRows}</tbody>
+                    </table>
+                  </div>
+                  """;
+
             return $"""
             <div class="def-card">
               <div class="def-header">
@@ -332,6 +384,7 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                     </table>
                   </div>
                 </div>
+                {fieldGroupsSection}
                 <div class="def-diagram">
                   <p class="table-label">State Diagram</p>
                   <div class="mermaid">{Esc(mermaidText)}</div>
@@ -434,7 +487,7 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           <div id="json-modal" class="modal-overlay" style="display:none" onclick="handleOverlayClick(event)">
             <div class="modal-box">
               <div class="modal-hdr">
-                <span>✎ Edit Workflow Definition — <strong id="modal-key"></strong></span>
+                <span id="modal-title">✎ Edit — <strong id="modal-key"></strong></span>
                 <button class="modal-close" onclick="closeEditor()">✕</button>
               </div>
               <div id="ace-editor"></div>
@@ -449,14 +502,37 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           <script>
             let aceEditor = null;
             let currentEditorKey = null;
+            let currentEditorType = null;
 
             async function openEditor(key) {
               currentEditorKey = key;
+              currentEditorType = 'definition';
+              document.getElementById('modal-title').innerHTML = '✎ Edit Workflow Definition — <strong id="modal-key">' + key + '</strong>';
               document.getElementById('modal-key').textContent = key;
               document.getElementById('save-msg').textContent = '';
               document.getElementById('json-modal').style.display = 'flex';
               
               const res = await fetch('/admin/workflow/definition/' + encodeURIComponent(key) + '/json');
+              const json = await res.text();
+              
+              if (!aceEditor) {
+                aceEditor = ace.edit('ace-editor');
+                aceEditor.setTheme('ace/theme/tomorrow');
+                aceEditor.session.setMode('ace/mode/json');
+                aceEditor.setOptions({ fontSize: '13px', tabSize: 2, useSoftTabs: true, showPrintMargin: false });
+              }
+              aceEditor.setValue(json, -1);
+            }
+
+            async function openFieldGroupEditor(key) {
+              currentEditorKey = key;
+              currentEditorType = 'field-group';
+              document.getElementById('modal-title').innerHTML = '✎ Edit Field Group — <strong id="modal-key">' + key + '</strong>';
+              document.getElementById('modal-key').textContent = key;
+              document.getElementById('save-msg').textContent = '';
+              document.getElementById('json-modal').style.display = 'flex';
+              
+              const res = await fetch('/admin/workflow/field-group/' + encodeURIComponent(key) + '/json');
               const json = await res.text();
               
               if (!aceEditor) {
@@ -486,7 +562,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
               document.getElementById('apply-btn').disabled = true;
               document.getElementById('save-msg').textContent = 'Saving…';
               
-              const res = await fetch('/admin/workflow/definition/' + encodeURIComponent(currentEditorKey), {
+              const endpoint = currentEditorType === 'field-group'
+                ? '/admin/workflow/field-group/' + encodeURIComponent(currentEditorKey)
+                : '/admin/workflow/definition/' + encodeURIComponent(currentEditorKey);
+              
+              const res = await fetch(endpoint, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: json
@@ -564,6 +644,46 @@ app.MapPut("/admin/workflow/definition/{key}", async (string key, HttpContext ct
     }
     if (updated == null) return Results.BadRequest("Empty body");
     var success = engine.UpdateDefinition(key, updated);
+    return success ? Results.Ok(new { updated = key }) : Results.NotFound();
+});
+
+app.MapGet("/admin/workflow/field-group/{key}/json", (string key, BusinessAppWorkflowEngine engine) =>
+{
+    // SECURITY: Validate key format to prevent path traversal or injection
+    if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9\-]+$"))
+        return Results.BadRequest("Invalid field group key.");
+    
+    var fg = engine.GetFieldGroup(key);
+    if (fg == null) return Results.NotFound();
+    
+    var opts = new System.Text.Json.JsonSerializerOptions
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    };
+    var json = System.Text.Json.JsonSerializer.Serialize(fg, opts);
+    return Results.Content(json, "application/json");
+});
+
+app.MapPut("/admin/workflow/field-group/{key}", async (string key, HttpContext ctx, BusinessAppWorkflowEngine engine) =>
+{
+    // SECURITY: Validate key format to prevent path traversal or injection
+    if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9\-]+$"))
+        return Results.BadRequest("Invalid field group key.");
+    
+    FormSectionDefinition? updated;
+    try
+    {
+        updated = await System.Text.Json.JsonSerializer.DeserializeAsync<FormSectionDefinition>(
+            ctx.Request.Body,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+    catch (System.Text.Json.JsonException ex)
+    {
+        return Results.BadRequest($"Invalid JSON: {ex.Message}");
+    }
+    if (updated == null) return Results.BadRequest("Empty body");
+    var success = engine.UpdateFieldGroup(key, updated);
     return success ? Results.Ok(new { updated = key }) : Results.NotFound();
 });
 

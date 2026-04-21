@@ -786,3 +786,42 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - Content field handling lives entirely in `PrismFieldTagHelper` — no new partial views, no new tag helpers
 - Content types are excluded from validation by field type string check (not a new `IsContentOnly` bool) — keeps the model lean
 - Demo workflow uses new `*-with-context` field groups; original `about-you` and `your-enquiry` groups preserved
+
+---
+
+## Session: Field Group API Endpoints (2026-04-21)
+
+**Topic:** Add field group GET/PUT endpoints to MockBusinessApp admin UI
+
+**Outcome:** ✅ Complete — 431 tests pass, build clean, endpoints ready
+
+### Delivered
+
+**1. BusinessAppWorkflowEngine Methods**
+- Added `GetFieldGroup(string key)` — returns FormSectionDefinition or null
+- Added `GetAllFieldGroups()` — returns all loaded field groups as IEnumerable
+- Added `UpdateFieldGroup(string key, FormSectionDefinition updated)` — replaces in-memory field group, returns bool
+
+**2. Admin API Endpoints (Program.cs)**
+- Added `GET /admin/workflow/field-group/{key}/json` — returns field group as pretty-printed camelCase JSON
+- Added `PUT /admin/workflow/field-group/{key}` — deserializes and updates field group in-memory
+- Validation: same key regex as definition endpoints (`^[a-zA-Z0-9\-]+$`)
+- Error handling: BadRequest for invalid key/JSON, NotFound for missing key
+
+### Validation
+
+- ✅ Build succeeded with no errors
+- ✅ All 431 Core tests passing
+- Endpoint pattern matches existing definition endpoints exactly
+
+### Key Insights
+
+- Field groups already loaded from `workflow-seeds/field-groups/` in `_fieldGroups` dictionary
+- FormSectionDefinition accessible via Services namespace (already imported in Program.cs)
+- Same security posture as definition endpoints (key validation, in-memory only)
+
+### Architecture Decisions
+
+- Methods follow same pattern as GetDefinition/UpdateDefinition trio
+- No persistence layer — updates are in-memory only (matches existing definition endpoints)
+- Endpoints placed immediately after definition endpoints for consistency

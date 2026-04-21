@@ -294,6 +294,27 @@ public class BusinessAppWorkflowEngine
         return true;
     }
 
+    /// <summary>Returns a specific field group by key.</summary>
+    /// <param name="key">The field group key.</param>
+    /// <returns>The field group or null if not found.</returns>
+    public FormSectionDefinition? GetFieldGroup(string key) =>
+        _fieldGroups.TryGetValue(key, out var fg) ? fg : null;
+
+    /// <summary>Returns all loaded field groups.</summary>
+    public IEnumerable<FormSectionDefinition> GetAllFieldGroups() => _fieldGroups.Values;
+
+    /// <summary>Updates a field group in-memory.</summary>
+    /// <param name="key">The field group key to update.</param>
+    /// <param name="updated">The new field group definition.</param>
+    /// <returns>True if the field group was found and updated; false if not found.</returns>
+    public bool UpdateFieldGroup(string key, FormSectionDefinition updated)
+    {
+        if (!_fieldGroups.ContainsKey(key)) return false;
+        _fieldGroups[key] = updated;
+        _logger.LogInformation("Field group updated in-memory: {Key}", key);
+        return true;
+    }
+
     /// <summary>
     /// Removes an instance from in-memory state entirely (TUI reset command).
     /// The next call to <see cref="GetCurrent"/> for the same user/tenant/key will create a fresh instance.
