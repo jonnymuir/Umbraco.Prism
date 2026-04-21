@@ -34,6 +34,7 @@ public class WorkflowPageSeeder(
             CleanupOldRetirementQuotePage();
             EnsureCommunityEnquiryPage();
             EnsurePlanningWorkflowPage();
+            EnsurePaymentDemoPage();
             EnsureWorkflowHubPage();
         }
         catch (Exception ex)
@@ -162,6 +163,37 @@ public class WorkflowPageSeeder(
         var page = contentService.Create(TestSiteSeedContract.PlanningWorkflowPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
         page.SetValue("workflowKey", TestSiteSeedContract.PlanningWorkflowKey);
         SaveAndPublishIfNeeded(page, TestSiteSeedContract.PlanningWorkflowPageName, null, "seeded planning workflow page");
+    }
+
+    private void EnsurePaymentDemoPage()
+    {
+        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
+        if (contentType == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping payment demo page");
+            return;
+        }
+
+        var existing = EnumerateContentTree()
+            .FirstOrDefault(content =>
+                content.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
+                && string.Equals(content.GetValue<string>("workflowKey"), TestSiteSeedContract.PaymentDemoWorkflowKey, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            SaveAndPublishIfNeeded(
+                existing,
+                TestSiteSeedContract.PaymentDemoPageName,
+                page => page.SetValue("workflowKey", TestSiteSeedContract.PaymentDemoWorkflowKey),
+                "seeded payment demo page");
+            return;
+        }
+
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded payment demo page");
+
+        var page = contentService.Create(TestSiteSeedContract.PaymentDemoPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
+        page.SetValue("workflowKey", TestSiteSeedContract.PaymentDemoWorkflowKey);
+        SaveAndPublishIfNeeded(page, TestSiteSeedContract.PaymentDemoPageName, null, "seeded payment demo page");
     }
 
     private void EnsureWorkflowHubPage()

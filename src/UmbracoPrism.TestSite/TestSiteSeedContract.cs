@@ -27,6 +27,10 @@ public static class TestSiteSeedContract
     public const string PlanningWorkflowPageUrl = "/apply-for-planning-permission";
     public const string PlanningWorkflowKey = "planning-notification";
 
+    public const string PaymentDemoPageName = "Payment Demo";
+    public const string PaymentDemoPageUrl = "/payment-demo";
+    public const string PaymentDemoWorkflowKey = "payment-demo";
+
     public const string WorkflowHubAlias = "workflowHub";
     public const string WorkflowHubName = "My Workflows";
     public const string WorkflowHubUrl = "/my-workflows";
