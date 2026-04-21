@@ -79,12 +79,13 @@ app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =
 
 // Workflow API — server-to-server calls from Umbraco TestSite forwarding the member's Bearer token.
 // Identity is derived from JWT claims; never trusted from the request body.
-app.MapPost("/api/workflow/{workflowKey}/current", (
+app.MapPost("/api/workflow/{workflowKey}/current", async (
     string workflowKey,
     ClaimsPrincipal user,
     IConfiguration config,
     BusinessAppWorkflowEngine engine,
-    ILogger<Program> logger) =>
+    ILogger<Program> logger,
+    HttpContext context) =>
 {
     var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
     var email = user.GetEmail();
@@ -92,9 +93,25 @@ app.MapPost("/api/workflow/{workflowKey}/current", (
     if (tenant == null || string.IsNullOrEmpty(email))
         return Results.Unauthorized();
 
-    logger.LogInformation("Workflow current: key={Key} tenant={Tenant} user={User}", workflowKey, tenant.Code, email);
+    // Read optional body parameters
+    string? instanceId = null;
+    string? action = null;
+    
+    try
+    {
+        var body = await context.Request.ReadFromJsonAsync<WorkflowCurrentApiRequest>();
+        instanceId = body?.InstanceId;
+        action = body?.Action;
+    }
+    catch
+    {
+        // Body is optional; empty/null body is fine
+    }
 
-    var envelope = engine.GetCurrent(workflowKey, tenant.Code, email);
+    logger.LogInformation("Workflow current: key={Key} tenant={Tenant} user={User} instanceId={InstanceId} action={Action}", 
+        workflowKey, tenant.Code, email, instanceId ?? "(none)", action ?? "(none)");
+
+    var envelope = engine.GetCurrent(workflowKey, tenant.Code, email, instanceId, action);
     return envelope.ResponseState == "error" ? Results.UnprocessableEntity(envelope) : Results.Ok(envelope);
 }).RequireAuthorization();
 
@@ -742,6 +759,10 @@ app.MapPut("/admin/workflow/field-group/{key}", async (string key, HttpContext c
 app.Run();
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);
+
+public record WorkflowCurrentApiRequest(
+    string? InstanceId,
+    string? Action);
 
 public record WorkflowAdvanceApiRequest(
     string InstanceId,

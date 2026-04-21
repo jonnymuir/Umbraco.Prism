@@ -30,6 +30,7 @@
     <ProjectReference Include="../UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
     <ProjectReference Include="../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj" />
+    <ProjectReference Include="../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" />
   </ItemGroup>
 
 </Project>

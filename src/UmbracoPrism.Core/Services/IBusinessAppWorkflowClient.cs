@@ -18,10 +18,14 @@ public interface IBusinessAppWorkflowClient
     /// creating a new workflow instance if none exists.
     /// </summary>
     /// <param name="workflowKey">The workflow key configured on the Umbraco page (e.g. "community-enquiry").</param>
+    /// <param name="instanceId">Optional specific instance ID to resume.</param>
+    /// <param name="action">Optional action: "start-new" or "resume" (used by "prompt" policy).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A workflow response envelope describing the current step and what to render.</returns>
     Task<WorkflowResponseEnvelope> GetCurrentAsync(
         string workflowKey,
+        string? instanceId = null,
+        string? action = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

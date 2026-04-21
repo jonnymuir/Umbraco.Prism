@@ -43,12 +43,20 @@ public class BusinessAppWorkflowEngine
     /// <param name="workflowKey">The workflow definition key to start or resume.</param>
     /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="userId">The user identifier.</param>
+    /// <param name="instanceId">Optional specific instance ID to resume (used by "multiple" policy).</param>
+    /// <param name="action">Optional action: "start-new" or "resume" (used by "prompt" policy).</param>
     /// <returns>A WorkflowResponseEnvelope describing the current state and what to render.</returns>
     /// <remarks>
-    /// This method creates a new instance on first call and reuses it on subsequent calls for the same 
-    /// user/tenant/workflow combination. Instances are stored in-memory and survive until application restart.
+    /// Behaviour depends on instancePolicy and parameters:
+    /// - If instanceId is provided: resume that specific instance (validate tenant+user ownership).
+    /// - If action="start-new": create a new instance and update lookup key.
+    /// - If action="resume": behave like "single" (find or create via lookup key).
+    /// - Otherwise, based on definition.InstancePolicy:
+    ///   - "single": find or create via lookup key (current behaviour).
+    ///   - "multiple": always create a new instance (no reuse).
+    ///   - "prompt": if active instance exists, return "instance_picker" response; else create new.
     /// </remarks>
-    public WorkflowResponseEnvelope GetCurrent(string workflowKey, string tenantId, string userId)
+    public WorkflowResponseEnvelope GetCurrent(string workflowKey, string tenantId, string userId, string? instanceId = null, string? action = null)
     {
         if (!_definitions.TryGetValue(workflowKey, out var definition))
         {
@@ -56,15 +64,29 @@ public class BusinessAppWorkflowEngine
             return ErrorEnvelope($"Workflow '{workflowKey}' is not registered with this application.", "DEFINITION_NOT_FOUND");
         }
 
+        // If specific instanceId provided, resume that instance
+        if (!string.IsNullOrEmpty(instanceId))
+        {
+            if (!_instancesById.TryGetValue(instanceId, out var specificInstance))
+                return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
+
+            if (!string.Equals(specificInstance.TenantId, tenantId, StringComparison.Ordinal)
+                || !string.Equals(specificInstance.UserId, userId, StringComparison.Ordinal))
+                return ErrorEnvelope("Access denied to this workflow instance.", "ACCESS_DENIED");
+
+            _logger.LogInformation("Resuming specific instance {Id}", instanceId);
+            return BuildEnvelope(specificInstance, definition);
+        }
+
         var lookupKey = LookupKey(tenantId, userId, workflowKey);
 
-        if (!_instanceLookup.TryGetValue(lookupKey, out var instanceId)
-            || !_instancesById.TryGetValue(instanceId, out var instance))
+        // If action="start-new", create a fresh instance and update lookup
+        if (string.Equals(action, "start-new", StringComparison.OrdinalIgnoreCase))
         {
-            instanceId = Guid.NewGuid().ToString();
-            instance = new WorkflowInstanceState
+            var newInstanceId = Guid.NewGuid().ToString();
+            var newInstance = new WorkflowInstanceState
             {
-                InstanceId = instanceId,
+                InstanceId = newInstanceId,
                 WorkflowKey = workflowKey,
                 TenantId = tenantId,
                 UserId = userId,
@@ -74,12 +96,141 @@ public class BusinessAppWorkflowEngine
                 UpdatedAt = DateTimeOffset.UtcNow
             };
 
-            _instancesById[instanceId] = instance;
-            _instanceLookup[lookupKey] = instanceId;
-            _logger.LogInformation("Created workflow instance {Id} for key={Key} tenant={Tenant}", instanceId, workflowKey, tenantId);
+            _instancesById[newInstanceId] = newInstance;
+            _instanceLookup[lookupKey] = newInstanceId;
+            _logger.LogInformation("Created new workflow instance {Id} for key={Key} (action=start-new)", newInstanceId, workflowKey);
+            return BuildEnvelope(newInstance, definition);
         }
 
-        return BuildEnvelope(instance, definition);
+        // If action="resume", behave like "single" (find or create via lookup)
+        if (string.Equals(action, "resume", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_instanceLookup.TryGetValue(lookupKey, out var resumeInstanceId)
+                && _instancesById.TryGetValue(resumeInstanceId, out var resumeInstance))
+            {
+                _logger.LogInformation("Resuming existing instance {Id} (action=resume)", resumeInstanceId);
+                return BuildEnvelope(resumeInstance, definition);
+            }
+
+            var newInstanceId = Guid.NewGuid().ToString();
+            var newInstance = new WorkflowInstanceState
+            {
+                InstanceId = newInstanceId,
+                WorkflowKey = workflowKey,
+                TenantId = tenantId,
+                UserId = userId,
+                CurrentState = definition.InitialState,
+                StateVersion = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _instancesById[newInstanceId] = newInstance;
+            _instanceLookup[lookupKey] = newInstanceId;
+            _logger.LogInformation("Created workflow instance {Id} for key={Key} (action=resume, no existing)", newInstanceId, workflowKey);
+            return BuildEnvelope(newInstance, definition);
+        }
+
+        // Policy-based behaviour
+        var policy = definition.InstancePolicy;
+
+        if (string.Equals(policy, "multiple", StringComparison.OrdinalIgnoreCase))
+        {
+            // Always create a new instance (no reuse)
+            var multipleInstanceId = Guid.NewGuid().ToString();
+            var multipleInstance = new WorkflowInstanceState
+            {
+                InstanceId = multipleInstanceId,
+                WorkflowKey = workflowKey,
+                TenantId = tenantId,
+                UserId = userId,
+                CurrentState = definition.InitialState,
+                StateVersion = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _instancesById[multipleInstanceId] = multipleInstance;
+            _logger.LogInformation("Created new workflow instance {Id} for key={Key} (policy=multiple)", multipleInstanceId, workflowKey);
+            return BuildEnvelope(multipleInstance, definition);
+        }
+
+        if (string.Equals(policy, "prompt", StringComparison.OrdinalIgnoreCase))
+        {
+            // Check if an active (non-terminal) instance exists
+            if (_instanceLookup.TryGetValue(lookupKey, out var promptInstanceId)
+                && _instancesById.TryGetValue(promptInstanceId, out var promptInstance))
+            {
+                // Check if instance is terminal
+                var currentState = definition.States.FirstOrDefault(s => s.StateKey == promptInstance.CurrentState);
+                bool isTerminal = currentState?.StepType == "confirmation";
+
+                if (!isTerminal)
+                {
+                    // Return instance_picker response
+                    _logger.LogInformation("Active instance {Id} exists for key={Key}; returning instance_picker", promptInstanceId, workflowKey);
+                    return new WorkflowResponseEnvelope
+                    {
+                        InstanceId = promptInstanceId,
+                        ResponseState = "instance_picker",
+                        StateVersion = promptInstance.StateVersion,
+                        CorrelationId = promptInstanceId,
+                        ServerTimeUtc = DateTimeOffset.UtcNow,
+                        InstancePolicy = "prompt",
+                        Render = new StepContent
+                        {
+                            StepType = currentState?.StepType ?? "question",
+                            StateDisplayName = currentState?.DisplayName ?? definition.DisplayName,
+                            FieldGroups = Array.Empty<FormSection>(),
+                            AvailableActions = Array.Empty<WorkflowAction>()
+                        }
+                    };
+                }
+            }
+
+            // No active instance: create new
+            var newPromptInstanceId = Guid.NewGuid().ToString();
+            var newPromptInstance = new WorkflowInstanceState
+            {
+                InstanceId = newPromptInstanceId,
+                WorkflowKey = workflowKey,
+                TenantId = tenantId,
+                UserId = userId,
+                CurrentState = definition.InitialState,
+                StateVersion = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _instancesById[newPromptInstanceId] = newPromptInstance;
+            _instanceLookup[lookupKey] = newPromptInstanceId;
+            _logger.LogInformation("Created workflow instance {Id} for key={Key} (policy=prompt, no active)", newPromptInstanceId, workflowKey);
+            return BuildEnvelope(newPromptInstance, definition);
+        }
+
+        // Default "single" behaviour: find or create via lookup key
+        if (!_instanceLookup.TryGetValue(lookupKey, out var singleInstanceId)
+            || !_instancesById.TryGetValue(singleInstanceId, out var singleInstance))
+        {
+            singleInstanceId = Guid.NewGuid().ToString();
+            singleInstance = new WorkflowInstanceState
+            {
+                InstanceId = singleInstanceId,
+                WorkflowKey = workflowKey,
+                TenantId = tenantId,
+                UserId = userId,
+                CurrentState = definition.InitialState,
+                StateVersion = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _instancesById[singleInstanceId] = singleInstance;
+            _instanceLookup[lookupKey] = singleInstanceId;
+            _logger.LogInformation("Created workflow instance {Id} for key={Key} tenant={Tenant}", singleInstanceId, workflowKey, tenantId);
+        }
+
+        return BuildEnvelope(singleInstance, definition);
     }
 
     /// <summary>
@@ -262,7 +413,8 @@ public class BusinessAppWorkflowEngine
                     LastUpdatedAt = instance.UpdatedAt.DateTime,
                     CanContinue = state?.StepType != "confirmation",
                     IsCompleted = state?.StepType == "confirmation",
-                    WorkflowPageUrl = null // Controller will resolve this
+                    WorkflowPageUrl = null, // Controller will resolve this
+                    InstancePolicy = definition?.InstancePolicy ?? "single"
                 };
             })
             .ToList();

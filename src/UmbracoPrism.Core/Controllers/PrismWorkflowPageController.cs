@@ -107,13 +107,28 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         var problems = PopProblemsFromTempData();
         var formValues = PopFormValuesFromTempData();
 
-        var envelope = await _workflowClient.GetCurrentAsync(workflowKey);
+        // Read query parameters for instanceId and action
+        var instanceId = HttpContext.Request.Query["instanceId"].ToString();
+        var action = HttpContext.Request.Query["action"].ToString();
+
+        var envelope = await _workflowClient.GetCurrentAsync(workflowKey, 
+            string.IsNullOrEmpty(instanceId) ? null : instanceId,
+            string.IsNullOrEmpty(action) ? null : action);
 
         if (envelope.ResponseState == "error")
         {
             var msg = envelope.Problems.FirstOrDefault()?.Message
                 ?? $"Could not start workflow '{workflowKey}'. Is the Business App running?";
             return CurrentTemplate(ErrorViewModel(workflowKey, msg));
+        }
+
+        // Handle instance_picker response
+        if (envelope.ResponseState == "instance_picker")
+        {
+            var vm = CreateViewModel(envelope, workflowKey, problems, formValues);
+            vm.ShowInstancePicker = true;
+            vm.StateDisplayName = envelope.Render?.StateDisplayName ?? workflowKey;
+            return CurrentTemplate(vm);
         }
 
         // Allow subclasses to customize field pre-population
@@ -129,9 +144,9 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
                 .ToList() ?? new List<FieldRenderPayload>();
 
         var nonce = await _nonceService.CreateAsync(nonceFields);
-        var vm = CreateViewModel(updatedEnvelope, workflowKey, problems, formValues);
-        vm.Nonce = nonce;
-        return CurrentTemplate(vm);
+        var vm2 = CreateViewModel(updatedEnvelope, workflowKey, problems, formValues);
+        vm2.Nonce = nonce;
+        return CurrentTemplate(vm2);
     }
 
     /// <summary>

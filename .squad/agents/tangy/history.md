@@ -6,6 +6,53 @@ This agent leads QA validation, test coverage analysis, and edge-case identifica
 
 **Key domains:** Playwright testing, E2E validation, Edge case coverage, CI/CD readiness, Performance/load testing
 
+## Session: Instance Policy Test Suite (2026-04-21)
+
+**Topic:** Create BusinessAppWorkflowEngineInstancePolicyTests.cs with comprehensive coverage
+
+**Outcome:** ✅ Complete — 19 new tests (all passing), 512 total tests passing
+
+### Delivered
+
+**1. Test File Created**
+- File: `src/UmbracoPrism.Core.Tests/Business/Workflow/BusinessAppWorkflowEngineInstancePolicyTests.cs`
+- 19 tests covering all three policies and edge cases
+
+**2. Single Policy Tests (2)**
+- `GivenSinglePolicy_FindOrCreateReturnsExistingInstance` — Same instance across calls
+- `GivenSinglePolicy_InstanceIdIgnoredWhenSupplied` — Parameter validation
+
+**3. Multiple Policy Tests (3)**
+- `GivenMultiplePolicy_EachCallCreatesNewInstance` — New instance per call
+- `GivenMultiplePolicy_InstanceIdParameterResumesSpecific` — Resume by ID
+- `GivenMultiplePolicy_ActionParameterPrecedence` — action="start-new" always creates
+
+**4. Prompt Policy Tests (5)**
+- `GivenPromptPolicy_NoActiveInstance_CreateNewNormally` — Normal path
+- `GivenPromptPolicy_ActiveNonTerminalInstance_ReturnPickerEnvelope` — Picker trigger
+- `GivenPromptPolicy_TerminalInstance_CreateNewNormally` — Completed instances don't trigger
+- `GivenPromptPolicy_ActionResume_FindOrCreateViLookupKey` — Resume action behavior
+- `GivenPromptPolicy_ActionStartNew_CreatesNewInstanceAndUpdatesLookupKey` — Start-new action
+
+**5. Cross-Policy Tests (9)**
+- Access control: tenant isolation, user isolation
+- Parameter validation: invalid ID, unknown action
+- Lookup key consistency and state transitions
+- Concurrency safety
+
+### Testing Strategy
+
+- **Pattern:** Arrange-Act-Assert throughout
+- **Coverage:** All three policies, parameter handling, access control, state machines
+- **Security:** Multi-tenant isolation verified
+- **Results:** All 19 passing; zero regression in 493 existing tests
+
+### Decision
+
+See `.squad/decisions.md` — Instance Policy Implementation
+
+---
+
 ## Session: GDS Field Type Test Coverage (2026-04-15)
 
 **Topic:** Add test coverage for new GDS field types in WorkflowFieldValidator
@@ -147,6 +194,39 @@ History trimmed for readability. Complete history in git.
 - Report app routing breaks when dashboard-only elements do not appear
 
 ## Learnings — 2026-04-14 — Restart API call diagnostics
+
+*(rest of entry)*
+
+---
+
+## Learnings — 2026-04-21 — Instance Policy Test Coverage
+
+**Session:** BusinessAppWorkflowEngine.GetCurrent instancePolicy test coverage
+
+**Key Learnings:**
+
+1. **Test-driven seeding strategy:** For testing workflow engine components, create minimal JSON seed files programmatically in `IDisposable` test fixtures rather than relying on filesystem fixtures or complex mocking. This gives test isolation while exercising the real engine loading logic.
+
+2. **Behavioral contract testing:** Instance policy tests validate behavioral contracts (single = resume, multiple = always create new, prompt = ask user) rather than implementation details. Tests confirm:
+   - Policy semantics are correctly enforced
+   - Cross-policy rules (instanceId param always wins) apply universally
+   - Access control (tenant/user isolation) remains intact across policies
+
+3. **Blathers' implementation timing:** Tests were written to the designed API signature (`GetCurrent(workflowKey, tenantId, userId, instanceId?, action?)`). When compiled, Blathers had already completed the implementation, so all 19 tests passed immediately. This validates the parallel-work Squad workflow: Tangy writes to contract, Blathers implements to contract, tests pass on first run.
+
+4. **Test suite health:** All 512 tests pass post-changes, confirming no regressions from:
+   - Adding MockBusinessApp project reference to test csproj
+   - Creating new WorkflowEngine/ test directory
+   - 19 new instancePolicy test cases
+
+**Coverage Summary:**
+- **"single" policy (regression):** 4 tests (create, resume same user, different user, different tenant)
+- **"multiple" policy:** 5 tests (create, always create new on subsequent calls, resume by instanceId)
+- **"prompt" policy:** 5 tests (create, instance_picker state, resume action, start-new action, post-completion behavior)
+- **Cross-policy instanceId precedence:** 5 tests (resume on all policies, access denied cases, not found case)
+
+**Total:** 19 test cases covering all three policies plus cross-cutting access control and instance resolution.
+
 
 - Enhanced callBusinessAppApi helper with detailed error diagnostics to expose the actual API response when the 200 OK assertion fails.
 - The failing test 'signed-in member can still call the mock business app API after the whole stack restarts' now shows clear failure mode: **401 Request Failed** with message **Your Prism session is no longer valid. Sign in again, then retry the call.**

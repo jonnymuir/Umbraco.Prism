@@ -19,4 +19,5 @@ public class WorkflowInstanceSummary
     public bool CanContinue { get; init; }
     public bool IsCompleted { get; init; }
     public string? WorkflowPageUrl { get; init; }
+    public string InstancePolicy { get; init; } = "single";
 }

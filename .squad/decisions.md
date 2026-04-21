@@ -2,6 +2,51 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
+## 📌 2026-04-21: Blathers & Tangy — Instance Policy Implementation
+
+**Decision:** Implement full support for all three `instancePolicy` values in the workflow engine: `"single"`, `"multiple"`, and `"prompt"`.
+
+**Why:** The workflow definition schema had three policy options, and the view layer (workflowPage.cshtml and _WorkflowHub-InstancePicker.cshtml) plus ViewModel (PrismWorkflowViewModel.ShowInstancePicker) were already correctly built. Implementation required connecting the backend logic to support all three policies end-to-end.
+
+**Policy Semantics:**
+
+| Policy | Behavior |
+|--------|----------|
+| `"single"` | One active instance per user/workflow. Always find-or-create via lookup key. (Existing behavior — unchanged) |
+| `"multiple"` | Every visit starts a fresh instance. `GET /workflow-page` creates new. `GET /workflow-page?instanceId=xxx` resumes a specific instance. |
+| `"prompt"` | If active (non-terminal) instance exists → return `ResponseState = "instance_picker"` so controller shows picker partial. User chooses `?action=resume` or `?action=start-new`. No active instance → create new normally. |
+
+**Changes Made:**
+
+1. **BusinessAppWorkflowEngine.GetCurrent** — Updated signature to accept optional `instanceId` and `action` parameters. Implemented logic for all three policies.
+2. **Program.cs API Endpoint** — `/api/workflow/{key}/current` now accepts optional JSON body with `instanceId` and `action` fields.
+3. **IBusinessAppWorkflowClient & BusinessAppWorkflowClient** — Updated `GetCurrentAsync` signature to accept optional `instanceId` and `action`. Client sends JSON body only if parameters provided.
+4. **PrismWorkflowPageController.HandleGet** — Reads `?instanceId` and `?action` query parameters, passes to `GetCurrentAsync`. Handles `instance_picker` response by setting `vm.ShowInstancePicker = true`.
+5. **WorkflowHubController.ResolveWorkflowPageUrl** — Appends `?instanceId={id}` to resume URLs for non-completed instances.
+6. **WorkflowInstanceSummary** — Added `InstancePolicy` property (populated by `GetInstances` from definition).
+
+**Implications:**
+
+- All three policies now fully functional end-to-end
+- Backward compatible: `"single"` policy unchanged; JSON body optional for API calls
+- Multi-tenant security: explicit tenant+user validation on `instanceId` parameter
+- Terminal states: prompt policy treats completed instances as "no active" scenario
+- Parameter precedence: `instanceId` takes precedence; `action` only applies when no `instanceId` given
+
+**Testing:**
+
+- 19 new instance policy tests (all passing)
+- 512 total Core tests passing (no regression)
+- Coverage: all three policies, parameter handling, access control, state transitions
+
+**Session Log:** `.squad/log/20260421-214138-instance-policy.md`
+
+**Orchestration Logs:**
+- `.squad/orchestration-log/20260421-214138-blathers.md`
+- `.squad/orchestration-log/20260421-214138-tangy.md`
+
+---
+
 ## 📌 2026-04-14: Blathers — CI workflow manual auth rerun + Linux cert trust wiring
 
 **Decision:** Keep `.github/workflows/ci-tests.yml` as the single CI workflow, add top-level `workflow_dispatch:` for manual runs, and fix Ubuntu localhost-auth certificate bootstrap by persisting `SSL_CERT_DIR` before `dotnet dev-certs https --trust`.

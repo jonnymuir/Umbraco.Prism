@@ -10,6 +10,58 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: Instance Policy Implementation (2026-04-21)
+
+**Topic:** Implement full support for `instancePolicy` single/multiple/prompt in workflow engine
+
+**Outcome:** ✅ Complete — 512 tests pass (19 new), committed, decision merged
+
+### Delivered
+
+**1. BusinessAppWorkflowEngine.GetCurrent**
+- Updated method signature to accept optional `instanceId` and `action` parameters
+- Implemented full logic for all three policies:
+  - `"single"`: existing find-or-create (unchanged)
+  - `"multiple"`: always create new instance
+  - `"prompt"`: check for active instance; return picker envelope if found
+- Added access control validation (tenant/user ownership)
+- Terminal state handling for prompt policy
+
+**2. Program.cs API Endpoint**
+- `/api/workflow/{key}/current` now accepts optional JSON body
+- Added `WorkflowCurrentApiRequest` record type
+- Both `instanceId` and `action` optional fields
+
+**3. IBusinessAppWorkflowClient & BusinessAppWorkflowClient**
+- Updated `GetCurrentAsync` signature with optional parameters
+- Client sends JSON body only when parameters provided
+- Maintains backward compatibility
+
+**4. PrismWorkflowPageController.HandleGet**
+- Reads `?instanceId` and `?action` query parameters
+- Passes to `GetCurrentAsync` method
+- Handles `instance_picker` response by setting `vm.ShowInstancePicker = true`
+- Skips nonce creation for picker screen
+
+**5. WorkflowHubController.ResolveWorkflowPageUrl**
+- Appends `?instanceId={id}` to resume URLs for non-completed instances
+- Ensures direct navigation to correct instance
+
+**6. WorkflowInstanceSummary**
+- Added `InstancePolicy` property (populated by `GetInstances` from definition)
+
+### Testing
+
+- **New Tests:** 19 instance policy tests covering all three policies
+- **Total Tests:** 512 passing (no regression)
+- **Coverage:** instanceId parameter precedence, action handling, access control, terminal states
+
+### Decision
+
+See `.squad/decisions.md` — Instance Policy Implementation
+
+---
+
 ## Session: Compound Content Field Types (2026-04-21)
 
 **Topic:** Extend PrismFieldTagHelper to render GDS content components inline in field groups
@@ -920,4 +972,57 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - Workflow definition types moved to Shared namespace
 
 **Reference:** `.squad/orchestration-log/2026-04-21T20:58:11Z-blathers.md`, `.squad/decisions.md` (Workflow Developer Experience Improvements)
+
+
+---
+
+## Session: Instance Policy Implementation (2026-04-21)
+
+**Topic:** Implement all three instancePolicy values end-to-end
+
+**Outcome:** ✅ Complete — 493 tests pass (19 instance policy tests), committed
+
+### Delivered
+
+**1. BusinessAppWorkflowEngine.GetCurrent**
+- Updated signature: added optional `instanceId` and `action` parameters
+- Implemented logic for all three policies:
+  - `"single"` — find-or-create via lookup key (existing behavior preserved)
+  - `"multiple"` — always create new instance (no reuse)
+  - `"prompt"` — return `instance_picker` if active instance exists; else create new
+- instanceId parameter takes precedence (resume specific instance with access control)
+- action parameter: "start-new" creates new, "resume" finds existing
+
+**2. API Integration**
+- Updated `/api/workflow/{key}/current` endpoint to accept optional JSON body with `instanceId` and `action`
+- Added `WorkflowCurrentApiRequest` record type
+- Updated `IBusinessAppWorkflowClient` and `BusinessAppWorkflowClient` to pass parameters
+
+**3. Controller Integration**
+- `PrismWorkflowPageController.HandleGet` reads query params (`?instanceId=xxx`, `?action=start-new`)
+- Handles `instance_picker` response state (sets `ShowInstancePicker = true`, skips nonce)
+- `WorkflowHubController.ResolveWorkflowPageUrl` appends `?instanceId={id}` for non-completed instances
+
+**4. Model Updates**
+- Added `InstancePolicy` property to `WorkflowInstanceSummary` (populated from definition)
+- Updated `GetInstances` to include policy in summaries
+
+**5. View Layer**
+- No changes required — views already correct (workflowPage.cshtml, _WorkflowHub-InstancePicker.cshtml)
+- ViewModel `ShowInstancePicker` property already existed
+
+### Technical Notes
+
+- Terminal state detection: checks if current state's `StepType == "confirmation"`
+- Access control: validates tenant+user ownership when resuming by instanceId
+- No changes to Reset method or lookup key cleanup logic
+- All 19 existing instance policy tests pass (comprehensive coverage)
+
+### Learnings
+
+- View scaffolding was already complete — implementation was pure backend integration
+- Policy precedence: `instanceId` param → `action` param → policy logic
+- "prompt" policy requires special envelope shape: `ResponseState = "instance_picker"` with minimal Render payload
+- Hub resume links must include instanceId for all policies to support direct navigation
+- "multiple" policy never writes to `_instanceLookup` (instances are truly independent)
 

@@ -78,7 +78,15 @@ public class WorkflowHubController : RenderController
     private string ResolveWorkflowPageUrl(WorkflowInstanceSummary summary)
     {
         if (!string.IsNullOrWhiteSpace(summary.WorkflowPageUrl) && Url.IsLocalUrl(summary.WorkflowPageUrl))
+        {
+            // Append instanceId for non-completed instances
+            if (!summary.IsCompleted && !string.IsNullOrWhiteSpace(summary.InstanceId))
+            {
+                var separator = summary.WorkflowPageUrl.Contains('?') ? "&" : "?";
+                return $"{summary.WorkflowPageUrl}{separator}instanceId={Uri.EscapeDataString(summary.InstanceId)}";
+            }
             return summary.WorkflowPageUrl;
+        }
 
         if (string.IsNullOrWhiteSpace(summary.WorkflowKey))
             return CurrentPage?.Url() ?? "/";
@@ -91,7 +99,15 @@ public class WorkflowHubController : RenderController
                 && string.Equals(content.Value<string>("workflowKey"), summary.WorkflowKey, StringComparison.OrdinalIgnoreCase));
 
         if (workflowPage != null)
-            return workflowPage.Url();
+        {
+            var baseUrl = workflowPage.Url();
+            // Append instanceId for non-completed instances
+            if (!summary.IsCompleted && !string.IsNullOrWhiteSpace(summary.InstanceId))
+            {
+                return $"{baseUrl}?instanceId={Uri.EscapeDataString(summary.InstanceId)}";
+            }
+            return baseUrl;
+        }
 
         _logger.LogWarning(
             "Workflow hub could not resolve a content-driven URL for workflow key {WorkflowKey}; defaulting to the hub page",

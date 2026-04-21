@@ -32,16 +32,28 @@ public class BusinessAppWorkflowClient(
     /// <inheritdoc/>
     public async Task<WorkflowResponseEnvelope> GetCurrentAsync(
         string workflowKey,
+        string? instanceId = null,
+        string? action = null,
         CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/api/workflow/{workflowKey}/current";
 
-        logger.LogDebug("BusinessAppWorkflowClient: GET current {WorkflowKey}", workflowKey);
+        logger.LogDebug("BusinessAppWorkflowClient: GET current {WorkflowKey} instanceId={InstanceId} action={Action}", 
+            workflowKey, instanceId ?? "(none)", action ?? "(none)");
 
         try
         {
             var response = await SendWithTokenRefreshRetryAsync(
-                client => client.PostAsync(url, null, cancellationToken),
+                client =>
+                {
+                    // Send JSON body only if instanceId or action are provided
+                    if (!string.IsNullOrEmpty(instanceId) || !string.IsNullOrEmpty(action))
+                    {
+                        var payload = new { InstanceId = instanceId, Action = action };
+                        return client.PostAsJsonAsync(url, payload, cancellationToken);
+                    }
+                    return client.PostAsync(url, null, cancellationToken);
+                },
                 allowRefreshRetry: true,
                 cancellationToken);
             return await ReadEnvelopeAsync(response, cancellationToken);
