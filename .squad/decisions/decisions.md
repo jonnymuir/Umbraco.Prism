@@ -1084,3 +1084,33 @@ The walkthrough is organized as three distinct parts, allowing users to read at 
   - Umbraco backoffice UI changes significantly
 - Version it in git alongside code changes; don't let docs drift
 
+---
+
+## Decision: Extend PrismFieldTagHelper with Content Field Types
+
+**Date:** 2026-04-22  
+**Author:** Blathers (Backend Developer)
+
+### Decision
+
+`PrismFieldTagHelper` is extended with four non-input GDS content component field types (`inset-text`, `warning-text`, `details`, `notification-banner`). These are declared directly in field group JSON alongside form fields — no new Razor partials or tag helpers are needed.
+
+### Context
+
+The existing `PrismFieldTagHelper` handled all form input rendering. There was no mechanism to inject GDS content components (callout boxes, expandable details, warning banners) inline within a field group. Without this, authors had to use separate Razor partials or bespoke views, breaking the self-contained field group model.
+
+### Why This Approach
+
+- **Single rendering surface**: All field-group content flows through one tag helper. Authors define layout entirely in JSON.
+- **Zero view changes**: No Razor partial changes required in TestSite or MockBusinessApp views.
+- **GDS fidelity**: HTML output matches the GOV.UK Design System component markup exactly.
+- **Validation safety**: Content types are excluded from field validation by type string check — no new model properties needed.
+
+### Implications
+
+- A `Content` string? property is added to `FieldRenderPayload` (Shared) and `FieldFile` (MockBusinessApp). Other consumers of these models may receive a null `Content` property harmlessly.
+- Content field types that have null/empty `Content` render nothing — fail-safe behaviour.
+- The validator skips content field types entirely: they contribute no user-submitted value and are never treated as required.
+- The existing `govuk-form-group` wrapper is bypassed via early-return before the outer `<div>` is added.
+- `details` uses `Label` as the summary text (fallback: "More information"). `notification-banner` uses `Label` as the title (fallback: "Important").
+

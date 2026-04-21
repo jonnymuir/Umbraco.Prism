@@ -10,6 +10,50 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: Compound Content Field Types (2026-04-21)
+
+**Topic:** Extend PrismFieldTagHelper to render GDS content components inline in field groups
+
+**Outcome:** ✅ Complete — 431 tests pass (15 new), committed, decision merged
+
+### Delivered
+
+**1. PrismFieldTagHelper Extensions**
+- Added rendering for four GDS content field types:
+  - `inset-text` — `<div class="govuk-inset-text">` with content
+  - `warning-text` — `<div class="govuk-warning-text">` with icon
+  - `details` — `<details class="govuk-details">` with Label as summary
+  - `notification-banner` — `<div class="govuk-notification-banner">` with title/content
+- Content types bypass govuk-form-group wrapper entirely (early-return pattern)
+- Null content renders safely as nothing
+
+**2. Model Updates**
+- Added `Content` property (string?) to `FieldRenderPayload` (Shared) and `FieldFile` (MockBusinessApp)
+- Non-breaking: optional property, null-safe on all consumers
+
+**3. Validator Exclusion**
+- WorkflowFieldValidator skips content types — no validation errors
+- Content types contribute no user-submitted value, never treated as required
+- String match on type name prevents new model properties
+
+**4. Demo & Seeds**
+- Updated `community-enquiry-v1.json` to include all four content types
+- Demonstrates mixed input/content field group workflows
+
+**5. Tests**
+- 431 total tests passing (15 new tests added)
+- Coverage: HTML structure, accessibility attributes, fallback text behavior
+- All variants and edge cases verified
+
+### Technical Notes
+
+- No Razor view changes required in TestSite or MockBusinessApp
+- GDS fidelity: HTML output matches GOV.UK Design System specs exactly
+- Zero dependencies added
+- Backward compatible: existing field groups unaffected
+
+---
+
 ## Session: GDS Workflow Models Evolution (2026-04-20)
 
 **Topic:** Evolve C# models and Business App engine for full GDS step descriptor protocol
