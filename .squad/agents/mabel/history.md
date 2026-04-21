@@ -265,3 +265,92 @@ Added contextual link from quick-start to README walkthrough for users who want 
 - ✅ End-to-end workflow path tested for accuracy
 
 **Key Insight:** Breaking onboarding into three depth levels (quick start, guided walkthrough, deep dive) meets users where they are — some want to run fast, others want to understand the architecture first. Users can choose their own journey.
+
+---
+
+## 2026-04-20: Workflow Documentation Rewrite — Step Type Terminology & GDS Guide
+
+**Session:** Workflow documentation standardization and GDS component reference creation
+
+**Task:** Rewrite workflow documentation to standardize on "step type" terminology (replacing legacy "archetype" design term) and create comprehensive GDS Design System component guide for step developers.
+
+### Delivered
+
+1. **workflow-customisation.md — Terminology Fix + GDS Section**
+   - Fixed all "archetype" → "step type" references throughout
+   - Fixed JSON example to use `"stepType": "Documents"` (not `"archetype"`)
+   - Added major new section: "GDS Design System Components"
+     - How govuk-frontend 5.9.0 is bundled automatically (MSBuild → npm ci → asset copy → Master.cshtml)
+     - All 38 available GDS components listed
+     - CSS-only vs JS-enhanced component usage patterns
+     - Real code examples (tabs, accordion, character-count with `data-module`)
+     - Examples from existing production step partials (Question, Review, Completion)
+     - Form field best practices (always use `govuk-form-group`, proper `aria-describedby` associations)
+     - Accessibility reminders (hint associations, error handling, keyboard nav, screen readers)
+     - Link to official GDS docs + forward-reference to new dedicated guide
+
+2. **workflow-setup.md — Terminology Fix**
+   - Fixed all JSON examples: `"archetype"` → `"stepType"`
+   - Renamed section: "Archetype Reference" → "Step Type Reference"
+   - Updated state properties table to reflect `stepType` field
+   - Updated troubleshooting table: `_WorkflowStep-{Archetype}.cshtml` → `_WorkflowStep-{StepType}.cshtml`
+   - Updated expected flow section: "archetype" → "step type"
+
+3. **workflow-gds-components.md — NEW Dedicated GDS Reference Guide**
+   - **Purpose:** Complete component catalogue for workflow step developers
+   - **Structure:** 
+     - How GDS is bundled (detailed explanation)
+     - How to verify GDS is loaded (DevTools checks)
+     - Component catalogue organized by category:
+       - **Form elements** (10 components): button, input, textarea, character-count, radios, checkboxes, date-input, select, file-upload, password-input
+       - **Content components** (7 components): summary-list, panel, inset-text, warning-text, notification-banner, tag, details, accordion, tabs, table
+       - **Error handling** (2 components): error-summary, error-message
+       - **Navigation** (2 components): back-link, breadcrumbs
+     - Each component includes:
+       - Purpose statement
+       - CSS classes list
+       - Whether JS is required (+ `data-module` pattern)
+       - Complete Razor code example
+       - Link to official GDS docs
+   - **Real-world examples:** 20+ copy-paste-ready code snippets
+   - **Best practices section:** Form field associations, required fields, keyboard navigation, screen reader testing
+   - **Cross-references:** Links back to customisation guide and setup guide
+
+### Key Learnings
+
+- **Terminology matters:** "Archetype" was the old design term; "step type" is the implementation term that matches the JSON field `stepType`. User-facing docs must match the code.
+- **Partial naming convention:** `_WorkflowStep-{StepTypeName}.cshtml` — the dispatcher resolves partials by step type name, not by a separate archetype concept.
+- **GDS is already there:** Developers don't need to install or configure GDS—it's bundled automatically via MSBuild. This is a huge time-saver and should be prominently documented.
+- **CSS-only vs JS components:** CSS-only components just need the class; JS components need `data-module="govuk-{component}"` + the JS is already initialized via `GOVUKFrontend.initAll()` in Master.cshtml.
+- **Accessibility is built in:** GDS components follow WCAG 2.2 AA by default. The key is to maintain the structure (proper `aria-describedby` associations, semantic markup).
+- **Reference vs tutorial:** The customisation guide introduces GDS in context; the dedicated guide is a reference for developers actively building step partials.
+
+### Style Decisions
+
+- **Mermaid for all diagrams:** No ASCII art (per charter)
+- **Code examples must be accurate:** Used actual GDS class names from govuk-frontend 5.9.0
+- **Plain English, developer-focused:** Active voice, present tense, concrete examples
+- **Organized by use case:** Form elements → content → errors → navigation (not alphabetical)
+- **Each component example is copy-paste-ready:** Full Razor markup with proper attributes
+
+### Outputs
+
+- Updated `/docs/guides/workflow-customisation.md` (terminology fix + GDS section, 1300+ lines now)
+- Updated `/docs/guides/workflow-setup.md` (terminology fix, 600+ lines)
+- Created `/docs/guides/workflow-gds-components.md` (NEW, 1000+ lines of GDS reference)
+- Decision record: `.squad/decisions/inbox/mabel-workflow-docs-steptype.md`
+- Commit: `dae38b4` — "docs: rewrite workflow docs — stepType terminology, GDS component guide"
+
+### Pattern for Future Doc Updates
+
+When fixing terminology drift:
+1. **Grep first:** Find all occurrences of the old term across all docs
+2. **Check JSON examples:** Ensure JSON keys match implementation (not design docs)
+3. **Update error messages and troubleshooting:** User-facing errors should use the correct term
+4. **Cross-reference new terms:** If introducing a replacement term, define it in context and link related docs
+
+When documenting bundled dependencies:
+1. **Lead with "it's already there":** Don't bury the lede—tell developers they don't need to install
+2. **Explain the mechanism:** Show how the build process wires it up (MSBuild target, asset copying, etc.)
+3. **Show verification steps:** Give developers a way to confirm it's working (DevTools checks)
+4. **Provide complete examples:** Every code snippet should be copy-paste-ready
