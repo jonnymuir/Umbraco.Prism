@@ -147,6 +147,57 @@ app.MapDelete("/api/test/reset", (BusinessAppWorkflowEngine engine, ILogger<Prog
     return Results.Ok(new { cleared = true });
 });
 
+// ── Debug / diagnostics (Development only, no auth) ─────────────────────────
+// curl https://localhost:7245/debug/auth  (or http://localhost:5163/debug/auth)
+app.MapGet("/debug/auth", (IConfiguration config) =>
+{
+    if (!app.Environment.IsDevelopment()) return Results.NotFound();
+
+    var tenants = config.GetSection("PrismBusinessApp:Tenants")
+        .GetChildren()
+        .Select(t => new
+        {
+            Code             = t["Code"],
+            OidcAuthority    = t["OidcAuthority"],
+            EntraTenantId    = t["EntraTenantId"],
+            ClientId         = t["ClientId"],
+        }).ToList();
+
+    var backchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+    var codespaceName  = Environment.GetEnvironmentVariable("CODESPACE_NAME");
+
+    // Probe the backchannel metadata endpoint so we know if it's reachable
+    string? backchannelProbe = null;
+    if (!string.IsNullOrEmpty(backchannelUrl))
+    {
+        try
+        {
+            var oidcPath = tenants.FirstOrDefault(t => !string.IsNullOrWhiteSpace(t.OidcAuthority))
+                ?.OidcAuthority;
+            if (oidcPath != null)
+            {
+                var metaUrl = $"{backchannelUrl.TrimEnd('/')}{new Uri(oidcPath).AbsolutePath}/.well-known/openid-configuration";
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                var resp = http.GetAsync(metaUrl).GetAwaiter().GetResult();
+                backchannelProbe = $"{(int)resp.StatusCode} {resp.StatusCode} — {metaUrl}";
+            }
+        }
+        catch (Exception ex)
+        {
+            backchannelProbe = $"ERROR: {ex.Message}";
+        }
+    }
+
+    return Results.Ok(new
+    {
+        environment       = app.Environment.EnvironmentName,
+        codespaceName     = codespaceName ?? "(not set)",
+        backchannelUrl    = backchannelUrl ?? "(not set)",
+        backchannelProbe,
+        tenants,
+    });
+});
+
 // ── Admin UI (no auth — local dev only) ─────────────────────────────────────
 
 app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
