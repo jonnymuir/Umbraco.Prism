@@ -26,7 +26,44 @@ public static class PrismAuthExtensions
                 {
                     OnAuthenticationFailed = context =>
                     {
-                        Console.WriteLine($"PRISM AUTH FAILED: {context.Exception.Message}");
+                        // Decode token header only (no signature validation) for diagnostic output.
+                        string? tokenIssuer = null;
+                        string? tokenAzp = null;
+                        var rawToken = context.Request.Headers.Authorization.FirstOrDefault()
+                            ?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
+                            ? context.Request.Headers.Authorization.First()["Bearer ".Length..]
+                            : null;
+                        if (!string.IsNullOrEmpty(rawToken))
+                        {
+                            try
+                            {
+                                var parts = rawToken.Split('.');
+                                if (parts.Length >= 2)
+                                {
+                                    var pad = (4 - parts[1].Length % 4) % 4;
+                                    var payloadJson = System.Text.Encoding.UTF8.GetString(
+                                        Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/') + new string('=', pad)));
+                                    using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
+                                    doc.RootElement.TryGetProperty("iss", out var issProp);
+                                    doc.RootElement.TryGetProperty("azp", out var azpProp);
+                                    tokenIssuer = issProp.ValueKind == System.Text.Json.JsonValueKind.String ? issProp.GetString() : null;
+                                    tokenAzp = azpProp.ValueKind == System.Text.Json.JsonValueKind.String ? azpProp.GetString() : null;
+                                }
+                            }
+                            catch { /* best-effort only */ }
+                        }
+
+                        var tenants = config.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>();
+                        var configuredAuthorities = tenants?
+                            .Where(t => !string.IsNullOrWhiteSpace(t.OidcAuthority))
+                            .Select(t => t.OidcAuthority!) ?? [];
+                        var backchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+
+                        Console.WriteLine($"[PRISM AUTH FAILED] {context.Exception.GetType().Name}: {context.Exception.Message}");
+                        Console.WriteLine($"  token.iss : {tokenIssuer ?? "(none/unparseable)"}");
+                        Console.WriteLine($"  token.azp : {tokenAzp ?? "(none)"}");
+                        Console.WriteLine($"  configured OidcAuthorities : {(configuredAuthorities.Any() ? string.Join(", ", configuredAuthorities) : "(none)")}");
+                        Console.WriteLine($"  KEYCLOAK_BACKCHANNEL_URL : {backchannelUrl ?? "(not set)"}");
                         return Task.CompletedTask;
                     }
                 };
