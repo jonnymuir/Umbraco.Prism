@@ -1,0 +1,46 @@
+@model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
+@{
+    var accordionId = $"accordion-{Guid.NewGuid():N}";
+    var accordionSections = Model.Component.AccordionSections;
+}
+
+@if (accordionSections is not null && accordionSections.Any())
+{
+    <div class="govuk-accordion" data-module="govuk-accordion" id="@accordionId">
+        @for (var i = 0; i < accordionSections.Count; i++)
+        {
+            var accordionSection = accordionSections[i];
+            var sectionId = $"{accordionId}-section-{i + 1}";
+            <div class="govuk-accordion__section">
+                <div class="govuk-accordion__section-header">
+                    <h2 class="govuk-accordion__section-heading">
+                        <span class="govuk-accordion__section-button" id="@sectionId-heading">
+                            @accordionSection.Heading
+                        </span>
+                    </h2>
+                    @if (!string.IsNullOrEmpty(accordionSection.Summary))
+                    {
+                        <div class="govuk-accordion__section-summary govuk-body" id="@sectionId-summary">
+                            @accordionSection.Summary
+                        </div>
+                    }
+                </div>
+                <div id="@sectionId-content"
+                     class="govuk-accordion__section-content"
+                     aria-labelledby="@sectionId-heading">
+                    @if (accordionSection.Fields is { Count: > 0 })
+                    {
+                        @foreach (var field in accordionSection.Fields)
+                        {
+                            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" />
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(accordionSection.Content))
+                    {
+                        @Html.Raw(accordionSection.Content)
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}

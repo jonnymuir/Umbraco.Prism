@@ -1,6 +1,7 @@
-﻿@using UmbracoPrism.TestSite.Models
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WorkflowViewModel>
+@using UmbracoPrism.Core.Models.Workflow
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<UmbracoPrism.Core.Models.Workflow.PrismWorkflowViewModel>
 @inject Microsoft.AspNetCore.Mvc.ViewEngines.ICompositeViewEngine _viewEngine
+@addTagHelper *, UmbracoPrism.Core
 @{
     Layout = "~/Views/Shared/Master.cshtml";
     ViewBag.Title = Model.HasError ? "Workflow Error" : Model.StateDisplayName;
@@ -40,6 +41,7 @@
             "check-answers" or "review" => "_WorkflowStep-Review",
             "confirmation" or "completion" => "_WorkflowStep-Completion",
             "status-timeline" or "statustimeline" => "_WorkflowStep-StatusTimeline",
+            "task-list" or "tasklist" => "_WorkflowStep-TaskList",
             "waiting" => "_WorkflowStep-Waiting",
             _ => $"_WorkflowStep-{Model.StepType}"
         };

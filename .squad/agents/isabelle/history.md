@@ -221,3 +221,27 @@ Production deployments are now safe from:
 - **Blathers:** Provided StepType models and field extensions
 - **Tangy:** Validated with 416 tests
 - **Scribe:** Merged decisions, orchestrated git commit
+
+## Session: 2026-04-22 — PrismComponent Tag Helper + Component Partials
+
+**Role:** Frontend developer; Razor/GDS component system migration from FieldGroupKeys/FormSection to PrismComponentRenderPayload.
+
+**Outcomes:**
+- Created `PrismComponentContext` record (Core/Models/Workflow/) — pre-computed view model for component partials
+- Created `PrismComponentTagHelper` — mirrors PrismFieldTagHelper pattern; dispatches to `~/Views/Partials/PrismComponents/_PrismComponent-{TypeName}.cshtml`; kebab-to-PascalCase normalisation for type names; falls back to `_PrismComponent-Default.cshtml`
+- Created all 13 component partials in `src/UmbracoPrism.Core/Views/Partials/PrismComponents/` covering: Fieldset, SummaryList, Panel, NotificationBanner, InsetText, WarningText, Details, Body, Heading, TaskList, Accordion, Default, plus `_ViewImports.cshtml`
+- Moved all 8 step partials from TestSite to Core: _WorkflowStep-Question/Review/Completion/StatusTimeline/TaskList/Waiting + _WorkflowHub-InstanceList/InstancePicker — updated @model to PrismWorkflowViewModel; replaced FieldGroups loops with Components + <prism-component>
+- Created Core generic top-level views: `workflowPage.cshtml` (PrismWorkflowViewModel) and `workflowHub.cshtml` (WorkflowHubViewModel, no TestSiteSeedContract dependency)
+- Updated Core.csproj embedded resources to include PrismComponents partials, step partials, hub partials, and top-level views
+- Renamed PrismFieldPartialsComposer → PrismPartialsComposer; updated EmbeddedFileProvider reference accordingly
+- Removed `FieldGroups` compat shim from PrismWorkflowViewModel
+- Deleted TestSite copies of all 8 moved partials and both top-level views
+- Build clean; 539 tests passing (no regression)
+
+**Key Learnings:**
+- Razor treats `section` as a keyword even as a loop variable inside `@foreach`/`@for` blocks — rename to `taskSection`, `accordionSection` etc. to avoid RZ1011/RZ2005 parse errors
+- `PrismPartialsComposer` registers `EmbeddedFileProvider` for the whole assembly root ("UmbracoPrism.Core") — new paths like `Views/Partials/PrismComponents/` and `Views/Partials/_WorkflowStep-*.cshtml` are automatically served once embedded in the csproj, no per-directory registration needed
+- ASP.NET Core Razor runtime accepts a subclass model (e.g. `WorkflowViewModel : PrismWorkflowViewModel`) against a view typed for the base class — TestSite controllers that provide `WorkflowViewModel` work correctly with the Core embedded `workflowPage.cshtml` typed for `PrismWorkflowViewModel`
+- GDS accordion requires a unique `id` attribute on the root div; use `Guid.NewGuid():N` to generate stable-per-render IDs within the partial
+
+**Status:** ✅ Complete; all component partials in Core, step partials migrated, FieldGroups shim removed, build and 539 tests green.

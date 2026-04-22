@@ -1,0 +1,33 @@
+@model UmbracoPrism.Core.Models.Workflow.PrismWorkflowViewModel
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+
+        @foreach (var component in Model.Components)
+        {
+            <prism-component component="@component"
+                             errors="@Model.FieldErrors"
+                             values="@Model.FormValues"
+                             return-url="@Model.ReturnUrl"
+                             instance-id="@Model.InstanceId"
+                             state-version="@Model.StateVersion"
+                             workflow-key="@Model.WorkflowKey"
+                             nonce="@Model.Nonce" />
+        }
+
+        @if (Model.AvailableActions.Any())
+        {
+            <div class="govuk-button-group">
+                @foreach (var action in Model.AvailableActions)
+                {
+                    <a href="/" class="govuk-button govuk-button--secondary" data-module="govuk-button">@action.Label</a>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="govuk-body"><a href="/" class="govuk-link">Return to home</a></p>
+        }
+
+    </div>
+</div>

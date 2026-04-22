@@ -118,9 +118,4 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
             .SelectMany(c => c.Fields ?? Array.Empty<FieldRenderPayload>())
             .ToList();
 
-    /// <summary>
-    /// Compatibility accessor that maps <see cref="Components"/> to a flat enumerable.
-    /// Views should migrate to iterate over <see cref="Components"/> directly.
-    /// </summary>
-    public IReadOnlyList<PrismComponentRenderPayload> FieldGroups => Components;
 }

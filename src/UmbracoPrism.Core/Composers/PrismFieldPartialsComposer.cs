@@ -8,21 +8,24 @@ using Umbraco.Cms.Core.DependencyInjection;
 namespace UmbracoPrism.Core.Composers;
 
 /// <summary>
-/// Registers the embedded GDS field partials from UmbracoPrism.Core so that
-/// the <c>&lt;prism-field&gt;</c> tag helper works out of the box after package install.
+/// Registers the embedded GDS partials from UmbracoPrism.Core so that the
+/// <c>&lt;prism-field&gt;</c> and <c>&lt;prism-component&gt;</c> tag helpers work out of the box after package install.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Partials are embedded in the Core assembly at
-/// <c>Views/Partials/PrismFields/_PrismField-{Type}.cshtml</c>.
+/// Partials are embedded in the Core assembly at:
+/// <c>Views/Partials/PrismFields/_PrismField-{Type}.cshtml</c>
+/// <c>Views/Partials/PrismComponents/_PrismComponent-{Type}.cshtml</c>
+/// <c>Views/Partials/_WorkflowStep-{StepType}.cshtml</c>
+/// <c>Views/Partials/_WorkflowHub-{Type}.cshtml</c>
 /// </para>
 /// <para>
 /// Physical files in the consuming project always take precedence — override any
 /// built-in partial by placing your own file at the same path in your
-/// <c>Views/Partials/PrismFields/</c> folder.
+/// <c>Views/Partials/</c> folder.
 /// </para>
 /// </remarks>
-public class PrismFieldPartialsComposer : IComposer
+public class PrismPartialsComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
@@ -31,7 +34,7 @@ public class PrismFieldPartialsComposer : IComposer
 }
 
 /// <summary>
-/// Startup filter that injects the embedded PrismFields partials into the
+/// Startup filter that injects the embedded Prism partials into the
 /// <see cref="Microsoft.AspNetCore.Hosting.IWebHostEnvironment.ContentRootFileProvider"/>
 /// so Razor can locate them at runtime.
 /// Physical files in the consuming project's Views/ folder are checked first
@@ -45,7 +48,7 @@ internal sealed class PrismEmbeddedViewsStartupFilter : IStartupFilter
         {
             var env = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
             var embedded = new EmbeddedFileProvider(
-                typeof(PrismFieldPartialsComposer).Assembly,
+                typeof(PrismPartialsComposer).Assembly,
                 "UmbracoPrism.Core");
 
             // Physical content root wins; embedded resources are the fallback.

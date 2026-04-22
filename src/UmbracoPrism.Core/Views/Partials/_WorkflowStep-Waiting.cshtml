@@ -1,4 +1,4 @@
-@model UmbracoPrism.TestSite.Models.WorkflowViewModel
+@model UmbracoPrism.Core.Models.Workflow.PrismWorkflowViewModel
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
@@ -74,7 +74,7 @@
     (function() {
         var el = document.getElementById('prism-waiting-data');
         if (!el) return;
-        
+
         var workflowKey = el.dataset.workflowKey;
         var instanceId = el.dataset.instanceId;
         var stateVersion = parseInt(el.dataset.stateVersion, 10);
@@ -83,11 +83,11 @@
         var retryCount = 0;
         var maxRetries = 100;
         var pollTimeout;
-        
+
         function updateStatus(msg) {
             if (statusEl) statusEl.textContent = msg;
         }
-        
+
         function poll() {
             if (retryCount >= maxRetries) {
                 updateStatus('Please refresh the page to check for updates.');
@@ -101,9 +101,9 @@
             var url = '/api/prism/workflow/poll?workflowKey=' + encodeURIComponent(workflowKey)
                 + '&instanceId=' + encodeURIComponent(instanceId)
                 + '&knownStateVersion=' + stateVersion;
-            
+
             updateStatus('Checking for updates\u2026');
-            
+
             fetch(url)
                 .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
                 .then(function(data) {
@@ -118,7 +118,7 @@
                     pollTimeout = setTimeout(poll, intervalMs);
                 });
         }
-        
+
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', poll);
         } else {

@@ -1,12 +1,8 @@
-﻿@using UmbracoPrism.Core.Models
-@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WorkflowHubViewModel>
+@using UmbracoPrism.Core.Models
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<UmbracoPrism.Core.Models.WorkflowHubViewModel>
 @{
     Layout = "~/Views/Shared/Master.cshtml";
     var pageTitle = string.IsNullOrWhiteSpace(Model.Name) ? "My Workflows" : Model.Name;
-    var rootContent = Umbraco.ContentAtRoot().ToList();
-    var workflowPageUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.WorkflowKey),
-        TestSiteSeedContract.WorkflowPageUrl);
 }
 
 <div class="prism-workflow-hub">
@@ -34,8 +30,7 @@
     @if (!Model.ActiveInstances.Any() && !Model.CompletedInstances.Any())
     {
         <div class="prism-workflow-hub__empty" role="status">
-            <p class="prism-workflow-hub__empty-text">You don't have any active workflows yet.</p>
-            <a href="@workflowPageUrl" class="prism-button">Submit an enquiry</a>
+            <p class="govuk-body">You don't have any applications yet.</p>
         </div>
     }
 </div>
