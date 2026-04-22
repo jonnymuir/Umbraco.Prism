@@ -15,6 +15,39 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## 2026-04-22: Walkthrough Screenshot Runbook — COMPLETE
+
+**Session:** Give Mabel the concrete operational guidance for real walkthrough screenshots
+
+**Task:** Add explicit instructions for Aspire startup, Playwright MCP screenshot capture, screenshot storage conventions, and the existing live auth/session Playwright lane so documentation work can spin up the whole system, sign in, and navigate to the right places.
+
+### Delivered
+
+1. **Mabel charter updated**
+   - Added walkthrough screenshot ownership to responsibilities
+   - Added a concrete walkthrough capture workflow with:
+     - `dotnet run --project src/UmbracoPrism.AppHost`
+     - `@playwright/mcp` for browser-driven localhost screenshots
+     - exact Playwright test locations and command
+     - screenshot storage standard: `docs/images/walkthroughs/`
+     - relative Markdown linking rule
+
+2. **Reusable skill added**
+   - New skill: `.squad/skills/docs-walkthrough-screenshots/SKILL.md`
+   - Captures the repo-standard screenshot process for future documentation work
+
+3. **Team memory captured**
+   - Screenshot storage and linking convention recorded to the decisions inbox for merge into shared team memory
+
+### Key Learnings
+
+- The real Aspire-backed browser lane is rooted in `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`.
+- The AppHost lifecycle and readiness contract live in `src/UmbracoPrism.Client/tests/support/live-app-host.ts`.
+- Documentation screenshots should come from the live stack, not mockups, when describing walkthrough flows.
+- Walkthrough screenshots belong in `docs/images/walkthroughs/` and should be referenced with relative links in Markdown.
+
+---
+
 ## 2026-04-22: Custom Field Types Documentation — COMPLETE
 
 **Session:** Document the extensible field type architecture
@@ -662,4 +695,3 @@ When documenting bundled dependencies:
 - Defer option improves UX when processing can take longer than expected
 
 **Result:** ✅ Builder API complete, documentation comprehensive, build passes
-

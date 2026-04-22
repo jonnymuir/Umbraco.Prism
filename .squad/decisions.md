@@ -2,6 +2,68 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
+## 📌 2026-04-22: Tom Nook & Blathers — stepType Removal & Component Model Unification
+
+**Decision:** Remove `stepType` from authored workflow JSON. Engine derives runtime `shell` property from component tree structure. Promote `WaitingConfig` from sidecar to first-class component type.
+
+**Context:** Architectural review confirmed that stepType is redundant authoring burden and that validation/error/rendering pipelines are already component-agnostic. All four stepType consumers (nonce skip, response state mapping, partial selection, terminal detection) can be replaced with explicit metadata (`terminal` flag, `responseState` enum).
+
+**Shell Derivation Rules:**
+
+| Condition | Derived shell |
+|---|---|
+| Any component of type `waiting` present | `"waiting"` |
+| All data-carrying components are `summary-list` | `"check-answers"` |
+| Has `panel` component, no fieldset/input components | `"confirmation"` |
+| Has `task-list` component | `"task-list"` |
+| Otherwise (has `fieldset` components with input fields) | `"question"` |
+
+**What Changes:**
+
+- `StepDefinition.StepType` removed from JSON schema and C# record (breaking change; migration required).
+- `StepContent.StepType` renamed to `StepContent.Shell` (or kept with `[JsonPropertyName]` for backward compat).
+- `WaitingConfig` promoted from sidecar to `"waiting"` component type, carrying `message`, `expectedWaitSeconds`, `pollIntervalMs`, `allowDefer`, `deferMessage` inline.
+- `_WorkflowStep-Waiting` partial reads from component instead of `Model.WaitingConfig`.
+- Existing seed files (payment-demo-v1.json, planning-notification-v1.json) migrated: remove `"stepType"`, convert `"waitingConfig"` sidecar to component.
+
+**What Stays Stable:**
+
+- `fieldKey` remains on `FieldFile` inside container components (validation/persistence remain unchanged).
+- GDS error rendering: component-agnostic, field-keyed.
+- Validation pipeline: component-agnostic, field-keyed.
+- Conditional visibility, polling mechanism, storage: unchanged.
+
+**Trade-offs:**
+
+| Pro | Con |
+|---|---|
+| Authors never declare stepType redundantly | New engine inference rules (small but testable) |
+| Component tree is fully self-describing | Silent contradiction becomes runtime inference, not parse error |
+| Removes class of authoring errors | Seed migration required |
+| `waiting` composable with other content | |
+
+**Feasibility Verified:**
+
+- ✅ Validation & error rendering: component-agnostic (field-keyed `WorkflowFieldValidator`, `WorkflowProblem`).
+- ✅ GDS behavior: field-keyed `PrismFieldContext`, transparent to component structure.
+- ✅ Persistence: keyed to `fieldKey`, no changes needed.
+- ⚠️ 4 narrow UI routing dependencies replaceable with explicit metadata.
+
+**Handoff:**
+
+- **Blathers (Backend):** Implement shell derivation, migrate WaitingConfig to component, remove StepType from StepDefinition, migrate seeds.
+- **Tangy (QA):** Test inference rules, validate polling end-to-end.
+- **Isabelle (Frontend):** Update `_WorkflowStep-Waiting` partial to read from component.
+
+**Status:** Approved for implementation.
+
+**Orchestration Logs:**
+- `.squad/orchestration-log/2026-04-22T23:08:36-tom-nook.md`
+- `.squad/orchestration-log/2026-04-22T23:08:36-blathers.md`
+
+**Session Log:** `.squad/log/2026-04-22T23:08:36-component-model-step-type.md`
+
+---
 ## 📌 2026-04-21: Blathers & Tangy — Instance Policy Implementation
 
 **Decision:** Implement full support for all three `instancePolicy` values in the workflow engine: `"single"`, `"multiple"`, and `"prompt"`.

@@ -245,3 +245,7 @@ Production deployments are now safe from:
 - GDS accordion requires a unique `id` attribute on the root div; use `Guid.NewGuid():N` to generate stable-per-render IDs within the partial
 
 **Status:** ✅ Complete; all component partials in Core, step partials migrated, FieldGroups shim removed, build and 539 tests green.
+
+---
+
+**2026-04-22 Cross-Agent Update:** stepType removal architecture approved. Handoff: Update _WorkflowStep-Waiting partial to read WaitingConfig from component rather than Model.WaitingConfig sidecar. WaitingConfig properties (message, expectedWaitSeconds, pollIntervalMs, allowDefer, deferMessage) will be carried inline on the "waiting" component type. See .squad/decisions.md and orchestration-log/2026-04-22T23:08:36-tom-nook.md for full decision context.

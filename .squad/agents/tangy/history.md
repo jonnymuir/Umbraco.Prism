@@ -734,3 +734,7 @@ Nine key decisions documented covering test organization, selector strategy, dat
 **Reference:** `.squad/orchestration-log/2026-04-22T10:15:30Z-tangy.md`
 
 
+
+---
+
+**2026-04-22 Cross-Agent Update:** stepType removal architecture approved. Handoff: Test new shell derivation logic (5 inference rules based on component tree). Validate polling mechanism continues to work end-to-end when WaitingConfig moves from sidecar to component type. See .squad/decisions.md and orchestration-log/2026-04-22T23:08:36-blathers.md for feasibility analysis and test strategy recommendations.

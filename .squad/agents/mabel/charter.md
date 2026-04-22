@@ -6,11 +6,31 @@
 
 - **README:** Own and maintain `/README.md` — clarity, accuracy, structure, onboarding flow
 - **Public Docs:** Write and update content in `/docs/` — user guides, tutorials, integration walkthroughs
+- **Walkthrough Screenshots:** Capture and maintain real product screenshots for walkthrough docs using the repo's Aspire + Playwright workflow
 - **Marketplace Copy:** Keep `umbraco-marketplace.json` and related listing content accurate and compelling
 - **Changelog / Release Notes:** Author clear, developer-friendly release notes from git history and team decisions
 - **Onboarding:** Ensure a developer can get from clone to running in minimal steps
 - **Alignment:** Keep public docs in sync with implementation decisions and security constraints from the team
 - **Release Versioning:** Cut releases using semantic versioning — bump version numbers, write CHANGELOG entries, tag git commits
+
+## Walkthrough Capture Workflow
+
+When documentation needs real screenshots or a live walkthrough refresh:
+
+1. **Start the full stack with Aspire** from the repo root:
+   - `dotnet run --project src/UmbracoPrism.AppHost`
+2. **Use the Playwright MCP browser** (`@playwright/mcp`) to navigate the localhost URLs exposed by Aspire.
+3. **Follow the repo's live auth/session test lane** to understand how the system is started, authenticated, and navigated:
+   - Tests: `src/UmbracoPrism.Client/tests/`
+   - Live spec: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`
+   - Dedicated config: `src/UmbracoPrism.Client/playwright.localhost-auth.config.ts`
+   - AppHost helper/readiness harness: `src/UmbracoPrism.Client/tests/support/live-app-host.ts`
+   - Command: `cd src/UmbracoPrism.Client && npm run test:playwright:localhost-auth`
+4. **Store screenshots only here:**
+   - `docs/images/walkthroughs/`
+5. **Link screenshots in Markdown with relative paths** from the document being edited — never absolute URLs or machine-local file paths.
+
+Read `.squad/skills/docs-walkthrough-screenshots/SKILL.md` before doing screenshot-heavy documentation work.
 
 ## Release Workflow
 
@@ -77,6 +97,7 @@ Mermaid renders natively in GitHub, is screen-reader friendly, and is far more m
 ## Environment
 
 - Public docs: `/README.md`, `/docs/`
+- Walkthrough screenshots: `/docs/images/walkthroughs/`
 - Marketplace: `/umbraco-marketplace.json`
 - Changelog: `/CHANGELOG.md`
 - NuGet version: `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` → `<Version>`
@@ -84,3 +105,5 @@ Mermaid renders natively in GitHub, is screen-reader friendly, and is far more m
 - Current version: `1.1.2` (as of 2026-03-28)
 - Git history: `git log --oneline`, tags: `git tag --list 'v*'`
 - Build check: `dotnet build UmbracoPrism.sln`
+- Aspire stack: `dotnet run --project src/UmbracoPrism.AppHost`
+- Live Playwright auth lane: `cd src/UmbracoPrism.Client && npm run test:playwright:localhost-auth`

@@ -1178,3 +1178,134 @@ The workflow engine is registered as a singleton, so in-memory definition update
 
 **Build result:** ✅ 0 errors, 7 pre-existing warnings
 **Test result:** ✅ 539 passed, 0 failed
+
+---
+
+## Session: Workflow Component Unification Feasibility (2026-03-22)
+
+**Topic:** Assess moving to a unified component model (fields become components) and evaluate whether StepType metadata is still needed.
+
+**Outcome:** ✅ Feasibility analysis complete — delivered technical report with recommendations
+
+### Analysis Summary
+
+**Examined:**
+- 11 input artifacts (C# models, controllers, views, tag helpers, workflow JSON definitions)
+- Current three-layer model: States → Components → Fields
+- StepType usage across backend engine, controller, and view routing
+- Component type taxonomy (container, display, summary, field types)
+
+**Key Findings:**
+
+1. **Field → Component Unification: FEASIBLE ✅**
+   - Fields inside components (e.g., `fieldset.fields[]`) are a parallel model that can merge cleanly
+   - Proposal: Treat every field as a component node (e.g., `fieldset.components[]` containing `email-input`, `text-input` components)
+   - Benefits: Single authoring model, natural tree structure, eliminates mental model split
+   - Impact: Moderate churn (definition migration, schema updates) but high payoff (better DX, clearer semantics)
+   - Migration path: Backward-compatible phase (support both), script transformation, deprecation
+
+2. **StepType Removal: NOT RECOMMENDED ❌**
+   - StepType serves three distinct roles that components cannot replace:
+     - **Rendering strategy selection** — `question`, `check-answers`, etc. map to partial view templates; component tree doesn't reliably indicate layout strategy
+     - **State machine metadata** — terminal detection (`confirmation`), response state mapping (`defer`, `complete`), hub metadata (CanContinue, IsCompleted)
+     - **Validation behavior** — nonce bypass for `check-answers`, polling config for `waiting`
+   - StepType is semantic classification (user intent: "this is a confirmation page") that drives multiple behaviors
+   - Removing it requires inventing 3-4 separate flags (`isTerminal`, `responseType`, etc.) — more noise, not less
+   - Conclusion: StepType is state machine metadata, not rendering metadata
+
+### Recommendations
+
+**Do now:**
+- Unify fields → components (genuine simplification, one mental model, cleaner tree)
+- Cost: Medium (definition migration, backward compat layer)
+- Payoff: High (better DX, easier to explain, natural compositional structure)
+
+**Don't do:**
+- Remove StepType (not redundant, serves distinct state machine purposes)
+- Cost: High (touch controller, engine, views, invent new flags)
+- Payoff: Low (replaces one field with 3-4 flags, no net simplification)
+
+**Clarify:**
+- Update docs to explain StepType is state metadata, not component metadata
+- Separate concerns: component tree describes UI structure, StepType describes state semantics
+
+### Technical Details
+
+**StepType usage heatmap:**
+- High coupling: `confirmation` (terminal detection, response state, hub metadata)
+- Medium coupling: `check-answers` (nonce bypass, partial selection)
+- Low coupling: `question`, `waiting`, `status-timeline`, `task-list` (mainly view routing)
+
+**Component types identified:**
+- Container: `fieldset`, `accordion`, `task-list`
+- Display: `panel`, `body`, `heading`, `inset-text`, `warning-text`, `details`, `notification-banner`
+- Summary: `summary-list`
+- Fields (currently nested): `text`, `email`, `number`, `textarea`, `select`, `radio`, `checkbox`, `checkboxlist`, `date-input`, `currency`, `boolean`
+
+**Migration strategy (if approved):**
+- Phase 1: Add `components[]` alongside `fields[]` (backward compatible)
+- Phase 2: Script-migrate definitions
+- Phase 3: Remove legacy `fields[]` (breaking change)
+
+### Learnings
+
+- **Component vs state semantics** — A `summary-list` component doesn't tell you whether fields are editable (depends on state: review vs. approval). Components describe UI structure; StepType describes state machine behavior.
+- **Waiting is state behavior, not a component** — Polling requires workflow-level state (`instanceId`, `stateVersion`, `PollAfterMs`). Cannot be encapsulated in a component.
+- **Terminal detection drives multiple systems** — Instance policy (don't show picker for completed workflows), hub metadata (show resume vs. view), response state (complete vs. render). Single StepType check is cleaner than three separate flags.
+
+**Deliverable:** `unified-component-feasibility-report.md` (full technical analysis with code examples, migration path, open questions)
+
+## Learnings (Field-to-Component Conversion Analysis — 2026-04-22)
+
+**Context:** User asked whether converting fields to pure components (removing field/component distinction) is safe, and whether stepType is still needed.
+
+**Finding:** Architecture is already component-based at the validation and rendering layers. stepType is UI routing metadata with four narrow dependencies:
+
+1. **Nonce skip logic** (PrismWorkflowPageController:140) — Check-answers has no editable fields, skip nonce
+2. **Response state mapping** (BusinessAppWorkflowEngine:596) — "confirmation" → "complete", "status-timeline" → "defer"
+3. **Partial view selection** (workflowPage.cshtml:38) — Maps stepType to _WorkflowStep-{Type}.cshtml
+4. **Terminal state detection** (BusinessAppWorkflowEngine:166) — Prompt policy checks if confirmation reached
+
+**Critical insight:** WorkflowFieldValidator operates on `IReadOnlyList<FieldRenderPayload>` with zero awareness of component structure. It validates:
+- FieldKey whitelist (lines 44-51)
+- Conditional visibility (lines 63-68)
+- Content-only types exclusion (lines 77-81)
+- Field-level constraints (required, type, options, length/range)
+
+GDS error rendering path (WorkflowProblem → TempData → ViewModel.Problems → FieldErrors dictionary → PrismFieldContext) is entirely field-based. Component structure is transparent to validation.
+
+**Recommendation:** Safe to proceed. Replace stepType with:
+- `terminal` boolean (explicit completion flag)
+- `responseState` enum on definition (render/defer/complete)
+- Infer view partial from component types + responseState
+
+**Migration path:**
+1. Add terminal + responseState to StepDefinition (non-breaking)
+2. Update consumers (controller, engine, view) to use new metadata
+3. Remove stepType in next major version
+
+**Key properties every input component must carry:**
+- FieldKey (persistence, validation, nonce)
+- FieldType (validation rules, HTML rendering)
+- Required (validation)
+- Label (GDS error messages)
+- Validation constraints (MinLength, MaxLength, Pattern, Min, Max, Options)
+
+**What remains true for GDS validation:**
+- Fields carry FieldKey + Label + constraints
+- Validator populates WorkflowProblem with matching FieldKey
+- View passes Model.FieldErrors to component/field tag helpers
+- GDS partials receive field + error via PrismFieldContext
+
+No behavior-rich areas depend on stepType. All risk is in the four narrow consumers above, easily replaced with explicit metadata.
+
+
+---
+
+**2026-04-22 Cross-Agent Update:** stepType removal and component model unification approved by Tom Nook (lead). Architecture feasibility verified:
+- Validation & error rendering remain component-agnostic (field-keyed WorkflowFieldValidator)
+- GDS behavior transparent to component structure
+- Persistence keyed to fieldKey (no changes needed)
+- Four narrow UI routing dependencies replaceable with explicit terminal + responseState metadata
+- Ready for Phase 1 implementation (add new metadata to StepDefinition)
+- See .squad/orchestration-log/2026-04-22T23:08:36-blathers.md and decisions.md for full context
