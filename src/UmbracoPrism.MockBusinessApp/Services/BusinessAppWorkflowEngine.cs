@@ -181,7 +181,7 @@ public class BusinessAppWorkflowEngine
                         {
                             StepType = currentState?.StepType ?? "question",
                             StateDisplayName = currentState?.DisplayName ?? definition.DisplayName,
-                            FieldGroups = Array.Empty<FormSection>(),
+                            Components = Array.Empty<PrismComponentRenderPayload>(),
                             AvailableActions = Array.Empty<WorkflowAction>()
                         }
                     };
@@ -562,7 +562,7 @@ public class BusinessAppWorkflowEngine
 
     /// <summary>
     /// Builds a WorkflowResponseEnvelope from an instance and its definition.
-    /// Resolves the current state, loads field groups, and determines the response state archetype.
+    /// Resolves the current state, builds component render payloads, and determines the response state archetype.
     /// </summary>
     /// <param name="instance">The workflow instance.</param>
     /// <param name="definition">The workflow definition.</param>
@@ -582,37 +582,13 @@ public class BusinessAppWorkflowEngine
                 Style = ActionStyle(t.Action)
             }).ToArray();
 
-        // For check-answers, aggregate all field groups from all states across the workflow.
-        // The check-answers step has no fieldGroupKeys of its own — it's a read-only summary.
-        FormSection[] fieldGroups;
-        if (state.StepType == "check-answers")
-        {
-            fieldGroups = definition.States
-                .SelectMany(s => s.FieldGroupKeys.Select(key => (s.StateKey, key)))
-                .DistinctBy(x => x.key)
-                .Select(x => _fieldGroups.TryGetValue(x.key, out var fg)
-                    ? BuildFieldGroup(fg, instance.FieldValues) with { SourceStateKey = x.StateKey }
-                    : null)
-                .Where(fg => fg != null)
-                .Cast<FormSection>()
-                .ToArray();
-        }
-        else
-        {
-            fieldGroups = state.FieldGroupKeys
-                .Select(key => _fieldGroups.TryGetValue(key, out var fg)
-                    ? BuildFieldGroup(fg, instance.FieldValues)
-                    : null)
-                .Where(fg => fg != null)
-                .Cast<FormSection>()
-                .ToArray();
-        }
+        var components = BuildComponents(state.Components, instance.FieldValues);
 
         var render = new StepContent
         {
             StepType = state.StepType,
             StateDisplayName = state.DisplayName,
-            FieldGroups = fieldGroups,
+            Components = components,
             AvailableActions = actions,
             WaitingConfig = state.WaitingConfig
         };
@@ -638,12 +614,124 @@ public class BusinessAppWorkflowEngine
     }
 
     /// <summary>
-    /// Builds a FormSection from a field group definition, pre-populating field values.
+    /// Builds a list of <see cref="PrismComponentRenderPayload"/> from the component definitions in a state.
+    /// </summary>
+    /// <param name="componentDefinitions">The component definitions from the state.</param>
+    /// <param name="savedValues">Previously collected field values to populate.</param>
+    /// <returns>An array of component render payloads ready to send to the view.</returns>
+    private PrismComponentRenderPayload[] BuildComponents(
+        IReadOnlyList<PrismComponentDefinition> componentDefinitions,
+        Dictionary<string, object?> savedValues)
+    {
+        var result = new List<PrismComponentRenderPayload>();
+
+        foreach (var component in componentDefinitions)
+        {
+            switch (component.Type)
+            {
+                case "fieldset":
+                {
+                    if (string.IsNullOrEmpty(component.FieldGroupKey)
+                        || !_fieldGroups.TryGetValue(component.FieldGroupKey, out var fg))
+                    {
+                        _logger.LogWarning("Fieldset component references missing field group '{Key}'", component.FieldGroupKey);
+                        continue;
+                    }
+
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "fieldset",
+                        Legend = component.Legend ?? fg.DisplayName,
+                        LegendSize = component.LegendSize,
+                        Fields = BuildFields(fg, savedValues)
+                    });
+                    break;
+                }
+
+                case "summary-list":
+                {
+                    if (string.IsNullOrEmpty(component.FieldGroupKey)
+                        || !_fieldGroups.TryGetValue(component.FieldGroupKey, out var fg))
+                    {
+                        _logger.LogWarning("Summary-list component references missing field group '{Key}'", component.FieldGroupKey);
+                        continue;
+                    }
+
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "summary-list",
+                        Title = component.Title ?? fg.DisplayName,
+                        SourceStateKey = component.ChangeStateKey,
+                        Fields = BuildFields(fg, savedValues)
+                    });
+                    break;
+                }
+
+                case "accordion":
+                {
+                    var sections = (component.AccordionSections ?? Array.Empty<PrismAccordionSectionDefinition>())
+                        .Select(s =>
+                        {
+                            var fields = Array.Empty<FieldRenderPayload>();
+                            if (!string.IsNullOrEmpty(s.FieldGroupKey)
+                                && _fieldGroups.TryGetValue(s.FieldGroupKey, out var fg))
+                            {
+                                fields = BuildFields(fg, savedValues);
+                            }
+
+                            return new PrismAccordionSectionPayload
+                            {
+                                Heading = s.Heading,
+                                Summary = s.Summary,
+                                Content = s.Content,
+                                Fields = fields
+                            };
+                        })
+                        .ToArray();
+
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "accordion",
+                        AccordionSections = sections
+                    });
+                    break;
+                }
+
+                default:
+                    // Content-only types: panel, inset-text, warning-text, body, heading, details,
+                    // notification-banner, task-list — copy properties through directly.
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = component.Type,
+                        Content = component.Content,
+                        Heading = component.Heading,
+                        BannerType = component.BannerType,
+                        Level = component.Level,
+                        TaskSections = component.TaskSections?.Select(s => new PrismTaskSection
+                        {
+                            Heading = s.Heading,
+                            Tasks = s.Tasks.Select(t => new PrismTaskItem
+                            {
+                                Label = t.Label,
+                                Href = t.Href ?? t.StateKey,
+                                Status = "not-started"
+                            }).ToArray()
+                        }).ToArray()
+                    });
+                    break;
+            }
+        }
+
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Builds a list of <see cref="FieldRenderPayload"/> from a field group definition, pre-populating field values.
     /// </summary>
     /// <param name="group">The field group definition.</param>
     /// <param name="savedValues">Previously collected field values to populate.</param>
-    /// <returns>A FormSection ready to render in the UI.</returns>
-    private static FormSection BuildFieldGroup(FormSectionDefinition group, Dictionary<string, object?> savedValues)
+    /// <returns>An array of field render payloads ready to render in the UI.</returns>
+    private static FieldRenderPayload[] BuildFields(FormSectionDefinition group, Dictionary<string, object?> savedValues)
     {
         var fields = new List<FieldRenderPayload>();
         foreach (var f in group.Fields)
@@ -696,12 +784,7 @@ public class BusinessAppWorkflowEngine
             }
         }
 
-        return new FormSection
-        {
-            GroupKey = group.GroupKey,
-            DisplayName = group.DisplayName,
-            Fields = fields.ToArray()
-        };
+        return fields.ToArray();
     }
 
     private static object? GetDisplayValue(FieldFile f, Dictionary<string, object?> savedValues)

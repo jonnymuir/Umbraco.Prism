@@ -1151,3 +1151,30 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - **Base namespace for embedded resources:** `"UmbracoPrism.Core"` — pass to `EmbeddedFileProvider` constructor
 - **Composer location:** `src/UmbracoPrism.Core/Composers/PrismFieldPartialsComposer.cs` (new `Composers/` subdirectory, namespace `UmbracoPrism.Core.Composers`)
 - **Pre-compiled views:** The `Microsoft.NET.Sdk.Web` SDK also pre-compiles the views into the assembly, providing an additional discovery path
+
+---
+
+## Session: GDS Component Model (2026-04-22)
+
+**Topic:** Replace `FieldGroupKeys`/`FormSection` with a proper GDS component model (`PrismComponentDefinition` / `PrismComponentRenderPayload`).
+
+**Key changes:**
+
+- **`WorkflowDefinitionFile.cs`** — Added 4 new records: `PrismComponentDefinition`, `PrismAccordionSectionDefinition`, `PrismTaskSectionDefinition`, `PrismTaskItemDefinition`. Replaced `FieldGroupKeys` + `AllowedActions` on `StepDefinition` with `Components: IReadOnlyList<PrismComponentDefinition>`.
+- **`WorkflowResponseEnvelope.cs`** — Added `PrismComponentRenderPayload`, `PrismTaskSection`, `PrismTaskItem`, `PrismAccordionSectionPayload`. Replaced `FormSection` + `FieldGroups` on `StepContent` with `Components`. Added computed `DisplayName` property to `PrismComponentRenderPayload` for view compat shim.
+- **`PrismWorkflowViewModel.cs`** — Replaced `FieldGroups: IReadOnlyList<FormSection>` with `Components: IReadOnlyList<PrismComponentRenderPayload>`. Added `AllFields` property. Added `FieldGroups` compat property (returns `Components`) to keep TestSite views compiling without touching `.cshtml` files (Isabelle's scope).
+- **`PrismWorkflowPageController.cs`** — Updated nonce field collection and `vm.Components` assignment.
+- **`WorkflowDefinitionBuilder.cs`** — Replaced `_fieldGroupKeys`/`WithFieldGroups()`/`AllowActions()` with `_components`/`AddFieldset()`/`AddSummaryList()`/`AddContent()`/`AddComponent()`. Updated example in XML doc.
+- **`BusinessAppWorkflowEngine.cs`** — Rewrote `BuildEnvelope` to iterate `state.Components` instead of `state.FieldGroupKeys`. Removed special `check-answers` aggregation logic (now handled explicitly via `summary-list` components in JSON). Renamed `BuildFieldGroup` → `BuildFields` returning `FieldRenderPayload[]`. Updated `instance_picker` response.
+- **All 4 workflow JSON files** — Updated to use `components` arrays. `check-answers` state in `planning-notification-v1.json` now has explicit `summary-list` components.
+- **Tests** — Updated `WorkflowDefinitionBuilderTests.cs`, `BusinessAppWorkflowEngineWaitingStateTests.cs`, `BusinessAppWorkflowEngineInstancePolicyTests.cs`.
+
+**Learnings:**
+
+- The Razor view compilation is part of the normal `dotnet build` — `.cshtml` files compile to C# and produce hard errors for missing members. Must ensure view-accessible members exist on the ViewModel even when views are in another team member's scope.
+- Adding a `FieldGroups` compat shim on `PrismWorkflowViewModel` that simply returns `Components` was the right bridging pattern: it satisfies view compilation without coupling Blathers changes to Isabelle's view work.
+- `DisplayName` computed property on `PrismComponentRenderPayload` (maps Legend/Title/Heading by type) lets existing views render component headings correctly without modification.
+- The old `check-answers` auto-aggregation logic in the engine was implicit and fragile. The new model makes field group selection per-state explicit via `summary-list` components with `changeStateKey`.
+
+**Build result:** ✅ 0 errors, 7 pre-existing warnings
+**Test result:** ✅ 539 passed, 0 failed

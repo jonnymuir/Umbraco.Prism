@@ -374,12 +374,14 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                 _          => $"""<span class="badge badge-policy">{Esc(def.InstancePolicy)}</span>"""
             };
 
-            // Build field groups section for states that reference field groups
+            // Build field groups section for states that reference field groups via fieldset/summary-list components
             var fieldGroupsForStates = def.States
-                .Where(s => s.FieldGroupKeys.Any())
-                .SelectMany(s => s.FieldGroupKeys.Select(key => (StateKey: s.StateKey, GroupKey: key)))
+                .Where(s => s.Components.Any(c => c.FieldGroupKey != null))
+                .SelectMany(s => s.Components
+                    .Where(c => c.FieldGroupKey != null)
+                    .Select(c => (StateKey: s.StateKey, GroupKey: c.FieldGroupKey!)))
                 .GroupBy(x => x.StateKey)
-                .ToDictionary(g => g.Key, g => g.Select(x => x.GroupKey).ToList());
+                .ToDictionary(g => g.Key, g => g.Select(x => x.GroupKey).Distinct().ToList());
 
             var fieldGroupsRows = fieldGroupsForStates.Count == 0
                 ? ""

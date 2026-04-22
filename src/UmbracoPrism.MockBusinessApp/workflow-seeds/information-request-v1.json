@@ -9,21 +9,31 @@
       "displayName": "Tell us about yourself",
       "stepType": "question",
       "allowedActions": ["submit", "save-draft"],
-      "fieldGroupKeys": ["personal-details", "request-details"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "personal-details" },
+        { "type": "fieldset", "fieldGroupKey": "request-details" }
+      ]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your request is being reviewed",
       "stepType": "status-timeline",
       "allowedActions": [],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "body", "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now." }
+      ]
     },
     {
       "stateKey": "complete",
       "displayName": "Request Complete",
       "stepType": "confirmation",
       "allowedActions": ["start-another"],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "panel", "heading": "Application complete" },
+        { "type": "heading", "level": 2, "content": "What happens next" },
+        { "type": "body", "content": "We've sent you a confirmation email." },
+        { "type": "body", "content": "A member of our team will be in touch shortly." }
+      ]
     }
   ],
   "transitions": [

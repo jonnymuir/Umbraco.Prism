@@ -34,7 +34,7 @@ namespace UmbracoPrism.Shared.Builders;
 ///     .AddState("collect-details", s => s
 ///         .DisplayName("Your Details")
 ///         .StepType("question")
-///         .WithFieldGroups("personal-info"))
+///         .AddFieldset("personal-info"))
 ///     .AddState("check-answers", s => s
 ///         .DisplayName("Check Your Answers")
 ///         .StepType("check-answers"))
@@ -191,7 +191,7 @@ public class WorkflowDefinitionBuilder
 /// .AddState("collect-details", s => s
 ///     .DisplayName("Your Details")
 ///     .StepType("question")
-///     .WithFieldGroups("personal-info", "address")
+///     .AddFieldset("personal-info", "address")
 ///     .AllowActions("continue", "back"))
 /// </code>
 /// </para>
@@ -201,8 +201,7 @@ public class WorkflowStateBuilder
     private readonly string _stateKey;
     private string _displayName = "";
     private string _stepType = "question";
-    private readonly List<string> _allowedActions = new();
-    private readonly List<string> _fieldGroupKeys = new();
+    private readonly List<PrismComponentDefinition> _components = new();
     private WaitingConfig? _waitingConfig;
 
     internal WorkflowStateBuilder(string stateKey)
@@ -235,31 +234,47 @@ public class WorkflowStateBuilder
         return this;
     }
 
-    /// <summary>
-    /// Specifies which actions users can take from this state.
-    /// </summary>
-    /// <param name="actions">Action names (e.g., "continue", "submit", "back").</param>
+    /// <summary>Adds a fieldset component referencing an existing field group.</summary>
+    /// <param name="fieldGroupKey">The key of the field group to render.</param>
+    /// <param name="legend">Optional legend text overriding the field group DisplayName.</param>
+    /// <param name="legendSize">Optional legend size: "xl" | "l" | "m" | "s".</param>
     /// <returns>This builder instance for method chaining.</returns>
-    /// <remarks>
-    /// These actions define which buttons or links are shown to the user at this step.
-    /// </remarks>
-    public WorkflowStateBuilder AllowActions(params string[] actions)
+    public WorkflowStateBuilder AddFieldset(string fieldGroupKey, string? legend = null, string? legendSize = null)
     {
-        _allowedActions.AddRange(actions);
+        _components.Add(new PrismComponentDefinition { Type = "fieldset", FieldGroupKey = fieldGroupKey, Legend = legend, LegendSize = legendSize });
         return this;
     }
 
-    /// <summary>
-    /// Associates field groups with this state.
-    /// </summary>
-    /// <param name="groupKeys">One or more field group keys to display at this step (e.g., "personal-info", "address").</param>
+    /// <summary>Adds a summary-list (check-answers) component referencing a field group.</summary>
+    /// <param name="fieldGroupKey">The key of the field group to summarise.</param>
+    /// <param name="changeStateKey">The state key the "Change" links navigate to.</param>
+    /// <param name="title">Optional heading overriding the field group DisplayName.</param>
     /// <returns>This builder instance for method chaining.</returns>
-    /// <remarks>
-    /// Field groups are rendered in the order specified. Use for question steps; summary and confirmation steps typically have no groups.
-    /// </remarks>
-    public WorkflowStateBuilder WithFieldGroups(params string[] groupKeys)
+    public WorkflowStateBuilder AddSummaryList(string fieldGroupKey, string? changeStateKey = null, string? title = null)
     {
-        _fieldGroupKeys.AddRange(groupKeys);
+        _components.Add(new PrismComponentDefinition { Type = "summary-list", FieldGroupKey = fieldGroupKey, ChangeStateKey = changeStateKey, Title = title });
+        return this;
+    }
+
+    /// <summary>Adds a content component (body, heading, panel, inset-text, warning-text, details, notification-banner).</summary>
+    /// <param name="type">The GDS component type.</param>
+    /// <param name="content">The component body or paragraph text.</param>
+    /// <param name="heading">Optional heading text.</param>
+    /// <param name="bannerType">For notification-banner: "info" | "success" | "warning".</param>
+    /// <param name="level">For heading components: heading level 1-6.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public WorkflowStateBuilder AddContent(string type, string content, string? heading = null, string? bannerType = null, int? level = null)
+    {
+        _components.Add(new PrismComponentDefinition { Type = type, Content = content, Heading = heading, BannerType = bannerType, Level = level });
+        return this;
+    }
+
+    /// <summary>Adds a generic component definition directly.</summary>
+    /// <param name="component">The component definition to add.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public WorkflowStateBuilder AddComponent(PrismComponentDefinition component)
+    {
+        _components.Add(component);
         return this;
     }
 
@@ -336,8 +351,7 @@ public class WorkflowStateBuilder
             StateKey = _stateKey,
             DisplayName = _displayName,
             StepType = _stepType,
-            AllowedActions = _allowedActions,
-            FieldGroupKeys = _fieldGroupKeys,
+            Components = _components,
             WaitingConfig = _waitingConfig
         };
     }

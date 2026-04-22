@@ -37,10 +37,8 @@ public record StepDefinition
     /// "confirmation" (final state), "status-timeline" (read-only status), or "task-list" (task list pattern).
     /// </summary>
     public string StepType { get; init; } = "question";
-    /// <summary>Allowed actions from this state (legacy field, not currently used).</summary>
-    public IReadOnlyList<string> AllowedActions { get; init; } = Array.Empty<string>();
-    /// <summary>Keys of field groups to render when in this state.</summary>
-    public IReadOnlyList<string> FieldGroupKeys { get; init; } = Array.Empty<string>();
+    /// <summary>GDS components to render within this step. Replaces the old FieldGroupKeys approach.</summary>
+    public IReadOnlyList<PrismComponentDefinition> Components { get; init; } = Array.Empty<PrismComponentDefinition>();
     /// <summary>
     /// Configuration for "waiting" step types. Only present when <see cref="StepType"/> is <c>"waiting"</c>.
     /// </summary>
@@ -61,6 +59,96 @@ public record WorkflowTransitionFile
     public string Action { get; init; } = "";
     /// <summary>Optional role restriction: null for any user, "reviewer" for reviewer-only actions.</summary>
     public string? RequiresRole { get; init; }
+}
+
+/// <summary>
+/// Defines a GDS component to render within a workflow step.
+/// Components are the building blocks of step rendering — they replace the old FieldGroupKeys/FormSection approach.
+/// </summary>
+/// <remarks>
+/// Supported types and their relevant properties:
+/// <list type="table">
+/// <listheader><term>type</term><description>Properties used</description></listheader>
+/// <item><term>fieldset</term><description>FieldGroupKey, Legend (overrides group DisplayName), LegendSize</description></item>
+/// <item><term>summary-list</term><description>FieldGroupKey, Title (overrides group DisplayName), ChangeStateKey</description></item>
+/// <item><term>panel</term><description>Heading (panel title), Content (panel body)</description></item>
+/// <item><term>notification-banner</term><description>BannerType ("info"|"success"|"warning"), Heading, Content</description></item>
+/// <item><term>inset-text</term><description>Content</description></item>
+/// <item><term>warning-text</term><description>Content</description></item>
+/// <item><term>details</term><description>Heading (summary text), Content (expanded body)</description></item>
+/// <item><term>body</term><description>Content (paragraph text)</description></item>
+/// <item><term>heading</term><description>Level (1-6), Content (heading text)</description></item>
+/// <item><term>task-list</term><description>TaskSections (if null/empty, engine auto-generates from workflow states)</description></item>
+/// <item><term>accordion</term><description>AccordionSections</description></item>
+/// </list>
+/// </remarks>
+public record PrismComponentDefinition
+{
+    /// <summary>The GDS component type (e.g. "fieldset", "summary-list", "panel", "body", "heading").</summary>
+    public string Type { get; init; } = "fieldset";
+
+    // Fieldset + summary-list
+    /// <summary>Key of the field group to render (used by fieldset and summary-list components).</summary>
+    public string? FieldGroupKey { get; init; }
+    /// <summary>Overrides the field group DisplayName as the legend for fieldset components.</summary>
+    public string? Legend { get; init; }
+    /// <summary>Legend size for fieldset components: "xl" | "l" | "m" | "s".</summary>
+    public string? LegendSize { get; init; }
+
+    // Summary-list specific
+    /// <summary>The state key the "Change" links navigate to (summary-list only).</summary>
+    public string? ChangeStateKey { get; init; }
+    /// <summary>Heading above the summary list, overriding the field group DisplayName (summary-list only).</summary>
+    public string? Title { get; init; }
+
+    // Content types
+    /// <summary>Body text or expanded content (panel, inset-text, warning-text, details, body, notification-banner).</summary>
+    public string? Content { get; init; }
+    /// <summary>Panel title, notification banner heading, or details summary text.</summary>
+    public string? Heading { get; init; }
+    /// <summary>Banner type for notification-banner components: "info" | "success" | "warning".</summary>
+    public string? BannerType { get; init; }
+    /// <summary>Heading level 1-6 for "heading" type components.</summary>
+    public int? Level { get; init; }
+
+    // Compound
+    /// <summary>Accordion sections for "accordion" type components.</summary>
+    public IReadOnlyList<PrismAccordionSectionDefinition>? AccordionSections { get; init; }
+    /// <summary>Task sections for "task-list" type. If null or empty, the engine auto-generates from workflow states.</summary>
+    public IReadOnlyList<PrismTaskSectionDefinition>? TaskSections { get; init; }
+}
+
+/// <summary>A section within an accordion component definition.</summary>
+public record PrismAccordionSectionDefinition
+{
+    /// <summary>The accordion section heading.</summary>
+    public string Heading { get; init; } = "";
+    /// <summary>Optional summary text shown beneath the heading when collapsed.</summary>
+    public string? Summary { get; init; }
+    /// <summary>Static content for this accordion section.</summary>
+    public string? Content { get; init; }
+    /// <summary>Key of the field group to render within this accordion section.</summary>
+    public string? FieldGroupKey { get; init; }
+}
+
+/// <summary>A section within a task-list component definition.</summary>
+public record PrismTaskSectionDefinition
+{
+    /// <summary>The task section heading.</summary>
+    public string Heading { get; init; } = "";
+    /// <summary>The tasks within this section.</summary>
+    public IReadOnlyList<PrismTaskItemDefinition> Tasks { get; init; } = Array.Empty<PrismTaskItemDefinition>();
+}
+
+/// <summary>A single task item within a task-list section definition.</summary>
+public record PrismTaskItemDefinition
+{
+    /// <summary>The task label shown to the user.</summary>
+    public string Label { get; init; } = "";
+    /// <summary>Links to a workflow state (engine resolves to URL).</summary>
+    public string? StateKey { get; init; }
+    /// <summary>Direct URL for this task (alternative to StateKey).</summary>
+    public string? Href { get; init; }
 }
 
 /// <summary>

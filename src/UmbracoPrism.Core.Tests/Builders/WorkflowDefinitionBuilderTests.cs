@@ -17,7 +17,7 @@ public class WorkflowDefinitionBuilderTests
             .AddState("collect-details", s => s
                 .DisplayName("Your Details")
                 .StepType("question")
-                .WithFieldGroups("personal-info"))
+                .AddFieldset("personal-info"))
             .AddTransition("collect-details", "submitted", "submit", "admin")
             .Build();
 
@@ -135,18 +135,21 @@ public class WorkflowDefinitionBuilderTests
     }
 
     [Fact]
-    public void AddState_WithFieldGroupKeys_SetsFieldGroupKeysCorrectly()
+    public void AddState_WithFieldsets_SetsComponentsCorrectly()
     {
         var result = new WorkflowDefinitionBuilder()
             .Key("test")
             .AddState("collect", s => s
                 .DisplayName("Collect Data")
-                .WithFieldGroups("personal-info", "contact-details", "preferences"))
+                .AddFieldset("personal-info")
+                .AddFieldset("contact-details")
+                .AddFieldset("preferences"))
             .Build();
 
         var state = result.States.Single();
-        state.FieldGroupKeys.Should().HaveCount(3);
-        state.FieldGroupKeys.Should().ContainInOrder("personal-info", "contact-details", "preferences");
+        state.Components.Should().HaveCount(3);
+        state.Components.All(c => c.Type == "fieldset").Should().BeTrue();
+        state.Components.Select(c => c.FieldGroupKey).Should().ContainInOrder("personal-info", "contact-details", "preferences");
     }
 
     [Fact]
@@ -204,8 +207,8 @@ public class WorkflowDefinitionBuilderTests
             .AddState("initial", s => s
                 .DisplayName("Initial Step")
                 .StepType("question")
-                .WithFieldGroups("form1", "form2")
-                .AllowActions("submit", "save"))
+                .AddFieldset("form1")
+                .AddFieldset("form2"))
             .AddState("review", s => s
                 .DisplayName("Review Step")
                 .StepType("check-answers"))
@@ -219,7 +222,7 @@ public class WorkflowDefinitionBuilderTests
         result.DefinitionKey.Should().Be("complex-workflow");
         result.States.Should().HaveCount(3);
         result.Transitions.Should().HaveCount(2);
-        result.States[0].AllowedActions.Should().ContainInOrder("submit", "save");
+        result.States[0].Components.Should().HaveCount(2);
         result.Transitions[1].RequiresRole.Should().Be("admin");
     }
 
@@ -267,16 +270,20 @@ public class WorkflowDefinitionBuilderTests
     }
 
     [Fact]
-    public void AddState_WithAllowedActions_SetsAllowedActions()
+    public void AddState_WithAddContent_SetsComponentCorrectly()
     {
         var result = new WorkflowDefinitionBuilder()
             .Key("test")
             .AddState("state1", s => s
-                .AllowActions("action1", "action2", "action3"))
+                .AddContent("body", "Some paragraph text")
+                .AddContent("heading", "Title text", level: 2))
             .Build();
 
         var state = result.States.Single();
-        state.AllowedActions.Should().HaveCount(3);
-        state.AllowedActions.Should().ContainInOrder("action1", "action2", "action3");
+        state.Components.Should().HaveCount(2);
+        state.Components[0].Type.Should().Be("body");
+        state.Components[0].Content.Should().Be("Some paragraph text");
+        state.Components[1].Type.Should().Be("heading");
+        state.Components[1].Level.Should().Be(2);
     }
 }

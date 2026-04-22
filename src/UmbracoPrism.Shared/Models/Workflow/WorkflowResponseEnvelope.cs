@@ -73,9 +73,9 @@ public record StepContent
     public required string StateDisplayName { get; init; }
 
     /// <summary>
-    /// Gets the field groups to render.
+    /// Gets the GDS components to render at this step.
     /// </summary>
-    public required IReadOnlyList<FormSection> FieldGroups { get; init; }
+    public required IReadOnlyList<PrismComponentRenderPayload> Components { get; init; }
 
     /// <summary>
     /// Gets the available actions the user can take.
@@ -91,31 +91,89 @@ public record StepContent
 }
 
 /// <summary>
-/// Field group render payload.
+/// Runtime representation of a GDS component, with field values pre-populated from the workflow instance.
+/// Sent from the engine to the Core controller, which passes it to the view.
 /// </summary>
-public record FormSection
+public record PrismComponentRenderPayload
 {
-    /// <summary>
-    /// Gets the field group key.
-    /// </summary>
-    public required string GroupKey { get; init; }
+    /// <summary>The GDS component type (e.g. "fieldset", "summary-list", "panel", "body", "heading").</summary>
+    public string Type { get; init; } = "fieldset";
 
-    /// <summary>
-    /// Gets the display name.
-    /// </summary>
-    public required string DisplayName { get; init; }
+    // Fieldset
+    /// <summary>The fieldset legend text (overrides the field group DisplayName).</summary>
+    public string? Legend { get; init; }
+    /// <summary>Legend size: "xl" | "l" | "m" | "s".</summary>
+    public string? LegendSize { get; init; }
+    /// <summary>Fields to render within this component (used by fieldset and summary-list).</summary>
+    public IReadOnlyList<FieldRenderPayload> Fields { get; init; } = Array.Empty<FieldRenderPayload>();
 
-    /// <summary>
-    /// Gets the fields in this group.
-    /// </summary>
-    public required IReadOnlyList<FieldRenderPayload> Fields { get; init; }
-
-    /// <summary>
-    /// The workflow state key this field group belongs to.
-    /// Populated on check-answers steps so the UI can render Change links
-    /// that navigate back to the correct step.
-    /// </summary>
+    // Summary-list
+    /// <summary>Heading above the summary list (overrides the field group DisplayName).</summary>
+    public string? Title { get; init; }
+    /// <summary>The state key the "Change" links navigate to (summary-list only).</summary>
     public string? SourceStateKey { get; init; }
+
+    // Content types
+    /// <summary>Body text or expanded content (panel, inset-text, warning-text, details, body, notification-banner).</summary>
+    public string? Content { get; init; }
+    /// <summary>Panel title, notification banner heading, or details summary text.</summary>
+    public string? Heading { get; init; }
+    /// <summary>Banner type for notification-banner: "info" | "success" | "warning".</summary>
+    public string? BannerType { get; init; }
+    /// <summary>Heading level 1-6 for "heading" type components.</summary>
+    public int? Level { get; init; }
+
+    // Task list
+    /// <summary>Task sections for task-list components.</summary>
+    public IReadOnlyList<PrismTaskSection>? TaskSections { get; init; }
+
+    // Accordion
+    /// <summary>Accordion sections for accordion components.</summary>
+    public IReadOnlyList<PrismAccordionSectionPayload>? AccordionSections { get; init; }
+
+    /// <summary>
+    /// Computed display name for this component — returns the most semantically appropriate heading property
+    /// based on component type. Used by views that iterate over components and render section headings.
+    /// </summary>
+    public string DisplayName => Type switch
+    {
+        "fieldset" => Legend ?? "",
+        "summary-list" => Title ?? "",
+        _ => Heading ?? ""
+    };
+}
+
+/// <summary>A section within a rendered task-list component.</summary>
+public record PrismTaskSection
+{
+    /// <summary>The task section heading.</summary>
+    public string Heading { get; init; } = "";
+    /// <summary>The tasks within this section.</summary>
+    public IReadOnlyList<PrismTaskItem> Tasks { get; init; } = Array.Empty<PrismTaskItem>();
+}
+
+/// <summary>A single rendered task item within a task-list section.</summary>
+public record PrismTaskItem
+{
+    /// <summary>The task label shown to the user.</summary>
+    public string Label { get; init; } = "";
+    /// <summary>The resolved URL for this task.</summary>
+    public string? Href { get; init; }
+    /// <summary>Task status: "not-started" | "in-progress" | "completed" | "cannot-start".</summary>
+    public string Status { get; init; } = "not-started";
+}
+
+/// <summary>A rendered accordion section with populated fields.</summary>
+public record PrismAccordionSectionPayload
+{
+    /// <summary>The accordion section heading.</summary>
+    public string Heading { get; init; } = "";
+    /// <summary>Optional summary text shown beneath the heading when collapsed.</summary>
+    public string? Summary { get; init; }
+    /// <summary>Static content for this accordion section.</summary>
+    public string? Content { get; init; }
+    /// <summary>Fields rendered within this accordion section.</summary>
+    public IReadOnlyList<FieldRenderPayload> Fields { get; init; } = Array.Empty<FieldRenderPayload>();
 }
 
 /// <summary>

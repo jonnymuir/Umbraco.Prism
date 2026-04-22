@@ -139,8 +139,8 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         var stepType = updatedEnvelope.Render?.StepType ?? string.Empty;
         var nonceFields = stepType == "check-answers"
             ? new List<FieldRenderPayload>()
-            : updatedEnvelope.Render?.FieldGroups
-                .SelectMany(g => g.Fields)
+            : updatedEnvelope.Render?.Components
+                .SelectMany(c => c.Fields)
                 .ToList() ?? new List<FieldRenderPayload>();
 
         var nonce = await _nonceService.CreateAsync(nonceFields);
@@ -306,7 +306,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         vm.ReturnUrl = HttpContext.Request.PathBase + HttpContext.Request.Path;
         vm.StepType = render?.StepType ?? string.Empty;
         vm.StateDisplayName = render?.StateDisplayName ?? string.Empty;
-        vm.FieldGroups = render?.FieldGroups ?? Array.Empty<FormSection>();
+        vm.Components = render?.Components ?? Array.Empty<PrismComponentRenderPayload>();
         vm.AvailableActions = render?.AvailableActions ?? Array.Empty<WorkflowAction>();
         vm.Problems = problems ?? Array.Empty<WorkflowProblem>();
         vm.FormValues = formValues ?? new Dictionary<string, string>();

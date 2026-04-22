@@ -10,14 +10,16 @@
       "displayName": "Enter Payment Details",
       "stepType": "question",
       "allowedActions": [],
-      "fieldGroupKeys": ["payment-demo-details"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "payment-demo-details" }
+      ]
     },
     {
       "stateKey": "processing-payment",
       "displayName": "Processing Your Payment",
       "stepType": "waiting",
       "allowedActions": [],
-      "fieldGroupKeys": [],
+      "components": [],
       "waitingConfig": {
         "message": "We are processing your payment with our secure payment provider. Please do not close this page.",
         "expectedWaitSeconds": 30,
@@ -31,7 +33,11 @@
       "displayName": "Payment Complete",
       "stepType": "confirmation",
       "allowedActions": [],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "panel", "heading": "Payment received" },
+        { "type": "heading", "level": 2, "content": "What happens next" },
+        { "type": "body", "content": "A receipt has been sent to your email address." }
+      ]
     }
   ],
   "transitions": [

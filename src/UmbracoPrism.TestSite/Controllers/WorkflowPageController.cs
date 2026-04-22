@@ -55,10 +55,10 @@ public class WorkflowPageController(
         var name = HttpContext.User.FindFirstValue(ClaimTypes.Name)
             ?? HttpContext.User.FindFirstValue("name");
 
-        var updatedFieldGroups = envelope.Render.FieldGroups
-            .Select(group => group with
+        var updatedComponents = envelope.Render.Components
+            .Select(component => component with
             {
-                Fields = group.Fields.Select(field =>
+                Fields = component.Fields.Select(field =>
                 {
                     if (field.FieldKey == "email-address" && !string.IsNullOrWhiteSpace(email))
                     {
@@ -84,7 +84,7 @@ public class WorkflowPageController(
 
         var updatedRender = envelope.Render with
         {
-            FieldGroups = updatedFieldGroups
+            Components = updatedComponents
         };
 
         return envelope with { Render = updatedRender };

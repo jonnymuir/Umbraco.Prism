@@ -10,42 +10,60 @@
       "displayName": "Describe your project",
       "stepType": "question",
       "allowedActions": ["continue"],
-      "fieldGroupKeys": ["project-info"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "project-info" }
+      ]
     },
     {
       "stateKey": "work-type",
       "displayName": "Type of work",
       "stepType": "question",
       "allowedActions": ["continue", "back"],
-      "fieldGroupKeys": ["work-type-info"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "work-type-info" }
+      ]
     },
     {
       "stateKey": "timeline-cost",
       "displayName": "Timeline and cost",
       "stepType": "question",
       "allowedActions": ["continue", "back"],
-      "fieldGroupKeys": ["timeline-cost-info"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "timeline-cost-info" }
+      ]
     },
     {
       "stateKey": "affected-parties",
       "displayName": "Affected parties",
       "stepType": "question",
       "allowedActions": ["continue", "back"],
-      "fieldGroupKeys": ["affected-parties-info"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "affected-parties-info" }
+      ]
     },
     {
       "stateKey": "check-answers",
       "displayName": "Check your answers",
       "stepType": "check-answers",
       "allowedActions": ["submit", "back"],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "summary-list", "fieldGroupKey": "project-info", "changeStateKey": "project-details" },
+        { "type": "summary-list", "fieldGroupKey": "work-type-info", "changeStateKey": "work-type" },
+        { "type": "summary-list", "fieldGroupKey": "timeline-cost-info", "changeStateKey": "timeline-cost" },
+        { "type": "summary-list", "fieldGroupKey": "affected-parties-info", "changeStateKey": "affected-parties" }
+      ]
     },
     {
       "stateKey": "complete",
       "displayName": "Application received",
       "stepType": "confirmation",
       "allowedActions": ["start-another"],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "panel", "heading": "Application received" },
+        { "type": "heading", "level": 2, "content": "What happens next" },
+        { "type": "body", "content": "We've sent you a confirmation email." },
+        { "type": "body", "content": "A member of our team will review your application and be in touch." }
+      ]
     }
   ],
   "transitions": [

@@ -511,16 +511,14 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     StateKey = "enter-details",
                     DisplayName = "Enter Details",
                     StepType = "question",
-                    AllowedActions = new[] { "submit" },
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "processing",
                     DisplayName = "Processing",
                     StepType = "waiting",
-                    AllowedActions = new[] { "complete" },
-                    FieldGroupKeys = Array.Empty<string>(),
+                    Components = Array.Empty<PrismComponentDefinition>(),
                     WaitingConfig = new WaitingConfig
                     {
                         Message = "We are reviewing your submission.",
@@ -535,8 +533,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     StateKey = "done",
                     DisplayName = "Done",
                     StepType = "confirmation",
-                    AllowedActions = Array.Empty<string>(),
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 }
             },
             Transitions = new[]
@@ -743,8 +740,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                         StateKey = "processing",
                         DisplayName = "Processing",
                         StepType = "waiting",
-                        AllowedActions = Array.Empty<string>(),
-                        FieldGroupKeys = Array.Empty<string>(),
+                        Components = Array.Empty<PrismComponentDefinition>(),
                         WaitingConfig = new WaitingConfig
                         {
                             Message = "Wait here",
@@ -805,8 +801,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                         StateKey = "processing",
                         DisplayName = "Processing",
                         StepType = "waiting",
-                        AllowedActions = Array.Empty<string>(),
-                        FieldGroupKeys = Array.Empty<string>(),
+                        Components = Array.Empty<PrismComponentDefinition>(),
                         WaitingConfig = new WaitingConfig
                         {
                             Message = "Wait here",

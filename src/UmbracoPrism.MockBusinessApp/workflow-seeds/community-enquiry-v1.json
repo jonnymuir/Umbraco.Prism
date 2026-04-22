@@ -10,21 +10,31 @@
       "displayName": "Tell us about your enquiry",
       "stepType": "question",
       "allowedActions": ["submit", "save-draft"],
-      "fieldGroupKeys": ["about-you-with-context", "your-enquiry-with-context"]
+      "components": [
+        { "type": "fieldset", "fieldGroupKey": "about-you-with-context" },
+        { "type": "fieldset", "fieldGroupKey": "your-enquiry-with-context" }
+      ]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your enquiry is with us",
       "stepType": "status-timeline",
       "allowedActions": [],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "body", "content": "We've received your enquiry and it's currently being reviewed. A member of the team will be in touch shortly — no further action is needed right now." }
+      ]
     },
     {
       "stateKey": "complete",
       "displayName": "We're in touch!",
       "stepType": "confirmation",
       "allowedActions": ["start-another"],
-      "fieldGroupKeys": []
+      "components": [
+        { "type": "panel", "heading": "Enquiry received" },
+        { "type": "heading", "level": 2, "content": "What happens next" },
+        { "type": "body", "content": "We've sent you a confirmation email." },
+        { "type": "body", "content": "A member of our team will be in touch shortly." }
+      ]
     }
   ],
   "transitions": [

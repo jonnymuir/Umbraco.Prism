@@ -52,8 +52,8 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
     /// <summary>Human-readable name for the current workflow state (e.g., "Your Details", "Check Your Answers").</summary>
     public string StateDisplayName { get; set; } = string.Empty;
 
-    /// <summary>Organized field groups for rendering form sections within question steps.</summary>
-    public IReadOnlyList<FormSection> FieldGroups { get; set; } = Array.Empty<FormSection>();
+    /// <summary>Organized GDS components for rendering form sections within workflow steps.</summary>
+    public IReadOnlyList<PrismComponentRenderPayload> Components { get; set; } = Array.Empty<PrismComponentRenderPayload>();
 
     /// <summary>Available actions the user can take at this step (e.g., "continue", "submit", "back").</summary>
     public IReadOnlyList<WorkflowAction> AvailableActions { get; set; } = Array.Empty<WorkflowAction>();
@@ -111,4 +111,16 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
             .Where(p => !string.IsNullOrEmpty(p.FieldKey))
             .GroupBy(p => p.FieldKey)
             .ToDictionary(g => g.Key, g => g.First().Message);
+
+    /// <summary>All form fields across all components (for validation, nonce, etc.).</summary>
+    public IReadOnlyList<FieldRenderPayload> AllFields =>
+        Components
+            .SelectMany(c => c.Fields ?? Array.Empty<FieldRenderPayload>())
+            .ToList();
+
+    /// <summary>
+    /// Compatibility accessor that maps <see cref="Components"/> to a flat enumerable.
+    /// Views should migrate to iterate over <see cref="Components"/> directly.
+    /// </summary>
+    public IReadOnlyList<PrismComponentRenderPayload> FieldGroups => Components;
 }

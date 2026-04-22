@@ -56,16 +56,14 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                     StateKey = "step-1",
                     DisplayName = "Step 1",
                     StepType = "question",
-                    AllowedActions = new[] { "submit" },
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
                     StepType = "confirmation",
-                    AllowedActions = Array.Empty<string>(),
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 }
             },
             Transitions = new[]
@@ -94,16 +92,14 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                     StateKey = "step-1",
                     DisplayName = "Step 1",
                     StepType = "question",
-                    AllowedActions = new[] { "submit" },
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
                     StepType = "confirmation",
-                    AllowedActions = Array.Empty<string>(),
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 }
             },
             Transitions = new[]
@@ -132,16 +128,14 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                     StateKey = "step-1",
                     DisplayName = "Step 1",
                     StepType = "question",
-                    AllowedActions = new[] { "submit" },
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
                     StepType = "confirmation",
-                    AllowedActions = Array.Empty<string>(),
-                    FieldGroupKeys = Array.Empty<string>()
+                    Components = Array.Empty<PrismComponentDefinition>()
                 }
             },
             Transitions = new[]
