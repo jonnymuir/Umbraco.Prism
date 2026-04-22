@@ -450,6 +450,294 @@ Field groups define the data you collect in `question` steps. Each field group i
 
 ---
 
+## Custom Field Types
+
+The field type system is **extensible by convention**. You can create custom field types without modifying Prism Core.
+
+### How Custom Field Types Work
+
+The `<prism-field>` tag helper dispatches field rendering to Razor partials by convention:
+
+```mermaid
+graph LR
+    A["Field Definition<br/>fieldType: radio"] -->|Resolve partial| B["Naming Convention"]
+    B -->|radio → Radio| C["_PrismField-Radio.cshtml"]
+    A2["fieldType: star-rating"] -->|Resolve partial| B2["Naming Convention"]
+    B2 -->|star-rating → StarRating| C2["_PrismField-Star-Rating.cshtml"]
+    A3["fieldType: unknown"] -->|Fallback| D["_PrismField-Default.cshtml"]
+    C -->|Render| E["Form Control"]
+    C2 -->|Render| F["Custom Control"]
+    D -->|Render| G["Fallback Output"]
+```
+
+**Convention Rule:** Field type `"kebab-case-name"` resolves to `_PrismField-PascalCaseName.cshtml`
+
+| Field Type | Resolves To |
+|-----------|-----------|
+| `text` | `_PrismField-Text.cshtml` |
+| `email` | `_PrismField-Email.cshtml` |
+| `star-rating` | `_PrismField-Star-Rating.cshtml` |
+| `my-custom-widget` | `_PrismField-My-Custom-Widget.cshtml` |
+| Unknown type | `_PrismField-Default.cshtml` (fallback) |
+
+### Built-in Field Types Quick Reference
+
+| Field Type | Partial | Purpose |
+|-----------|---------|---------|
+| `text` | `_PrismField-Text.cshtml` | Standard text input |
+| `email` | `_PrismField-Email.cshtml` | Email with autocomplete |
+| `number` | `_PrismField-Number.cshtml` | Integer input with min/max |
+| `decimal` | `_PrismField-Decimal.cshtml` | Decimal input (step="any"); supports prefix |
+| `textarea` | `_PrismField-Textarea.cshtml` | Multi-line text |
+| `select` | `_PrismField-Select.cshtml` | Dropdown from options |
+| `radio` | `_PrismField-Radio.cshtml` | Radio button group (GDS fieldset/legend) |
+| `boolean` | `_PrismField-Boolean.cshtml` | Single checkbox (GDS pattern) |
+| `checkboxlist` | `_PrismField-Checkboxlist.cshtml` | Multi-select checkbox group (comma-separated value) |
+| `date` | `_PrismField-Date.cshtml` | Three inputs (day/month/year) with GDS styling |
+| `datetime` | `_PrismField-Datetime.cshtml` | Date and time picker |
+| `inset-text` | `_PrismField-Inset-Text.cshtml` | Static inset box (no form control) |
+| `warning-text` | `_PrismField-Warning-Text.cshtml` | GDS warning component (no form control) |
+
+---
+
+## Creating a Custom Field Type
+
+To add a new field type, create a Razor partial in `~/Views/Partials/PrismFields/` following the naming convention. The partial receives `@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext`.
+
+### Step-by-Step Example: Star Rating
+
+Suppose you want a 5-star rating field type that isn't provided out-of-the-box.
+
+**Step 1: Define the field in your workflow JSON**
+
+```json
+{
+  "fieldKey": "satisfaction",
+  "label": "How satisfied were you?",
+  "fieldType": "star-rating",
+  "required": true
+}
+```
+
+**Step 2: Create the partial file**
+
+File: `~/Views/Partials/PrismFields/_PrismField-Star-Rating.cshtml`
+
+```cshtml
+@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
+
+<div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
+    @await Html.PartialAsync("~/Views/Partials/PrismFields/_PrismFieldLabel.cshtml", Model)
+    
+    <fieldset class="govuk-fieldset star-rating" data-module="star-rating">
+        <legend class="govuk-visually-hidden">@Model.Field.Label rating</legend>
+        
+        @for (var i = 1; i <= 5; i++)
+        {
+            var starId = $"{Model.Field.FieldKey}-{i}";
+            <div class="star-rating__item">
+                <input type="radio"
+                       id="@starId"
+                       name="fields[@Model.Field.FieldKey]"
+                       value="@i"
+                       class="star-rating__input govuk-visually-hidden"
+                       @(Model.DisplayValue == i.ToString() ? "checked" : "")
+                       @Html.Raw(Model.RequiredAttr)
+                       @Html.Raw(Model.AriaRequired)
+                       @Html.Raw(Model.AriaInvalid) />
+                <label for="@starId" class="star-rating__label" aria-label="@i star@(i > 1 ? "s" : "")">★</label>
+            </div>
+        }
+    </fieldset>
+</div>
+```
+
+**Step 3: Add CSS (optional)**
+
+File: `~/css/components/star-rating.css` (or embedded in your stylesheet)
+
+```css
+.star-rating {
+    display: flex;
+    gap: 0.5rem;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.star-rating__item {
+    position: relative;
+}
+
+.star-rating__input {
+    position: absolute;
+    opacity: 0;
+}
+
+.star-rating__label {
+    cursor: pointer;
+    font-size: 2rem;
+    color: #b1b4b6;
+    transition: color 0.2s ease-in-out;
+}
+
+.star-rating__input:checked ~ .star-rating__label,
+.star-rating__label:hover,
+.star-rating__input:hover ~ .star-rating__label {
+    color: #ffd700;
+}
+
+.star-rating__input:focus ~ .star-rating__label {
+    outline: 3px solid #0b0c0c;
+    outline-offset: 2px;
+}
+```
+
+**Step 4: Use it in your workflow**
+
+The custom field type is now available and will render whenever `"fieldType": "star-rating"` is used in any field definition.
+
+```json
+{
+  "fieldKey": "satisfaction",
+  "label": "How satisfied were you?",
+  "fieldType": "star-rating",
+  "required": true
+}
+```
+
+---
+
+## PrismFieldContext Reference
+
+All field type partials receive a `PrismFieldContext` model containing field metadata, validation state, and pre-built attribute strings.
+
+### Core Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Field` | `FieldRenderPayload` | The raw field definition from JSON |
+| `DisplayValue` | `string` | Resolved value: submitted > default > stored |
+| `HasFieldError` | `bool` | Whether a validation error exists for this field |
+| `FieldError` | `string` | The error message text (if any) |
+
+### Field Definition Properties (via `Field.*`)
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `FieldKey` | `string` | Unique identifier (HTML id and name) |
+| `Label` | `string` | Visible label text |
+| `Hint` | `string` | Optional hint/help text |
+| `Required` | `bool` | Whether field is required |
+| `Options` | `List<string>` | Option list (for `radio`, `select`, `checkboxlist`) |
+| `Prefix` | `string` | Currency/unit prefix (e.g. "£" for decimal fields) |
+| `Min`, `Max` | `decimal?` | Numeric constraints |
+| `MinLength`, `MaxLength` | `int?` | String length constraints |
+| `Pattern` | `string` | Regex pattern constraint |
+| `ReadOnly` | `bool` | Whether field is readonly |
+| `ConditionalOn` | `string` | Parent field key for conditional display |
+| `VisibleWhen` | `List<string>` | Values that make this field visible |
+| `Content` | `string` | Content for `inset-text` and `warning-text` types |
+
+### Accessibility & Aria Attributes (Pre-built)
+
+| Property | Type | Example | Purpose |
+|----------|------|---------|---------|
+| `HintId` | `string` | `"full-name-hint"` | ID for hint text (if present) |
+| `ErrorId` | `string` | `"full-name-error"` | ID for error message (if present) |
+| `DescribedBy` | `string` | `'aria-describedby="full-name-hint full-name-error"'` | Pre-built attribute string |
+| `RequiredAttr` | `string` | `' required'` or `""` | For HTML5 validation |
+| `AriaRequired` | `string` | `' aria-required="true"'` or `""` | Accessibility flag |
+| `AriaInvalid` | `string` | `' aria-invalid="true"'` or `""` | Indicates validation error |
+| `ReadOnlyAttr` | `string` | `' readonly aria-readonly="true"'` or `""` | Readonly state |
+
+### Constraint Attributes (Pre-built)
+
+| Property | Example | Purpose |
+|----------|---------|---------|
+| `MinLengthAttr` | `' minlength="5"'` | HTML5 minlength validation |
+| `MaxLengthAttr` | `' maxlength="100"'` | HTML5 maxlength validation |
+| `MinAttr` | `' min="0"'` | HTML5 min value |
+| `MaxAttr` | `' max="100"'` | HTML5 max value |
+| `PatternAttr` | `' pattern="[A-Z]{2}"'` | HTML5 pattern validation |
+
+### CSS & Wrapper
+
+| Property | Type | Example |
+|----------|------|---------|
+| `WrapperClass` | `string` | `"govuk-form-group govuk-form-group--error"` (includes error state) |
+| `WrapperAttrs` | `string` | `' data-conditional="parent-key" data-visible-when="value1,value2"'` (for conditionals) |
+
+### Usage Example in a Custom Partial
+
+```cshtml
+@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
+
+<div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
+    <label for="@Model.Field.FieldKey" class="govuk-label">
+        @Model.Field.Label
+        @if (Model.Field.Required)
+        {
+            <span class="govuk-required-indicator">*</span>
+        }
+    </label>
+    
+    @if (!string.IsNullOrEmpty(Model.Field.Hint))
+    {
+        <div id="@Model.HintId" class="govuk-hint">
+            @Model.Field.Hint
+        </div>
+    }
+    
+    <input type="text"
+           id="@Model.Field.FieldKey"
+           name="fields[@Model.Field.FieldKey]"
+           value="@Model.DisplayValue"
+           @Html.Raw(Model.RequiredAttr)
+           @Html.Raw(Model.AriaRequired)
+           @Html.Raw(Model.AriaInvalid)
+           @Html.Raw(Model.DescribedBy)
+           @Html.Raw(Model.MaxLengthAttr) />
+    
+    @if (Model.HasFieldError)
+    {
+        <span id="@Model.ErrorId" class="govuk-error-message">
+            <span class="govuk-visually-hidden">Error:</span>
+            @Model.FieldError
+        </span>
+    }
+</div>
+```
+
+---
+
+## Overriding Built-in Field Types
+
+You can replace any built-in field type by creating your own partial with the same name. For example, to customize the `text` field type:
+
+1. Create `~/Views/Partials/PrismFields/_PrismField-Text.cshtml` with your custom implementation
+2. It will be used instead of the built-in version
+3. The convention is the same—your partial receives `PrismFieldContext`
+
+**Use case:** Customize styling, add extra validation logic, or integrate third-party libraries (e.g., rich text editor for textarea, date picker library).
+
+---
+
+## Accessibility Notes
+
+When building custom field types:
+
+1. **Use semantic HTML** — `<fieldset>` and `<legend>` for grouped inputs (radio, checkbox)
+2. **Wire accessibility attributes** — Use the pre-built `AriaRequired`, `AriaInvalid`, and `DescribedBy` properties from `PrismFieldContext`
+3. **Associate labels** — Always use `<label for="...">` tied to the input `id`
+4. **Provide error context** — Display `Model.FieldError` with `id="@Model.ErrorId"` for screen readers
+5. **Support focus indicators** — Ensure keyboard navigation is visible (outline/border on `:focus`)
+6. **Test with a screen reader** — Use NVDA (Windows), JAWS, or VoiceOver (macOS) to verify announcements
+
+**GDS (GOV.UK Design System) patterns** already follow these conventions. When in doubt, review the existing partials in `~/Views/Partials/PrismFields/` for reference.
+
+---
+
 ## Using C# Fluent Builder (Alternative to JSON)
 
 Prism provides a fluent builder API as an alternative to hand-writing JSON. Use this if you prefer type-safe C# or want to generate definitions programmatically.

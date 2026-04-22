@@ -1,13 +1,49 @@
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
-using System.Text;
 using UmbracoPrism.Core.Models.Workflow;
 
 namespace UmbracoPrism.Core.TagHelpers;
 
+/// <summary>
+/// Renders a Prism workflow field by dispatching to a convention-based Razor partial.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Usage: &lt;prism-field field="@field" errors="@Model.FieldErrors" values="@Model.FormValues" /&gt;
+/// </para>
+/// <para>
+/// For a field with FieldType = "text", the tag helper looks for
+/// ~/Views/Partials/PrismFields/_PrismField-Text.cshtml.
+/// If that view does not exist, it falls back to
+/// ~/Views/Partials/PrismFields/_PrismField-Default.cshtml.
+/// </para>
+/// <para>
+/// To add a custom field type named "my-widget", create
+/// Views/Partials/PrismFields/_PrismField-My-Widget.cshtml with
+/// @model PrismFieldContext. No changes to Core are required.
+/// </para>
+/// </remarks>
 [HtmlTargetElement("prism-field")]
 public class PrismFieldTagHelper : TagHelper
 {
+    private const string PartialsBase    = "~/Views/Partials/PrismFields/";
+    private const string FallbackPartial = $"{PartialsBase}_PrismField-Default.cshtml";
+
+    private readonly IHtmlHelper          _htmlHelper;
+    private readonly ICompositeViewEngine _viewEngine;
+
+    public PrismFieldTagHelper(IHtmlHelper htmlHelper, ICompositeViewEngine viewEngine)
+    {
+        _htmlHelper  = htmlHelper;
+        _viewEngine  = viewEngine;
+    }
+
+    [ViewContext]
+    [HtmlAttributeNotBound]
+    public ViewContext ViewContext { get; set; } = null!;
+
     [HtmlAttributeName("field")]
     public FieldRenderPayload? Field { get; set; }
 
@@ -17,427 +53,85 @@ public class PrismFieldTagHelper : TagHelper
     [HtmlAttributeName("values")]
     public IReadOnlyDictionary<string, string>? Values { get; set; }
 
-    public override void Process(TagHelperContext context, TagHelperOutput output)
+    public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
     {
-        if (Field == null)
+        output.TagName = null;
+
+        if (Field is null)
         {
             output.SuppressOutput();
             return;
         }
 
-        output.TagName = null;
-        output.TagMode = TagMode.StartTagAndEndTag;
+        ((IViewContextAware)_htmlHelper).Contextualize(ViewContext);
 
-        var fieldError = Errors?.ContainsKey(Field.FieldKey) == true ? Errors[Field.FieldKey] : null;
-        var hasFieldError = !string.IsNullOrEmpty(fieldError);
-        var hasHint = !string.IsNullOrEmpty(Field.Hint);
-        var hintId = $"{Field.FieldKey}-hint";
-        var errorId = $"{Field.FieldKey}-error";
+        var fieldType = (Field.FieldType ?? "text").ToLowerInvariant();
 
-        var describedByParts = new List<string>();
-        if (hasHint) describedByParts.Add(hintId);
-        if (hasFieldError) describedByParts.Add(errorId);
-        var describedBy = describedByParts.Count > 0 ? $@" aria-describedby=""{string.Join(" ", describedByParts)}""" : string.Empty;
-
-        var ariaRequired = Field.Required ? @" aria-required=""true""" : string.Empty;
-        var ariaInvalid = hasFieldError ? @" aria-invalid=""true""" : string.Empty;
-        var requiredAttr = Field.Required ? " required" : string.Empty;
-        var fieldType = Field.FieldType?.ToLowerInvariant() ?? "text";
-
-        // Readonly handling
-        var readonlyAttr = Field.ReadOnly ? @" readonly aria-readonly=""true""" : string.Empty;
-        var readonlyCssClass = Field.ReadOnly ? " govuk-input--readonly" : string.Empty;
-
-        var minLengthAttr = Field.MinLength.HasValue ? $@" minlength=""{Field.MinLength.Value}""" : string.Empty;
-        var maxLengthAttr = Field.MaxLength.HasValue ? $@" maxlength=""{Field.MaxLength.Value}""" : string.Empty;
-        var patternAttr = !string.IsNullOrEmpty(Field.Pattern) ? $@" pattern=""{Encode(Field.Pattern)}""" : string.Empty;
-        var minAttr = Field.Min.HasValue ? $@" min=""{Field.Min.Value}""" : string.Empty;
-        var maxAttr = Field.Max.HasValue ? $@" max=""{Field.Max.Value}""" : string.Empty;
-
-        // Conditional field attributes
-        var isConditional = !string.IsNullOrEmpty(Field.ConditionalOn);
-        var conditionalClass = isConditional ? " prism-field--conditional" : string.Empty;
-        var conditionalAttrs = isConditional
-            ? $@" data-conditional-on=""{Encode(Field.ConditionalOn)}"" data-visible-when=""{Encode(Field.VisibleWhen ?? "")}"""
-            : string.Empty;
-        var hiddenAttr = isConditional ? " hidden" : string.Empty;
-        var ariaHiddenAttr = isConditional ? @" aria-hidden=""true""" : string.Empty;
-
-        var sb = new StringBuilder();
-
-        // Content-only field types — rendered without govuk-form-group wrapper
-        switch (fieldType)
+        // Content-only field types rendered inline — they are not form controls
+        // and do not need the govuk-form-group wrapper or the partial dispatch system.
+        var inlineHtml = RenderInlineFieldType(fieldType);
+        if (inlineHtml is not null)
         {
-            case "inset-text":
-            {
-                if (string.IsNullOrEmpty(Field.Content)) return;
-                sb.AppendLine(@"<div class=""govuk-inset-text"">");
-                sb.AppendLine($"  {Encode(Field.Content)}");
-                sb.AppendLine("</div>");
-                output.Content.SetHtmlContent(sb.ToString());
-                return;
-            }
-            case "warning-text":
-            {
-                if (string.IsNullOrEmpty(Field.Content)) return;
-                sb.AppendLine(@"<div class=""govuk-warning-text"">");
-                sb.AppendLine(@"  <span class=""govuk-warning-text__icon"" aria-hidden=""true"">!</span>");
-                sb.AppendLine(@"  <strong class=""govuk-warning-text__text"">");
-                sb.AppendLine(@"    <span class=""govuk-visually-hidden"">Warning</span>");
-                sb.AppendLine($"    {Encode(Field.Content)}");
-                sb.AppendLine("  </strong>");
-                sb.AppendLine("</div>");
-                output.Content.SetHtmlContent(sb.ToString());
-                return;
-            }
-            case "details":
-            {
-                if (string.IsNullOrEmpty(Field.Content)) return;
-                var summaryText = !string.IsNullOrEmpty(Field.Label) ? Encode(Field.Label) : "More information";
-                sb.AppendLine(@"<details class=""govuk-details"">");
-                sb.AppendLine(@"  <summary class=""govuk-details__summary"">");
-                sb.AppendLine($@"    <span class=""govuk-details__summary-text"">{summaryText}</span>");
-                sb.AppendLine("  </summary>");
-                sb.AppendLine(@"  <div class=""govuk-details__text"">");
-                sb.AppendLine($"    {Encode(Field.Content)}");
-                sb.AppendLine("  </div>");
-                sb.AppendLine("</details>");
-                output.Content.SetHtmlContent(sb.ToString());
-                return;
-            }
-            case "notification-banner":
-            {
-                if (string.IsNullOrEmpty(Field.Content)) return;
-                var bannerTitle = !string.IsNullOrEmpty(Field.Label) ? Encode(Field.Label) : "Important";
-                sb.AppendLine($@"<div class=""govuk-notification-banner govuk-notification-banner--success"" role=""region"" aria-labelledby=""{Encode(Field.FieldKey)}-banner-title"" data-module=""govuk-notification-banner"">");
-                sb.AppendLine(@"  <div class=""govuk-notification-banner__header"">");
-                sb.AppendLine($@"    <h2 class=""govuk-notification-banner__title"" id=""{Encode(Field.FieldKey)}-banner-title"">{bannerTitle}</h2>");
-                sb.AppendLine("  </div>");
-                sb.AppendLine(@"  <div class=""govuk-notification-banner__content"">");
-                sb.AppendLine($@"    <p class=""govuk-body"">{Encode(Field.Content)}</p>");
-                sb.AppendLine("  </div>");
-                sb.AppendLine("</div>");
-                output.Content.SetHtmlContent(sb.ToString());
-                return;
-            }
+            output.Content.SetHtmlContent(inlineHtml);
+            return;
         }
 
-        // Regular form fields — wrap in govuk-form-group
-        sb.AppendLine($@"<div class=""govuk-form-group {(hasFieldError ? "govuk-form-group--error" : "")}{conditionalClass}""{conditionalAttrs}{hiddenAttr}{ariaHiddenAttr}>");
+        var fieldError = Errors?.GetValueOrDefault(Field.FieldKey);
+        var ctx        = PrismFieldContext.Build(Field, fieldError, Values);
+        var partial    = ResolvePartial(fieldType);
+        var content    = await _htmlHelper.PartialAsync(partial, ctx);
 
-        switch (fieldType)
-        {
-            case "boolean":
-                RenderCheckbox(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr);
-                break;
-            case "radio":
-            case "radios":
-                RenderRadio(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
-                break;
-            case "checkboxlist":
-            case "checkboxes":
-                RenderCheckboxList(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
-                break;
-            case "date-input":
-                RenderDateInput(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid);
-                break;
-            case "select":
-                RenderSelect(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
-                break;
-            case "textarea":
-                RenderTextarea(sb, Field, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, minLengthAttr, maxLengthAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
-                break;
-            default:
-                RenderInput(sb, Field, fieldType, hasHint, hintId, hasFieldError, fieldError, errorId, requiredAttr, minLengthAttr, maxLengthAttr, patternAttr, minAttr, maxAttr, ariaRequired, ariaInvalid, describedBy, readonlyAttr, readonlyCssClass);
-                break;
-        }
-
-        sb.AppendLine("</div>");
-
-        output.Content.SetHtmlContent(sb.ToString());
+        output.Content.SetHtmlContent(content);
     }
 
-    private void RenderCheckbox(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr)
+    /// <summary>
+    /// Resolves the partial name for a given field type using the naming convention.
+    /// Falls back to _PrismField-Default.cshtml if no specific partial exists.
+    /// </summary>
+    private string ResolvePartial(string fieldType)
     {
-        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue;
-        var isChecked = currentValue != null
-            ? "true".Equals(currentValue, StringComparison.OrdinalIgnoreCase)
-            : (field.Value is true || "true".Equals(field.Value?.ToString(), StringComparison.OrdinalIgnoreCase));
+        // Normalise: "text" -> "Text", "checkboxlist" -> "Checkboxlist"
+        var typeName = string.IsNullOrEmpty(fieldType)
+            ? "Default"
+            : char.ToUpperInvariant(fieldType[0]) + fieldType[1..];
 
-        sb.AppendLine(@"    <div class=""govuk-checkboxes"" data-module=""govuk-checkboxes"">");
-        sb.AppendLine(@"        <div class=""govuk-checkboxes__item"">");
-        sb.Append($@"            <input class=""govuk-checkboxes__input"" type=""checkbox"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""true"" data-label=""{Encode(field.Label)}""");
-        if (isChecked) sb.Append(" checked");
-        sb.Append(requiredAttr);
-        sb.Append(ariaRequired);
-        sb.Append(ariaInvalid);
-        sb.Append(describedBy);
-        if (field.ReadOnly) sb.Append(@" disabled");
-        sb.AppendLine(" />");
-        sb.Append($@"            <label class=""govuk-label govuk-checkboxes__label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</label>");
-        sb.AppendLine("        </div>");
-        sb.AppendLine("    </div>");
+        var candidate = $"{PartialsBase}_PrismField-{typeName}.cshtml";
 
-        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
+        // ICompositeViewEngine.GetView checks the physical file system first,
+        // then falls through registered file providers (embedded resources etc.)
+        var result = _viewEngine.GetView(
+            executingFilePath: ViewContext.ExecutingFilePath,
+            viewPath:          candidate,
+            isMainPage:        false);
+
+        return result.Success ? candidate : FallbackPartial;
     }
 
-    private void RenderRadio(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid)
+    /// <summary>
+    /// Renders content-only field types that are not form controls.
+    /// Returns null for standard field types that use the partial system.
+    /// </summary>
+    private string? RenderInlineFieldType(string fieldType)
     {
-        sb.AppendLine(@"    <fieldset class=""govuk-fieldset"">");
-        sb.Append($@"        <legend class=""govuk-fieldset__legend"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</legend>");
+        var content = Field!.Content;
 
-        if (hasHint) sb.AppendLine($@"        <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"        <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
-
-        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = submittedValue ?? field.Value?.ToString();
-
-        sb.AppendLine(@"        <div class=""govuk-radios"" data-module=""govuk-radios"">");
-        if (field.Options != null)
+        return fieldType switch
         {
-            foreach (var option in field.Options)
-            {
-                var radioId = $"opt-{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
-                var isChecked = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
+            "inset-text" when !string.IsNullOrEmpty(content) =>
+                $@"<div class=""govuk-inset-text"">{System.Net.WebUtility.HtmlEncode(content)}</div>",
 
-                sb.AppendLine(@"            <div class=""govuk-radios__item"">");
-                sb.Append($@"                <input class=""govuk-radios__input"" type=""radio"" id=""{Encode(radioId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
-                if (isChecked) sb.Append(" checked");
-                sb.Append(requiredAttr);
-                sb.Append(ariaRequired);
-                sb.Append(ariaInvalid);
-                sb.AppendLine(" />");
-                sb.AppendLine($@"                <label class=""govuk-label govuk-radios__label"" for=""{Encode(radioId)}"">{Encode(option)}</label>");
-                sb.AppendLine("            </div>");
-            }
-        }
-        sb.AppendLine("        </div>");
+            "warning-text" when !string.IsNullOrEmpty(content) =>
+                $@"<div class=""govuk-warning-text"">
+  <span class=""govuk-warning-text__icon"" aria-hidden=""true"">!</span>
+  <strong class=""govuk-warning-text__text"">
+    <span class=""govuk-visually-hidden"">Warning</span>
+    {System.Net.WebUtility.HtmlEncode(content)}
+  </strong>
+</div>",
 
-        sb.AppendLine("    </fieldset>");
-    }
+            "inset-text" or "warning-text" => string.Empty, // content was null/empty — suppress
 
-    private void RenderCheckboxList(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid)
-    {
-        sb.AppendLine(@"    <fieldset class=""govuk-fieldset"">");
-        sb.Append($@"        <legend class=""govuk-fieldset__legend"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</legend>");
-
-        if (hasHint) sb.AppendLine($@"        <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"        <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
-
-        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = submittedValue ?? field.Value?.ToString();
-        var checkedValues = currentValue?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            ?? Array.Empty<string>();
-
-        sb.AppendLine(@"        <div class=""govuk-checkboxes"" data-module=""govuk-checkboxes"">");
-        if (field.Options != null)
-        {
-            foreach (var option in field.Options)
-            {
-                var cbId = $"opt-{field.FieldKey}-{option.ToLowerInvariant().Replace(" ", "-")}";
-                var isChecked = checkedValues.Contains(option, StringComparer.OrdinalIgnoreCase);
-
-                sb.AppendLine(@"            <div class=""govuk-checkboxes__item"">");
-                sb.Append($@"                <input class=""govuk-checkboxes__input"" type=""checkbox"" id=""{Encode(cbId)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(option)}"" data-label=""{Encode(field.Label)}""");
-                if (isChecked) sb.Append(" checked");
-                sb.Append(requiredAttr);
-                sb.Append(ariaRequired);
-                sb.Append(ariaInvalid);
-                sb.AppendLine(" />");
-                sb.AppendLine($@"                <label class=""govuk-label govuk-checkboxes__label"" for=""{Encode(cbId)}"">{Encode(option)}</label>");
-                sb.AppendLine("            </div>");
-            }
-        }
-        sb.AppendLine("        </div>");
-
-        sb.AppendLine("    </fieldset>");
-    }
-
-    private void RenderSelect(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
-    {
-        sb.Append($@"    <label class=""govuk-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</label>");
-
-        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
-
-        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString();
-
-        if (field.ReadOnly)
-        {
-            sb.AppendLine($@"    <div class=""govuk-body"">{Encode(currentValue ?? "")}</div>");
-            sb.AppendLine($@"    <input type=""hidden"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue ?? "")}"">");
-        }
-        else
-        {
-            sb.Append($@"    <select class=""govuk-select{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" data-label=""{Encode(field.Label)}""");
-            sb.Append(requiredAttr);
-            sb.Append(ariaRequired);
-            sb.Append(ariaInvalid);
-            sb.Append(describedBy);
-            sb.AppendLine(">");
-            sb.AppendLine(@"        <option value="""">-- Select --</option>");
-
-            if (field.Options != null)
-            {
-                foreach (var option in field.Options)
-                {
-                    var isSelected = option.Equals(currentValue, StringComparison.OrdinalIgnoreCase);
-                    sb.Append($@"        <option value=""{Encode(option)}""");
-                    if (isSelected) sb.Append(" selected");
-                    sb.AppendLine($">{Encode(option)}</option>");
-                }
-            }
-
-            sb.AppendLine("    </select>");
-        }
-    }
-
-    private void RenderTextarea(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
-    {
-        sb.Append($@"    <label class=""govuk-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</label>");
-
-        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
-
-        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
-
-        sb.Append($@"    <textarea class=""govuk-textarea{readonlyCssClass}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" rows=""5"" data-label=""{Encode(field.Label)}""");
-        sb.Append(requiredAttr);
-        sb.Append(minLengthAttr);
-        sb.Append(maxLengthAttr);
-        sb.Append(ariaRequired);
-        sb.Append(ariaInvalid);
-        sb.Append(describedBy);
-        sb.Append(readonlyAttr);
-        sb.Append(">");
-        sb.Append(Encode(currentValue));
-        sb.AppendLine("</textarea>");
-    }
-
-    private void RenderDateInput(StringBuilder sb, FieldRenderPayload field, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string ariaRequired, string ariaInvalid)
-    {
-        sb.AppendLine(@"    <fieldset class=""govuk-fieldset"" role=""group"">");
-        sb.Append($@"        <legend class=""govuk-fieldset__legend"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</legend>");
-
-        if (hasHint) sb.AppendLine($@"        <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"        <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
-
-        var submittedDay = Values?.GetValueOrDefault($"{field.FieldKey}-day") ?? "";
-        var submittedMonth = Values?.GetValueOrDefault($"{field.FieldKey}-month") ?? "";
-        var submittedYear = Values?.GetValueOrDefault($"{field.FieldKey}-year") ?? "";
-
-        // If no TempData parts, fall back to field.Value stored as "day/month/year" by the engine
-        if (string.IsNullOrEmpty(submittedDay) && string.IsNullOrEmpty(submittedMonth) && string.IsNullOrEmpty(submittedYear))
-        {
-            var storedValue = field.Value?.ToString() ?? "";
-            var parts = storedValue.Split('/');
-            if (parts.Length == 3)
-            {
-                submittedDay = parts[0];
-                submittedMonth = parts[1];
-                submittedYear = parts[2];
-            }
-        }
-
-        sb.AppendLine(@"        <div class=""govuk-date-input"">");
-
-        foreach (var (part, label, width, value) in new[] {
-            ("day", "Day", "govuk-input--width-2", submittedDay),
-            ("month", "Month", "govuk-input--width-2", submittedMonth),
-            ("year", "Year", "govuk-input--width-4", submittedYear)
-        })
-        {
-            var partId = $"{field.FieldKey}-{part}";
-            sb.AppendLine($@"            <div class=""govuk-date-input__item"">");
-            sb.AppendLine($@"                <div class=""govuk-form-group"">");
-            sb.AppendLine($@"                    <label class=""govuk-label govuk-date-input__label"" for=""{Encode(partId)}"">{label}</label>");
-            sb.Append($@"                    <input class=""govuk-input govuk-date-input__input {width}"" type=""text"" inputmode=""numeric"" id=""{Encode(partId)}"" name=""fields[{Encode(partId)}]"" value=""{Encode(value)}"" autocomplete=""off""");
-            sb.Append(requiredAttr);
-            sb.Append(ariaRequired);
-            sb.Append(ariaInvalid);
-            sb.AppendLine(" />");
-            sb.AppendLine("                </div>");
-            sb.AppendLine("            </div>");
-        }
-
-        sb.AppendLine("        </div>");
-        sb.AppendLine("    </fieldset>");
-    }
-
-    private void RenderInput(StringBuilder sb, FieldRenderPayload field, string fieldType, bool hasHint, string hintId, bool hasFieldError, string? fieldError, string errorId, string requiredAttr, string minLengthAttr, string maxLengthAttr, string patternAttr, string minAttr, string maxAttr, string ariaRequired, string ariaInvalid, string describedBy, string readonlyAttr, string readonlyCssClass)
-    {
-        var inputType = fieldType switch
-        {
-            "email" => "email",
-            "number" or "decimal" => "number",
-            "date" => "date",
-            "datetime" => "datetime-local",
-            _ => "text"
+            _ => null // use the partial dispatch system
         };
-        var step = fieldType == "decimal" ? @" step=""any""" : string.Empty;
-
-        sb.Append($@"    <label class=""govuk-label"" for=""{Encode(field.FieldKey)}"">{Encode(field.Label)}");
-        if (field.Required) sb.Append(@"<span class=""govuk-visually-hidden"">(required)</span>");
-        sb.AppendLine("</label>");
-
-        if (hasHint) sb.AppendLine($@"    <div class=""govuk-hint"" id=""{hintId}"">{Encode(field.Hint!)}</div>");
-        if (hasFieldError) sb.AppendLine($@"    <p class=""govuk-error-message"" id=""{errorId}""><span class=""govuk-visually-hidden"">Error:</span> {Encode(fieldError!)}</p>");
-
-        var submittedValue = Values?.GetValueOrDefault(field.FieldKey);
-        var currentValue = !string.IsNullOrWhiteSpace(field.DefaultValue) ? field.DefaultValue : submittedValue ?? field.Value?.ToString() ?? "";
-
-        // Strip prefix from currency field value (the prefix is rendered separately in the input wrapper)
-        if (!string.IsNullOrEmpty(field.Prefix) && currentValue.StartsWith(field.Prefix, StringComparison.Ordinal))
-        {
-            currentValue = currentValue[field.Prefix.Length..];
-        }
-
-        var constraintAttrs = string.Empty;
-        if (inputType == "text" || inputType == "email")
-        {
-            constraintAttrs = minLengthAttr + maxLengthAttr + patternAttr;
-        }
-        else if (inputType == "number")
-        {
-            constraintAttrs = minAttr + maxAttr;
-        }
-
-        var hasPrefix = !string.IsNullOrEmpty(field.Prefix);
-        if (hasPrefix)
-        {
-            sb.AppendLine(@"    <div class=""govuk-input__wrapper"">");
-            sb.AppendLine($@"        <div class=""govuk-input__prefix"" aria-hidden=""true"">{Encode(field.Prefix)}</div>");
-            sb.Append(@"        ");
-        }
-
-        sb.Append($@"    <input class=""govuk-input{readonlyCssClass}"" type=""{inputType}"" id=""{Encode(field.FieldKey)}"" name=""fields[{Encode(field.FieldKey)}]"" value=""{Encode(currentValue)}"" data-label=""{Encode(field.Label)}""");
-        sb.Append(step);
-        sb.Append(requiredAttr);
-        sb.Append(constraintAttrs);
-        sb.Append(ariaRequired);
-        sb.Append(ariaInvalid);
-        sb.Append(describedBy);
-        sb.Append(readonlyAttr);
-        sb.AppendLine(" />");
-
-        if (hasPrefix) sb.AppendLine("    </div>");
     }
-
-    private static string Encode(string? value) => System.Net.WebUtility.HtmlEncode(value ?? "");
 }

@@ -1108,3 +1108,25 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - Poll controller is stateless and lightweight (perfect for high-frequency polling)
 - ResponseState abstraction correctly separates "what to render" from "step behavior"
 
+
+---
+
+## Session: PrismField Partial Dispatch Refactor (2026-07-09)
+
+**Topic:** Refactor PrismFieldTagHelper to convention-based partial dispatcher
+
+### Files Changed
+
+- **Created** `src/UmbracoPrism.Core/Models/Workflow/PrismFieldContext.cs` — record view model pre-computing ARIA attributes, CSS classes, wrapper attrs, and display value resolution for field partials
+- **Replaced** `src/UmbracoPrism.Core/TagHelpers/PrismFieldTagHelper.cs` — thin async dispatcher: resolves `_PrismField-{TypeName}.cshtml` via `ICompositeViewEngine`, falls back to `_PrismField-Default.cshtml`
+- **Deleted** `src/UmbracoPrism.TestSite/Views/Shared/_WorkflowField.cshtml` — orphaned legacy partial with no references
+- **Fixed** `src/UmbracoPrism.TestSite/Views/Partials/PrismFields/_PrismField-Select.cshtml` — pre-existing RZ1031 Razor error (C# in attribute declaration area for `<option selected>`)
+- **Updated** `src/UmbracoPrism.Core.Tests/TagHelpers/PrismFieldTagHelperContentTypesTests.cs` — migrated to async, added Moq mocks for `IHtmlHelper`/`ICompositeViewEngine`, removed `details`/`notification-banner` rendering tests (now integration-test territory via partials)
+
+### Learnings
+
+- **PrismFieldContext record pattern** — pre-computing all HTML attribute strings (ARIA, readonly, constraints, wrapper classes) in a factory method keeps Razor partials purely declarative
+- **Tag helper partial dispatch** — `ICompositeViewEngine.GetView()` is the correct way to probe for view existence in a tag helper; returns `ViewEngineResult.Success` only if the file exists
+- **`[ViewContext]` attribute** — requires `using Microsoft.AspNetCore.Mvc.ViewFeatures;`; `Microsoft.AspNetCore.Mvc.Rendering` contains the `ViewContext` class but NOT the attribute
+- **Inline vs partial types** — `inset-text` and `warning-text` remain inline (no form group wrapper needed); `details` and `notification-banner` moved to the partial system for extensibility
+- **Test migration** — tag helpers with DI constructor args need Moq for unit tests; `IHtmlHelper` implements `IViewContextAware` so mock must cast with `.As<IViewContextAware>()`

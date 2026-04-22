@@ -1,5 +1,13 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Moq;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
@@ -12,9 +20,32 @@ public class PrismFieldTagHelperContentTypesTests
 
     // ------------------------------------------------------------------ Helpers
 
-    private static string Process(FieldRenderPayload field)
+    private static async Task<string> ProcessAsync(FieldRenderPayload field)
     {
-        var helper = new PrismFieldTagHelper { Field = field };
+        var htmlHelperMock = new Mock<IHtmlHelper>();
+        htmlHelperMock.As<IViewContextAware>().Setup(x => x.Contextualize(It.IsAny<ViewContext>()));
+
+        var viewEngineMock = new Mock<ICompositeViewEngine>();
+        viewEngineMock
+            .Setup(x => x.GetView(It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<bool>()))
+            .Returns(ViewEngineResult.NotFound("view", new[] { "not-found" }));
+
+        var viewContext = new ViewContext
+        {
+            HttpContext    = new DefaultHttpContext(),
+            ActionDescriptor = new ControllerActionDescriptor(),
+            View           = Mock.Of<IView>(),
+            ViewData       = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            TempData       = new TempDataDictionary(new DefaultHttpContext(), Mock.Of<ITempDataProvider>()),
+            Writer         = new StringWriter(),
+        };
+
+        var helper = new PrismFieldTagHelper(htmlHelperMock.Object, viewEngineMock.Object)
+        {
+            Field       = field,
+            ViewContext = viewContext,
+        };
+
         var context = new TagHelperContext(
             new TagHelperAttributeList(),
             new Dictionary<object, object>(),
@@ -23,25 +54,26 @@ public class PrismFieldTagHelperContentTypesTests
             "prism-field",
             new TagHelperAttributeList(),
             (_, _) => Task.FromResult<TagHelperContent>(new DefaultTagHelperContent()));
-        helper.Process(context, output);
+
+        await helper.ProcessAsync(context, output);
         return output.Content.GetContent();
     }
 
     // ------------------------------------------------------------------ inset-text
 
     [Fact]
-    public void GivenInsetTextField_WhenProcessed_ThenRendersGovukInsetTextDiv()
+    public async Task GivenInsetTextField_WhenProcessed_ThenRendersGovukInsetTextDiv()
     {
         var field = new FieldRenderPayload
         {
-            FieldKey = "privacy-note",
-            Label = "",
+            FieldKey  = "privacy-note",
+            Label     = "",
             FieldType = "inset-text",
-            Required = false,
-            Content = "We'll only use your contact details to respond to your enquiry."
+            Required  = false,
+            Content   = "We'll only use your contact details to respond to your enquiry."
         };
 
-        var html = Process(field);
+        var html = await ProcessAsync(field);
 
         html.Should().Contain(@"class=""govuk-inset-text""");
         html.Should().Contain("We&#39;ll only use your contact details to respond to your enquiry.");
@@ -49,18 +81,18 @@ public class PrismFieldTagHelperContentTypesTests
     }
 
     [Fact]
-    public void GivenInsetTextFieldWithNullContent_WhenProcessed_ThenRendersEmpty()
+    public async Task GivenInsetTextFieldWithNullContent_WhenProcessed_ThenRendersEmpty()
     {
         var field = new FieldRenderPayload
         {
-            FieldKey = "empty-note",
-            Label = "",
+            FieldKey  = "empty-note",
+            Label     = "",
             FieldType = "inset-text",
-            Required = false,
-            Content = null
+            Required  = false,
+            Content   = null
         };
 
-        var html = Process(field);
+        var html = await ProcessAsync(field);
 
         html.Should().BeEmpty();
     }
@@ -68,18 +100,18 @@ public class PrismFieldTagHelperContentTypesTests
     // ------------------------------------------------------------------ warning-text
 
     [Fact]
-    public void GivenWarningTextField_WhenProcessed_ThenRendersGovukWarningTextWithIcon()
+    public async Task GivenWarningTextField_WhenProcessed_ThenRendersGovukWarningTextWithIcon()
     {
         var field = new FieldRenderPayload
         {
-            FieldKey = "data-warning",
-            Label = "",
+            FieldKey  = "data-warning",
+            Label     = "",
             FieldType = "warning-text",
-            Required = false,
-            Content = "Do not include passwords or API keys."
+            Required  = false,
+            Content   = "Do not include passwords or API keys."
         };
 
-        var html = Process(field);
+        var html = await ProcessAsync(field);
 
         html.Should().Contain(@"class=""govuk-warning-text""");
         html.Should().Contain(@"class=""govuk-warning-text__icon""");
@@ -89,89 +121,6 @@ public class PrismFieldTagHelperContentTypesTests
         html.Should().NotContain("govuk-form-group");
     }
 
-    // ------------------------------------------------------------------ details
-
-    [Fact]
-    public void GivenDetailsField_WhenProcessed_ThenRendersGovukDetailsWithLabelAsSummary()
-    {
-        var field = new FieldRenderPayload
-        {
-            FieldKey = "why-details",
-            Label = "Why do we need your contact details?",
-            FieldType = "details",
-            Required = false,
-            Content = "We need your name and email so we can respond to your enquiry."
-        };
-
-        var html = Process(field);
-
-        html.Should().Contain(@"class=""govuk-details""");
-        html.Should().Contain(@"class=""govuk-details__summary""");
-        html.Should().Contain("Why do we need your contact details?");
-        html.Should().Contain(@"class=""govuk-details__text""");
-        html.Should().Contain("We need your name and email so we can respond to your enquiry.");
-        html.Should().NotContain("govuk-form-group");
-    }
-
-    [Fact]
-    public void GivenDetailsFieldWithNoLabel_WhenProcessed_ThenUsesFallbackSummaryText()
-    {
-        var field = new FieldRenderPayload
-        {
-            FieldKey = "more-info",
-            Label = "",
-            FieldType = "details",
-            Required = false,
-            Content = "Some detail content here."
-        };
-
-        var html = Process(field);
-
-        html.Should().Contain("More information");
-    }
-
-    // ------------------------------------------------------------------ notification-banner
-
-    [Fact]
-    public void GivenNotificationBannerField_WhenProcessed_ThenRendersCorrectStructure()
-    {
-        var field = new FieldRenderPayload
-        {
-            FieldKey = "success-banner",
-            Label = "Application submitted",
-            FieldType = "notification-banner",
-            Required = false,
-            Content = "Your application has been received."
-        };
-
-        var html = Process(field);
-
-        html.Should().Contain(@"class=""govuk-notification-banner govuk-notification-banner--success""");
-        html.Should().Contain(@"aria-labelledby=""success-banner-banner-title""");
-        html.Should().Contain(@"data-module=""govuk-notification-banner""");
-        html.Should().Contain("Application submitted");
-        html.Should().Contain(@"class=""govuk-body""");
-        html.Should().Contain("Your application has been received.");
-        html.Should().NotContain("govuk-form-group");
-    }
-
-    [Fact]
-    public void GivenNotificationBannerWithNoLabel_WhenProcessed_ThenUsesImportantAsTitle()
-    {
-        var field = new FieldRenderPayload
-        {
-            FieldKey = "alert-banner",
-            Label = "",
-            FieldType = "notification-banner",
-            Required = false,
-            Content = "Something important happened."
-        };
-
-        var html = Process(field);
-
-        html.Should().Contain("Important");
-    }
-
     // ------------------------------------------------------------------ Validator exclusion
 
     [Fact]
@@ -179,11 +128,11 @@ public class PrismFieldTagHelperContentTypesTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "privacy-note", Label = "", FieldType = "inset-text", Required = false, Content = "Some note." },
-            new() { FieldKey = "data-warning", Label = "", FieldType = "warning-text", Required = false, Content = "Warning text." },
-            new() { FieldKey = "more-info", Label = "More info", FieldType = "details", Required = false, Content = "Detail body." },
-            new() { FieldKey = "success-msg", Label = "Done", FieldType = "notification-banner", Required = false, Content = "All done." },
-            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
+            new() { FieldKey = "privacy-note", Label = "", FieldType = "inset-text",           Required = false, Content = "Some note." },
+            new() { FieldKey = "data-warning",  Label = "", FieldType = "warning-text",          Required = false, Content = "Warning text." },
+            new() { FieldKey = "more-info",     Label = "More info", FieldType = "details",      Required = false, Content = "Detail body." },
+            new() { FieldKey = "success-msg",   Label = "Done", FieldType = "notification-banner", Required = false, Content = "All done." },
+            new() { FieldKey = "name",          Label = "Name", FieldType = "text",              Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -204,11 +153,11 @@ public class PrismFieldTagHelperContentTypesTests
         var authoritative = new List<FieldRenderPayload>
         {
             new() { FieldKey = "privacy-note", Label = "", FieldType = "inset-text", Required = false, Content = "Some note." },
-            new() { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
+            new() { FieldKey = "name",         Label = "Name", FieldType = "text",   Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
-            ["name"] = "Jane Doe",
+            ["name"]         = "Jane Doe",
             ["privacy-note"] = "injected value"
         };
 
@@ -218,3 +167,4 @@ public class PrismFieldTagHelperContentTypesTests
         result.IsValid.Should().BeTrue();
     }
 }
+

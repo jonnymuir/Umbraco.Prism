@@ -1,0 +1,14 @@
+@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
+<label class="govuk-label" for="@Model.Field.FieldKey">
+    @Model.Field.Label@if (Model.Field.Required){<span class="govuk-visually-hidden"> (required)</span>}
+</label>
+@if (Model.HasHint)
+{
+    <div class="govuk-hint" id="@Model.HintId">@Model.Field.Hint</div>
+}
+@if (Model.HasFieldError)
+{
+    <p class="govuk-error-message" id="@Model.ErrorId" role="alert">
+        <span class="govuk-visually-hidden">Error:</span> @Model.FieldError
+    </p>
+}

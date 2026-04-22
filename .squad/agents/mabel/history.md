@@ -15,6 +15,76 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## 2026-04-22: Custom Field Types Documentation — COMPLETE
+
+**Session:** Document the extensible field type architecture
+
+**Task:** Add comprehensive "Custom Field Types" section to workflow-setup.md covering the convention-based partial system, built-in types, and a complete step-by-step guide with star-rating example.
+
+### Delivered
+
+1. **workflow-setup.md — New "Custom Field Types" section**
+   - ✅ Architecture explanation with Mermaid convention flow diagram
+   - ✅ Naming convention rule: `fieldType: "kebab-case"` → `_PrismField-PascalCase.cshtml`
+   - ✅ Built-in field types quick reference table (13 types)
+   - ✅ Step-by-step custom field guide with complete star-rating example
+   - ✅ Partial code (HTML structure + accessibility attributes)
+   - ✅ CSS styling example
+   - ✅ Usage in workflow JSON
+   - ✅ Complete `PrismFieldContext` property reference table
+   - ✅ Accessibility properties (pre-built aria attributes, constraint attributes)
+   - ✅ Usage example showing best practices
+   - ✅ Override built-in types documentation
+   - ✅ Accessibility notes section (semantic HTML, ARIA, label association, GDS patterns)
+
+2. **Updated .squad/agents/mabel/history.md**
+   - ✅ Added "Custom Field Types Architecture" to Learnings section
+   - ✅ Documented convention, PrismFieldContext pattern, accessibility requirements
+
+### Key Content
+
+**Convention Diagram:** Shows how `fieldType: "star-rating"` resolves to `_PrismField-Star-Rating.cshtml`
+
+**Star-Rating Example:**
+- Complete Razor partial with 5-star radio buttons
+- Proper accessibility: aria-label per star, fieldset/legend structure
+- HTML structure using pre-built context properties
+- CSS with focus indicators and hover states
+
+**PrismFieldContext Reference:**
+- Core properties (Field, DisplayValue, validation state)
+- Field definition properties (FieldKey, Label, Hint, Required, Options, etc.)
+- Pre-built accessibility attributes (AriaRequired, AriaInvalid, DescribedBy)
+- Pre-built constraint attributes (MinLength, MaxLength, Min, Max, Pattern)
+- CSS/wrapper properties (WrapperClass, WrapperAttrs)
+
+**Accessibility Emphasis:**
+- Semantic HTML (fieldset/legend for grouped inputs)
+- Wire accessibility attributes from context
+- Associate labels with inputs
+- Display errors with correct IDs
+- Support focus indicators
+- Screen reader testing guidance
+
+### Design Decisions
+
+- Placed "Custom Field Types" section after "Available Field Types" and before "Using C# Fluent Builder" for logical flow
+- Included both JSON and CSS to show complete development workflow
+- Pre-built attribute strings reduce developer error (context handles ARIA wiring)
+- Fallback to `_PrismField-Default.cshtml` provides graceful degradation
+- Override pattern allows customization without Core changes
+
+### Testing & Validation
+
+✅ workflow-setup.md structure verified (all section headers present, cross-links intact)
+✅ Mermaid diagram syntax validated
+✅ Code examples (Razor, CSS) follow project conventions
+✅ Accessibility patterns align with GDS and WCAG standards
+
+**Result:** ✅ Comprehensive custom field types documentation complete, added to workflows guide
+
+---
+
 ## 2026-04-17: Workflow Documentation Rewrite — COMPLETE
 
 **Session:** Complete rewrite of all workflow documentation guides
@@ -509,6 +579,13 @@ When documenting bundled dependencies:
 - Most workflows don't need a custom controller — the base class is sufficient
 - Override `PrePopulateFieldsFromClaims()` only if you need to auto-fill fields from user identity claims
 - Always decorate with `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`
+
+### Custom Field Types Architecture
+- Custom field types are implemented as Razor partials following a simple naming convention: `fieldType: "kebab-case"` → `_PrismField-PascalCase.cshtml`
+- All field partials receive `@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext` with pre-built accessibility attributes and validation state
+- Unknown field types gracefully fall back to `_PrismField-Default.cshtml` — developers can override any built-in type
+- The extensible design means **no Core modifications** are needed to add new field types; just add a partial to `~/Views/Partials/PrismFields/`
+- Common pattern: built-in partials use GDS (GOV.UK Design System) patterns; custom partials should follow the same accessibility conventions
 
 
 ---
