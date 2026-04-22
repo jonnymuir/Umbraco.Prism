@@ -1130,3 +1130,24 @@ The workflow engine is registered as a singleton, so in-memory definition update
 - **`[ViewContext]` attribute** — requires `using Microsoft.AspNetCore.Mvc.ViewFeatures;`; `Microsoft.AspNetCore.Mvc.Rendering` contains the `ViewContext` class but NOT the attribute
 - **Inline vs partial types** — `inset-text` and `warning-text` remain inline (no form group wrapper needed); `details` and `notification-banner` moved to the partial system for extensibility
 - **Test migration** — tag helpers with DI constructor args need Moq for unit tests; `IHtmlHelper` implements `IViewContextAware` so mock must cast with `.As<IViewContextAware>()`
+
+---
+
+## Session: Embed PrismFields Partials in Core (2026-04-22)
+
+**Topic:** Move default GDS field partials from TestSite into UmbracoPrism.Core as embedded resources
+
+**Outcome:** ✅ Complete — 539 tests pass, build clean
+
+### Delivered
+- Copied all 14 `.cshtml` field partials from `src/UmbracoPrism.TestSite/Views/Partials/PrismFields/` into `src/UmbracoPrism.Core/Views/Partials/PrismFields/`
+- Added `<EmbeddedResource Include="Views\Partials\PrismFields\**\*.cshtml" />` to `UmbracoPrism.Core.csproj`
+- Created `src/UmbracoPrism.Core/Composers/PrismFieldPartialsComposer.cs` — registers an `IStartupFilter` that adds an `EmbeddedFileProvider` to `IWebHostEnvironment.ContentRootFileProvider` as a composite (physical files first, embedded fallback)
+- Deleted partials from TestSite — it now consumes them from Core like any real consuming project
+
+### Key Findings
+- **`RazorViewEngineOptions.FileProviders` does NOT exist in .NET 10** — the property was removed. The correct approach is to modify `IWebHostEnvironment.ContentRootFileProvider` via an `IStartupFilter` using `CompositeFileProvider`
+- **Hyphens ARE preserved** in embedded resource names: `_PrismField-Text.cshtml` embeds as `UmbracoPrism.Core.Views.Partials.PrismFields._PrismField-Text.cshtml`
+- **Base namespace for embedded resources:** `"UmbracoPrism.Core"` — pass to `EmbeddedFileProvider` constructor
+- **Composer location:** `src/UmbracoPrism.Core/Composers/PrismFieldPartialsComposer.cs` (new `Composers/` subdirectory, namespace `UmbracoPrism.Core.Composers`)
+- **Pre-compiled views:** The `Microsoft.NET.Sdk.Web` SDK also pre-compiles the views into the assembly, providing an additional discovery path
