@@ -60,6 +60,9 @@ Previous history archived to reduce file size. Recent entries below.
 
 ## Learnings
 
+- 2026-04-22: Workflow shell selection can be derived safely from render payload shape in the Razor layer: `waiting` component or WaitingConfig → waiting shell; summary-list-only data components → check-answers; panel with no interactive fields → confirmation; task-list component → task-list; otherwise fall back to question/status based on whether editable fields or actions exist.
+- 2026-04-22: Content-authored field types inside fieldsets must be handled as inline GOV.UK content, not default inputs. In practice this means `inset-text`, `warning-text`, `details`, and `notification-banner` need dedicated inline rendering in `PrismFieldTagHelper`, even when authored alongside real inputs in the same fieldset.
+
 - 2026-04-22: PrismFields partial directory pattern: all field partials live at `~/Views/Partials/PrismFields/_PrismField-{TypeName}.cshtml` with a `_PrismField-Default.cshtml` fallback. A shared `_PrismFieldLabel.cshtml` sub-partial renders the label/hint/error trio, keeping individual field partials DRY.
 - 2026-04-22: GDS class conventions for field partials: `govuk-form-group` wrapper (+ `govuk-form-group--error` when invalid); `govuk-input`, `govuk-textarea`, `govuk-select` for controls (+ `--error` modifier); `govuk-radios`/`govuk-checkboxes` with `data-module` attributes; `govuk-date-input` for the GDS three-part date pattern.
 - 2026-04-22: Accessibility patterns used across all field partials: every input has an associated `<label for=>` or `<fieldset><legend>`; error messages have `role="alert"` + `<span class="govuk-visually-hidden">Error:</span>`; required fields carry `aria-required="true"` plus HTML `required`; invalid fields carry `aria-invalid="true"`; `aria-describedby` references hint and error IDs; conditionally hidden fields receive `hidden`+`aria-hidden="true"` via `WrapperAttrs` from `PrismFieldContext`.

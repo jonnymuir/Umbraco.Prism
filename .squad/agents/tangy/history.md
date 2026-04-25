@@ -705,6 +705,13 @@ Nine key decisions documented covering test organization, selector strategy, dat
 
 ## 2026-04-22T10:15:30Z: Waiting State Test Coverage Session
 
+## Learnings — 2026-04-23 — Workflow regression coverage
+
+- For step-type removal, the strongest QA contract is engine-level: seed minimal workflows with omitted `stepType` and assert question → check-answers → confirmation inference through real `GetCurrent`/`Advance` calls.
+- Waiting-state regressions are best covered twice in code: infer `waiting` from the component model itself, then assert the envelope still emits `ResponseState = "render"` and `PollAfterMs` from the derived waiting config.
+- Mixed workflow forms need dedicated regression tests that prove content-only fields (`inset-text`, `details`) never become fillable controls and never appear in validation errors, while adjacent real inputs still carry GDS error metadata.
+- Attempting live `/get-in-touch` and `/payment-demo` browser checks in this worktree exposed a separate TestSite model-binding exception (`WorkflowViewModel` vs `WorkflowPage`), so the durable regression signal for this session stays in Core test contracts until that route issue is fixed.
+
 **Scope:** XUnit tests for waiting state feature (serialization, builder, engine integration)
 
 **Changes:**

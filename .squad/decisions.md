@@ -2440,3 +2440,64 @@ BusinessAppWorkflowEngine{Feature}Tests.cs
 - Zero regression (543 total tests passing)
 - Full coverage: JSON → Builder → Engine output
 
+---
+
+## 📌 2026-04-25: Tom Nook — Workflow Schema Cleanup Design Review
+
+**Decision:** Recommend Option 1 (minimal cleanup) now; plan Option 2 (polymorphic hierarchy) as v2.0 schema.
+
+**Context:** Workflow JSON envelope contains three sources of null bloat:
+
+1. **`StepDefinition.StepType: null`** — authored `stepType` field never set by authors; runtime uses `EffectiveStepType` instead (computed from component tree). Appears as `null` in serialized output — dead weight.
+2. **`PrismComponentDefinition` nullable slots** — 16 optional properties (Fields, Legend, BannerType, Level, etc.); most are `null` for unused component types. Serialized as-is when `JsonIgnoreCondition` not configured.
+3. **`StepDefinition.WaitingConfig` sidecar** — already superseded by `waiting` component. Legacy back-compat shim with no production usage.
+
+**Diagnosis Verified:** All three confirmed by code review, seed file analysis, and inference helper inspection.
+
+**Option 1 — Minimal Cleanup (~1 day)**
+
+- Configure `JsonIgnoreCondition.WhenWritingNull` on all four `JsonSerializerOptions` instances
+- Delete `StepDefinition.StepType`
+- Delete `StepDefinition.WaitingConfig` and `StepContent.WaitingConfig`
+- Update `WorkflowStepDefinitionInference` (drop legacy `WaitingConfig` branch)
+- Update ~25–40 Core.Tests references (mechanical edits)
+
+**Effects:**
+- ✅ `stepType: null` disappears from output
+- ✅ Null-padded slots in component objects disappear
+- ✅ Wire format matches authored intent (no dead weight)
+- ✅ No breaking changes to authored JSON format (no seeds author these fields)
+- ✅ No view-layer changes needed
+
+**Option 2 — Modular Polymorphism (v2.0, ~1 sprint)**
+
+Implement `[JsonPolymorphic]` + `[JsonDerivedType]` hierarchy; unify `PrismComponentDefinition` into sealed type hierarchy; collapse `PrismFieldTagHelper` + `PrismComponentTagHelper` into single polymorphic dispatcher.
+
+**Effects:**
+- ✅ Each component writes only its own properties (not a 16-slot god-record)
+- ✅ Compile-time safety: can't set `BannerType` on a `PanelComponent`
+- ✅ Authoring ergonomics: IntelliSense per component type
+- ✅ Two parallel partial systems collapse into one
+- ❌ Breaking JSON format change; migration required
+- ❌ Requires seed file migration (`fields[]` → `children[]`, `fieldType:` → `type:`)
+- ❌ Heavy test surface (~100+ touches in Core.Tests)
+
+**Recommendation:**
+
+Ship **Option 1 this week** (commission Blathers for ~1 day implementation). This fixes Jonny's stated concerns at the wire format without schema surgery.
+
+Defer **Option 2 to v2.0** — it's the right long-term direction (tag helper partial dispatch already proves the polymorphism works), but breaking changes deserve a major version boundary and parallel deprecation window.
+
+**What to defer explicitly:**
+- Polymorphic `[JsonDerivedType]` hierarchy
+- `fields[]` → `children[]` rename
+- Fluent builder rewrite
+- Two dispatch systems collapse
+
+**What to do alongside Option 1:**
+- Add this ADR entry to squad decisions (survives staff turnover)
+- Stop adding new properties to `PrismComponentDefinition` (accept nullables, list on v2 agenda)
+- When writing new components, use `_PrismComponent-{Type}.cshtml` location (shortens v2 migration)
+
+**Next Action:** Awaiting Jonny's go/no-go on Option 1 scope before commissioning Blathers for implementation.
+

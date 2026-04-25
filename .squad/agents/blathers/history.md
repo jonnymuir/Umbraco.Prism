@@ -1309,3 +1309,15 @@ No behavior-rich areas depend on stepType. All risk is in the four narrow consum
 - Four narrow UI routing dependencies replaceable with explicit terminal + responseState metadata
 - Ready for Phase 1 implementation (add new metadata to StepDefinition)
 - See .squad/orchestration-log/2026-04-22T23:08:36-blathers.md and decisions.md for full context
+
+## Learnings (2026-04-23, Workflow model cleanup implementation)
+
+- **Authoring can drop `stepType` safely when the runtime keeps an effective shell resolver.** A nullable authored `StepType` plus inferred `EffectiveStepType`/`EffectiveWaitingConfig` lets seeds move to component-only JSON without breaking controller/view contracts.
+- **Waiting works best as an authored component plus legacy runtime projection.** Using a `waiting` component in JSON and projecting it back to `WaitingConfig`/`PollAfterMs` preserves the existing waiting shell and polling flow while Isabelle’s UI contract stays stable.
+- **Content copy should live at component level, not as fake fields.** Moving inset/details/warning copy out of fieldsets prevents those items being treated as inputs while keeping real form fields fully keyed for persistence and validation.
+
+---
+
+## 🚩 Pending: Workflow Schema Cleanup (2026-04-25)
+
+**Scope:** Option 1 recommendation from Tom Nook design review awaiting Jonny approval. When commissioned: delete `StepDefinition.StepType` + `WaitingConfig`; add `JsonIgnoreCondition.WhenWritingNull` to four serializer instances; update ~25–40 test references. ~1 day work. See decisions.md for full context.
