@@ -505,3 +505,4 @@ umbraco-package-schema.json
 # Explicit for clarity (already covered by artifacts/)
 /artifacts/logs/trycloudflared/
 artifacts/aspire/keycloak-data/
+.agents/
