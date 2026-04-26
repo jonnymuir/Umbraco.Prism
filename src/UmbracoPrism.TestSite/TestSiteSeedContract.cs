@@ -31,6 +31,10 @@ public static class TestSiteSeedContract
     public const string PaymentDemoPageUrl = "/payment-demo";
     public const string PaymentDemoWorkflowKey = "payment-demo";
 
+    public const string InformationRequestPageName = "Request Information";
+    public const string InformationRequestPageUrl = "/request-information";
+    public const string InformationRequestWorkflowKey = "information-request";
+
     public const string WorkflowHubAlias = "workflowHub";
     public const string WorkflowHubName = "My Workflows";
     public const string WorkflowHubUrl = "/my-workflows";

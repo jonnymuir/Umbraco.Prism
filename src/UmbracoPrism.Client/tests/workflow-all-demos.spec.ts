@@ -194,8 +194,34 @@ test.describe('All workflow demos end-to-end coverage', () => {
     });
   });
 
-  // Note: information-request workflow definition exists but is not seeded as a standalone page in TestSite.
-  // It can be tested via API or by manually creating a workflow page with workflowKey="information-request".
+  test.describe('Information request workflow', () => {
+    test('happy path: user submits information request', async ({ page }) => {
+      await signIn(page);
+      await page.goto('/request-information');
+
+      // State: collecting-info
+      await expect(page.getByRole('heading', { name: 'Tell us about yourself' })).toBeVisible();
+      
+      // Your details fieldset
+      await page.getByLabel('First name').fill('Jane');
+      await page.getByLabel('Last name').fill('Smith');
+      await page.locator('#dateOfBirth-day').fill('12');
+      await page.locator('#dateOfBirth-month').fill('3');
+      await page.locator('#dateOfBirth-year').fill('1985');
+      await page.getByLabel('Email address').fill('jane.smith@example.com');
+
+      // Your request fieldset
+      await page.locator('select#requestType').selectOption('General enquiry');
+      await page.getByLabel('Tell us more about your request').fill('I would like to request information about my previous applications submitted through this portal.');
+      await page.getByRole('radio', { name: 'Standard (5-7 working days)' }).check();
+
+      await page.getByRole('button', { name: 'Submit' }).click();
+
+      // State: under-review
+      await expect(page.getByRole('heading', { name: 'Your request is being reviewed' })).toBeVisible();
+      await expect(page.getByText(/we've received your submission and it's currently being reviewed/i)).toBeVisible();
+    });
+  });
 });
 
 async function signIn(page: Page): Promise<void> {

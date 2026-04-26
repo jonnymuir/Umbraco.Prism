@@ -35,6 +35,7 @@ public class WorkflowPageSeeder(
             EnsureCommunityEnquiryPage();
             EnsurePlanningWorkflowPage();
             EnsurePaymentDemoPage();
+            EnsureInformationRequestPage();
             EnsureWorkflowHubPage();
         }
         catch (Exception ex)
@@ -194,6 +195,37 @@ public class WorkflowPageSeeder(
         var page = contentService.Create(TestSiteSeedContract.PaymentDemoPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
         page.SetValue("workflowKey", TestSiteSeedContract.PaymentDemoWorkflowKey);
         SaveAndPublishIfNeeded(page, TestSiteSeedContract.PaymentDemoPageName, null, "seeded payment demo page");
+    }
+
+    private void EnsureInformationRequestPage()
+    {
+        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
+        if (contentType == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping information request page");
+            return;
+        }
+
+        var existing = EnumerateContentTree()
+            .FirstOrDefault(content =>
+                content.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
+                && string.Equals(content.GetValue<string>("workflowKey"), TestSiteSeedContract.InformationRequestWorkflowKey, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            SaveAndPublishIfNeeded(
+                existing,
+                TestSiteSeedContract.InformationRequestPageName,
+                page => page.SetValue("workflowKey", TestSiteSeedContract.InformationRequestWorkflowKey),
+                "seeded information request page");
+            return;
+        }
+
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded information request page");
+
+        var page = contentService.Create(TestSiteSeedContract.InformationRequestPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
+        page.SetValue("workflowKey", TestSiteSeedContract.InformationRequestWorkflowKey);
+        SaveAndPublishIfNeeded(page, TestSiteSeedContract.InformationRequestPageName, null, "seeded information request page");
     }
 
     private void EnsureWorkflowHubPage()
