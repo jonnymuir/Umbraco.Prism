@@ -8,7 +8,7 @@ const CREDS = { username: 'demo@prism.local', password: 'password' };
 const workflows = [
   { key: 'community-enquiry', path: '/get-in-touch', name: 'Community Enquiry' },
   { key: 'payment-demo', path: '/payment-demo', name: 'Payment Demo' },
-  { key: 'planning-notification', path: '/planning-notification', name: 'Planning Notification' },
+  { key: 'planning-notification', path: '/apply-for-planning-permission', name: 'Planning Notification' },
   { key: 'information-request', path: '/request-information', name: 'Information Request' }
 ];
 

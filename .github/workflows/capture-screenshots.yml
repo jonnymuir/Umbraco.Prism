@@ -1,0 +1,90 @@
+name: Capture Walkthrough Screenshots
+
+# Triggers:
+#   - workflow_dispatch: trigger manually from the Actions tab to regenerate screenshots.
+#   - pull_request: runs automatically when the capture spec itself is modified, so the
+#                   screenshot is always fresh when the spec changes.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/UmbracoPrism.Client/tests/capture-screenshot.spec.ts'
+
+# Grant write access so the workflow can commit the regenerated screenshots back to the branch.
+permissions:
+  contents: write
+
+jobs:
+  capture-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src/UmbracoPrism.Client
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Check out the PR head (not the merge commit) so we can push back to the source branch.
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.1
+          cache: 'npm'
+          cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Configure Linux certificate trust
+        run: echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/etc/ssl/certs:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
+
+      - name: Pre-pull Keycloak container image
+        run: docker pull quay.io/keycloak/keycloak:26.0.0
+
+      - name: Create Keycloak data directory
+        run: |
+          mkdir -p ../../artifacts/aspire/keycloak-data
+          chmod 777 ../../artifacts/aspire/keycloak-data
+
+      - name: Trust .NET development certificate
+        run: |
+          dotnet dev-certs https
+          dotnet dev-certs https --trust
+
+      - name: Capture walkthrough screenshots
+        run: >
+          npx playwright test
+          -c playwright.localhost-auth.config.ts
+          tests/capture-screenshot.spec.ts
+          --reporter=line
+
+      - name: Upload screenshots as artifacts (always, for inspection)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: walkthrough-screenshots
+          path: ../../docs/images/walkthroughs/
+          retention-days: 14
+
+      - name: Commit and push updated screenshots
+        run: |
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/images/walkthroughs/
+          git diff --staged --quiet \
+            && echo "No screenshot changes to commit." \
+            || git commit -m "docs: update walkthrough screenshots [skip ci]"
+          git push
