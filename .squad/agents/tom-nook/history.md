@@ -223,3 +223,78 @@ Jonny Muir issued explicit directive (2026-04-26T07:28:51Z):
 
 - 2026-04-26 — v2 doc audit methodology: most docs assumed high-level principles would survive, but the **vocabulary shift is pervasive**. "Field group", "field key", "field type", "options whitelist" appear in 7 of 9 docs. The validation and security docs are less coupled because they talk about *contracts* (nonce, response envelope, problems array), not *shapes*. Architecture lesson: design docs age better when they describe *protocols* rather than *schemas*.
 
+
+---
+
+## Session: v2.0 Design Audit & Scope Refinement (2026-04-26)
+
+**Topic:** Audit 9 workflow design documents against v2 component plan; surface design gaps; confirm mental model alignment
+
+**Outcome:** ✅ Complete — Audit memo in inbox; generic ConditionalOn deferral confirmed by user; v2 rollout plan updated
+
+### Key Context for Next Session
+
+**Generic ConditionalOn deferral confirmed by user.**
+
+User (Jonny Muir) approved deferring generic `ConditionalOn` + `VisibleWhen` on arbitrary components to v2.1. v2.0 ships with `ConditionalChildren` on Radios/Checkboxes only (canonical "Other → specify" pattern, ~80% of use cases).
+
+**Rationale:**
+- Keeps v2 MVP scope tight; enables earlier ship date
+- Avoids tree-traversal complexity in v2.0
+- v2.1 can implement generic Option A (base class properties) with full traversal infrastructure
+
+**For P3 prototype phase:** Focus on ConditionalChildren rendering/validation (in scope). Skip generic conditionals. Tree traversal for validation/authorization is separate concern (add to P3 scope per audit gaps).
+
+### Delivered (Audit)
+
+**9 workflow design documents audited** against v2 component plan:
+1. workflow-forms-engine.md — ✅ Light touch needed (§1-2, §5 stable; §3-4 deferred to P5/P6)
+2. workflow-forms-engine-redesign.md — ⚠️ OBSOLETE (archive with pointer to v2 plan)
+3. workflow-forms-engine-backend.md — ⚠️ Major rewrite (models, services, C# signatures)
+4. workflow-forms-engine-client.md — ⚠️ Major rewrite (tree rendering logic)
+5. workflow-forms-engine-umbraco.md — ⚠️ Major rewrite (JSON examples for v2 schema)
+6. workflow-forms-engine-security.md — ✅ Minor touch (tree traversal notes; security logic stable)
+7. workflow-hub-and-conditional-fields.md — ⚠️ Major rewrite (§1 Design 1 obsolete; §2 Design 2 stable)
+8. workflow-validation.md — ✅ Minor touch (tree traversal notes; validation logic stable)
+9. workflow-forms-engine-demo.md — ✅ Minor touch (data model update; mostly stable)
+
+### Key Findings
+
+**Confirmed Mental Model:**
+- ✅ Fields BECOME first-class components (no `fields[]` array)
+- ✅ `FieldFile` deleted; all inputs are sealed PrismComponent descendants
+- ✅ `FieldsetComponent.Children: PrismComponent[]` replaces `FieldFile[]`
+- ✅ No asymmetry — a "field" and a "component" are the same thing
+
+**Conditional Fields Upgrade:**
+- v1: `conditionalFields: { [optionValue]: FieldDefinition[] }` on Radios field
+- v2: `ConditionalChildren: Dictionary<string, PrismComponent[]>` on RadiosComponent
+- Each branch can reveal ANY components (not just input fields) — genuine upgrade
+
+**8 Design Gaps Surfaced:**
+1. Component-tree validation traversal — V2 needs recursive walk for InputComponents (P3 work)
+2. Component-tree authorization checks — Role-based field visibility in trees (P3 work)
+3. Generic conditional visibility — Defer to v2.1 (approved by user)
+4. Summary-list + conditionally-hidden fields — (P3 blocker already flagged)
+5. Fieldset-level validation — Can FieldsetComponent have validation rules? (defer to v2.1)
+6. Conditional children depth limit — Warn if nesting exceeds depth 2 (P2 migrator or P4 builder)
+7. Umbraco integration JSON examples — All seed workflows use v1; rewrite P5-P6 (doc debt, not design gap)
+8. Redesign doc obsolescence — workflow-forms-engine-redesign.md superseded (archive with pointer)
+
+### Recommended Doc Rewrite Order
+
+- **P1-P2:** No changes (docs describe v1 runtime)
+- **P3:** Add "v2 in progress" banner to 4 major docs
+- **P4:** Update code examples (builder v2 API ships)
+- **P5:** Update client docs (view layer collapse)
+- **P6:** Final rewrite; remove banners; archive obsolete doc
+
+### Audit Memo
+
+Location: `.squad/decisions/inbox/tom-nook-v2-design-doc-audit.md` (merged into decisions.md)
+
+All 9 docs reviewed. No showstoppers — the polymorphic design is sound. Path forward is clear.
+
+### Next Phase
+
+P1 implementation complete (Blathers). P2 migrator next. Design audit informs P3 prototype scope.

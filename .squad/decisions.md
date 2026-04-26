@@ -2692,3 +2692,68 @@ dotnet test UmbracoPrism.sln -c Release --no-build
 
 **Recommendation for Team:** Document in `.github/CONTRIBUTING.md` or add pre-commit hook warning if `--no-build` used without recent `dotnet build`.
 
+
+---
+
+## 📌 2026-04-26: Jonny Muir — v2.0 Scope Decision: Generic ConditionalOn Deferred to v2.1
+
+**Decision:** Defer generic `ConditionalOn` + `VisibleWhen` on arbitrary components to v2.1. v2.0 ships with `ConditionalChildren` on Radios/Checkboxes only.
+
+**Context:** Tom Nook's design audit (`.squad/decisions/inbox/tom-nook-v2-design-doc-audit.md`) revealed that v1's conditional-fields model allows any field to have `ConditionalOn` + `VisibleWhen` properties. In v2, this would require:
+
+- **Option A:** Generic conditional properties on base `PrismComponent` — flexible but requires tree traversal for every render/validation
+- **Option B:** Dedicated `ConditionalContainerComponent` wrapper — explicit but adds nesting verbosity
+- **Option C:** Defer to v2.1 — keeps P3 lean, ship v2 sooner
+
+**User Directive:** Jonny chose Option C per Tom's recommendation.
+
+**Rationale:**
+- `ConditionalChildren` on Radios/Checkboxes covers the canonical "Other → specify" pattern (~80% of use cases)
+- Avoids tree traversal complexity in v2 MVP
+- Allows v2.0 to ship on schedule
+- v2.1 can implement generic Option A (base class properties) with full tree-traversal infrastructure
+
+**What This Means:**
+
+- **v2.0 supports:** `RadiosComponent.ConditionalChildren: Dictionary<string, PrismComponent[]>` only
+- **v2.0 does NOT support:** Generic `ConditionalOn` on arbitrary components (e.g., conditional BodyComponent, conditional TextInput)
+- **v2.1 roadmap:** Implement generic conditional properties on base PrismComponent + engine tree-traversal logic
+
+**Implementation:** P3 prototype phase should focus on `ConditionalChildren` rendering/validation (already in scope) and defer generic conditionals to v2.1 spike.
+
+**Basis:** User directive this round; Tom Nook design audit (2026-04-26); design gap #3 in audit memo.
+
+---
+
+## 📌 2026-04-26: Tom Nook — Workflow Schema v2.0 Design Audit (Audit Memo Merged)
+
+**Status:** ✅ Audit complete; memo merged into decisions
+
+**Scope:** 9 workflow design documents audited against v2 component plan
+
+**Key Findings:**
+1. Confirmed: Fields BECOME first-class components (no `fields[]` array)
+2. 7 of 9 docs need rewrite (deferred to P5/P6 per rollout plan)
+3. No showstoppers — polymorphic design is sound
+4. 8 design gaps surfaced (tree traversal, authorization, summary-list, fieldset validation, etc.)
+
+**Audit Memo Location:** `.squad/decisions/inbox/tom-nook-v2-design-doc-audit.md`
+
+**Headline Gaps for P3:**
+- Component-tree validation traversal (add to P3 scope)
+- Component-tree authorization checks (add to P3 scope)
+- Generic conditional visibility (defer to v2.1 — user approved)
+- Summary-list + conditionally-hidden fields (P3 blocker already flagged)
+- Fieldset-level validation rules (defer to v2.1)
+- Conditional children depth limit (P2 migrator or P4 builder)
+- Umbraco integration JSON examples (doc debt, P5-P6)
+- Redesign doc obsolescence (archive with pointer to v2 plan)
+
+**Recommended Doc Rewrite Order:**
+- P1-P2: No changes
+- P3: Add "v2 in progress" banner to 4 docs
+- P4: Update code examples (builder v2 API)
+- P5: Update client docs (view layer collapse)
+- P6: Final rewrite; remove banners; archive obsolete doc
+
+**Next Action:** No doc changes until P5/P6 per rollout plan. All 9 docs reviewed; no surprises.
