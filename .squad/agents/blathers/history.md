@@ -1355,3 +1355,116 @@ All four now include `DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNu
 **Commit:** `64742fe` on branch `feature/workflow-schema-cleanup-option1`. PR #36 opened.
 
 **Charter adherence:** Quality first ✅ — warning-free build, zero test failures, no breaking changes to authored JSON.
+
+---
+
+## Session: Option 1 Regression Fix (2026-04-26)
+
+**Topic:** Fix 24 failing Core tests caused by Option 1 schema cleanup regression
+
+**Outcome:** ✅ Complete — All 557 Core.Tests pass, build warning-free
+
+### Root Cause
+
+When Option 1 deleted `StepDefinition.StepType` and `WaitingConfig` sidecars, the step type inference logic (`WorkflowStepDefinitionInference.InferStepType`) fell back to `"status-timeline"` for steps with no components. The engine maps `"status-timeline"` → `ResponseState = "defer"`, but tests expected `"render"` for newly created instances.
+
+**Why it broke:**
+- Test workflows used `Array.Empty<PrismComponentDefinition>()` for "done" states and initial states
+- Inference logic checked for waiting, task-list, summary-list, fieldset, panel, then defaulted to "status-timeline"
+- Empty components → "status-timeline" → "defer" ❌
+- Tests expected empty components → "question" → "render" ✅
+
+**False positive 563/563 report:** Earlier test run likely used `--no-build` with stale cache or a partial filter. Fresh `dotnet build` + `dotnet test` (no `--no-build`) exposed real failures.
+
+### Changes Made
+
+**1. WorkflowDefinitionFile.InferStepType (WorkflowDefinitionFile.cs:249)**
+- Changed default fallback from `return "status-timeline"` to `return "question"`
+- Rationale: Steps with no components or content-only components (body, heading, inset-text) should default to interactive "question" type, not the specialized "status-timeline" pattern
+- "status-timeline" is a specific UI pattern for tracking/timeline views, not a general fallback
+
+**2. BusinessAppWorkflowEngine.BuildComponents (BusinessAppWorkflowEngine.cs:702-711)**
+- Added explicit case for `"waiting"` component type to include waiting components in render payload
+- Was previously `break;` (skip), but tests expected waiting components in `result.Render.Components`
+- Now creates `PrismComponentRenderPayload` with Content, ExpectedWaitSeconds, PollIntervalMs, AllowDefer, DeferMessage
+
+**3. Test Workflow Fixtures (3 test files)**
+- Added `panel` component to "done" states in test workflows (proper confirmation pattern)
+- Changed: `Components = Array.Empty<PrismComponentDefinition>()`
+- To: `Components = new[] { new PrismComponentDefinition { Type = "panel", Heading = "Complete" } }`
+- Files: BusinessAppWorkflowEngineInstancePolicyTests.cs, BusinessAppWorkflowEngineWaitingStateTests.cs
+
+**4. WorkflowDefinitionInferenceTests (WorkflowDefinitionInferenceTests.cs:108)**
+- Updated test expectation for content-only step from `"status-timeline"` to `"question"`
+- Test validates inference for step with only `body` component (no fieldset/panel/summary-list)
+
+### Test Results
+
+- **Before fix:** 557 tests (533 pass, 24 fail)
+  - 15 failures in `BusinessAppWorkflowEngineInstancePolicyTests`
+  - 8 failures in `BusinessAppWorkflowEngineWaitingStateTests`
+  - 1 failure in `WorkflowDefinitionInferenceTests`
+- **After fix:** 557 tests (557 pass, 0 fail)
+- **Build:** Green with 4 pre-existing warnings (2x NU1510, 2x NU1900 for test project)
+
+### Key Insights
+
+**Inference Logic Priority:**
+1. Has waiting component → `"waiting"`
+2. Has task-list component → `"task-list"`
+3. Has summary-list component → `"check-answers"`
+4. Has fieldset component → `"question"`
+5. Has panel component → `"confirmation"`
+6. **Otherwise (empty or content-only) → `"question"`** (not "status-timeline")
+
+**Terminal State Detection:**
+- Engine checks `EffectiveStepType == "confirmation"` to mark instance as complete
+- Requires explicit `panel` component in state definition (not automatic)
+
+**Waiting Component Rendering:**
+- After Option 1, waiting info lives exclusively in component tree
+- BuildComponents must include waiting components in render payload
+- View layer (`_WorkflowStep-Waiting.cshtml`) reads from component, not sidecar
+
+**Test Verification Process:**
+- **❌ Wrong:** `dotnet test --no-build` with stale Release build (cached inference logic)
+- **✅ Right:** `dotnet build -c Release && dotnet test -c Release --no-build` (fresh build, then test)
+- **✅ Better:** `dotnet test -c Release` (builds fresh each time, no cache risk)
+
+### Process Improvement Note
+
+Created `.squad/decisions/inbox/blathers-test-verification-process.md` recommending mandatory `dotnet test` without `--no-build` pre-flag, or explicit `dotnet clean` before `--no-build` runs, to avoid false-positive test reports.
+
+### Commit
+
+`1b229db` — "Fix Option 1 regression: Correct step type inference for empty components"
+
+
+---
+
+## 📌 2026-04-26: DIRECTIVE UPDATE — Solo Project, Main-Only Workflow
+
+**Captured by:** Scribe  
+**Effective:** 2026-04-26 onwards
+
+### Changes to Squad Operations
+
+Jonny Muir issued explicit directive (captured in `.squad/decisions/inbox/copilot-directive-20260426-072851.md`):
+
+> *"This is a solo project. Work directly on `main` — no feature branches, no PR ceremony, no merge overhead."*
+
+**For Blathers (and all squad agents):**
+
+1. **DO NOT create `feature/*` or `squad/*` branches** except for issue-driven work explicitly requested by user
+2. **Commit directly to `main`** for routine work
+3. **Push to `origin/main`** after commit
+4. No PR ceremony required; no Coordinator merge step
+5. If/when other contributors join, user will revisit this directive
+
+**Rationale:** Single developer; feature branches add overhead without benefit in this context.
+
+**Implications:**
+- Routing rules in `.squad/routing.md` may reference PR workflows — treat as documentation only; actual code goes to main
+- Templates referencing `feature/*` branches should be updated or ignored going forward
+- Next spawn prompt should reflect main-only approach
+

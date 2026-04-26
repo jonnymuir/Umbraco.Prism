@@ -2501,3 +2501,194 @@ Defer **Option 2 to v2.0** — it's the right long-term direction (tag helper pa
 
 **Next Action:** Awaiting Jonny's go/no-go on Option 1 scope before commissioning Blathers for implementation.
 
+
+---
+
+## 📌 2026-04-22: Blathers — Component Partial Dispatch System
+
+**Decision:** Implement convention-based partial dispatch for PrismComponent rendering.
+
+**Context:** The original `PrismFieldTagHelper` rendered all field types via a monolithic C# string builder switch statement inside the tag helper class. Adding a new field type required modifying `UmbracoPrism.Core`.
+
+**Implementation:** `PrismComponentTagHelper` is now a thin async dispatcher that resolves `_PrismComponent-{TypeName}.cshtml` partials by convention for each component type, with fallback to `_PrismComponent-Default.cshtml`.
+
+**Pattern:** For a component with `Type = "text"`, it resolves: `~/Views/Partials/PrismComponents/_PrismComponent-Text.cshtml`
+
+**Rationale:** Extensible design allows downstream projects to override or add component types without modifying core package code.
+
+---
+
+## 📌 2026-04-22: Blathers — Partials in Core (Embedded Resources)
+
+**Decision:** Move all default PrismComponent and PrismField partials into UmbracoPrism.Core as embedded resources via `EmbeddedFileProvider`.
+
+**Implementation:** Physical files in consuming projects override embedded defaults (physical file provider wins in composite hierarchy).
+
+**Override:** Place a file at `Views/Partials/PrismComponents/_PrismComponent-{Type}.cshtml` or `Views/Partials/PrismFields/_PrismField-{Type}.cshtml` in the consuming project.
+
+**Rationale:** Package consumers get all component types OOTB. Custom component implementations stay in their own project, no coupling to Core.
+
+**Notes:** .NET 10 uses `IStartupFilter` + `CompositeFileProvider` pattern on `IWebHostEnvironment.ContentRootFileProvider` (not `RazorViewEngineOptions.FileProviders`).
+
+---
+
+## 📌 2026-04-22: Isabelle — Component Partials Tag Helper & System
+
+**Decision:** Introduced `PrismComponentTagHelper` + `PrismComponentContext` mirroring the existing `PrismFieldTagHelper` + `PrismFieldContext` pattern, with convention-based partial dispatch.
+
+**Design:** All workflow step partials and top-level views are now embedded in `UmbracoPrism.Core` — TestSite no longer owns any workflow rendering files.
+
+**Context:** Blathers replaced `FieldGroupKeys`/`FormSection` with `PrismComponentRenderPayload`. The frontend layer needed to consume the new model without duplicating dispatch logic in every consuming project.
+
+---
+
+## 📌 2026-04-22: Isabelle — GDS Field Partials Convention
+
+**Decision:** All convention-based field partials use GOV.UK Design System `govuk-*` CSS classes exclusively for rendering workflow form fields.
+
+**Implementation:** One Razor partial per field type at `Views/Partials/PrismFields/_PrismField-{Type}.cshtml`, dispatched by convention from the `<prism-field>` tag helper.
+
+**Rationale:** TestSite uses govuk-frontend 5.9.0 (installed previously). Existing workflow step partials already use GDS patterns, so field partials must match for consistency. GDS provides WCAG 2.2 AA-compliant patterns OOTB.
+
+---
+
+## 📌 2026-04-22: Isabelle — Workflow Rendering Shell Inference & Content-Field Fallback
+
+**Decision:** Keep the render layer resilient during the `stepType` → component-shape migration by deriving the workflow shell from rendered components, while still accepting legacy `StepType` and `WaitingConfig` as fallbacks.
+
+**Design:**
+1. Render-layer shell resolver inspects component shape first
+2. `waiting` component or legacy waiting config → waiting shell
+3. Content-only fields (`details`, `inset-text`, `warning-text`, `notification-banner`) render inline within fieldsets instead of falling back to default input partial
+4. Waiting needs to stay accessible: live region, wait-time messaging, defer affordance work with legacy sidecar config or future first-class `waiting` component
+
+**Rationale:** Authored `stepType` is being removed, but Razor still needs deterministic shell selection. Some authored "content" items arrive as field payloads inside fieldsets, so the field tag helper must render those inline.
+
+---
+
+## 📌 2026-04-22: Tangy — Workflow Regression Coverage Direction
+
+**Decision:** Use **Core contract tests** as the primary regression gate for workflow changes.
+
+**Test Strategy:**
+1. Seed minimal workflow definitions with omitted `stepType` and assert engine inference across question, check-answers, confirmation, and waiting flows
+2. Assert waiting metadata from component-authored `waiting` nodes reaches the envelope (`ResponseState = "render"`, `PollAfterMs`, derived `WaitingConfig`)
+3. Add mixed-form tests that prove content-only fields don't render or validate like inputs, while neighbouring real inputs still produce GDS-style error metadata
+
+**Rationale:** TestSite worktree throws workflow page model-binding exceptions on live routes, so browser tests aren't a reliable gate. Core-level contract tests exercise the changed workflow engine and field rendering rules without weakening desired behaviour.
+
+---
+
+## 📌 2026-04-22: Tom Nook & Blathers — stepType Removal & Component Model Unification (MERGED EARLIER)
+
+**Status:** ✅ Already merged in decisions.md (line 5–65)
+
+---
+
+## 📌 2026-04-26T07:28:51Z: Jonny Muir — Solo Project Directive: No Feature Branches
+
+**Status:** ✅ Directive captured and documented
+
+**What:** Work directly on `main` — no feature branches, no PR ceremony, no merge overhead. If/when other contributors join, revisit.
+
+**Why:** *"because it is only me working on this project, there is not need to create branches and expensive merges. If of course other people need to start contributing we can re-address that."*
+
+**Implications:**
+- Squad agents should commit directly to `main` going forward
+- Spawn prompts should NOT instruct agents to create `feature/*` or `squad/*` branches except for issue-driven work explicitly requested
+- PR-based workflows in routing.md / templates may need revision
+
+**Implementation:** Append directive notes to squad agent history files for next spawn pickup.
+
+---
+
+## 📌 2026-04-26: Scribe — Orchestration & Session Workflow (v2 Planning + Option 1 Merge + Regression Fix)
+
+**Status:** ✅ Completed
+
+**Spawn Manifest:**
+1. **tom-nook-v2-plan** (~427s) — Produced full v2.0 rollout plan to inbox
+2. **blathers-option1** (long-running) — Landed Option 1 on feature branch (563/563 reported, 24 regressions on clean main)
+3. **blathers-fix-waiting** (~601s) — Fixed 24 regressions (shell inference bug), 557/557 green
+
+**Session Work:**
+- Merged feature → main (fast-forward)
+- Discovered and fixed regression root cause (empty-component steps inferring as `"status-timeline"` instead of `"question"`)
+- Pushed main to origin; PR #36 auto-merged
+
+**Process Lesson:** Test verification — always `dotnet test UmbracoPrism.sln -c Release` (with rebuild). Avoid blind `--no-build` without recent build in same session.
+
+**Key Decision:** Solo project directive captured; main-only workflow going forward.
+
+**Session Logs:**
+- `.squad/log/2026-04-26T07-50-00Z-workflow-schema-option1-merge.md`
+- Orchestration logs for three agents: `.squad/orchestration-log/2026-04-26T07-*.md`
+
+---
+
+## 📌 2026-04-26: Tom Nook — Workflow Schema v2.0 Rollout Plan (EXECUTIVE SUMMARY)
+
+**Status:** ✅ Approved for execution (per Jonny Muir); full plan in inbox
+
+**Mandate:** Implement polymorphic type hierarchy, view-layer collapse, `FieldFile` elimination.
+
+**6-Phase Rollout (P1–P6):**
+1. **P1:** Add abstract `PrismComponent` base + sealed derived types (zero existing files changed)
+2. **P2:** Implement migrator (JSON v1 → v2 transformer)
+3. **P3:** Engine reads v2 component tree
+4. **P4:** Builder v2 API (C# authoring)
+5. **P5:** View layer collapse (`PrismComponentTagHelper` becomes sole dispatcher)
+6. **P6:** Release v2.0
+
+**Design Decisions:**
+- `[JsonPolymorphic]` discriminator: `"type"` (same string as today; no JSON key renames)
+- **Input base record:** Shared field properties (`FieldKey`, `Label`, `Hint`, `Required`, `ConditionalOn`)
+- **Each component:** Sealed record, only its own properties (no null padding)
+- **SummaryListComponent.FieldRefs:** Engine resolves labels from definition tree (flagged as P3 prototype blocker)
+- **conditionalFields:** Dict on `RadiosComponent`/`CheckboxesComponent`; replaces `FieldFile.ConditionalFields`
+
+**Risk Flags:**
+- `SummaryListComponent.FieldRefs` resolution unproven; needs P3 prototype
+- Test surface: ~100+ touches across test suite (manageable with mechanical migration)
+
+**First Commit:** P1 types only — zero existing files changed. Additive only.
+
+**Target:** ≤610 tests at v2.0 (vs. 557 current)
+
+---
+
+## 📌 2026-04-22: Blathers — Test Verification Process (PROCESS DECISION)
+
+**Context:** Option 1 implementation reported "563/563 tests passing" but on clean main, 24 tests failed (false-positive).
+
+**Proposed Process:** Before reporting "all tests pass":
+
+### Recommended Approach
+```bash
+dotnet test UmbracoPrism.sln -c Release
+```
+- Rebuilds the solution before running tests
+- Eliminates cache risk entirely
+- ~3-5s overhead but guarantees accuracy
+
+### Alternative (Less Safe)
+```bash
+dotnet clean UmbracoPrism.sln -c Release
+dotnet build UmbracoPrism.sln -c Release
+dotnet test UmbracoPrism.sln -c Release --no-build
+```
+
+### ❌ Avoid
+```bash
+dotnet test UmbracoPrism.sln -c Release --no-build
+```
+- Risky: May test against stale binaries if prior build was incomplete
+- Only safe if you *just* ran `dotnet build` in same session
+
+**Test Filters:** When using `--filter`, ensure it captures full scope of changes:
+- Backend model changes → Run full `Core.Tests` suite
+- Specific component changes → Filter to relevant test class
+- Breaking changes to inference/validation → Run integration + unit tests
+
+**Recommendation for Team:** Document in `.github/CONTRIBUTING.md` or add pre-commit hook warning if `--no-build` used without recent `dotnet build`.
+

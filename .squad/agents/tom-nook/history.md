@@ -129,3 +129,48 @@ When assessing version bumps:
 - 2026-04-23 — Workflow schema cleanup design review: confirmed three issues Jonny raised. (1) `stepType: null` is pure System.Text.Json default-serialization noise — no `WhenWritingNull` is configured on any of the four workflow `JsonSerializerOptions` call sites (`BusinessAppWorkflowEngine`, `BusinessAppWorkflowClient`, `MockBusinessApp/Program.cs` ×2). (2) `PrismComponentDefinition` is a 16-slot anaemic-union god-record where most properties are `null` for any given `type` — pure C#-shape smell that bleeds into JSON without `WhenWritingNull`. (3) State-level `WaitingConfig` is dead weight: `EffectiveWaitingConfig` already prefers the `waiting` component; no current seed authors the sidecar. (4) Fields-vs-components asymmetry is real — `_PrismField-{Type}.cshtml` and `_PrismComponent-{Type}.cshtml` are two parallel dispatch systems for the same idea, and `inset-text`/`body`/`heading` already exist in both vocabularies (canary smell).
 
 - 2026-04-23 — Recommended path: **Option 1 (minimal cleanup) now, Option 2 (polymorphic split) deferred to v2.0 schema**. Charter value applied: *defer perfection*. Option 1 fixes the wire format Jonny actually sees in one day (delete two record properties, add `WhenWritingNull` globally) without schema-breaking changes. Option 2 (`[JsonPolymorphic]` hierarchy where fields *are* components — `TextInputComponent`, `DecimalInputComponent`, etc., with `fieldset.children` instead of `fields[]`) is the right destination because the view layer is already polymorphic via `_PrismComponent-{Type}.cshtml`, but it's a 100+ test rewrite and an authored-JSON migration — only worth doing alongside another v2 breaking change. Proposal written to `.squad/decisions/inbox/tom-nook-workflow-schema-cleanup.md`.
+
+- 2026-07-08 — Produced full executable rollout plan for Option 2 (workflow schema v2). Key design calls: (1) `PrismComponent` abstract record with `[JsonPolymorphic]` + `[JsonDerivedType]`, discriminator = `"type"` string (same author vocab). (2) `FieldsetComponent.Children: PrismComponent[]` replaces `PrismComponentDefinition.Fields: FieldFile[]` — fields are components. (3) `SummaryListComponent.FieldRefs: string[]` — engine resolves labels from definition tree; flagged as high-risk, needs P3 prototype before commitment. (4) `conditionalFields` on FieldFile → `conditionalChildren: Dictionary<string, PrismComponent[]>` on `RadiosComponent`/`CheckboxesComponent`. (5) `PrismComponentRenderPayload` stays flat for P3–P4; typed children decision deferred to P5 start. (6) `PrismFieldTagHelper` deleted in P5; all 11 `_PrismField-*.cshtml` renamed to `_PrismComponent-*.cshtml`. (7) 6-phase plan: P1 additive types, P2 migrator, P3 engine v2 reads, P4 builder v2 API, P5 view collapse, P6 release. Target ≤610 tests at v2.0. First commit: P1 types only — zero existing files changed. Plan filed to `.squad/decisions/inbox/tom-nook-workflow-v2-rollout.md`.
+
+---
+
+## 📌 2026-04-26: DIRECTIVE UPDATE — Solo Project, Main-Only Workflow
+
+**Captured by:** Scribe  
+**Effective:** 2026-04-26 onwards
+
+### Changes to Squad Operations
+
+Jonny Muir issued explicit directive (2026-04-26T07:28:51Z):
+
+> *"This is a solo project. Work directly on `main` — no feature branches, no PR ceremony, no merge overhead."*
+
+**For Tom Nook (and all squad agents):**
+
+1. **DO NOT create `feature/*` or `squad/*` branches** except for issue-driven work explicitly requested
+2. **Commit directly to `main`** for routine architectural planning and decisions
+3. **No PR gate or Coordinator merge step** needed
+4. If/when other contributors join, user will revisit
+
+**Implications:**
+- Next spawns should work directly on main
+- Feature branches are overhead in single-developer context
+- Routing.md and templates referencing PR workflows are documentation only
+
+---
+
+## 📌 2026-04-26: Workflow Schema v2.0 Rollout Plan Approved
+
+**Authored by:** Tom Nook (Lead/Architect)  
+**Status:** ✅ Approved for execution (Jonny Muir sign-off)  
+**Document:** `.squad/decisions/inbox/tom-nook-workflow-v2-rollout.md` (merged to decisions.md)
+
+**Executive Summary:**
+- 6-phase rollout (P1–P6)
+- Phase 1: Abstract `PrismComponent` base + sealed derived types (zero existing files changed, additive only)
+- Design: `[JsonPolymorphic]` with `"type"` discriminator (same author vocab)
+- Target: ≤610 tests at v2.0 (vs 557 current)
+- Risk flag: `SummaryListComponent.FieldRefs` needs P3 prototype validation
+
+**Next Action:** Await sprint planning. When Coordinator assigns v2.0 work, this plan is executable.
+
