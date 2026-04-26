@@ -1,5 +1,12 @@
 # Workflow Hub & Conditional Fields — Architecture Design
 
+> **⚠️ v2.0 UPDATE (April 2026):**  
+> - **Conditional fields** have been implemented in v2.0 as `ConditionalChildren` on Radios and Checkboxes components only (the "Other → specify" pattern).
+> - **Generic conditional visibility** (`ConditionalOn`/`VisibleWhen` on arbitrary components) is deferred to v2.1.
+> - **Workflow Hub** has been implemented in v2.0 and is stable.
+> - This document reflects the v1 design. The v2 implementation uses polymorphic components instead of flat field arrays.
+> - For v2 usage, see the [workflow walkthroughs](../walkthroughs/) and builder API documentation.
+
 ## Overview
 
 This document designs two key enhancements to Prism's workflow engine:
@@ -48,64 +55,85 @@ This is currently impossible in Prism without creating a separate workflow state
 
 ---
 
-### Data model extension: `FieldRenderPayload`
+### Data model: v2.0 polymorphic components
 
-**Add to `FieldRenderPayload.cs`:**
+**In v2.0, conditional fields are implemented via `ConditionalChildren` on `RadiosComponent` and `CheckboxesComponent`:**
 
 ```csharp
 /// <summary>
-/// Gets the field key this field depends on for visibility (nullable).
-/// When set, this field is only shown when the dependency field matches VisibleWhen.
-/// Example: "enquiry-type" for a field that appears when "Other" is selected.
+/// Radios component with optional conditional children (v2.0).
 /// </summary>
-public string? ConditionalOn { get; init; }
-
-/// <summary>
-/// Gets the value that makes this field visible when ConditionalOn is matched (nullable).
-/// When ConditionalOn is set, this field appears only when the dependency field's value equals this string.
-/// Example: "Other" to show this field when the user selects "Other" from a radio/select.
-/// </summary>
-public string? VisibleWhen { get; init; }
+public record RadiosComponent : PrismComponent
+{
+    public required string Label { get; init; }
+    public string? Hint { get; init; }
+    public required bool Required { get; init; }
+    public required string[] Options { get; init; }
+    
+    /// <summary>
+    /// Optional conditional children: maps option values to arrays of child components.
+    /// When an option is selected, its corresponding children are revealed.
+    /// Example: "Other" → [TextInput component for "Please specify"]
+    /// </summary>
+    public Dictionary<string, PrismComponent[]>? ConditionalChildren { get; init; }
+}
 ```
 
 **Design rationale:**
-- Simple, declarative, minimal — no complex condition DSL needed for MVP
+- Simple, declarative, minimal — nested children under their parent option
 - Follows Prism's "easy to do the right thing" principle
-- Scales to nested conditionals if needed (but not recommended for UX)
-- BA defines conditional rules; Prism enforces them client and server
+- Component tree remains hierarchical and type-safe
+- Deferred generic `ConditionalOn`/`VisibleWhen` to v2.1 to keep v2.0 lean
+
+**v1 vs v2 comparison:**
+
+| Aspect | v1 (this doc) | v2.0 (implemented) |
+|--------|---------------|-------------------|
+| Conditional model | Flat `fields[]` with `conditionalOn`/`visibleWhen` | Nested `conditionalChildren` on parent component |
+| Supported parents | Any field | Radios, Checkboxes only |
+| Generic conditionals | Proposed | Deferred to v2.1 |
+| Field definition | `{ fieldType: "text", ... }` | `{ type: "text", ... }` (polymorphic) |
 
 ---
 
-### Example: JSON field definition (🟠 Business App)
+### Example: JSON component definition (v2.0 polymorphic schema)
 
 ```json
 {
-  "groupKey": "enquiry-details",
-  "displayName": "Enquiry Details",
-  "fields": [
+  "type": "fieldset",
+  "legend": "Enquiry Details",
+  "children": [
     {
+      "type": "radio",
       "fieldKey": "enquiry-type",
       "label": "What type of enquiry is this?",
-      "fieldType": "radio",
       "required": true,
-      "options": ["General", "Technical Support", "Billing", "Other"]
-    },
-    {
-      "fieldKey": "enquiry-type-other",
-      "label": "Please specify your enquiry type",
-      "fieldType": "text",
-      "required": false,
-      "conditionalOn": "enquiry-type",
-      "visibleWhen": "Other",
-      "maxLength": 100
+      "options": ["General", "Technical Support", "Billing", "Other"],
+      "conditionalChildren": {
+        "Other": [
+          {
+            "type": "text",
+            "fieldKey": "enquiry-type-other",
+            "label": "Please specify your enquiry type",
+            "required": false,
+            "maxLength": 100
+          }
+        ]
+      }
     }
   ]
 }
 ```
 
+**v2.0 implementation notes:**
+- In v2, conditional fields are part of `conditionalChildren` on the parent Radios/Checkboxes component
+- `conditionalChildren` is a dictionary mapping option values to arrays of child components
+- Conditional children are rendered inline when their parent option is selected
+- Generic `conditionalOn`/`visibleWhen` on arbitrary components is deferred to v2.1
+
 **Key details:**
-- `enquiry-type-other` is defined alongside its trigger field in the same group
-- `required: false` at definition time; dynamically promoted to required if visible (see validation below)
+- `enquiry-type-other` is nested under the `"Other"` key in `conditionalChildren`
+- `required: false` at definition time; validation checks if parent option is selected
 - BA controls the logic entirely via JSON; Prism renders it faithfully
 
 ---

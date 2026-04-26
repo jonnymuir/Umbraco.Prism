@@ -506,3 +506,6 @@ umbraco-package-schema.json
 /artifacts/logs/trycloudflared/
 artifacts/aspire/keycloak-data/
 .agents/
+# Auto-generated Umbraco views that conflict with Core embedded views
+src/UmbracoPrism.TestSite/Views/workflowPage.cshtml
+src/UmbracoPrism.TestSite/Views/workflowHub.cshtml
