@@ -30,6 +30,9 @@ const workflows = [
 
 test.describe('Walkthrough screenshot capture', () => {
   test.describe.configure({ mode: 'serial' });
+  // 20-minute budget: the Aspire stack (Keycloak + TestSite + MockBusinessApp) can take
+  // up to ~10 minutes to reach full readiness on a cold GitHub Actions runner, plus time
+  // for sign-in, navigation, and screenshot I/O for all four workflow pages.
   test.setTimeout(20 * 60_000);
 
   test.beforeAll(async () => {
