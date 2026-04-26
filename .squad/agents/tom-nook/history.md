@@ -174,3 +174,52 @@ Jonny Muir issued explicit directive (2026-04-26T07:28:51Z):
 
 **Next Action:** Await sprint planning. When Coordinator assigns v2.0 work, this plan is executable.
 
+
+## 2026-04-26: v2.0 Design Doc Audit — Implications & Gaps
+
+**Session:** Solo design audit (no code changes)  
+**Requested by:** Jonny Muir  
+**Context:** Validate v2 component design implications across 9 design docs before Blathers completes P1 implementation
+
+### Work Performed
+
+1. **Read 9 design documents** — workflow-forms-engine.md, -redesign.md, -backend.md, -client.md, -umbraco.md, -demo.md, -security.md, workflow-hub-and-conditional-fields.md, workflow-validation.md
+2. **Audited v1 schema coupling** — Identified sections describing `fields[]`, `fieldType`, `conditionalFields`, `FieldGroupKey`, `PrismComponentDefinition` anaemic union
+3. **Confirmed Jonny's mental model** — Yes, fields BECOME components (not just "represented by"); `FieldFile` is deleted; everything is `PrismComponent[]` tree
+4. **Analyzed conditional fields upgrade** — v1 `conditionalFields: Dict<string, FieldDefinition[]>` → v2 `ConditionalChildren: Dict<string, PrismComponent[]>` allows ANY components in reveal branches (genuine power upgrade)
+5. **Surfaced 8 new design gaps** — Component-tree validation traversal, generic conditional visibility, summary-list + hidden fields, fieldset-level validation, auth checks on tree, depth limits, doc rewrites, redesign doc obsolescence
+6. **Produced delta report** — Per-doc impact table, conditional fields deep-dive, newly-surfaced gaps, recommended doc rewrite order (P3–P6), sign-off confirmation
+
+### Key Findings
+
+- **7 of 9 docs require rewrite** (ranging from light touch to heavy)
+- **workflow-hub-and-conditional-fields.md most v1-coupled** — entire Design 1 section describes field-level `ConditionalOn`/`VisibleWhen` pattern that doesn't exist in v2 (v2 has `ConditionalChildren` on radios/checkboxes only)
+- **workflow-forms-engine-redesign.md obsolete** — proposes Umbraco Element Types, superseded by polymorphic components; mark as archived
+- **No showstoppers** — v2 design is sound; gaps are addressable in P3 prototype
+
+### Newly-Surfaced Design Gaps
+
+1. Component-tree validation traversal (P3 work)
+2. Generic conditional visibility on non-input components (decide in P3: defer or implement)
+3. Summary-list + conditionally-hidden fields (already flagged P3 blocker)
+4. Component-tree authorization checks (add `AuthorizedRoles` to `InputComponent`?)
+5. Fieldset-level validation rules (defer to v2.1)
+6. Conditional children depth limit (warn in migrator/builder)
+7. Umbraco doc JSON examples (rewrite in P5/P6)
+8. Redesign doc obsolescence marker
+
+### Outputs
+
+- **Inbox memo:** `.squad/decisions/inbox/tom-nook-v2-design-doc-audit.md`
+- **Sign-off to Jonny:** Confirmed fields → components; conditional fields get more powerful; 7 docs need rewrite (P5/P6); no showstoppers; 8 gaps surfaced
+
+### Status
+
+✅ Audit complete. Awaiting Scribe merge to decisions.md. No code changes (per directive). Doc rewrites deferred to P5/P6 per rollout plan.
+
+### Learnings Added
+
+- 2026-04-26 — v2 design doc audit surprise: **workflow-hub-and-conditional-fields.md is the most deeply v1-coupled doc**, not the backend or client docs. Entire Design 1 section describes field-level `ConditionalOn`/`VisibleWhen` pattern. In v2, conditionals are a dict on radios/checkboxes (`ConditionalChildren`), not a base property on all components. This is a **feature regression** unless we add generic conditional support (Option A: base class properties) in P3. Recommend: defer generic conditionals to v2.1; radios `ConditionalChildren` covers 80% ("Other → specify" pattern).
+
+- 2026-04-26 — v2 doc audit methodology: most docs assumed high-level principles would survive, but the **vocabulary shift is pervasive**. "Field group", "field key", "field type", "options whitelist" appear in 7 of 9 docs. The validation and security docs are less coupled because they talk about *contracts* (nonce, response envelope, problems array), not *shapes*. Architecture lesson: design docs age better when they describe *protocols* rather than *schemas*.
+
