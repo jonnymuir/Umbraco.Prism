@@ -8,35 +8,33 @@
     {
       "stateKey": "enter-details",
       "displayName": "Enter Payment Details",
-      "allowedActions": [],
       "components": [
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Payment Details",
+          "children": [
             {
+              "type": "text",
               "fieldKey": "card-holder-name",
               "label": "Cardholder name",
               "hint": "As it appears on your card",
-              "fieldType": "text",
               "required": true
             },
             {
+              "type": "decimal",
               "fieldKey": "amount",
-              "label": "Amount (\u00a3)",
+              "label": "Amount (£)",
               "hint": "Enter the amount to pay (e.g. 10.50)",
-              "fieldType": "decimal",
               "required": true,
               "min": 0.01
             }
-          ],
-          "legend": "Payment Details"
+          ]
         }
       ]
     },
     {
       "stateKey": "processing-payment",
       "displayName": "Processing Your Payment",
-      "allowedActions": [],
       "components": [
         {
           "type": "waiting",
@@ -51,7 +49,6 @@
     {
       "stateKey": "payment-complete",
       "displayName": "Payment Complete",
-      "allowedActions": [],
       "components": [
         {
           "type": "panel",

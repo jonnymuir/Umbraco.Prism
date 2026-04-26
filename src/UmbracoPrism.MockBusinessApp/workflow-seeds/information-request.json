@@ -14,46 +14,47 @@
       "components": [
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Your details",
+          "children": [
             {
+              "type": "text",
               "fieldKey": "firstName",
               "label": "First name",
               "hint": "As it appears on your ID",
-              "fieldType": "text",
               "required": true
             },
             {
+              "type": "text",
               "fieldKey": "lastName",
               "label": "Last name",
-              "hint": "",
-              "fieldType": "text",
+              "hint": null,
               "required": true
             },
             {
+              "type": "date",
               "fieldKey": "dateOfBirth",
               "label": "Date of birth",
               "hint": "For example, 12 03 1985",
-              "fieldType": "date-input",
               "required": true
             },
             {
+              "type": "email",
               "fieldKey": "email",
               "label": "Email address",
               "hint": "We'll only use this to contact you about your request",
-              "fieldType": "text",
               "required": true
             }
-          ],
-          "legend": "Your details"
+          ]
         },
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Your request",
+          "children": [
             {
+              "type": "select",
               "fieldKey": "requestType",
               "label": "What type of request is this?",
-              "hint": "",
-              "fieldType": "select",
+              "hint": null,
               "required": true,
               "options": [
                 "General enquiry",
@@ -63,17 +64,17 @@
               ]
             },
             {
+              "type": "textarea",
               "fieldKey": "description",
               "label": "Tell us more about your request",
               "hint": "Include as much detail as possible. Maximum 1000 characters.",
-              "fieldType": "textarea",
               "required": true
             },
             {
+              "type": "radio",
               "fieldKey": "urgency",
               "label": "How urgent is this?",
-              "hint": "",
-              "fieldType": "radios",
+              "hint": null,
               "required": true,
               "options": [
                 "Standard (5-7 working days)",
@@ -81,8 +82,7 @@
                 "Critical (same day)"
               ]
             }
-          ],
-          "legend": "Your request"
+          ]
         }
       ]
     },
@@ -93,7 +93,7 @@
       "components": [
         {
           "type": "body",
-          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon \u2014 no further action is needed right now."
+          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now."
         }
       ]
     },
