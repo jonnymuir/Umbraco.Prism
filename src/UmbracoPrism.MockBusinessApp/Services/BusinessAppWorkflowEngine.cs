@@ -700,6 +700,15 @@ public class BusinessAppWorkflowEngine
                 }
 
                 case "waiting":
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "waiting",
+                        Content = component.Content,
+                        ExpectedWaitSeconds = component.ExpectedWaitSeconds,
+                        PollIntervalMs = component.PollIntervalMs,
+                        AllowDefer = component.AllowDefer,
+                        DeferMessage = component.DeferMessage
+                    });
                     break;
 
                 default:

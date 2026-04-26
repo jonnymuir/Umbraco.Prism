@@ -61,7 +61,10 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = new[]
+                    {
+                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
+                    }
                 }
             },
             Transitions = new[]
@@ -95,7 +98,10 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = new[]
+                    {
+                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
+                    }
                 }
             },
             Transitions = new[]
@@ -129,7 +135,10 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = new[]
+                    {
+                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
+                    }
                 }
             },
             Transitions = new[]

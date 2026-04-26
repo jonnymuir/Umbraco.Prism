@@ -105,7 +105,7 @@ public class WorkflowDefinitionInferenceTests
             Transitions = []
         };
 
-        workflow.States.Select(s => s.EffectiveStepType).Should().ContainInOrder("question", "check-answers", "confirmation", "status-timeline");
+        workflow.States.Select(s => s.EffectiveStepType).Should().ContainInOrder("question", "check-answers", "confirmation", "question");
     }
 
     [Theory]

@@ -246,7 +246,9 @@ public static class WorkflowStepDefinitionInference
             return "confirmation";
         }
 
-        return "status-timeline";
+        // Empty or content-only steps (body, heading, inset-text, etc.) default to "question"
+        // This ensures steps with no components don't incorrectly map to "status-timeline" → "defer"
+        return "question";
     }
 
     public static WaitingConfig? InferWaitingConfig(StepDefinition step)
