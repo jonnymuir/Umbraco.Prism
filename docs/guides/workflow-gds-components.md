@@ -1,5 +1,7 @@
 # Using GDS Design System Components in Workflow Steps
 
+> **⚠️ v2.0 Schema Update:** This guide is current for v2.0. Component types remain compatible with GDS patterns.
+
 A comprehensive reference for using GOV.UK Design System components in Umbraco.Prism workflow step partials.
 
 ## Overview

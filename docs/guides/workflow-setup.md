@@ -1,5 +1,7 @@
 # Setting Up a Prism Workflow
 
+> **⚠️ v2.0 Schema Update:** This guide is being updated for v2.0. JSON examples still use the legacy v1 schema (`fieldType`, flat `fields[]`). The fluent builder API examples have been updated. See [walkthroughs/](../walkthroughs/) for complete v2.0 examples with the polymorphic component model (`type` discriminator, `children[]`, `conditionalChildren`).
+
 A complete guide to building and deploying a multi-step workflow form using Umbraco.Prism.
 
 ## Overview
@@ -460,11 +462,11 @@ The `<prism-field>` tag helper dispatches field rendering to Razor partials by c
 
 ```mermaid
 graph LR
-    A["Field Definition<br/>fieldType: radio"] -->|Resolve partial| B["Naming Convention"]
-    B -->|radio → Radio| C["_PrismField-Radio.cshtml"]
-    A2["fieldType: star-rating"] -->|Resolve partial| B2["Naming Convention"]
-    B2 -->|star-rating → StarRating| C2["_PrismField-Star-Rating.cshtml"]
-    A3["fieldType: unknown"] -->|Fallback| D["_PrismField-Default.cshtml"]
+    A["Component Definition<br/>type: radios"] -->|Resolve partial| B["Naming Convention"]
+    B -->|radios → Radios| C["_Component-Radios.cshtml"]
+    A2["type: star-rating"] -->|Resolve partial| B2["Naming Convention"]
+    B2 -->|star-rating → StarRating| C2["_Component-Star-Rating.cshtml"]
+    A3["type: unknown"] -->|Fallback| D["_Component-Default.cshtml"]
     C -->|Render| E["Form Control"]
     C2 -->|Render| F["Custom Control"]
     D -->|Render| G["Fallback Output"]
@@ -787,17 +789,22 @@ var definition = new WorkflowDefinitionBuilder()
     .Build();
 ```
 
-### Field Group Builder
+### Fluent Builder API (v2.0)
 
 ```csharp
-var fieldGroup = new FieldGroupBuilder()
+var workflow = new WorkflowDefinitionBuilder()
     .Key("contact-details")
     .DisplayName("Contact Details")
     .Version(1)
-    .AddField("full-name", f => f
-        .Label("Full name")
-        .FieldType("text")
-        .Required()
+    .InitialState("collecting-info")
+    .AddState("collecting-info", state => state
+        .DisplayName("Your Information")
+        .Fieldset(fs => fs
+            .Legend("Contact Details")
+            .TextInput(t => t
+                .FieldKey("full-name")
+                .Label("Full name")
+                .Required()
         .MaxLength(100))
     .AddField("email-address", f => f
         .Label("Email address")

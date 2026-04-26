@@ -1,5 +1,7 @@
 # Prism Workflow Forms Engine — Umbraco Integration Design
 
+> **⚠️ v2.0 Schema Update:** This design doc is being updated for v2.0. JSON examples still use the legacy v1 schema (`fieldType`, flat `fields[]`). See [walkthroughs/](../../walkthroughs/) for v2.0 examples with the polymorphic component model.
+
 **Author:** Brewster (Umbraco Platform Specialist)  
 **Requested by:** Jonny Muir  
 **Status:** Design specification (ready for implementation)  

@@ -1,5 +1,7 @@
 # Prism Workflow Forms Engine — Security Design
 
+> **⚠️ v2.0 Schema Update:** Security architecture is unchanged in v2.0. Component model changes do not affect security layer.
+
 **Author:** Copper (Security Engineer)  
 **Requested by:** Jonny Muir  
 **Status:** Security Architecture & Threat Model  

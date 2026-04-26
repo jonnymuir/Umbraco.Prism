@@ -1,5 +1,7 @@
 # Interactive Walkthrough — "Apply for Planning Permission"
 
+> **⚠️ v2.0 Schema Update:** This document is being updated for v2.0. JSON examples use the legacy v1 schema (`fieldType`, flat `fields[]`). See [walkthroughs/](walkthroughs/) for v2.0 examples with the polymorphic component model.
+
 Once your stack is running (Codespaces or local), this guide walks you through the demo workflow end-to-end, explaining what Umbraco.Prism and the Umbraco backoffice are doing behind the scenes at each step.
 
 > **Start here:** spin up the stack via [Codespaces](../README.md#try-it-now--no-install-required) or [local setup](../README.md#try-the-demo--local-setup), then come back to this guide.

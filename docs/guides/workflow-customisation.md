@@ -1,5 +1,7 @@
 # Customising Workflow UI & Theme
 
+> **⚠️ v2.0 Schema Update:** Component partials now use `_Component-{Type}.cshtml` naming (was `_PrismField-{Type}.cshtml`). See [walkthroughs/](../walkthroughs/) for current v2.0 structure.
+
 A guide to customising the appearance and behavior of workflow forms in Umbraco.Prism.
 
 **For context:**

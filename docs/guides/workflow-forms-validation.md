@@ -1,5 +1,7 @@
 # Workflow Form Validation
 
+> **⚠️ v2.0 Schema Update:** This guide is being updated for v2.0. JSON examples still use the legacy v1 schema (`fieldType`, flat `fields[]`). See [walkthroughs/](../walkthroughs/) for v2.0 examples with the polymorphic component model.
+
 Form validation in Prism is automatic once the package is installed. You get a complete, multi-layer validation stack with zero configuration needed. This guide explains what happens automatically (🔵 Prism Platform), what you define in your Business App (🟠 Your Business App), and how errors are displayed to users.
 
 **Prism's design principle:** Make it easy to do the right thing; principle of least surprise. Install the package and validation just works.

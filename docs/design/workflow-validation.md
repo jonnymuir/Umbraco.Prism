@@ -1,5 +1,7 @@
 # Workflow Form Validation — Architecture Design
 
+> **⚠️ v2.0 Schema Update:** Validation architecture is largely unchanged in v2.0. Component types replace field types but validation rules apply identically.
+
 ## Overview
 
 Prism workflow forms collect data across one or more steps, driven by a definition supplied by the **Business App**.  

@@ -1,5 +1,7 @@
 # Prism Workflow Forms Engine — Backend Contracts & Schema Design
 
+> **⚠️ v2.0 Schema Update:** This document predates v2.0 implementation. References to `fieldType` and `fields[]` are legacy. See [walkthroughs/](../../walkthroughs/) for v2.0 polymorphic component examples.
+
 **Author:** Blathers (Backend Dev)  
 **Date:** 2026-04-08  
 **Status:** Design specification  
