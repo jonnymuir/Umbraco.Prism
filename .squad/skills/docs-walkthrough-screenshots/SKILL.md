@@ -50,6 +50,19 @@ Use this when documentation work needs fresh screenshots of the real Umbraco.Pri
   - how login is completed
   - which authored routes matter (`/dashboard`, `/my-workflows`, `/get-in-touch`)
 
+### Workflow page URL mapping
+
+The Umbraco **content page URL** is not always the same as the workflow **definition key**. Always use the Umbraco page URL (not the definition key) when capturing screenshots. The seeded mappings are:
+
+| Workflow definition key | Umbraco page URL |
+|---|---|
+| `community-enquiry` | `/get-in-touch` |
+| `payment-demo` | `/payment-demo` |
+| `planning-notification` | `/apply-for-planning-permission` |
+| `information-request` | `/request-information` |
+
+Navigating to the definition key directly (e.g. `/planning-notification`) will result in an Umbraco 404 "Page Not Found" screenshot — always cross-reference against `src/UmbracoPrism.Client/tests/workflow-all-demos.spec.ts` to confirm the correct URL before capturing.
+
 ### Screenshot storage standard
 
 - Save walkthrough images to:
@@ -79,3 +92,4 @@ Use this when documentation work needs fresh screenshots of the real Umbraco.Pri
 - **Saving screenshots outside `docs/images/walkthroughs/`** — makes walkthrough assets hard to find and reuse.
 - **Using absolute paths in Markdown** — breaks portability across branches, forks, and package consumers.
 - **Capturing pages before Aspire/TestSite readiness settles** — produces flaky or misleading documentation.
+- **Navigating to the workflow definition key as the URL** — e.g. `/planning-notification` instead of `/apply-for-planning-permission`. The definition key is not an Umbraco page slug; this produces a "Page Not Found" screenshot. Always use the mapping table above.
