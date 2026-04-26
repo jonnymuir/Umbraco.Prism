@@ -1321,3 +1321,37 @@ No behavior-rich areas depend on stepType. All risk is in the four narrow consum
 ## 🚩 Pending: Workflow Schema Cleanup (2026-04-25)
 
 **Scope:** Option 1 recommendation from Tom Nook design review awaiting Jonny approval. When commissioned: delete `StepDefinition.StepType` + `WaitingConfig`; add `JsonIgnoreCondition.WhenWritingNull` to four serializer instances; update ~25–40 test references. ~1 day work. See decisions.md for full context.
+
+## 🎓 Learnings
+
+### 2026-04-25 — Workflow Schema Cleanup Implementation
+
+**Scope:** Executed Option 1 of Tom Nook's workflow schema cleanup (decisions.md 2026-04-25).
+
+**Four JsonSerializerOptions sites confirmed:**
+1. `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs:27`
+2. `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs:30`
+3. `src/UmbracoPrism.MockBusinessApp/Program.cs:692` (workflow definition endpoint)
+4. `src/UmbracoPrism.MockBusinessApp/Program.cs:732` (field group endpoint)
+
+All four now include `DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull`.
+
+**Properties dropped:**
+- `StepDefinition.StepType` (authored override) — inference via `EffectiveStepType` is sole mechanism
+- `StepDefinition.WaitingConfig` (definition sidecar) — waiting component is now sole source
+- `StepContent.WaitingConfig` (runtime payload sidecar) — waiting component propagates to render payload
+- `PrismWorkflowViewModel.WaitingConfig` (view model) — view reads from component tree
+
+**Seed file sweep:** No seed JSON files (src/UmbracoPrism.MockBusinessApp/workflow-seeds/*.json) author `stepType` or state-level `waitingConfig`. Full deletion was safe — no deprecation window needed.
+
+**Test surface:** 37 files touched, ~30+ mechanical edits. Task agent handled bulk test fixes efficiently. All 563 Core.Tests pass.
+
+**View layer:** `_WorkflowStep-Waiting.cshtml` now reads `ExpectedWaitSeconds`, `PollIntervalMs`, `AllowDefer`, and `DeferMessage` exclusively from the waiting component via reflection helpers. No fallback to deleted `WaitingConfig` property.
+
+**Builder API:** `WorkflowStateBuilder.WaitWith()` now creates a `PrismComponentDefinition` with `Type = "waiting"` instead of setting `_stepType` and `_waitingConfig` fields. Migration complete.
+
+**Wire format impact:** Confirmed via serializer config — `stepType: null`, `waitingConfig: null`, and unused component slots (fields/legend/title) will no longer appear in JSON output. No runtime verification performed (MockBusinessApp not started), but System.Text.Json behavior is deterministic.
+
+**Commit:** `64742fe` on branch `feature/workflow-schema-cleanup-option1`. PR #36 opened.
+
+**Charter adherence:** Quality first ✅ — warning-free build, zero test failures, no breaking changes to authored JSON.
