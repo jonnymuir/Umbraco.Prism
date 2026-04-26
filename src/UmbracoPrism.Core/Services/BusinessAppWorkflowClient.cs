@@ -27,7 +27,11 @@ public class BusinessAppWorkflowClient(
     IPrismContext prismContext,
     ILogger<BusinessAppWorkflowClient> logger) : IBusinessAppWorkflowClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
 
     /// <inheritdoc/>
     public async Task<WorkflowResponseEnvelope> GetCurrentAsync(

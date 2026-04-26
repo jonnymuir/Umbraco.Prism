@@ -1,63 +1,149 @@
 @model UmbracoPrism.Core.Models.Workflow.PrismWorkflowViewModel
+@using System.Reflection
+@{
+    static string? ReadString(object? source, string propertyName)
+    {
+        var value = source?.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(source);
+        return value as string;
+    }
+
+    static int? ReadInt(object? source, string propertyName)
+    {
+        var value = source?.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(source);
+        if (value is int number)
+        {
+            return number;
+        }
+
+        return value as int?;
+    }
+
+    static bool? ReadBool(object? source, string propertyName)
+    {
+        var value = source?.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(source);
+        if (value is bool flag)
+        {
+            return flag;
+        }
+
+        return value as bool?;
+    }
+
+    static string FormatWaitLabel(int seconds)
+    {
+        if (seconds < 60)
+        {
+            return $"This usually takes about {seconds} seconds.";
+        }
+
+        if (seconds < 120)
+        {
+            return "This usually takes about 1 minute.";
+        }
+
+        if (seconds < 3600)
+        {
+            return $"This usually takes about {seconds / 60} minutes.";
+        }
+
+        var hours = seconds / 3600;
+        return $"This usually takes about {hours} hour{(hours > 1 ? "s" : string.Empty)}.";
+    }
+
+    var waitingComponent = Model.Components.FirstOrDefault(component =>
+        string.Equals(component.Type, "waiting", StringComparison.OrdinalIgnoreCase));
+
+    var message = ReadString(waitingComponent, "Message")
+        ?? waitingComponent?.Content
+        ?? "We're processing your request. Please do not close this page.";
+
+    var expectedWaitSeconds = ReadInt(waitingComponent, "ExpectedWaitSeconds")
+        ?? 0;
+
+    var pollIntervalMs = ReadInt(waitingComponent, "PollIntervalMs")
+        ?? Model.PollAfterMs
+        ?? 5000;
+
+    var allowDefer = ReadBool(waitingComponent, "AllowDefer")
+        ?? false;
+
+    var deferMessage = ReadString(waitingComponent, "DeferMessage")
+        ?? "You can leave this page and return to your applications later. Your progress has been saved.";
+
+    var hasWaitingUi = waitingComponent is not null;
+    var waitLabel = expectedWaitSeconds > 0 ? FormatWaitLabel(expectedWaitSeconds) : null;
+}
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
         <h1 class="govuk-heading-l">@Model.StateDisplayName</h1>
 
-        @if (Model.WaitingConfig != null)
+        @foreach (var component in Model.Components)
+        {
+            if (string.Equals(component.Type, "waiting", StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="govuk-notification-banner" role="region" aria-labelledby="prism-waiting-message">
+                    <div class="govuk-notification-banner__header">
+                        <h2 class="govuk-notification-banner__title" id="prism-waiting-message">Information</h2>
+                    </div>
+                    <div class="govuk-notification-banner__content">
+                        <p class="govuk-body">@message</p>
+                        @if (!string.IsNullOrEmpty(waitLabel))
+                        {
+                            <p class="govuk-body">@waitLabel</p>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <prism-component component="@component"
+                                 errors="@Model.FieldErrors"
+                                 values="@Model.FormValues"
+                                 return-url="@Model.ReturnUrl"
+                                 instance-id="@Model.InstanceId"
+                                 state-version="@Model.StateVersion"
+                                 workflow-key="@Model.WorkflowKey"
+                                 nonce="@Model.Nonce" />
+            }
+        }
+
+        @if (hasWaitingUi && waitingComponent is null)
         {
             <div class="govuk-notification-banner" role="region" aria-labelledby="prism-waiting-message">
                 <div class="govuk-notification-banner__header">
                     <h2 class="govuk-notification-banner__title" id="prism-waiting-message">Information</h2>
                 </div>
                 <div class="govuk-notification-banner__content">
-                    <p class="govuk-body">@Model.WaitingConfig.Message</p>
-                    @{
-                        var seconds = Model.WaitingConfig.ExpectedWaitSeconds;
-                        string waitLabel;
-                        if (seconds < 60)
-                        {
-                            waitLabel = $"This usually takes about {seconds} seconds.";
-                        }
-                        else if (seconds < 120)
-                        {
-                            waitLabel = "This usually takes about 1 minute.";
-                        }
-                        else if (seconds < 3600)
-                        {
-                            var minutes = seconds / 60;
-                            waitLabel = $"This usually takes about {minutes} minutes.";
-                        }
-                        else
-                        {
-                            var hours = seconds / 3600;
-                            waitLabel = $"This usually takes about {hours} hour{(hours > 1 ? "s" : "")}.";
-                        }
+                    <p class="govuk-body">@message</p>
+                    @if (!string.IsNullOrEmpty(waitLabel))
+                    {
+                        <p class="govuk-body">@waitLabel</p>
                     }
-                    <p class="govuk-body">@waitLabel</p>
                 </div>
             </div>
+        }
 
+        @if (hasWaitingUi)
+        {
             <div role="status" aria-live="polite" aria-atomic="true" id="prism-poll-status" class="govuk-visually-hidden"></div>
 
             <div id="prism-waiting-data"
                  data-workflow-key="@Model.WorkflowKey"
                  data-instance-id="@Model.InstanceId"
                  data-state-version="@Model.StateVersion"
-                 data-poll-interval-ms="@(Model.PollAfterMs ?? Model.WaitingConfig.PollIntervalMs)"
+                 data-poll-interval-ms="@pollIntervalMs"
                  hidden>
             </div>
 
-            @if (Model.WaitingConfig.AllowDefer)
+            @if (allowDefer)
             {
                 <details class="govuk-details">
                     <summary class="govuk-details__summary">
                         <span class="govuk-details__summary-text">Need to leave this page?</span>
                     </summary>
                     <div class="govuk-details__text">
-                        <p class="govuk-body">
-                            @(Model.WaitingConfig.DeferMessage ?? "You can leave this page and return to your applications later. Your progress has been saved.")
-                        </p>
+                        <p class="govuk-body">@deferMessage</p>
                         <p class="govuk-body">
                             <a href="/my-workflows" class="govuk-link">Go to My Applications</a>
                         </p>
@@ -68,7 +154,7 @@
     </div>
 </div>
 
-@if (Model.WaitingConfig != null)
+@if (hasWaitingUi)
 {
     <script>
     (function() {
@@ -102,13 +188,13 @@
                 + '&instanceId=' + encodeURIComponent(instanceId)
                 + '&knownStateVersion=' + stateVersion;
 
-            updateStatus('Checking for updates\u2026');
+            updateStatus('Checking for updates…');
 
             fetch(url)
                 .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
                 .then(function(data) {
                     if (data.changed) {
-                        updateStatus('Update received \u2014 reloading page.');
+                        updateStatus('Update received — reloading page.');
                         window.location.reload();
                     } else {
                         pollTimeout = setTimeout(poll, intervalMs);

@@ -7,32 +7,120 @@
     {
       "stateKey": "collecting-info",
       "displayName": "Tell us about yourself",
-      "stepType": "question",
-      "allowedActions": ["submit", "save-draft"],
+      "allowedActions": [
+        "submit",
+        "save-draft"
+      ],
       "components": [
-        { "type": "fieldset", "fieldGroupKey": "personal-details" },
-        { "type": "fieldset", "fieldGroupKey": "request-details" }
+        {
+          "type": "fieldset",
+          "fields": [
+            {
+              "fieldKey": "firstName",
+              "label": "First name",
+              "hint": "As it appears on your ID",
+              "fieldType": "text",
+              "required": true
+            },
+            {
+              "fieldKey": "lastName",
+              "label": "Last name",
+              "hint": "",
+              "fieldType": "text",
+              "required": true
+            },
+            {
+              "fieldKey": "dateOfBirth",
+              "label": "Date of birth",
+              "hint": "For example, 12 03 1985",
+              "fieldType": "date-input",
+              "required": true
+            },
+            {
+              "fieldKey": "email",
+              "label": "Email address",
+              "hint": "We'll only use this to contact you about your request",
+              "fieldType": "text",
+              "required": true
+            }
+          ],
+          "legend": "Your details"
+        },
+        {
+          "type": "fieldset",
+          "fields": [
+            {
+              "fieldKey": "requestType",
+              "label": "What type of request is this?",
+              "hint": "",
+              "fieldType": "select",
+              "required": true,
+              "options": [
+                "General enquiry",
+                "Data subject access request",
+                "Complaint",
+                "Technical support"
+              ]
+            },
+            {
+              "fieldKey": "description",
+              "label": "Tell us more about your request",
+              "hint": "Include as much detail as possible. Maximum 1000 characters.",
+              "fieldType": "textarea",
+              "required": true
+            },
+            {
+              "fieldKey": "urgency",
+              "label": "How urgent is this?",
+              "hint": "",
+              "fieldType": "radios",
+              "required": true,
+              "options": [
+                "Standard (5-7 working days)",
+                "Urgent (2 working days)",
+                "Critical (same day)"
+              ]
+            }
+          ],
+          "legend": "Your request"
+        }
       ]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your request is being reviewed",
-      "stepType": "status-timeline",
       "allowedActions": [],
       "components": [
-        { "type": "body", "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now." }
+        {
+          "type": "body",
+          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon \u2014 no further action is needed right now."
+        }
       ]
     },
     {
       "stateKey": "complete",
       "displayName": "Request Complete",
-      "stepType": "confirmation",
-      "allowedActions": ["start-another"],
+      "allowedActions": [
+        "start-another"
+      ],
       "components": [
-        { "type": "panel", "heading": "Application complete" },
-        { "type": "heading", "level": 2, "content": "What happens next" },
-        { "type": "body", "content": "We've sent you a confirmation email." },
-        { "type": "body", "content": "A member of our team will be in touch shortly." }
+        {
+          "type": "panel",
+          "heading": "Application complete"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "We've sent you a confirmation email."
+        },
+        {
+          "type": "body",
+          "content": "A member of our team will be in touch shortly."
+        }
       ]
     }
   ],

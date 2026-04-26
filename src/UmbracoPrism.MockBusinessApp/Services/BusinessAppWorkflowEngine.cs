@@ -24,7 +24,11 @@ public class BusinessAppWorkflowEngine
     /// </summary>
     private readonly ConcurrentDictionary<string, string> _instanceLookup = new();
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
 
     public BusinessAppWorkflowEngine(ILogger<BusinessAppWorkflowEngine> logger, IWebHostEnvironment env)
     {
@@ -163,7 +167,7 @@ public class BusinessAppWorkflowEngine
             {
                 // Check if instance is terminal
                 var currentState = definition.States.FirstOrDefault(s => s.StateKey == promptInstance.CurrentState);
-                bool isTerminal = currentState?.StepType == "confirmation";
+                bool isTerminal = currentState?.EffectiveStepType == "confirmation";
 
                 if (!isTerminal)
                 {
@@ -179,7 +183,7 @@ public class BusinessAppWorkflowEngine
                         InstancePolicy = "prompt",
                         Render = new StepContent
                         {
-                            StepType = currentState?.StepType ?? "question",
+                            StepType = currentState?.EffectiveStepType ?? "question",
                             StateDisplayName = currentState?.DisplayName ?? definition.DisplayName,
                             Components = Array.Empty<PrismComponentRenderPayload>(),
                             AvailableActions = Array.Empty<WorkflowAction>()
@@ -408,11 +412,11 @@ public class BusinessAppWorkflowEngine
                     WorkflowDisplayName = definition?.DisplayName ?? instance.WorkflowKey,
                     CurrentStateKey = instance.CurrentState,
                     CurrentStateDisplayName = state?.DisplayName ?? instance.CurrentState,
-                    StepType = state?.StepType ?? "question",
+                    StepType = state?.EffectiveStepType ?? "question",
                     CreatedAt = instance.CreatedAt.DateTime,
                     LastUpdatedAt = instance.UpdatedAt.DateTime,
-                    CanContinue = state?.StepType != "confirmation",
-                    IsCompleted = state?.StepType == "confirmation",
+                    CanContinue = state?.EffectiveStepType != "confirmation",
+                    IsCompleted = state?.EffectiveStepType == "confirmation",
                     WorkflowPageUrl = null, // Controller will resolve this
                     InstancePolicy = definition?.InstancePolicy ?? "single"
                 };
@@ -584,16 +588,19 @@ public class BusinessAppWorkflowEngine
 
         var components = BuildComponents(state.Components, instance.FieldValues);
 
+        var effectiveStepType = state.EffectiveStepType;
+        var waitingComponent = state.Components.FirstOrDefault(c =>
+            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
+
         var render = new StepContent
         {
-            StepType = state.StepType,
+            StepType = effectiveStepType,
             StateDisplayName = state.DisplayName,
             Components = components,
-            AvailableActions = actions,
-            WaitingConfig = state.WaitingConfig
+            AvailableActions = actions
         };
 
-        var responseState = state.StepType switch
+        var responseState = effectiveStepType switch
         {
             "status-timeline" => "defer",
             "confirmation" => "complete",
@@ -607,7 +614,7 @@ public class BusinessAppWorkflowEngine
             StateVersion = instance.StateVersion,
             CorrelationId = instance.InstanceId,
             ServerTimeUtc = DateTimeOffset.UtcNow,
-            PollAfterMs = state.WaitingConfig?.PollIntervalMs,
+            PollAfterMs = waitingComponent?.PollIntervalMs,
             Render = render,
             InstancePolicy = definition.InstancePolicy
         };
@@ -631,38 +638,38 @@ public class BusinessAppWorkflowEngine
             {
                 case "fieldset":
                 {
-                    if (string.IsNullOrEmpty(component.FieldGroupKey)
-                        || !_fieldGroups.TryGetValue(component.FieldGroupKey, out var fg))
+                    var componentFields = ResolveComponentFields(component.Fields, component.FieldGroupKey);
+                    if (componentFields.Length == 0)
                     {
-                        _logger.LogWarning("Fieldset component references missing field group '{Key}'", component.FieldGroupKey);
+                        _logger.LogWarning("Fieldset component contains no renderable fields");
                         continue;
                     }
 
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "fieldset",
-                        Legend = component.Legend ?? fg.DisplayName,
+                        Legend = component.Legend,
                         LegendSize = component.LegendSize,
-                        Fields = BuildFields(fg, savedValues)
+                        Fields = BuildFields(componentFields, savedValues)
                     });
                     break;
                 }
 
                 case "summary-list":
                 {
-                    if (string.IsNullOrEmpty(component.FieldGroupKey)
-                        || !_fieldGroups.TryGetValue(component.FieldGroupKey, out var fg))
+                    var componentFields = ResolveComponentFields(component.Fields, component.FieldGroupKey);
+                    if (componentFields.Length == 0)
                     {
-                        _logger.LogWarning("Summary-list component references missing field group '{Key}'", component.FieldGroupKey);
+                        _logger.LogWarning("Summary-list component contains no renderable fields");
                         continue;
                     }
 
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "summary-list",
-                        Title = component.Title ?? fg.DisplayName,
+                        Title = component.Title,
                         SourceStateKey = component.ChangeStateKey,
-                        Fields = BuildFields(fg, savedValues)
+                        Fields = BuildFields(componentFields, savedValues)
                     });
                     break;
                 }
@@ -672,12 +679,7 @@ public class BusinessAppWorkflowEngine
                     var sections = (component.AccordionSections ?? Array.Empty<PrismAccordionSectionDefinition>())
                         .Select(s =>
                         {
-                            var fields = Array.Empty<FieldRenderPayload>();
-                            if (!string.IsNullOrEmpty(s.FieldGroupKey)
-                                && _fieldGroups.TryGetValue(s.FieldGroupKey, out var fg))
-                            {
-                                fields = BuildFields(fg, savedValues);
-                            }
+                            var fields = BuildFields(ResolveComponentFields(s.Fields, s.FieldGroupKey), savedValues);
 
                             return new PrismAccordionSectionPayload
                             {
@@ -696,6 +698,9 @@ public class BusinessAppWorkflowEngine
                     });
                     break;
                 }
+
+                case "waiting":
+                    break;
 
                 default:
                     // Content-only types: panel, inset-text, warning-text, body, heading, details,
@@ -728,13 +733,13 @@ public class BusinessAppWorkflowEngine
     /// <summary>
     /// Builds a list of <see cref="FieldRenderPayload"/> from a field group definition, pre-populating field values.
     /// </summary>
-    /// <param name="group">The field group definition.</param>
+    /// <param name="fieldDefinitions">The field definitions to render.</param>
     /// <param name="savedValues">Previously collected field values to populate.</param>
     /// <returns>An array of field render payloads ready to render in the UI.</returns>
-    private static FieldRenderPayload[] BuildFields(FormSectionDefinition group, Dictionary<string, object?> savedValues)
+    private static FieldRenderPayload[] BuildFields(IReadOnlyList<FieldFile> fieldDefinitions, Dictionary<string, object?> savedValues)
     {
         var fields = new List<FieldRenderPayload>();
-        foreach (var f in group.Fields)
+        foreach (var f in fieldDefinitions)
         {
             fields.Add(new FieldRenderPayload
             {
@@ -785,6 +790,27 @@ public class BusinessAppWorkflowEngine
         }
 
         return fields.ToArray();
+    }
+
+    private FieldFile[] ResolveComponentFields(IReadOnlyList<FieldFile>? inlineFields, string? fieldGroupKey)
+    {
+        if (inlineFields is { Count: > 0 })
+        {
+            return inlineFields.ToArray();
+        }
+
+        if (!string.IsNullOrEmpty(fieldGroupKey)
+            && _fieldGroups.TryGetValue(fieldGroupKey, out var fieldGroup))
+        {
+            return fieldGroup.Fields.ToArray();
+        }
+
+        if (!string.IsNullOrEmpty(fieldGroupKey))
+        {
+            _logger.LogWarning("Component references missing field group '{Key}'", fieldGroupKey);
+        }
+
+        return Array.Empty<FieldFile>();
     }
 
     private static object? GetDisplayValue(FieldFile f, Dictionary<string, object?> savedValues)

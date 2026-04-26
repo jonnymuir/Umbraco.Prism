@@ -8,40 +8,78 @@
     {
       "stateKey": "enter-details",
       "displayName": "Enter Payment Details",
-      "stepType": "question",
       "allowedActions": [],
       "components": [
-        { "type": "fieldset", "fieldGroupKey": "payment-demo-details" }
+        {
+          "type": "fieldset",
+          "fields": [
+            {
+              "fieldKey": "card-holder-name",
+              "label": "Cardholder name",
+              "hint": "As it appears on your card",
+              "fieldType": "text",
+              "required": true
+            },
+            {
+              "fieldKey": "amount",
+              "label": "Amount (\u00a3)",
+              "hint": "Enter the amount to pay (e.g. 10.50)",
+              "fieldType": "decimal",
+              "required": true,
+              "min": 0.01
+            }
+          ],
+          "legend": "Payment Details"
+        }
       ]
     },
     {
       "stateKey": "processing-payment",
       "displayName": "Processing Your Payment",
-      "stepType": "waiting",
       "allowedActions": [],
-      "components": [],
-      "waitingConfig": {
-        "message": "We are processing your payment with our secure payment provider. Please do not close this page.",
-        "expectedWaitSeconds": 30,
-        "pollIntervalMs": 3000,
-        "allowDefer": true,
-        "deferMessage": "You can leave this page and return to your applications to check the status when processing is complete."
-      }
+      "components": [
+        {
+          "type": "waiting",
+          "content": "We are processing your payment with our secure payment provider. Please do not close this page.",
+          "expectedWaitSeconds": 30,
+          "pollIntervalMs": 3000,
+          "allowDefer": true,
+          "deferMessage": "You can leave this page and return to your applications to check the status when processing is complete."
+        }
+      ]
     },
     {
       "stateKey": "payment-complete",
       "displayName": "Payment Complete",
-      "stepType": "confirmation",
       "allowedActions": [],
       "components": [
-        { "type": "panel", "heading": "Payment received" },
-        { "type": "heading", "level": 2, "content": "What happens next" },
-        { "type": "body", "content": "A receipt has been sent to your email address." }
+        {
+          "type": "panel",
+          "heading": "Payment received"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "A receipt has been sent to your email address."
+        }
       ]
     }
   ],
   "transitions": [
-    { "fromState": "enter-details", "toState": "processing-payment", "action": "submit" },
-    { "fromState": "processing-payment", "toState": "payment-complete", "action": "complete", "requiresRole": "reviewer" }
+    {
+      "fromState": "enter-details",
+      "toState": "processing-payment",
+      "action": "submit"
+    },
+    {
+      "fromState": "processing-payment",
+      "toState": "payment-complete",
+      "action": "complete",
+      "requiresRole": "reviewer"
+    }
   ]
 }

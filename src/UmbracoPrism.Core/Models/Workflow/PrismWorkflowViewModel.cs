@@ -90,12 +90,6 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
     public IReadOnlyDictionary<string, string> FormValues { get; set; } = new Dictionary<string, string>();
 
     /// <summary>
-    /// Configuration for waiting step types. Only populated when <see cref="StepType"/> is <c>"waiting"</c>.
-    /// Contains the message, expected wait time, polling interval, and defer option configuration.
-    /// </summary>
-    public WaitingConfig? WaitingConfig { get; set; }
-
-    /// <summary>
     /// Recommended polling interval in milliseconds for waiting step types.
     /// Only populated when <see cref="StepType"/> is <c>"waiting"</c>.
     /// Sourced from <see cref="WaitingConfig.PollIntervalMs"/> via the workflow response envelope.

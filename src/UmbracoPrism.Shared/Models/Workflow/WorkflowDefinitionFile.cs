@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace UmbracoPrism.Shared.Models.Workflow;
 
 /// <summary>
@@ -32,17 +34,20 @@ public record StepDefinition
     public string StateKey { get; init; } = "";
     /// <summary>User-facing display name for this state.</summary>
     public string DisplayName { get; init; } = "";
-    /// <summary>
-    /// The step type for this state: "question" (render fields), "check-answers" (review), 
-    /// "confirmation" (final state), "status-timeline" (read-only status), or "task-list" (task list pattern).
-    /// </summary>
-    public string StepType { get; init; } = "question";
     /// <summary>GDS components to render within this step. Replaces the old FieldGroupKeys approach.</summary>
     public IReadOnlyList<PrismComponentDefinition> Components { get; init; } = Array.Empty<PrismComponentDefinition>();
+
     /// <summary>
-    /// Configuration for "waiting" step types. Only present when <see cref="StepType"/> is <c>"waiting"</c>.
+    /// Runtime step type used by the engine. Inferred from the component tree shape.
     /// </summary>
-    public WaitingConfig? WaitingConfig { get; init; }
+    [JsonIgnore]
+    public string EffectiveStepType => WorkflowStepDefinitionInference.InferStepType(this);
+
+    /// <summary>
+    /// Runtime waiting configuration resolved from either the legacy sidecar or a waiting component.
+    /// </summary>
+    [JsonIgnore]
+    public WaitingConfig? EffectiveWaitingConfig => WorkflowStepDefinitionInference.InferWaitingConfig(this);
 }
 
 /// <summary>
@@ -69,8 +74,8 @@ public record WorkflowTransitionFile
 /// Supported types and their relevant properties:
 /// <list type="table">
 /// <listheader><term>type</term><description>Properties used</description></listheader>
-/// <item><term>fieldset</term><description>FieldGroupKey, Legend (overrides group DisplayName), LegendSize</description></item>
-/// <item><term>summary-list</term><description>FieldGroupKey, Title (overrides group DisplayName), ChangeStateKey</description></item>
+/// <item><term>fieldset</term><description>Fields, Legend, LegendSize</description></item>
+/// <item><term>summary-list</term><description>Fields, Title, ChangeStateKey</description></item>
 /// <item><term>panel</term><description>Heading (panel title), Content (panel body)</description></item>
 /// <item><term>notification-banner</term><description>BannerType ("info"|"success"|"warning"), Heading, Content</description></item>
 /// <item><term>inset-text</term><description>Content</description></item>
@@ -80,6 +85,7 @@ public record WorkflowTransitionFile
 /// <item><term>heading</term><description>Level (1-6), Content (heading text)</description></item>
 /// <item><term>task-list</term><description>TaskSections (if null/empty, engine auto-generates from workflow states)</description></item>
 /// <item><term>accordion</term><description>AccordionSections</description></item>
+/// <item><term>waiting</term><description>Content (message), ExpectedWaitSeconds, PollIntervalMs, AllowDefer, DeferMessage</description></item>
 /// </list>
 /// </remarks>
 public record PrismComponentDefinition
@@ -88,7 +94,15 @@ public record PrismComponentDefinition
     public string Type { get; init; } = "fieldset";
 
     // Fieldset + summary-list
-    /// <summary>Key of the field group to render (used by fieldset and summary-list components).</summary>
+    /// <summary>
+    /// Inline fields rendered by this component. This is the preferred authoring model for
+    /// fieldset, summary-list, and accordion section components.
+    /// </summary>
+    public IReadOnlyList<FieldFile>? Fields { get; init; }
+    /// <summary>
+    /// Legacy key of the field group to render (used by fieldset and summary-list components).
+    /// Kept temporarily so older workflow definitions can still load.
+    /// </summary>
     public string? FieldGroupKey { get; init; }
     /// <summary>Overrides the field group DisplayName as the legend for fieldset components.</summary>
     public string? Legend { get; init; }
@@ -111,6 +125,16 @@ public record PrismComponentDefinition
     /// <summary>Heading level 1-6 for "heading" type components.</summary>
     public int? Level { get; init; }
 
+    // Waiting
+    /// <summary>Expected wait time in seconds for "waiting" components.</summary>
+    public int? ExpectedWaitSeconds { get; init; }
+    /// <summary>Polling interval in milliseconds for "waiting" components.</summary>
+    public int? PollIntervalMs { get; init; }
+    /// <summary>Whether the waiting UI should offer a defer option.</summary>
+    public bool? AllowDefer { get; init; }
+    /// <summary>Optional custom defer message for "waiting" components.</summary>
+    public string? DeferMessage { get; init; }
+
     // Compound
     /// <summary>Accordion sections for "accordion" type components.</summary>
     public IReadOnlyList<PrismAccordionSectionDefinition>? AccordionSections { get; init; }
@@ -127,7 +151,9 @@ public record PrismAccordionSectionDefinition
     public string? Summary { get; init; }
     /// <summary>Static content for this accordion section.</summary>
     public string? Content { get; init; }
-    /// <summary>Key of the field group to render within this accordion section.</summary>
+    /// <summary>Inline fields rendered within this accordion section.</summary>
+    public IReadOnlyList<FieldFile>? Fields { get; init; }
+    /// <summary>Legacy key of the field group to render within this accordion section.</summary>
     public string? FieldGroupKey { get; init; }
 }
 
@@ -186,6 +212,65 @@ public record WaitingConfig
     /// Optional custom message for the defer option. If null or empty, a default message is shown.
     /// </summary>
     public string? DeferMessage { get; init; }
+}
+
+/// <summary>
+/// Runtime inference for workflow step metadata when authored JSON omits legacy step-level sidecars.
+/// </summary>
+public static class WorkflowStepDefinitionInference
+{
+    public static string InferStepType(StepDefinition step)
+    {
+        if (InferWaitingConfig(step) is not null)
+        {
+            return "waiting";
+        }
+
+        if (HasComponent(step, "task-list"))
+        {
+            return "task-list";
+        }
+
+        if (HasComponent(step, "summary-list"))
+        {
+            return "check-answers";
+        }
+
+        if (HasComponent(step, "fieldset"))
+        {
+            return "question";
+        }
+
+        if (HasComponent(step, "panel"))
+        {
+            return "confirmation";
+        }
+
+        return "status-timeline";
+    }
+
+    public static WaitingConfig? InferWaitingConfig(StepDefinition step)
+    {
+        var component = step.Components.FirstOrDefault(c =>
+            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
+
+        if (component is null)
+        {
+            return null;
+        }
+
+        return new WaitingConfig
+        {
+            Message = component.Content ?? string.Empty,
+            ExpectedWaitSeconds = component.ExpectedWaitSeconds ?? 0,
+            PollIntervalMs = component.PollIntervalMs ?? 3000,
+            AllowDefer = component.AllowDefer ?? true,
+            DeferMessage = component.DeferMessage
+        };
+    }
+
+    private static bool HasComponent(StepDefinition step, string type) =>
+        step.Components.Any(c => string.Equals(c.Type, type, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>

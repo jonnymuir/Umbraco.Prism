@@ -55,14 +55,12 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "step-1",
                     DisplayName = "Step 1",
-                    StepType = "question",
                     Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    StepType = "confirmation",
                     Components = Array.Empty<PrismComponentDefinition>()
                 }
             },
@@ -91,14 +89,12 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "step-1",
                     DisplayName = "Step 1",
-                    StepType = "question",
                     Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    StepType = "confirmation",
                     Components = Array.Empty<PrismComponentDefinition>()
                 }
             },
@@ -127,14 +123,12 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "step-1",
                     DisplayName = "Step 1",
-                    StepType = "question",
                     Components = Array.Empty<PrismComponentDefinition>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    StepType = "confirmation",
                     Components = Array.Empty<PrismComponentDefinition>()
                 }
             },

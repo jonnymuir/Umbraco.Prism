@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using System.Net;
 using UmbracoPrism.Core.Models.Workflow;
 
 namespace UmbracoPrism.Core.TagHelpers;
@@ -114,24 +115,57 @@ public class PrismFieldTagHelper : TagHelper
     private string? RenderInlineFieldType(string fieldType)
     {
         var content = Field!.Content;
+        var encodedContent = string.IsNullOrEmpty(content) ? string.Empty : WebUtility.HtmlEncode(content);
+        var encodedLabel = string.IsNullOrEmpty(Field.Label) ? string.Empty : WebUtility.HtmlEncode(Field.Label);
+        var bannerTitleId = string.IsNullOrEmpty(Field.FieldKey)
+            ? "prism-inline-banner-title"
+            : $"prism-inline-banner-title-{SanitizeIdFragment(Field.FieldKey)}";
 
         return fieldType switch
         {
             "inset-text" when !string.IsNullOrEmpty(content) =>
-                $@"<div class=""govuk-inset-text"">{System.Net.WebUtility.HtmlEncode(content)}</div>",
+                $@"<div class=""govuk-inset-text"">{encodedContent}</div>",
 
             "warning-text" when !string.IsNullOrEmpty(content) =>
                 $@"<div class=""govuk-warning-text"">
   <span class=""govuk-warning-text__icon"" aria-hidden=""true"">!</span>
   <strong class=""govuk-warning-text__text"">
     <span class=""govuk-visually-hidden"">Warning</span>
-    {System.Net.WebUtility.HtmlEncode(content)}
+    {encodedContent}
   </strong>
 </div>",
 
-            "inset-text" or "warning-text" => string.Empty, // content was null/empty — suppress
+            "details" when !string.IsNullOrEmpty(content) =>
+                $@"<details class=""govuk-details"">
+  <summary class=""govuk-details__summary"">
+    <span class=""govuk-details__summary-text"">{(string.IsNullOrEmpty(encodedLabel) ? "More information" : encodedLabel)}</span>
+  </summary>
+  <div class=""govuk-details__text"">{encodedContent}</div>
+</details>",
+
+            "notification-banner" when !string.IsNullOrEmpty(content) =>
+                $@"<div class=""govuk-notification-banner"" role=""region"" aria-labelledby=""{bannerTitleId}"">
+  <div class=""govuk-notification-banner__header"">
+    <h2 class=""govuk-notification-banner__title"" id=""{bannerTitleId}"">{(string.IsNullOrEmpty(encodedLabel) ? "Information" : encodedLabel)}</h2>
+  </div>
+  <div class=""govuk-notification-banner__content"">
+    <p class=""govuk-body"">{encodedContent}</p>
+  </div>
+</div>",
+
+            "body" when !string.IsNullOrEmpty(content) =>
+                $@"<p class=""govuk-body"">{encodedContent}</p>",
+
+            "heading" when !string.IsNullOrEmpty(content) =>
+                $@"<h2 class=""govuk-heading-m"">{encodedContent}</h2>",
+
+            "inset-text" or "warning-text" or "details" or "notification-banner" or "body" or "heading"
+                => string.Empty, // content was null/empty — suppress
 
             _ => null // use the partial dispatch system
         };
     }
+
+    private static string SanitizeIdFragment(string value) =>
+        string.Concat(value.Select(c => char.IsLetterOrDigit(c) ? c : '-'));
 }

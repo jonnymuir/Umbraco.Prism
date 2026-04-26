@@ -34,7 +34,9 @@ namespace UmbracoPrism.Shared.Builders;
 ///     .AddState("collect-details", s => s
 ///         .DisplayName("Your Details")
 ///         .StepType("question")
-///         .AddFieldset("personal-info"))
+///         .AddFieldset([
+///             new FieldFile { FieldKey = "full-name", Label = "Full name", FieldType = "text", Required = true }
+///         ]))
 ///     .AddState("check-answers", s => s
 ///         .DisplayName("Check Your Answers")
 ///         .StepType("check-answers"))
@@ -200,9 +202,7 @@ public class WorkflowStateBuilder
 {
     private readonly string _stateKey;
     private string _displayName = "";
-    private string _stepType = "question";
     private readonly List<PrismComponentDefinition> _components = new();
-    private WaitingConfig? _waitingConfig;
 
     internal WorkflowStateBuilder(string stateKey)
     {
@@ -220,28 +220,36 @@ public class WorkflowStateBuilder
         return this;
     }
 
-    /// <summary>
-    /// Sets the step type, which drives partial view selection and UI rendering.
-    /// </summary>
-    /// <param name="stepType">One of: "question" (form), "check-answers" (summary), "confirmation" (done), "status-timeline", "task-list", "waiting" (paused pending external action — prefer <see cref="WaitWith"/> over calling this directly).</param>
+    /// <summary>Adds a fieldset component with inline fields.</summary>
+    /// <param name="fields">The fields rendered by the fieldset.</param>
+    /// <param name="legend">Optional legend text shown above the fieldset.</param>
+    /// <param name="legendSize">Optional legend size: "xl" | "l" | "m" | "s".</param>
     /// <returns>This builder instance for method chaining.</returns>
-    /// <remarks>
-    /// The step type is not Archetype. It is the classification used by the front-end to decide which view partial to render.
-    /// </remarks>
-    public WorkflowStateBuilder StepType(string stepType)
+    public WorkflowStateBuilder AddFieldset(IReadOnlyList<FieldFile> fields, string? legend = null, string? legendSize = null)
     {
-        _stepType = stepType;
+        _components.Add(new PrismComponentDefinition { Type = "fieldset", Fields = fields, Legend = legend, LegendSize = legendSize });
         return this;
     }
 
     /// <summary>Adds a fieldset component referencing an existing field group.</summary>
-    /// <param name="fieldGroupKey">The key of the field group to render.</param>
+    /// <param name="fieldGroupKey">Legacy key of the field group to render.</param>
     /// <param name="legend">Optional legend text overriding the field group DisplayName.</param>
     /// <param name="legendSize">Optional legend size: "xl" | "l" | "m" | "s".</param>
     /// <returns>This builder instance for method chaining.</returns>
     public WorkflowStateBuilder AddFieldset(string fieldGroupKey, string? legend = null, string? legendSize = null)
     {
         _components.Add(new PrismComponentDefinition { Type = "fieldset", FieldGroupKey = fieldGroupKey, Legend = legend, LegendSize = legendSize });
+        return this;
+    }
+
+    /// <summary>Adds a summary-list (check-answers) component with inline fields.</summary>
+    /// <param name="fields">The fields to summarise.</param>
+    /// <param name="changeStateKey">The state key the "Change" links navigate to.</param>
+    /// <param name="title">Optional heading shown above the summary list.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public WorkflowStateBuilder AddSummaryList(IReadOnlyList<FieldFile> fields, string? changeStateKey = null, string? title = null)
+    {
+        _components.Add(new PrismComponentDefinition { Type = "summary-list", Fields = fields, ChangeStateKey = changeStateKey, Title = title });
         return this;
     }
 
@@ -332,15 +340,15 @@ public class WorkflowStateBuilder
         bool allowDefer = true,
         string? deferMessage = null)
     {
-        _stepType = "waiting";
-        _waitingConfig = new WaitingConfig
+        _components.Add(new PrismComponentDefinition
         {
-            Message = message,
+            Type = "waiting",
+            Content = message,
             ExpectedWaitSeconds = expectedWaitSeconds,
             PollIntervalMs = pollIntervalMs,
             AllowDefer = allowDefer,
             DeferMessage = deferMessage
-        };
+        });
         return this;
     }
 
@@ -350,9 +358,7 @@ public class WorkflowStateBuilder
         {
             StateKey = _stateKey,
             DisplayName = _displayName,
-            StepType = _stepType,
-            Components = _components,
-            WaitingConfig = _waitingConfig
+            Components = _components
         };
     }
 }

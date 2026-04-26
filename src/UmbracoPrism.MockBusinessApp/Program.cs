@@ -256,10 +256,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
         sb.AppendLine($"    [*] --> {SafeId(def.InitialState)}");
         foreach (var s in def.States)
         {
-            var icon = s.StepType switch
+            var icon = s.EffectiveStepType switch
             {
                 "confirmation"    => " ✓",
                 "status-timeline" => " ⏱",
+                "waiting"         => " ⏳",
                 "check-answers"   => " ✎",
                 "task-list"       => " ☑",
                 _                 => ""
@@ -329,10 +330,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
         {
             var stateRows = string.Join("\n", def.States.Select(s =>
             {
-                var icon = s.StepType switch
+                var icon = s.EffectiveStepType switch
                 {
                     "confirmation"    => "✓",
                     "status-timeline" => "⏱",
+                    "waiting"         => "⏳",
                     "check-answers"   => "✎",
                     "task-list"       => "☑",
                     "question"        => "✏",
@@ -690,7 +692,8 @@ app.MapGet("/admin/workflow/definition/{key}/json", (string key, BusinessAppWork
     var opts = new System.Text.Json.JsonSerializerOptions
     {
         WriteIndented = true,
-        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
     var json = System.Text.Json.JsonSerializer.Serialize(def, opts);
     return Results.Content(json, "application/json");
@@ -730,7 +733,8 @@ app.MapGet("/admin/workflow/field-group/{key}/json", (string key, BusinessAppWor
     var opts = new System.Text.Json.JsonSerializerOptions
     {
         WriteIndented = true,
-        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
     var json = System.Text.Json.JsonSerializer.Serialize(fg, opts);
     return Results.Content(json, "application/json");

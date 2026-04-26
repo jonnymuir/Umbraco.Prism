@@ -28,22 +28,21 @@
     }
     else
     {
-        @* Step type names follow the workflow definition JSON ("question", "check-answers",
-           "confirmation", "status-timeline"). Legacy aliases kept for backward compatibility.
-           H1 ownership:
-             - question: outer template renders the state displayName as h1; partial has no h1.
-             - check-answers: partial owns its h1 (govuk-heading-l with state displayName).
-             - confirmation: partial owns its h1 (govuk-panel__title with state displayName).
-             - unknown: partial assumed to own its h1; outer template provides one only if no partial. *@
-        var partialName = Model.StepType.ToLowerInvariant() switch
+        var shell = WorkflowRenderShellResolver.ResolveShell(
+            Model.Components,
+            Model.StepType,
+            Model.Components.Any(c => string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase)),
+            Model.AvailableActions.Any());
+
+        var partialName = shell switch
         {
-            "question" or "collect" => "_WorkflowStep-Question",
-            "check-answers" or "review" => "_WorkflowStep-Review",
-            "confirmation" or "completion" => "_WorkflowStep-Completion",
-            "status-timeline" or "statustimeline" => "_WorkflowStep-StatusTimeline",
-            "task-list" or "tasklist" => "_WorkflowStep-TaskList",
+            "question" => "_WorkflowStep-Question",
+            "check-answers" => "_WorkflowStep-Review",
+            "confirmation" => "_WorkflowStep-Completion",
+            "status-timeline" => "_WorkflowStep-StatusTimeline",
+            "task-list" => "_WorkflowStep-TaskList",
             "waiting" => "_WorkflowStep-Waiting",
-            _ => $"_WorkflowStep-{Model.StepType}"
+            _ => $"_WorkflowStep-{shell}"
         };
         var partialPath = $"~/Views/Partials/{partialName}.cshtml";
         var viewResult = _viewEngine.GetView(null, partialPath, false);
@@ -63,7 +62,7 @@
                 <h1 class="workflow-page__title">@Model.StateDisplayName</h1>
             </div>
             <div class="workflow-alert workflow-alert--warn">
-                <p>No template found for step type: <code>@Model.StepType</code></p>
+                <p>No template found for workflow shell: <code>@shell</code></p>
             </div>
         }
     }

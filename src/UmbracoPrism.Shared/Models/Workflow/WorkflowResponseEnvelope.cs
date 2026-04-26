@@ -81,13 +81,6 @@ public record StepContent
     /// Gets the available actions the user can take.
     /// </summary>
     public required IReadOnlyList<WorkflowAction> AvailableActions { get; init; }
-
-    /// <summary>
-    /// Configuration for "waiting" step types.
-    /// Only present when <see cref="StepType"/> is <c>"waiting"</c>.
-    /// Provides the message, expected wait time, and polling configuration for the waiting UI.
-    /// </summary>
-    public WaitingConfig? WaitingConfig { get; init; }
 }
 
 /// <summary>
@@ -130,6 +123,16 @@ public record PrismComponentRenderPayload
     // Accordion
     /// <summary>Accordion sections for accordion components.</summary>
     public IReadOnlyList<PrismAccordionSectionPayload>? AccordionSections { get; init; }
+
+    // Waiting
+    /// <summary>Expected wait time in seconds for "waiting" components.</summary>
+    public int? ExpectedWaitSeconds { get; init; }
+    /// <summary>Polling interval in milliseconds for "waiting" components.</summary>
+    public int? PollIntervalMs { get; init; }
+    /// <summary>Allow deferral of waiting for "waiting" components.</summary>
+    public bool? AllowDefer { get; init; }
+    /// <summary>Message to show if the user defers the wait (for "waiting" components).</summary>
+    public string? DeferMessage { get; init; }
 
     /// <summary>
     /// Computed display name for this component — returns the most semantically appropriate heading property

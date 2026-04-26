@@ -53,6 +53,7 @@
   <ItemGroup>
     <EmbeddedResource Include="workflow-seeds\*.json" />
     <EmbeddedResource Include="workflow-seeds\field-groups\*.json" />
+    <EmbeddedResource Include="Views\_ViewImports.cshtml" />
     <EmbeddedResource Include="Views\Partials\PrismFields\**\*.cshtml" />
     <EmbeddedResource Include="Views\Partials\PrismComponents\**\*.cshtml" />
     <EmbeddedResource Include="Views\Partials\_WorkflowStep-*.cshtml" />

@@ -20,7 +20,10 @@ public class PrismFieldTagHelperContentTypesTests
 
     // ------------------------------------------------------------------ Helpers
 
-    private static async Task<string> ProcessAsync(FieldRenderPayload field)
+    private static async Task<string> ProcessAsync(
+        FieldRenderPayload field,
+        IReadOnlyDictionary<string, string>? errors = null,
+        IReadOnlyDictionary<string, string>? values = null)
     {
         var htmlHelperMock = new Mock<IHtmlHelper>();
         htmlHelperMock.As<IViewContextAware>().Setup(x => x.Contextualize(It.IsAny<ViewContext>()));
@@ -43,6 +46,8 @@ public class PrismFieldTagHelperContentTypesTests
         var helper = new PrismFieldTagHelper(htmlHelperMock.Object, viewEngineMock.Object)
         {
             Field       = field,
+            Errors      = errors,
+            Values      = values,
             ViewContext = viewContext,
         };
 
@@ -121,6 +126,49 @@ public class PrismFieldTagHelperContentTypesTests
         html.Should().NotContain("govuk-form-group");
     }
 
+    [Fact]
+    public async Task GivenDetailsField_WhenProcessed_ThenRendersGovukDetailsInsteadOfInput()
+    {
+        var field = new FieldRenderPayload
+        {
+            FieldKey = "why-we-need-details",
+            Label = "Why do we need your contact details?",
+            FieldType = "details",
+            Required = false,
+            Content = "We need your name and email so we can respond to your enquiry."
+        };
+
+        var html = await ProcessAsync(field);
+
+        html.Should().Contain(@"<details class=""govuk-details"">");
+        html.Should().Contain(@"class=""govuk-details__summary-text"">Why do we need your contact details?");
+        html.Should().Contain("We need your name and email so we can respond to your enquiry.");
+        html.Should().NotContain("govuk-input");
+        html.Should().NotContain("govuk-form-group");
+        html.Should().NotContain(@"name=""fields[why-we-need-details]""");
+        html.Should().NotContain(@"id=""why-we-need-details""");
+    }
+
+    [Fact]
+    public async Task GivenNotificationBannerField_WhenProcessed_ThenRendersGovukNotificationBanner()
+    {
+        var field = new FieldRenderPayload
+        {
+            FieldKey = "contact-banner",
+            Label = "Information",
+            FieldType = "notification-banner",
+            Required = false,
+            Content = "We'll reply within 2 working days."
+        };
+
+        var html = await ProcessAsync(field);
+
+        html.Should().Contain(@"class=""govuk-notification-banner""");
+        html.Should().Contain(@"role=""region""");
+        html.Should().Contain("We&#39;ll reply within 2 working days.");
+        html.Should().NotContain("govuk-input");
+    }
+
     // ------------------------------------------------------------------ Validator exclusion
 
     [Fact]
@@ -147,6 +195,63 @@ public class PrismFieldTagHelperContentTypesTests
     }
 
     [Fact]
+    public void GivenContentFieldsAndMissingRealInputs_WhenValidating_ThenOnlyRealInputsFail()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "privacy-note", Label = "", FieldType = "inset-text", Required = false, Content = "We'll only use your contact details to respond to your enquiry." },
+            new() { FieldKey = "why-we-need-details", Label = "Why do we need your contact details?", FieldType = "details", Required = false, Content = "We need your name and email so we can respond to your enquiry." },
+            new() { FieldKey = "your-role", Label = "Your role", FieldType = "select", Required = true, Options = new List<string> { "Developer", "Architect" } },
+            new() { FieldKey = "enquiry-type", Label = "What can we help with?", FieldType = "radio", Required = true, Options = new List<string> { "General enquiry", "Technical support" } },
+            new() { FieldKey = "message", Label = "Tell us more", FieldType = "textarea", Required = true, MinLength = 20 }
+        };
+        var submitted = new Dictionary<string, string>();
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Keys.Should().BeEquivalentTo(["your-role", "enquiry-type", "message"]);
+        result.Errors.Keys.Should().NotContain(["privacy-note", "why-we-need-details"]);
+    }
+
+    [Fact]
+    public void GivenSelectAndTextareaErrors_WhenBuildingContext_ThenRealInputsCarryGdsErrorMetadata()
+    {
+        var selectContext = PrismFieldContext.Build(
+            new FieldRenderPayload
+            {
+                FieldKey = "your-role",
+                Label = "Your role",
+                FieldType = "select",
+                Required = true,
+                Options = new List<string> { "Developer", "Architect" }
+            },
+            fieldError: "Select your role",
+            values: null);
+
+        var textareaContext = PrismFieldContext.Build(
+            new FieldRenderPayload
+            {
+                FieldKey = "message",
+                Label = "Tell us more",
+                FieldType = "textarea",
+                Required = true
+            },
+            fieldError: "Enter your message",
+            values: null);
+
+        selectContext.HasFieldError.Should().BeTrue();
+        selectContext.WrapperClass.Should().Contain("govuk-form-group--error");
+        selectContext.DescribedBy.Should().Contain("your-role-error");
+        selectContext.AriaInvalid.Should().Contain("aria-invalid");
+
+        textareaContext.HasFieldError.Should().BeTrue();
+        textareaContext.WrapperClass.Should().Contain("govuk-form-group--error");
+        textareaContext.DescribedBy.Should().Contain("message-error");
+        textareaContext.AriaInvalid.Should().Contain("aria-invalid");
+    }
+
+    [Fact]
     public void GivenContentFieldKeyInSubmission_WhenValidating_ThenFlaggedAsUnknown()
     {
         // Content fields are server-side-only; if a client submits their key it should be rejected
@@ -167,4 +272,3 @@ public class PrismFieldTagHelperContentTypesTests
         result.IsValid.Should().BeTrue();
     }
 }
-

@@ -8,39 +8,199 @@
     {
       "stateKey": "collecting-details",
       "displayName": "Tell us about your enquiry",
-      "stepType": "question",
-      "allowedActions": ["submit", "save-draft"],
+      "allowedActions": [
+        "submit",
+        "save-draft"
+      ],
       "components": [
-        { "type": "fieldset", "fieldGroupKey": "about-you-with-context" },
-        { "type": "fieldset", "fieldGroupKey": "your-enquiry-with-context" }
+        {
+          "type": "inset-text",
+          "content": "We'll only use your contact details to respond to your enquiry. We won't share them with any third parties or add you to a mailing list without your consent."
+        },
+        {
+          "type": "fieldset",
+          "fields": [
+            {
+              "fieldKey": "full-name",
+              "label": "Full name",
+              "hint": null,
+              "fieldType": "text",
+              "required": true,
+              "maxLength": 100
+            },
+            {
+              "fieldKey": "email-address",
+              "label": "Email address",
+              "hint": null,
+              "fieldType": "email",
+              "required": true
+            },
+            {
+              "fieldKey": "organisation",
+              "label": "Organisation (optional)",
+              "hint": null,
+              "fieldType": "text",
+              "required": false,
+              "maxLength": 100
+            },
+            {
+              "fieldKey": "your-role",
+              "label": "Your role",
+              "hint": null,
+              "fieldType": "select",
+              "required": true,
+              "options": [
+                "Developer",
+                "Architect",
+                "Technical Lead",
+                "CTO / Head of Engineering",
+                "Other"
+              ]
+            }
+          ],
+          "legend": "About You"
+        },
+        {
+          "type": "details",
+          "heading": "Why do we need your contact details?",
+          "content": "We need your name and email so we can respond to your enquiry. Your role helps us understand the context of your question so we can give you the most relevant answer. We keep enquiry records for 12 months."
+        },
+        {
+          "type": "fieldset",
+          "legend": "Your Enquiry",
+          "fields": [
+            {
+              "fieldKey": "enquiry-type",
+              "label": "What can we help with?",
+              "hint": null,
+              "fieldType": "radio",
+              "required": true,
+              "options": [
+                "General enquiry",
+                "Technical support",
+                "Partnership opportunity",
+                "Speaking / events",
+                "Other"
+              ]
+            },
+            {
+              "fieldKey": "enquiry-type-other",
+              "label": "Please specify your enquiry type",
+              "hint": "Please describe your enquiry type in a few words.",
+              "fieldType": "text",
+              "required": false,
+              "maxLength": 100,
+              "conditionalOn": "enquiry-type",
+              "visibleWhen": "Other"
+            }
+          ]
+        },
+        {
+          "type": "inset-text",
+          "content": "For technical support, include your Prism version number, a URL, or any error messages you're seeing. This helps us resolve your issue faster."
+        },
+        {
+          "type": "warning-text",
+          "content": "Do not include passwords, API keys, or other sensitive credentials in your message. Our support team does not need this information."
+        },
+        {
+          "type": "fieldset",
+          "legend": "Your Message",
+          "fields": [
+            {
+              "fieldKey": "message",
+              "label": "Tell us more",
+              "hint": "Please be as specific as possible \u2014 the more detail you give, the faster we can help.",
+              "fieldType": "textarea",
+              "required": true,
+              "minLength": 20,
+              "maxLength": 1000
+            },
+            {
+              "fieldKey": "topics",
+              "label": "Topics you're interested in",
+              "hint": null,
+              "fieldType": "checkboxlist",
+              "required": false,
+              "options": [
+                "Umbraco CMS",
+                ".NET Development",
+                "Mobile Apps",
+                "Cloud & Azure",
+                "Design Systems"
+              ]
+            },
+            {
+              "fieldKey": "newsletter",
+              "label": "Keep me updated with Prism news and releases",
+              "hint": null,
+              "fieldType": "boolean",
+              "required": false
+            }
+          ]
+        }
       ]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your enquiry is with us",
-      "stepType": "status-timeline",
       "allowedActions": [],
       "components": [
-        { "type": "body", "content": "We've received your enquiry and it's currently being reviewed. A member of the team will be in touch shortly — no further action is needed right now." }
+        {
+          "type": "body",
+          "content": "We've received your enquiry and it's currently being reviewed. A member of the team will be in touch shortly \u2014 no further action is needed right now."
+        }
       ]
     },
     {
       "stateKey": "complete",
       "displayName": "We're in touch!",
-      "stepType": "confirmation",
-      "allowedActions": ["start-another"],
+      "allowedActions": [
+        "start-another"
+      ],
       "components": [
-        { "type": "panel", "heading": "Enquiry received" },
-        { "type": "heading", "level": 2, "content": "What happens next" },
-        { "type": "body", "content": "We've sent you a confirmation email." },
-        { "type": "body", "content": "A member of our team will be in touch shortly." }
+        {
+          "type": "panel",
+          "heading": "Enquiry received"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "We've sent you a confirmation email."
+        },
+        {
+          "type": "body",
+          "content": "A member of our team will be in touch shortly."
+        }
       ]
     }
   ],
   "transitions": [
-    { "fromState": "collecting-details", "toState": "under-review", "action": "submit" },
-    { "fromState": "collecting-details", "toState": "collecting-details", "action": "save-draft" },
-    { "fromState": "under-review", "toState": "complete", "action": "approve", "requiresRole": "reviewer" },
-    { "fromState": "under-review", "toState": "collecting-details", "action": "request-changes", "requiresRole": "reviewer" }
+    {
+      "fromState": "collecting-details",
+      "toState": "under-review",
+      "action": "submit"
+    },
+    {
+      "fromState": "collecting-details",
+      "toState": "collecting-details",
+      "action": "save-draft"
+    },
+    {
+      "fromState": "under-review",
+      "toState": "complete",
+      "action": "approve",
+      "requiresRole": "reviewer"
+    },
+    {
+      "fromState": "under-review",
+      "toState": "collecting-details",
+      "action": "request-changes",
+      "requiresRole": "reviewer"
+    }
   ]
 }
