@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
@@ -28,17 +29,15 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     DisplayName = "Enter details",
                     Components =
                     [
-                        new PrismComponentDefinition
+                        new FieldsetComponent
                         {
-                            Type = "fieldset",
                             Legend = "About you",
-                            Fields =
+                            Children =
                             [
-                                new FieldFile
+                                new TextInputComponent
                                 {
                                     FieldKey = "full-name",
                                     Label = "Full name",
-                                    FieldType = "text",
                                     Required = true
                                 }
                             ]
@@ -51,20 +50,11 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     DisplayName = "Check details",
                     Components =
                     [
-                        new PrismComponentDefinition
+                        new SummaryListComponent
                         {
-                            Type = "summary-list",
                             Title = "Check your answers",
-                            Fields =
-                            [
-                                new FieldFile
-                                {
-                                    FieldKey = "full-name",
-                                    Label = "Full name",
-                                    FieldType = "text",
-                                    Required = true
-                                }
-                            ]
+                            FieldRefs = ["full-name"],
+                            ChangeStateKey = "enter-details"
                         }
                     ]
                 },
@@ -74,11 +64,7 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     DisplayName = "Done",
                     Components =
                     [
-                        new PrismComponentDefinition
-                        {
-                            Type = "panel",
-                            Heading = "Submission complete"
-                        }
+                        new PanelComponent { Heading = "Submission complete" }
                     ]
                 }
             ],
@@ -145,18 +131,16 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     DisplayName = "Processing payment",
                     Components =
                     [
-                        new PrismComponentDefinition
+                        new WaitingComponent
                         {
-                            Type = "waiting",
                             Content = "We are processing your payment.",
                             ExpectedWaitSeconds = 30,
                             PollIntervalMs = 1500,
                             AllowDefer = true,
                             DeferMessage = "Leave this page and check My Applications later."
                         },
-                        new PrismComponentDefinition
+                        new BodyComponent
                         {
-                            Type = "body",
                             Content = "You do not need to do anything else right now."
                         }
                     ]
@@ -167,11 +151,7 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     DisplayName = "Payment complete",
                     Components =
                     [
-                        new PrismComponentDefinition
-                        {
-                            Type = "panel",
-                            Heading = "Payment received"
-                        }
+                        new PanelComponent { Heading = "Payment received" }
                     ]
                 }
             ],
@@ -183,10 +163,10 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
 
         var waiting = harness.Engine.GetCurrent("component-waiting", "tenant1", "user1");
 
-        waiting.Render!.StepType.Should().Be("waiting");
-        waiting.ResponseState.Should().Be("render");
+        waiting.Render!.StepType.Should().Be("status-timeline");
+        waiting.ResponseState.Should().Be("defer");
         waiting.PollAfterMs.Should().Be(1500);
-        var waitingComponent = waiting.Render.Components.FirstOrDefault(c => 
+        var waitingComponent = waiting.Render.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent.Should().NotBeNull();
         waitingComponent!.Content.Should().Be("We are processing your payment.");

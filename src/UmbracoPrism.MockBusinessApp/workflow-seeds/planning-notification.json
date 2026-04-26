@@ -8,58 +8,52 @@
     {
       "stateKey": "project-details",
       "displayName": "Describe your project",
-      "allowedActions": [
-        "continue"
-      ],
       "components": [
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Project details",
+          "children": [
             {
+              "type": "text",
               "fieldKey": "projectName",
               "label": "Project name",
               "hint": "Give your project a short descriptive name",
-              "fieldType": "text",
               "required": true,
               "maxLength": 100
             },
             {
+              "type": "textarea",
               "fieldKey": "projectDescription",
               "label": "Describe the proposed works",
               "hint": "Include details of what you plan to build or change",
-              "fieldType": "textarea",
               "required": true,
               "maxLength": 2000
             },
             {
+              "type": "textarea",
               "fieldKey": "propertyAddress",
               "label": "Property address",
               "hint": "The address where the work will take place",
-              "fieldType": "textarea",
               "required": true,
               "maxLength": 500
             }
-          ],
-          "legend": "Project details"
+          ]
         }
       ]
     },
     {
       "stateKey": "work-type",
       "displayName": "Type of work",
-      "allowedActions": [
-        "continue",
-        "back"
-      ],
       "components": [
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Type of work",
+          "children": [
             {
+              "type": "radio",
               "fieldKey": "workType",
               "label": "What type of work are you planning?",
               "hint": "Select the option that best describes your project",
-              "fieldType": "radios",
               "required": true,
               "options": [
                 "Extension or alteration",
@@ -68,13 +62,13 @@
                 "Demolition",
                 "Other"
               ],
-              "conditionalFields": {
+              "conditionalChildren": {
                 "Other": [
                   {
+                    "type": "textarea",
                     "fieldKey": "otherWorkTypeDescription",
                     "label": "Describe the type of work",
                     "hint": "Give us more details about what you're planning",
-                    "fieldType": "textarea",
                     "required": true,
                     "maxLength": 500
                   }
@@ -82,10 +76,10 @@
               }
             },
             {
+              "type": "radio",
               "fieldKey": "planningRequired",
               "label": "Do you believe planning permission is required?",
               "hint": "",
-              "fieldType": "radios",
               "required": true,
               "options": [
                 "Yes",
@@ -93,68 +87,60 @@
                 "Not sure"
               ]
             }
-          ],
-          "legend": "Type of work"
+          ]
         }
       ]
     },
     {
       "stateKey": "timeline-cost",
       "displayName": "Timeline and cost",
-      "allowedActions": [
-        "continue",
-        "back"
-      ],
       "components": [
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Timeline and cost",
+          "children": [
             {
+              "type": "date",
               "fieldKey": "proposedStartDate",
               "label": "Proposed start date",
               "hint": "For example, 27 3 2025",
-              "fieldType": "date-input",
               "required": true
             },
             {
+              "type": "number",
               "fieldKey": "estimatedDuration",
               "label": "Estimated duration in weeks",
               "hint": "How long do you expect the work to take?",
-              "fieldType": "number",
               "required": true,
               "min": 1,
               "max": 260
             },
             {
+              "type": "decimal",
               "fieldKey": "estimatedCost",
               "label": "Estimated cost of works",
-              "hint": "Enter the amount in pounds (do not include commas or the \u00a3 symbol)",
-              "fieldType": "currency",
+              "hint": "Enter the amount in pounds (do not include commas or the £ symbol)",
               "required": true,
-              "prefix": "\u00a3",
+              "prefix": "£",
               "min": 0
             }
-          ],
-          "legend": "Timeline and cost"
+          ]
         }
       ]
     },
     {
       "stateKey": "affected-parties",
       "displayName": "Affected parties",
-      "allowedActions": [
-        "continue",
-        "back"
-      ],
       "components": [
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "Affected parties",
+          "children": [
             {
+              "type": "checkboxlist",
               "fieldKey": "affectedParties",
               "label": "Who may be affected by this work?",
               "hint": "Select all that apply",
-              "fieldType": "checkboxes",
               "required": false,
               "options": [
                 "Neighbouring properties",
@@ -166,10 +152,10 @@
               ]
             },
             {
+              "type": "radio",
               "fieldKey": "neighborsNotified",
               "label": "Have you notified your neighbours?",
               "hint": "",
-              "fieldType": "radios",
               "required": true,
               "options": [
                 "Yes",
@@ -177,59 +163,55 @@
                 "Not applicable"
               ]
             }
-          ],
-          "legend": "Affected parties"
+          ]
         }
       ]
     },
     {
       "stateKey": "check-answers",
       "displayName": "Check your answers",
-      "allowedActions": [
-        "submit",
-        "back"
-      ],
       "components": [
         {
           "type": "summary-list",
           "changeStateKey": "project-details",
-          "fields": [
+          "title": "Project details",
+          "children": [
             {
+              "type": "text",
               "fieldKey": "projectName",
               "label": "Project name",
               "hint": "Give your project a short descriptive name",
-              "fieldType": "text",
               "required": true,
               "maxLength": 100
             },
             {
+              "type": "textarea",
               "fieldKey": "projectDescription",
               "label": "Describe the proposed works",
               "hint": "Include details of what you plan to build or change",
-              "fieldType": "textarea",
               "required": true,
               "maxLength": 2000
             },
             {
+              "type": "textarea",
               "fieldKey": "propertyAddress",
               "label": "Property address",
               "hint": "The address where the work will take place",
-              "fieldType": "textarea",
               "required": true,
               "maxLength": 500
             }
-          ],
-          "title": "Project details"
+          ]
         },
         {
           "type": "summary-list",
           "changeStateKey": "work-type",
-          "fields": [
+          "title": "Type of work",
+          "children": [
             {
+              "type": "radio",
               "fieldKey": "workType",
               "label": "What type of work are you planning?",
               "hint": "Select the option that best describes your project",
-              "fieldType": "radios",
               "required": true,
               "options": [
                 "Extension or alteration",
@@ -238,13 +220,13 @@
                 "Demolition",
                 "Other"
               ],
-              "conditionalFields": {
+              "conditionalChildren": {
                 "Other": [
                   {
+                    "type": "textarea",
                     "fieldKey": "otherWorkTypeDescription",
                     "label": "Describe the type of work",
                     "hint": "Give us more details about what you're planning",
-                    "fieldType": "textarea",
                     "required": true,
                     "maxLength": 500
                   }
@@ -252,10 +234,10 @@
               }
             },
             {
+              "type": "radio",
               "fieldKey": "planningRequired",
               "label": "Do you believe planning permission is required?",
               "hint": "",
-              "fieldType": "radios",
               "required": true,
               "options": [
                 "Yes",
@@ -263,50 +245,50 @@
                 "Not sure"
               ]
             }
-          ],
-          "title": "Type of work"
+          ]
         },
         {
           "type": "summary-list",
           "changeStateKey": "timeline-cost",
-          "fields": [
+          "title": "Timeline and cost",
+          "children": [
             {
+              "type": "date",
               "fieldKey": "proposedStartDate",
               "label": "Proposed start date",
               "hint": "For example, 27 3 2025",
-              "fieldType": "date-input",
               "required": true
             },
             {
+              "type": "number",
               "fieldKey": "estimatedDuration",
               "label": "Estimated duration in weeks",
               "hint": "How long do you expect the work to take?",
-              "fieldType": "number",
               "required": true,
               "min": 1,
               "max": 260
             },
             {
+              "type": "decimal",
               "fieldKey": "estimatedCost",
               "label": "Estimated cost of works",
-              "hint": "Enter the amount in pounds (do not include commas or the \u00a3 symbol)",
-              "fieldType": "currency",
+              "hint": "Enter the amount in pounds (do not include commas or the £ symbol)",
               "required": true,
-              "prefix": "\u00a3",
+              "prefix": "£",
               "min": 0
             }
-          ],
-          "title": "Timeline and cost"
+          ]
         },
         {
           "type": "summary-list",
           "changeStateKey": "affected-parties",
-          "fields": [
+          "title": "Affected parties",
+          "children": [
             {
+              "type": "checkboxlist",
               "fieldKey": "affectedParties",
               "label": "Who may be affected by this work?",
               "hint": "Select all that apply",
-              "fieldType": "checkboxes",
               "required": false,
               "options": [
                 "Neighbouring properties",
@@ -318,10 +300,10 @@
               ]
             },
             {
+              "type": "radio",
               "fieldKey": "neighborsNotified",
               "label": "Have you notified your neighbours?",
               "hint": "",
-              "fieldType": "radios",
               "required": true,
               "options": [
                 "Yes",
@@ -329,17 +311,13 @@
                 "Not applicable"
               ]
             }
-          ],
-          "title": "Affected parties"
+          ]
         }
       ]
     },
     {
       "stateKey": "complete",
       "displayName": "Application received",
-      "allowedActions": [
-        "start-another"
-      ],
       "components": [
         {
           "type": "panel",

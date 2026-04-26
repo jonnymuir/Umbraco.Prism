@@ -8,10 +8,6 @@
     {
       "stateKey": "collecting-details",
       "displayName": "Tell us about your enquiry",
-      "allowedActions": [
-        "submit",
-        "save-draft"
-      ],
       "components": [
         {
           "type": "inset-text",
@@ -19,35 +15,36 @@
         },
         {
           "type": "fieldset",
-          "fields": [
+          "legend": "About You",
+          "children": [
             {
+              "type": "text",
               "fieldKey": "full-name",
               "label": "Full name",
               "hint": null,
-              "fieldType": "text",
               "required": true,
               "maxLength": 100
             },
             {
+              "type": "email",
               "fieldKey": "email-address",
               "label": "Email address",
               "hint": null,
-              "fieldType": "email",
               "required": true
             },
             {
+              "type": "text",
               "fieldKey": "organisation",
               "label": "Organisation (optional)",
               "hint": null,
-              "fieldType": "text",
               "required": false,
               "maxLength": 100
             },
             {
+              "type": "select",
               "fieldKey": "your-role",
               "label": "Your role",
               "hint": null,
-              "fieldType": "select",
               "required": true,
               "options": [
                 "Developer",
@@ -57,8 +54,7 @@
                 "Other"
               ]
             }
-          ],
-          "legend": "About You"
+          ]
         },
         {
           "type": "details",
@@ -68,12 +64,12 @@
         {
           "type": "fieldset",
           "legend": "Your Enquiry",
-          "fields": [
+          "children": [
             {
+              "type": "radio",
               "fieldKey": "enquiry-type",
               "label": "What can we help with?",
               "hint": null,
-              "fieldType": "radio",
               "required": true,
               "options": [
                 "General enquiry",
@@ -84,10 +80,10 @@
               ]
             },
             {
+              "type": "text",
               "fieldKey": "enquiry-type-other",
               "label": "Please specify your enquiry type",
               "hint": "Please describe your enquiry type in a few words.",
-              "fieldType": "text",
               "required": false,
               "maxLength": 100,
               "conditionalOn": "enquiry-type",
@@ -106,21 +102,21 @@
         {
           "type": "fieldset",
           "legend": "Your Message",
-          "fields": [
+          "children": [
             {
+              "type": "textarea",
               "fieldKey": "message",
               "label": "Tell us more",
               "hint": "Please be as specific as possible \u2014 the more detail you give, the faster we can help.",
-              "fieldType": "textarea",
               "required": true,
               "minLength": 20,
               "maxLength": 1000
             },
             {
+              "type": "checkboxlist",
               "fieldKey": "topics",
               "label": "Topics you're interested in",
               "hint": null,
-              "fieldType": "checkboxlist",
               "required": false,
               "options": [
                 "Umbraco CMS",
@@ -131,10 +127,10 @@
               ]
             },
             {
+              "type": "boolean",
               "fieldKey": "newsletter",
               "label": "Keep me updated with Prism news and releases",
               "hint": null,
-              "fieldType": "boolean",
               "required": false
             }
           ]
@@ -144,7 +140,6 @@
     {
       "stateKey": "under-review",
       "displayName": "Your enquiry is with us",
-      "allowedActions": [],
       "components": [
         {
           "type": "body",
@@ -155,9 +150,6 @@
     {
       "stateKey": "complete",
       "displayName": "We're in touch!",
-      "allowedActions": [
-        "start-another"
-      ],
       "components": [
         {
           "type": "panel",

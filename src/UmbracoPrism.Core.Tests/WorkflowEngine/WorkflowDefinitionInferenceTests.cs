@@ -1,6 +1,8 @@
 using System.Text.Json;
 using FluentAssertions;
+using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
@@ -40,16 +42,15 @@ public class WorkflowDefinitionInferenceTests
         var workflow = JsonSerializer.Deserialize<WorkflowDefinitionFile>(json, JsonOptions);
 
         var state = workflow!.States.Single();
-        // StepType is no longer set explicitly; it's inferred via EffectiveStepType
-        state.EffectiveStepType.Should().Be("waiting");
-        state.EffectiveWaitingConfig.Should().BeEquivalentTo(new WaitingConfig
-        {
-            Message = "Please wait while we process your request.",
-            ExpectedWaitSeconds = 45,
-            PollIntervalMs = 2500,
-            AllowDefer = false,
-            DeferMessage = "Come back later."
-        });
+        // StepType is inferred from components via the InferStepType extension.
+        state.Components.InferStepType().Should().Be("status-timeline");
+
+        var waiting = state.Components.OfType<WaitingComponent>().Single();
+        waiting.Content.Should().Be("Please wait while we process your request.");
+        waiting.ExpectedWaitSeconds.Should().Be(45);
+        waiting.PollIntervalMs.Should().Be(2500);
+        waiting.AllowDefer.Should().BeFalse();
+        waiting.DeferMessage.Should().Be("Come back later.");
     }
 
     [Fact]
@@ -69,10 +70,12 @@ public class WorkflowDefinitionInferenceTests
                     DisplayName = "Question",
                     Components =
                     [
-                        new PrismComponentDefinition
+                        new FieldsetComponent
                         {
-                            Type = "fieldset",
-                            Fields = [new FieldFile { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }]
+                            Children =
+                            [
+                                new TextInputComponent { FieldKey = "name", Label = "Name", Required = true }
+                            ]
                         }
                     ]
                 },
@@ -82,37 +85,34 @@ public class WorkflowDefinitionInferenceTests
                     DisplayName = "Review",
                     Components =
                     [
-                        new PrismComponentDefinition
-                        {
-                            Type = "summary-list",
-                            Fields = [new FieldFile { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }]
-                        }
+                        new SummaryListComponent { FieldRefs = ["name"] }
                     ]
                 },
                 new StepDefinition
                 {
                     StateKey = "complete",
                     DisplayName = "Complete",
-                    Components = [new PrismComponentDefinition { Type = "panel", Heading = "Done" }]
+                    Components = [new PanelComponent { Heading = "Done" }]
                 },
                 new StepDefinition
                 {
                     StateKey = "status",
                     DisplayName = "Status",
-                    Components = [new PrismComponentDefinition { Type = "body", Content = "No action needed." }]
+                    Components = [new BodyComponent { Content = "No action needed." }]
                 }
             ],
             Transitions = []
         };
 
-        workflow.States.Select(s => s.EffectiveStepType).Should().ContainInOrder("question", "check-answers", "confirmation", "question");
+        workflow.States.Select(s => s.Components.InferStepType())
+            .Should().ContainInOrder("question", "check-answers", "confirmation", "question");
     }
 
     [Theory]
-    [InlineData("payment-demo-v1.json")]
-    [InlineData("community-enquiry-v1.json")]
-    [InlineData("information-request-v1.json")]
-    [InlineData("planning-notification-v1.json")]
+    [InlineData("payment-demo.json")]
+    [InlineData("community-enquiry.json")]
+    [InlineData("information-request.json")]
+    [InlineData("planning-notification.json")]
     public void DemoWorkflowSeeds_DoNotAuthorLegacyStepMetadata(string fileName)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(GetSeedPath(fileName)));
@@ -128,19 +128,22 @@ public class WorkflowDefinitionInferenceTests
     public void CommunityEnquirySeed_ModelsExplanatoryCopyAsComponents()
     {
         var workflow = JsonSerializer.Deserialize<WorkflowDefinitionFile>(
-            File.ReadAllText(GetSeedPath("community-enquiry-v1.json")),
+            File.ReadAllText(GetSeedPath("community-enquiry.json")),
             JsonOptions);
 
         var state = workflow!.States.Single(s => s.StateKey == "collecting-details");
-        var contentFieldTypes = new[] { "inset-text", "details", "warning-text" };
 
-        state.Components.Select(c => c.Type).Should().Contain(["inset-text", "details", "warning-text"]);
-        state.Components
-            .Where(c => string.Equals(c.Type, "fieldset", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(c => c.Fields ?? Array.Empty<FieldFile>())
-            .Select(f => f.FieldType)
-            .Should()
-            .NotIntersectWith(contentFieldTypes);
+        // Explanatory copy must live as standalone content components (inset-text, details, warning-text)
+        // rather than being embedded inside fieldsets as fields.
+        state.Components.OfType<InsetTextComponent>().Should().NotBeEmpty();
+        state.Components.OfType<DetailsComponent>().Should().NotBeEmpty();
+        state.Components.OfType<WarningTextComponent>().Should().NotBeEmpty();
+
+        // Fieldsets should only contain InputComponents - never raw content like inset-text or details.
+        foreach (var fieldset in state.Components.OfType<FieldsetComponent>())
+        {
+            fieldset.Children.Should().AllBeAssignableTo<InputComponent>();
+        }
     }
 
     private static string GetSeedPath(string fileName)

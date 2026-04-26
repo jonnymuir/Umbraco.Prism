@@ -43,7 +43,7 @@ public class PrismFieldTagHelperContentTypesTests
             Writer         = new StringWriter(),
         };
 
-        var helper = new PrismFieldTagHelper(htmlHelperMock.Object, viewEngineMock.Object)
+        var helper = new PrismComponentTagHelper(htmlHelperMock.Object, viewEngineMock.Object)
         {
             Field       = field,
             Errors      = errors,

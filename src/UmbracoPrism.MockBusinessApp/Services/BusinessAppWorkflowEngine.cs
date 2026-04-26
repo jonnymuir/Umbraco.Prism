@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 
@@ -15,7 +17,6 @@ public class BusinessAppWorkflowEngine
 {
     private readonly ILogger<BusinessAppWorkflowEngine> _logger;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, FormSectionDefinition> _fieldGroups = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
 
     /// <summary>
@@ -167,7 +168,7 @@ public class BusinessAppWorkflowEngine
             {
                 // Check if instance is terminal
                 var currentState = definition.States.FirstOrDefault(s => s.StateKey == promptInstance.CurrentState);
-                bool isTerminal = currentState?.EffectiveStepType == "confirmation";
+                bool isTerminal = currentState != null && currentState.Components.InferStepType() == "confirmation";
 
                 if (!isTerminal)
                 {
@@ -183,7 +184,7 @@ public class BusinessAppWorkflowEngine
                         InstancePolicy = "prompt",
                         Render = new StepContent
                         {
-                            StepType = currentState?.EffectiveStepType ?? "question",
+                            StepType = currentState?.Components.InferStepType() ?? "question",
                             StateDisplayName = currentState?.DisplayName ?? definition.DisplayName,
                             Components = Array.Empty<PrismComponentRenderPayload>(),
                             AvailableActions = Array.Empty<WorkflowAction>()
@@ -405,6 +406,7 @@ public class BusinessAppWorkflowEngine
                 _definitions.TryGetValue(instance.WorkflowKey, out var definition);
                 var state = definition?.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
 
+                var stepType = state?.Components.InferStepType() ?? "question";
                 return new WorkflowInstanceSummary
                 {
                     InstanceId = instance.InstanceId,
@@ -412,11 +414,11 @@ public class BusinessAppWorkflowEngine
                     WorkflowDisplayName = definition?.DisplayName ?? instance.WorkflowKey,
                     CurrentStateKey = instance.CurrentState,
                     CurrentStateDisplayName = state?.DisplayName ?? instance.CurrentState,
-                    StepType = state?.EffectiveStepType ?? "question",
+                    StepType = stepType,
                     CreatedAt = instance.CreatedAt.DateTime,
                     LastUpdatedAt = instance.UpdatedAt.DateTime,
-                    CanContinue = state?.EffectiveStepType != "confirmation",
-                    IsCompleted = state?.EffectiveStepType == "confirmation",
+                    CanContinue = stepType != "confirmation",
+                    IsCompleted = stepType == "confirmation",
                     WorkflowPageUrl = null, // Controller will resolve this
                     InstancePolicy = definition?.InstancePolicy ?? "single"
                 };
@@ -447,27 +449,6 @@ public class BusinessAppWorkflowEngine
         if (!_definitions.ContainsKey(key)) return false;
         _definitions[key] = updated;
         _logger.LogInformation("Workflow definition updated in-memory: {Key}", key);
-        return true;
-    }
-
-    /// <summary>Returns a specific field group by key.</summary>
-    /// <param name="key">The field group key.</param>
-    /// <returns>The field group or null if not found.</returns>
-    public FormSectionDefinition? GetFieldGroup(string key) =>
-        _fieldGroups.TryGetValue(key, out var fg) ? fg : null;
-
-    /// <summary>Returns all loaded field groups.</summary>
-    public IEnumerable<FormSectionDefinition> GetAllFieldGroups() => _fieldGroups.Values;
-
-    /// <summary>Updates a field group in-memory.</summary>
-    /// <param name="key">The field group key to update.</param>
-    /// <param name="updated">The new field group definition.</param>
-    /// <returns>True if the field group was found and updated; false if not found.</returns>
-    public bool UpdateFieldGroup(string key, FormSectionDefinition updated)
-    {
-        if (!_fieldGroups.ContainsKey(key)) return false;
-        _fieldGroups[key] = updated;
-        _logger.LogInformation("Field group updated in-memory: {Key}", key);
         return true;
     }
 
@@ -517,27 +498,6 @@ public class BusinessAppWorkflowEngine
             return;
         }
 
-        var fieldGroupsDir = Path.Combine(seedsDir, "field-groups");
-        if (Directory.Exists(fieldGroupsDir))
-        {
-            foreach (var file in Directory.GetFiles(fieldGroupsDir, "*.json"))
-            {
-                try
-                {
-                    var fg = JsonSerializer.Deserialize<FormSectionDefinition>(File.ReadAllText(file), JsonOptions);
-                    if (fg != null)
-                    {
-                        _fieldGroups[fg.GroupKey] = fg;
-                        _logger.LogDebug("Loaded field group '{Key}' from {File}", fg.GroupKey, Path.GetFileName(file));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to load field group from {File}", file);
-                }
-            }
-        }
-
         foreach (var file in Directory.GetFiles(seedsDir, "*.json"))
         {
             try
@@ -556,8 +516,8 @@ public class BusinessAppWorkflowEngine
         }
 
         _logger.LogInformation(
-            "Workflow engine ready: {Defs} definition(s), {Groups} field group(s).",
-            _definitions.Count, _fieldGroups.Count);
+            "Workflow engine ready: {Defs} definition(s).",
+            _definitions.Count);
     }
 
     // -----------------------------------------------------------------------
@@ -588,9 +548,8 @@ public class BusinessAppWorkflowEngine
 
         var components = BuildComponents(state.Components, instance.FieldValues);
 
-        var effectiveStepType = state.EffectiveStepType;
-        var waitingComponent = state.Components.FirstOrDefault(c =>
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
+        var effectiveStepType = state.Components.InferStepType();
+        var waitingComponent = state.Components.OfType<WaitingComponent>().FirstOrDefault();
 
         var render = new StepContent
         {
@@ -621,25 +580,25 @@ public class BusinessAppWorkflowEngine
     }
 
     /// <summary>
-    /// Builds a list of <see cref="PrismComponentRenderPayload"/> from the component definitions in a state.
+    /// Builds a list of <see cref="PrismComponentRenderPayload"/> from the polymorphic v2.0 component tree.
     /// </summary>
-    /// <param name="componentDefinitions">The component definitions from the state.</param>
+    /// <param name="componentDefinitions">The components from the state.</param>
     /// <param name="savedValues">Previously collected field values to populate.</param>
     /// <returns>An array of component render payloads ready to send to the view.</returns>
     private PrismComponentRenderPayload[] BuildComponents(
-        IReadOnlyList<PrismComponentDefinition> componentDefinitions,
+        IReadOnlyList<PrismComponent> componentDefinitions,
         Dictionary<string, object?> savedValues)
     {
         var result = new List<PrismComponentRenderPayload>();
 
         foreach (var component in componentDefinitions)
         {
-            switch (component.Type)
+            switch (component)
             {
-                case "fieldset":
+                case FieldsetComponent fieldset:
                 {
-                    var componentFields = ResolveComponentFields(component.Fields, component.FieldGroupKey);
-                    if (componentFields.Length == 0)
+                    var fields = BuildFields(fieldset.Children, savedValues);
+                    if (fields.Length == 0)
                     {
                         _logger.LogWarning("Fieldset component contains no renderable fields");
                         continue;
@@ -648,17 +607,17 @@ public class BusinessAppWorkflowEngine
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "fieldset",
-                        Legend = component.Legend,
-                        LegendSize = component.LegendSize,
-                        Fields = BuildFields(componentFields, savedValues)
+                        Legend = fieldset.Legend,
+                        LegendSize = fieldset.LegendSize,
+                        Fields = fields
                     });
                     break;
                 }
 
-                case "summary-list":
+                case SummaryListComponent summary:
                 {
-                    var componentFields = ResolveComponentFields(component.Fields, component.FieldGroupKey);
-                    if (componentFields.Length == 0)
+                    var fields = BuildSummaryFields(summary.FieldRefs, componentDefinitions, savedValues);
+                    if (fields.Length == 0)
                     {
                         _logger.LogWarning("Summary-list component contains no renderable fields");
                         continue;
@@ -667,29 +626,21 @@ public class BusinessAppWorkflowEngine
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "summary-list",
-                        Title = component.Title,
-                        SourceStateKey = component.ChangeStateKey,
-                        Fields = BuildFields(componentFields, savedValues)
+                        Title = summary.Title,
+                        SourceStateKey = summary.ChangeStateKey,
+                        Fields = fields
                     });
                     break;
                 }
 
-                case "accordion":
+                case AccordionComponent accordion:
                 {
-                    var sections = (component.AccordionSections ?? Array.Empty<PrismAccordionSectionDefinition>())
-                        .Select(s =>
-                        {
-                            var fields = BuildFields(ResolveComponentFields(s.Fields, s.FieldGroupKey), savedValues);
-
-                            return new PrismAccordionSectionPayload
-                            {
-                                Heading = s.Heading,
-                                Summary = s.Summary,
-                                Content = s.Content,
-                                Fields = fields
-                            };
-                        })
-                        .ToArray();
+                    var sections = accordion.Sections.Select(s => new PrismAccordionSectionPayload
+                    {
+                        Heading = s.Heading,
+                        Summary = s.Summary,
+                        Fields = BuildFields(s.Children, savedValues)
+                    }).ToArray();
 
                     result.Add(new PrismComponentRenderPayload
                     {
@@ -699,29 +650,62 @@ public class BusinessAppWorkflowEngine
                     break;
                 }
 
-                case "waiting":
+                case WaitingComponent waiting:
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "waiting",
-                        Content = component.Content,
-                        ExpectedWaitSeconds = component.ExpectedWaitSeconds,
-                        PollIntervalMs = component.PollIntervalMs,
-                        AllowDefer = component.AllowDefer,
-                        DeferMessage = component.DeferMessage
+                        Content = waiting.Content,
+                        ExpectedWaitSeconds = waiting.ExpectedWaitSeconds,
+                        PollIntervalMs = waiting.PollIntervalMs,
+                        AllowDefer = waiting.AllowDefer,
+                        DeferMessage = waiting.DeferMessage
                     });
                     break;
 
-                default:
-                    // Content-only types: panel, inset-text, warning-text, body, heading, details,
-                    // notification-banner, task-list — copy properties through directly.
+                case PanelComponent panel:
+                    result.Add(new PrismComponentRenderPayload { Type = "panel", Heading = panel.Heading });
+                    break;
+
+                case BodyComponent body:
+                    result.Add(new PrismComponentRenderPayload { Type = "body", Content = body.Content });
+                    break;
+
+                case HeadingComponent heading:
+                    result.Add(new PrismComponentRenderPayload { Type = "heading", Content = heading.Content, Level = heading.Level });
+                    break;
+
+                case InsetTextComponent inset:
+                    result.Add(new PrismComponentRenderPayload { Type = "inset-text", Content = inset.Content });
+                    break;
+
+                case WarningTextComponent warning:
+                    result.Add(new PrismComponentRenderPayload { Type = "warning-text", Content = warning.Content });
+                    break;
+
+                case DetailsComponent details:
                     result.Add(new PrismComponentRenderPayload
                     {
-                        Type = component.Type,
-                        Content = component.Content,
-                        Heading = component.Heading,
-                        BannerType = component.BannerType,
-                        Level = component.Level,
-                        TaskSections = component.TaskSections?.Select(s => new PrismTaskSection
+                        Type = "details",
+                        Heading = details.Heading,
+                        Content = details.Content
+                    });
+                    break;
+
+                case NotificationBannerComponent banner:
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "notification-banner",
+                        Heading = banner.Heading,
+                        Content = banner.Content,
+                        BannerType = banner.BannerType
+                    });
+                    break;
+
+                case TaskListComponent taskList:
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "task-list",
+                        TaskSections = taskList.Sections?.Select(s => new PrismTaskSection
                         {
                             Heading = s.Heading,
                             Tasks = s.Tasks.Select(t => new PrismTaskItem
@@ -733,6 +717,18 @@ public class BusinessAppWorkflowEngine
                         }).ToArray()
                     });
                     break;
+
+                case InputComponent input:
+                {
+                    // Bare input at state level (not wrapped in a fieldset). Wrap as a single-field fieldset.
+                    var fields = BuildFields(new[] { (PrismComponent)input }, savedValues);
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "fieldset",
+                        Fields = fields
+                    });
+                    break;
+                }
             }
         }
 
@@ -740,95 +736,182 @@ public class BusinessAppWorkflowEngine
     }
 
     /// <summary>
-    /// Builds a list of <see cref="FieldRenderPayload"/> from a field group definition, pre-populating field values.
+    /// Builds <see cref="FieldRenderPayload"/>s from the children of a container, walking
+    /// any conditional children of radios/checkboxes and flattening them with
+    /// ConditionalOn/VisibleWhen so the UI can show/hide them.
     /// </summary>
-    /// <param name="fieldDefinitions">The field definitions to render.</param>
-    /// <param name="savedValues">Previously collected field values to populate.</param>
-    /// <returns>An array of field render payloads ready to render in the UI.</returns>
-    private static FieldRenderPayload[] BuildFields(IReadOnlyList<FieldFile> fieldDefinitions, Dictionary<string, object?> savedValues)
+    private static FieldRenderPayload[] BuildFields(
+        IEnumerable<PrismComponent> children,
+        Dictionary<string, object?> savedValues)
     {
         var fields = new List<FieldRenderPayload>();
-        foreach (var f in fieldDefinitions)
-        {
-            fields.Add(new FieldRenderPayload
-            {
-                FieldKey = f.FieldKey,
-                Label = f.Label,
-                Hint = f.Hint,
-                FieldType = f.FieldType,
-                Required = f.Required,
-                Options = f.Options,
-                Value = GetDisplayValue(f, savedValues),
-                MinLength = f.MinLength,
-                MaxLength = f.MaxLength,
-                Pattern = f.Pattern,
-                Min = f.Min,
-                Max = f.Max,
-                Prefix = f.Prefix,
-                ConditionalOn = f.ConditionalOn,
-                VisibleWhen = f.VisibleWhen,
-                Content = f.Content
-            });
 
-            // Flatten any option-triggered sub-fields, setting ConditionalOn/VisibleWhen so the UI can show/hide them
-            if (f.ConditionalFields == null) continue;
-            foreach (var (optionValue, subFields) in f.ConditionalFields)
+        foreach (var child in children)
+        {
+            switch (child)
             {
-                foreach (var sub in subFields)
-                {
-                    fields.Add(new FieldRenderPayload
+                case InputComponent input:
+                    fields.Add(BuildInputPayload(input, savedValues));
+
+                    // Flatten conditional children (radios/checkboxes) into ConditionalOn/VisibleWhen field payloads.
+                    var conditional = (child as RadiosComponent)?.ConditionalChildren
+                                      ?? (child as CheckboxesComponent)?.ConditionalChildren;
+                    if (conditional != null)
                     {
-                        FieldKey = sub.FieldKey,
-                        Label = sub.Label,
-                        Hint = sub.Hint,
-                        FieldType = sub.FieldType,
-                        Required = sub.Required,
-                        Options = sub.Options,
-                        Value = GetDisplayValue(sub, savedValues),
-                        MinLength = sub.MinLength,
-                        MaxLength = sub.MaxLength,
-                        Pattern = sub.Pattern,
-                        Min = sub.Min,
-                        Max = sub.Max,
-                        Prefix = sub.Prefix,
-                        ConditionalOn = f.FieldKey,
-                        VisibleWhen = optionValue
-                    });
-                }
+                        foreach (var (optionValue, subComponents) in conditional)
+                        {
+                            foreach (var sub in subComponents.GetAllInputs())
+                            {
+                                fields.Add(BuildInputPayload(sub, savedValues) with
+                                {
+                                    ConditionalOn = input.FieldKey,
+                                    VisibleWhen = optionValue
+                                });
+                            }
+                        }
+                    }
+                    break;
+
+                case FieldsetComponent nestedFieldset:
+                    fields.AddRange(BuildFields(nestedFieldset.Children, savedValues));
+                    break;
             }
         }
 
         return fields.ToArray();
     }
 
-    private FieldFile[] ResolveComponentFields(IReadOnlyList<FieldFile>? inlineFields, string? fieldGroupKey)
+    /// <summary>
+    /// Builds summary-list payloads by resolving the supplied field-keys against every
+    /// input component reachable from the current state's component tree.
+    /// </summary>
+    private static FieldRenderPayload[] BuildSummaryFields(
+        IReadOnlyList<string> fieldRefs,
+        IReadOnlyList<PrismComponent> stateComponents,
+        Dictionary<string, object?> savedValues)
     {
-        if (inlineFields is { Count: > 0 })
-        {
-            return inlineFields.ToArray();
-        }
+        if (fieldRefs.Count == 0) return Array.Empty<FieldRenderPayload>();
 
-        if (!string.IsNullOrEmpty(fieldGroupKey)
-            && _fieldGroups.TryGetValue(fieldGroupKey, out var fieldGroup))
-        {
-            return fieldGroup.Fields.ToArray();
-        }
+        var lookup = stateComponents.GetAllInputs()
+            .GroupBy(i => i.FieldKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrEmpty(fieldGroupKey))
+        var payloads = new List<FieldRenderPayload>();
+        foreach (var key in fieldRefs)
         {
-            _logger.LogWarning("Component references missing field group '{Key}'", fieldGroupKey);
+            if (lookup.TryGetValue(key, out var input))
+            {
+                payloads.Add(BuildInputPayload(input, savedValues));
+            }
+            else
+            {
+                // Not found in this state's tree: emit a minimal payload so the summary still renders.
+                payloads.Add(new FieldRenderPayload
+                {
+                    FieldKey = key,
+                    Label = key,
+                    FieldType = "text",
+                    Required = false,
+                    Value = savedValues.TryGetValue(key, out var v) ? v : null
+                });
+            }
         }
-
-        return Array.Empty<FieldFile>();
+        return payloads.ToArray();
     }
 
-    private static object? GetDisplayValue(FieldFile f, Dictionary<string, object?> savedValues)
+    /// <summary>Maps a polymorphic <see cref="InputComponent"/> to a <see cref="FieldRenderPayload"/>.</summary>
+    private static FieldRenderPayload BuildInputPayload(InputComponent input, Dictionary<string, object?> savedValues)
     {
-        var raw = savedValues.TryGetValue(f.FieldKey, out var v) ? v : null;
+        var fieldType = InputFieldType(input);
+        return new FieldRenderPayload
+        {
+            FieldKey = input.FieldKey,
+            Label = input.Label,
+            Hint = input.Hint,
+            FieldType = fieldType,
+            Required = input.Required,
+            Options = input switch
+            {
+                SelectComponent s => s.Options,
+                RadiosComponent r => r.Options,
+                CheckboxesComponent c => c.Options,
+                _ => null
+            },
+            Value = GetDisplayValue(input, fieldType, savedValues),
+            MinLength = input switch
+            {
+                TextInputComponent t => t.MinLength,
+                TextareaComponent t => t.MinLength,
+                _ => null
+            },
+            MaxLength = input switch
+            {
+                TextInputComponent t => t.MaxLength,
+                TextareaComponent t => t.MaxLength,
+                _ => null
+            },
+            Pattern = input switch
+            {
+                TextInputComponent t => t.Pattern,
+                EmailComponent e => e.Pattern,
+                TelComponent t => t.Pattern,
+                _ => null
+            },
+            Min = input switch
+            {
+                NumberInputComponent n => n.Min,
+                DecimalInputComponent d => d.Min,
+                _ => null
+            },
+            Max = input switch
+            {
+                NumberInputComponent n => n.Max,
+                DecimalInputComponent d => d.Max,
+                _ => null
+            },
+            Prefix = input switch
+            {
+                TextInputComponent t => t.Prefix,
+                NumberInputComponent n => n.Prefix,
+                DecimalInputComponent d => d.Prefix,
+                _ => null
+            },
+            ConditionalOn = input.ConditionalOn,
+            VisibleWhen = input.VisibleWhen
+        };
+    }
+
+    private static string InputFieldType(InputComponent input) => input switch
+    {
+        TextInputComponent => "text",
+        NumberInputComponent => "number",
+        DecimalInputComponent => "decimal",
+        SelectComponent => "select",
+        RadiosComponent => "radio",
+        CheckboxesComponent => "checkboxlist",
+        DateInputComponent => "date",
+        EmailComponent => "email",
+        TelComponent => "tel",
+        TextareaComponent => "textarea",
+        BooleanComponent => "boolean",
+        _ => "text"
+    };
+
+    private static object? GetDisplayValue(InputComponent input, string fieldType, Dictionary<string, object?> savedValues)
+    {
+        var raw = savedValues.TryGetValue(input.FieldKey, out var v) ? v : null;
         if (raw == null) return null;
 
-        if (f.FieldType.Equals("currency", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(f.Prefix))
-            return $"{f.Prefix}{raw}";
+        var prefix = input switch
+        {
+            TextInputComponent t => t.Prefix,
+            NumberInputComponent n => n.Prefix,
+            DecimalInputComponent d => d.Prefix,
+            _ => null
+        };
+
+        if (fieldType.Equals("currency", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(prefix))
+            return $"{prefix}{raw}";
 
         return raw;
     }

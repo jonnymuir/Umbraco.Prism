@@ -14,7 +14,7 @@ namespace UmbracoPrism.Core.Composers;
 /// <remarks>
 /// <para>
 /// Partials are embedded in the Core assembly at:
-/// <c>Views/Partials/PrismFields/_PrismField-{Type}.cshtml</c>
+/// <c>Views/Partials/PrismFields/_Component-{Type}.cshtml</c>
 /// <c>Views/Partials/PrismComponents/_PrismComponent-{Type}.cshtml</c>
 /// <c>Views/Partials/_WorkflowStep-{StepType}.cshtml</c>
 /// <c>Views/Partials/_WorkflowHub-{Type}.cshtml</c>

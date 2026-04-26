@@ -3,231 +3,111 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Text.Json;
-using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Builders;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
 
 /// <summary>
-/// Tests for the WaitWith() fluent builder method on WorkflowStateBuilder.
-/// Validates that the builder correctly populates WaitingConfig and StepType.
+/// Tests for the Waiting() fluent builder method.
+/// Validates that the builder correctly populates a WaitingComponent.
 /// </summary>
-public class WaitWithBuilderTests
+public class WaitingBuilderTests
 {
-    [Fact]
-    public void WaitWith_SetsComponentTypeToWaiting()
+    private static WaitingComponent BuildSingleWaiting(Action<StateBuilder> configure)
     {
         var workflow = new WorkflowDefinitionBuilder()
             .Key("test")
             .DisplayName("Test")
             .Version(1)
             .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30))
+            .AddState("waiting", s =>
+            {
+                s.DisplayName("Waiting");
+                configure(s);
+            })
             .Build();
 
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
+        return workflow.States.First().Components.OfType<WaitingComponent>().Single();
     }
 
     [Fact]
-    public void WaitWith_PopulatesWaitingComponentContent()
+    public void Waiting_AddsWaitingComponent()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Please hold tight.",
-                    expectedWaitSeconds: 30))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.Content.Should().Be("Please hold tight.");
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
+        component.Should().NotBeNull();
     }
 
     [Fact]
-    public void WaitWith_PopulatesWaitingComponentExpectedWaitSeconds()
+    public void Waiting_PopulatesContent()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 120))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.ExpectedWaitSeconds.Should().Be(120);
+        var component = BuildSingleWaiting(s => s.Waiting("Please hold tight.", expectedWaitSeconds: 30));
+        component.Content.Should().Be("Please hold tight.");
     }
 
     [Fact]
-    public void WaitWith_UsesDefaultPollIntervalMsWhenNotSpecified()
+    public void Waiting_PopulatesExpectedWaitSeconds()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.PollIntervalMs.Should().Be(3000);
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 120));
+        component.ExpectedWaitSeconds.Should().Be(120);
     }
 
     [Fact]
-    public void WaitWith_UsesProvidedPollIntervalMsWhenSpecified()
+    public void Waiting_UsesDefaultPollIntervalMsWhenNotSpecified()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30,
-                    pollIntervalMs: 5000))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.PollIntervalMs.Should().Be(5000);
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
+        component.PollIntervalMs.Should().Be(3000);
     }
 
     [Fact]
-    public void WaitWith_SetsAllowDeferTrueByDefault()
+    public void Waiting_UsesProvidedPollIntervalMsWhenSpecified()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.AllowDefer.Should().BeTrue();
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30, pollIntervalMs: 5000));
+        component.PollIntervalMs.Should().Be(5000);
     }
 
     [Fact]
-    public void WaitWith_RespectsAllowDeferFalse()
+    public void Waiting_SetsAllowDeferTrueByDefault()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30,
-                    allowDefer: false))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.AllowDefer.Should().BeFalse();
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
+        component.AllowDefer.Should().BeTrue();
     }
 
     [Fact]
-    public void WaitWith_SetsDeferMessageWhenProvided()
+    public void Waiting_RespectsAllowDeferFalse()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30,
-                    deferMessage: "Come back later via My Applications."))
-            .Build();
-
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.DeferMessage.Should().Be("Come back later via My Applications.");
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30, allowDefer: false));
+        component.AllowDefer.Should().BeFalse();
     }
 
     [Fact]
-    public void WaitWith_LeavesDeferMessageNullWhenNotProvided()
+    public void Waiting_SetsDeferMessageWhenProvided()
     {
-        var workflow = new WorkflowDefinitionBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s => s
-                .DisplayName("Waiting")
-                .WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30))
-            .Build();
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30, deferMessage: "Come back later via My Applications."));
+        component.DeferMessage.Should().Be("Come back later via My Applications.");
+    }
 
-        var state = workflow.States.First();
-        var waitingComponent = state.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
-        waitingComponent!.DeferMessage.Should().BeNull();
+    [Fact]
+    public void Waiting_LeavesDeferMessageNullWhenNotProvided()
+    {
+        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
+        component.DeferMessage.Should().BeNull();
     }
 }
 
 /// <summary>
 /// Tests for the builder fluent API with waiting states.
 /// </summary>
-public class WaitWithBuilderFluentTests
+public class WaitingBuilderFluentTests
 {
     [Fact]
-    public void WaitWith_IsFluentReturnsSameBuilder()
+    public void Waiting_IsFluentReturnsSameBuilder()
     {
         var builder = new WorkflowDefinitionBuilder();
-        WorkflowStateBuilder? capturedBuilder = null;
+        StateBuilder? capturedBuilder = null;
 
         builder
             .Key("test")
@@ -237,15 +117,13 @@ public class WaitWithBuilderFluentTests
             .AddState("waiting", s =>
             {
                 capturedBuilder = s;
-                var returned = s.WaitWith(
-                    message: "Processing...",
-                    expectedWaitSeconds: 30);
+                var returned = s.Waiting("Processing...", expectedWaitSeconds: 30);
                 returned.Should().BeSameAs(capturedBuilder);
             });
     }
 
     [Fact]
-    public void FullWorkflowBuiltWithWaitWith_HasCorrectStateCountAndTransitions()
+    public void FullWorkflowBuiltWithWaiting_HasCorrectStateCountAndTransitions()
     {
         var workflow = new WorkflowDefinitionBuilder()
             .Key("test-workflow")
@@ -255,18 +133,14 @@ public class WaitWithBuilderFluentTests
             .InstancePolicy("single")
             .AddState("start", s => s
                 .DisplayName("Start")
-                .AddFieldset(new[] 
-                {
-                    new FieldFile { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
-                }))
+                .Fieldset(f => f
+                    .TextInput("name", "Name", required: true)))
             .AddState("processing", s => s
                 .DisplayName("Processing")
-                .WaitWith(
-                    message: "Please wait...",
-                    expectedWaitSeconds: 60))
+                .Waiting("Please wait...", expectedWaitSeconds: 60))
             .AddState("done", s => s
                 .DisplayName("Done")
-                .AddContent("panel", "Complete"))
+                .Panel("Complete"))
             .AddTransition("start", "processing", "submit")
             .AddTransition("processing", "done", "complete")
             .Build();
@@ -274,9 +148,7 @@ public class WaitWithBuilderFluentTests
         workflow.States.Should().HaveCount(3);
         workflow.Transitions.Should().HaveCount(2);
         var processingState = workflow.States.First(s => s.StateKey == "processing");
-        var waitingComponent = processingState.Components.FirstOrDefault(c => 
-            string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
-        waitingComponent.Should().NotBeNull();
+        processingState.Components.OfType<WaitingComponent>().Should().ContainSingle();
     }
 }
 
@@ -330,17 +202,16 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 {
                     StateKey = "enter-details",
                     DisplayName = "Enter Details",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = Array.Empty<PrismComponent>()
                 },
                 new StepDefinition
                 {
                     StateKey = "processing",
                     DisplayName = "Processing",
-                    Components = new[]
+                    Components = new PrismComponent[]
                     {
-                        new PrismComponentDefinition
+                        new WaitingComponent
                         {
-                            Type = "waiting",
                             Content = "We are reviewing your submission.",
                             ExpectedWaitSeconds = 60,
                             PollIntervalMs = 2000,
@@ -353,9 +224,9 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = new[]
+                    Components = new PrismComponent[]
                     {
-                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
+                        new PanelComponent { Heading = "Complete" }
                     }
                 }
             },
@@ -395,7 +266,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
         result.Render.Should().NotBeNull();
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent.Should().NotBeNull();
     }
@@ -410,7 +281,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent!.Content.Should().Be("We are reviewing your submission.");
     }
@@ -425,7 +296,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent!.ExpectedWaitSeconds.Should().Be(60);
     }
@@ -440,7 +311,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent!.PollIntervalMs.Should().Be(2000);
     }
@@ -455,7 +326,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent!.AllowDefer.Should().BeTrue();
     }
@@ -470,7 +341,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent!.DeferMessage.Should().Be("You can come back via My Applications.");
     }
@@ -498,7 +369,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        result.ResponseState.Should().Be("render");
+        result.ResponseState.Should().Be("defer");
     }
 
     [Fact]
@@ -511,7 +382,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
-        result.Render!.StepType.Should().Be("waiting");
+        result.Render!.StepType.Should().Be("status-timeline");
     }
 
     [Fact]
@@ -532,7 +403,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
         var result = _engine.GetCurrent("test-waiting-workflow", "tenant1", "user1");
 
         result.Render.Should().NotBeNull();
-        var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+        var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
             string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
         waitingComponent.Should().BeNull();
     }
@@ -576,11 +447,10 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     {
                         StateKey = "processing",
                         DisplayName = "Processing",
-                        Components = new[]
+                        Components = new PrismComponent[]
                         {
-                            new PrismComponentDefinition
+                            new WaitingComponent
                             {
-                                Type = "waiting",
                                 Content = "Wait here",
                                 ExpectedWaitSeconds = 30,
                                 PollIntervalMs = 3000,
@@ -605,7 +475,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
             var result = engine.GetCurrent("test-no-defer", "tenant1", "user1");
 
-            result.ResponseState.Should().Be("render");
+            result.ResponseState.Should().Be("defer");
         }
         finally
         {
@@ -639,11 +509,10 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     {
                         StateKey = "processing",
                         DisplayName = "Processing",
-                        Components = new[]
+                        Components = new PrismComponent[]
                         {
-                            new PrismComponentDefinition
+                            new WaitingComponent
                             {
-                                Type = "waiting",
                                 Content = "Wait here",
                                 ExpectedWaitSeconds = 30,
                                 PollIntervalMs = 3000,
@@ -668,7 +537,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
 
             var result = engine.GetCurrent("test-null-defer", "tenant1", "user1");
 
-            var waitingComponent = result.Render!.Components.FirstOrDefault(c => 
+            var waitingComponent = result.Render!.Components.FirstOrDefault(c =>
                 string.Equals(c.Type, "waiting", StringComparison.OrdinalIgnoreCase));
             waitingComponent.Should().NotBeNull();
             waitingComponent!.DeferMessage.Should().BeNull();

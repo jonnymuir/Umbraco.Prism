@@ -1,7 +1,7 @@
 namespace UmbracoPrism.Core.Models.Workflow;
 
 /// <summary>
-/// View model passed to each <c>_PrismField-{Type}.cshtml</c> partial.
+/// View model passed to each <c>_Component-{Type}.cshtml</c> field partial.
 /// Pre-computes ARIA attributes, CSS classes, and conditional wrappers
 /// so field partials stay declarative and free of C# logic.
 /// </summary>

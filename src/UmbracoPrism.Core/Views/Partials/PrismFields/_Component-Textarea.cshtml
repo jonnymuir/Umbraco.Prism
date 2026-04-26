@@ -1,6 +1,6 @@
 @model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
 <div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
-    @await Html.PartialAsync("~/Views/Partials/PrismFields/_PrismFieldLabel.cshtml", Model)
+    @await Html.PartialAsync("~/Views/Partials/PrismFields/_ComponentLabel.cshtml", Model)
     @if (Model.Field.ReadOnly)
     {
         <div class="govuk-body">@Model.DisplayValue</div>

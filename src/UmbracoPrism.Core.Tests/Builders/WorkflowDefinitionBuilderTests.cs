@@ -1,6 +1,7 @@
 using FluentAssertions;
 using UmbracoPrism.Shared.Builders;
-using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Extensions;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Core.Tests.Builders;
 
@@ -17,7 +18,7 @@ public class WorkflowDefinitionBuilderTests
             .InstancePolicy("multiple")
             .AddState("collect-details", s => s
                 .DisplayName("Your Details")
-                .AddFieldset("personal-info"))
+                .Fieldset(f => f.Legend("Personal info")))
             .AddTransition("collect-details", "submitted", "submit", "admin")
             .Build();
 
@@ -55,15 +56,14 @@ public class WorkflowDefinitionBuilderTests
             .Key("test")
             .AddState("step1", s => s
                 .DisplayName("Step One")
-                .AddFieldset(new[] 
-                { 
-                    new FieldFile { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
-                }))
+                .Fieldset(f => f
+                    .TextInput("name", "Name", required: true)))
             .Build();
 
         var state = result.States.Single();
-        // StepType is inferred from components, not set explicitly
-        state.Components.Should().ContainSingle(c => c.Type == "fieldset");
+        state.Components.Should().ContainSingle();
+        state.Components[0].Should().BeOfType<FieldsetComponent>();
+        state.Components.InferStepType().Should().Be("question");
     }
 
     [Fact]
@@ -73,15 +73,13 @@ public class WorkflowDefinitionBuilderTests
             .Key("test")
             .AddState("check", s => s
                 .DisplayName("Check Answers")
-                .AddSummaryList(new[] 
-                { 
-                    new FieldFile { FieldKey = "name", Label = "Name", FieldType = "text", Required = true }
-                }))
+                .SummaryList(sl => sl.FieldRefs("name")))
             .Build();
 
         var state = result.States.Single();
-        // StepType is inferred from components, not set explicitly
-        state.Components.Should().ContainSingle(c => c.Type == "summary-list");
+        state.Components.Should().ContainSingle();
+        state.Components[0].Should().BeOfType<SummaryListComponent>();
+        state.Components.InferStepType().Should().Be("check-answers");
     }
 
     [Fact]
@@ -91,27 +89,29 @@ public class WorkflowDefinitionBuilderTests
             .Key("test")
             .AddState("done", s => s
                 .DisplayName("Completed")
-                .AddContent("panel", "Your application has been submitted."))
+                .Panel("Your application has been submitted."))
             .Build();
 
         var state = result.States.Single();
-        // StepType is inferred from components, not set explicitly
-        state.Components.Should().ContainSingle(c => c.Type == "panel");
+        state.Components.Should().ContainSingle();
+        state.Components[0].Should().BeOfType<PanelComponent>();
+        state.Components.InferStepType().Should().Be("confirmation");
     }
 
     [Fact]
-    public void AddState_WithStatusTimelineComponent_CreatesStatusState()
+    public void AddState_WithWaitingComponent_InferredAsStatusTimeline()
     {
         var result = new WorkflowDefinitionBuilder()
             .Key("test")
             .AddState("status", s => s
                 .DisplayName("Status")
-                .AddContent("status-timeline", ""))
+                .Waiting("Processing...", expectedWaitSeconds: 30))
             .Build();
 
         var state = result.States.Single();
-        // StepType is inferred from components, not set explicitly
-        state.Components.Should().ContainSingle(c => c.Type == "status-timeline");
+        state.Components.Should().ContainSingle();
+        state.Components[0].Should().BeOfType<WaitingComponent>();
+        state.Components.InferStepType().Should().Be("status-timeline");
     }
 
     [Fact]
@@ -121,12 +121,13 @@ public class WorkflowDefinitionBuilderTests
             .Key("test")
             .AddState("tasks", s => s
                 .DisplayName("Tasks")
-                .AddContent("task-list", ""))
+                .Add(new TaskListComponent()))
             .Build();
 
         var state = result.States.Single();
-        // StepType is inferred from components, not set explicitly
-        state.Components.Should().ContainSingle(c => c.Type == "task-list");
+        state.Components.Should().ContainSingle();
+        state.Components[0].Should().BeOfType<TaskListComponent>();
+        state.Components.InferStepType().Should().Be("task-list");
     }
 
     [Fact]
@@ -146,21 +147,22 @@ public class WorkflowDefinitionBuilderTests
     }
 
     [Fact]
-    public void AddState_WithFieldsets_SetsComponentsCorrectly()
+    public void AddState_WithMultipleFieldsets_SetsComponentsCorrectly()
     {
         var result = new WorkflowDefinitionBuilder()
             .Key("test")
             .AddState("collect", s => s
                 .DisplayName("Collect Data")
-                .AddFieldset("personal-info")
-                .AddFieldset("contact-details")
-                .AddFieldset("preferences"))
+                .Fieldset(f => f.Legend("Personal info"))
+                .Fieldset(f => f.Legend("Contact details"))
+                .Fieldset(f => f.Legend("Preferences")))
             .Build();
 
         var state = result.States.Single();
         state.Components.Should().HaveCount(3);
-        state.Components.All(c => c.Type == "fieldset").Should().BeTrue();
-        state.Components.Select(c => c.FieldGroupKey).Should().ContainInOrder("personal-info", "contact-details", "preferences");
+        state.Components.All(c => c is FieldsetComponent).Should().BeTrue();
+        state.Components.OfType<FieldsetComponent>().Select(f => f.Legend)
+            .Should().ContainInOrder("Personal info", "Contact details", "Preferences");
     }
 
     [Fact]
@@ -170,21 +172,19 @@ public class WorkflowDefinitionBuilderTests
             .Key("test")
             .AddState("collect", s => s
                 .DisplayName("Collect Data")
-                .AddFieldset(
-                [
-                    new FieldFile { FieldKey = "full-name", Label = "Full name", FieldType = "text", Required = true },
-                    new FieldFile { FieldKey = "email-address", Label = "Email address", FieldType = "email", Required = true }
-                ],
-                legend: "About you"))
+                .Fieldset(f => f
+                    .Legend("About you")
+                    .TextInput("full-name", "Full name", required: true)
+                    .Email("email-address", "Email address", required: true)))
             .Build();
 
         var component = result.States.Single().Components.Single();
-        component.Type.Should().Be("fieldset");
-        component.Legend.Should().Be("About you");
-        component.FieldGroupKey.Should().BeNull();
-        component.Fields.Should().HaveCount(2);
-        component.Fields.Should().NotBeNull();
-        component.Fields!.Select(f => f.FieldKey).Should().ContainInOrder("full-name", "email-address");
+        component.Should().BeOfType<FieldsetComponent>();
+        var fieldset = (FieldsetComponent)component;
+        fieldset.Legend.Should().Be("About you");
+        fieldset.Children.Should().HaveCount(2);
+        fieldset.Children.OfType<InputComponent>().Select(c => c.FieldKey)
+            .Should().ContainInOrder("full-name", "email-address");
     }
 
     [Fact]
@@ -241,14 +241,14 @@ public class WorkflowDefinitionBuilderTests
             .InstancePolicy("prompt")
             .AddState("initial", s => s
                 .DisplayName("Initial Step")
-                .AddFieldset("form1")
-                .AddFieldset("form2"))
+                .Fieldset(f => f.Legend("Form 1").TextInput("a", "A"))
+                .Fieldset(f => f.Legend("Form 2").TextInput("b", "B")))
             .AddState("review", s => s
                 .DisplayName("Review Step")
-                .AddSummaryList("form1"))
+                .SummaryList(sl => sl.FieldRefs("a", "b")))
             .AddState("complete", s => s
                 .DisplayName("Complete")
-                .AddContent("panel", "Your application is complete."))
+                .Panel("Your application is complete."))
             .AddTransition("initial", "review", "submit")
             .AddTransition("review", "complete", "confirm", "admin")
             .Build();
@@ -304,20 +304,22 @@ public class WorkflowDefinitionBuilderTests
     }
 
     [Fact]
-    public void AddState_WithAddContent_SetsComponentCorrectly()
+    public void AddState_WithBodyAndHeading_SetsComponentsCorrectly()
     {
         var result = new WorkflowDefinitionBuilder()
             .Key("test")
             .AddState("state1", s => s
-                .AddContent("body", "Some paragraph text")
-                .AddContent("heading", "Title text", level: 2))
+                .Body("Some paragraph text")
+                .Heading(2, "Title text"))
             .Build();
 
         var state = result.States.Single();
         state.Components.Should().HaveCount(2);
-        state.Components[0].Type.Should().Be("body");
-        state.Components[0].Content.Should().Be("Some paragraph text");
-        state.Components[1].Type.Should().Be("heading");
-        state.Components[1].Level.Should().Be(2);
+        state.Components[0].Should().BeOfType<BodyComponent>();
+        ((BodyComponent)state.Components[0]).Content.Should().Be("Some paragraph text");
+        state.Components[1].Should().BeOfType<HeadingComponent>();
+        var heading = (HeadingComponent)state.Components[1];
+        heading.Level.Should().Be(2);
+        heading.Content.Should().Be("Title text");
     }
 }

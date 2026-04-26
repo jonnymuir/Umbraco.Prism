@@ -6,6 +6,7 @@ using System.Text.Json;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
@@ -55,16 +56,13 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = Array.Empty<PrismComponent>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = new[]
-                    {
-                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
-                    }
+                    Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
             Transitions = new[]
@@ -92,16 +90,13 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = Array.Empty<PrismComponent>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = new[]
-                    {
-                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
-                    }
+                    Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
             Transitions = new[]
@@ -129,16 +124,13 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StateKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<PrismComponentDefinition>()
+                    Components = Array.Empty<PrismComponent>()
                 },
                 new StepDefinition
                 {
                     StateKey = "done",
                     DisplayName = "Done",
-                    Components = new[]
-                    {
-                        new PrismComponentDefinition { Type = "panel", Heading = "Complete" }
-                    }
+                    Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
             Transitions = new[]
