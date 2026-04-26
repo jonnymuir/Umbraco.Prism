@@ -1606,3 +1606,28 @@ User (Jonny Muir) approved Tom Nook's recommendation to defer generic `Condition
 ### Next Phase
 
 P2 migrator implementation (Blathers to execute). Scope: v1 JSON → v2 component tree transformer.
+
+---
+
+## 2026-04-26 — v2.0 Atomic Schema Replacement & Seed Roundtrip Guard
+
+**Role:** Core contributor; backend schema, seed migration, regression testing.
+
+**Deliverables:**
+- `7423803` feat(workflow): Atomic v2.0 schema replacement (40–60 files, single commit)
+  - Renamed `WorkflowDefinitionFileV2` → `WorkflowDefinitionFile`, `StepDefinitionV2` → `StepDefinition`
+  - Integrated polymorphic component tree into engine + builder
+  - Rewrote `WorkflowDefinitionBuilder` fluent API (16 methods for all component types)
+  - Migrated 4 seed JSON files to polymorphic schema
+  - Renamed tag helper + 11 Razor partials (_PrismField-* → _Component-*)
+- `2cdb0dc` fix(workflow): Migrated stale seed JSONs to polymorphic schema + roundtrip guard test
+  - Added `SeedFileRoundtripTests.cs` (parameterized test covering all 4 seeds)
+  - Ensures no orphaned v1 properties + proper polymorphic deserialization
+- `dc87e5f` fix(testsite): Disabled ModelsBuilder auto-view generation
+  - Prevents conflict between ModelsBuilder stub views and Core route-hijacking controllers
+  - TestSite uses Core's embedded views only
+
+**Test Results:** 583 tests passing (4 new roundtrip tests added).
+
+**Basis:** Direct schema replacement directive (Jonny 2026-04-26), Tom Nook sequencing plan, follow-through coordination by Copilot.
+

@@ -298,3 +298,26 @@ All 9 docs reviewed. No showstoppers — the polymorphic design is sound. Path f
 ### Next Phase
 
 P1 implementation complete (Blathers). P2 migrator next. Design audit informs P3 prototype scope.
+
+---
+
+## 2026-04-26 — v2.0 Schema Replacement Sequencing & Design Audit
+
+**Role:** Lead architect; sequencing plan, design audit, specification.
+
+**Deliverables:**
+- Sequencing plan: 8-commit direct-replacement sequence (2026-04-26)
+  - Superseded by 3-commit atomic collapse (discovered C# type system blocker with Blathers)
+  - Final rollout: 9 commits (atomic replacement + fixes + walkthroughs + doc refresh)
+- Design audit: 9 workflow docs reviewed against v2 component model (2026-04-26)
+  - 7 docs marked for rewrite (fields → components, fieldType → type)
+  - 1 doc archived (redesign blueprint → obsolete, replaced by actual v2 implementation)
+  - 1 doc stays as-is (architecture/workflow-forms-engine — principles transcend v1/v2)
+  - All rewrites completed in commits `989f595` + `2698c1d`
+
+**Key Decisions Locked In:**
+- Direct schema replacement, no migrator, no V2 class names
+- Generic ConditionalOn deferred to v2.1 (v2.0 ships with ConditionalChildren on Radios/Checkboxes only)
+
+**Basis:** User directive (Jonny 2026-04-26), Copilot 3-commit replan (2026-04-26), design audit audit findings.
+

@@ -252,3 +252,29 @@ Production deployments are now safe from:
 ---
 
 **2026-04-22 Cross-Agent Update:** stepType removal architecture approved. Handoff: Update _WorkflowStep-Waiting partial to read WaitingConfig from component rather than Model.WaitingConfig sidecar. WaitingConfig properties (message, expectedWaitSeconds, pollIntervalMs, allowDefer, deferMessage) will be carried inline on the "waiting" component type. See .squad/decisions.md and orchestration-log/2026-04-22T23:08:36-tom-nook.md for full decision context.
+
+---
+
+## 2026-04-26 — v2.0 E2E Testing & Screenshot Walkthroughs
+
+**Role:** Frontend testing; Playwright e2e coverage, screenshot capture.
+
+**Deliverables:**
+- `f3c0ea5` test(e2e): Playwright coverage for 3 demo workflows
+  - Community enquiry: happy path + conditional reveal (Other → sub-field)
+  - Payment demo: happy path + validation (minimum decimal value)
+  - Planning notification: multi-step journey, summary list, panel component
+- `67bb57b` feat(testsite): Seed information-request demo page + complete Playwright coverage
+  - Added information-request page to TestSite data seeder
+  - Completed e2e tests for all 4 demo workflows
+- `392c64e` docs(walkthroughs): Screenshot-driven walkthroughs for 4 demo workflows
+  - Captured meaningful states for each demo (initial, filled, conditional reveals, terminal)
+  - Full-page screenshots at 1280x1024 viewport
+  - 4 walkthrough markdown docs with state transitions
+- `a48229b` chore(client): Screenshot capture script for walkthroughs
+  - `capture-walkthrough-screenshots.mjs` with Keycloak auth flow integration
+
+**Deliverables:** 4 complete e2e test specs + 4 screenshot walkthroughs + capture infrastructure.
+
+**Basis:** v2.0 rollout directive (Jonny 2026-04-26), follow-through progress reports (Copilot), blocker resolution (ModelsBuilder fix 2026-04-26).
+
