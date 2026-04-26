@@ -74,22 +74,12 @@ jobs:
 
   localhost-auth-playwright:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # 45 minutes: the existing test lane needs ~20–25 min on a cold runner, and the
-    # screenshot capture step adds a second full Aspire stack lifecycle (~15 min).
-    # Write access is needed so the screenshot-capture step can commit updated
-    # walkthrough images back to the branch without a separate workflow.
-    permissions:
-      contents: write
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Check out the source branch (not the merge commit) so we can push back.
-          ref: ${{ github.head_ref || github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -130,31 +120,6 @@ jobs:
 
       - name: Run localhost auth/session Playwright lane
         run: npm run test:playwright:localhost-auth
-
-      - name: Capture walkthrough screenshots
-        # Run the screenshot capture spec in its own Aspire stack session.
-        # The spec uses LiveAppHost, which starts and stops the full stack automatically.
-        # Running this after the test lane means the previous stack has already been shut down
-        # (LiveAppHost.afterAll fires at the end of workflow-all-demos), so ports are free.
-        # continue-on-error keeps CI from failing if the capture itself has a problem.
-        continue-on-error: true
-        run: >
-          npx playwright test
-          -c playwright.localhost-auth.config.ts
-          tests/capture-screenshot.spec.ts
-          --reporter=line
-
-      - name: Commit updated walkthrough screenshots
-        # Only commits when there are actual changes; [skip ci] prevents a re-trigger loop.
-        continue-on-error: true
-        run: |
-          cd ../..
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/images/walkthroughs/
-          git diff --staged --quiet \
-            && echo "No screenshot changes to commit." \
-            || (git commit -m "docs: update walkthrough screenshots [skip ci]" && git push)
 
       - name: Upload Playwright artifacts on failure
         if: failure()
