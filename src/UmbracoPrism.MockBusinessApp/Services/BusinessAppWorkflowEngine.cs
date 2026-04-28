@@ -616,7 +616,13 @@ public class BusinessAppWorkflowEngine
 
                 case SummaryListComponent summary:
                 {
-                    var fields = BuildSummaryFields(summary.FieldRefs, componentDefinitions, savedValues);
+                    // Two authoring shapes are supported:
+                    //   1. Children: full polymorphic input definitions inline (the seed JSON shape).
+                    //   2. FieldRefs: string keys resolved against this state's component tree
+                    //      (the in-code builder shape — kept for back-compat).
+                    var fields = summary.Children.Count > 0
+                        ? BuildFields(summary.Children, savedValues)
+                        : BuildSummaryFields(summary.FieldRefs, componentDefinitions, savedValues);
                     if (fields.Length == 0)
                     {
                         _logger.LogWarning("Summary-list component contains no renderable fields");

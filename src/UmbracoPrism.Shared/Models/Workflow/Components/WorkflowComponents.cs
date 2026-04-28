@@ -32,6 +32,14 @@ public sealed record SummaryListComponent : PrismComponent
     /// </summary>
     public IReadOnlyList<string> FieldRefs { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Inline polymorphic input definitions to summarise. When supplied, the engine
+    /// renders payloads directly from these (no cross-state lookup required) which is
+    /// the authored shape used by seed JSON files. <see cref="FieldRefs"/> remains
+    /// supported for in-code builders that prefer to reference fields by key.
+    /// </summary>
+    public IReadOnlyList<PrismComponent> Children { get; init; } = Array.Empty<PrismComponent>();
+
     /// <summary>The state key the "Change" links navigate to.</summary>
     public string? ChangeStateKey { get; init; }
 
