@@ -451,14 +451,18 @@ public sealed class ChildrenBuilder : ComponentCollectionBuilder<ChildrenBuilder
 /// <summary>Builder for a <see cref="SummaryListComponent"/>.</summary>
 public sealed class SummaryListBuilder
 {
-    private readonly List<string> _fieldRefs = new();
+    private readonly ChildrenBuilder _children = new();
     private string? _changeStateKey;
     private string? _title;
 
-    /// <summary>Adds one or more field keys whose label/value will be summarised.</summary>
-    public SummaryListBuilder FieldRefs(params string[] fieldKeys)
+    /// <summary>
+    /// Adds inline input definitions to summarise. The summary-list carries its own
+    /// field schemas so labels, formatting, options and conditional reveals are all
+    /// captured directly on the component.
+    /// </summary>
+    public SummaryListBuilder Children(Action<ChildrenBuilder> configure)
     {
-        _fieldRefs.AddRange(fieldKeys);
+        configure(_children);
         return this;
     }
 
@@ -470,7 +474,7 @@ public sealed class SummaryListBuilder
 
     internal SummaryListComponent Build() => new()
     {
-        FieldRefs = _fieldRefs.ToArray(),
+        Children = _children.BuildChildren(),
         ChangeStateKey = _changeStateKey,
         Title = _title
     };

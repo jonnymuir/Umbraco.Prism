@@ -616,13 +616,10 @@ public class BusinessAppWorkflowEngine
 
                 case SummaryListComponent summary:
                 {
-                    // Two authoring shapes are supported:
-                    //   1. Children: full polymorphic input definitions inline (the seed JSON shape).
-                    //   2. FieldRefs: string keys resolved against this state's component tree
-                    //      (the in-code builder shape — kept for back-compat).
-                    var fields = summary.Children.Count > 0
-                        ? BuildFields(summary.Children, savedValues)
-                        : BuildSummaryFields(summary.FieldRefs, componentDefinitions, savedValues);
+                    // The summary-list carries inline polymorphic input definitions in
+                    // Children; reuse the standard fieldset walk so conditional reveals
+                    // (radios/checkboxes) flatten with ConditionalOn/VisibleWhen.
+                    var fields = BuildFields(summary.Children, savedValues);
                     if (fields.Length == 0)
                     {
                         _logger.LogWarning("Summary-list component contains no renderable fields");
@@ -785,44 +782,6 @@ public class BusinessAppWorkflowEngine
         }
 
         return fields.ToArray();
-    }
-
-    /// <summary>
-    /// Builds summary-list payloads by resolving the supplied field-keys against every
-    /// input component reachable from the current state's component tree.
-    /// </summary>
-    private static FieldRenderPayload[] BuildSummaryFields(
-        IReadOnlyList<string> fieldRefs,
-        IReadOnlyList<PrismComponent> stateComponents,
-        Dictionary<string, object?> savedValues)
-    {
-        if (fieldRefs.Count == 0) return Array.Empty<FieldRenderPayload>();
-
-        var lookup = stateComponents.GetAllInputs()
-            .GroupBy(i => i.FieldKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-        var payloads = new List<FieldRenderPayload>();
-        foreach (var key in fieldRefs)
-        {
-            if (lookup.TryGetValue(key, out var input))
-            {
-                payloads.Add(BuildInputPayload(input, savedValues));
-            }
-            else
-            {
-                // Not found in this state's tree: emit a minimal payload so the summary still renders.
-                payloads.Add(new FieldRenderPayload
-                {
-                    FieldKey = key,
-                    Label = key,
-                    FieldType = "text",
-                    Required = false,
-                    Value = savedValues.TryGetValue(key, out var v) ? v : null
-                });
-            }
-        }
-        return payloads.ToArray();
     }
 
     /// <summary>Maps a polymorphic <see cref="InputComponent"/> to a <see cref="FieldRenderPayload"/>.</summary>

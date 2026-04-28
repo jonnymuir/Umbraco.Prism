@@ -85,7 +85,7 @@ public class WorkflowDefinitionInferenceTests
                     DisplayName = "Review",
                     Components =
                     [
-                        new SummaryListComponent { FieldRefs = ["name"] }
+                        new SummaryListComponent { Children = [new TextInputComponent { FieldKey = "name", Label = "Name" }] }
                     ]
                 },
                 new StepDefinition

@@ -53,7 +53,7 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                         new SummaryListComponent
                         {
                             Title = "Check your answers",
-                            FieldRefs = ["full-name"],
+                            Children = [new TextInputComponent { FieldKey = "full-name", Label = "Full name" }],
                             ChangeStateKey = "enter-details"
                         }
                     ]

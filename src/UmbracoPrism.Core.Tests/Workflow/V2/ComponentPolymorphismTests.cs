@@ -258,7 +258,12 @@ public class ComponentPolymorphismTests
             },
             "summary-list" => new SummaryListComponent
             {
-                FieldRefs = new List<string> { "full-name", "email-address", "phone-number" },
+                Children = new List<PrismComponent>
+                {
+                    new TextInputComponent { FieldKey = "full-name", Label = "Full name" },
+                    new EmailComponent { FieldKey = "email-address", Label = "Email address" },
+                    new TextInputComponent { FieldKey = "phone-number", Label = "Phone number" }
+                },
                 ChangeStateKey = "collect-details",
                 Title = "Check your answers"
             },
@@ -335,7 +340,11 @@ public class ComponentPolymorphismTests
                     {
                         new SummaryListComponent
                         {
-                            FieldRefs = new List<string> { "name", "email" },
+                            Children = new List<PrismComponent>
+                            {
+                                new TextInputComponent { FieldKey = "name", Label = "Name", Required = true },
+                                new EmailComponent { FieldKey = "email", Label = "Email", Required = true }
+                            },
                             ChangeStateKey = "start",
                             Title = "Your details"
                         }

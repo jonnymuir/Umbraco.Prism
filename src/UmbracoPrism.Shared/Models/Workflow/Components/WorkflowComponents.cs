@@ -27,16 +27,9 @@ public sealed record WaitingComponent : PrismComponent
 public sealed record SummaryListComponent : PrismComponent
 {
     /// <summary>
-    /// Field keys to display in the summary list.
-    /// The engine resolves labels and values from the workflow definition tree.
-    /// </summary>
-    public IReadOnlyList<string> FieldRefs { get; init; } = Array.Empty<string>();
-
-    /// <summary>
-    /// Inline polymorphic input definitions to summarise. When supplied, the engine
-    /// renders payloads directly from these (no cross-state lookup required) which is
-    /// the authored shape used by seed JSON files. <see cref="FieldRefs"/> remains
-    /// supported for in-code builders that prefer to reference fields by key.
+    /// Inline polymorphic input definitions to summarise. The summary-list carries its
+    /// own field schemas (label, type, options, conditional reveals) so the engine can
+    /// render payloads directly without resolving keys against another state.
     /// </summary>
     public IReadOnlyList<PrismComponent> Children { get; init; } = Array.Empty<PrismComponent>();
 
