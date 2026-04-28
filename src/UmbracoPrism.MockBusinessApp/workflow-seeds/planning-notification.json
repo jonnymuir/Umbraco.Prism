@@ -324,6 +324,10 @@
           "heading": "Application received"
         },
         {
+          "type": "body",
+          "content": "Your reference number is <strong>HDJ2123F</strong>"
+        },
+        {
           "type": "heading",
           "level": 2,
           "content": "What happens next"
