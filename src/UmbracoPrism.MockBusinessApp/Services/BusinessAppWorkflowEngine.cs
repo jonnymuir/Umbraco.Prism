@@ -875,7 +875,7 @@ public class BusinessAppWorkflowEngine
             _ => null
         };
 
-        if (fieldType.Equals("currency", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(prefix))
+        if (!string.IsNullOrEmpty(prefix))
             return $"{prefix}{raw}";
 
         return raw;
