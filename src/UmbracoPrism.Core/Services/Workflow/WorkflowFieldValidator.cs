@@ -22,7 +22,7 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
     {
         var errors = new Dictionary<string, string>();
 
-        // Build authoritative field key set (including checkboxlist/checkboxes variations and date-input parts)
+        // Build authoritative field key set (including checkboxlist/checkboxes variations and date sub-input parts)
         var authoritativeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var field in authoritative)
         {
@@ -32,7 +32,7 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
             {
                 authoritativeKeys.Add($"{field.FieldKey}[]");
             }
-            if (fieldType == "date-input")
+            if (fieldType == "date")
             {
                 authoritativeKeys.Add($"{field.FieldKey}-day");
                 authoritativeKeys.Add($"{field.FieldKey}-month");
@@ -142,8 +142,8 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
             return suffixedValue;
         }
 
-        // Check for date-input parts
-        if (fieldType == "date-input")
+        // Check for date sub-input parts (GDS day/month/year pattern)
+        if (fieldType == "date")
         {
             submitted.TryGetValue($"{field.FieldKey}-day", out var day);
             submitted.TryGetValue($"{field.FieldKey}-month", out var month);
@@ -194,19 +194,12 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                 break;
 
             case "date":
-                if (!DateTime.TryParse(raw, out _))
-                {
-                    return $"{field.Label} must be a valid date.";
-                }
-                break;
-
-            case "date-input":
-                // Validation happens in GetSubmittedValue
+                // GDS multi-input date: GetSubmittedValue reconstructs as YYYY-MM-DD,
+                // or returns "PARTIAL" when only some sub-inputs are filled.
                 if (raw == "PARTIAL")
                 {
                     return $"{field.Label} must include day, month, and year.";
                 }
-                // Parse the reconstructed date (YYYY-MM-DD format)
                 if (!DateTime.TryParse(raw, out var parsedDate))
                 {
                     return $"{field.Label} must be a valid date.";

@@ -35,9 +35,12 @@ test.describe('All workflow demos end-to-end coverage', () => {
       // State: collecting-details
       await expect(page.getByRole('heading', { name: 'Tell us about your enquiry' })).toBeVisible();
       
-      // About You fieldset
-      await page.getByLabel('Full name').fill('Jane Doe');
-      await page.getByLabel('Email address').fill('jane.doe@example.com');
+      // About You fieldset — Full name and Email address are pre-populated
+      // from the authenticated member's identity claims (see
+      // TestSite/Controllers/WorkflowPageController.PrePopulateFields) and
+      // rendered as readonly, so we assert their values rather than filling.
+      await expect(page.getByLabel('Full name')).toHaveValue('Demo User');
+      await expect(page.getByLabel('Email address')).toHaveValue('demo@prism.local');
       await page.getByLabel('Organisation (optional)').fill('Acme Corp');
       await page.locator('select#your-role').selectOption('Developer');
 
@@ -65,8 +68,9 @@ test.describe('All workflow demos end-to-end coverage', () => {
       await signIn(page);
       await page.goto('/get-in-touch');
 
-      await page.getByLabel('Full name').fill('Test User');
-      await page.getByLabel('Email address').fill('test@example.com');
+      // Full name and Email address are readonly (pre-populated from claims)
+      await expect(page.getByLabel('Full name')).toHaveValue('Demo User');
+      await expect(page.getByLabel('Email address')).toHaveValue('demo@prism.local');
       await page.locator('select#your-role').selectOption('Other');
 
       // Select "Other" enquiry type - should reveal conditional field

@@ -215,8 +215,8 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
             kvp => kvp.Key,
             kvp => (object?)kvp.Value);
 
-        // Combine date-input parts into a display value
-        foreach (var field in authoritativeFields.Where(f => f.FieldType.Equals("date-input", StringComparison.OrdinalIgnoreCase)))
+        // Combine GDS date sub-input parts (-day/-month/-year) into a display value
+        foreach (var field in authoritativeFields.Where(f => f.FieldType.Equals("date", StringComparison.OrdinalIgnoreCase)))
         {
             if (fieldValues.TryGetValue($"{field.FieldKey}-day", out var day) &&
                 fieldValues.TryGetValue($"{field.FieldKey}-month", out var month) &&
