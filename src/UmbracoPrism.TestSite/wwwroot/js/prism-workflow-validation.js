@@ -16,22 +16,20 @@
 
     function init() {
         const forms = document.querySelectorAll('form');
-        
-        forms.forEach(form => {
-            // Suppress native browser validation UI (we provide our own)
-            form.noValidate = true;
 
-            // Attach blur validation to all form controls
-            attachBlurValidation(form);
+        forms.forEach(form => {
+            // Suppress native browser validation UI (we provide our own server-side)
+            form.noValidate = true;
 
             // Add character counters to textareas with length constraints
             attachCharacterCounters(form);
 
-            // Note: form submission is handled server-side. The server renders the
-            // GDS error summary (role="alert") via <prism-error-summary> when
-            // validation fails. Intercepting submit on the client added a competing
-            // error summary with timing fragility; relying on server-side keeps a
-            // single source of truth.
+            // Note: Validation is handled server-side. The server renders the GDS
+            // error summary (role="alert") via <prism-error-summary> and per-field
+            // <p class="govuk-error-message"> entries when validation fails. Doing
+            // the same on the client (blur or submit) caused layout shift between
+            // mousedown and mouseup that broke submit clicks, and produced
+            // competing error summaries that fought the server-rendered one.
         });
     }
 
