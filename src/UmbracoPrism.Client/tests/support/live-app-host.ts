@@ -41,12 +41,13 @@ const readinessChecks = [
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-workflows' }]
   },
   {
-    // Dashboard route warmup. MemberDashboardController has [Authorize] and explicitly redirects
-    // unauthenticated requests to /auth/login?returnUrl=/dashboard.
+    // Dashboard route warmup. MemberDashboardController has [Authorize]; the cookie auth
+    // scheme's challenge issues the canonical redirect with ReturnUrl=%2Fdashboard
+    // (the controller's literal Redirect() is dead code — Authorize fires first).
     name: 'Dashboard route',
     url: 'https://localhost:44345/dashboard',
     allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?returnUrl=/dashboard' }]
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fdashboard' }]
   },
   {
     // Community-enquiry workflow page warmup (used by both localhost-auth and workflow-all-demos suites).
