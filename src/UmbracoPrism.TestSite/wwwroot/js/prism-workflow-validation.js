@@ -146,7 +146,6 @@
             errorElement = document.createElement('p');
             errorElement.id = errorId;
             errorElement.className = 'prism-field-error';
-            errorElement.setAttribute('role', 'alert');
 
             // Insert after label/hint but before input
             const insertPoint = findErrorInsertionPoint(input);
