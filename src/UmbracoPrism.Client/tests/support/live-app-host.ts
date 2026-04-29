@@ -34,10 +34,48 @@ const readinessChecks = [
   },
   {
     // Behavioural confirmation: the protected authored URL now challenges with the expected return target.
+    // Doubles as a Razor view-compilation warmup so the first test doesn't pay the cold-render cost.
     name: 'Workflow hub seed',
     url: 'https://localhost:44345/my-workflows',
     allowedStatuses: [302],
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-workflows' }]
+  },
+  {
+    // Dashboard route warmup. MemberDashboardController has [Authorize]; the cookie auth
+    // scheme's challenge issues the canonical redirect with ReturnUrl=%2Fdashboard
+    // (the controller's literal Redirect() is dead code — Authorize fires first).
+    name: 'Dashboard route',
+    url: 'https://localhost:44345/dashboard',
+    allowedStatuses: [302],
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fdashboard' }]
+  },
+  {
+    // Community-enquiry workflow page warmup (used by both localhost-auth and workflow-all-demos suites).
+    name: 'Community enquiry workflow route',
+    url: 'https://localhost:44345/get-in-touch',
+    allowedStatuses: [302],
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fget-in-touch' }]
+  },
+  {
+    // Planning workflow page warmup (workflow-gds-journey + workflow-all-demos).
+    name: 'Planning workflow route',
+    url: 'https://localhost:44345/apply-for-planning-permission',
+    allowedStatuses: [302],
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fapply-for-planning-permission' }]
+  },
+  {
+    // Payment-demo workflow page warmup (workflow-all-demos).
+    name: 'Payment demo workflow route',
+    url: 'https://localhost:44345/payment-demo',
+    allowedStatuses: [302],
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fpayment-demo' }]
+  },
+  {
+    // Information-request workflow page warmup (workflow-all-demos).
+    name: 'Information request workflow route',
+    url: 'https://localhost:44345/request-information',
+    allowedStatuses: [302],
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Frequest-information' }]
   },
   {
     name: 'Keycloak',

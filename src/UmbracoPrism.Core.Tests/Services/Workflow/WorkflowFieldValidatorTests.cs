@@ -641,6 +641,25 @@ public class WorkflowFieldValidatorTests
     }
 
     [Fact]
+    public void GivenDecimalFieldWithMinConstraint_WhenValueBelowMin_ThenReturnsError()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "amount", Label = "Amount (£)", FieldType = "decimal", Required = true, Min = 0.01m }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["amount"] = "0"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("amount");
+        result.Errors["amount"].Should().Be("Amount (£) must be at least 0.01.");
+    }
+
+    [Fact]
     public void GivenOptionsWithCaseInsensitiveMatch_WhenValidating_ThenIsValidTrue()
     {
         var authoritative = new List<FieldRenderPayload>
