@@ -27,8 +27,11 @@
             // Add character counters to textareas with length constraints
             attachCharacterCounters(form);
 
-            // Intercept form submission for smart error handling
-            form.addEventListener('submit', handleFormSubmit);
+            // Note: form submission is handled server-side. The server renders the
+            // GDS error summary (role="alert") via <prism-error-summary> when
+            // validation fails. Intercepting submit on the client added a competing
+            // error summary with timing fragility; relying on server-side keeps a
+            // single source of truth.
         });
     }
 
