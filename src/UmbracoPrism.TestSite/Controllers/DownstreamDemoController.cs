@@ -357,14 +357,37 @@ public class DownstreamDemoController(
             TestSiteSeedContract.WorkflowHubAlias,
             TestSiteSeedContract.WorkflowHubName,
             TestSiteSeedContract.WorkflowHubUrl);
+        var planningWorkflowPage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.PlanningWorkflowKey),
+            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.PlanningWorkflowPageName,
+            TestSiteSeedContract.PlanningWorkflowPageUrl);
+        var paymentDemoPage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.PaymentDemoWorkflowKey),
+            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.PaymentDemoPageName,
+            TestSiteSeedContract.PaymentDemoPageUrl);
+        var informationRequestPage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.InformationRequestWorkflowKey),
+            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.InformationRequestPageName,
+            TestSiteSeedContract.InformationRequestPageUrl);
         var settings = TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.SettingsAlias);
         var mobileNav = BuildMobileNavStatus(settings);
         var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.WorkflowHubUrl)}";
+        // routeContractReady waits for every authored URL the Playwright suite navigates to, so
+        // the first request to any of them lands on a fully-warm Umbraco route + Razor view —
+        // not a cold-start that returns 404 / Home / a half-rendered page (the symptom that
+        // showed up after the v2.0 polymorphic component schema rollout made first-render
+        // view compilation slower than the test's 5s default visibility timeout).
         var routeContractReady =
             home.MatchesExpected &&
             dashboard.MatchesExpected &&
             workflowPage.MatchesExpected &&
             workflowHub.MatchesExpected &&
+            planningWorkflowPage.MatchesExpected &&
+            paymentDemoPage.MatchesExpected &&
+            informationRequestPage.MatchesExpected &&
             mobileNav.Ready;
 
         return new SeedContractStatus(
@@ -375,6 +398,9 @@ public class DownstreamDemoController(
             Dashboard: dashboard,
             WorkflowPage: workflowPage,
             WorkflowHub: workflowHub,
+            PlanningWorkflowPage: planningWorkflowPage,
+            PaymentDemoPage: paymentDemoPage,
+            InformationRequestPage: informationRequestPage,
             MobileNav: mobileNav);
     }
 
@@ -423,6 +449,9 @@ public class DownstreamDemoController(
         SeededRouteStatus Dashboard,
         SeededRouteStatus WorkflowPage,
         SeededRouteStatus WorkflowHub,
+        SeededRouteStatus PlanningWorkflowPage,
+        SeededRouteStatus PaymentDemoPage,
+        SeededRouteStatus InformationRequestPage,
         MobileNavStatus MobileNav);
 
     private sealed record SeedAuthStatus(string LoginPath, string LogoutPath, string ChallengePath);
