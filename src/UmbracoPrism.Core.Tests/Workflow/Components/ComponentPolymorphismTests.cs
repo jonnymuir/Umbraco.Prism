@@ -4,7 +4,7 @@ using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
 using Xunit;
 
-namespace UmbracoPrism.Core.Tests.Workflow.V2;
+namespace UmbracoPrism.Core.Tests.Workflow.Components;
 
 /// <summary>
 /// Tests for polymorphic JSON serialization/deserialization of v2.0 component hierarchy.
@@ -300,18 +300,17 @@ public class ComponentPolymorphismTests
     }
 
     [Fact]
-    public void WorkflowDefinitionFileV2_RoundtripsCorrectly()
+    public void WorkflowDefinitionFile_RoundtripsCorrectly()
     {
         // Arrange
-        var definition = new WorkflowDefinitionFileV2
+        var definition = new WorkflowDefinitionFile
         {
-            SchemaVersion = "2.0",
             DefinitionKey = "test-workflow",
             DisplayName = "Test Workflow",
             Version = 1,
             InitialState = "start",
             InstancePolicy = "single",
-            States = new List<StepDefinitionV2>
+            States = new List<StepDefinition>
             {
                 new()
                 {
@@ -370,12 +369,11 @@ public class ComponentPolymorphismTests
 
         // Act
         var json = JsonSerializer.Serialize(definition, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<WorkflowDefinitionFileV2>(json, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<WorkflowDefinitionFile>(json, JsonOptions);
 
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeEquivalentTo(definition);
-        json.Should().Contain("\"schemaVersion\": \"2.0\"");
         json.Should().Contain("\"type\": \"heading\"");
         json.Should().Contain("\"type\": \"body\"");
         json.Should().Contain("\"type\": \"fieldset\"");

@@ -4,7 +4,7 @@ using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
 using Xunit;
 
-namespace UmbracoPrism.Core.Tests.Workflow.V2;
+namespace UmbracoPrism.Core.Tests.Workflow.Components;
 
 /// <summary>
 /// Regression guard: ensures all workflow seed JSONs conform to the v2.0 polymorphic schema.
