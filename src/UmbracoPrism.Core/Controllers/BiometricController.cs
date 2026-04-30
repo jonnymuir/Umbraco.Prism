@@ -17,9 +17,18 @@ namespace UmbracoPrism.Core.Controllers;
 /// Handles biometric device registration and token exchange for mobile app users.
 /// Registration requires an authenticated PrismMemberCookie session; exchange is
 /// unauthenticated — the BiometricToken JWT is the sole credential.
+///
+/// SEC-PT2-009 ANTIFORGERY POLICY: This controller is a Capacitor mobile app API.
+/// [IgnoreAntiforgeryToken] is deliberate — mobile native apps cannot obtain or
+/// forward the ASP.NET Core antiforgery cookie+header pair. CSRF protection is
+/// provided by: (1) cookie auth with SameSite=Lax, (2) JSON-only Content-Type
+/// requirement (blocks simple form POSTs from cross-origin), (3) Capacitor origin
+/// check (IsCapacitorOrigin) on the unauthenticated Exchange endpoint.
+/// Any new browser-facing form-POST endpoint MUST use [ValidateAntiForgeryToken].
 /// </summary>
 [Route("umbraco/prism/mobile/biometric")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+[IgnoreAntiforgeryToken]
 public class BiometricController(
     IUmbracoDatabaseFactory databaseFactory,
     IBiometricTokenService biometricTokenService,

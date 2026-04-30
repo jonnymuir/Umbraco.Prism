@@ -1453,4 +1453,14 @@ public class BiometricControllerTests
         var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
         objectResult.StatusCode.Should().Be(429);
     }
+
+    // ------------------------------------------------------------------ SEC-PT2-009: antiforgery policy
+
+    [Fact]
+    public void BiometricController_HasIgnoreAntiforgeryTokenAttribute()
+    {
+        var attr = typeof(BiometricController)
+            .GetCustomAttributes(typeof(IgnoreAntiforgeryTokenAttribute), inherit: false);
+        attr.Should().NotBeEmpty("BiometricController must carry [IgnoreAntiforgeryToken] (SEC-PT2-009)");
+    }
 }

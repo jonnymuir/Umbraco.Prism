@@ -10,9 +10,13 @@ namespace UmbracoPrism.Core.Controllers;
 /// <summary>
 /// API endpoints for triggering vinyl-related notifications (back-in-stock alerts).
 /// All routes require authenticated PrismMemberCookie session.
+///
+/// SEC-PT2-009 ANTIFORGERY POLICY: This controller is a Capacitor mobile app API.
+/// [IgnoreAntiforgeryToken] is deliberate — see BiometricController for rationale.
 /// </summary>
 [Route("umbraco/prism/vinyl")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+[IgnoreAntiforgeryToken]
 public class PrismVinylNotificationController(
     IPrismNotificationService notificationService,
     IPrismContext prismContext,
