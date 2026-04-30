@@ -353,3 +353,45 @@ SEC-003 implementation complete. Precondition for definition editor's non-Dev ro
 - `.squad/skills/ganss-xss-gds-allowlist/SKILL.md` — reusable Ganss.Xss GDS allowlist pattern
 
 ---
+
+
+---
+
+## 2026-04-30 — PR #39 Closeout: Pt2 Security Review (Depth-First, claude-opus-4.7)
+
+**Context:** Second-pass depth-first security review following Pt1 (breadth-first, gpt-5). Pt1 closed 11 findings on 2026-04-26; Pt2 raised 10 additional findings with premium model on targeted high-risk areas.
+
+**Scope:** Auth/identity defaults, sanitizer producer-side coverage, anonymous endpoints, CSRF posture, security response headers, dependency CVEs, DataProtection key management, CORS/origin trust on BiometricController.
+
+**Findings:** 0 Critical / 0 High / 5 Medium (2 patched, 3 open) / 4 Low (open) / 1 Info (open)
+
+**Fixes Landed:**
+1. **SEC-PT2-002** — Bumped transitive `OpenTelemetry.Exporter.OpenTelemetryProtocol 1.11.2 → 1.15.3` (CVE-2026-42191). Pt1 missed transitive; audit now clean.
+   - Commit: `244f3b5`
+2. **SEC-PT2-001** — Gated anonymous `/api/test/reset` endpoint behind `IsDevelopment()`. Neighbouring `/admin/*` guard didn't cover this path.
+   - Commit: `2ce771f`
+
+**Quality:** `dotnet build` clean, 601/601 Core tests green, vulnerable-package audit clean.
+
+**Open Items (Dispatched as `sec/pt2-backend`, separate PR):**
+- SEC-PT2-003: Logout-CSRF (GET → POST + antiforgery)
+- SEC-PT2-004: Missing security response headers (middleware + exemptions)
+- SEC-PT2-005: `DefaultAuthenticateScheme` integration test gap (assignee: Blathers)
+- SEC-PT2-006: DataProtection ephemeral keys; needs `PrismDataProtectionOptions`
+- SEC-PT2-007: Unsanitized `accordionSection.Content` Razor partial (XSS trap; unused today)
+- SEC-PT2-008: RTE field operator-trust pattern; informational
+- SEC-PT2-009: Antiforgery gap on JSON endpoints (mitigated by SameSite=Lax)
+- SEC-PT2-010: `IsCapacitorOrigin` localhost acceptance (risk-accept candidate)
+
+**Ledger:** `.squad/security-review-2026-04-30-pt2.md`
+
+**Model Used:** claude-opus-4.7
+
+**Key Learning:**
+- Transitive vulnerability audits must be explicit in full-stack reviews.
+- Middleware guards require path clarity; `/admin/*` doesn't cover `/api/test/*`.
+- Standard practice going forward: breadth-first pass + depth-first follow-up per security cycle.
+
+**Decision Recorded:** `.squad/decisions.md` § 2026-04-30 (merged from inbox).
+
+---

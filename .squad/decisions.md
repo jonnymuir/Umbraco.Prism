@@ -884,3 +884,65 @@ This resolves version mismatch that would have broken all prior releases if trig
 - Squad Release, Preview, and Promote workflows work correctly for all version formats
 
 ---
+
+## 📌 2026-04-30: Copper Pt2 Security Review (PR #39)
+
+**Status:** ✅ MERGED — 2 patches landed; 8 findings dispatched as `sec/pt2-backend`
+
+**Branch:** `sec/review-2026-04-30-pt2`  
+**Reviewer:** Copper (Security Engineer)  
+**Model:** claude-opus-4.7 (depth-first second-pass)  
+**Full ledger:** `.squad/security-review-2026-04-30-pt2.md`
+
+### Scope
+
+Depth-first second pass targeting what Pt1 either deferred or didn't open: auth/identity defaults, sanitizer producer-side coverage, anonymous endpoints, CSRF posture, security response headers, dependency CVEs, DataProtection key management, and CORS/origin trust on BiometricController. 10 findings raised; baseline 601/601 tests remain green.
+
+### Findings Summary
+
+| Severity | Count | Status |
+|----------|-------|--------|
+| Critical | 0 | — |
+| High | 0 | — |
+| Medium | 5 | 2 patched, 3 open |
+| Low | 4 | open |
+| Info | 1 | open |
+
+No actively exploitable Critical/High in production — this pass is hardening, verification, and cleanup.
+
+### Top 2 Patches (This PR)
+
+**SEC-PT2-002 — Vulnerable transitive `OpenTelemetry.Exporter.OpenTelemetryProtocol 1.11.2`** (CVE-2026-42191, Moderate)
+- Pt1 bumped `OpenTelemetry.Api` but missed the OTLP exporter transitive.
+- **Fixed:** Bumped to `1.15.3`. Vulnerable-package audit now clean across all 8 projects.
+- Commit: `244f3b5`
+
+**SEC-PT2-001 — Anonymous `/api/test/reset` in MockBusinessApp** wiped all workflow state with no auth and no env guard.
+- The neighbouring `/admin/*` guard didn't match this path.
+- **Fixed:** Explicit `IsDevelopment()` guard inside the handler.
+- Commit: `2ce771f`
+
+Both verified: `dotnet build` clean, 601/601 Core tests pass, vulnerable-package audit clean.
+
+### Open Items (Dispatched as `sec/pt2-backend`)
+
+- **SEC-PT2-003** — Logout via GET allows logout-CSRF; convert to POST + antiforgery (UX impact across logout buttons)
+- **SEC-PT2-004** — Missing security response headers (CSP, XFO, XCTO, HSTS, Referrer, Permissions); needs middleware + per-route exemption for backoffice
+- **SEC-PT2-005** — `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional; needs integration test asserting backoffice routes still see backoffice user
+- **SEC-PT2-006** — DataProtection keys ephemeral by default (not encrypted at rest); needs `PrismDataProtectionOptions` + production guidance
+- **SEC-PT2-007** — Unsanitized `accordionSection.Content` in Razor partial (currently unused, but XSS trap); sanitize or remove
+- **SEC-PT2-008** — `VinylRecord.cshtml @Html.Raw(description)` (RTE field, operator-trust pattern; informational)
+- **SEC-PT2-009** — Antiforgery missing on JSON state-mutating endpoints (Notification, VinylNotification, Biometric.Register); mitigated by `SameSite=Lax` + content-type
+- **SEC-PT2-010** — `IsCapacitorOrigin` accepts `http://localhost` with credentials (risk-accept candidate; document on threat model)
+
+### Key Learning
+
+1. **Transitive vulnerabilities require explicit audit** — Pt1 updated the direct package but didn't catch the downstream transitive. Future full-stack reviews must scan `.csproj` transitives alongside direct deps.
+2. **Middleware guards must cover sibling paths** — `/admin/*` guard didn't match `/api/test/*`, creating a parallel anonymous endpoint. Auth checks need path clarity upfront.
+3. **Breadth-first reviews need depth-first follow-up** — Pt1 (breadth, fast model) closed 11 findings; Pt2 (depth, claude-opus) surfaced 10 more. Standard practice: one fast pass + one deep pass per security cycle.
+
+### Basis
+
+Copper's commits `244f3b5` and `2ce771f` on `sec/review-2026-04-30-pt2`; inbox summary (this ledger).
+
+---
