@@ -10,6 +10,26 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: PR #38 CI Green — MockBusinessApp Sanitizer Fix (2026-04-30)
+
+**Status:** ✅ Complete — Commit `6751662` on `fix/ci-green` (merged as `dc316fb` on main)
+
+**Scope:** Fix `localhost-auth-playwright` CI timeout by registering `IWorkflowContentSanitizer` in MockBusinessApp's DI container.
+
+**Changes:**
+
+1. Added `PassthroughSanitizer` (file-scoped) to MockBusinessApp's `Program.cs`
+2. Registered as `services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>()`
+3. Verified: HTTP 401 on readiness probe, app starts successfully
+
+**Impact:** Unblocked all three Playwright spec files; 601 Core unit tests pass.
+
+**Note on Round 2:** Blathers diagnosed a concurrent handler race in round 2 and shipped a polling fix (commit `46826fe`). This turned out to be a misdiagnosis — Umbraco's notification handlers are sequential, not concurrent. The polling fix created a deadlock (seeder blocked dispatcher, preventing type-creating seeder from running). Brewster reverted this in round 3.
+
+**Lesson:** In Umbraco, `INotificationAsyncHandler` dispatch is sequential in registration order. Async polling in handlers holds the entire dispatch chain. Use `[ComposeAfter]` for explicit ordering, not polling.
+
+---
+
 ## Session: SEC-003 — Sanitizer Wire-Up (T1, T3–T5, T7, T9) (2026-04-30)
 
 **Status:** ✅ Complete — Commit `4223861` pushed to main

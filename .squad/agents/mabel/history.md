@@ -15,6 +15,36 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## Session: PR #38 CI Green — v1.8.0 CHANGELOG + Workflow Regex Fix (2026-04-30)
+
+**Status:** ✅ Complete — Commits `da5d29d`, `8809c64` on `fix/ci-green` (merged as `dc316fb` on main)
+
+**Scope:** Add CHANGELOG entry for 1.8.0 release milestone and fix Squad Release workflow version guard.
+
+### Changes
+
+1. **CHANGELOG entry (commit `da5d29d`):**
+   - Added `## [v1.8.0] — 2026-04-30` section
+   - Consolidated security review findings (SEC-001 through SEC-011)
+   - Listed feature additions, behavioral changes, fixes, and security CVE bumps
+
+2. **Workflow regex fix (commit `8809c64`):**
+   - Fixed `squad-release.yml`, `squad-preview.yml`, `squad-promote.yml`
+   - Changed version check from `grep -q "## \[$VERSION\]"` to `grep -qE "^## \[v?$VERSION\]"`
+   - Now accepts both `[1.8.0]` and `[v1.8.0]` formats
+
+### Impact
+
+- Release gate satisfied: CI version consistency check passes
+- Squad Release/Preview/Promote workflows unblocked for all version formats
+- Prevents future release regressions
+
+### Architectural Note
+
+The optional `v` prefix in release tags (`[v1.8.0]`) is documented but the gate didn't validate it. This was a silent hole — regex fix catches it for future releases.
+
+---
+
 ## 2026-04-30: Full Documentation Review & v2 Schema Cleanup — COMPLETE
 
 **Session:** Comprehensive documentation audit, v2 schema terminology cleanup, and walkthrough consolidation

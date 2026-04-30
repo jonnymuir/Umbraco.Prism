@@ -695,3 +695,192 @@ Separate tickets (not blockers):
 **Why preserved:** Design decisions, test strategy breakdown (6.1–6.3), allowlist rationale (4.3), and architectural alternatives (4.4) are useful reference for future sanitizer extensions or related hardening work. This file remains in `.squad/decisions.md` for posterity; the inbox copy is deleted.
 
 ---
+
+## 📌 2026-04-30: Blathers — MockBusinessApp IWorkflowContentSanitizer Registration (PR #38 Round 1)
+
+**Status:** ✅ FIXED — Commit `6751662` on `fix/ci-green`
+
+### Summary
+
+The `localhost-auth-playwright` CI lane was failing with all Playwright specs timing out at the 5-minute readiness deadline. Logs showed MockBusinessApp (`https://localhost:7245/api/backoffice/me`) accepting TCP connections but never returning an HTTP response — every probe timed out after 5000 ms consistently.
+
+### Root Cause
+
+SEC-003 added `IWorkflowContentSanitizer` as a constructor dependency to `BusinessAppWorkflowEngine` (which runs in MockBusinessApp). The registration for this interface lives in `UmbracoPrism.Core/Extensions/WorkflowBuilderExtensions.cs`, which is only called by TestSite through `AddPrismWorkflowEngine()`.
+
+MockBusinessApp only references `UmbracoPrism.Shared` and registers `BusinessAppWorkflowEngine` directly — it never calls `AddPrismWorkflowEngine()`. This left `IWorkflowContentSanitizer` unregistered in MockBusinessApp's DI container. At startup, the app crashed with `InvalidOperationException`, and Aspire DCP kept the port bound but with no live HTTP endpoint.
+
+### Decision
+
+Register a `file`-scoped `PassthroughSanitizer` directly in MockBusinessApp's `Program.cs`. MockBusinessApp serves controlled developer-authored seed content (no user-supplied HTML), so a passthrough implementation is appropriate.
+
+### Impact
+
+- MockBusinessApp now starts successfully and responds to the readiness probe with HTTP 401
+- All three Playwright spec files unblocked
+- 601 Core unit tests pass
+
+---
+
+## 📌 2026-04-30: Blathers — WorkflowPageSeeder Race Condition Finding (PR #38 Round 2)
+
+**Status:** ⚠️ MISDIAGNOSIS — Commit `46826fe` reverted by Brewster in round 3
+
+### Context
+
+After the PassthroughSanitizer fix, MockBusinessApp started but CI run revealed workflow pages seeded as `published: false`. Blathers diagnosed a concurrent handler dispatch race where `WorkflowPageSeeder` ran before `PrismContentTypeSeeder` on fresh CI databases.
+
+### Original Decision (Later Reverted)
+
+Add polling to `WorkflowPageSeeder.HandleAsync`: wait up to 90 seconds for `workflowPage` content type to exist before seeding, retrying every 500ms.
+
+### Why This Regressed
+
+Umbraco's `INotificationAsyncHandler` dispatch is **sequential**, not concurrent. The async polling fix created a deadlock: `WorkflowPageSeeder` held the dispatcher chain with its 90-second poll loop, blocking `PrismContentTypeSeeder` (registered later) from running — preventing type creation while the seeder was waiting for it.
+
+Result: home and dashboard also failed to publish, and `/dashboard` returned 500.
+
+### Lesson
+
+This finding correctly identified that handler registration order matters in Umbraco. The solution (polling) was the wrong tool for the problem. See Brewster's round 3 decision for the correct fix.
+
+---
+
+## 📌 2026-04-30: Brewster — CI Green Round 3 — Seeding Order Fix (PR #38 Round 3)
+
+**Status:** ✅ FIXED — Commit `ffa1034` on `fix/ci-green`
+
+### Root Cause
+
+Umbraco's notification handlers are dispatched **sequentially**, not concurrently. `TestSiteComposer` had no ordering constraint relative to `PrismComposer`. On fresh CI, assembly load order meant `TestSiteComposer.Compose()` ran **before** `PrismComposer.Compose()`, registering `WorkflowPageSeeder` before `PrismContentTypeSeeder`.
+
+With sequential dispatch:
+1. `WorkflowPageSeeder` ran first — on a fresh database, content types didn't exist
+2. Silently skipped all seeding
+3. `PrismContentTypeSeeder` ran after, creating types but no content
+
+Blathers' round 2 polling fix made this worse: it held the dispatch loop for 90 seconds, preventing `PrismContentTypeSeeder` from running — **deadlock**.
+
+### Decision
+
+Two-part fix (commit `ffa1034`):
+
+1. **Revert polling:** `WorkflowPageSeeder.HandleAsync` restored to synchronous implementation
+2. **Add composer ordering:** Mark `TestSiteComposer` with `[ComposeAfter(typeof(PrismComposer))]` to make the dependency explicit
+
+This ensures `PrismContentTypeSeeder` runs first, creating all types; `WorkflowPageSeeder` runs second, finding all types and seeding content.
+
+### Impact
+
+- All 5 workflow pages now publish on fresh CI databases
+- Home and dashboard routes return 200 signed-out
+- Workflow routes (`/my-workflows`, `/apply-for-planning-permission`) work
+- 601 Core unit tests pass
+
+### Architectural Learning
+
+`[ComposeAfter]` / `[ComposeBefore]` are the idiomatic Umbraco tools for cross-assembly handler ordering. Do not assume concurrent dispatch of notification handlers.
+
+---
+
+## 📌 2026-04-30: Brewster — DefaultAuthenticateScheme Must Not Depend on Prism:VaultUri
+
+**Status:** ✅ FIXED — Commit `42b85e5` on `fix/ci-green`
+
+### Context
+
+`PrismComposer` was gating `DefaultAuthenticateScheme = "PrismMemberCookie"` on `isAuthEnabled = !string.IsNullOrEmpty(builder.Config["Prism:VaultUri"])`.
+
+Security commit `b6336fd` correctly removed `Prism:VaultUri` from `appsettings.json` (it is a deployment secret). This silently made `isAuthEnabled = false`, so the three auth defaults (`DefaultAuthenticateScheme`, `DefaultSignInScheme`, `DefaultChallengeScheme`) were never registered with ASP.NET Core.
+
+### Symptom
+
+After Keycloak sign-in, the browser received `PrismMemberCookie` and sent it on all requests. Route-hijacking controllers with `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` (e.g. `/dashboard`) continued to work because they name the scheme explicitly. But the home page view, which uses `Context.User.Identity.IsAuthenticated` under the default authentication pipeline, always showed the signed-out state.
+
+The Playwright test saw `/dashboard` → 200 (authenticated) then `/` → 200 (signed out), timing out waiting for "Go to Dashboard".
+
+**Root cause confirmed via network trace:** `UseAuthentication()` on the home-page request used Umbraco's fallback default scheme (not `PrismMemberCookie`), so the cookie was never decrypted and `User.Identity` remained anonymous.
+
+### Decision
+
+**Auth scheme defaults are unconditional.** The vault URI is an optional secret-provider detail (Azure Key Vault for production; inline secrets for local dev/CI). Its presence must not gate authentication setup.
+
+Remove the `isAuthEnabled` flag and always call:
+
+```csharp
+options.DefaultAuthenticateScheme = "PrismMemberCookie";
+options.DefaultSignInScheme = "PrismMemberCookie";
+options.DefaultChallengeScheme = "PrismEntraID";
+```
+
+### Guidance for Future Work
+
+- Do not tie authentication enablement to the presence of any secret or infrastructure URI in config
+- If Prism auth ever needs to be feature-flagged, introduce a dedicated `Prism:AuthEnabled` boolean, defaulting to `true`
+- Secrets like `Prism:VaultUri` belong in `appsettings.Local.json` (gitignored)
+
+### Impact
+
+- Home page now correctly shows authenticated state for signed-in users
+- Signed-out users see "Sign In" as expected
+- All route authentication works consistently
+- 601 Core unit tests pass
+
+---
+
+## 📌 2026-04-30: Mabel — 1.8.0 Release Guard + Workflow Regex Fix
+
+**Status:** ✅ COMPLETE — Commits `da5d29d`, `8809c64` on `fix/ci-green`
+
+### Summary
+
+Added `## [v1.8.0] — 2026-04-30` CHANGELOG entry to satisfy the Squad Release workflow's version consistency guard, and fixed Squad Release workflow regex in three files to accept optional `v` prefix.
+
+### CHANGELOG Entry (Commit `da5d29d`)
+
+The security review audit (2026-04-30, 11 findings) marked the release milestone for 1.8.0. CHANGELOG now consolidates all feature work and security hardening:
+
+**Features:**
+- Generic OIDC provider support
+- Tenant API + model enhancements
+- Workflow and forms engine
+- Mobile app UI polish & accessibility
+
+**Security (11 findings, all processed):**
+- SEC-001: WorkflowPollController authorization
+- SEC-002 / SEC-008: CVE bumps (DataProtection, OpenTelemetry.Api)
+- SEC-003: HTML sanitizer (GDS allowlist)
+- SEC-004: HMAC signing key rotation (appsettings.Local.json pattern)
+- SEC-005: npm audit fixes
+- SEC-006: CookieSecurePolicy.Always hardening
+- SEC-007: ForwardedHeadersMiddleware
+- SEC-009: Structured logging
+- SEC-010: Entra ID credentials scrubbed
+- SEC-011: aria-describedby attribute encoding
+
+### Workflow Regex Fix (Commit `8809c64`)
+
+The Squad Release workflow guard (`Validate version consistency` step) checked:
+```bash
+grep -q "## \[$VERSION\]" CHANGELOG.md
+```
+
+This failed for v1.8.0 because the entry format is `## [v1.8.0]` with a `v` prefix. Fixed the regex in three workflows to accept optional `v`:
+- `squad-release.yml`
+- `squad-preview.yml`
+- `squad-promote.yml`
+
+Changed to:
+```bash
+grep -qE "^## \[v?$VERSION\]"
+```
+
+This resolves version mismatch that would have broken all prior releases if triggered.
+
+### Impact
+
+- 1.8.0 release milestone marked
+- CI gate passes version consistency check
+- Squad Release, Preview, and Promote workflows work correctly for all version formats
+
+---
