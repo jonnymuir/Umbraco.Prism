@@ -867,6 +867,15 @@ public class BusinessAppWorkflowEngine
         var raw = savedValues.TryGetValue(input.FieldKey, out var v) ? v : null;
         if (raw == null) return null;
 
+        // Checkbox lists are persisted as comma-separated strings; render them with a
+        // user-friendly ", " separator in summary lists rather than the raw "a,b,c".
+        if ((fieldType == "checkboxlist" || fieldType == "checkboxes") && raw is string rawStr)
+        {
+            raw = string.Join(
+                ", ",
+                rawStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
         var prefix = input switch
         {
             TextInputComponent t => t.Prefix,
