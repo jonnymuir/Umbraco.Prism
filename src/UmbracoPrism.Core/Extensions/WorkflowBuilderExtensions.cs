@@ -51,10 +51,10 @@ public static class WorkflowBuilderExtensions
         // Workflow field validator for server-side structural validation
         builder.Services.AddTransient<IWorkflowFieldValidator, WorkflowFieldValidator>();
 
-        // Content sanitizer — NoOp placeholder until Copper's SEC-003 T2 real impl lands.
-        // Copper will replace NoOpWorkflowContentSanitizer with WorkflowContentSanitizer
-        // (Ganss.Xss-backed GDS allowlist) and re-register here.
-        builder.Services.AddSingleton<IWorkflowContentSanitizer, NoOpWorkflowContentSanitizer>();
+        // Content sanitizer — Ganss.Xss-backed GDS allowlist (SEC-003 T2).
+        // Registered as singleton: HtmlSanitizer is thread-safe for concurrent Sanitize calls
+        // when configuration is not mutated after construction.
+        builder.Services.AddSingleton<IWorkflowContentSanitizer, WorkflowContentSanitizer>();
 
         return builder;
     }

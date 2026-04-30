@@ -781,14 +781,11 @@ public class Phase1SecurityRegressionTests
     //
     // These tests assert that when the engine processes a malicious Content
     // payload, the rendered PrismComponentRenderPayload.Content does NOT
-    // contain the malicious vector.
-    //
-    // ALL tests in this region are SKIPPED until Copper's WorkflowContentSanitizer
-    // (Ganss.Xss-backed GDS allowlist, SEC-003 T2) replaces the NoOp placeholder.
-    // Copper: remove the Skip attribute and verify all pass.
+    // contain the malicious vector. They use the real WorkflowContentSanitizer
+    // (Ganss.Xss-backed GDS allowlist) wired into a minimal engine instance.
     // ------------------------------------------------------------------
 
-    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    [Fact]
     public void WorkflowContent_ScriptTagInBody_StrippedFromPayload()
     {
         var content = "<script>alert(1)</script><p>safe</p>";
@@ -797,7 +794,7 @@ public class Phase1SecurityRegressionTests
             because: "script tags must be stripped by IWorkflowContentSanitizer before reaching the payload");
     }
 
-    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    [Fact]
     public void WorkflowContent_JavascriptHref_StrippedFromPayload()
     {
         var content = "<a href=\"javascript:alert(1)\">click</a>";
@@ -806,7 +803,7 @@ public class Phase1SecurityRegressionTests
             because: "javascript: href schemes must be stripped by IWorkflowContentSanitizer");
     }
 
-    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    [Fact]
     public void WorkflowContent_OnerrorAttribute_StrippedFromPayload()
     {
         var content = "<img src=x onerror=alert(1)>";
@@ -815,7 +812,7 @@ public class Phase1SecurityRegressionTests
             because: "event handler attributes (on*) must be stripped by IWorkflowContentSanitizer");
     }
 
-    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    [Fact]
     public void WorkflowContent_DataTextHtmlHref_StrippedFromPayload()
     {
         var content = "<a href=\"data:text/html,<script>alert(1)</script>\">x</a>";
@@ -824,7 +821,7 @@ public class Phase1SecurityRegressionTests
             because: "data: URI schemes must be stripped by IWorkflowContentSanitizer");
     }
 
-    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    [Fact]
     public void WorkflowContent_NestedSvgWithOnload_StrippedFromPayload()
     {
         var content = "<svg onload=alert(1)><circle/></svg><p>text</p>";
@@ -835,7 +832,7 @@ public class Phase1SecurityRegressionTests
             because: "onload event handler must be stripped by IWorkflowContentSanitizer");
     }
 
-    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    [Fact]
     public void WorkflowContent_PlainTextContent_PreservedInPayload()
     {
         var content = "Hello, this is plain text with no HTML.";
@@ -845,8 +842,9 @@ public class Phase1SecurityRegressionTests
     }
 
     /// <summary>
-    /// Builds a minimal engine, runs a single BodyComponent with the given content
-    /// through BuildComponents (via GetCurrent), and returns the resulting payload Content string.
+    /// Builds a minimal engine wired with the real <see cref="WorkflowContentSanitizer"/>,
+    /// runs a single BodyComponent through BuildComponents (via GetCurrent),
+    /// and returns the resulting payload Content string.
     /// </summary>
     private static string BuildEnginePayloadForBody(string content)
     {
@@ -886,13 +884,10 @@ public class Phase1SecurityRegressionTests
             mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
 
             var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
-            // NoOp sanitizer — returns content unchanged (identity).
-            // These tests are skipped because with NoOp the malicious vectors pass through,
-            // causing the assertions to fail. Copper: replace with real WorkflowContentSanitizer.
-            var sanitizer = new Mock<IWorkflowContentSanitizer>();
-            sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+            // Real sanitizer — exercises the GDS allowlist security boundary.
+            var sanitizer = new UmbracoPrism.Core.Services.Sanitization.WorkflowContentSanitizer();
 
-            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer.Object);
+            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer);
             var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
 
             var bodyComponent = result.Render!.Components.FirstOrDefault(c =>
