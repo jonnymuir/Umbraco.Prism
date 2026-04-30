@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
@@ -368,6 +370,43 @@ public class Phase1SecurityRegressionTests
 
         hasMemberCookieAuth.Should().BeTrue(
             "because WorkflowPollController.Poll returns workflow state and must require member authentication");
+    }
+
+    // ------------------------------------------------------------------
+    // 6. COOKIE SECURE POLICY (SEC-006 patch)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void PrismMemberCookie_SecurePolicy_IsAlways()
+    {
+        // SECURITY: CookieSecurePolicy.SameAsRequest omits the Secure flag when the request
+        // arrives over plain HTTP (e.g. a TLS-terminating load balancer with an HTTP backend),
+        // allowing the session cookie to be transmitted in cleartext.
+        // Fix (PrismComposer.cs): CookieSecurePolicy.Always ensures Secure is always present.
+        //
+        // NOTE: This means local dev must use HTTPS. The default Aspire launch profile
+        // already enforces HTTPS; dotnet dev-certs https --trust is required on first run.
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDataProtection();
+        services.AddAuthentication()
+            .AddCookie("PrismMemberCookie", opts =>
+            {
+                // Mirror exactly the cookie options set in PrismComposer.cs
+                opts.Cookie.Name = "PrismMemberCookie";
+                opts.LoginPath = "/auth/login";
+                opts.Cookie.SameSite = SameSiteMode.Lax;
+                opts.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            });
+
+        var sp = services.BuildServiceProvider();
+        var monitor = sp.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>();
+        var actual = monitor.Get("PrismMemberCookie").Cookie.SecurePolicy;
+
+        actual.Should().Be(CookieSecurePolicy.Always,
+            "because PrismMemberCookie must always carry the Secure flag — " +
+            "CookieSecurePolicy.SameAsRequest silently drops it over HTTP backends (SEC-006)");
     }
 
     // ------------------------------------------------------------------

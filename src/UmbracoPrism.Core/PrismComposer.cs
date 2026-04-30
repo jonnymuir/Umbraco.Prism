@@ -105,7 +105,7 @@ public class PrismComposer : IComposer
             cookieOptions.Cookie.Name = "PrismMemberCookie";
             cookieOptions.LoginPath = "/auth/login";
             cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
-            cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         }, openIdConnectScheme: "PrismEntraID", cookieScheme: "PrismMemberCookie")
         .EnableTokenAcquisitionToCallDownstreamApi()
         .AddInMemoryTokenCaches();
