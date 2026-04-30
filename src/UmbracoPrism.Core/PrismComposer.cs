@@ -91,17 +91,14 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
         
         // 6. Authentication & Cookie Setup
-        var vaultUri = builder.Config["Prism:VaultUri"];
-        bool isAuthEnabled = !string.IsNullOrEmpty(vaultUri);
-
+        // Auth defaults are unconditional: PrismMemberCookie handles all member
+        // requests regardless of whether an Azure Key Vault URI is configured.
+        // Vault presence is an optional secret-provider detail, not a feature flag.
         var authBuilder = builder.Services.AddAuthentication(options =>
         {
-            if (isAuthEnabled)
-            {
-                options.DefaultAuthenticateScheme = "PrismMemberCookie";
-                options.DefaultSignInScheme = "PrismMemberCookie";
-                options.DefaultChallengeScheme = "PrismEntraID";
-            }
+            options.DefaultAuthenticateScheme = "PrismMemberCookie";
+            options.DefaultSignInScheme = "PrismMemberCookie";
+            options.DefaultChallengeScheme = "PrismEntraID";
         });
 
         authBuilder.AddMicrosoftIdentityWebApp(identityOptions =>
