@@ -122,3 +122,28 @@ History trimmed for readability. Complete history in git.
 - Design docs age better when describing *protocols* rather than *schemas*
 
 ---
+
+---
+
+## 2026-04-30 — SEC-003 Design Proposal: `@Html.Raw(Content)` Sanitization
+
+**Status:** ✅ Proposal delivered — `.squad/decisions/inbox/tom-nook-sec-003-proposal.md`
+
+**Scoping outcome:**
+- Inventoried every `@Html.Raw` in `src/`. **7 in-scope call sites** in workflow display partials (Body, InsetText, WarningText, NotificationBanner, Panel, Details, Accordion). Copper's report cited 4; broadened to 7. Field-attribute Html.Raw and TestSite RTE paths flagged out-of-scope (already-encoded / separate audit).
+- Trust today: author-controlled, design-time JSON seeds (`workflow-seeds/*.json` → `BusinessAppWorkflowEngine.BuildComponents` → `PrismComponentRenderPayload.Content` → view). Drifting toward mixed once the definition editor leaves Dev — locked precondition in `decisions.md` already commits to sanitizer-before-non-Dev-editor.
+- Existing sanitization: **none wired** for workflow content (only id/file sluggers and Umbraco's RTE TinyMCE setting).
+
+**Recommended pattern:** `IWorkflowContentSanitizer` (Ganss.Xss-backed, GDS-aligned allowlist) injected into `BusinessAppWorkflowEngine`, applied at the engine→payload boundary in `BuildComponents`. Payload becomes the contractual trust boundary; xmldoc states "pre-sanitized, safe for `@Html.Raw`".
+
+**Rejected:** drop-Html.Raw / encode-everything (breaks GDS rich text); trust-source-only (brittle, decision already committed against it); per-partial sanitize call (sprawl); TagHelper sanitize (TagHelper doesn't process content fields); JSON-deserializer hook (action-at-a-distance); AntiXSS encoder (escapes, doesn't allowlist).
+
+**Allowlist (frozen v1):** block-level p/ul/ol/li/blockquote/br/h2-h4; inline strong/em/b/i/code/abbr/span/a; href schemes http(s)/mailto/tel; auto-`rel="noopener noreferrer"`+`target="_blank"` on external; no class/style/id/data-*/event handlers; `<script><style><iframe><svg>` etc. stripped.
+
+**Plan:** 10 discrete tasks routed — Copper owns allowlist + unit tests (T2, T8); Blathers owns Ganss.Xss package, DI wiring, engine seam, seed regression test, Phase1 regression cases (T1, T3, T4, T5, T6, T7, T9); Mabel docs T10 post-merge.
+
+**Test strategy:** `WorkflowContentSanitizerTests` (16 unit cases — `<script>`, `javascript:`, `onerror`, `data:text/html`, `<style>`, mailto/tel preservation, idempotency); 6 new `Phase1SecurityRegressionTests` end-to-end through the engine; seed round-trip diff test.
+
+**Rollout:** no feature flag (per 2026-04-26 directive). Direct cutover on `main`; expected baseline 547 → 569+ tests post-merge. Allowlist tightening is backward-compatible to current seeds (T7 verifies).
+
+**Did not implement** — design doc only, per directive. Awaiting sign-off from Copper (allowlist), Blathers (seam), Jonny (scope).

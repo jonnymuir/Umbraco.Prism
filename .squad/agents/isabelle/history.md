@@ -5,6 +5,30 @@
 
 ## 📋 Recent History
 
+---
+
+## Session: 2026-04-30 — SEC-005 npm CVE Remediation
+
+**Role:** Frontend developer; security patching of UmbracoPrism.Client npm dependencies.
+
+**Commit:** `7e499b5` on `main`
+
+**Outcomes:**
+- Ran `npm audit fix` (auto-fixed axios, defu, lodash, minimatch, picomatch, rollup, vite and transitive deps)
+- Upgraded storybook 8.6.15 → 8.6.18 (non-breaking) to fix HIGH WebSocket hijacking CVE
+- Upgraded @storybook/test-runner 0.18.0 → 0.21.0
+- Added `"overrides": { "dompurify": "^3.4.1" }` to pin nested monaco-editor copy from 3.2.7 (vulnerable) to 3.4.1
+- Critical handlebars CVE resolved: handlebars no longer in dependency tree after @umbraco-cms/backoffice transitive update
+- Build clean; 0 critical, 0 high remaining (9 moderate — all dev-only/upstream unfixable)
+
+**Before/After:** 26 vulns (1 critical, 10 high, 14 moderate, 1 low) → 9 vulns (0 critical, 0 high, 9 moderate, 0 low)
+
+**Residual:** uuid moderate (storybook test tooling, fix requires major downgrade) + @umbraco-cms/backoffice monaco-editor chain (upstream fix=False). No runtime impact.
+
+**Decision note:** `.squad/decisions/inbox/isabelle-sec-005.md`
+
+**Status:** ✅ Complete; SEC-005 closed.
+
 Previous history archived to reduce file size. Recent entries below.
 
 ---
