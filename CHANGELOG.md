@@ -2,27 +2,41 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
-## [v1.8.0] — 2026-04-14
+## [v1.8.0] — 2026-04-30
 
-### New Features
+### Added
 
 - **Generic OIDC provider support:** Prism now supports any OIDC-compliant identity provider (not just Azure AD). Configure custom OIDC endpoints per tenant for full flexibility in identity routing.
 - **Tenant API and model enhancements:** Expanded tenant entity with new fields and API endpoints for runtime tenant management, enabling dynamic provisioning workflows.
 - **Workflow and forms capabilities:** Embedded workflow state machine and forms engine for automation and user-friendly data collection within tenant contexts.
 - **Mobile app UI polish:** Refined responsive design, improved accessibility across mobile and desktop views, and enhanced component library with sticky action buttons.
-
-### Security Enhancements
-
 - **JWKS and nonce validation:** Implemented per-tenant JWKS validation for ID token signatures and strict nonce replay protection in OIDC flows.
 - **Structured auth logging:** Replaced debug output with secure structured logging to prevent accidental exposure of sensitive tenant data in production logs.
 - **Key Vault 404 fallback:** Graceful handling of missing secrets in Azure Key Vault with fallback to local config, allowing safe dev/staging workflows.
 
-### Bug Fixes & Improvements
+### Changed
+
+- **CookieSecurePolicy hardening:** Updated `PrismMemberCookie` to use `CookieSecurePolicy.Always` to ensure the `Secure` flag is set in all environments, preventing transmission over unencrypted HTTP.
+
+### Fixed
 
 - **Android biometric compatibility:** Fixed GNU sed incompatibility on macOS by using Perl for biometric manifest injection. Auto-upgraded Gradle to support Java 25.
 - **Singleton-scoped service resolution:** Fixed `InvalidOperationException` in background services by using `IServiceScopeFactory` for transient scoped service resolution.
 - **Modal scrolling and layout:** Restored vertical scrolling in maximized modals and preserved `uui-dialog-layout` component with full accessibility compliance.
 - **Design system:** Refactored to ITCSS for improved cascade management, added responsive CSS variables with inheritance chain indicators, and comprehensive ARIA improvements.
+- **Workflow state exposure:** Added authorization to `WorkflowPollController` to prevent unauthenticated access to workflow state (SEC-001).
+- **HTML injection in workflow components:** Introduced `IWorkflowContentSanitizer` with GDS-aligned allowlist to sanitize dynamic HTML content in workflow display components, closing XSS attack surface (SEC-003).
+- **Committed HMAC signing key:** Rotated HMAC key and moved to `appsettings.Local.json` (gitignored) to prevent secret exposure in version control (SEC-004).
+- **npm dependency vulnerabilities:** Applied `npm audit fix` to patch critical handlebars CVE and 10 high-severity vulnerabilities in npm dependency tree (SEC-005).
+- **Proxy-aware rate limiting:** Added `ForwardedHeadersMiddleware` to respect `X-Forwarded-For` headers for accurate biometric rate limiting behind reverse proxies (SEC-007).
+- **Entra ID credential leakage:** Replaced real Azure Entra tenant/client IDs and PII in MockBusinessApp config with placeholder values (SEC-010).
+- **Unsafe aria attributes:** Added HTML encoding to `aria-describedby` attributes to prevent attribute injection (SEC-011).
+
+### Security
+
+- **Upgraded Microsoft.AspNetCore.DataProtection** to patched version to address GHSA-9mv3-2cwr-p262 CVE (SEC-002).
+- **Upgraded OpenTelemetry.Api** to 1.12.1+ to address GHSA-g94r-2vxg-569j moderate advisory (SEC-008).
+- **Structured logging injection fix:** Replaced string interpolation with structured logging in `PrismTenantMiddleware` to prevent log injection attacks (SEC-009).
 
 ---
 
