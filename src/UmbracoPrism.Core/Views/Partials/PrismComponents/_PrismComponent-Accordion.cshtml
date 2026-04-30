@@ -1,4 +1,5 @@
 @model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
+@inject UmbracoPrism.Shared.Services.Sanitization.IWorkflowContentSanitizer Sanitizer
 @{
     var accordionId = $"accordion-{Guid.NewGuid():N}";
     var accordionSections = Model.Component.AccordionSections;
@@ -37,7 +38,7 @@
                     }
                     else if (!string.IsNullOrEmpty(accordionSection.Content))
                     {
-                        @Html.Raw(accordionSection.Content)
+                        @Html.Raw(Sanitizer.Sanitize(accordionSection.Content))
                     }
                 </div>
             </div>
