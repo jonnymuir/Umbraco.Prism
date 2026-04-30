@@ -1,4 +1,6 @@
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@using UmbracoPrism.Shared.Services.Sanitization
+@inject IWorkflowContentSanitizer Sanitizer
 @{
     Layout = "~/Views/Shared/Master.cshtml";
     
@@ -82,7 +84,7 @@
     {
         <div class="vinyl-description">
             <h3>About This Album</h3>
-            @Html.Raw(description)
+            @Html.Raw(Sanitizer.Sanitize(description))
         </div>
     }
     
