@@ -1,9 +1,8 @@
 # Isabelle — History
 
-
-
-
 ## 📋 Recent History
+
+Previous history (pre-2026-04-22) archived to `.squad/agents/isabelle/archive/history-archive-2026-04-30.md` for traceability.
 
 ---
 
@@ -25,280 +24,89 @@
 
 **Residual:** uuid moderate (storybook test tooling, fix requires major downgrade) + @umbraco-cms/backoffice monaco-editor chain (upstream fix=False). No runtime impact.
 
-**Decision note:** `.squad/decisions/inbox/isabelle-sec-005.md`
+**Decision:** `.squad/decisions/inbox/isabelle-sec-005.md` (merged to decisions.md 2026-04-30)
 
 **Status:** ✅ Complete; SEC-005 closed.
 
-Previous history archived to reduce file size. Recent entries below.
-
 ---
 
-## Session: 2026-04-19 — GDS View Layer for Workflow Engine
-
-**Role:** Frontend developer; GOV.UK Design System integration for workflow views.
-
-**Outcomes:**
-- Installed govuk-frontend 5.9.0 in TestSite via npm
-- Added MSBuild target to install govuk-frontend and copy assets before build
-- Updated Master.cshtml with GDS template classes and govuk-frontend.min.css/js
-- Renamed _WorkflowStep-Collect.cshtml → _WorkflowStep-Question.cshtml
-- Updated all workflow step partials (_Review, _Completion, _StatusTimeline) to use GDS patterns
-- Created new _WorkflowStep-TaskList.cshtml with GDS task list pattern
-- Refactored PrismFieldTagHelper to emit govuk-* classes instead of prism-*
-- Updated PrismErrorSummaryTagHelper to match GDS error summary structure
-- Updated WorkflowPage.cshtml dispatch to map archetype names to new partial names
-- Build passes with no errors
-
-**Key Learnings:**
-- GDS requires govuk-template and govuk-template__body classes on html/body for proper styling
-- GDS error messages need `<span class="govuk-visually-hidden">Error:</span>` prefix for screen readers
-- GDS required indicators use visually-hidden text, not asterisks
-- GDS radios/checkboxes need data-module attributes for progressive enhancement
-- GDS fieldset legends use govuk-fieldset__legend class, not govuk-legend
-- MSBuild targets can run npm commands before build to keep frontend dependencies fresh
-- Prism CSS can coexist with GDS CSS; only workflow views use GDS classes
-
-**Status:** ✅ Complete; workflow views now use GOV.UK Design System patterns.
-
----
-
-
-## Session: 2026-04-13 — Generic OIDC Secret Refactor (UI Alignment)
-
-**Role:** Frontend developer; tenant modal and Storybook alignment.
-
-**Outcomes:**
-- Updated tenant modal to treat generic OIDC secret editing as replace-only surface
-- Secret field starts blank on edit (preserves existing reference unless user explicitly replaces)
-- Added explicit reset action for clearing secrets
-- Updated Storybook stories documenting demo vs. production behavior
-- Client build passing; UI tests passing
-
-**Key Learnings:**
-- UI preservation semantics mirror backend avoid-echo semantics: mask the reference, show presence via metadata
-- Visual distinction between demo (inline, repo-owned) and production (vault-backed) is critical for admin understanding
-- Blank-on-load for secret fields is a UX pattern that works well with backend preservation behavior
-
-**Status:** ✅ Complete; UI aligned to secure-by-default model.
-
-
-## Learnings
-
-- 2026-04-22: Workflow shell selection can be derived safely from render payload shape in the Razor layer: `waiting` component or WaitingConfig → waiting shell; summary-list-only data components → check-answers; panel with no interactive fields → confirmation; task-list component → task-list; otherwise fall back to question/status based on whether editable fields or actions exist.
-- 2026-04-22: Content-authored field types inside fieldsets must be handled as inline GOV.UK content, not default inputs. In practice this means `inset-text`, `warning-text`, `details`, and `notification-banner` need dedicated inline rendering in `PrismFieldTagHelper`, even when authored alongside real inputs in the same fieldset.
-
-- 2026-04-22: PrismFields partial directory pattern: all field partials live at `~/Views/Partials/PrismFields/_PrismField-{TypeName}.cshtml` with a `_PrismField-Default.cshtml` fallback. A shared `_PrismFieldLabel.cshtml` sub-partial renders the label/hint/error trio, keeping individual field partials DRY.
-- 2026-04-22: GDS class conventions for field partials: `govuk-form-group` wrapper (+ `govuk-form-group--error` when invalid); `govuk-input`, `govuk-textarea`, `govuk-select` for controls (+ `--error` modifier); `govuk-radios`/`govuk-checkboxes` with `data-module` attributes; `govuk-date-input` for the GDS three-part date pattern.
-- 2026-04-22: Accessibility patterns used across all field partials: every input has an associated `<label for=>` or `<fieldset><legend>`; error messages have `role="alert"` + `<span class="govuk-visually-hidden">Error:</span>`; required fields carry `aria-required="true"` plus HTML `required`; invalid fields carry `aria-invalid="true"`; `aria-describedby` references hint and error IDs; conditionally hidden fields receive `hidden`+`aria-hidden="true"` via `WrapperAttrs` from `PrismFieldContext`.
-
-
-
-- 2026-04-13: Browser-surface security review found three high-signal UI entry points to scrutinize before release: `src/UmbracoPrism.TestSite/Views/HomePage.cshtml` + `src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs` (debug/claims dump rendered into HTML), `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` (demo token-forwarding endpoint), and the biometric mobile scripts injected from `src/UmbracoPrism.Core/Middleware/PrismBrandingMiddleware.cs` / generated by `src/UmbracoPrism.Core/Services/MobileBundleService.cs` (JS-readable `localStorage` for `prism_device_id`, enrollment fingerprint, and debug log state).
-- 2026-04-13: The active workflow form path is the tag-helper-based renderer, not `Views/Shared/_WorkflowField.cshtml`: `Views/Partials/_WorkflowStep-Collect.cshtml` uses `<prism-field>`, and `src/UmbracoPrism.Core/TagHelpers/PrismFieldTagHelper.cs` HTML-encodes labels, values, patterns, and conditional metadata. This means the current production workflow UI has stronger XSS posture than the older partial suggests at first glance.
-- 2026-04-13: Workflow form CSRF/open-redirect defenses are split across `src/UmbracoPrism.Core/TagHelpers/PrismWorkflowFormTagHelper.cs` (antiforgery token emission) and `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` (`ValidateRequestAsync` + `GetSafeReturnUrl`). Keep those paired when changing the workflow submission surface.
-- 2026-04-13: Mobile nav URLs are more permissive than they look: `src/UmbracoPrism.TestSite/MobileNavSchemaSetup.cs` defines `navUrl` as a plain textbox, `_MobileShellNav.cshtml` serializes it directly into `prism-mobile-nav`, and `src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.ts` renders `href` without scheme/origin allowlisting. Any future hardening should start at the schema plus component boundary together.
-- 2026-04-20: The MockBusinessApp admin workflow page uses C# string interpolation for HTML generation (lines 152-510 in Program.cs). When extending UI surfaces within this pattern, maintain exact CSS class consistency (def-card, def-header, def-body, table-label, badge, code, btn) and reuse existing modal/ACE editor infrastructure. The modal-title element can be updated dynamically in JS to reflect the type of resource being edited.
-- 2026-04-21: Workflow waiting step uses an ARIA live region (role="status" aria-live="polite") for polling status updates. The region starts empty and is updated by inline JavaScript when state checks occur. This pattern provides screen reader feedback without visual distraction. The polling script uses traditional function syntax (no arrow functions) for maximum browser compatibility, matching existing partials.
-- 2026-04-21: GDS notification banner requires `role="region"` and `aria-labelledby` pointing to the title element for proper accessibility. The `govuk-notification-banner__header` contains an h2 with `govuk-notification-banner__title` class, and content goes in `govuk-notification-banner__content`.
-- 2026-04-21: GDS details/summary component (progressive disclosure) needs no data-module attribute — it's native HTML that degrades gracefully. Use `govuk-details` class on the `<details>` element, `govuk-details__summary` on `<summary>`, `govuk-details__summary-text` on the summary span, and `govuk-details__text` on the revealed content div.
-
-
-## Phase 1 UI Security Hardening (2026-03-28)
-
-**Context:**
-Security audit identified dangerous debug/demo surfaces exposed inappropriately:
-1. PrismDebugTagHelper dumping tenant, user, and claim data to browser HTML
-2. DownstreamDemoController forwarding bearer tokens to arbitrary URLs
-3. These features are valuable for development but must be gated in production
-
-**Implementation:**
-
-1. **PrismDebugTagHelper** (TagHelper level gating)
-   - Added IWebHostEnvironment dependency injection
-   - Implemented environment check: only renders in Development or when Prism:EnableDebugPanel=true
-   - Uses output.SuppressOutput() to completely hide debug output in production
-   - Safe to keep prism-debug in views — tag helper handles gating
-
-2. **DownstreamDemoController** (Endpoint level gating + URL allowlist)
-   - Added IWebHostEnvironment dependency injection
-   - Environment gate: Returns 403 unless Development or Prism:EnableDownstreamDemo=true
-   - URL allowlist validation via IsUrlAllowed() method:
-     * Always allows configured PrismBusinessApp:WorkflowApiBaseUrl
-     * Checks Prism:DownstreamDemo:AllowedUrls array config
-     * In Development: allows localhost URLs
-     * Default deny for all other URLs
-   - Returns 400 BadRequest for disallowed URLs with clear error messages
-
-3. **View Documentation**
-   - Added Razor comments to HomePage.cshtml and MemberDashboard.cshtml
-   - Explains that debug/demo features are environment-gated server-side
-   - Safe to include in views without manual environment checks
-
-4. **Comprehensive Test Coverage**
-   - Updated DashboardLocalEndpointsValidationTests.cs with 5 new security tests:
-     * Blocks endpoint when not in Development and not explicitly enabled
-     * Allows when explicitly enabled in production
-     * Blocks arbitrary URLs not in allowlist
-     * Allows configured business app URL
-     * Allows URLs in configured allowlist
-   - All 9 tests pass (4 existing + 5 new)
-
-**Key Learnings:**
-
-1. **Environment-based gating pattern:**
-   var isEnabled = environment.IsDevelopment() 
-       || config.GetValue<bool>("Prism:EnableFeature", false);
-   This gives dev convenience + production override capability
-
-2. **URL allowlist pattern for token-forwarding endpoints:**
-   - Always validate against allowlist before forwarding authenticated requests
-   - Use StartsWith for base URL matching (allows sub-paths)
-   - Localhost-only in Development is reasonable default
-   - Clear error messages help developers configure correctly
-
-3. **TagHelper suppression:**
-   output.SuppressOutput() is cleaner than conditional rendering in views
-   - View remains declarative
-   - Security logic in one place (tag helper)
-   - No view changes needed when security policy changes
-
-4. **Test-driven security:**
-   - Security constraints are regression-tested
-   - Tests document expected behavior
-   - Future refactoring won't accidentally weaken security
-
-**Files Modified:**
-- src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs — environment gating
-- src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs — environment gating + URL allowlist
-- src/UmbracoPrism.TestSite/Views/HomePage.cshtml — documentation comment
-- src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml — documentation comment
-- src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs — 5 new security tests
-
-**Configuration Options Introduced:**
-- Prism:EnableDebugPanel (bool) — Enables debug panel outside Development
-- Prism:EnableDownstreamDemo (bool) — Enables downstream demo outside Development
-- Prism:DownstreamDemo:AllowedUrls (string[]) — Additional URLs for token forwarding
-
-- Tests document expected behavior
-   - Future refactoring won't accidentally weaken security
-
-**Files Modified:**
-- src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs — environment gating
-- src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs — environment gating + URL allowlist
-- src/UmbracoPrism.TestSite/Views/HomePage.cshtml — documentation comment
-- src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml — documentation comment
-- src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs — 5 new security tests
-
-**Configuration Options Introduced:**
-- Prism:EnableDebugPanel (bool) — Enables debug panel outside Development
-- Prism:EnableDownstreamDemo (bool) — Enables downstream demo outside Development
-- Prism:DownstreamDemo:AllowedUrls (string[]) — Additional URLs for token forwarding
-
-**Impact:**
-Production deployments are now safe from:
-- Unintentional exposure of sensitive claim/tenant data via debug panel
-- Token forwarding to attacker-controlled URLs
-- While preserving full developer ergonomics in local Development environment
-
----
-
-## Session: GDS View Layer Phase 1 Completion (2026-04-20)
-
-**Topic:** Rebuild workflow views with GOV.UK Design System patterns
-
-**Status:** ✅ Complete — All views GDS-compliant, 416 tests passing, build clean
-
-### Delivered
-
-**1. npm & Build Infrastructure**
-- Added `govuk-frontend: ^5.9.0` to package.json
-- Created MSBuild `InstallGovukFrontend` target (runs `npm ci`, copies assets to wwwroot before build)
-- Copied govuk-frontend.min.css (129KB) and govuk-frontend.min.js (47KB) to wwwroot
-
-**2. Master Layout Updates**
-- Added `class="govuk-template"` to `<html>`
-- Added `class="govuk-template__body"` to `<body>`
-- Linked govuk-frontend.min.css before site CSS
-- Added govuk-frontend.min.js with `GOVUKFrontend.initAll()`
-- Kept Prism CSS for non-workflow areas (header, nav)
-
-**3. Workflow Step Partials**
-- **_WorkflowStep-Question.cshtml** (NEW, replaces Collect) — GDS one-thing-per-page
-- **_WorkflowStep-Review.cshtml** — GDS check-answers with `govuk-summary-list`
-- **_WorkflowStep-Completion.cshtml** — GDS confirmation panel pattern
-- **_WorkflowStep-StatusTimeline.cshtml** — Updated with GDS typography/buttons
-- **_WorkflowStep-TaskList.cshtml** (NEW) — GDS task list with status tags
-
-**4. TagHelper Refactoring**
-- **PrismFieldTagHelper:** Emit `govuk-*` classes (form-group, label, hint, error-message, input, textarea, select, radios, checkboxes)
-- **PrismErrorSummaryTagHelper:** GDS error summary structure with `data-module`, alert role, nested elements
-
-**5. View Dispatch**
-- Updated WorkflowPage.cshtml switch: maps lowercase archetype values to correct partial names
-
-**6. Backward Compatibility**
-- Prism CSS still loads for non-workflow pages
-- Conditional fields attributes preserved for existing `prism-conditional-fields.js`
-- Old field types (radio, checkboxlist) render identically to GDS (radios, checkboxes)
-
-### Orchestration Log
-- `.squad/orchestration-log/2026-04-20T08:40:50Z-isabelle-gds-views.md`
-
-### Cross-Agent Coordination
-- **Blathers:** Provided StepType models and field extensions
-- **Tangy:** Validated with 416 tests
-- **Scribe:** Merged decisions, orchestrated git commit
-
-## Session: 2026-04-22 — PrismComponent Tag Helper + Component Partials
-
-**Role:** Frontend developer; Razor/GDS component system migration from FieldGroupKeys/FormSection to PrismComponentRenderPayload.
-
-**Outcomes:**
-- Created `PrismComponentContext` record (Core/Models/Workflow/) — pre-computed view model for component partials
-- Created `PrismComponentTagHelper` — mirrors PrismFieldTagHelper pattern; dispatches to `~/Views/Partials/PrismComponents/_PrismComponent-{TypeName}.cshtml`; kebab-to-PascalCase normalisation for type names; falls back to `_PrismComponent-Default.cshtml`
-- Created all 13 component partials in `src/UmbracoPrism.Core/Views/Partials/PrismComponents/` covering: Fieldset, SummaryList, Panel, NotificationBanner, InsetText, WarningText, Details, Body, Heading, TaskList, Accordion, Default, plus `_ViewImports.cshtml`
-- Moved all 8 step partials from TestSite to Core: _WorkflowStep-Question/Review/Completion/StatusTimeline/TaskList/Waiting + _WorkflowHub-InstanceList/InstancePicker — updated @model to PrismWorkflowViewModel; replaced FieldGroups loops with Components + <prism-component>
-- Created Core generic top-level views: `workflowPage.cshtml` (PrismWorkflowViewModel) and `workflowHub.cshtml` (WorkflowHubViewModel, no TestSiteSeedContract dependency)
-- Updated Core.csproj embedded resources to include PrismComponents partials, step partials, hub partials, and top-level views
-- Renamed PrismFieldPartialsComposer → PrismPartialsComposer; updated EmbeddedFileProvider reference accordingly
-- Removed `FieldGroups` compat shim from PrismWorkflowViewModel
-- Deleted TestSite copies of all 8 moved partials and both top-level views
-- Build clean; 539 tests passing (no regression)
-
-**Key Learnings:**
-- Razor treats `section` as a keyword even as a loop variable inside `@foreach`/`@for` blocks — rename to `taskSection`, `accordionSection` etc. to avoid RZ1011/RZ2005 parse errors
-- `PrismPartialsComposer` registers `EmbeddedFileProvider` for the whole assembly root ("UmbracoPrism.Core") — new paths like `Views/Partials/PrismComponents/` and `Views/Partials/_WorkflowStep-*.cshtml` are automatically served once embedded in the csproj, no per-directory registration needed
-- ASP.NET Core Razor runtime accepts a subclass model (e.g. `WorkflowViewModel : PrismWorkflowViewModel`) against a view typed for the base class — TestSite controllers that provide `WorkflowViewModel` work correctly with the Core embedded `workflowPage.cshtml` typed for `PrismWorkflowViewModel`
-- GDS accordion requires a unique `id` attribute on the root div; use `Guid.NewGuid():N` to generate stable-per-render IDs within the partial
-
-**Status:** ✅ Complete; all component partials in Core, step partials migrated, FieldGroups shim removed, build and 539 tests green.
-
----
-
-**2026-04-22 Cross-Agent Update:** stepType removal architecture approved. Handoff: Update _WorkflowStep-Waiting partial to read WaitingConfig from component rather than Model.WaitingConfig sidecar. WaitingConfig properties (message, expectedWaitSeconds, pollIntervalMs, allowDefer, deferMessage) will be carried inline on the "waiting" component type. See .squad/decisions.md and orchestration-log/2026-04-22T23:08:36-tom-nook.md for full decision context.
-
----
-
-## 2026-04-26 — v2.0 E2E Testing & Screenshot Walkthroughs
+## Session: 2026-04-26 — v2.0 E2E Testing & Screenshot Walkthroughs
 
 **Role:** Frontend testing; Playwright e2e coverage, screenshot capture.
 
 **Deliverables:**
 - `f3c0ea5` test(e2e): Playwright coverage for 3 demo workflows
-  - Community enquiry: happy path + conditional reveal (Other → sub-field)
-  - Payment demo: happy path + validation (minimum decimal value)
-  - Planning notification: multi-step journey, summary list, panel component
+  - Community enquiry: happy path + conditional reveal
+  - Payment demo: happy path + validation
+  - Planning notification: multi-step journey
 - `67bb57b` feat(testsite): Seed information-request demo page + complete Playwright coverage
-  - Added information-request page to TestSite data seeder
-  - Completed e2e tests for all 4 demo workflows
 - `392c64e` docs(walkthroughs): Screenshot-driven walkthroughs for 4 demo workflows
-  - Captured meaningful states for each demo (initial, filled, conditional reveals, terminal)
-  - Full-page screenshots at 1280x1024 viewport
-  - 4 walkthrough markdown docs with state transitions
 - `a48229b` chore(client): Screenshot capture script for walkthroughs
-  - `capture-walkthrough-screenshots.mjs` with Keycloak auth flow integration
 
-**Deliverables:** 4 complete e2e test specs + 4 screenshot walkthroughs + capture infrastructure.
+**Status:** ✅ Complete; 4 demos fully tested with e2e and walkthroughs.
 
-**Basis:** v2.0 rollout directive (Jonny 2026-04-26), follow-through progress reports (Copilot), blocker resolution (ModelsBuilder fix 2026-04-26).
+---
 
+## Session: 2026-04-22 — PrismComponent Tag Helper + Component Partials
+
+**Role:** Frontend developer; Razor/GDS component system migration.
+
+**Outcomes:**
+- Created `PrismComponentContext` record
+- Created `PrismComponentTagHelper` (mirrors PrismFieldTagHelper)
+- Created all 13 component partials (Fieldset, SummaryList, Panel, NotificationBanner, InsetText, WarningText, Details, Body, Heading, TaskList, Accordion, Default)
+- Moved 8 step partials from TestSite to Core
+- Created Core generic top-level views (workflowPage.cshtml, workflowHub.cshtml)
+- Updated Core.csproj embedded resources
+- Removed FieldGroups compat shim
+- Build clean; 539 tests passing (no regression)
+
+**Key Learnings:**
+- Razor keyword: `section` conflicts in loops → rename to `taskSection`, `accordionSection`
+- `PrismPartialsComposer` EmbeddedFileProvider auto-serves new paths (no per-directory registration needed)
+- Subclass models work against base-class views (TestSite WorkflowViewModel → Core PrismWorkflowViewModel)
+- GDS accordion requires stable per-render `id` attributes (use `Guid.NewGuid():N`)
+
+**Status:** ✅ Complete; all components in Core, 539 tests green.
+
+---
+
+## Key Learnings (Consolidated)
+
+### 2026-04-22: Workflow UI Shell Selection
+- Shell selection safely derived from render payload shape in Razor: `waiting` component → waiting shell; summary-list-only → check-answers; panel with no fields → confirmation; task-list → task-list; otherwise question/status based on editable fields
+- Content-authored field types (inset-text, warning-text, details, notification-banner) need dedicated inline rendering in PrismFieldTagHelper
+- PrismFields partial directory: `~/Views/Partials/PrismFields/_PrismField-{TypeName}.cshtml` with `_PrismField-Default.cshtml` fallback
+
+### 2026-04-22: GDS Classes & Accessibility
+- Form wrapper: `govuk-form-group` (+ `--error` modifier); Controls: `govuk-input`, `govuk-textarea`, `govuk-select`, `govuk-radios`, `govuk-checkboxes`
+- Every input has associated `<label for=>` or `<fieldset><legend>`; error messages have `role="alert"` + `<span class="govuk-visually-hidden">Error:</span>`
+- Required fields: `aria-required="true"` + HTML `required`; invalid fields: `aria-invalid="true"`
+- Conditionally hidden fields: `hidden` + `aria-hidden="true"` via WrapperAttrs
+
+### 2026-04-20: Telemetry & Environment Patterns
+- Three distinct Aspire security controls: dashboard UI auth, HTTP/HTTPS transport, OTLP API key auth
+- Accept unsecured OTLP in dev (correct behavior; warning informs security posture)
+- Production guidance: Always use `Dashboard__Otlp__AuthMode=ApiKey` with secure distribution
+
+### 2026-04-13: Browser-Surface Security Review
+- High-signal UI entry points: HomePage.cshtml + PrismDebugTagHelper, DownstreamDemoController, biometric mobile scripts
+- Active workflow form path is tag-helper-based renderer (PrismFieldTagHelper), not _WorkflowField.cshtml partial
+- Workflow form CSRF/open-redirect defenses: PrismWorkflowFormTagHelper (antiforgery) + WorkflowPageController (ValidateRequestAsync + GetSafeReturnUrl)
+- Mobile nav: keep schema, component, and URL allowlisting together when hardening
+
+### 2026-04-13: Generic OIDC Secret Handling
+- UI preservation semantics mirror backend avoid-echo: mask reference, show presence via metadata
+- Visual distinction between demo (inline, repo-owned) and production (vault-backed) is critical
+- Blank-on-load for secret fields works well with backend preservation behavior
+
+### 2026-04-19: GDS Integration
+- govuk-frontend 5.9.0 requires `govuk-template` and `govuk-template__body` on html/body
+- GDS error messages: `<span class="govuk-visually-hidden">Error:</span>` prefix for screen readers
+- GDS required: visually-hidden text, not asterisks
+- GDS radios/checkboxes: `data-module` attributes for progressive enhancement
+- MSBuild targets can run npm commands before build (keep frontend dependencies fresh)
+
+---
+
+**Scribe note:** Isabelle's history summarized (archived pre-2026-04-22 content). Recent entries track SEC-005 closure, v2.0 e2e/walkthroughs, and component system migration. All closed findings documented in decisions.md and orchestration logs.

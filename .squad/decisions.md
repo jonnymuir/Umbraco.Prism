@@ -288,3 +288,233 @@ The v2.0 polymorphic component hierarchy rollout converged through three phases:
 | SEC-005 | HIGH | Proxy Awareness | tom-nook | Pre-prod |
 | SEC-006 | MEDIUM | Secrets Management | tom-nook | Post-review |
 | SEC-007 | MEDIUM | CI Hardening | tom-nook | Post-review |
+# Decision: SEC-002 + SEC-008 — NuGet CVE Bumps (Blathers, 2026-04-30)
+
+**Status:** ✅ CLOSED — Commit `2618c54` on `main`
+
+## SEC-002 (CRITICAL) — Microsoft.AspNetCore.DataProtection GHSA-9mv3-2cwr-p262
+
+**Affected project:** `UmbracoPrism.Shared`  
+**Vulnerable version resolved:** 10.0.0 (transitive via JwtBearer 10.0.2)  
+**Versions also affected (confirmed by NuGet vuln scan):** 10.0.0, 10.0.1, 10.0.2, ..., up to 10.0.6  
+**Fixed version pinned:** 10.0.7 (latest stable)
+
+**Fix:** Added explicit `<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />` to `UmbracoPrism.Shared.csproj`. Also bumped the co-pinned `System.Security.Cryptography.Xml` from 10.0.6 → 10.0.7 to avoid NU1605 downgrade error (DataProtection 10.0.7 depends on CryptographyXml >= 10.0.7).
+
+**Why Shared and not Core?** The vulnerability appeared only in `UmbracoPrism.Shared` because that project uses `Microsoft.NET.Sdk` (no web framework reference). `UmbracoPrism.Core` uses `Microsoft.NET.Sdk.Web` which bundles the framework runtime, overriding the transitive DataProtection version to a patched release automatically. Explicit pin in Shared forces the same patched version.
+
+---
+
+## SEC-008 (MEDIUM) — OpenTelemetry.Api GHSA-g94r-2vxg-569j
+
+**Affected projects:** `UmbracoPrism.ServiceDefaults`, `UmbracoPrism.AppHost`  
+**Vulnerable version resolved:** 1.12.0 (transitive via Instrumentation.AspNetCore 1.12.0 / Http 1.12.0)  
+**Versions also affected (confirmed):** 1.12.0, 1.13.0, 1.13.1, up to at least 1.13.x  
+**Fixed version pinned:** 1.15.3 (latest stable)
+
+**Fix:** Added explicit `<PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />` to both `UmbracoPrism.ServiceDefaults.csproj` and `UmbracoPrism.AppHost.csproj`. AppHost needs its own pin because it doesn't inherit NuGet overrides from project references.
+
+**Pairing rationale:** Both fixes are mechanical NuGet version bumps with no code changes. They were bundled in one commit to keep the fix atomic and reviewable.
+
+---
+
+## Rule Going Forward
+
+- Any new OpenTelemetry.* instrumentation package additions should verify transitive `OpenTelemetry.Api` is at the pinned minimum.
+- `UmbracoPrism.Shared` requires explicit framework package pins that `Core` gets for free via the web SDK.
+# Decision: SEC-004 Closed — TestSite Secrets Management Pattern
+
+**Date:** 2026-04-30  
+**Author:** Blathers (Backend Dev)  
+**Status:** ✅ IMPLEMENTED — Commit `b6336fd` on `main`
+
+## Summary
+
+SEC-004 (HIGH — committed `Umbraco:CMS:Imaging:HMACSecretKey` and `Prism:VaultUri` in `src/UmbracoPrism.TestSite/appsettings.json`) is closed.
+
+## Chosen Pattern: `appsettings.Local.json` (gitignored)
+
+**Rejected:** `dotnet user-secrets` — already wired (`UserSecretsId` in `.csproj`) but doesn't mesh cleanly with Umbraco's HMAC key first-run bootstrap (Umbraco writes to `appsettings.json`, not to user-secrets store). The `appsettings.Local.json` pattern is self-documenting and matches the bootstrap flow.
+
+**Chosen:** `appsettings.Local.json` loaded via `builder.Configuration.AddJsonFile(...)` before `CreateUmbracoBuilder()`. File is gitignored at root `.gitignore`.
+
+## Rule Going Forward
+
+- ❌ Never commit a value for `Umbraco:CMS:Imaging:HMACSecretKey` in any tracked `appsettings*.json`
+- ❌ Never commit a value for `Prism:VaultUri` in any tracked `appsettings*.json`  
+- ✅ Both keys live in `src/UmbracoPrism.TestSite/appsettings.Local.json` (gitignored)
+- ✅ See `src/UmbracoPrism.TestSite/README.md` for developer bootstrap instructions
+
+## Technical Note
+
+Umbraco's `IJsonSettingsEditor` writes the auto-generated HMAC key to `appsettings.json` in the content root on first run when the key is absent from all config providers. Once the key is present in `appsettings.Local.json` (part of the config chain), Umbraco sees a non-null value and skips regeneration — keeping `appsettings.json` clean on subsequent runs.
+# Decision: SEC-006 — CookieSecurePolicy.Always (Blathers, 2026-04-30)
+
+**Status:** ✅ CLOSED — Commit `df434bf` on `main`
+
+## Summary
+
+`PrismMemberCookie` was configured with `CookieSecurePolicy.SameAsRequest` in `PrismComposer.cs`. This meant the `Secure` flag would be omitted from the cookie when the request arrived over HTTP — including the common pattern where a TLS-terminating load balancer communicates with the app over HTTP internally.
+
+## Fix
+
+Changed `CookieSecurePolicy.SameAsRequest` → `CookieSecurePolicy.Always` in `PrismComposer.cs` (line ~108 in the `AddMicrosoftIdentityWebApp` `cookieOptions` callback).
+
+## Impact on Local Dev
+
+Plain HTTP local dev no longer works for authenticated flows. HTTPS is required. The default Aspire launch profile already enforces HTTPS (`dotnet dev-certs https --trust` on first clone). This was always the intended dev posture.
+
+## Regression Test
+
+`Phase1SecurityRegressionTests.PrismMemberCookie_SecurePolicy_IsAlways` — builds a minimal DI service collection mirroring PrismComposer's cookie options configuration and asserts `SecurePolicy == CookieSecurePolicy.Always`.
+
+## Rule Going Forward
+
+- `CookieSecurePolicy.Always` is required for all Prism-managed auth cookies.
+- If a new cookie scheme is added, it must also use `Always`.
+# Decision: SEC-007 — Proxy-Aware IP Rate Limiting via ForwardedHeadersMiddleware (Blathers, 2026-04-30)
+
+**Status:** ✅ CLOSED — Commit `44c476f` on `main`
+
+## Summary
+
+`BiometricController.GetClientIp()` used `HttpContext.Connection.RemoteIpAddress` directly. Behind a reverse proxy, all requests share the proxy's IP as `RemoteIpAddress`, making per-client rate limits trivially bypassable.
+
+## Fix
+
+Wired `ForwardedHeadersMiddleware` in `PrismComposer.cs`:
+
+1. **Service configuration:** `builder.Services.Configure<ForwardedHeadersOptions>(...)` with `ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto`. `KnownNetworks` and `KnownProxies` cleared to allow any proxy topology (dev-safe default).
+
+2. **Middleware registration:** `app.UseForwardedHeaders()` added as the first call in the `UmbracoPipelineFilter` pre-pipeline, before `PrismTenantMiddleware` and `PrismBrandingMiddleware`. This ensures `RemoteIpAddress` is rewritten from `X-Forwarded-For` before any IP-sensitive code runs.
+
+3. **BiometricController comment updated** to document that the middleware is now configured and the GetClientIp() pattern is intentionally proxy-aware.
+
+## Security Caveat (Production Hardening Required)
+
+Clearing `KnownProxies` / `KnownNetworks` means **any** `X-Forwarded-For` header is trusted. A malicious end client behind a non-trusted path could spoof their IP. Before production deployment:
+
+```
+// In appsettings / deployment config:
+options.KnownNetworks.Add(new IPNetwork(IPAddress.Parse("10.0.0.0"), 8));
+options.KnownProxies.Add(IPAddress.Parse("203.0.113.1")); // your load balancer IP
+```
+
+This MUST be documented in the deployment runbook and reviewed before any public-facing launch.
+
+## Regression Test
+
+`Phase1SecurityRegressionTests.BiometricRateLimit_PartitionKey_UsesRemoteIpAddress_NotRawForwardedForHeader` — verifies that `ExchangeRateLimitService.CheckIpLimit()` creates independent rate-limit buckets for distinct IP strings (proving the partition key is per-client, not shared), and that exhausting one bucket does not affect the other.
+
+## Rule Going Forward
+
+- All new rate-limiting code MUST use `HttpContext.Connection.RemoteIpAddress` (not raw header reads).
+- `ForwardedHeadersMiddleware` is now the infrastructure-level IP resolution layer; controllers must not reimplement it.
+# Decision: SEC-010 — Scrub PII and Placeholder Config in MockBusinessApp (Blathers, 2026-04-30)
+
+**Status:** ✅ CLOSED — Commit `87900c9` on `main`
+
+## Summary
+
+`src/UmbracoPrism.MockBusinessApp/appsettings.json` contained:
+- Two real Azure Entra tenant GUIDs and two client GUIDs (information disclosure)
+- `jonnypmuir@gmail.com` (personal email address — PII) appearing twice as member emails
+
+## PII Flag
+
+`jonnypmuir@gmail.com` is a real personal email address committed in plaintext. This constitutes PII disclosure. Scrubbed in commit `87900c9`. The original value **remains in git history** — if this repository is ever made public, the owner should either rewrite history or notify the individual per applicable data protection law (GDPR Art. 17 / UK GDPR).
+
+## Fix
+
+1. **appsettings.json:** All real GUIDs replaced with zero-value placeholders (`00000000-0000-0000-0000-000000000001` through `...0004`). Real email addresses replaced with `alpha-admin@example.com` (intentionally generic placeholder).
+
+2. **Program.cs:** Wired `appsettings.Local.json` (optional, gitignored) via `builder.Configuration.AddJsonFile(...)` before service registration — identical pattern to TestSite (SEC-004).
+
+3. **README.md:** Created at `src/UmbracoPrism.MockBusinessApp/README.md` documenting the local override pattern and bootstrap steps.
+
+4. **.gitignore:** Added `src/UmbracoPrism.MockBusinessApp/appsettings.Local.json` entry.
+
+## Pattern Established
+
+All mock/test app configs in this solution follow the `appsettings.Local.json` pattern for real values:
+- `src/UmbracoPrism.TestSite/appsettings.Local.json` (SEC-004)
+- `src/UmbracoPrism.MockBusinessApp/appsettings.Local.json` (this finding)
+
+## Rule Going Forward
+
+- `appsettings.json` in any project MUST use placeholder values only.
+- Real values go in the gitignored `appsettings.Local.json`.
+- Real email addresses in config are a PII violation regardless of sensitivity level.
+# SEC-005 — npm CVE Remediation in UmbracoPrism.Client
+
+**Date:** 2026-04-30  
+**Author:** Isabelle (Frontend Dev)  
+**Commit:** `7e499b5` on `main`  
+**Status:** ✅ CLOSED — 0 critical, 0 high remaining
+
+---
+
+## Before / After
+
+| Severity  | Before | After |
+|-----------|--------|-------|
+| Critical  | 1      | 0     |
+| High      | 10     | 0     |
+| Moderate  | 14     | 9     |
+| Low       | 1      | 0     |
+| **Total** | **26** | **9** |
+
+---
+
+## Packages Bumped
+
+| Package | Before | After | Method |
+|---------|--------|-------|--------|
+| storybook (all @storybook/* packages) | 8.6.15 | 8.6.18 | `npm install` explicit |
+| @storybook/test-runner | 0.18.0 | 0.21.0 | `npm install` explicit |
+| axios | transitive old | patched | `npm audit fix` |
+| defu | transitive old | patched | `npm audit fix` |
+| lodash | transitive old | patched | `npm audit fix` |
+| minimatch | transitive old | patched | `npm audit fix` |
+| picomatch | transitive old | patched | `npm audit fix` |
+| rollup | transitive old | patched | `npm audit fix` |
+| vite | transitive old | patched | `npm audit fix` |
+| dompurify (nested in monaco-editor) | 3.2.7 | 3.4.1 | `overrides` in package.json |
+| handlebars (critical) | 4.7.8 | removed | `npm audit fix` pulled in updated @umbraco-cms/backoffice |
+
+---
+
+## Key Notes
+
+### Handlebars Critical CVE (GHSA-2w6w-674q-4c4q)
+- Was: transitive via `@hey-api/openapi-ts` → `@umbraco-cms/backoffice`
+- Fix: `npm audit fix` brought in a newer `@umbraco-cms/backoffice` version whose dependency on `@hey-api/openapi-ts` no longer pulls in vulnerable handlebars. Handlebars is no longer present in the dependency tree.
+
+### DOMPurify Override
+- `monaco-editor` had a nested `dompurify@3.2.7` (several moderate XSS/prototype-pollution CVEs)
+- Added `"overrides": { "dompurify": "^3.4.1" }` to `package.json` to force upgrade
+- Root `dompurify` was already at 3.4.1; only the monaco-editor nested copy was vulnerable
+
+### Storybook HIGH CVE (WebSocket Hijacking)
+- Storybook 8.6.15 had a HIGH severity dev-server WebSocket hijacking advisory
+- Non-breaking upgrade to 8.6.18 resolved it (`isSemVerMajor: false`)
+
+---
+
+## Residual (9 Moderate — acceptable)
+
+| Package | Severity | Reason not fixed |
+|---------|----------|-----------------|
+| uuid (in @storybook/test-runner chain) | Moderate | Fix requires downgrading to storybook 7.x (semver major); dev-only tooling, no runtime impact |
+| @umbraco-cms/backoffice (monaco-editor chain) | Moderate | `fix=False` — upstream hasn't published fix; admin backoffice only, dev-only at present |
+
+No breaking changes were introduced. All residual findings are:
+1. Dev-only tooling (Storybook, jest-playwright)  
+2. Or upstream unfixable at this time (@umbraco-cms/backoffice)
+
+---
+
+## Verification
+
+- `npm run build` → clean (vite 7.3.2, tsc clean, 45 modules, 0 warnings)
+- `npm audit` → 0 critical, 0 high

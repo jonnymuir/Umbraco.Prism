@@ -199,3 +199,56 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 - `.squad/agents/blathers/SKILL-proxy-aware-rate-limiting.md`
 
 ---
+
+## 2026-04-30: Security Patch Sprint — SEC-002, SEC-004, SEC-006, SEC-007, SEC-008, SEC-010
+
+**Status:** ✅ COMPLETE — 5 commits, 6 findings closed
+
+### SEC-002 (CRITICAL) + SEC-008 (MEDIUM): NuGet CVE Bumps
+**Commit:** `2618c54`
+- Microsoft.AspNetCore.DataProtection 10.0.0 → 10.0.7 (GHSA-9mv3-2cwr-p262 fix)
+- System.Security.Cryptography.Xml 10.0.6 → 10.0.7 (co-pin for NU1605 compat)
+- OpenTelemetry.Api 1.12.0 → 1.15.3 (GHSA-g94r-2vxg-569j fix in ServiceDefaults + AppHost)
+
+### SEC-004 (HIGH): TestSite Secrets Management Pattern
+**Commit:** `b6336fd`
+- Introduced `appsettings.Local.json` (gitignored) for Umbraco:CMS:Imaging:HMACSecretKey + Prism:VaultUri
+- Created `src/UmbracoPrism.TestSite/README.md` with bootstrap docs
+- Pattern: Load Local config before CreateUmbracoBuilder() to enable clean first-run HMAC generation
+
+### SEC-006 (HIGH): CookieSecurePolicy.Always
+**Commit:** `df434bf`
+- PrismMemberCookie `SameAsRequest` → `Always` in PrismComposer (line ~108)
+- HTTPS required for authenticated flows (Aspire already enforces via dev-certs)
+- Regression test: Phase1SecurityRegressionTests.PrismMemberCookie_SecurePolicy_IsAlways
+
+### SEC-007 (HIGH): Proxy-Aware IP Rate Limiting
+**Commit:** `44c476f`
+- ForwardedHeadersMiddleware wired (X-Forwarded-For + X-Forwarded-Proto)
+- Registered as first call in UmbracoPipelineFilter pre-pipeline
+- BiometricController.GetClientIp() now proxy-aware; rate-limit buckets per-client IP
+- Regression test: Phase1SecurityRegressionTests.BiometricRateLimit_PartitionKey_UsesRemoteIpAddress_NotRawForwardedForHeader
+- ⚠️ CAVEAT: KnownProxies/KnownNetworks left empty (dev-safe default). MUST be hardened before production deployment.
+
+### SEC-010 (MEDIUM): Scrub PII in MockBusinessApp
+**Commit:** `87900c9`
+- Azure Entra GUIDs: real values → placeholders (00000000-0000-0000-0000-000000000001–4)
+- Email addresses: jonnypmuir@gmail.com → alpha-admin@example.com
+- Wired appsettings.Local.json pattern (identical to SEC-004)
+- Created `src/UmbracoPrism.MockBusinessApp/README.md`
+- ⚠️ PII FLAG: Real email remains in git history; owner should notify if repo goes public (GDPR/UK GDPR Art. 17)
+
+### Test Results
+548 → 550 tests passing (+2 regression tests)
+
+### Pattern Lock
+All test/mock app secrets now follow `appsettings.Local.json` pattern:
+- `src/UmbracoPrism.TestSite/appsettings.Local.json` (SEC-004)
+- `src/UmbracoPrism.MockBusinessApp/appsettings.Local.json` (SEC-010)
+Rule: Placeholder values in tracked JSON; real values in gitignored Local copy.
+
+### Artifacts
+- Merged from inbox: blathers-sec-002-008.md, blathers-sec-004-fix.md, blathers-sec-006.md, blathers-sec-007.md, blathers-sec-010.md
+- All findings documented in `.squad/decisions.md`
+
+**Scribe note:** Security batch 2 consolidation recorded in `.squad/log/2026-04-30-security-batch-2.md` and orchestration logs.

@@ -260,3 +260,50 @@ Previous history archived to reduce file size. Recent entries below.
 
 
 
+
+## 2026-04-30: Full Security Audit Post-V2 Rollout — 11 Findings Reviewed, 6 Closed This Batch
+
+**Status:** ✅ BATCH COMPLETE — 6 findings closed (SEC-002, SEC-005, SEC-006, SEC-007, SEC-008, SEC-010); 1 in-flight (SEC-003 design); 4 pre-batch (SEC-001, SEC-004, SEC-009, SEC-011 closed earlier)
+
+**Audit Scope:** Comprehensive codebase security review following v2.0 polymorphic component model rollout.
+
+**Closed Findings Summary:**
+1. **SEC-002 (CRITICAL):** Microsoft.AspNetCore.DataProtection GHSA-9mv3-2cwr-p262 → 10.0.0→10.0.7 (Blathers/NuGet bump)
+2. **SEC-005 (HIGH):** npm CVE chain (1 critical + 10 high) → 0 critical, 0 high (Isabelle/npm audit fix)
+3. **SEC-006 (HIGH):** CookieSecurePolicy SameAsRequest → Always (Blathers/security regression test)
+4. **SEC-007 (HIGH):** Proxy-aware IP for rate limiting (Blathers/ForwardedHeadersMiddleware)
+5. **SEC-008 (MEDIUM):** OpenTelemetry.Api GHSA-g94r-2vxg-569j → 1.12.0→1.15.3 (Blathers/NuGet bump)
+6. **SEC-010 (MEDIUM):** Scrub PII + Vault IDs in MockBusinessApp (Blathers/appsettings.Local.json pattern)
+
+**In-Flight / Designed (Not Yet Implemented):**
+- **SEC-003 (HIGH):** @Html.Raw content sanitization — IWorkflowContentSanitizer design + allowlist frozen (Tom Nook proposal in inbox awaiting team sign-off)
+
+**Earlier (Pre-Batch):**
+- **SEC-001 (HIGH):** WorkflowPollController auth (2026-04-30, immediate fix)
+- **SEC-004 (HIGH):** TestSite secrets management (already implemented, consolidated in batch)
+- **SEC-009 (LOW):** Log injection (2026-04-30, immediate fix)
+- **SEC-011 (LOW):** HTML encoding (2026-04-30, immediate fix)
+
+**Triaged & Locked Decisions:**
+- `IWorkflowContentSanitizer` (Ganss.Xss + GDS allowlist) is precondition for shipping definition editor to non-dev
+- `CookieSecurePolicy.Always` + `ForwardedHeadersMiddleware` required pre-production
+- Secrets policy: no real keys in version-controlled appsettings.json; use dotnet user-secrets (local) / env vars (CI/CD)
+
+**Test Coverage:**
+- 547 baseline → 550 passing (+3 findings tested)
+- Phase1SecurityRegressionTests: 3 new cases (CookieSecurePolicy, ForwardedHeaders, rate-limit partitioning)
+
+**Production Gates Remaining:**
+- SEC-003 implementation (awaiting team go-ahead)
+- SEC-007 KnownProxies/KnownNetworks hardening (dev-safe default; production must specify)
+- SEC-010 PII notification per applicable data protection law (jonnypmuir@gmail.com in git history)
+
+**Artifacts:**
+- `.squad/decisions.md` — 6 findings + SEC-003 design proposal consolidated
+- `.squad/orchestration-log/2026-04-30T12:*-{agent}.md` — Per-agent logs (Tom Nook, Isabelle, Blathers)
+- `.squad/log/2026-04-30-security-batch-2.md` — Batch session summary
+- `.squad/security-review-2026-04-30.md` — Full audit report (if exists; reference from decisions.md)
+
+**Batch Scope:** All 6 closed findings reviewed, approved, tested, and merged to main. SEC-003 design frozen pending implementation assignment.
+
+---

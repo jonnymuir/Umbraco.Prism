@@ -147,3 +147,25 @@ History trimmed for readability. Complete history in git.
 **Rollout:** no feature flag (per 2026-04-26 directive). Direct cutover on `main`; expected baseline 547 → 569+ tests post-merge. Allowlist tightening is backward-compatible to current seeds (T7 verifies).
 
 **Did not implement** — design doc only, per directive. Awaiting sign-off from Copper (allowlist), Blathers (seam), Jonny (scope).
+
+## 2026-04-30: SEC-003 Design Proposal — @Html.Raw Content Sanitization
+
+**Status:** ✅ DESIGN COMPLETE — Proposal in active review
+
+**Artifact:** `.squad/decisions/inbox/tom-nook-sec-003-proposal.md`
+
+**Scope:** 7 in-scope Html.Raw() sites in workflow display partials (Body, InsetText, WarningText, NotificationBanner, Panel, Details, Accordion).
+
+**Proposal:** IWorkflowContentSanitizer (Ganss.Xss + GDS allowlist) at engine→payload boundary in BusinessAppWorkflowEngine.BuildComponents. Pre-sanitized content becomes contract; TagHelpers emit safely via @Html.Raw.
+
+**Allowlist (GDS-aligned):** Block-level (p/ul/ol/li/blockquote/br/h2-h4); inline (strong/em/b/i/code/abbr/span/a); href (http/https/mailto/tel); auto rel/target on external links; no class/style/id/data-*/events; script/style/iframe/svg stripped.
+
+**Implementation Plan:** 10 discrete tasks routed — Copper allowlist+tests, Blathers package/DI/engine/seeds/regressions, Mabel docs.
+
+**Test Strategy:** 16 unit cases (XSS vectors); 6 Phase1 e2e; seed roundtrip validation. Expected 547 → 569+ tests post-merge.
+
+**Awaiting:** Copper allowlist sign-off, Blathers seam review, Jonny scope final approval.
+
+---
+
+**Batch Consolidation (2026-04-30):** Security audit findings 2/5/6/7/8/10 closed by Blathers and Isabelle; SEC-003 design ready for implementation queue. SEC-001/9/11 closed pre-batch. Decision registry and orchestration logs updated; tom-nook-sec-003-proposal.md retained in inbox (active proposal, not yet merged to decisions).

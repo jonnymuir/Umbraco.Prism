@@ -23,15 +23,15 @@ The prior redirect hardening and OIDC nonce work continues to hold. SQL paramete
 | ID | Severity | Area | Title | Location | Status |
 |----|----------|------|-------|----------|--------|
 | SEC-001 | HIGH | Auth | WorkflowPollController — no authentication | `Controllers/WorkflowPollController.cs:14` | ✅ PATCHED |
-| SEC-002 | CRITICAL | CVE | Microsoft.AspNetCore.DataProtection 10.0.0 | `UmbracoPrism.Shared.csproj` (transitive) | ⚠️ OPEN |
-| SEC-003 | HIGH | XSS | `@Html.Raw(Content)` in workflow display components | 4 Razor partials (see below) | ⚠️ OPEN |
+| SEC-002 | CRITICAL | CVE | Microsoft.AspNetCore.DataProtection 10.0.0 | `UmbracoPrism.Shared.csproj` (transitive) | ✅ CLOSED (2026-04-30, commit `2618c54`) |
+| SEC-003 | HIGH | XSS | `@Html.Raw(Content)` in workflow display components | 4 Razor partials (see below) | 🟡 DESIGNED (awaiting implementation) |
 | SEC-004 | HIGH | Secret | HMACSecretKey committed to appsettings.json | `TestSite/appsettings.json` | ✅ CLOSED (2026-04-30, commit `b6336fd`) |
-| SEC-005 | HIGH | CVE | npm — handlebars critical + 10 high CVEs | `UmbracoPrism.Client/package.json` (transitive) | ⚠️ OPEN |
-| SEC-006 | MEDIUM | Cookie | CookieSecurePolicy.SameAsRequest | `Core/PrismComposer.cs` | ⚠️ OPEN |
-| SEC-007 | MEDIUM | CORS/Rate | IP rate-limit bypassed behind reverse proxy | `Services/ExchangeRateLimitService.cs` | ⚠️ OPEN |
-| SEC-008 | MEDIUM | CVE | OpenTelemetry.Api 1.12.0 (GHSA-g94r-2vxg-569j, moderate) | `ServiceDefaults`, `AppHost` | ⚠️ OPEN |
+| SEC-005 | HIGH | CVE | npm — handlebars critical + 10 high CVEs | `UmbracoPrism.Client/package.json` (transitive) | ✅ CLOSED (2026-04-30, commit `7e499b5`) |
+| SEC-006 | MEDIUM | Cookie | CookieSecurePolicy.SameAsRequest | `Core/PrismComposer.cs` | ✅ CLOSED (2026-04-30, commit `df434bf`) |
+| SEC-007 | MEDIUM | CORS/Rate | IP rate-limit bypassed behind reverse proxy | `Services/ExchangeRateLimitService.cs` | ✅ CLOSED (2026-04-30, commit `44c476f`) |
+| SEC-008 | MEDIUM | CVE | OpenTelemetry.Api 1.12.0 (GHSA-g94r-2vxg-569j, moderate) | `ServiceDefaults`, `AppHost` | ✅ CLOSED (2026-04-30, commit `2618c54`) |
 | SEC-009 | LOW | Logging | Log injection via string interpolation in TenantMiddleware | `Middleware/PrismTenantMiddleware.cs` | ✅ PATCHED |
-| SEC-010 | LOW | Secret | Entra tenant/client IDs + personal emails in MockBusinessApp appsettings | `MockBusinessApp/appsettings.json` | ⚠️ OPEN |
+| SEC-010 | MEDIUM | Secret | Entra tenant/client IDs + personal emails in MockBusinessApp appsettings | `MockBusinessApp/appsettings.json` | ✅ CLOSED (2026-04-30, commit `87900c9`) |
 | SEC-011 | LOW | XSS | `DescribedBy` aria attribute uses unenoded `FieldKey` | `Models/Workflow/PrismFieldContext.cs:86` | ✅ PATCHED |
 
 ---
