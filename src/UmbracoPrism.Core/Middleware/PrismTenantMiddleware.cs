@@ -50,7 +50,7 @@ public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMidd
         else
         {
             // Optional: Handle unknown tenant (redirect or default)
-            logger.LogWarning($"Unknown tenant domain: {host}");
+            logger.LogWarning("Unknown tenant domain: {Host}", host);
         }
 
         await next(context);

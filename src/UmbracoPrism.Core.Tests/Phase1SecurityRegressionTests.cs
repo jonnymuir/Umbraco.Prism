@@ -353,6 +353,24 @@ public class Phase1SecurityRegressionTests
     }
 
     // ------------------------------------------------------------------
+    // 5. WORKFLOW POLL CONTROLLER AUTHENTICATION (SEC-001 patch)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void WorkflowPollController_RequiresPrismMemberCookieAuth()
+    {
+        // SECURITY: WorkflowPollController.Poll exposes workflow instance state
+        // (state version, step type) for any provided instanceId.
+        // Without auth an unauthenticated caller could probe workflow existence.
+        // Fix: [Authorize(AuthenticationSchemes = "PrismMemberCookie")] on the controller class.
+
+        var hasMemberCookieAuth = HasAuthorizeAttributeWithScheme<Controllers.WorkflowPollController>("PrismMemberCookie");
+
+        hasMemberCookieAuth.Should().BeTrue(
+            "because WorkflowPollController.Poll returns workflow state and must require member authentication");
+    }
+
+    // ------------------------------------------------------------------
     // HELPERS
     // ------------------------------------------------------------------
 
@@ -477,6 +495,14 @@ public class Phase1SecurityRegressionTests
     private static bool HasAuthorizeAttribute<T>()
     {
         return typeof(T).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true).Any();
+    }
+
+    private static bool HasAuthorizeAttributeWithScheme<T>(string scheme)
+    {
+        return typeof(T)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+            .Any(a => a.AuthenticationSchemes == scheme);
     }
 
     private static DownstreamDemoController BuildDownstreamDemoController(

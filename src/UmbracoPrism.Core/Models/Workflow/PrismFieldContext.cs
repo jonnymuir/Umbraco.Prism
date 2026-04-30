@@ -82,9 +82,10 @@ public record PrismFieldContext
         var hasError = !string.IsNullOrEmpty(fieldError);
         var fieldKey = field.FieldKey;
 
+        var encodedFieldKey = System.Net.WebUtility.HtmlEncode(fieldKey);
         var describedByParts = new List<string>();
-        if (hasHint)  describedByParts.Add($"{fieldKey}-hint");
-        if (hasError) describedByParts.Add($"{fieldKey}-error");
+        if (hasHint)  describedByParts.Add($"{encodedFieldKey}-hint");
+        if (hasError) describedByParts.Add($"{encodedFieldKey}-error");
         var describedBy = describedByParts.Count > 0
             ? $@" aria-describedby=""{string.Join(" ", describedByParts)}"""
             : string.Empty;

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Services;
 
@@ -10,6 +11,7 @@ namespace UmbracoPrism.Core.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/prism/workflow")]
+[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class WorkflowPollController : ControllerBase
 {
     private readonly IBusinessAppWorkflowClient _workflowClient;

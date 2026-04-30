@@ -223,3 +223,28 @@ Previous history archived to reduce file size. Recent entries below.
 - **Local dev vs production security** — some warnings are informational in dev but critical in production
 
 **Decision:** `.squad/decisions/2026-04-20-copper-otlp-telemetry-upgrade.md` (recorded in main decisions ledger)
+
+---
+
+## Learnings / 2026-04-30
+
+**Review:** Full-stack security audit post-V2 polymorphic component model.
+
+**Top 3 findings:**
+1. **WorkflowPollController (HIGH — PATCHED):** `GET /api/prism/workflow/poll` had no `[Authorize]` attribute, exposing workflow state (step type, state version) to unauthenticated callers. Fixed immediately; regression test added to Phase1SecurityRegressionTests.cs.
+2. **Microsoft.AspNetCore.DataProtection 10.0.0 (CRITICAL CVE):** Transitive dep in `UmbracoPrism.Shared` has advisory GHSA-9mv3-2cwr-p262. DataProtection is the cryptographic substrate for cookie encryption and antiforgery. Must upgrade via Umbraco.Cms version bump or explicit override.
+3. **HMACSecretKey committed (HIGH):** Real base64 HMAC signing key committed in `TestSite/appsettings.json`. Key is compromised; rotate immediately.
+
+**Also patched:** `DescribedBy` aria attribute used unencoded `FieldKey` (operator-controlled injection surface). Log injection in `PrismTenantMiddleware` (string interpolation → structured logging).
+
+**Phase1SecurityRegressionTests.cs state:** 547 passing. Gaps remain for security headers, CookieSecurePolicy, and X-Forwarded-For rate limiting.
+
+**Confirmed solid:** Open redirect hardening, OIDC nonce validation, SQL parameterisation, antiforgery on workflow POST, biometric tenant cross-check, TenantManagementController double-auth, WrapperAttrs/PatternAttr encoding.
+
+**Watch items for next review:**
+- SEC-003 (XSS in @Html.Raw content) — needs sanitiser design before definition editor leaves Dev-only mode
+- SEC-006 (CookieSecurePolicy) — easy fix, low urgency but should not ship to production as-is
+- SEC-007 (rate-limit bypass via proxy) — required before any cloud deployment
+
+**Key learning:** V2 polymorphic component model introduced no new XSS surface at the Razor TagHelper level (all attrs encoded), but the pre-existing `@Html.Raw(Content)` pattern in display components is a latent risk that grows as the system matures.
+
