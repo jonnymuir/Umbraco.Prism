@@ -187,3 +187,67 @@ The v2.0 polymorphic component hierarchy rollout converged through three phases:
 **Basis:** Root cause analysis memo (2026-04-28, Blathers) + implementation report (Copilot, 2026-04-27).
 
 ---
+
+## 📌 2026-04-30: Blathers (Backend Dev) — V2 Naming Debt Cleared
+
+**Status:** ✅ COMPLETE — Commit `290a18c` merged to `origin/main`
+
+**Summary:** The `V2` suffix debt has been fully cleared from the production codebase. Both `WorkflowDefinitionFileV2` and `StepDefinitionV2` have been removed.
+
+**Final Type Names:**
+- `WorkflowDefinitionFileV2` → `WorkflowDefinitionFile` (UmbracoPrism.Shared.Models.Workflow)
+- `StepDefinitionV2` → `StepDefinition` (UmbracoPrism.Shared.Models.Workflow)
+
+**File Changes:**
+- Deleted: `src/UmbracoPrism.Shared/Models/Workflow/Components/WorkflowDefinitionFileV2.cs`
+- Renamed: `src/UmbracoPrism.Core.Tests/Workflow/V2/` → `src/UmbracoPrism.Core.Tests/Workflow/Components/`
+
+**Key Notes:**
+- `WorkflowDefinitionFile` and `StepDefinition` (canonical types) existed before rename, now fully canonical
+- No production code referenced V2 types; only `ComponentPolymorphismTests.cs` did
+- 547 tests pass after the change
+
+**Basis:** Blathers implementation report (2026-04-30), commit `290a18c`.
+
+---
+
+## 📌 2026-04-30: Copper (Security Engineer) — Full Security Review & Patching
+
+**Status:** ✅ PARTIAL — 3 critical patches applied; 6 findings open for follow-up triage
+
+**Review Scope:** Full codebase security audit with focus on auth, data protection, injection, and cookie security.
+
+**Patches Applied (Committed):**
+1. **SEC-001 (HIGH):** WorkflowPollController auth — Added `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` at controller level; regression test added
+2. **SEC-009 (LOW):** Log injection fix in workflow logging
+3. **SEC-011 (LOW):** HTML encoding in workflow component rendering
+
+**Open Findings Requiring Follow-up (Triage by tom-nook):**
+- **SEC-002 (CRITICAL):** DataProtection CVE (external dependency)
+- **SEC-003 (HIGH):** Cookie policy regression risk (`SameAsRequest` → `Always` required pre-production)
+- **SEC-004 (HIGH):** `@Html.Raw(Content)` sanitization required before editor leaves dev-only mode
+- **SEC-005 (HIGH):** `HttpContext.Connection.RemoteIpAddress` proxy-awareness for biometric rate-limiting
+- **SEC-006 (MEDIUM):** Committed secrets in `appsettings.json` (HMACSecretKey compromised; requires rotation)
+- **SEC-007 (MEDIUM):** Missing secret scanning step in CI pipeline
+
+**Decision Locked In:**
+- `IWorkflowContentSanitizer` abstraction (HtmlSanitizer + GDS allowlist) is pre-condition for shipping definition editor to non-dev
+- `CookieSecurePolicy.Always` + `ForwardedHeadersMiddleware` required pre-production
+- Secrets → `dotnet user-secrets` (local) / environment variables (CI/CD)
+
+**Basis:** Copper security review memo (2026-04-30), full review: `.squad/security-review-2026-04-30.md`.
+
+---
+
+## 🔒 Security — Open Triage Queue
+
+**Triaged By:** tom-nook (2026-04-30 onward)
+
+| Finding | Severity | Category | Owner | ETA |
+|---------|----------|----------|-------|-----|
+| SEC-002 | CRITICAL | External Dependency | tom-nook | TBD |
+| SEC-003 | HIGH | Cookie Security | tom-nook | Pre-production |
+| SEC-004 | HIGH | Content Sanitization | tom-nook | Pre-prod |
+| SEC-005 | HIGH | Proxy Awareness | tom-nook | Pre-prod |
+| SEC-006 | MEDIUM | Secrets Management | tom-nook | Post-review |
+| SEC-007 | MEDIUM | CI Hardening | tom-nook | Post-review |

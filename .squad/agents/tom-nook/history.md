@@ -20,11 +20,39 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## 🔴 2026-04-30: SECURITY TRIAGE QUEUE (Copper Audit) — 6 OPEN FINDINGS
+
+**Assigned to Tom Nook for triage and pre-production resolution.**
+
+| Finding | Severity | Category | Owner | Decision Status | ETA |
+|---------|----------|----------|-------|-----------------|-----|
+| SEC-002 | CRITICAL | DataProtection CVE (external) | tom-nook | Investigate Umbraco.Cms bump | TBD |
+| SEC-003 | HIGH | CookieSecurePolicy (SameAsRequest → Always) | tom-nook | Pre-production gate | Pre-prod |
+| SEC-004 | HIGH | @Html.Raw sanitization (IWorkflowContentSanitizer) | tom-nook | Design + implement pre-editor-ship | Pre-prod |
+| SEC-005 | HIGH | Proxy-aware IP (ForwardedHeadersMiddleware) | tom-nook | Required pre-cloud-deployment | Pre-prod |
+| SEC-006 | MEDIUM | HMACSecretKey committed + compromised | tom-nook | Rotate key; enable secret scan | Post-review |
+| SEC-007 | MEDIUM | Missing CI secret scanning step | tom-nook | Add to CI pipeline | Post-review |
+
+**Context:**
+- Full security audit by Copper (2026-04-30) following v2.0 polymorphic component model rollout
+- 3 patches already applied and committed: SEC-001 (WorkflowPollController auth), SEC-009 (log injection), SEC-011 (HTML encoding)
+- Details: `.squad/decisions.md` → "Security — 2026-04-30" section
+- Full review report: `.squad/security-review-2026-04-30.md`
+
+**Locked Decisions:**
+- `IWorkflowContentSanitizer` (HtmlSanitizer + GDS allowlist) is pre-condition for shipping definition editor to non-dev
+- `CookieSecurePolicy.Always` + `ForwardedHeadersMiddleware` required pre-production
+- Secrets policy: no real keys in version-controlled appsettings.json; use `dotnet user-secrets` (local) / env vars (CI/CD)
+
+---
+
 ## 📌 2026-04-30: Cross-Agent Note — V2 Code Identifiers Naming Review
 
 **Alert:** Mabel's documentation cleanup (2026-04-30) flagged that source code identifiers like `WorkflowDefinitionFileV2.cs` and `ComponentPolymorphismTests.cs` retain "V2" suffixes. Docs cleanup removed all "v2.0" versioning language from public documentation.
 
 **Question:** Should internal code identifiers be renamed as part of future cleanup? (Joint decision with Blathers; no immediate action required.)
+
+**Update (2026-04-30):** Blathers completed V2 naming debt clearance — `WorkflowDefinitionFileV2` deleted, `StepDefinitionV2` removed, test folder renamed. Commit `290a18c`, 547 tests passing. Code identifiers now consistent with documentation terminology.
 
 ---
 
