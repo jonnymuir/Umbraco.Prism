@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -900,5 +901,57 @@ public class Phase1SecurityRegressionTests
             if (Directory.Exists(testSeedDir))
                 Directory.Delete(testSeedDir, recursive: true);
         }
+    }
+
+    // ------------------------------------------------------------------ SEC-PT2-006: DataProtection key persistence
+
+    [Fact]
+    public void DataProtection_PersistKeysToFileSystem_ProducesWorkingProtector()
+    {
+        // Verify that AddDataProtection with PersistKeysToFileSystem produces a
+        // working protector — ensuring PT2-006 key persistence code is functional.
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            services.AddDataProtection()
+                .SetApplicationName("UmbracoPrism.TestSite")
+                .PersistKeysToFileSystem(new System.IO.DirectoryInfo(tempDir));
+
+            var sp = services.BuildServiceProvider();
+            var protectionProvider = sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+            var protector = protectionProvider.CreateProtector("test-purpose");
+
+            var plaintext = "security-regression-pt2-006";
+            var ciphertext = protector.Protect(plaintext);
+            var decrypted = protector.Unprotect(ciphertext);
+
+            decrypted.Should().Be(plaintext);
+            ciphertext.Should().NotBe(plaintext);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    // ------------------------------------------------------------------ SEC-PT2-009: antiforgery exemptions on JSON API controllers
+
+    [Fact]
+    public void PrismNotificationController_HasIgnoreAntiforgeryTokenAttribute()
+    {
+        var attr = typeof(Controllers.PrismNotificationController)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute), inherit: false);
+        attr.Should().NotBeEmpty("PrismNotificationController must carry [IgnoreAntiforgeryToken] (SEC-PT2-009)");
+    }
+
+    [Fact]
+    public void PrismVinylNotificationController_HasIgnoreAntiforgeryTokenAttribute()
+    {
+        var attr = typeof(Controllers.PrismVinylNotificationController)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute), inherit: false);
+        attr.Should().NotBeEmpty("PrismVinylNotificationController must carry [IgnoreAntiforgeryToken] (SEC-PT2-009)");
     }
 }
