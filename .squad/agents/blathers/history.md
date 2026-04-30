@@ -10,6 +10,34 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: SEC-003 — Sanitizer Wire-Up (T1, T3–T5, T7, T9) (2026-04-30)
+
+**Status:** ✅ Complete — Commit `4223861` pushed to main
+
+**Scope:** Wire the `IWorkflowContentSanitizer` abstraction across Core + MockBusinessApp per Tom Nook's SEC-003 proposal. Copper follows up with the real Ganss.Xss-backed impl (T2 + T8).
+
+**Changes:**
+
+| Task | What |
+|------|------|
+| T1 | `HtmlSanitizer` 9.0.892 added to `UmbracoPrism.Core.csproj` (0 vulns) |
+| T3 | `IWorkflowContentSanitizer` interface in `UmbracoPrism.Shared/Services/Sanitization/` (placed in Shared so MockBusinessApp can reference without dep cycle) |
+| T4 | `NoOpWorkflowContentSanitizer` (internal, Core) + singleton DI registration in `WorkflowBuilderExtensions` |
+| T5 | `BusinessAppWorkflowEngine` ctor gains `IWorkflowContentSanitizer`; `Sanitize()` applied to Content on Body, InsetText, WarningText, NotificationBanner, Details, Waiting (all 7 Html.Raw sites) |
+| T6 | `_PrismComponent-Waiting.cshtml` does not exist — Waiting.Content is covered by T5 engine seam |
+| T7 | `SeedContentSanitizationTests` — 4 theory cases (one per seed); spy sanitizer asserts output == input; trivially passes today, becomes real guard when Copper's sanitizer lands |
+| T9 | 6 skipped regression tests in `Phase1SecurityRegressionTests` (script, javascript:, onerror, data:, SVG/onload, plain-text); `[Fact(Skip = ...)]`; correctly skipped with NoOp |
+
+**Architectural deviation:** Interface placed in `UmbracoPrism.Shared` (not Core as spec said). Reason: MockBusinessApp only references Shared; putting interface in Shared avoids `MockBusinessApp → Core` inversion.
+
+**Test delta:** 550 → 554 passing + 6 skipped = 560 total. 0 failures.
+
+**Handoff:** Copper owns T2 (real impl) + T8 (unit tests) + un-skipping T9 + re-registering in DI.
+
+**Decision note:** `.squad/decisions/inbox/blathers-sec-003-wireup.md`
+
+---
+
 ## Session: SEC-004 — Rotate Leaked HMAC Key & Extract TestSite Secrets (2026-04-30)
 
 **Status:** ✅ Complete — Commit `b6336fd` pushed to main
