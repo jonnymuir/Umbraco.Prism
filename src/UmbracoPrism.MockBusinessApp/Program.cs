@@ -8,6 +8,7 @@ using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Services.Sanitization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,10 @@ builder.Services.AddPrismAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
+
+// MockBusinessApp serves controlled seed content only — passthrough sanitizer is sufficient.
+// The real GDS allowlist sanitizer (WorkflowContentSanitizer) is wired up in TestSite via Core.
+builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>();
 
 // Business App workflow engine — singleton so in-memory instance state survives across requests
 builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
@@ -666,3 +671,10 @@ public record WorkflowAdvanceApiRequest(
     string Action,
     int StateVersion,
     Dictionary<string, object?>? FieldValues);
+
+// Passthrough sanitizer: seed content is developer-authored, not user-supplied.
+// No XSS risk — passthrough is intentional and appropriate for this mock app.
+file sealed class PassthroughSanitizer : IWorkflowContentSanitizer
+{
+    public string Sanitize(string? html) => html ?? string.Empty;
+}

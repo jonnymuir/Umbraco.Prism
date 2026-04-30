@@ -20,7 +20,7 @@ jobs:
       - name: Validate version consistency
         run: |
           VERSION=$(node -e "console.log(require('./package.json').version)")
-          if ! grep -q "## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
+          if ! grep -qE "^## \[v?$VERSION\]" CHANGELOG.md 2>/dev/null; then
             echo "::error::Version $VERSION not found in CHANGELOG.md — update CHANGELOG.md before release"
             exit 1
           fi
