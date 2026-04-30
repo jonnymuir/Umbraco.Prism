@@ -168,8 +168,18 @@ app.MapGet("/api/workflow/instances", (
     return Results.Ok(envelope);
 }).RequireAuthorization();
 
-app.MapDelete("/api/test/reset", (BusinessAppWorkflowEngine engine, ILogger<Program> logger) =>
+// SECURITY: Anonymous test-reset endpoint — Development only.
+// This endpoint wipes all workflow instances and is intended exclusively for
+// integration test setup/teardown. It MUST NOT be reachable in any non-Development
+// environment (the global /admin guard above does not match this path, so guard
+// the endpoint explicitly here).
+app.MapDelete("/api/test/reset", (BusinessAppWorkflowEngine engine, ILogger<Program> logger, IHostEnvironment env) =>
 {
+    if (!env.IsDevelopment())
+    {
+        return Results.NotFound();
+    }
+
     engine.ResetAll();
     logger.LogInformation("Test reset: all workflow instances cleared via /api/test/reset");
     return Results.Ok(new { cleared = true });
