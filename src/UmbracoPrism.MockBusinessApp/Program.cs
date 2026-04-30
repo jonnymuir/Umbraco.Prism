@@ -11,6 +11,10 @@ using UmbracoPrism.Shared.Models.Workflow;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Local secrets override — gitignored. Supply real Entra tenant/client IDs and member
+// emails here. See src/UmbracoPrism.MockBusinessApp/README.md for setup instructions.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 builder.Services.AddPrismAuthentication(builder.Configuration);
 
 builder.Services.AddAuthorization();

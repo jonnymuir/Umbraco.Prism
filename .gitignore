@@ -515,3 +515,8 @@ src/UmbracoPrism.TestSite/Views/workflowHub.cshtml
 # After first run, move Umbraco:CMS:Imaging:HMACSecretKey here from appsettings.json.
 # See src/UmbracoPrism.TestSite/README.md for setup instructions.
 src/UmbracoPrism.TestSite/appsettings.Local.json
+
+# Local secrets override for MockBusinessApp — never commit.
+# Supply real Entra tenant/client IDs and member emails here.
+# See src/UmbracoPrism.MockBusinessApp/README.md for setup instructions.
+src/UmbracoPrism.MockBusinessApp/appsettings.Local.json
