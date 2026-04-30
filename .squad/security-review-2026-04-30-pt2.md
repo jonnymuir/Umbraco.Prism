@@ -48,10 +48,10 @@ need a team decision before patching.
 | SEC-PT2-002   | Medium   | Vulnerable transitive: `OpenTelemetry.Exporter.OpenTelemetryProtocol 1.11.2` (CVE-2026-42191) | PATCHED |
 | SEC-PT2-003   | Medium   | Logout via GET in `AccountController` (logout-CSRF)                      | Fixed (828b5d4) |
 | SEC-PT2-004   | Medium   | Missing security response headers (CSP, XFO, XCTO, HSTS, Referrer, Permissions) | Fixed (9f1f34e) |
-| SEC-PT2-005   | Medium   | `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional       | OPEN     |
+| SEC-PT2-005   | Medium   | `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional       | Confirmed safe (commit TBD) |
 | SEC-PT2-006   | Low      | DataProtection keys ephemeral by default; not encrypted at rest          | Fixed (6c0e8e9) |
-| SEC-PT2-007   | Low      | Unsanitized `accordionSection.Content` in Razor partial (currently unused producer-side) | OPEN |
-| SEC-PT2-008   | Low      | `VinylRecord.cshtml` `@Html.Raw(description)` — RTE field, operator-trust | OPEN    |
+| SEC-PT2-007   | Low      | Unsanitized `accordionSection.Content` in Razor partial (currently unused producer-side) | Fixed (03dba49) |
+| SEC-PT2-008   | Low      | `VinylRecord.cshtml` `@Html.Raw(description)` — RTE field, operator-trust | Fixed (6177137) |
 | SEC-PT2-009   | Low      | Antiforgery missing on JSON state-mutating API endpoints                 | Fixed (7a3b0ef) |
 | SEC-PT2-010   | Info     | `IsCapacitorOrigin` accepts `http://localhost` with credentials          | Fixed (11b8cbb) |
 
@@ -206,8 +206,7 @@ If the test reveals leakage, switch the unconditional defaults back to a
 scheme-aware policy or a custom `IAuthenticationSchemeProvider` that picks
 based on path.
 
-**Status.** OPEN — needs Blathers to confirm Umbraco's expectations here
-before any change.
+**Status.** Confirmed safe (commit TBD) — `BackofficeSchemeIsolationTests.cs` added with 4 regression tests proving: (A) `DefaultAuthenticateScheme = "PrismMemberCookie"` is set unconditionally, (B) `DefaultChallengeScheme = "PrismEntraID"`, (C) Umbraco's `"UmbracoBackOffice"` scheme constant is distinct from `"PrismMemberCookie"`, (D) explicit named-scheme authentication for `"UmbracoBackOffice"` does not fall through to the default scheme — a `PrismMemberCookie` alone cannot satisfy a backoffice auth challenge. See `.squad/decisions/inbox/blathers-pt2-005-backoffice-test.md` for detailed analysis.
 
 ---
 
@@ -266,7 +265,7 @@ unsanitized HTML reaches the page — *currently safe*. But:
   Razor side is fail-safe; or
 - Remove `Content` from payloads that don't actually need raw HTML.
 
-**Status.** OPEN — engine change risks scope creep; raise as its own ticket.
+**Status.** Fixed (03dba49) — `@inject IWorkflowContentSanitizer Sanitizer` added to `_PrismComponent-Accordion.cshtml`; `accordionSection.Content` routed through `Sanitizer.Sanitize()` before `@Html.Raw`. The render boundary is now fail-safe regardless of producer behaviour. 4 regression tests added (`AccordionContentSanitizationTests`).
 
 ---
 
@@ -279,8 +278,7 @@ CMS pattern (operator-authored content), partly mitigated by
 `Umbraco:CMS:Global:SanitizeTinyMce: true` in `appsettings.json`, but a
 backoffice user with content-edit rights can still XSS members.
 
-**Status.** OPEN / informational. Backoffice trust is a CMS-level assumption;
-escalate only if the threat model includes hostile editors.
+**Status.** Fixed (6177137) — `@inject IWorkflowContentSanitizer Sanitizer` added to `VinylRecord.cshtml`; `description` routed through `Sanitizer.Sanitize()` before `@Html.Raw`. The GDS allowlist covers all standard TinyMCE output (p, ul, ol, li, h2-h4, strong, em, a, br, blockquote, code + http/https/mailto/tel). If editors need richer formatting (tables, images), that is a separate decision — the allowlist is not widened here. 5 regression tests added (`VinylRecordRteSanitizationTests`).
 
 ---
 
