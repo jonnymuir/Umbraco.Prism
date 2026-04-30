@@ -15,6 +15,93 @@ History trimmed for readability. Complete history in git.
 
 ---
 
+## 2026-04-30: Full Documentation Review & v2 Schema Cleanup — COMPLETE
+
+**Session:** Comprehensive documentation audit, v2 schema terminology cleanup, and walkthrough consolidation
+
+**Task:** Full review of all docs including READMEs, walkthroughs, guides, design docs, and archive. Remove "v2.0 Schema Update" banners (correct assessment: the polymorphic component model IS the current schema, not v2), consolidate duplicate planning-notification walkthroughs into canonical location.
+
+### Delivered
+
+1. **Inventory completed:**
+   - All docs reviewed: /README.md, ASPIRE_DEV.md, CODESPACES.md, CONTRIBUTING.md, DEPLOYMENT_SECURITY.md
+   - All /docs/ subfolders: /design/, /guides/, /walkthroughs/, /archive/
+   - Root-level guides: biometric-setup.md, secret-management.md, umbraco-setup.md, etc.
+   - Total: 35+ markdown files audited
+
+2. **v2 schema banners removed (12 instances):**
+   - ✅ docs/workflow-forms-engine.md
+   - ✅ docs/guides/workflow-setup.md
+   - ✅ docs/guides/workflow-forms-validation.md
+   - ✅ docs/guides/workflow-customisation.md
+   - ✅ docs/guides/workflow-gds-components.md
+   - ✅ docs/design/workflow-validation.md
+   - ✅ docs/design/workflow-forms-engine-backend.md
+   - ✅ docs/design/workflow-forms-engine-demo.md
+   - ✅ docs/design/workflow-forms-engine-security.md
+   - ✅ docs/design/workflow-forms-engine-client.md
+   - ✅ docs/design/workflow-forms-engine-umbraco.md
+   - ✅ docs/walkthroughs/README.md (terminology: "v2.0 polymorphic component model" → "polymorphic component model")
+
+3. **Schema terminology normalized:**
+   - Replaced "v2.0 examples" with "current examples" or "examples"
+   - Replaced "v1 vs v2" framing with "Design Proposal vs. Current Implementation" in workflow-hub-and-conditional-fields.md
+   - Clarified that polymorphic component model is THE current schema (no "v1" shipped)
+   - Terminology: "v2.0 polymorphic component model" → "polymorphic component model" throughout
+
+4. **Walkthrough consolidation complete:**
+   - ✅ Merged 388-line top-level `docs/workflow-walkthrough.md` into `docs/walkthroughs/planning-notification.md`
+   - ✅ Enhanced walkthroughs/planning-notification.md with full step-by-step walkthrough narrative
+   - ✅ Deleted top-level `docs/workflow-walkthrough.md` (content preserved in walkthroughs)
+   - ✅ Updated README.md links (2 references → now point to docs/walkthroughs/planning-notification.md)
+   - ✅ Updated ASPIRE_DEV.md link (now points to walkthrough directly)
+   - ✅ All other walkthroughs (community-enquiry, payment-demo, information-request) remain in /walkthroughs/
+
+5. **Other fixes:**
+   - Updated walkthrough terminology: "v2.0 polymorphic component model" → "polymorphic component model" (community-enquiry, payment-demo)
+   - Verified no ASCII art requiring replacement with Mermaid
+   - Confirmed all internal links are valid post-consolidation
+   - All 4 walkthrough directories have initial screenshots (01-initial.png in each)
+
+### Verification
+
+```bash
+# ✅ All v2 schema banners removed:
+grep -rn "v2.0 Schema\|v2 schema\|v1 schema" docs/ README.md → no matches (except archive/)
+
+# ✅ Walkthrough consolidation verified:
+find docs -name "*walkthrough*" → only /docs/walkthroughs/ directory remains
+
+# ✅ All links updated:
+grep -rn "workflow-walkthrough" --include="*.md" → only historical references in .squad/
+```
+
+### Key Learnings
+
+1. **Schema versioning confusion:** "v2.0 Schema Update" banners were misleading — the polymorphic component model is the shipped schema, not a v2 update to a shipped v1. No "v1 schema" version was ever released to users.
+
+2. **Walkthrough consolidation pattern:** The top-level `docs/workflow-walkthrough.md` was a detailed end-to-end walkthrough that should live in `docs/walkthroughs/` alongside similar walkthroughs. Consolidating to one canonical location improves discoverability and maintainability.
+
+3. **Design docs vs. current docs:** Design documents that predate implementation can reference "proposed vs. implemented" to show design evolution without confusing users about what's current.
+
+4. **Screenshot directories:** Each walkthrough has an `images/walkthroughs/{workflow-name}/` subdirectory for organization. Current coverage: all have 01-initial.png; additional steps may need screenshots on next capture pass.
+
+### Open Items / Next Steps
+
+1. **Screenshots TODO:** Walkthroughs have initial screenshots (01-initial.png) but could use additional step screenshots. Flag for next screenshot capture session:
+   - planning-notification: Additional step screenshots (timeline-cost, check-answers, confirmation)
+   - community-enquiry: Conditional reveal demonstration
+   - payment-demo: Checkout and confirmation screens
+   - information-request: Data entry and review screens
+
+2. **Code identifier naming:** Internal naming in source (`src/UmbracoPrism.Core.Tests/Workflow/V2/ComponentPolymorphismTests.cs`, `WorkflowDefinitionFileV2.cs`) still uses "V2" suffix. This is internal naming and doc-friendly as-is, but flag for Tom Nook/Blathers to decide if code should be renamed for clarity (not part of this doc review).
+
+3. **Archive clarity:** `docs/archive/` files have clear "Status: Archived" markers and link to current implementation — good state, no action needed.
+
+4. **Design doc status:** Design documents should be marked with a status line at the top (Status: Design, Status: Implemented) for clarity — future improvement for onboarding clarity.
+
+---
+
 ## 2026-04-22: Walkthrough Screenshot Runbook — COMPLETE
 
 **Session:** Give Mabel the concrete operational guidance for real walkthrough screenshots
