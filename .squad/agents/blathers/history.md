@@ -18,6 +18,28 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: V2 Suffix Rename — Workflow Definition Types (2026-04-30)
+
+**Status:** ✅ Complete — Commit `290a18c` pushed to main
+
+**Scope:** Drop the meaningless `V2` suffix from workflow code identifiers (decisions.md had already banned V2 class names; this clears the debt).
+
+**Changes:**
+1. `WorkflowDefinitionFileV2.cs` deleted — `WorkflowDefinitionFile` already existed as the canonical type in `UmbracoPrism.Shared.Models.Workflow`; the V2 file was a legacy duplicate with only a `SchemaVersion` property extra (no references other than the ComponentPolymorphism test)
+2. `StepDefinitionV2` eliminated — canonical `StepDefinition` already existed with identical shape
+3. Test folder renamed via `git mv`: `Workflow/V2/` → `Workflow/Components/` (mirrors prod folder structure)
+4. Both test files updated: namespace `UmbracoPrism.Core.Tests.Workflow.V2` → `UmbracoPrism.Core.Tests.Workflow.Components`
+5. Test method renamed: `WorkflowDefinitionFileV2_RoundtripsCorrectly` → `WorkflowDefinitionFile_RoundtripsCorrectly`
+6. Removed `SchemaVersion = "2.0"` init and its JSON assertion from the roundtrip test (canonical `WorkflowDefinitionFile` has no `SchemaVersion` property)
+
+**Build/Test:** 547 passed, 0 failed (same count as previous session baseline)
+
+**Surprises:**
+- A canonical `WorkflowDefinitionFile.cs` (no V2) already existed alongside the V2 file — both in `namespace UmbracoPrism.Shared.Models.Workflow`. The V2 file could not simply be renamed in-place; it had to be deleted. `SeedFileRoundtripTests.cs` was already using the canonical type correctly; only `ComponentPolymorphismTests.cs` referenced the V2 types.
+- No other production code referenced V2 types — the grep was clean.
+
+---
+
 ## Session: Workflow Developer Experience Improvements (2026-04-28)
 
 **Status:** ✅ Complete
