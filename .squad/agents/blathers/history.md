@@ -158,3 +158,44 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 - Aspire restarts between test files have high overhead (~1 min per file)
 
 ---
+
+## Session: SEC-002/006/007/008/010 — Security Review 2026-04-30 Full Remediation
+
+**Status:** ✅ Complete — 4 commits pushed to main
+
+**Scope:** Close all five security findings from the 2026-04-30 security review in a single session (one commit per logical group, build + test verification after each).
+
+### Commits
+
+| SHA | Findings | Summary |
+|-----|----------|---------|
+| `2618c54` | SEC-002, SEC-008 | NuGet CVE bumps: DataProtection → 10.0.7, OpenTelemetry.Api → 1.15.3 |
+| `df434bf` | SEC-006 | CookieSecurePolicy.Always + regression test |
+| `44c476f` | SEC-007 | ForwardedHeadersMiddleware wired; proxy-aware rate-limiting |
+| `87900c9` | SEC-010 | PII/GUIDs scrubbed in MockBusinessApp; appsettings.Local.json pattern extended |
+
+### Test progression
+
+548 → 549 (after SEC-006) → 550 (after SEC-007) — 550/550 passing at close.
+
+### Key details
+
+**SEC-002 (CRITICAL):** `Microsoft.AspNetCore.DataProtection` GHSA-9mv3-2cwr-p262 fixed by pinning to 10.0.7 in `UmbracoPrism.Shared.csproj` (uses base SDK, no automatic web-framework override). Required co-bumping `System.Security.Cryptography.Xml` 10.0.6 → 10.0.7 to avoid NU1605 downgrade error.
+
+**SEC-008 (MEDIUM):** `OpenTelemetry.Api` GHSA-g94r-2vxg-569j — 1.12.0 and 1.13.x all vulnerable; pinned to 1.15.3 in both `ServiceDefaults.csproj` and `AppHost.csproj` independently.
+
+**SEC-006 (MEDIUM):** `CookieSecurePolicy.SameAsRequest` → `Always` in `PrismComposer.cs`. Local dev now requires HTTPS (already enforced by Aspire launch profile).
+
+**SEC-007 (MEDIUM):** `ForwardedHeadersMiddleware` wired as first call in `UmbracoPipelineFilter` pre-pipeline. `KnownProxies`/`KnownNetworks` cleared for dev-safe default — production deployment MUST restrict to known proxy CIDRs.
+
+**SEC-010 (LOW):** Real Entra tenant GUIDs + `jonnypmuir@gmail.com` replaced with placeholders. ⚠️ PII (`jonnypmuir@gmail.com`) remains in git history — history rewrite required if repo goes public.
+
+### Artifacts created
+
+- `.squad/decisions/inbox/blathers-sec-002-008.md`
+- `.squad/decisions/inbox/blathers-sec-006.md`
+- `.squad/decisions/inbox/blathers-sec-007.md`
+- `.squad/decisions/inbox/blathers-sec-010.md`
+- `.squad/agents/blathers/SKILL-proxy-aware-rate-limiting.md`
+
+---
