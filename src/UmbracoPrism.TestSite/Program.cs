@@ -1,6 +1,11 @@
 using UmbracoPrism.TestSite;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+// Local secrets override — gitignored. Place Prism:VaultUri and any other
+// environment-specific secrets here. See src/UmbracoPrism.TestSite/README.md.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 var runtimeLayout = TestSiteRuntimeLayout.Apply(builder);
 
 if (runtimeLayout.IsEnabled)

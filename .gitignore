@@ -509,3 +509,9 @@ artifacts/aspire/keycloak-data/
 # Auto-generated Umbraco views that conflict with Core embedded views
 src/UmbracoPrism.TestSite/Views/workflowPage.cshtml
 src/UmbracoPrism.TestSite/Views/workflowHub.cshtml
+
+# Local secrets override for TestSite — never commit.
+# Contains Prism:VaultUri and any other local secrets.
+# After first run, move Umbraco:CMS:Imaging:HMACSecretKey here from appsettings.json.
+# See src/UmbracoPrism.TestSite/README.md for setup instructions.
+src/UmbracoPrism.TestSite/appsettings.Local.json
