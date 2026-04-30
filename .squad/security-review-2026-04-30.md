@@ -25,7 +25,7 @@ The prior redirect hardening and OIDC nonce work continues to hold. SQL paramete
 | SEC-001 | HIGH | Auth | WorkflowPollController — no authentication | `Controllers/WorkflowPollController.cs:14` | ✅ PATCHED |
 | SEC-002 | CRITICAL | CVE | Microsoft.AspNetCore.DataProtection 10.0.0 | `UmbracoPrism.Shared.csproj` (transitive) | ⚠️ OPEN |
 | SEC-003 | HIGH | XSS | `@Html.Raw(Content)` in workflow display components | 4 Razor partials (see below) | ⚠️ OPEN |
-| SEC-004 | HIGH | Secret | HMACSecretKey committed to appsettings.json | `TestSite/appsettings.json` | ⚠️ OPEN |
+| SEC-004 | HIGH | Secret | HMACSecretKey committed to appsettings.json | `TestSite/appsettings.json` | ✅ CLOSED (2026-04-30, commit `b6336fd`) |
 | SEC-005 | HIGH | CVE | npm — handlebars critical + 10 high CVEs | `UmbracoPrism.Client/package.json` (transitive) | ⚠️ OPEN |
 | SEC-006 | MEDIUM | Cookie | CookieSecurePolicy.SameAsRequest | `Core/PrismComposer.cs` | ⚠️ OPEN |
 | SEC-007 | MEDIUM | CORS/Rate | IP rate-limit bypassed behind reverse proxy | `Services/ExchangeRateLimitService.cs` | ⚠️ OPEN |
@@ -83,6 +83,13 @@ The prior redirect hardening and OIDC nonce work continues to hold. SQL paramete
 3. Add a git pre-commit hook (or CI secret scanning) to prevent recurrence.
 
 **Suggested owner:** Copper
+
+**✅ CLOSED — 2026-04-30 · Commit `b6336fd`**
+- **Implementation:** Blathers removed both `HMACSecretKey` and `Prism:VaultUri` from tracked `appsettings.json`; introduced `appsettings.Local.json` (gitignored) loaded via `builder.Configuration.AddJsonFile(...)` before `CreateUmbracoBuilder()`.
+- **Pattern decision:** `appsettings.Local.json` chosen over `dotnet user-secrets` because Umbraco's `IJsonSettingsEditor` writes the regenerated key to `appsettings.json` directly (not to user-secrets store); the Local.json pattern self-documents the first-run bootstrap.
+- **Bootstrap:** Developers on fresh clone create `appsettings.Local.json` with the HMAC value; Umbraco sees it in the config chain and does not regenerate to `appsettings.json`.
+- **Caveat:** Committed value is burned (remains in git history); rotation of the actual key value is what matters. TestSite is local-only; real-world risk is LOW.
+- **Test result:** 547/547 passing; no secrets in tracked files (`git grep dMxHo7` clean).
 
 ---
 

@@ -2,6 +2,43 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
+## 📌 2026-04-30: Blathers — SEC-004 Closed — TestSite Secrets Management Pattern
+
+**Status:** ✅ IMPLEMENTED — Commit `b6336fd` on `main`
+
+### Summary
+
+SEC-004 (HIGH — committed `Umbraco:CMS:Imaging:HMACSecretKey` and `Prism:VaultUri` in `src/UmbracoPrism.TestSite/appsettings.json`) is **CLOSED**.
+
+**Remediation:** Removed both values from tracked `appsettings.json`; introduced `appsettings.Local.json` (gitignored) loaded via `builder.Configuration.AddJsonFile(...)` before `CreateUmbracoBuilder()`. Documented first-run bootstrap in new `src/UmbracoPrism.TestSite/README.md`.
+
+### Chosen Pattern: `appsettings.Local.json` (gitignored)
+
+**Rejected:** `dotnet user-secrets` — already wired (`UserSecretsId` in `.csproj`) but doesn't mesh cleanly with Umbraco's HMAC key first-run bootstrap (Umbraco writes to `appsettings.json`, not to user-secrets store). The `appsettings.Local.json` pattern is self-documenting and matches the bootstrap flow.
+
+**Chosen:** `appsettings.Local.json` loaded via `builder.Configuration.AddJsonFile(...)` before `CreateUmbracoBuilder()`. File is gitignored at root `.gitignore`.
+
+### Rule Going Forward
+
+- ❌ Never commit a value for `Umbraco:CMS:Imaging:HMACSecretKey` in any tracked `appsettings*.json`
+- ❌ Never commit a value for `Prism:VaultUri` in any tracked `appsettings*.json`  
+- ✅ Both keys live in `src/UmbracoPrism.TestSite/appsettings.Local.json` (gitignored)
+- ✅ See `src/UmbracoPrism.TestSite/README.md` for developer bootstrap instructions
+
+### Technical Note
+
+Umbraco's `IJsonSettingsEditor` writes the auto-generated HMAC key to `appsettings.json` in the content root on first run when the key is absent from all config providers. Once the key is present in `appsettings.Local.json` (part of the config chain), Umbraco sees a non-null value and skips regeneration — keeping `appsettings.json` clean on subsequent runs.
+
+### Caveat
+
+The leaked HMAC value (`dMxHo7...`) remains in git history permanently; rotation of the value is what matters going forward. TestSite is local-only; real-world risk is **LOW** per user.
+
+### Basis
+
+Blathers' commit `b6336fd` implementation; security review findings (2026-04-30, Copper); pattern decision recorded in inbox (2026-04-30).
+
+---
+
 ## 📌 2026-04-26: Copilot (Coordinator) — v2.0 Polymorphic Component Rollout Completion
 
 **Status:** ✅ COMPLETE — 9-commit atomic rollout concluded; v2.0 schema is canonical

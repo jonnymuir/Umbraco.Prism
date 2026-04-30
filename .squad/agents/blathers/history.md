@@ -10,6 +10,30 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: SEC-004 — Rotate Leaked HMAC Key & Extract TestSite Secrets (2026-04-30)
+
+**Status:** ✅ Complete — Commit `b6336fd` pushed to main
+
+**Scope:** Remediate SEC-004 from the 2026-04-30 security review: remove committed `Umbraco:CMS:Imaging:HMACSecretKey` from `appsettings.json`; extract `Prism:VaultUri`; prevent re-leak.
+
+**Changes:**
+1. Removed `Umbraco:CMS:Imaging:HMACSecretKey` and `Prism:VaultUri` from `src/UmbracoPrism.TestSite/appsettings.json` — the HMAC value is burned (still in git history; user to handle if repo ever goes public)
+2. Wired `appsettings.Local.json` into `Program.cs` via `builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)` — loaded before `CreateUmbracoBuilder()`, higher priority than `appsettings.json`
+3. Added `src/UmbracoPrism.TestSite/appsettings.Local.json` to root `.gitignore` with explanatory comment
+4. Created `src/UmbracoPrism.TestSite/README.md` documenting the local secrets bootstrap pattern
+
+**Chosen secret extraction mechanism:** `appsettings.Local.json` (gitignored file). User-secrets was already wired (`UserSecretsId` in `.csproj`) but the Local.json pattern was preferred because it self-documents the first-run HMAC bootstrap step: Umbraco writes the regenerated key to `appsettings.json` on first run; dev moves it to `appsettings.Local.json`, then reverts `appsettings.json`. Subsequent runs read the key from Local.json and Umbraco does not regenerate.
+
+**Umbraco HmacSecretKeyService write target:** Umbraco's `IJsonSettingsEditor` / `AppSettingsConfigurationFileEditor` writes the auto-generated HMAC key directly to `appsettings.json` in the content root (not to any other provider). It regenerates the key only when the value is missing from all config providers. Once the key is present in `appsettings.Local.json` (which is loaded into the config chain), Umbraco sees a non-null value and does not regenerate — so `appsettings.json` remains clean after the first-run bootstrap.
+
+**bin/** tracked check:** Not tracked in git. No action needed.
+
+**Build/Test:** 547/547 passing — clean build, 0 new failures.
+
+**Verification:** `git grep "dMxHo7"` → empty (key not in tracked files; historical commit `60f7717` still in git history).
+
+---
+
 ## 📌 2026-04-30: Cross-Agent Note — V2 Code Identifiers Naming Review
 
 **Alert:** Mabel's documentation cleanup (2026-04-30) flagged that source code identifiers like `WorkflowDefinitionFileV2.cs` and `ComponentPolymorphismTests.cs` retain "V2" suffixes.

@@ -248,3 +248,15 @@ Previous history archived to reduce file size. Recent entries below.
 
 **Key learning:** V2 polymorphic component model introduced no new XSS surface at the Razor TagHelper level (all attrs encoded), but the pre-existing `@Html.Raw(Content)` pattern in display components is a latent risk that grows as the system matures.
 
+### 2026-04-30 — SEC-004 Closed by Blathers
+
+**Commit:** `b6336fd` (main)
+
+**Finding:** HIGH — HMAC signing key and Vault URI committed in tracked `TestSite/appsettings.json`.
+
+**Remediation:** Blathers implemented the `appsettings.Local.json` pattern (gitignored, loaded before Umbraco builder). Pattern decision recorded in decisions.md.
+
+**Status:** ✅ CLOSED — Build passes, 547/547 tests green, no secrets in tracked files.
+
+
+
