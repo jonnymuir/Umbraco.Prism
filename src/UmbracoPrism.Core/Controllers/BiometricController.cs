@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -38,6 +40,7 @@ public class BiometricController(
     ISecretVaultService vault,
     IOptions<PrismBiometricOptions> biometricOptions,
     IExchangeRateLimitService exchangeRateLimitService,
+    IWebHostEnvironment environment,
     ILogger<BiometricController> logger) : Controller
 {
     /// <summary>
@@ -562,6 +565,10 @@ public class BiometricController(
         HttpContext.Connection.RemoteIpAddress?.ToString()
             ?? "unknown";
 
-    private static bool IsCapacitorOrigin(string origin) =>
-        origin is "capacitor://localhost" or "http://localhost";
+    // SEC-PT2-010: http://localhost is an Android emulator origin only valid in development.
+    // capacitor://localhost (iOS) is always permitted. Restricting http://localhost to
+    // Development prevents a same-LAN attacker from abusing the emulator origin in production.
+    private bool IsCapacitorOrigin(string origin) =>
+        origin is "capacitor://localhost" ||
+        (origin is "http://localhost" && environment.IsDevelopment());
 }
