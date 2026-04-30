@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
+using System.Reflection;
 using System.Security.Claims;
 using UmbracoPrism.Core.Controllers;
 
@@ -90,5 +92,37 @@ public class AccountControllerTests
         };
 
         return controller;
+    }
+
+    // ── SEC-PT2-003 regression: logout must be POST-only + antiforgery ─────
+
+    [Fact]
+    public void Logout_HasHttpPostAttribute()
+    {
+        var method = typeof(AccountController).GetMethod(nameof(AccountController.Logout));
+
+        method.Should().NotBeNull();
+        method!.GetCustomAttributes<HttpPostAttribute>().Should().HaveCount(1,
+            "logout must be POST-only to prevent logout-CSRF via GET (SEC-PT2-003)");
+    }
+
+    [Fact]
+    public void Logout_HasValidateAntiForgeryTokenAttribute()
+    {
+        var method = typeof(AccountController).GetMethod(nameof(AccountController.Logout));
+
+        method.Should().NotBeNull();
+        method!.GetCustomAttributes<ValidateAntiForgeryTokenAttribute>().Should().HaveCount(1,
+            "logout must validate the antiforgery token to prevent logout-CSRF (SEC-PT2-003)");
+    }
+
+    [Fact]
+    public void Logout_DoesNotHaveHttpGetAttribute()
+    {
+        var method = typeof(AccountController).GetMethod(nameof(AccountController.Logout));
+
+        method.Should().NotBeNull();
+        method!.GetCustomAttributes<HttpGetAttribute>().Should().BeEmpty(
+            "logout must not accept GET — any GET-based logout is CSRF-able (SEC-PT2-003)");
     }
 }

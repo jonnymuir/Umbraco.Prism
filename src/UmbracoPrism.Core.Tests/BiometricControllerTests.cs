@@ -2,8 +2,10 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -63,7 +65,8 @@ public class BiometricControllerTests
         PrismDeviceCredentialSchema? existingRecord = null,
         Mock<IPrismTokenRefreshService>? tokenRefreshServiceMock = null,
         Mock<ISecretVaultService>? vaultMock = null,
-        IExchangeRateLimitService? rateLimitService = null)
+        IExchangeRateLimitService? rateLimitService = null,
+        bool isDevelopment = true)
     {
         var tokenService = BuildTokenService();
         var encryptionService = BuildEncryptionService();
@@ -85,6 +88,10 @@ public class BiometricControllerTests
         vaultMock ??= new Mock<ISecretVaultService>();
         rateLimitService ??= BuildPassthroughRateLimitService();
 
+        var envMock = new Mock<IWebHostEnvironment>();
+        envMock.Setup(e => e.EnvironmentName)
+            .Returns(isDevelopment ? Environments.Development : Environments.Production);
+
         var controller = new BiometricController(
             dbFactory.Object,
             tokenService,
@@ -94,6 +101,7 @@ public class BiometricControllerTests
             vaultMock.Object,
             biometricOptions,
             rateLimitService,
+            envMock.Object,
             loggerMock.Object);
 
         // Set up HttpContext with claims and authentication
@@ -457,7 +465,8 @@ public class BiometricControllerTests
             string? overrideDbUserId = null,
             TokenRefreshResult? refreshResult = null,
             string? vaultSecret = "client-secret-value",
-            IExchangeRateLimitService? rateLimitService = null)
+            IExchangeRateLimitService? rateLimitService = null,
+            bool isDevelopment = true)
     {
         tenant ??= ExchangeTenant;
         var tenantId = tenant.Id.ToString();
@@ -500,7 +509,8 @@ public class BiometricControllerTests
             existingRecord: credential,
             tokenRefreshServiceMock: refreshMock,
             vaultMock: vaultMock,
-            rateLimitService: rateLimitService);
+            rateLimitService: rateLimitService,
+            isDevelopment: isDevelopment);
 
         // Wire up HttpContext for the unauthenticated exchange endpoint
         var httpContext = new DefaultHttpContext();
@@ -1452,5 +1462,60 @@ public class BiometricControllerTests
 
         var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
         objectResult.StatusCode.Should().Be(429);
+    }
+
+    // ------------------------------------------------------------------ SEC-PT2-009: antiforgery policy
+
+    [Fact]
+    public void BiometricController_HasIgnoreAntiforgeryTokenAttribute()
+    {
+        var attr = typeof(BiometricController)
+            .GetCustomAttributes(typeof(IgnoreAntiforgeryTokenAttribute), inherit: false);
+        attr.Should().NotBeEmpty("BiometricController must carry [IgnoreAntiforgeryToken] (SEC-PT2-009)");
+    }
+
+    // ------------------------------------------------------------------ SEC-PT2-010: IsCapacitorOrigin dev-only localhost
+
+    [Fact]
+    public async Task Exchange_CapacitorLocalhostOrigin_SetsCorsHeadersInDevelopment()
+    {
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario();
+
+        controller.ControllerContext.HttpContext.Request.Headers["Origin"] = "http://localhost";
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        var headers = controller.ControllerContext.HttpContext.Response.Headers;
+        headers["Access-Control-Allow-Origin"].ToString()
+            .Should().Be("http://localhost", "http://localhost is a valid Capacitor origin in Development");
+    }
+
+    [Fact]
+    public async Task Exchange_CapacitorLocalhostOrigin_DoesNotSetCorsHeadersInProduction()
+    {
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(isDevelopment: false);
+
+        controller.ControllerContext.HttpContext.Request.Headers["Origin"] = "http://localhost";
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        // In production http://localhost must not receive CORS headers (SEC-PT2-010)
+        var headers = controller.ControllerContext.HttpContext.Response.Headers;
+        headers.ContainsKey("Access-Control-Allow-Origin").Should().BeFalse(
+            "http://localhost must not get CORS headers in Production");
+    }
+
+    [Fact]
+    public async Task Exchange_CapacitorIosOrigin_SetsCorsHeadersInProduction()
+    {
+        var (controller, _, biometricToken, _, _, _, _) = BuildExchangeScenario(isDevelopment: false);
+
+        controller.ControllerContext.HttpContext.Request.Headers["Origin"] = "capacitor://localhost";
+
+        await controller.Exchange(new BiometricExchangeRequest { BiometricToken = biometricToken });
+
+        var headers = controller.ControllerContext.HttpContext.Response.Headers;
+        headers["Access-Control-Allow-Origin"].ToString()
+            .Should().Be("capacitor://localhost", "capacitor://localhost (iOS) must always be accepted (SEC-PT2-010)");
     }
 }

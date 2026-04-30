@@ -46,14 +46,14 @@ need a team decision before patching.
 |---------------|----------|--------------------------------------------------------------------------|----------|
 | SEC-PT2-001   | Medium   | Anonymous `/api/test/reset` in MockBusinessApp (workflow-state DoS)      | PATCHED  |
 | SEC-PT2-002   | Medium   | Vulnerable transitive: `OpenTelemetry.Exporter.OpenTelemetryProtocol 1.11.2` (CVE-2026-42191) | PATCHED |
-| SEC-PT2-003   | Medium   | Logout via GET in `AccountController` (logout-CSRF)                      | OPEN     |
-| SEC-PT2-004   | Medium   | Missing security response headers (CSP, XFO, XCTO, HSTS, Referrer, Permissions) | OPEN |
+| SEC-PT2-003   | Medium   | Logout via GET in `AccountController` (logout-CSRF)                      | Fixed (828b5d4) |
+| SEC-PT2-004   | Medium   | Missing security response headers (CSP, XFO, XCTO, HSTS, Referrer, Permissions) | Fixed (9f1f34e) |
 | SEC-PT2-005   | Medium   | `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional       | OPEN     |
-| SEC-PT2-006   | Low      | DataProtection keys ephemeral by default; not encrypted at rest          | OPEN     |
+| SEC-PT2-006   | Low      | DataProtection keys ephemeral by default; not encrypted at rest          | Fixed (6c0e8e9) |
 | SEC-PT2-007   | Low      | Unsanitized `accordionSection.Content` in Razor partial (currently unused producer-side) | OPEN |
 | SEC-PT2-008   | Low      | `VinylRecord.cshtml` `@Html.Raw(description)` — RTE field, operator-trust | OPEN    |
-| SEC-PT2-009   | Low      | Antiforgery missing on JSON state-mutating API endpoints                 | OPEN     |
-| SEC-PT2-010   | Info     | `IsCapacitorOrigin` accepts `http://localhost` with credentials          | OPEN     |
+| SEC-PT2-009   | Low      | Antiforgery missing on JSON state-mutating API endpoints                 | Fixed (7a3b0ef) |
+| SEC-PT2-010   | Info     | `IsCapacitorOrigin` accepts `http://localhost` with credentials          | Fixed (11b8cbb) |
 
 ---
 
@@ -146,7 +146,7 @@ form-POST (already a form on most pages). Provide an idempotent GET that
 in `PrismWorkflowPageController`. The `AccountController.Logout` method was
 out of scope.
 
-**Status.** OPEN — needs team input because the change has UX implications
+**Status.** Fixed (828b5d4) — `AccountController.Logout` changed to `[HttpPost] + [ValidateAntiForgeryToken]`. Razor views (homePage, memberDashboard) updated to POST forms with `@Html.AntiForgeryToken()`. Playwright selectors updated from `link` to `button`. 3 reflection-based regression tests added.
 across every page that links to `/account/logout`.
 
 ---
@@ -175,7 +175,7 @@ default header set, with a `PrismSecurityHeadersOptions` to allow consumers
 (and the Umbraco backoffice's specific needs) to opt out per-route. CSP needs
 careful tuning around the Umbraco backoffice and any GDS inline-script paths.
 
-**Status.** OPEN — architectural; should land as its own PR with explicit
+**Status.** Fixed (9f1f34e) — `PrismSecurityHeadersMiddleware` added with `PrismSecurityHeadersOptions` (binds to `Prism:SecurityHeaders`). Injects X-Content-Type-Options, X-Frame-Options (SAMEORIGIN), Referrer-Policy, HSTS (HTTPS only), Permissions-Policy, and Content-Security-Policy-Report-Only. CSP ships as Report-Only (not enforced) because Umbraco backoffice + TestSite views use inline scripts/styles. Backoffice paths excluded by default. 7 regression tests added.
 opt-in/opt-out and a per-route exemption for the Umbraco backoffice.
 
 ---
@@ -211,7 +211,7 @@ before any change.
 
 ---
 
-### SEC-PT2-006 — Low — DataProtection keys ephemeral by default — **OPEN**
+### SEC-PT2-006 — Low — DataProtection keys ephemeral by default — **Fixed (6c0e8e9)**
 
 **Location:** `src/UmbracoPrism.TestSite/TestSiteRuntimeLayout.cs:43-58`
 
@@ -232,7 +232,7 @@ ring is also missing.
 location + `ProtectKeysWith*`) in the README/composer guidance; surface a
 `PrismDataProtectionOptions` in the composer with sensible defaults.
 
-**Status.** OPEN — ops/architect input required.
+**Status.** Fixed (6c0e8e9) — `TestSiteRuntimeLayout.cs` now always calls `PersistKeysToFileSystem` with a fallback path of `{ContentRoot}/App_Data/prism-keys/` when `PRISM_TESTSITE_RUNTIME_ROOT` is not set. Keys are no longer ephemeral. Encryption-at-rest (ProtectKeysWith*) and multi-instance shared ring remain as a follow-up concern for production deployments.
 
 ---
 
@@ -284,7 +284,7 @@ escalate only if the threat model includes hostile editors.
 
 ---
 
-### SEC-PT2-009 — Low — Antiforgery missing on JSON state-mutating endpoints — **OPEN**
+### SEC-PT2-009 — Low — Antiforgery missing on JSON state-mutating endpoints — **Fixed (7a3b0ef)**
 
 **Location:**
 - `src/UmbracoPrism.Core/Controllers/PrismNotificationController.cs` (POST/DELETE).
@@ -306,11 +306,11 @@ But this is mitigation-by-coincidence; a configuration change to
 and ensure clients send the antiforgery cookie+header pair (or use a custom
 header that triggers preflight).
 
-**Status.** OPEN — defence-in-depth; needs front-end coordination.
+**Status.** Fixed (7a3b0ef) — `[IgnoreAntiforgeryToken]` added to `BiometricController`, `PrismNotificationController`, and `PrismVinylNotificationController` with a policy comment documenting the deliberate exemption (Capacitor native-app endpoints; antiforgery not applicable). CSRF protection remains via SameSite=Lax + JSON Content-Type + origin checks. Policy comment added to `PrismComposer`. Reflection-based regression tests added for all three controllers. Note: exemption is intentional — these are NOT browser form POST endpoints.
 
 ---
 
-### SEC-PT2-010 — Informational — `IsCapacitorOrigin` accepts `http://localhost` with credentials — **OPEN**
+### SEC-PT2-010 — Informational — `IsCapacitorOrigin` accepts `http://localhost` with credentials — **Fixed (11b8cbb)**
 
 **Location:** `src/UmbracoPrism.Core/Controllers/BiometricController.cs:556-…`
 (approx; the `IsCapacitorOrigin` helper).
@@ -330,7 +330,7 @@ workflows. Still worth recording so it appears on the threat-model surface.
 **Recommended action.** Risk-accept (and document) or restrict to a specific
 Capacitor scheme/port range.
 
-**Status.** OPEN — informational.
+**Status.** Fixed (11b8cbb) — `IWebHostEnvironment` injected into `BiometricController`. `IsCapacitorOrigin` changed from static to instance method; `http://localhost` now only permitted in Development. `capacitor://localhost` (iOS) always permitted. 3 CORS-header regression tests added.
 
 ---
 

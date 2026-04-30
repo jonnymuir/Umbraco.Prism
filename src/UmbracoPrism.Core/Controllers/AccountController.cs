@@ -57,9 +57,12 @@ public class AccountController : Controller
 
     /// <summary>
     /// Logs the user out of both the local session and Entra ID.
+    /// Requires POST + antiforgery token to prevent logout-CSRF (SEC-PT2-003).
+    /// Front-end must submit a form with the antiforgery token rather than a link/GET.
     /// </summary>
     /// <returns></returns>
-    [HttpGet("logout")]
+    [HttpPost("logout")]
+    [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
         // Sign out of the local cookie AND the Entra ID session

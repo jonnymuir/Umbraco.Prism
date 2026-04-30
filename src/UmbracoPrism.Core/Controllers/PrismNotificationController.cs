@@ -10,9 +10,13 @@ namespace UmbracoPrism.Core.Controllers;
 /// <summary>
 /// Endpoints for mobile push notification token registration and genre subscriptions.
 /// All routes require an authenticated PrismMemberCookie session.
+///
+/// SEC-PT2-009 ANTIFORGERY POLICY: This controller is a Capacitor mobile app API.
+/// [IgnoreAntiforgeryToken] is deliberate — see BiometricController for rationale.
 /// </summary>
 [Route("umbraco/prism/push")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+[IgnoreAntiforgeryToken]
 public class PrismNotificationController(
     IPrismNotificationService notificationService,
     IPrismContext prismContext,

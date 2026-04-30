@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -17,9 +19,18 @@ namespace UmbracoPrism.Core.Controllers;
 /// Handles biometric device registration and token exchange for mobile app users.
 /// Registration requires an authenticated PrismMemberCookie session; exchange is
 /// unauthenticated — the BiometricToken JWT is the sole credential.
+///
+/// SEC-PT2-009 ANTIFORGERY POLICY: This controller is a Capacitor mobile app API.
+/// [IgnoreAntiforgeryToken] is deliberate — mobile native apps cannot obtain or
+/// forward the ASP.NET Core antiforgery cookie+header pair. CSRF protection is
+/// provided by: (1) cookie auth with SameSite=Lax, (2) JSON-only Content-Type
+/// requirement (blocks simple form POSTs from cross-origin), (3) Capacitor origin
+/// check (IsCapacitorOrigin) on the unauthenticated Exchange endpoint.
+/// Any new browser-facing form-POST endpoint MUST use [ValidateAntiForgeryToken].
 /// </summary>
 [Route("umbraco/prism/mobile/biometric")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
+[IgnoreAntiforgeryToken]
 public class BiometricController(
     IUmbracoDatabaseFactory databaseFactory,
     IBiometricTokenService biometricTokenService,
@@ -29,6 +40,7 @@ public class BiometricController(
     ISecretVaultService vault,
     IOptions<PrismBiometricOptions> biometricOptions,
     IExchangeRateLimitService exchangeRateLimitService,
+    IWebHostEnvironment environment,
     ILogger<BiometricController> logger) : Controller
 {
     /// <summary>
@@ -553,6 +565,10 @@ public class BiometricController(
         HttpContext.Connection.RemoteIpAddress?.ToString()
             ?? "unknown";
 
-    private static bool IsCapacitorOrigin(string origin) =>
-        origin is "capacitor://localhost" or "http://localhost";
+    // SEC-PT2-010: http://localhost is an Android emulator origin only valid in development.
+    // capacitor://localhost (iOS) is always permitted. Restricting http://localhost to
+    // Development prevents a same-LAN attacker from abusing the emulator origin in production.
+    private bool IsCapacitorOrigin(string origin) =>
+        origin is "capacitor://localhost" ||
+        (origin is "http://localhost" && environment.IsDevelopment());
 }

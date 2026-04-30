@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Hosting;
 
 namespace UmbracoPrism.TestSite;
 
@@ -17,6 +18,21 @@ internal static class TestSiteRuntimeLayout
         var runtimeRoot = Environment.GetEnvironmentVariable(RuntimeRootEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(runtimeRoot))
         {
+            // SEC-PT2-006: always persist DataProtection keys so cookies and antiforgery
+            // tokens survive process restarts. Without this, every restart invalidates all
+            // active sessions. Use a directory under ContentRoot so the path is stable
+            // across restarts and survives container volume mounts if ContentRoot is mapped.
+            // MULTI-INSTANCE: override with Azure Blob, Redis, or another shared store —
+            // see https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-storage-providers
+            // PRODUCTION: also call .ProtectKeysWith*() to encrypt the on-disk key ring.
+            var fallbackKeyDir = new DirectoryInfo(
+                Path.Combine(builder.Environment.ContentRootPath, "App_Data", "prism-keys"));
+
+            builder.Services
+                .AddDataProtection()
+                .PersistKeysToFileSystem(fallbackKeyDir)
+                .SetApplicationName("UmbracoPrism.TestSite");
+
             return TestSiteRuntimeLayoutState.Disabled;
         }
 
