@@ -340,6 +340,9 @@
         </script>
 
         <div style="margin-top: 24px;">
-            <a href="/auth/logout" class="btn btn-outline">Sign Out</a>
+            <form method="post" action="/auth/logout">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline">Sign Out</button>
+            </form>
         </div>
     </main>

@@ -100,7 +100,7 @@ async function expectSignedOutHome(page: Page): Promise<void> {
 async function expectSignedInHome(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Sign Out' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign Out' }).first()).toBeVisible();
   await expect(page.getByText('Welcome back, Demo User')).toBeVisible();
 }
 
@@ -134,8 +134,8 @@ async function signIn(page: Page): Promise<void> {
 async function signOut(page: Page): Promise<void> {
   await page.goto('/');
 
-  await expect(page.getByRole('link', { name: 'Sign Out' }).first()).toBeVisible();
-  await page.getByRole('link', { name: 'Sign Out' }).first().click();
+  await expect(page.getByRole('button', { name: 'Sign Out' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Sign Out' }).first().click();
 
   const logoutConfirm = page.locator('#kc-logout');
   if (await logoutConfirm.isVisible({ timeout: 5_000 }).catch(() => false)) {

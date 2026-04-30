@@ -53,7 +53,10 @@
                 <p>Your secure portal is ready. Head to your dashboard to manage your account.</p>
                 <div class="hero-actions">
                     <a href="@dashboardUrl" class="btn btn-primary">Go to Dashboard</a>
-                    <a href="/auth/logout" class="btn btn-ghost">Sign Out</a>
+                    <form method="post" action="/auth/logout" style="display:inline;">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-ghost">Sign Out</button>
+                    </form>
                 </div>
             </header>
         }
