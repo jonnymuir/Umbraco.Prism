@@ -1,6 +1,6 @@
 # Workflow Walkthroughs
 
-Screenshot-driven walkthroughs demonstrating the v2.0 polymorphic component model in action.
+Screenshot-driven walkthroughs demonstrating the polymorphic component model in action.
 
 Each walkthrough shows:
 - Real workflow pages running in the TestSite
@@ -23,4 +23,4 @@ Data request form with date picker, textarea, and conditional urgency options.
 
 ---
 
-**Note:** These walkthroughs capture the v2.0 schema in production use. All workflows use the polymorphic component model (`type` discriminator, `children[]` arrays, `conditionalChildren` on Radios/Checkboxes).
+**Note:** These walkthroughs capture the current schema in production use. All workflows use the polymorphic component model (`type` discriminator, `children[]` arrays, `conditionalChildren` on Radios/Checkboxes).

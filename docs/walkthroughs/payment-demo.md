@@ -21,7 +21,7 @@ The first step collects payment details:
 2. **Payment reference** – Optional reference for the transaction
 3. **Card details** – Integrated Stripe payment element
 
-This demonstrates the v2.0 `number` component with `step: 0.01` for currency precision.
+This demonstrates the `number` component with `step: 0.01` for currency precision.
 
 ## V2.0 Schema Example
 

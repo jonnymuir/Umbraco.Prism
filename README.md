@@ -43,7 +43,7 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 
 Once your stack is running, follow the step-by-step guide to complete the demo workflow — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
 
-→ **[Full walkthrough: docs/workflow-walkthrough.md](docs/workflow-walkthrough.md)**
+→ **[Full walkthrough: docs/walkthroughs/planning-notification.md](docs/walkthroughs/planning-notification.md)**
 
 The walkthrough covers:
 - Logging in via Keycloak SSO and what the token exchange looks like
@@ -240,7 +240,7 @@ In backoffice:
 
 | Guide | Description |
 |---|---|
-| [Workflow Walkthrough](docs/workflow-walkthrough.md) | Step-by-step demo of the planning permission workflow — what you see and what's happening behind the scenes |
+| [Workflow Walkthrough](docs/walkthroughs/planning-notification.md) | Step-by-step demo of the planning permission workflow — what you see and what's happening behind the scenes |
 | [Secret Management](docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
 | [Biometric Setup](docs/biometric-setup.md) | Generate signing/encryption keys for mobile biometric auth |

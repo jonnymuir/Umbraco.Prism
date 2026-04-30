@@ -1,7 +1,5 @@
 # Setting Up a Prism Workflow
 
-> **⚠️ v2.0 Schema Update:** This guide is being updated for v2.0. JSON examples still use the legacy v1 schema (`fieldType`, flat `fields[]`). The fluent builder API examples have been updated. See [walkthroughs/](../walkthroughs/) for complete v2.0 examples with the polymorphic component model (`type` discriminator, `children[]`, `conditionalChildren`).
-
 A complete guide to building and deploying a multi-step workflow form using Umbraco.Prism.
 
 ## Overview

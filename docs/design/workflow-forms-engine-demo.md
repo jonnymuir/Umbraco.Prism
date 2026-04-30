@@ -1,7 +1,5 @@
 # Prism Workflow Forms Engine Demo Proposal
 
-> **⚠️ v2.0 Schema Update:** This demo proposal predates v2.0 implementation. See [walkthroughs/](../../walkthroughs/) for actual v2.0 workflows with polymorphic components.
-
 **Author:** Tom Nook (Lead)  
 **Requested by:** Jonny Muir  
 **Status:** Proposal for review (no implementation in this document)  

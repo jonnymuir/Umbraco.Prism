@@ -1,6 +1,6 @@
 # Community Enquiry Workflow
 
-A multi-section contact form demonstrating the v2.0 polymorphic component model with conditional reveals, checkboxes, and form validation.
+A multi-section contact form demonstrating the polymorphic component model with conditional reveals, checkboxes, and form validation.
 
 ## Overview
 
@@ -28,7 +28,7 @@ Notice that "Full name" and "Email address" are readonly and pre-filled with val
 
 ### Conditional Reveal Pattern
 
-When the user selects **"Other"** under "Type of enquiry", a conditional text input appears asking them to specify the enquiry type. This uses the v2.0 `conditionalChildren` property on the `radios` component:
+When the user selects **"Other"** under "Type of enquiry", a conditional text input appears asking them to specify the enquiry type. This uses the `conditionalChildren` property on the `radios` component:
 
 ```json
 {
@@ -66,7 +66,7 @@ The `conditionalChildren` dictionary maps radio values to arrays of components t
 **Display name:** Get in Touch  
 **Instance policy:** `single` (only one active instance per user)
 
-The workflow uses the v2.0 polymorphic schema:
+The workflow uses the polymorphic component schema:
 - All components have a `type` discriminator (`"text"`, `"email"`, `"radios"`, `"checkboxes"`, `"fieldset"`, etc.)
 - Fieldsets use `children[]` arrays for nested components
 - Radios use `conditionalChildren` for conditional reveals

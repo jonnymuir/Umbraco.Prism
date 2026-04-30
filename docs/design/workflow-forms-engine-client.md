@@ -1,7 +1,5 @@
 # Prism Workflow Forms Engine — Client Design
 
-> **⚠️ v2.0 Schema Update:** Client architecture has been updated in v2.0 with polymorphic component rendering. Component partials now use `_Component-{Type}.cshtml` naming.
-
 **Author:** Isabelle (Frontend Dev & Accessibility Lead)  
 **Parent Proposal:** [workflow-forms-engine-demo.md](./workflow-forms-engine-demo.md)  
 **Status:** Design for review  

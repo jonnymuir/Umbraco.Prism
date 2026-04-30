@@ -1,7 +1,5 @@
 # Prism Workflow Forms Engine — Architecture Design
 
-> **⚠️ v2.0 Schema Update:** This document is being updated for v2.0. References to legacy v1 concepts (`fieldType`, `fields[]`, `FieldGroupBuilder`) are being migrated to v2.0 polymorphic components. See [walkthroughs/](../walkthroughs/) for current v2.0 examples.
-
 **Author:** Tom Nook (Lead)  
 **Requested by:** Jonny Muir  
 **Status:** Authoritative Design  

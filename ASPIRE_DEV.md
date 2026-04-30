@@ -19,7 +19,7 @@ dotnet run --project src/UmbracoPrism.AppHost
 
 In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for the .NET 10 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need to run `dotnet workload install aspire`.
 
-> **New to Umbraco.Prism?** After the stack starts, see the **Interactive Walkthrough** section in [README.md#-interactive-walkthrough--apply-for-planning-permission](README.md#-interactive-walkthrough--apply-for-planning-permission) for a guided tour of the demo workflow with behind-the-scenes explanations.
+> **New to Umbraco.Prism?** After the stack starts, see the [Interactive Walkthrough](docs/walkthroughs/planning-notification.md) for a guided tour of the demo workflow with behind-the-scenes explanations.
 
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)

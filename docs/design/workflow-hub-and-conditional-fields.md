@@ -85,13 +85,13 @@ public record RadiosComponent : PrismComponent
 - Component tree remains hierarchical and type-safe
 - Deferred generic `ConditionalOn`/`VisibleWhen` to v2.1 to keep v2.0 lean
 
-**v1 vs v2 comparison:**
+**Design evolution:**
 
-| Aspect | v1 (this doc) | v2.0 (implemented) |
-|--------|---------------|-------------------|
+| Aspect | Design Proposal | Current Implementation |
+|--------|-----------|------------------------|
 | Conditional model | Flat `fields[]` with `conditionalOn`/`visibleWhen` | Nested `conditionalChildren` on parent component |
 | Supported parents | Any field | Radios, Checkboxes only |
-| Generic conditionals | Proposed | Deferred to v2.1 |
+| Generic conditionals | Proposed | Deferred to future release |
 | Field definition | `{ fieldType: "text", ... }` | `{ type: "text", ... }` (polymorphic) |
 
 ---
@@ -125,11 +125,11 @@ public record RadiosComponent : PrismComponent
 }
 ```
 
-**v2.0 implementation notes:**
-- In v2, conditional fields are part of `conditionalChildren` on the parent Radios/Checkboxes component
+**Current implementation notes:**
+- Conditional fields are part of `conditionalChildren` on the parent Radios/Checkboxes component
 - `conditionalChildren` is a dictionary mapping option values to arrays of child components
 - Conditional children are rendered inline when their parent option is selected
-- Generic `conditionalOn`/`visibleWhen` on arbitrary components is deferred to v2.1
+- Generic `conditionalOn`/`visibleWhen` on arbitrary components is deferred to future releases
 
 **Key details:**
 - `enquiry-type-other` is nested under the `"Other"` key in `conditionalChildren`
