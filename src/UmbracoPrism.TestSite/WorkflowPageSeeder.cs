@@ -13,6 +13,14 @@ namespace UmbracoPrism.TestSite;
 /// auth/workflow flows: Home, Dashboard, Get in Touch, and My Workflows.
 /// Development-only and idempotent.
 /// </summary>
+/// <remarks>
+/// Umbraco dispatches <see cref="UmbracoApplicationStartedNotification"/> handlers concurrently
+/// (Task.WhenAll). <see cref="PrismContentTypeSeeder"/> creates the <c>workflowPage</c> and
+/// <c>workflowHub</c> document types during the same notification, but those types are created
+/// after <c>homePage</c> and <c>memberDashboard</c>. To avoid a race where this seeder checks
+/// for <c>workflowPage</c> before PrismContentTypeSeeder has created it (causing all workflow
+/// pages to be skipped), we poll with a timeout before seeding workflow-page content.
+/// </remarks>
 public class WorkflowPageSeeder(
     IContentService contentService,
     IContentTypeService contentTypeService,
@@ -21,29 +29,95 @@ public class WorkflowPageSeeder(
     ILogger<WorkflowPageSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    public Task HandleAsync(
+    // How long to wait for PrismContentTypeSeeder to create workflowPage/workflowHub types
+    // before giving up. 90 s is generous for even a cold CI machine.
+    private const int ContentTypeWaitTimeoutMs = 90_000;
+    private const int ContentTypePollIntervalMs = 500;
+
+    public async Task HandleAsync(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
-        if (runtimeState.Level < RuntimeLevel.Run) return Task.CompletedTask;
-        if (!env.IsDevelopment()) return Task.CompletedTask;
+        if (runtimeState.Level < RuntimeLevel.Run) return;
+        if (!env.IsDevelopment()) return;
 
         try
         {
             EnsureHomeAndDashboard();
             CleanupOldRetirementQuotePage();
-            EnsureCommunityEnquiryPage();
-            EnsurePlanningWorkflowPage();
-            EnsurePaymentDemoPage();
-            EnsureInformationRequestPage();
-            EnsureWorkflowHubPage();
+            await EnsureWorkflowPagesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "WORKFLOW PAGE SEEDER: Unexpected error; skipping");
         }
+    }
 
-        return Task.CompletedTask;
+    /// <summary>
+    /// Seeds all workflow-page content, waiting for <c>workflowPage</c> and
+    /// <c>workflowHub</c> content types to become available first.
+    /// </summary>
+    private async Task EnsureWorkflowPagesAsync(CancellationToken cancellationToken)
+    {
+        var workflowPageType = await WaitForContentTypeAsync(
+            TestSiteSeedContract.WorkflowPageAlias, cancellationToken);
+
+        if (workflowPageType == null)
+        {
+            logger.LogWarning(
+                "WORKFLOW PAGE SEEDER: workflowPage content type not available after {Timeout}ms; " +
+                "skipping workflow page seeding. PrismContentTypeSeeder may not have run yet.",
+                ContentTypeWaitTimeoutMs);
+            return;
+        }
+
+        var workflowHubType = await WaitForContentTypeAsync(
+            TestSiteSeedContract.WorkflowHubAlias, cancellationToken);
+
+        if (workflowHubType == null)
+        {
+            logger.LogWarning(
+                "WORKFLOW PAGE SEEDER: workflowHub content type not available after {Timeout}ms; " +
+                "seeding workflow pages without hub.",
+                ContentTypeWaitTimeoutMs);
+        }
+
+        EnsureCommunityEnquiryPage();
+        EnsurePlanningWorkflowPage();
+        EnsurePaymentDemoPage();
+        EnsureInformationRequestPage();
+        EnsureWorkflowHubPage();
+    }
+
+    /// <summary>
+    /// Polls until the content type with the given alias exists in the service or the
+    /// timeout elapses. Returns the type if found, null on timeout.
+    /// </summary>
+    private async Task<Umbraco.Cms.Core.Models.IContentType?> WaitForContentTypeAsync(
+        string alias, CancellationToken cancellationToken)
+    {
+        var elapsed = 0;
+        while (elapsed < ContentTypeWaitTimeoutMs)
+        {
+            var type = contentTypeService.Get(alias);
+            if (type != null)
+            {
+                if (elapsed > 0)
+                    logger.LogInformation(
+                        "WORKFLOW PAGE SEEDER: content type '{Alias}' became available after {Elapsed}ms.",
+                        alias, elapsed);
+                return type;
+            }
+
+            logger.LogDebug(
+                "WORKFLOW PAGE SEEDER: content type '{Alias}' not yet available (waited {Elapsed}ms); retrying in {Interval}ms.",
+                alias, elapsed, ContentTypePollIntervalMs);
+
+            await Task.Delay(ContentTypePollIntervalMs, cancellationToken);
+            elapsed += ContentTypePollIntervalMs;
+        }
+
+        return contentTypeService.Get(alias);
     }
 
     private void CleanupOldRetirementQuotePage()
