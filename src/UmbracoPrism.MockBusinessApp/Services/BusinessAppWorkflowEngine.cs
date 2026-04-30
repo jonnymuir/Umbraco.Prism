@@ -869,11 +869,22 @@ public class BusinessAppWorkflowEngine
 
         // Checkbox lists are persisted as comma-separated strings; render them with a
         // user-friendly ", " separator in summary lists rather than the raw "a,b,c".
-        if ((fieldType == "checkboxlist" || fieldType == "checkboxes") && raw is string rawStr)
+        // raw may be a string (in-process) or a JsonElement (after deserialization
+        // from the workflow advance API request).
+        if (fieldType == "checkboxlist" || fieldType == "checkboxes")
         {
-            raw = string.Join(
-                ", ",
-                rawStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            var rawStr = raw switch
+            {
+                string s => s,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                _ => null
+            };
+            if (rawStr != null)
+            {
+                raw = string.Join(
+                    ", ",
+                    rawStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
         }
 
         var prefix = input switch
