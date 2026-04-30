@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HttpOverrides;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
 using UmbracoPrism.Core.BackgroundServices;
@@ -53,12 +54,27 @@ public class PrismComposer : IComposer
         builder.AddPrismWorkflowEngine();
 
         // 3. Middleware Registration
+        // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
+        // (e.g. biometric rate limiting in BiometricController).
+        // PRODUCTION: configure KnownProxies / KnownNetworks to restrict which upstream
+        // proxies are trusted to supply X-Forwarded-For (see ForwardedHeadersOptions docs).
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            // Clear default loopback-only network restrictions so ForwardedHeadersMiddleware
+            // processes the header when running behind any proxy. Deployments SHOULD
+            // restrict this to known proxy CIDRs via KnownNetworks before going to production.
+            options.KnownNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
             options.AddFilter(new UmbracoPipelineFilter(
                 "PrismTenantResolution",
                 app =>
                 {
+                    app.UseForwardedHeaders();
                     app.UseMiddleware<PrismTenantMiddleware>();
                     app.UseMiddleware<PrismBrandingMiddleware>();
                 }
