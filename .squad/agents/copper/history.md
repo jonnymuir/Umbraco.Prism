@@ -307,3 +307,49 @@ Previous history archived to reduce file size. Recent entries below.
 **Batch Scope:** All 6 closed findings reviewed, approved, tested, and merged to main. SEC-003 design frozen pending implementation assignment.
 
 ---
+
+## 2026-04-30: SEC-003 T2+T8+T9 — WorkflowContentSanitizer Implementation
+
+**Commit:** `ae616a2` (main)
+
+### Work Completed
+
+**T2 — Real implementation:**
+- Created `src/UmbracoPrism.Core/Services/Sanitization/WorkflowContentSanitizer.cs`
+- Ganss.Xss 9.0.892 configured with GDS-aligned allowlist per Tom Nook's §4.3 (exact compliance — no deviations from security policy)
+- Tags: p, ul, ol, li, blockquote, br, h2, h3, h4, strong, em, b, i, code, abbr, span, a
+- Attributes: href (a only, scheme-checked in RemovingAttribute handler), rel (a only), title (abbr only)
+- Schemes: http, https, mailto, tel — all others blocked
+- Post-processing: rel=noopener noreferrer + target=_blank injected for external http(s) links
+- DI updated: NoOpWorkflowContentSanitizer → WorkflowContentSanitizer (singleton)
+- NoOp retained as internal test fixture (comment updated)
+
+**T8 — Unit tests:**
+- Created `src/UmbracoPrism.Core.Tests/Services/Sanitization/WorkflowContentSanitizerTests.cs`
+- 40 test cases covering allowed tags, href schemes, event handler stripping, disallowed tags, inline style, idempotency, null/whitespace
+
+**T9 — Un-skip regression tests:**
+- Removed Skip attribute from all 6 `Phase1SecurityRegressionTests` in WorkflowContent region
+- Updated `BuildEnginePayloadForBody` helper to use real `WorkflowContentSanitizer` (not mock NoOp)
+
+### Test Delta
+
+| State | Count |
+|-------|-------|
+| Blathers handoff | 554 passing, 6 skipped |
+| After T8 + T9 | **601 passing, 0 skipped, 0 failed** |
+
+### Key Technical Decision
+
+Used `RemovingAttribute` event with empty `AllowedAttributes` for per-tag attribute enforcement. Ganss.Xss only applies `AllowedSchemes` to attributes surviving the `AllowedAttributes` gate — since `href` is not in `AllowedAttributes`, we perform our own scheme check in the event handler. This gives strict per-tag enforcement (e.g. `href` on `<div>` is stripped) rather than global allowance.
+
+### Production Gate Status
+
+SEC-003 implementation complete. Precondition for definition editor's non-Dev rollout is now satisfied.
+
+### Artifacts
+
+- `.squad/decisions/inbox/copper-sec-003-impl.md` — allowlist verification, deviations, test counts
+- `.squad/skills/ganss-xss-gds-allowlist/SKILL.md` — reusable Ganss.Xss GDS allowlist pattern
+
+---
