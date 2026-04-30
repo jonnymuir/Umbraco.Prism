@@ -7,6 +7,7 @@ using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
@@ -28,7 +29,9 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
         _mockEnv.Setup(e => e.ContentRootPath).Returns(_testSeedDir);
 
         var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
-        _engine = new BusinessAppWorkflowEngine(logger.Object, _mockEnv.Object);
+        var sanitizer = new Mock<IWorkflowContentSanitizer>();
+        sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+        _engine = new BusinessAppWorkflowEngine(logger.Object, _mockEnv.Object, sanitizer.Object);
     }
 
     public void Dispose()

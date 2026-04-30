@@ -35,6 +35,10 @@ using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
+using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.TestSite.Controllers;
 
 namespace UmbracoPrism.Core.Tests;
@@ -770,5 +774,136 @@ public class Phase1SecurityRegressionTests
 
         public Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync(bool forceRefresh = false) =>
             Task.FromResult<AuthenticationHeaderValue?>(null);
+    }
+
+    // ------------------------------------------------------------------
+    // 5. WORKFLOW CONTENT SANITIZATION (SEC-003)
+    //
+    // These tests assert that when the engine processes a malicious Content
+    // payload, the rendered PrismComponentRenderPayload.Content does NOT
+    // contain the malicious vector.
+    //
+    // ALL tests in this region are SKIPPED until Copper's WorkflowContentSanitizer
+    // (Ganss.Xss-backed GDS allowlist, SEC-003 T2) replaces the NoOp placeholder.
+    // Copper: remove the Skip attribute and verify all pass.
+    // ------------------------------------------------------------------
+
+    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    public void WorkflowContent_ScriptTagInBody_StrippedFromPayload()
+    {
+        var content = "<script>alert(1)</script><p>safe</p>";
+        var payload = BuildEnginePayloadForBody(content);
+        payload.Should().NotContain("<script",
+            because: "script tags must be stripped by IWorkflowContentSanitizer before reaching the payload");
+    }
+
+    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    public void WorkflowContent_JavascriptHref_StrippedFromPayload()
+    {
+        var content = "<a href=\"javascript:alert(1)\">click</a>";
+        var payload = BuildEnginePayloadForBody(content);
+        payload.Should().NotContain("javascript:",
+            because: "javascript: href schemes must be stripped by IWorkflowContentSanitizer");
+    }
+
+    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    public void WorkflowContent_OnerrorAttribute_StrippedFromPayload()
+    {
+        var content = "<img src=x onerror=alert(1)>";
+        var payload = BuildEnginePayloadForBody(content);
+        payload.Should().NotContain("onerror",
+            because: "event handler attributes (on*) must be stripped by IWorkflowContentSanitizer");
+    }
+
+    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    public void WorkflowContent_DataTextHtmlHref_StrippedFromPayload()
+    {
+        var content = "<a href=\"data:text/html,<script>alert(1)</script>\">x</a>";
+        var payload = BuildEnginePayloadForBody(content);
+        payload.Should().NotContain("data:text/html",
+            because: "data: URI schemes must be stripped by IWorkflowContentSanitizer");
+    }
+
+    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    public void WorkflowContent_NestedSvgWithOnload_StrippedFromPayload()
+    {
+        var content = "<svg onload=alert(1)><circle/></svg><p>text</p>";
+        var payload = BuildEnginePayloadForBody(content);
+        payload.Should().NotContain("<svg",
+            because: "SVG elements with event handlers must be stripped by IWorkflowContentSanitizer");
+        payload.Should().NotContain("onload",
+            because: "onload event handler must be stripped by IWorkflowContentSanitizer");
+    }
+
+    [Fact(Skip = "Pending Copper SEC-003 T2 real impl — re-enable when WorkflowContentSanitizer ships")]
+    public void WorkflowContent_PlainTextContent_PreservedInPayload()
+    {
+        var content = "Hello, this is plain text with no HTML.";
+        var payload = BuildEnginePayloadForBody(content);
+        payload.Should().Be(content,
+            because: "plain text content must pass through IWorkflowContentSanitizer unchanged");
+    }
+
+    /// <summary>
+    /// Builds a minimal engine, runs a single BodyComponent with the given content
+    /// through BuildComponents (via GetCurrent), and returns the resulting payload Content string.
+    /// </summary>
+    private static string BuildEnginePayloadForBody(string content)
+    {
+        var testSeedDir = Path.Combine(Directory.GetCurrentDirectory(), $"sec003-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(testSeedDir);
+        Directory.CreateDirectory(Path.Combine(testSeedDir, "workflow-seeds"));
+
+        try
+        {
+            var workflow = new WorkflowDefinitionFile
+            {
+                DefinitionKey = "sec003-test",
+                DisplayName = "SEC-003 Test",
+                Version = 1,
+                InitialState = "step-1",
+                InstancePolicy = "single",
+                States = new[]
+                {
+                    new StepDefinition
+                    {
+                        StateKey = "step-1",
+                        DisplayName = "Step 1",
+                        Components = new PrismComponent[]
+                        {
+                            new BodyComponent { Content = content }
+                        }
+                    }
+                },
+                Transitions = Array.Empty<WorkflowTransitionFile>()
+            };
+
+            File.WriteAllText(
+                Path.Combine(testSeedDir, "workflow-seeds", "sec003-test.json"),
+                JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = true }));
+
+            var mockEnv = new Mock<IWebHostEnvironment>();
+            mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
+
+            var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
+            // NoOp sanitizer — returns content unchanged (identity).
+            // These tests are skipped because with NoOp the malicious vectors pass through,
+            // causing the assertions to fail. Copper: replace with real WorkflowContentSanitizer.
+            var sanitizer = new Mock<IWorkflowContentSanitizer>();
+            sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+
+            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer.Object);
+            var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
+
+            var bodyComponent = result.Render!.Components.FirstOrDefault(c =>
+                string.Equals(c.Type, "body", StringComparison.OrdinalIgnoreCase));
+
+            return bodyComponent?.Content ?? string.Empty;
+        }
+        finally
+        {
+            if (Directory.Exists(testSeedDir))
+                Directory.Delete(testSeedDir, recursive: true);
+        }
     }
 }

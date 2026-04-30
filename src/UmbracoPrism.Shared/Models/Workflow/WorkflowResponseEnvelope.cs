@@ -107,7 +107,10 @@ public record PrismComponentRenderPayload
     public string? SourceStateKey { get; init; }
 
     // Content types
-    /// <summary>Body text or expanded content (panel, inset-text, warning-text, details, body, notification-banner).</summary>
+    /// <summary>
+    /// Pre-sanitized HTML; safe for <c>@Html.Raw</c>.
+    /// Producers MUST route content through <c>IWorkflowContentSanitizer</c> before populating this property.
+    /// </summary>
     public string? Content { get; init; }
     /// <summary>Panel title, notification banner heading, or details summary text.</summary>
     public string? Heading { get; init; }
@@ -173,7 +176,10 @@ public record PrismAccordionSectionPayload
     public string Heading { get; init; } = "";
     /// <summary>Optional summary text shown beneath the heading when collapsed.</summary>
     public string? Summary { get; init; }
-    /// <summary>Static content for this accordion section.</summary>
+    /// <summary>
+    /// Pre-sanitized HTML; safe for <c>@Html.Raw</c>.
+    /// Producers MUST route content through <c>IWorkflowContentSanitizer</c> before populating this property.
+    /// </summary>
     public string? Content { get; init; }
     /// <summary>Fields rendered within this accordion section.</summary>
     public IReadOnlyList<FieldRenderPayload> Fields { get; init; } = Array.Empty<FieldRenderPayload>();

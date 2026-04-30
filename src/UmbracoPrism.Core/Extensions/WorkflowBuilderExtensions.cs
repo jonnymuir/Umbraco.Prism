@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.Sanitization;
+using UmbracoPrism.Shared.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Extensions;
 
@@ -48,6 +50,11 @@ public static class WorkflowBuilderExtensions
 
         // Workflow field validator for server-side structural validation
         builder.Services.AddTransient<IWorkflowFieldValidator, WorkflowFieldValidator>();
+
+        // Content sanitizer — NoOp placeholder until Copper's SEC-003 T2 real impl lands.
+        // Copper will replace NoOpWorkflowContentSanitizer with WorkflowContentSanitizer
+        // (Ganss.Xss-backed GDS allowlist) and re-register here.
+        builder.Services.AddSingleton<IWorkflowContentSanitizer, NoOpWorkflowContentSanitizer>();
 
         return builder;
     }

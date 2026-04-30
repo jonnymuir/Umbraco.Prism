@@ -7,6 +7,7 @@ using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Builders;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
@@ -174,7 +175,9 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
         _mockEnv.Setup(e => e.ContentRootPath).Returns(_testSeedDir);
 
         var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
-        _engine = new BusinessAppWorkflowEngine(logger.Object, _mockEnv.Object);
+        var sanitizer = new Mock<IWorkflowContentSanitizer>();
+        sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+        _engine = new BusinessAppWorkflowEngine(logger.Object, _mockEnv.Object, sanitizer.Object);
     }
 
     public void Dispose()
@@ -470,7 +473,9 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
             var mockEnv = new Mock<IWebHostEnvironment>();
             mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
             var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
-            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object);
+            var sanitizer = new Mock<IWorkflowContentSanitizer>();
+            sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer.Object);
             engine.ResetAll();
 
             var result = engine.GetCurrent("test-no-defer", "tenant1", "user1");
@@ -532,7 +537,9 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
             var mockEnv = new Mock<IWebHostEnvironment>();
             mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
             var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
-            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object);
+            var sanitizer2 = new Mock<IWorkflowContentSanitizer>();
+            sanitizer2.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer2.Object);
             engine.ResetAll();
 
             var result = engine.GetCurrent("test-null-defer", "tenant1", "user1");

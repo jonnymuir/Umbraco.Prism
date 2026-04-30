@@ -6,6 +6,7 @@ using Moq;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
@@ -218,7 +219,9 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
             mockEnvironment.Setup(environment => environment.ContentRootPath).Returns(contentRootPath);
 
             var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
-            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnvironment.Object);
+            var sanitizer = new Mock<IWorkflowContentSanitizer>();
+            sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(h => h ?? string.Empty);
+            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnvironment.Object, sanitizer.Object);
             engine.ResetAll();
 
             return new WorkflowHarness(contentRootPath, engine);

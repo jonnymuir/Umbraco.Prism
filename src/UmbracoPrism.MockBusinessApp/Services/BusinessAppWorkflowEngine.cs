@@ -5,6 +5,7 @@ using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Services.Sanitization;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 
@@ -16,6 +17,7 @@ namespace UmbracoPrism.MockBusinessApp.Services;
 public class BusinessAppWorkflowEngine
 {
     private readonly ILogger<BusinessAppWorkflowEngine> _logger;
+    private readonly IWorkflowContentSanitizer _sanitizer;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
 
@@ -31,9 +33,10 @@ public class BusinessAppWorkflowEngine
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    public BusinessAppWorkflowEngine(ILogger<BusinessAppWorkflowEngine> logger, IWebHostEnvironment env)
+    public BusinessAppWorkflowEngine(ILogger<BusinessAppWorkflowEngine> logger, IWebHostEnvironment env, IWorkflowContentSanitizer sanitizer)
     {
         _logger = logger;
+        _sanitizer = sanitizer;
         LoadSeedData(env.ContentRootPath);
     }
 
@@ -657,7 +660,7 @@ public class BusinessAppWorkflowEngine
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "waiting",
-                        Content = waiting.Content,
+                        Content = _sanitizer.Sanitize(waiting.Content),
                         ExpectedWaitSeconds = waiting.ExpectedWaitSeconds,
                         PollIntervalMs = waiting.PollIntervalMs,
                         AllowDefer = waiting.AllowDefer,
@@ -670,7 +673,7 @@ public class BusinessAppWorkflowEngine
                     break;
 
                 case BodyComponent body:
-                    result.Add(new PrismComponentRenderPayload { Type = "body", Content = body.Content });
+                    result.Add(new PrismComponentRenderPayload { Type = "body", Content = _sanitizer.Sanitize(body.Content) });
                     break;
 
                 case HeadingComponent heading:
@@ -678,11 +681,11 @@ public class BusinessAppWorkflowEngine
                     break;
 
                 case InsetTextComponent inset:
-                    result.Add(new PrismComponentRenderPayload { Type = "inset-text", Content = inset.Content });
+                    result.Add(new PrismComponentRenderPayload { Type = "inset-text", Content = _sanitizer.Sanitize(inset.Content) });
                     break;
 
                 case WarningTextComponent warning:
-                    result.Add(new PrismComponentRenderPayload { Type = "warning-text", Content = warning.Content });
+                    result.Add(new PrismComponentRenderPayload { Type = "warning-text", Content = _sanitizer.Sanitize(warning.Content) });
                     break;
 
                 case DetailsComponent details:
@@ -690,7 +693,7 @@ public class BusinessAppWorkflowEngine
                     {
                         Type = "details",
                         Heading = details.Heading,
-                        Content = details.Content
+                        Content = _sanitizer.Sanitize(details.Content)
                     });
                     break;
 
@@ -699,7 +702,7 @@ public class BusinessAppWorkflowEngine
                     {
                         Type = "notification-banner",
                         Heading = banner.Heading,
-                        Content = banner.Content,
+                        Content = _sanitizer.Sanitize(banner.Content),
                         BannerType = banner.BannerType
                     });
                     break;
