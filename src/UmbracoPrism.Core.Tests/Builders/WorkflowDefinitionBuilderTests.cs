@@ -73,7 +73,7 @@ public class WorkflowDefinitionBuilderTests
             .Key("test")
             .AddState("check", s => s
                 .DisplayName("Check Answers")
-                .SummaryList(sl => sl.FieldRefs("name")))
+                .SummaryList(sl => sl.Children(c => c.TextInput("name", "Name"))))
             .Build();
 
         var state = result.States.Single();
@@ -245,7 +245,9 @@ public class WorkflowDefinitionBuilderTests
                 .Fieldset(f => f.Legend("Form 2").TextInput("b", "B")))
             .AddState("review", s => s
                 .DisplayName("Review Step")
-                .SummaryList(sl => sl.FieldRefs("a", "b")))
+                .SummaryList(sl => sl.Children(c => c
+                    .TextInput("a", "A")
+                    .TextInput("b", "B"))))
             .AddState("complete", s => s
                 .DisplayName("Complete")
                 .Panel("Your application is complete."))

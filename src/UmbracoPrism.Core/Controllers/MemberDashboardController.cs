@@ -55,6 +55,6 @@ public class MemberDashboardController(
         // Render the authored dashboard view directly. On the first authenticated
         // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle
         // into a self-redirect loop on /dashboard under the local Aspire stack.
-        return View("~/Views/MemberDashboard.cshtml", CurrentPage!);
+        return View("~/Views/memberDashboard.cshtml", CurrentPage!);
     }
 }

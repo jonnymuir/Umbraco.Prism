@@ -96,7 +96,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     await expect(errorSummary).toContainText('There is a problem');
 
     // Verify field-level error message is shown
-    await expect(page.locator('.prism-field-error').first()).toBeVisible();
+    await expect(page.locator('.govuk-error-message').first()).toBeVisible();
   });
 
   test('conditional radio reveals sub-fields when specific option selected', async ({ page }) => {

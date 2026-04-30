@@ -81,7 +81,7 @@
             },
             {
               "type": "text",
-              "fieldKey": "enquiry-type-other",
+              "fieldKey": "enquiry-type-detail",
               "label": "Please specify your enquiry type",
               "hint": "Please describe your enquiry type in a few words.",
               "required": false,

@@ -27,10 +27,11 @@ public sealed record WaitingComponent : PrismComponent
 public sealed record SummaryListComponent : PrismComponent
 {
     /// <summary>
-    /// Field keys to display in the summary list.
-    /// The engine resolves labels and values from the workflow definition tree.
+    /// Inline polymorphic input definitions to summarise. The summary-list carries its
+    /// own field schemas (label, type, options, conditional reveals) so the engine can
+    /// render payloads directly without resolving keys against another state.
     /// </summary>
-    public IReadOnlyList<string> FieldRefs { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<PrismComponent> Children { get; init; } = Array.Empty<PrismComponent>();
 
     /// <summary>The state key the "Change" links navigate to.</summary>
     public string? ChangeStateKey { get; init; }

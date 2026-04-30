@@ -892,10 +892,10 @@ public class WorkflowFieldValidatorTests
     [Fact]
     public void GivenDateInputField_WhenAllPartsProvided_ThenIsValidTrue()
     {
-        // date-input submits as {key}-day, {key}-month, {key}-year
+        // date (GDS) submits as {key}-day, {key}-month, {key}-year
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date-input", Required = true }
+            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -914,7 +914,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date-input", Required = true }
+            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -934,7 +934,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date-input", Required = true }
+            new() { FieldKey = "dob", Label = "Date of birth", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -953,7 +953,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "optionalDate", Label = "Optional date", FieldType = "date-input", Required = false }
+            new() { FieldKey = "optionalDate", Label = "Optional date", FieldType = "date", Required = false }
         };
         var submitted = new Dictionary<string, string>(); // nothing submitted
 
@@ -989,7 +989,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -1010,7 +1010,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -1031,7 +1031,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {
@@ -1050,7 +1050,7 @@ public class WorkflowFieldValidatorTests
     {
         var authoritative = new List<FieldRenderPayload>
         {
-            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date-input", Required = true }
+            new() { FieldKey = "event-date", Label = "Event date", FieldType = "date", Required = true }
         };
         var submitted = new Dictionary<string, string>
         {

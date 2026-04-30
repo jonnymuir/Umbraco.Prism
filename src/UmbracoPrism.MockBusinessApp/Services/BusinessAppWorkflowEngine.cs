@@ -616,7 +616,10 @@ public class BusinessAppWorkflowEngine
 
                 case SummaryListComponent summary:
                 {
-                    var fields = BuildSummaryFields(summary.FieldRefs, componentDefinitions, savedValues);
+                    // The summary-list carries inline polymorphic input definitions in
+                    // Children; reuse the standard fieldset walk so conditional reveals
+                    // (radios/checkboxes) flatten with ConditionalOn/VisibleWhen.
+                    var fields = BuildFields(summary.Children, savedValues);
                     if (fields.Length == 0)
                     {
                         _logger.LogWarning("Summary-list component contains no renderable fields");
@@ -781,44 +784,6 @@ public class BusinessAppWorkflowEngine
         return fields.ToArray();
     }
 
-    /// <summary>
-    /// Builds summary-list payloads by resolving the supplied field-keys against every
-    /// input component reachable from the current state's component tree.
-    /// </summary>
-    private static FieldRenderPayload[] BuildSummaryFields(
-        IReadOnlyList<string> fieldRefs,
-        IReadOnlyList<PrismComponent> stateComponents,
-        Dictionary<string, object?> savedValues)
-    {
-        if (fieldRefs.Count == 0) return Array.Empty<FieldRenderPayload>();
-
-        var lookup = stateComponents.GetAllInputs()
-            .GroupBy(i => i.FieldKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-        var payloads = new List<FieldRenderPayload>();
-        foreach (var key in fieldRefs)
-        {
-            if (lookup.TryGetValue(key, out var input))
-            {
-                payloads.Add(BuildInputPayload(input, savedValues));
-            }
-            else
-            {
-                // Not found in this state's tree: emit a minimal payload so the summary still renders.
-                payloads.Add(new FieldRenderPayload
-                {
-                    FieldKey = key,
-                    Label = key,
-                    FieldType = "text",
-                    Required = false,
-                    Value = savedValues.TryGetValue(key, out var v) ? v : null
-                });
-            }
-        }
-        return payloads.ToArray();
-    }
-
     /// <summary>Maps a polymorphic <see cref="InputComponent"/> to a <see cref="FieldRenderPayload"/>.</summary>
     private static FieldRenderPayload BuildInputPayload(InputComponent input, Dictionary<string, object?> savedValues)
     {
@@ -902,6 +867,26 @@ public class BusinessAppWorkflowEngine
         var raw = savedValues.TryGetValue(input.FieldKey, out var v) ? v : null;
         if (raw == null) return null;
 
+        // Checkbox lists are persisted as comma-separated strings; render them with a
+        // user-friendly ", " separator in summary lists rather than the raw "a,b,c".
+        // raw may be a string (in-process) or a JsonElement (after deserialization
+        // from the workflow advance API request).
+        if (fieldType == "checkboxlist" || fieldType == "checkboxes")
+        {
+            var rawStr = raw switch
+            {
+                string s => s,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                _ => null
+            };
+            if (rawStr != null)
+            {
+                raw = string.Join(
+                    ", ",
+                    rawStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+        }
+
         var prefix = input switch
         {
             TextInputComponent t => t.Prefix,
@@ -910,7 +895,7 @@ public class BusinessAppWorkflowEngine
             _ => null
         };
 
-        if (fieldType.Equals("currency", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(prefix))
+        if (!string.IsNullOrEmpty(prefix))
             return $"{prefix}{raw}";
 
         return raw;

@@ -34,12 +34,19 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- SourceCodeAuto generates model files on disk, so views can be compiled at build time.
-         This catches @model property mismatches (e.g. Model.MissingProperty) as build errors,
-         not runtime exceptions. Only disable if switching to InMemoryAuto models mode. -->
-    <RazorCompileOnBuild>true</RazorCompileOnBuild>
-    <RazorCompileOnPublish>true</RazorCompileOnPublish>
+    <!-- InMemoryAuto generates models at runtime only; the old SourceCodeAuto .generated.cs
+         files are excluded from compilation below to avoid type conflicts. Build-time Razor
+         compilation is disabled because model types are only available at runtime. -->
+    <RazorCompileOnBuild>false</RazorCompileOnBuild>
+    <RazorCompileOnPublish>false</RazorCompileOnPublish>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Exclude SourceCodeAuto-generated model files: InMemoryAuto regenerates these at
+         runtime in ModelsGeneratedAssembly. Compiling them in causes type-ambiguity errors
+         when CollectibleRuntimeViewCompiler compiles views that reference those types. -->
+    <Compile Remove="umbraco/models/**/*.generated.cs" />
+  </ItemGroup>
 
   <Target Name="InstallGovukFrontend" BeforeTargets="BeforeBuild">
     <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
