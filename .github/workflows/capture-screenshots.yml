@@ -62,6 +62,8 @@ jobs:
           dotnet dev-certs https --trust
 
       - name: Capture walkthrough screenshots
+        env:
+          CAPTURE_SCREENSHOTS: '1'
         run: >
           npx playwright test
           -c playwright.localhost-auth.config.ts
@@ -73,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: walkthrough-screenshots
-          path: ../../docs/images/walkthroughs/
+          path: docs/images/walkthroughs/
           retention-days: 14
 
       - name: Commit and push updated screenshots

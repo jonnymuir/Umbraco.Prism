@@ -30,6 +30,11 @@ const workflows = [
 
 test.describe('Walkthrough screenshot capture', () => {
   test.describe.configure({ mode: 'serial' });
+  // Only run when explicitly opted in (e.g. via the capture-screenshots GitHub Actions
+  // workflow which sets CAPTURE_SCREENSHOTS=1). Skipped during the normal localhost-auth
+  // CI lane to keep that lane focused on functional tests.
+  test.skip(process.env.CAPTURE_SCREENSHOTS !== '1', 'Set CAPTURE_SCREENSHOTS=1 to run.');
+
   // 20-minute budget: the Aspire stack (Keycloak + TestSite + MockBusinessApp) can take
   // up to ~10 minutes to reach full readiness on a cold GitHub Actions runner, plus time
   // for sign-in, navigation, and screenshot I/O for all four workflow pages.
