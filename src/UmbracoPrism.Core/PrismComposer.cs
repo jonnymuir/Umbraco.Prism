@@ -68,6 +68,13 @@ public class PrismComposer : IComposer
             options.KnownProxies.Clear();
         });
 
+        // SEC-PT2-004: Security response headers — configurable via Prism:SecurityHeaders.
+        // Defaults: X-Content-Type-Options, X-Frame-Options (SAMEORIGIN), Referrer-Policy,
+        // Permissions-Policy, HSTS (HTTPS only), CSP-Report-Only (promote to enforced CSP
+        // once tuned per-deployment). Backoffice paths excluded by default.
+        builder.Services.Configure<PrismSecurityHeadersOptions>(
+            builder.Config.GetSection(PrismSecurityHeadersOptions.SectionName));
+
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
             options.AddFilter(new UmbracoPipelineFilter(
@@ -75,6 +82,7 @@ public class PrismComposer : IComposer
                 app =>
                 {
                     app.UseForwardedHeaders();
+                    app.UseMiddleware<PrismSecurityHeadersMiddleware>();
                     app.UseMiddleware<PrismTenantMiddleware>();
                     app.UseMiddleware<PrismBrandingMiddleware>();
                 }
@@ -142,6 +150,12 @@ public class PrismComposer : IComposer
         builder.Services.Configure<PrismAdminOptions>(builder.Config.GetSection("Prism:AdminGroups"));
 
         // 8. Management API & Notifications
+        // SEC-PT2-009 ANTIFORGERY POLICY (enforced in controllers, not globally):
+        // - Browser form-POST endpoints (e.g. AccountController.Logout): [ValidateAntiForgeryToken]
+        // - Capacitor mobile JSON API endpoints (Biometric, Push, Vinyl): [IgnoreAntiforgeryToken]
+        //   Rationale: native apps cannot supply the ASP.NET Core antiforgery cookie+header pair.
+        //   CSRF protection on those endpoints: SameSite=Lax + JSON Content-Type + origin checks.
+        // Any new browser-facing POST endpoint MUST carry [ValidateAntiForgeryToken].
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismMigrationHandler>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
