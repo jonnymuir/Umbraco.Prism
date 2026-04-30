@@ -10,6 +10,51 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 
 ---
 
+## Session: PR #40 PT2 Backend Security Batch — 5 Findings Fixed (2026-04-30)
+
+**Status:** ✅ Complete — 5 commits merged as `83eb30e` on `main`
+
+**Scope:** Close five PT2 security findings (SEC-PT2-003, 004, 006, 009, 010). Backend hardening: logout-CSRF, security headers, DataProtection persistence, Capacitor JSON antiforgery policy, origin restrictions.
+
+**Commits:**
+
+| SHA | Finding | Summary |
+|-----|---------|---------|
+| `828b5d4` | SEC-PT2-003 | Logout: `[HttpGet]` → `[HttpPost] + [ValidateAntiForgeryToken]`; Razor forms updated |
+| `9f1f34e` | SEC-PT2-004 | `PrismSecurityHeadersMiddleware`: CSP Report-Only, HSTS, XFO, XCTO, Referrer-Policy, Permissions-Policy |
+| `6c0e8e9` | SEC-PT2-006 | `TestSiteRuntimeLayout.cs`: DataProtection keys → persistent filesystem (fallback: `App_Data/prism-keys/`) |
+| `7a3b0ef` | SEC-PT2-009 | Antiforgery exemptions on `BiometricController`, `PrismNotificationController`, `PrismVinylNotificationController` + policy comments |
+| `11b8cbb` | SEC-PT2-010 | `IsCapacitorOrigin`: `http://localhost` restricted to Development only (iOS `capacitor://localhost` always allowed) |
+
+**Key Decisions:**
+
+1. **CSP Report-Only pattern:** Ship CSP without breaking Umbraco backoffice (inline scripts). Enforce after nonce/hash audit.
+2. **Intentional antiforgery exemptions:** Bearer-token + origin-checked endpoints documented with policy comments to prevent "fix" reverts.
+3. **DataProtection persistence at TestSite layer:** Core library cannot double-configure; follow-up: encryption-at-rest + multi-instance sharing left as seam.
+
+**Test Results:**
+
+- Baseline: 601 tests passing
+- After batch: 618 tests passing (+17 new)
+- New tests: 7 in `PrismSecurityHeadersMiddlewareTests.cs`, 3 reflection-based logout tests, 3 CORS header tests
+- Status: All green; no regressions
+
+**Follow-Up Items (Dispatched):**
+
+- **SEC-PT2-005 (Backoffice auth default scheme):** Blathers on `sec/pt2-backoffice-test` — integration test needed
+- **SEC-PT2-007 + SEC-PT2-008 (Razor @Html.Raw sanitization):** Isabelle on `sec/pt2-razor-hardening`
+- **CSP enforcement:** Post-audit when inline-script audit + nonce deployment locked in
+- **DataProtection encryption-at-rest:** `ProtectKeysWith*` for production (DPAPI / Key Vault)
+- **Multi-instance DataProtection:** Azure Blob / Redis key ring sharing seam
+
+**Lessons:**
+
+- Report-Only CSP is a legitimate ship-now-tighten-later pattern for defense-in-depth headers
+- Bearer-token endpoints need policy comments (antiforgery exemptions) to prevent future "fix" reverts that would introduce regressions
+- TestSite-layer security configuration (e.g., DataProtection) is sometimes safer than Core-library defaults
+
+---
+
 ## Session: PR #38 CI Green — MockBusinessApp Sanitizer Fix (2026-04-30)
 
 **Status:** ✅ Complete — Commit `6751662` on `fix/ci-green` (merged as `dc316fb` on main)

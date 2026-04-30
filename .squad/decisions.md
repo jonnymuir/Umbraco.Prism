@@ -2,6 +2,74 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
+## 📌 2026-04-30: Blathers — PT2 Backend Security Batch (PR #40) — 5 Findings Fixed
+
+**Status:** ✅ MERGED — 5 commits on `main` (squashed as `83eb30e`); 618 tests passing (+17 new)
+
+### Summary
+
+Blathers shipped 5 security hardening commits targeting backend infrastructure, authentication, and DataProtection. Five PT2 findings now closed; three remain open (being dispatched to other agents).
+
+### Findings Fixed
+
+| ID | Severity | Title | Commit |
+|----|----------|-------|--------|
+| SEC-PT2-003 | Medium | Logout-CSRF (GET → POST + antiforgery) | `828b5d4` |
+| SEC-PT2-004 | Medium | Missing security headers (CSP, HSTS, XFO, XCTO, etc.) | `9f1f34e` |
+| SEC-PT2-006 | Low | DataProtection keys now persisted to filesystem | `6c0e8e9` |
+| SEC-PT2-009 | Low | Antiforgery exemptions on Capacitor JSON endpoints (documented) | `7a3b0ef` |
+| SEC-PT2-010 | Info | IsCapacitorOrigin restricted to Development (http://localhost) | `11b8cbb` |
+
+### Three Notable Decisions
+
+#### 1. CSP Shipped as Report-Only (SEC-PT2-004)
+
+**Decision:** `PrismSecurityHeadersMiddleware` implements CSP as `Content-Security-Policy-Report-Only`, not enforced.
+
+**Rationale:** Umbraco backoffice + TestSite Razor views use inline scripts and styles (e.g., `@Html.Raw(imageryCss)`) that a strict enforced CSP would block. Report-Only allows violation observation without breaking the site. Promoting to enforced CSP requires nonce/hash rollout post-audit — recorded as follow-up.
+
+**Rule Going Forward:** Security-headers middleware respects `ExcludeBackoffice: true` by default; CSP stays Report-Only until inline-script audit + nonce deployment plan is locked in.
+
+#### 2. Capacitor JSON Endpoints Deliberately Exempt from Antiforgery (SEC-PT2-009)
+
+**Decision:** `BiometricController`, `PrismNotificationController`, `PrismVinylNotificationController` carry `[IgnoreAntiforgeryToken]` with a policy comment documenting the exemption.
+
+**Rationale:** These are native-app (Capacitor) JSON API endpoints. Native apps cannot supply the ASP.NET Core antiforgery cookie+header pair — they do not participate in the browser cookie jar. Applying `[ValidateAntiForgeryToken]` would break the mobile app. CSRF protection remains via:
+- Cookie `SameSite=Lax` (blocks form-encoded POST)
+- JSON `Content-Type: application/json` requirement (triggers browser CORS preflight)
+- `IsCapacitorOrigin` check on unauthenticated endpoints
+
+**Rule Going Forward:** Any NEW browser-facing form-POST endpoint MUST carry `[ValidateAntiForgeryToken]`. Policy comments on exemptions prevent future reviewers from "fixing" intentional security decisions.
+
+#### 3. DataProtection Key Persistence + Follow-Ups (SEC-PT2-006)
+
+**Decision:** TestSite now calls `PersistKeysToFileSystem` with fallback path `{ContentRoot}/App_Data/prism-keys/`.
+
+**Rationale:** Core library cannot double-configure DataProtection — host may already own that config. TestSite-layer fix ensures keys are no longer ephemeral and survive process restarts.
+
+**Follow-Up Gaps (not addressed):**
+- **Encryption-at-rest:** `ProtectKeysWith*` (DPAPI, certificate, Key Vault) not configured; keys on-disk are plaintext.
+- **Multi-instance sharing:** Azure Blob / Redis key ring providers not wired; each instance in a cluster has its own isolated ring.
+
+Both gaps require ops/infrastructure input and documented in the follow-up seam.
+
+### Test Results
+
+- **Before:** 601 tests passing (Core unit tests baseline)
+- **After:** 618 tests passing (+17 new, including 7 in `PrismSecurityHeadersMiddlewareTests.cs`)
+- **Status:** All green; no regressions
+
+### Follow-Up Items (Dispatched)
+
+1. **SEC-PT2-005** (Backoffice auth default scheme) → Blathers on `sec/pt2-backoffice-test` (integration test needed)
+2. **SEC-PT2-007 + SEC-PT2-008** (Razor @Html.Raw sanitization) → Isabelle on `sec/pt2-razor-hardening`
+
+### Basis
+
+Blathers' 5-commit implementation (2026-04-30); security review pass 2 findings (Copper, 2026-04-30); decision record in inbox (`.squad/decisions/inbox/blathers-pt2-backend.md`).
+
+---
+
 ## 📌 2026-04-30: Blathers — SEC-004 Closed — TestSite Secrets Management Pattern
 
 **Status:** ✅ IMPLEMENTED — Commit `b6336fd` on `main`
