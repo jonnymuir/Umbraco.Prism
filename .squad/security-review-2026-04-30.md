@@ -10,11 +10,13 @@
 
 1. **SEC-001 (HIGH — PATCHED)** WorkflowPollController had no `[Authorize]` attribute, exposing workflow state to unauthenticated callers. Fixed in this review.
 2. **SEC-002 (CRITICAL — CVE)** Transitive `Microsoft.AspNetCore.DataProtection 10.0.0` has a known critical advisory (GHSA-9mv3-2cwr-p262) in `UmbracoPrism.Shared`. Requires version bump.
-3. **SEC-003 (HIGH — XSS)** Four workflow display components render `Model.Component.Content` via `@Html.Raw()` without sanitisation. Content originates from operator-controlled workflow definitions — exploitable if any admin pathway ever accepts user-submitted content strings.
+3. **SEC-003 (HIGH — XSS)** Four workflow display components render `Model.Component.Content` via `@Html.Raw()` without sanitisation. **CLOSED — `IWorkflowContentSanitizer` + GDS allowlist implemented and tested (Commits `4223861`, `97491d5`, `ae616a2`, `55978f5`).**
 4. **SEC-004 (HIGH — Secret)** `HMACSecretKey` (Umbraco Imaging HMAC signing key) committed in `src/UmbracoPrism.TestSite/appsettings.json`. Key must be rotated and moved to user secrets or environment variables.
 5. **SEC-005 (HIGH — npm)** Critical handlebars CVE and multiple high-severity CVEs in `UmbracoPrism.Client` npm dependency tree (mostly transitive via `@umbraco-cms/backoffice` and Storybook toolchain). `npm audit fix` recommended.
 
 The prior redirect hardening and OIDC nonce work continues to hold. SQL parameterisation, tenant isolation, antiforgery, and biometric exchange are sound.
+
+**Review Status: 11/11 findings processed; 9 CLOSED, 2 PATCHED, 1 IN PROGRESS (SEC-003 now CLOSED).**
 
 ---
 
@@ -24,7 +26,7 @@ The prior redirect hardening and OIDC nonce work continues to hold. SQL paramete
 |----|----------|------|-------|----------|--------|
 | SEC-001 | HIGH | Auth | WorkflowPollController — no authentication | `Controllers/WorkflowPollController.cs:14` | ✅ PATCHED |
 | SEC-002 | CRITICAL | CVE | Microsoft.AspNetCore.DataProtection 10.0.0 | `UmbracoPrism.Shared.csproj` (transitive) | ✅ CLOSED (2026-04-30, commit `2618c54`) |
-| SEC-003 | HIGH | XSS | `@Html.Raw(Content)` in workflow display components | 4 Razor partials (see below) | 🟡 DESIGNED (awaiting implementation) |
+| SEC-003 | HIGH | XSS | `@Html.Raw(Content)` in workflow display components | 4 Razor partials (see below) | ✅ CLOSED (2026-04-30, commits `4223861`, `97491d5`, `ae616a2`, `55978f5`) |
 | SEC-004 | HIGH | Secret | HMACSecretKey committed to appsettings.json | `TestSite/appsettings.json` | ✅ CLOSED (2026-04-30, commit `b6336fd`) |
 | SEC-005 | HIGH | CVE | npm — handlebars critical + 10 high CVEs | `UmbracoPrism.Client/package.json` (transitive) | ✅ CLOSED (2026-04-30, commit `7e499b5`) |
 | SEC-006 | MEDIUM | Cookie | CookieSecurePolicy.SameAsRequest | `Core/PrismComposer.cs` | ✅ CLOSED (2026-04-30, commit `df434bf`) |
@@ -56,7 +58,7 @@ The prior redirect hardening and OIDC nonce work continues to hold. SQL paramete
 
 ---
 
-### SEC-003 · HIGH · `@Html.Raw(Content)` in Workflow Display Components
+### SEC-003 · HIGH · `@Html.Raw(Content)` in Workflow Display Components ✅ CLOSED
 
 **Files:**
 - `src/UmbracoPrism.Core/Views/Partials/PrismComponents/_PrismComponent-Body.cshtml`
@@ -68,8 +70,16 @@ The prior redirect hardening and OIDC nonce work continues to hold. SQL paramete
 - The definition editor is ever enabled in non-Dev environments
 - A Content field is ever populated from user-supplied input
 
-**Remediation (recommended):** Introduce a `IWorkflowContentSanitizer` abstraction using [HtmlSanitizer](https://github.com/mganss/HtmlSanitizer) with a GDS-aligned allowlist (headings, paragraphs, strong, em, a, ul, ol, li, blockquote). Apply to all `Content` fields at render time. This gives defense-in-depth without breaking legitimate rich text.  
-**Suggested owner:** Blathers (component model), Copper (sanitiser config)
+**Remediation (implemented):** Introduced `IWorkflowContentSanitizer` abstraction using [HtmlSanitizer](https://github.com/mganss/HtmlSanitizer) with a GDS-aligned allowlist (headings, paragraphs, strong, em, a, ul, ol, li, blockquote, code, abbr, span). Applied at the workflow engine seam (`BusinessAppWorkflowEngine.BuildComponents`) — single choke point before content flows to Razor partials.
+
+**✅ CLOSED — 2026-04-30 · Commits `4223861`, `97491d5` (wire-up by Blathers), `ae616a2`, `55978f5` (implementation + tests by Copper)**
+- **T1–T7 (wire-up):** Blathers added `HtmlSanitizer` NuGet, defined `IWorkflowContentSanitizer` interface, created `NoOpWorkflowContentSanitizer` placeholder, injected sanitizer into `BusinessAppWorkflowEngine`, added seed roundtrip tests. Commit `4223861`.
+- **T9 (regression tests — skipped):** 6 regression tests added to `Phase1SecurityRegressionTests.cs`, initially skipped pending real sanitizer impl. Commit `97491d5`.
+- **T2, T8, T9 (real impl + un-skip):** Copper implemented `WorkflowContentSanitizer` with GDS allowlist (tags: p, ul, ol, li, blockquote, br, h2–h4, strong, em, b, i, code, abbr, span, a; attributes: href + rel on `<a>`, title on `<abbr>`; schemes: http, https, mailto, tel; stripping: scripts, iframes, event handlers, data: URIs, etc.). External links auto-injected with `rel="noopener noreferrer"` and `target="_blank"`. Added 40 unit tests (`WorkflowContentSanitizerTests.cs`). Un-skipped all 6 regression tests. Commits `ae616a2`, `55978f5`.
+- **Production gate satisfied:** Precondition for shipping the definition editor to non-Dev environments is now met.
+- **Test result:** 601 passing (0 skipped, 0 failed).
+
+**Suggested owner:** Blathers (engine integration), Copper (sanitiser impl + allowlist)
 
 ---
 
@@ -210,7 +220,6 @@ The following were reviewed and found to be correctly implemented:
 1. **Rotate the committed HMAC signing key** (SEC-004) — treat as compromised.
 2. **Upgrade `Microsoft.AspNetCore.DataProtection`** (SEC-002) — critical CVE on the auth crypto substrate.
 3. **Run `npm audit fix`** (SEC-005) — auto-fixable items first, then track remaining.
-4. **Introduce HTML sanitiser for `@Html.Raw(Content)`** (SEC-003) — design-system-compatible allowlist.
-5. **Set `CookieSecurePolicy.Always`** (SEC-006) — low effort, high value.
-6. **Add `ForwardedHeadersMiddleware` for biometric rate limiting** (SEC-007) — required before any cloud deployment.
-7. **Upgrade `OpenTelemetry.Api`** (SEC-008) — `1.12.1+`.
+4. **Set `CookieSecurePolicy.Always`** (SEC-006) — low effort, high value.
+5. **Add `ForwardedHeadersMiddleware` for biometric rate limiting** (SEC-007) — required before any cloud deployment.
+6. **Upgrade `OpenTelemetry.Api`** (SEC-008) — `1.12.1+`.

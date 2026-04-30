@@ -518,3 +518,180 @@ No breaking changes were introduced. All residual findings are:
 
 - `npm run build` → clean (vite 7.3.2, tsc clean, 45 modules, 0 warnings)
 - `npm audit` → 0 critical, 0 high
+
+---
+
+## 📌 2026-04-30: SEC-003 Workflow Content Sanitization — Complete Implementation
+
+**Status:** ✅ CLOSED — All tasks delivered and tested; 601 passing tests (0 skipped, 0 failed)
+
+**Authors:** Blathers (wire-up, integration, tests) + Copper (sanitiser policy, implementation, 40 unit tests)
+
+**Commits:** Wire-up `4223861`, `97491d5` (Blathers); Implementation `ae616a2`, `55978f5` (Copper)
+
+### What Was Delivered
+
+SEC-003 (HIGH — XSS in `@Html.Raw(Content)` workflow display components) is now fully implemented and tested.
+
+**Tasks T1–T7 (Blathers wire-up):**
+1. **T1:** Added `HtmlSanitizer 9.0.892` NuGet package to `UmbracoPrism.Core.csproj`
+2. **T3:** Defined `IWorkflowContentSanitizer` interface in `src/UmbracoPrism.Shared/Services/Sanitization/`
+3. **T4:** Created `NoOpWorkflowContentSanitizer` placeholder implementation and DI registration in `WorkflowBuilderExtensions`
+4. **T5:** Injected sanitizer into `BusinessAppWorkflowEngine.BuildComponents` — single seam where all `Content` / `Heading` fields are sanitized before flowing to Razor partials
+5. **T6:** Verified `_PrismComponent-Waiting.cshtml` coverage — included in engine sanitization
+6. **T7:** Added `SeedContentSanitizationTests` — all 4 seed workflows round-trip cleanly through sanitizer (no content diff)
+7. **T9 (initial):** Added 6 regression tests to `Phase1SecurityRegressionTests.cs` (skipped pending real impl)
+
+**Architecture decision:** Sanitizer seam placed in the engine (not in views). Rationale: single choke point, no 7-partial boilerplate, fail-closed (new components inherit sanitization by convention), easy to lint/audit.
+
+**Project reference deviation:** `IWorkflowContentSanitizer` placed in `UmbracoPrism.Shared` (not Core) because `BusinessAppWorkflowEngine` in MockBusinessApp only references Shared. `NoOpWorkflowContentSanitizer` impl stays in Core.
+
+| State | Test Count |
+|-------|------------|
+| Baseline | 550 passing |
+| After T7 | 554 passing (+4 seed tests) |
+| After T9 (skipped) | 554 passing, 6 skipped |
+
+---
+
+**Tasks T2 + T8 + T9 Re-execution (Copper implementation):**
+
+| Task | Description | Status |
+|------|-------------|--------|
+| **T2** | `WorkflowContentSanitizer.cs` — Ganss.Xss impl with GDS allowlist | ✅ |
+| **T8** | `WorkflowContentSanitizerTests.cs` — 40 unit test cases | ✅ |
+| **Re-register** | Swapped `NoOpWorkflowContentSanitizer` for real `WorkflowContentSanitizer` in DI | ✅ |
+| **T9 (un-skip)** | All 6 regression tests un-skipped and passing | ✅ |
+
+### GDS Allowlist (Finalized)
+
+**Tags allowed:**
+- Block: `p`, `ul`, `ol`, `li`, `blockquote`, `br`, `h2`, `h3`, `h4`
+- Inline: `strong`, `em`, `b`, `i`, `code`, `abbr`, `span`, `a`
+
+**Attributes:**
+- `abbr`: `title`
+- `a`: `href`, `rel`
+- Auto-inject `rel="noopener noreferrer"` and `target="_blank"` for external http(s) links
+
+**URI schemes (strict):**
+- Allowed: `http`, `https`, `mailto`, `tel`
+- Blocked: `javascript:`, `data:`, `vbscript:`, `file:`, `//` (protocol-relative)
+- Scheme check in `RemovingAttribute` event handler
+
+**Explicitly stripped:** `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `<svg>`, `<form>`, `<input>`, all event handlers (`on*`), HTML comments, inline styles, `class`, `id`, `data-*`
+
+**Why no `class`?** Tight by design for v1. Authors don't need it (partials already wrap in GDS classes). Additive expansion later is safe; retroactive removal is breaking.
+
+### Implementation Notes
+
+- `HtmlSanitizer` constructed once in `WorkflowContentSanitizer` ctor; singleton registration ensures thread-safe shared instance
+- `AllowedAttributes` deliberately empty; all per-tag attributes handled via `RemovingAttribute` event handler (prevents global bleed)
+- Post-processor injects `rel="noopener noreferrer"` and `target="_blank"` for external links; author-supplied values discarded
+- Whitespace/null guard returns `string.Empty` without invoking Ganss.Xss
+
+### Test Coverage
+
+| State | Count |
+|-------|-------|
+| Baseline (Blathers handoff) | 554 passing, 6 skipped |
+| +T8 unit tests (40 cases) | +40 |
+| +T9 un-skip (6 regression) | +6 |
+| **Final** | **601 passing, 0 skipped, 0 failed** |
+
+**Unit test breakdown (40 cases):**
+- Null/empty input: 4
+- Plain text passthrough: 1
+- Allowed tags round-trip: 14
+- External link rel+target injection: 3
+- Dangerous href schemes stripped: 4
+- Event handler stripping: 2
+- Disallowed tags stripped: 6
+- Inline style stripped: 1
+- Idempotency: 5
+
+**Regression suite (6 cases):**
+- Script tag stripping
+- JavaScript href stripping
+- Onerror event handler stripping
+- Data URL href stripping
+- Style block stripping
+- Legitimate GDS markup preservation
+
+### Production Gate — Precondition Satisfied
+
+> The definition editor's non-Dev rollout is gated on `IWorkflowContentSanitizer` being implemented and tested.
+
+**Status:** ✅ SATISFIED. The definition editor can now ship to non-Dev environments (separate decision/ticket).
+
+### Handoff Notes
+
+Mabel owns T10 (post-merge): documentation at `docs/security/workflow-content-sanitization.md` (allowlist, seam explanation, "future components MUST sanitize" rule).
+
+Separate tickets (not blockers):
+- T10: `docs/security/workflow-content-sanitization.md`
+- Content-Security-Policy header hardening (complementary defense-in-depth)
+
+### Basis
+
+- Tom Nook's SEC-003 proposal (`.squad/decisions/inbox/tom-nook-sec-003-proposal.md`) — design, allowlist, architecture
+- Blathers' wire-up decision note (`.squad/decisions/inbox/blathers-sec-003-wireup.md`) — T1–T7 delivery
+- Copper's implementation summary (`.squad/decisions/inbox/copper-sec-003-impl.md`) — T2 + T8 + T9 delivery
+- Copper's security review 2026-04-30, finding SEC-003
+
+---
+
+## 📌 2026-04-30: User Directive — Feature-Branch + PR Workflow (Restoring CI as Regression Gate)
+
+**Effective:** Immediately, for all new work dispatched after this entry
+
+**Author:** Jonny Muir (user directive via Copilot)
+
+**Reason:** The previous "work on main" policy bypassed CI checks. Even in a single-author repo, direct-to-main commits can regress silently. Restoring CI as a regression gate requires Pull Requests.
+
+### Rules Going Forward
+
+1. **One work item per feature branch:** Each feature, bug fix, or security finding gets a dedicated branch. Name suggestions: `squad/{slug}`, `feat/{slug}`, or `fix/{slug}`.
+
+2. **Team collaboration on same branch:** Multiple agents may push commits to the same feature branch for a single work item. **Do NOT open separate PRs for sub-tasks of the same item.**
+
+3. **Pull Request gate:** PR opened against `main`. All GitHub Actions / CI pipelines must pass (green). Coordinator (or assigned reviewer) merges only after all checks pass.
+
+4. **Scribe bookkeeping travels with the work:** Scribe's `.squad/` decisions/log/history commits land on the same feature branch, flowing into `main` with the PR.
+
+5. **Exception — trivial `.squad/`-only bookkeeping:** Pure session logging with NO code changes MAY go direct to `main` at the coordinator's discretion (e.g., a routine closeout batch updating `.squad/` docs only). When in doubt, branch.
+
+### Branch Naming Convention
+
+- `squad/{issue-slug}` — for issue-driven work
+- `feat/{feature-name}` — for features
+- `fix/{bug-name}` — for bug fixes
+- `docs/{topic}` — for documentation
+
+### Impact
+
+- **Restores CI as a regression gate** — prevents silent breakage between local and main
+- **Enables team review** — PRs are the collaboration point; reviewers catch issues before merge
+- **Single PR per work item** — avoids PR sprawl and squash-on-merge chaos
+- **Existing in-flight work exempt** — Copper's SEC-003 T2/T8 work (currently on main) finishes as-is; this policy bites for next dispatch
+
+---
+
+## 📌 2026-04-30: SEC-003 Design Proposal — Workflow Content Sanitization (Archived Reference)
+
+**Author:** Tom Nook (Lead)  
+**Status:** IMPLEMENTED (see SEC-003 Workflow Content Sanitization closure above)
+
+**Archive note:** This design proposal (`.squad/decisions/inbox/tom-nook-sec-003-proposal.md`) defined the architecture, allowlist, and task breakdown for SEC-003. It has been executed by Blathers and Copper. Preserved here for future reference and design continuity.
+
+**Key decisions locked in proposal:**
+- `IWorkflowContentSanitizer` abstraction using Ganss.Xss with GDS allowlist
+- Seam at `BusinessAppWorkflowEngine.BuildComponents` (single choke point)
+- Singleton registration (HtmlSanitizer is thread-safe per-instance)
+- NoOp placeholder during wire-up, swapped for real impl later
+- 7 Razor partials + seed workflows covered
+- 40 unit tests + 6 regression tests
+
+**Why preserved:** Design decisions, test strategy breakdown (6.1–6.3), allowlist rationale (4.3), and architectural alternatives (4.4) are useful reference for future sanitizer extensions or related hardening work. This file remains in `.squad/decisions.md` for posterity; the inbox copy is deleted.
+
+---

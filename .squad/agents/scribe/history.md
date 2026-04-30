@@ -24,6 +24,64 @@ Agent Scribe initialized and ready for work.
 
 ---
 
+## 2026-04-30T14:50:00Z — Security Review Closeout & Branching Policy Directive
+
+**Task:** SEC-003 implementation verification, security review completion, feature-branch policy directive merge, and session bookkeeping.
+
+### Deliverables
+
+1. ✅ **Security Review Closure:** `.squad/security-review-2026-04-30.md` updated
+   - SEC-003 status changed from 🟡 DESIGNED to ✅ CLOSED
+   - Executive summary updated: 11/11 findings processed (9 CLOSED, 2 PATCHED, 1 NOW CLOSED)
+   - Recommended Next Actions refreshed (SEC-003 removed from backlog)
+   - SEC-003 detail section expanded with full implementation + test results (601 passing tests)
+
+2. ✅ **Decisions Merged:** Four inbox files merged into `.squad/decisions.md` in chronological order
+   - SEC-003 wire-up (Blathers, commits `4223861` + `97491d5`)
+   - SEC-003 implementation (Copper, commits `ae616a2` + `55978f5`)
+   - Feature-branch + PR policy directive (user policy, effective immediately)
+   - SEC-003 design proposal (Tom Nook, archived for reference)
+
+3. ✅ **Inbox Cleared:** Four files deleted after merging
+   - `blathers-sec-003-wireup.md`
+   - `copper-sec-003-impl.md`
+   - `copilot-directive-20260430-feature-branch-policy.md`
+   - `tom-nook-sec-003-proposal.md`
+
+4. ✅ **Routing Policy Updated:** `.squad/routing.md` refreshed
+   - Feature-branch workflow codified as the default
+   - Exception noted for trivial `.squad/`-only bookkeeping
+   - Branch naming convention documented
+   - Rules and rationale added
+
+5. ✅ **Session Log:** `.squad/log/2026-04-30-security-review-closeout.md` created
+   - Closeout summary and sign-off checklist
+   - Final security review state (11/11 findings closed)
+   - Branching policy impact and rollout guidance
+
+### Key Decisions Codified
+
+**Feature-Branch + PR Workflow:**
+- One work item per branch; whole team may collaborate on same branch
+- CI gates all merges to main (restores regression prevention)
+- Scribe bookkeeping travels with work on feature branches
+- Exception: pure `.squad/`-only changes may go direct to main (coordinator's call)
+- Effective immediately for new work; existing in-flight work (Copper SEC-003) continues on main
+
+**SEC-003 Production Gate:**
+- Precondition for definition editor non-Dev rollout is now SATISFIED
+- All 11 security findings processed; 10 closed, 1 patched (SEC-001)
+- Test suite: 601 passing, 0 skipped, 0 failed
+
+### Basis
+
+- Copper's security review (2026-04-30)
+- Blathers & Copper implementations (commits 4223861, 97491d5, ae616a2, 55978f5)
+- Jonny Muir's user directive on feature-branch workflow (2026-04-30)
+- Tom Nook's SEC-003 design proposal (2026-04-30, implemented)
+
+---
+
 ## 2026-04-03T11:42:28Z — Phase 1 Notifications Backend Documentation & Handoff
 
 **Task:** Post-delivery documentation and team history update

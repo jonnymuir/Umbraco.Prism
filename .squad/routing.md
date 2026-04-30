@@ -57,3 +57,47 @@ When triaging, Tom Nook should ask:
 6. **Anticipate downstream work.** If a feature is being built, spawn Tangy to write test cases from requirements simultaneously.
 7. **Issue-labeled work** — when a `squad:{member}` label is applied to an issue, route to that member. Tom Nook handles all `squad` (base label) triage.
 8. **@copilot routing** — when evaluating issues, check @copilot's capability profile in `team.md`. Route 🟢 good-fit tasks to `squad:copilot`. Flag 🟡 needs-review tasks for PR review. Keep 🔴 not-suitable tasks with squad members.
+
+---
+
+## Work Item Routing — Feature-Branch + PR Workflow
+
+**Effective:** 2026-04-30 (immediately for all new work)
+
+**Policy:** One unit of work per feature branch. Whole team collaborates on the same branch. CI gates all merges to main.
+
+### Branch Strategy
+
+- **Default:** Every feature, bug fix, security finding, or substantial change gets its own feature branch. Do NOT commit directly to `main`.
+- **Exception:** Trivial `.squad/`-only bookkeeping with **NO code changes** (e.g., routine session logging, metadata updates) may go direct to `main` at the coordinator's discretion. When in doubt, branch.
+
+### Branch Naming Convention
+
+- `squad/{issue-number}-{kebab-slug}` — for tracked issues (e.g., `squad/42-login-validation`)
+- `feat/{feature-name}` — for features (e.g., `feat/notifications-backend`)
+- `fix/{bug-name}` — for bug fixes (e.g., `fix/cors-rate-limiting`)
+- `docs/{topic}` — for documentation (e.g., `docs/workflow-sanitization`)
+
+### Team Collaboration
+
+- Multiple agents may push commits to the same feature branch for a single work item.
+- **Do NOT open separate PRs** for sub-tasks of the same item. One item → one branch → one PR.
+- Handoffs happen within the branch (e.g., Blathers builds the wire-up, Copper implements the real logic, both commit to `squad/sec-003-sanitization`).
+
+### Pull Request Gate
+
+1. PR opened against `main` from the feature branch.
+2. All GitHub Actions, linters, tests, and builds must pass (green).
+3. Coordinator (or assigned reviewer) merges **only after all checks pass**.
+4. Squash-on-merge is the default; multiple commits are preserved if important for history.
+
+### Scribe Bookkeeping
+
+- Scribe's `.squad/decisions/`, `.squad/sessions/`, `.squad/agents/*/history.md` commits land on the same feature branch as the work.
+- Decisions, logs, and history flow into `main` together with the PR, keeping the ledger in sync with code changes.
+
+### Rationale
+
+**Why?** The previous "work on main" policy bypassed CI gates. Even in a single-author repo, direct commits to main can regress silently. Feature branches + PR workflow restores CI as a regression prevention gate and enables team review before merge.
+
+---
