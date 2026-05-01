@@ -48,7 +48,7 @@ need a team decision before patching.
 | SEC-PT2-002   | Medium   | Vulnerable transitive: `OpenTelemetry.Exporter.OpenTelemetryProtocol 1.11.2` (CVE-2026-42191) | PATCHED |
 | SEC-PT2-003   | Medium   | Logout via GET in `AccountController` (logout-CSRF)                      | Fixed (828b5d4) |
 | SEC-PT2-004   | Medium   | Missing security response headers (CSP, XFO, XCTO, HSTS, Referrer, Permissions) | Fixed (9f1f34e) |
-| SEC-PT2-005   | Medium   | `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional       | Confirmed safe (commit TBD) |
+| SEC-PT2-005   | Medium   | `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional       | Confirmed safe (948c2a4) |
 | SEC-PT2-006   | Low      | DataProtection keys ephemeral by default; not encrypted at rest          | Fixed (6c0e8e9) |
 | SEC-PT2-007   | Low      | Unsanitized `accordionSection.Content` in Razor partial (currently unused producer-side) | Fixed (03dba49) |
 | SEC-PT2-008   | Low      | `VinylRecord.cshtml` `@Html.Raw(description)` — RTE field, operator-trust | Fixed (6177137) |
@@ -206,7 +206,7 @@ If the test reveals leakage, switch the unconditional defaults back to a
 scheme-aware policy or a custom `IAuthenticationSchemeProvider` that picks
 based on path.
 
-**Status.** Confirmed safe (commit TBD) — `BackofficeSchemeIsolationTests.cs` added with 4 regression tests proving: (A) `DefaultAuthenticateScheme = "PrismMemberCookie"` is set unconditionally, (B) `DefaultChallengeScheme = "PrismEntraID"`, (C) Umbraco's `"UmbracoBackOffice"` scheme constant is distinct from `"PrismMemberCookie"`, (D) explicit named-scheme authentication for `"UmbracoBackOffice"` does not fall through to the default scheme — a `PrismMemberCookie` alone cannot satisfy a backoffice auth challenge. See `.squad/decisions/inbox/blathers-pt2-005-backoffice-test.md` for detailed analysis.
+**Status.** Confirmed safe (948c2a4) — `BackofficeSchemeIsolationTests.cs` added with 4 regression tests proving: (A) `DefaultAuthenticateScheme = "PrismMemberCookie"` is set unconditionally, (B) `DefaultChallengeScheme = "PrismEntraID"`, (C) Umbraco's `"UmbracoBackOffice"` scheme constant is distinct from `"PrismMemberCookie"`, (D) explicit named-scheme authentication for `"UmbracoBackOffice"` does not fall through to the default scheme — a `PrismMemberCookie` alone cannot satisfy a backoffice auth challenge. See `.squad/decisions/inbox/blathers-pt2-005-backoffice-test.md` for detailed analysis.
 
 ---
 
