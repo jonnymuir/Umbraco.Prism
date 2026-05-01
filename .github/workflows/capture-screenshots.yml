@@ -67,7 +67,7 @@ jobs:
         run: >
           npx playwright test
           -c playwright.localhost-auth.config.ts
-          tests/capture-screenshot.spec.ts
+          tests/walkthroughs/
           --reporter=line
 
       - name: Upload screenshots as artifacts (always, for inspection)
