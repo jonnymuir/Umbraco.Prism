@@ -106,3 +106,52 @@ Seeded routes briefly resolving to `/` on first boot is a cold-start artifact of
 5. **Auth scope strategy differs by tenant** — offline_access for demo, standard scopes for production
 
 ---
+
+## Session: Multi-tenancy & Editor UX Reflection (2026-05-01)
+
+**Status:** ✅ Complete — Review at `.squad/reviews/2026-05-01-prism-reflection/04-brewster-multitenancy.md`
+
+**Scope:** Deep Rams-grade review of multi-tenancy implementation, editor experience, and tenant isolation honesty.
+
+### Key Findings
+
+**Architectural strengths:**
+- Host-based tenant resolution via `PrismTenantMiddleware` is clean, immediate (no restart), and correctly scoped per request via `IPrismContext` (scoped DI)
+- 30-minute runtime cache with explicit invalidation on create/update/delete is efficient and operationally sound
+- CSS-variable branding pipeline is genuinely excellent — annotation-driven, backoffice-managed, zero-deploy live updates
+- Mobile branding via separate `MobileBrandingOverrides` column and Capacitor bundle generation is a differentiator
+- `TenantManagementController` correctly gates behind both `BackOfficeAccess` and `PrismAdmins` policies — no privilege escalation path
+
+**Honest gaps found:**
+1. **Content tree is not isolated** — all tenants share the same Umbraco content tree. The walkthrough admits this; the product overview does not. A content editor for Tenant A can publish nodes visible on Tenant B's domain. This is the largest Rams #6 (Honest) violation.
+2. **`MemberDashboardController` hardcodes `/auth/login?returnUrl=/dashboard`** (line 42) — not tenant-hostname-relative. On a second tenant, the OIDC challenge may resolve via the wrong host.
+3. **30-minute deleted-tenant cache gap is undocumented** — `TenantService` caches for 30 minutes; no operator-facing warning exists; no manual flush endpoint.
+4. **Email/push notification branding unresolved** — `PrismNotificationService` has access to `IPrismContext.CurrentTenant` (scoped) but no evidence of branding tokens flowing into email templates.
+5. **`homePage.cshtml` is untyped** (`UmbracoViewPage` not `UmbracoViewPage<HomePage>`) — violates Brewster's charter rule #3.
+6. **Dual auth-model fields on `PrismTenant`** — both Entra-specific (`EntraTenantId`, `EntraClientId`, `SecretKeyName`) and generic OIDC fields coexist in one model, increasing cognitive load for operators.
+
+### Three Improvements Recommended (in priority order)
+
+1. **Content isolation visibility** — tenant tag on content nodes + backoffice header indicator (affects `PrismContentTypeSeeder.cs`, `src/UmbracoPrism.Client/src/backoffice/`)
+2. **Fix hardcoded `/dashboard` redirect** in `MemberDashboardController.cs` line 42 — use content-tree lookup
+3. **Document and expose cache TTL** — add manual flush endpoint to `TenantManagementController.cs`; warn in `creating-a-tenant.md`
+
+### Rams Scorecard Summary
+
+✅ Innovative, Useful, Unobtrusive, Long-lasting, Environmentally friendly  
+⚠️ Aesthetic, Understandable, Honest, Thorough, As little design as possible  
+❌ None
+
+---
+
+---
+
+**2026-05-01 — Prism Reflection Review (Rams 10 Principles)**
+
+Delivered multi-tenancy editor lens review applying Rams principles. Four multi-tenancy findings recorded:
+1. Content isolation is a known gap — needs roadmap item (tenantTag filter)
+2. Hardcoded /dashboard redirect should be replaced with content-tree lookup
+3. Tenant cache TTL gap needs operator documentation and flush endpoint
+4. Email/push notification branding is unresolved (scope or wire)
+
+No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-brewster.md.
