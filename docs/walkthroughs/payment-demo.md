@@ -23,6 +23,18 @@ The first step collects payment details:
 
 This demonstrates the `number` component with `step: 0.01` for currency precision.
 
+### Filled Form
+
+![Payment form filled — cardholder name Jane Doe and amount £42.50 entered](../images/walkthroughs/payment-demo/02-form-filled.png)
+
+Enter the cardholder name and amount to proceed. The amount field accepts decimal values (e.g. `42.50`) using `step: 0.01` for pence-level precision.
+
+### Processing
+
+![Processing state — "Processing Your Payment" heading displayed](../images/walkthroughs/payment-demo/03-processing.png)
+
+After submission the workflow transitions to a processing state while the Stripe integration completes the charge. The user sees a holding screen until the payment result is returned.
+
 ## V2.0 Schema Example
 
 The payment amount field uses the polymorphic `number` component:

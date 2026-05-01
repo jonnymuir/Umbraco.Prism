@@ -22,6 +22,8 @@ The planning notification workflow (`planning-notification`) handles planning pe
 
 ### Step 1: Navigate to the TestSite
 
+![TestSite homepage — branded landing page with navigation and workflow entry point](../images/walkthroughs/shared/01-homepage.png)
+
 1. Open the TestSite in your browser:
    - **Codespaces:** Click the forwarded link from the terminal (or `https://{CODESPACE_NAME}-44345.app.github.dev`)
    - **Local:** `https://localhost:44345`
@@ -43,6 +45,8 @@ The planning notification workflow (`planning-notification`) handles planning pe
 4. Click **Sign In**.
 
    After a few seconds, you land on the **My Workflows** page with a list of available workflows.
+
+   ![My Workflows dashboard — list of available workflows for the authenticated user](../images/walkthroughs/shared/02-dashboard.png)
 
 5. 💡 **What's happening:** This is an OpenID Connect (OIDC) authentication flow. Here's what occurred:
    - Your browser was redirected to Keycloak at `https://localhost:8443/realms/prism-dev` (or the Codespaces forwarded URL).
@@ -67,6 +71,8 @@ Each step collects information or presents a review screen. Let's fill in the fo
 
 ### Step 1: "Describe your project"
 
+![Initial "Describe your project" form — three required fields visible](../images/walkthroughs/planning-notification/01-initial.png)
+
 **What you see:**
 - Form title: **Describe your project**
 - Three input fields:
@@ -75,9 +81,11 @@ Each step collects information or presents a review screen. Let's fill in the fo
   - **Property address** (required, textarea, max 500 characters)
 
 **What to type** (concrete example):
-- **Project name:** `New garden extension`
-- **Describe the proposed works:** `We plan to extend the existing kitchen with a covered garden area using materials that match the existing brick. No structural changes to the main house.`
-- **Property address:** `42 Maple Lane, Springfield, IL 62701`
+- **Project name:** `Loft conversion`
+- **Describe the proposed works:** `Converting existing loft space into habitable bedroom with dormer window`
+- **Property address:** `456 Oak Avenue, Woodlands, WD3 4EF`
+
+![Project details filled — Loft conversion, description, and address entered](../images/walkthroughs/planning-notification/02-project-filled.png)
 
 **Click Continue**
 
@@ -95,12 +103,20 @@ Each step collects information or presents a review screen. Let's fill in the fo
 
 ### Step 2: "Type of work"
 
+![Type of work — radio button options for primary work type](../images/walkthroughs/planning-notification/03-work-type.png)
+
 **What you see:**
 - Form title: **Type of work**
 - Radio buttons to select the primary work type
 
 **What to select:**
-- Choose **Extension or alteration**
+1. First select **Other** to see the conditional reveal — a "Describe the type of work" text input appears.
+
+   ![Conditional reveal on Type of work — "Describe the type of work" input visible after selecting Other](../images/walkthroughs/planning-notification/04-work-type-conditional.png)
+
+   Enter: `Listed building restoration with specialist masonry`
+
+2. Then select **Extension or alteration** (the conditional input collapses again).
 
 **Click Continue**
 
@@ -112,6 +128,8 @@ Each step collects information or presents a review screen. Let's fill in the fo
 
 ### Step 3: "Timeline and cost"
 
+![Timeline and cost — date, duration, and estimated cost fields](../images/walkthroughs/planning-notification/05-timeline-cost.png)
+
 **What you see:**
 - Form title: **Timeline and cost**
 - Date field: **When do you plan to start?** (required, three separate day/month/year inputs)
@@ -119,9 +137,11 @@ Each step collects information or presents a review screen. Let's fill in the fo
 - Currency field: **Estimated cost of works** (required, displayed with £ prefix)
 
 **What to enter:**
-- **Start date:** day `15`, month `6`, year `2025`
-- **Duration:** `12` (weeks)
-- **Estimated cost:** `25000` (the system will display as £25000)
+- **Start date:** day `1`, month `9`, year `2025`
+- **Duration:** `16` (weeks)
+- **Estimated cost:** `35000.75` (the system will display as £35,000.75)
+
+![Timeline and cost filled — 1 September 2025, 16 weeks, £35,000.75](../images/walkthroughs/planning-notification/06-timeline-filled.png)
 
 **Click Continue**
 
@@ -132,12 +152,15 @@ Each step collects information or presents a review screen. Let's fill in the fo
 
 ### Step 4: "Affected parties"
 
+![Affected parties — checkboxes listing parties that may be impacted by the works](../images/walkthroughs/planning-notification/07-affected-parties.png)
+
 **What you see:**
 - Form title: **Affected parties**
 - Checkboxes: Select all that apply
 
 **What to select:**
 - Check **Neighbouring properties**
+- Check **Conservation area**
 
 **Click Continue**
 
@@ -147,6 +170,8 @@ Each step collects information or presents a review screen. Let's fill in the fo
    - Validation ensures at least one is selected (if `required: true`).
 
 ### Step 5: "Check your answers"
+
+![Check your answers — read-only summary of all collected data before submission](../images/walkthroughs/planning-notification/08-check-answers.png)
 
 **What you see:**
 - Form title: **Check your answers**
@@ -175,6 +200,8 @@ Each step collects information or presents a review screen. Let's fill in the fo
    - The Business App stores the instance in its in-memory state (for this demo; in production, it would persist to a database and possibly trigger downstream actions like sending emails or creating records).
 
 ### Step 6: "Application received"
+
+![Application received — GDS confirmation panel with reference number](../images/walkthroughs/planning-notification/09-confirmation.png)
 
 **What you see:**
 - Form title: **Application received**

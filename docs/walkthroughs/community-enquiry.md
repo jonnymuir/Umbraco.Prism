@@ -28,6 +28,8 @@ Notice that "Full name" and "Email address" are readonly and pre-filled with val
 
 ### Conditional Reveal Pattern
 
+![Conditional reveal — "Please specify your enquiry type" text input visible after selecting "Other"](../images/walkthroughs/community-enquiry/02-conditional-reveal.png)
+
 When the user selects **"Other"** under "Type of enquiry", a conditional text input appears asking them to specify the enquiry type. This uses the `conditionalChildren` property on the `radios` component:
 
 ```json
@@ -57,6 +59,18 @@ When the user selects **"Other"** under "Type of enquiry", a conditional text in
 ```
 
 The `conditionalChildren` dictionary maps radio values to arrays of components that should be revealed when that option is selected.
+
+### Filled Form
+
+![Community Enquiry filled — General enquiry selected with Umbraco CMS and .NET Development topics checked](../images/walkthroughs/community-enquiry/03-form-filled.png)
+
+A completed form shows the enquiry type selection, the free-text "Tell us more" field, and the chosen topics of interest. In this example: **Organisation:** Acme Corp, **Role:** Developer, **Enquiry type:** General enquiry, topics **Umbraco CMS** and **.NET Development** checked.
+
+### After Submission
+
+![Confirmation screen — "Your enquiry is with us" success panel](../images/walkthroughs/community-enquiry/04-under-review.png)
+
+Successful submission transitions the instance to its terminal state and displays a confirmation panel. Subsequent visits to `/get-in-touch` show this same confirmation — the `single` instance policy means no new instance can be started until the current one is reset or resolved.
 
 ## Workflow Seed JSON
 
