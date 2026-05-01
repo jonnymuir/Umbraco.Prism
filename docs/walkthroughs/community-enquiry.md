@@ -97,3 +97,7 @@ The workflow uses the polymorphic component schema:
 ---
 
 [← Back to Walkthroughs](README.md)
+
+---
+
+**Executable spec:** This walkthrough is executed on every PR by [`community-enquiry.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/community-enquiry.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.

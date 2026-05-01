@@ -381,3 +381,7 @@ The four demo workflows demonstrate every component type in real use:
 ---
 
 [← Back to Walkthroughs](README.md)
+
+---
+
+**Executable spec:** This walkthrough is executed on every PR by [`authoring-a-workflow.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/authoring-a-workflow.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.

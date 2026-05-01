@@ -207,3 +207,7 @@ Once a tenant exists, an Umbraco editor can update it at any time from **Setting
 ---
 
 [← Back to Walkthroughs](README.md)
+
+---
+
+**Executable spec:** This walkthrough is executed on every PR by [`creating-a-tenant.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/creating-a-tenant.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.

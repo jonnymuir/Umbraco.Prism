@@ -290,3 +290,7 @@ The following decisions are already documented in the design docs — don't re-d
 ---
 
 [← Back to Walkthroughs](README.md)
+
+---
+
+**Executable spec:** This walkthrough is executed on every PR by [`push-notifications.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/push-notifications.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.
