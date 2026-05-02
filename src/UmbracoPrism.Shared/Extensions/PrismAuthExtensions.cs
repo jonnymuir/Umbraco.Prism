@@ -230,8 +230,14 @@ public static class PrismAuthExtensions
         // unauthenticated server-side requests to the external Keycloak URL. Use the
         // internal HTTP address for metadata fetches while keeping OidcAuthority as the
         // trusted issuer for token validation (same pattern as PrismOidcConfiguration).
+        // Dual-gated: env var AND Development environment required — zero behaviour change
+        // outside Development, matching Copper's refresh-token rewrite pattern.
         var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
-        var metadataAddress = !string.IsNullOrEmpty(backchannelBase)
+        var isDevelopmentForJwks = string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+        var metadataAddress = isDevelopmentForJwks && !string.IsNullOrEmpty(backchannelBase)
             ? $"{backchannelBase.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
             : $"{cacheKey}/.well-known/openid-configuration";
 

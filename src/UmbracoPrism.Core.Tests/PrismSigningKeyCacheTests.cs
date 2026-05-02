@@ -8,6 +8,7 @@ using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests;
 
+[Collection(EnvVarSensitiveTestCollection.Name)]
 public class PrismSigningKeyCacheTests
 {
     [Fact]
