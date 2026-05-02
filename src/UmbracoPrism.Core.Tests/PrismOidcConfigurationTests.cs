@@ -87,6 +87,47 @@ public class PrismOidcConfigurationTests
         vault.Verify(service => service.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret"), Times.Once);
     }
 
+    /// <summary>
+    /// Regression: the new regional Codespaces URL scheme uses {opaque-token}-{port}.{region}.app.github.dev.
+    /// IsRepoOwnedLocalDemoTenant must accept this form — EndsWith(".app.github.dev") covers both
+    /// legacy (turbo-space-giggle-xrjwx5649xcpx9w-44345.app.github.dev) and regional
+    /// (v7ldkc4c-44345.uks1.app.github.dev) forms.
+    /// </summary>
+    [Theory]
+    [InlineData("v7ldkc4c-44345.uks1.app.github.dev", "https://v7ldkc4c-8443.uks1.app.github.dev/realms/prism-dev")]
+    [InlineData("turbo-space-giggle-xrjwx5649xcpx9w-44345.app.github.dev", "https://turbo-space-giggle-xrjwx5649xcpx9w-8443.app.github.dev/realms/prism-dev")]
+    public void IsRepoOwnedLocalDemoTenant_ReturnsTrue_ForCodespacesHostnames(string hostname, string oidcAuthority)
+    {
+        var tenant = new PrismTenant
+        {
+            Hostname = hostname,
+            OidcAuthority = oidcAuthority,
+            OidcClientId = "prism-client",
+            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+            OidcClientSecretReference = "prism-dev-secret"
+        };
+
+        PrismOidcConfiguration.IsRepoOwnedLocalDemoTenant(tenant).Should().BeTrue(
+            $"'{hostname}' ends with .app.github.dev and has the repo-owned client id — both legacy and regional Codespaces forms must be accepted");
+    }
+
+    [Fact]
+    public void IsRepoOwnedLocalDemoTenant_ReturnsFalse_ForNonCodespacesDomain()
+    {
+        var tenant = new PrismTenant
+        {
+            Hostname = "northwind.example.com",
+            OidcAuthority = "https://auth.example.com/realms/northwind",
+            OidcClientId = "prism-client",
+            OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+            OidcClientSecretReference = "prism-dev-secret"
+        };
+
+        PrismOidcConfiguration.IsRepoOwnedLocalDemoTenant(tenant).Should().BeFalse(
+            "a non-.app.github.dev hostname must never be treated as the repo-owned local demo tenant");
+    }
+
+
     [Fact]
     public async Task ResolveClientSecretAsync_UsesVaultReference_ForGenericOidcTenantsOutsideLocalDemoPath()
     {

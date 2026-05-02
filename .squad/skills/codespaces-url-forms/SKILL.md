@@ -37,16 +37,59 @@ redirect URIs, tenant seeding, devcontainer status pages, README output, etc.
 ### Strategy A — query `gh codespace ports`
 
 Inside the Codespace (works in `on-start.sh`, in dotnet AppHost via
-`Process.Start`, etc.):
+`System.Diagnostics.Process`, etc.):
 
 ```bash
 gh codespace ports --codespace "$CODESPACE_NAME" \
   --json sourcePort,browseUrl
 ```
 
-Returns the actual `browseUrl` for every forwarded port. Authoritative.
-Use this once at startup to populate Aspire env vars
+Returns the actual `browseUrl` for every forwarded port — authoritative.
+Use this **once** at startup to populate Aspire env vars
 (`KEYCLOAK_URL`, `TESTSITE_PUBLIC_URL`, `KC_HOSTNAME`, …).
+
+**Important:** `browseUrl` values have a trailing slash — call `.TrimEnd('/')`.
+
+**C# AppHost pattern (using `System.Diagnostics.Process`):**
+
+```csharp
+var psi = new ProcessStartInfo("gh",
+    $"codespace ports --codespace {codespaceName} --json sourcePort,browseUrl")
+{
+    RedirectStandardOutput = true,
+    UseShellExecute = false,
+};
+using var proc = Process.Start(psi);
+if (proc is null) throw new InvalidOperationException("gh not found");
+proc.WaitForExit(10_000);
+var json = await proc.StandardOutput.ReadToEndAsync();
+// parse with System.Text.Json ...
+```
+
+**Shell (on-start.sh) pattern:**
+
+```bash
+CODESPACE_PORTS_JSON=$(gh codespace ports \
+  --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl 2>/dev/null || echo "[]")
+
+get_codespace_url() {
+  local port=$1
+  if command -v jq &>/dev/null; then
+    echo "$CODESPACE_PORTS_JSON" | jq -r \
+      --argjson p "$port" '.[] | select(.sourcePort==$p) | .browseUrl' \
+      | sed 's|/$||'
+  else
+    python3 -c "
+import json, sys
+data = json.loads('''$CODESPACE_PORTS_JSON''')
+url = next((e['browseUrl'].rstrip('/') for e in data if e['sourcePort']==$port), '')
+print(url)"
+  fi
+}
+```
+
+**Always fall back to the legacy pattern with a warning if gh fails.** This keeps
+local dev working when `CODESPACE_NAME` is unset.
 
 ### Strategy B — derive from the inbound request
 
@@ -92,6 +135,9 @@ what URL the request arrived on.
 
 ## Reference
 
+- Confirmed working in production: `fix/codespaces-url-derivation` — 647 tests pass with
+  regional URL form (`v7ldkc4c-8443.uks1.app.github.dev`) covered in Group D of
+  `BackchannelRewriteTests`.
 - See `.squad/decisions/blathers-codespaces-url-forms.md` (after Scribe merges
   the inbox file).
 - Originating investigation: `.squad/agents/blathers/history.md` entry

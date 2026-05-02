@@ -63,6 +63,20 @@ public class TenantService : ITenantService
                 "SELECT * FROM PrismTenants WHERE Hostname = @0",
                 [normalizedDomain]);
 
+            // Codespaces lenient fallback: if there is no exact row for this host but the
+            // request arrived on a *.app.github.dev hostname (both legacy and regional schemes),
+            // return the first seeded .app.github.dev demo tenant. This handles the case where
+            // the opaque forwarding token changed since the tenant row was seeded.
+            // Security: IsRepoOwnedLocalDemoTenant still gates OIDC configuration downstream —
+            // this fallback is for tenant *lookup* only, not for security validation.
+            if (tenantSchema is null &&
+                normalizedDomain.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
+                    "SELECT * FROM PrismTenants WHERE Hostname LIKE @0",
+                    "%.app.github.dev");
+            }
+
             if (tenantSchema == null) return null;
 
             var brandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides);
