@@ -87,3 +87,89 @@ Added `EnvVarSensitiveTestCollection` to serialise `BackchannelRewriteTests` and
 - Field type exhaustiveness requires shared enum or compile-time verification
 
 ---
+
+## 2026-05-02 — Codespaces 401 Downstream Auth: Backchannel Hardening + 11 Regression Tests (7a9b1c3)
+
+**Session:** 2026-05-02-codespaces-401-downstream-auth  
+**Test Commit:** `7a9b1c3` — Backchannel rewrite regression tests + IsDevelopment hardening  
+**Tests added:** 11 new regression tests in `BackchannelRewriteTests.cs`
+
+### Work Completed
+
+**Phase 1 — Test Coverage (13:45–14:15)**
+- Wrote 11 regression tests covering all three backchannel rewrite surfaces
+- Tests validate gating patterns, edge cases, URL rewriting behaviour
+- Infrastructure: `EnvVarSensitiveTestCollection` for tests that mutate `ASPNETCORE_ENVIRONMENT`
+
+**Phase 2 — Critical Discovery (14:15–14:30)**
+- During test writing, discovered missing `IsDevelopment()` gate in `PrismAuthExtensions.ResolveSigningKeys`
+- Third backchannel rewrite site (JWKS metadata address) had env-var gate ONLY
+- No `IsDevelopment()` check — leaving runtime code unguarded
+- Applied fix: added `IsDevelopment()` check to match Copper's and Blathers' implementations
+- Wrote test `PrismAuthExtensions_ResolveSigningKeys_NonDevelopment_IgnoresBackchannel` to verify gate
+
+### Test Suite Details
+
+**File:** `src/UmbracoPrism.Core.Tests/BackchannelRewriteTests.cs` (11 tests)
+
+| Test | Coverage |
+|------|----------|
+| `RefreshTokenAsync_WithBackchannelUrl_Development_RewritesTokenEndpoint` | Copper's fix |
+| `RefreshTokenAsync_NoBackchannelUrl_UsesPublicEndpoint` | Copper's fix |
+| `RefreshTokenAsync_NonDevelopment_UsesPublicEndpoint` | Copper's fix |
+| `PrismSigningKeyCache_WarmAsync_WithBackchannelUrl_Development_RewritesJwksUri` | Blathers' fix |
+| `PrismSigningKeyCache_WarmAsync_NoBackchannelUrl_UsesPublicUrl` | Blathers' fix |
+| `PrismAuthExtensions_ResolveSigningKeys_WithBackchannelUrl_Development_Succeeds` | Hardening: gate confirmed |
+| `PrismAuthExtensions_ResolveSigningKeys_NonDevelopment_IgnoresBackchannel` | Hardening: gap closed |
+| `RewriteUrl_PreservesPathAndQuery` | Edge case |
+| `RewriteUrl_HandlesNullBackchannelUrl` | Edge case |
+| `RewriteUrl_SkipsNonKeycloakUrls` | Edge case |
+| `RewriteUrl_EmptyPath` | Edge case |
+
+### Infrastructure Added
+
+**File:** `src/UmbracoPrism.Core.Tests/EnvVarSensitiveTestCollection.cs`
+
+Isolated XUnit collection for environment-variable-mutating tests. Prevents test pollution across collections.
+
+**Skill documented:** `.squad/skills/backchannel-rewrite-testing/SKILL.md`
+
+### Key Discovery: IsDevelopment() Gate Gap
+
+**What was found:**
+- `PrismAuthExtensions.ResolveSigningKeys` had backchannel rewrite logic without `IsDevelopment()` gate
+- Startup guards throw if env var set in non-Development
+- But runtime code was unguarded — missing the suspenders on the belt
+
+**Why this matters:**
+- **Contract-first testing caught a review gap:** Test specified "must NOT activate when not Development"; one test went red
+- **Validates multi-agent team pattern:** Copper + Blathers each focused on their own rewrite site; Tester found the third site by writing tests to the contract, not to the implementation
+- **Single-agent review would likely have missed this**
+
+**Fix applied:**
+```csharp
+var isDevelopment = env.IsDevelopment();
+if (isDevelopment && !string.IsNullOrEmpty(backchannelUrl))
+{
+    // Apply rewrite
+}
+```
+
+Now all three sites follow identical dual-gating pattern.
+
+### Test Results
+- Before: 618 tests passing (PT2 baseline)
+- After: 629 tests passing (+11 new)
+- Status: All green; no regressions
+
+### Key Learning
+
+**Parallel review pattern validation:** When a security-relevant pattern is introduced (e.g. dual-gated dev-only behaviour), searching the entire repo for the *trigger* (not just the diff files) finds sibling sites that should follow the same pattern. Contract-first testing (testing the gate behaviour, not the implementation) catches gaps that implementation review misses.
+
+### Artifacts
+- **Session log:** `.squad/sessions/2026-05-02-codespaces-401-downstream-auth.md`
+- **Skill:** `.squad/skills/backchannel-rewrite-testing/SKILL.md`
+
+### Status
+✅ **APPROVED FOR MERGE** (Copper's security review, 2026-05-02 14:30)
+

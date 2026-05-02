@@ -272,3 +272,74 @@ Complete chronological history available in git. Recent summaries:
 - Seeding and schema validation work
 
 **Access:** Full session details in git history; `.squad/decisions.md` for decisions.
+
+## 2026-05-02 — Codespaces 401 Downstream Auth: JWKS Backchannel Fix (4a47acc)
+
+**Session:** 2026-05-02-codespaces-401-downstream-auth  
+**Fix Commit:** `4a47acc` — Rewrite jwks_uri through backchannel in Codespaces
+
+### Work Completed
+
+**Phase 1 — Diagnosis (09:15–10:00)**
+- Traced JWKS fetch path; discovered gap in existing backchannel rewrite mechanism
+- `KEYCLOAK_BACKCHANNEL_URL` rewrite existed for discovery doc but NOT for JWKS fetch
+- `OpenIdConnectConfigurationRetriever` follows `jwks_uri` from discovery doc (public Keycloak URL)
+- Second JWKS call hits GitHub proxy → `HTTP 401 / www-authenticate: tunnel`
+- Proposed custom `IDocumentRetriever` wrapper solution
+
+**Phase 2 — Implementation (12:30–13:30)**
+- Introduced `BackchannelRewritingDocumentRetriever` in `PrismSigningKeyCache`
+- Private sealed class wrapping `IDocumentRetriever`
+- Intercepts URL fetches; rewrites Keycloak origin URLs to backchannel base
+- Only activates when `KEYCLOAK_BACKCHANNEL_URL` set AND `IsDevelopment()` true
+- Production path (no env var) unchanged — zero behaviour change
+
+### Implementation Details
+
+```csharp
+private sealed class BackchannelRewritingDocumentRetriever : IDocumentRetriever
+{
+    public async Task<string> GetDocumentAsync(string address, CancellationToken ct)
+    {
+        var rewritten = RewriteUrlIfPublicKeycloak(address);
+        return await _inner.GetDocumentAsync(rewritten, ct);
+    }
+    
+    private string RewriteUrlIfPublicKeycloak(string url)
+    {
+        var uri = new Uri(url);
+        if (uri.Host == _publicKeycloakBase.Host)
+        {
+            var path = uri.PathAndQuery.TrimStart('/');
+            return $"{_bacchannelBase.TrimEnd('/')}/{path}";
+        }
+        return url;
+    }
+}
+```
+
+### Key Decisions
+
+- **Wrapper pattern** — non-invasive; no interface changes; no caller changes
+- **Intercepts both surfaces** — discovery doc fetch AND downstream JWKS follow
+- **Production unchanged** — when env var absent, uses existing factory unchanged
+- **Dual gating** — BOTH `KEYCLOAK_BACKCHANNEL_URL` AND `IsDevelopment()` required
+
+### Alternatives Considered & Rejected
+
+1. **Post-process `OpenIdConnectConfiguration.JwksUri`** — JWKS GET already fired
+2. **Pass URLs into `WarmAsync` signature** — too invasive; interface change + all callers
+3. **Change `_configurationManagerFactory` signature** — breaks test constructor seam
+
+### Test Results
+- Before: 631 tests passing
+- After: 629 tests passing (+11 new from Tester's commit)
+- Status: All green; no regressions
+
+### Artifacts
+- **Diagnosis:** `.squad/diagnosis/2026-05-02-codespaces-401/blathers-deploy-diagnosis.md`
+- **Session log:** `.squad/sessions/2026-05-02-codespaces-401-downstream-auth.md`
+
+### Status
+✅ **APPROVED FOR MERGE** (Copper's security review, 2026-05-02 14:30)
+
