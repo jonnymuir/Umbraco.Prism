@@ -71,6 +71,32 @@ public class DownstreamDemoController(
             sw.Stop();
 
             var rawBody = await response.Content.ReadAsStringAsync();
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "unknown";
+
+            // Validate that the response is JSON, not HTML or other non-JSON content
+            // This catches Codespaces port-forwarding pages ("Connecting to the forwarded port...")
+            // and other misconfigured endpoints that return HTML/plain text instead of JSON
+            if (!IsJsonContentType(contentType))
+            {
+                var errorMessage = $"Expected JSON but received {contentType}";
+                if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase) && 
+                    rawBody.Contains("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase))
+                {
+                    errorMessage += "\n\nReceived an HTML page instead of JSON. " +
+                        "If running in Codespaces, the port may not be forwarded correctly yet. " +
+                        "Wait a moment and try again.";
+                }
+
+                return Ok(new
+                {
+                    statusCode = 0,
+                    statusText = "Invalid Response",
+                    url = targetUrl,
+                    elapsedMs = sw.ElapsedMilliseconds,
+                    contentType,
+                    body = errorMessage
+                });
+            }
 
             // Attempt pretty-print if the response is JSON
             string displayBody;
@@ -90,7 +116,7 @@ public class DownstreamDemoController(
                 statusText = response.StatusCode.ToString(),
                 url = targetUrl,
                 elapsedMs = sw.ElapsedMilliseconds,
-                contentType = response.Content.Headers.ContentType?.MediaType ?? "unknown",
+                contentType,
                 body = displayBody
             });
         }
@@ -478,4 +504,11 @@ public class DownstreamDemoController(
 
     private static string NormalizePath(string? path)
         => TestSiteSeedContract.NormalizeUrl(path);
+
+    private static bool IsJsonContentType(string contentType)
+    {
+        return contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase) ||
+               contentType.Contains("application/problem+json", StringComparison.OrdinalIgnoreCase) ||
+               contentType.Contains("text/json", StringComparison.OrdinalIgnoreCase);
+    }
 }
