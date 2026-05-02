@@ -112,3 +112,22 @@
 This agent manages backend services, authentication infrastructure, and CI/CD workflows.
 
 **Key domains:** Auth/OIDC, Aspire local dev, CI infrastructure, Database services, Security hardening, Playwright/E2E
+
+---
+
+**2026-05-02 — Codespaces BusinessApp URL Discovery Fix (Task Completion)**
+
+Committed fix for port 7245 BusinessApp URL discovery in Codespaces environments. Downstream demo was failing with `401 Unauthorized` because `TryDiscoverCodespaceUrls()` only discovered Keycloak and TestSite, leaving BusinessApp hardcoded to `localhost:7245`.
+
+**Changes:**
+- Extended `TryDiscoverCodespaceUrls()` return type to include BusinessApp URL
+- Added port 7245 to discovery loop in `TryDiscoverCodespaceUrls()`
+- Extended `FallbackCodespaceUrls()` to include BusinessApp fallback pattern
+- Changed `BusinessAppUrl` from const to runtime-computed variable
+
+**Verification:** 650 Core tests passing; no regressions; build clean.
+
+**Deployed:** Commit `6205bd4` on main/origin-main.
+
+Orchestration log written to 2026-05-02T13:14:32Z-blathers.md.
+

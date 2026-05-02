@@ -1620,3 +1620,54 @@ All 7 bedrock invariants preserved. No new attack surface introduced. Two low-se
 5. ✅ **No deleted, skipped, or ignored tests** — Confirmed: no `[Ignore]`, no `Skip =`, no removed `[Fact]`/`[Theory]`. The only change to `PrismAuthExtensionsSecurityTests.cs` is adding the `[Collection(EnvVarSensitiveTestCollection.Name)]` attribute for test isolation — correct.
 
 **Summary:** All new tests are green and correctly written as behavioural contracts. Neither follow-up gap blocks the merge — the production symptom's critical path (JWKS rewrite, issuer validation, IsRepoOwnedLocalDemoTenant) is fully covered and green.
+
+---
+
+## 📌 2026-05-02: Blathers — Codespaces-aware BusinessApp downstream target
+
+**Status:** ✅ COMPLETE — Commit `6205bd4` merged to `main`
+
+### Summary
+
+Extended Codespaces URL discovery to include the Mock Business App (port 7245), fixing downstream demo failures in Codespaces environments.
+
+### Context
+
+In Codespaces, the Mock Business App downstream demo was failing with `401 Unauthorized`. The root cause: `TryDiscoverCodespaceUrls()` was only discovering Keycloak and TestSite URLs, not the BusinessApp URL on port 7245. The TestSite received hardcoded `https://localhost:7245` even in Codespaces, causing the downstream call to fail.
+
+### Root Cause
+
+1. **Incomplete port discovery:** `TryDiscoverCodespaceUrls()` only queried `gh codespace ports` for ports 8443 (Keycloak) and 44345 (TestSite), missing port 7245 (BusinessApp).
+2. **Hardcoded constant:** `BusinessAppUrl` was a `const string = "https://localhost:7245"`, never updated with discovered Codespaces URL.
+3. **Server-side call:** `DownstreamDemoController` reads config and makes HttpClient request to localhost, which fails in Codespaces where `localhost:7245` is not accessible from the server.
+
+### Decision
+
+Extended Codespaces URL discovery to include port 7245:
+
+- Changed `TryDiscoverCodespaceUrls()` return type from `(string, string?)` → `(string, string?, string)` to include BusinessApp URL
+- Added port 7245 to discovery loop
+- Extended `FallbackCodespaceUrls()` with fallback pattern for port 7245: `https://{CODESPACE_NAME}-7245.{domain}`
+- Changed `BusinessAppUrl` from const to runtime-computed variable:
+  - **In Codespaces:** uses discovered URL from `gh codespace ports`
+  - **Outside Codespaces:** defaults to `https://localhost:7245` (backwards compatible)
+- Updated console logging to show discovered BusinessApp URL
+
+### Impact
+
+- ✅ Downstream demo now works correctly in Codespaces
+- ✅ Backwards compatible for local dev environments
+- ✅ Consistent with existing Keycloak/TestSite discovery patterns
+- ✅ All 650 Core tests pass; no regressions
+
+### Files Changed
+
+`src/UmbracoPrism.AppHost/Program.cs`:
+- Extended `TryDiscoverCodespaceUrls()` to discover and return BusinessApp URL (port 7245)
+- Extended `FallbackCodespaceUrls()` to return fallback URL for port 7245
+- Changed `BusinessAppUrl` from const to runtime variable
+- Updated console logging
+
+### Basis
+
+Blathers' commit `6205bd4` implementation (2026-05-02); production deployment verification (Tom Nook, 2026-05-02); decision record in inbox (2026-05-02).

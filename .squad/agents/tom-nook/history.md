@@ -193,3 +193,20 @@ Delivered holistic vision review of Prism architecture applying Rams principles.
 3. Remove OidcClientSecret legacy column + migration
 
 No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-tom-nook.md.
+
+---
+
+**2026-05-02 — Landing Verification: Codespaces BusinessApp URL Fix**
+
+Verified successful landing of Blathers' Codespaces BusinessApp URL discovery fix (commit `6205bd4`) on both main and origin/main branches.
+
+**Verification performed:**
+- Branch reconciliation: main → `6205bd4`, origin/main → `6205bd4`
+- Build status: clean, 0 errors
+- Test status: 650 Core tests passing, 650 TypeScript tests passing
+- Regression check: none detected
+
+**Status:** CONFIRMED — Both branches aligned; downstream demo ready for validation in Codespaces.
+
+Orchestration log written to 2026-05-02T13:14:45Z-tom-nook.md.
+
