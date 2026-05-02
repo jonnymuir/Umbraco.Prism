@@ -10,6 +10,48 @@ QA validation, test coverage analysis, and edge-case identification.
 
 ---
 
+## 2026-05-02 — PR #45 Test Review: Codespaces URL Derivation Fix
+
+**Status:** ✅ APPROVED WITH NOTES  
+**Test result:** 647 passed, 0 failed, 0 skipped
+
+### Criteria Outcomes
+
+| # | Criterion | Result |
+|---|-----------|--------|
+| 1 | New `{token}-{port}.{region}.app.github.dev` URL form tested | ✅ Group D — 2 tests |
+| 2 | Regression test for JWKS fetch / 401 symptom | ✅ `JwksFetch_RewritesUrl_ForRegionalCodespacesUrlScheme` |
+| 3 | Request.Host override middleware tested | ⚠️ NO unit test |
+| 4 | `IsRepoOwnedLocalDemoTenant` False-case for non-demo hosts | ✅ `IsRepoOwnedLocalDemoTenant_ReturnsFalse_ForNonCodespacesDomain` |
+| 4b | `TenantService.GetByDomainAsync` lenient LIKE fallback tested | ⚠️ NO test |
+| 5 | No deleted/skipped/ignored tests | ✅ Clean |
+
+### Follow-up Gaps (non-blocking)
+
+1. **`TenantService.GetByDomainAsync` lenient LIKE fallback** — The `LIKE '%.app.github.dev'`
+   fallback added to `TenantService.cs` (the key runtime fix enabling new-scheme tenant lookup)
+   has no unit test. Need: one positive case (regional URL falls back to seeded tenant) and one
+   negative case (non-.app.github.dev does NOT trigger fallback). → `TenantServiceCacheStrategyTests.cs`
+
+2. **Request.Host override middleware** — `TestSite/Program.cs` inline middleware (reads
+   `TESTSITE_PUBLIC_URL`, overrides `Request.Host` for HTTPS) is untested. → New test class or
+   extend `PrismTenantMiddlewareTests`.
+
+### Key Learning
+
+When reviewing a "multi-surface" fix (AppHost URL discovery + middleware + seeder + service layer),
+map each code surface to a test and flag any that have no corresponding unit test. The most
+dangerous surfaces are the service-layer fallback (TenantService LIKE) and the middleware Host
+override — both are silent runtime logic with no compile-time errors if they break.
+
+Token refresh (`RefreshTokenAsync`) was not specifically tested with a regional URL form as
+authority, but the risk is low because `BackchannelRewritingDocumentRetriever` operates on URI
+origins — the JWKS test proves the same path. Still worth noting as a low-priority gap.
+
+---
+
+---
+
 ## 📌 2026-04-30: Cross-Agent Note — V2 Decimal Validation Test Coverage
 
 **Context:** Blathers' 2026-04-28 option 1 fix added decimal field validation. Noted as blind spot: "No compile-time guarantee all field types handled in validator."

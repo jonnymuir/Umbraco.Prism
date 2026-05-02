@@ -498,7 +498,7 @@ public class BiometricControllerTests
 
         var refreshMock = new Mock<IPrismTokenRefreshService>();
         refreshMock
-            .Setup(s => s.RefreshAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.RefreshAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>(), It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(refreshResult ?? new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
         var vaultMock = new Mock<ISecretVaultService>();
@@ -596,7 +596,8 @@ public class BiometricControllerTests
                 p["client_secret"] == "client-secret-value" &&
                 p["grant_type"] == "refresh_token" &&
                 p["refresh_token"] == "stored-entra-refresh-token"),
-            It.IsAny<CancellationToken>()),
+            It.IsAny<CancellationToken>(),
+            It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Once);
     }
 
@@ -834,7 +835,8 @@ public class BiometricControllerTests
         refreshMock.Verify(s => s.RefreshAsync(
             It.IsAny<string>(),
             It.IsAny<IReadOnlyDictionary<string, string>>(),
-            It.IsAny<CancellationToken>()),
+            It.IsAny<CancellationToken>(),
+            It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Never);
     }
 

@@ -96,7 +96,8 @@ public class PrismContextTests
             .Setup(t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted))
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "refreshed-access-token", "refreshed-refresh-token", 3600));
 
         var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
@@ -118,7 +119,8 @@ public class PrismContextTests
             t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted),
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Once);
     }
 
@@ -156,7 +158,8 @@ public class PrismContextTests
             .Setup(t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted))
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "fresh-post-restart-access-token", "fresh-refresh-token", 3600));
 
         var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
@@ -178,7 +181,8 @@ public class PrismContextTests
             t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted),
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Once);
     }
 
@@ -212,7 +216,8 @@ public class PrismContextTests
             .Setup(t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted))
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "recovered-access-token", "fresh-refresh-token", 3600));
 
         var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
@@ -234,7 +239,8 @@ public class PrismContextTests
             t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted),
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Once);
     }
 
@@ -318,7 +324,8 @@ public class PrismContextTests
             t => t.RefreshAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Never);
     }
 
@@ -354,7 +361,8 @@ public class PrismContextTests
             .Setup(t => t.RefreshAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                cancellation.Token))
+                cancellation.Token,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
         var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
@@ -375,7 +383,8 @@ public class PrismContextTests
             t => t.RefreshAsync(
                 "https://tenant-a.ciamlogin.com/tenant-a/oauth2/v2.0/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                cancellation.Token),
+                cancellation.Token,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Once);
     }
 
@@ -487,8 +496,9 @@ public class PrismContextTests
             .Setup(t => t.RefreshAsync(
                 "https://localhost:8443/realms/prism-dev/protocol/openid-connect/token",
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                httpContext.RequestAborted))
-            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken>((_, form, _) => postedForm = form)
+                httpContext.RequestAborted,
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
+            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken, IReadOnlyDictionary<string, string>?>((_, form, _, _) => postedForm = form)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
         var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
@@ -554,7 +564,8 @@ public class PrismContextTests
             t => t.RefreshAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Never);
     }
 

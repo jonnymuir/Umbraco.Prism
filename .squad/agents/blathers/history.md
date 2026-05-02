@@ -1,5 +1,24 @@
 # Blathers — History
 
+## Session: Refresh Token `invalid_grant` Fix — fix/codespaces-invalid-grant-refresh (2026-05-15)
+
+**Status:** ✅ Complete — branch `fix/codespaces-invalid-grant-refresh`
+
+**Scope:** Diagnosed and fixed a persistent `invalid_grant` 401 on the Codespaces "Call Mock Business App API" demo. Root cause: Keycloak 26 with `--proxy-headers xforwarded` uses `X-Forwarded-Proto` to compute its canonical issuer URL scheme. Without that header on the backchannel refresh POST, Keycloak computed its issuer as `http://...` but the stored refresh token's `iss` JWT claim was `https://...` (issued through YARP which forwards proper headers). The scheme mismatch triggered `invalid_grant`. The initial code exchange was unaffected because authorization codes are opaque DB lookups with no `iss` claim to compare.
+
+**Changes:**
+- `IPrismTokenRefreshService` — added optional `requestHeaders` param to `RefreshAsync`
+- `PrismTokenRefreshService` — changed to `HttpRequestMessage`/`SendAsync` to support per-request headers
+- `PrismContext.RefreshTokenAsync` — derives `X-Forwarded-Proto`/`X-Forwarded-Host` from `OidcAuthority` when backchannel rewrite active; passes to `RefreshAsync`
+- `BackchannelRewriteTests.cs` — Group E: 3 new regression tests for forwarding header behaviour
+- Updated existing mocks in `PrismContextTests.cs`, `LocalhostGenericOidcRegressionTests.cs`, `BiometricControllerTests.cs` to include 4th param
+
+**Security bedrock:** `ValidIssuer` remains `tenant.OidcAuthority` (public HTTPS URL). Forwarding headers only affect Keycloak's grant computation; Prism's own validation is unchanged.
+
+**Test results:** 645 passed, 0 failed, 0 skipped.
+
+---
+
 ## Session: JWKS Backchannel Rewrite — fix/codespaces-401-downstream-auth (2026-05-02)
 
 **Status:** ✅ Complete — commit `4a47acc` pushed to `fix/codespaces-401-downstream-auth`

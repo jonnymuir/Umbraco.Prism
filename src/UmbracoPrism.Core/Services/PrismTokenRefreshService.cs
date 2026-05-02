@@ -96,7 +96,8 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
     public async Task<TokenRefreshResult> RefreshAsync(
         string tokenEndpoint,
         IReadOnlyDictionary<string, string> formParameters,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? requestHeaders = null)
     {
         if (string.IsNullOrWhiteSpace(tokenEndpoint))
         {
@@ -114,10 +115,19 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
 
             response = await pipeline.ExecuteAsync(async ct =>
             {
-                // Re-create content on every attempt: FormUrlEncodedContent is single-use.
+                // Re-create request + content on every attempt: FormUrlEncodedContent is single-use.
                 using var content = new FormUrlEncodedContent(
                     formParameters.Select(p => KeyValuePair.Create<string?, string?>(p.Key, p.Value)));
-                return await client.PostAsync(normalizedEndpoint, content, ct);
+                using var request = new HttpRequestMessage(HttpMethod.Post, normalizedEndpoint)
+                {
+                    Content = content
+                };
+                if (requestHeaders != null)
+                {
+                    foreach (var (name, value) in requestHeaders)
+                        request.Headers.TryAddWithoutValidation(name, value);
+                }
+                return await client.SendAsync(request, ct);
             }, cancellationToken);
         }
         catch (BrokenCircuitException)
