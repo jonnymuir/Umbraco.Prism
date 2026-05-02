@@ -6,6 +6,29 @@
 
 ---
 
+## Session: Codespaces BusinessApp Downstream Target Fix (2026-05-02)
+
+**Status:** ✅ Complete — worktree
+
+**Scope:** Fixed the Mock Business App downstream demo returning 401 in Codespaces. Root cause: `PrismBusinessApp:WorkflowApiBaseUrl` was hardcoded to `https://localhost:7245` in the AppHost and never updated to use the Codespaces-discovered URL. When the TestSite's `DownstreamDemoController` tried to call `localhost:7245/api/backoffice/me`, the request failed because that localhost URL doesn't exist in the Codespaces port-forwarding context.
+
+**Changes:**
+- `src/UmbracoPrism.AppHost/Program.cs`:
+  - Extended `TryDiscoverCodespaceUrls()` to discover and return BusinessApp URL (port 7245)
+  - Extended `FallbackCodespaceUrls()` to include port 7245 fallback
+  - Changed `BusinessAppUrl` from `const string` to runtime-computed `string businessAppUrl` that uses discovered URL in Codespaces or defaults to `https://localhost:7245` for local dev
+  - Updated console logging to show discovered BusinessApp URL
+
+**Impact:** The downstream demo "Call Mock Business App API" now targets the correct public Codespaces URL for port 7245 (e.g., `https://{token}-7245.{region}.app.github.dev/api/backoffice/me`) instead of the non-existent `localhost:7245`.
+
+**Test results:** 650 passed, 0 failed, 0 skipped — no regressions.
+
+**Build:** Succeeded, 0 errors, 6 pre-existing warnings (unchanged).
+
+**Decision:** Written to `.squad/decisions/inbox/blathers-codespaces-downstream-target.md`
+
+---
+
 ## Session: Refresh Token `invalid_grant` Fix — fix/codespaces-invalid-grant-refresh (2026-05-02 future)
 
 **Status:** ✅ Complete — branch `fix/codespaces-invalid-grant-refresh`
@@ -80,6 +103,7 @@
 - `TESTSITE_PUBLIC_URL` (env var set by AppHost) is the cleanest seam for passing the correct Codespace hostname to `DemoTenantSeeder` — avoids the seeder needing to run `gh` itself and keeps the discovery logic in one place (AppHost).
 - GitHub's new Codespaces URL scheme (`{token}-{port}.{region}.app.github.dev`) is opaque — the token is NOT derivable from `CODESPACE_NAME` and is NOT exposed as an env var. `gh codespace ports` is the only reliable source.
 - Both legacy (`{CODESPACE_NAME}-{port}.app.github.dev`) and new regional URL forms end with `.app.github.dev` — this is the safe Codespaces hostname check for lenient lookups.
+- The AppHost's `TryDiscoverCodespaceUrls()` function must discover ALL ports that need server-to-server communication. When adding a new service, extend the function to discover its port's public URL and thread it through to dependent services via env vars — never hardcode `localhost:{port}` in Codespaces-aware code paths.
 
 ---
 

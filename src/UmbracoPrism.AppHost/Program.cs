@@ -7,22 +7,24 @@ var builder = DistributedApplication.CreateBuilder(args);
 var codespaceName = Environment.GetEnvironmentVariable("CODESPACE_NAME");
 var codespacePortDomain = Environment.GetEnvironmentVariable("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN") ?? "app.github.dev";
 
-// Keycloak proxy public URL and TestSite public URL.
+// Keycloak proxy public URL, TestSite public URL, and BusinessApp public URL.
 // In Codespaces: discovered via `gh codespace ports` (authoritative for both legacy and
 // new regional URL schemes where the opaque token ≠ CODESPACE_NAME). Falls back to the
 // legacy `{CODESPACE_NAME}-{port}.{domain}` pattern when gh is unavailable.
 // Outside Codespaces: KEYCLOAK_URL env var or localhost.
 string keycloakProxyUrl;
 string? testSitePublicUrl;
+string businessAppUrl;
 
 if (codespaceName != null)
 {
-    (keycloakProxyUrl, testSitePublicUrl) = TryDiscoverCodespaceUrls(codespaceName, codespacePortDomain);
+    (keycloakProxyUrl, testSitePublicUrl, businessAppUrl) = TryDiscoverCodespaceUrls(codespaceName, codespacePortDomain);
 }
 else
 {
     keycloakProxyUrl = Environment.GetEnvironmentVariable("KEYCLOAK_URL") ?? "https://localhost:8443";
     testSitePublicUrl = null;
+    businessAppUrl = "https://localhost:7245";
 }
 
 var keycloakProxyUri = new Uri(keycloakProxyUrl);
@@ -34,7 +36,6 @@ var keycloakHostnamePort = keycloakProxyUri.IsDefaultPort ? "-1" : keycloakProxy
 var keycloakExternalHost = keycloakProxyUri.IsDefaultPort
     ? keycloakHostname
     : $"{keycloakHostname}:{keycloakProxyUri.Port}";
-const string BusinessAppUrl = "https://localhost:7245";
 const string TestSiteRuntimeRootEnvironmentVariable = "PRISM_TESTSITE_RUNTIME_ROOT";
 const string ResetTestSiteRuntimeEnvironmentVariable = "PRISM_TESTSITE_RESET_RUNTIME";
 
@@ -113,7 +114,7 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
 
 var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", keycloakProxyUrl)
-    .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", BusinessAppUrl)
+    .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", businessAppUrl)
     .WithEnvironment(TestSiteRuntimeRootEnvironmentVariable, testSiteRuntimeRoot)
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
@@ -144,7 +145,7 @@ builder.Build().Run();
 // token is not derivable from CODESPACE_NAME. Falls back to the legacy string pattern
 // when gh is unavailable so non-Codespaces local dev environments still work.
 
-static (string keycloakUrl, string? testSiteUrl) TryDiscoverCodespaceUrls(string codespaceName, string domain)
+static (string keycloakUrl, string? testSiteUrl, string businessAppUrl) TryDiscoverCodespaceUrls(string codespaceName, string domain)
 {
     try
     {
@@ -168,7 +169,7 @@ static (string keycloakUrl, string? testSiteUrl) TryDiscoverCodespaceUrls(string
             return FallbackCodespaceUrls(codespaceName, domain, $"gh exited with code {process.ExitCode}");
 
         using var doc = System.Text.Json.JsonDocument.Parse(json);
-        string? keycloakUrl = null, testSiteUrl = null;
+        string? keycloakUrl = null, testSiteUrl = null, businessAppUrl = null;
 
         foreach (var entry in doc.RootElement.EnumerateArray())
         {
@@ -182,14 +183,18 @@ static (string keycloakUrl, string? testSiteUrl) TryDiscoverCodespaceUrls(string
 
             if (port == 8443)  keycloakUrl = url;
             if (port == 44345) testSiteUrl = url;
+            if (port == 7245)  businessAppUrl = url;
         }
 
         if (keycloakUrl is null)
             return FallbackCodespaceUrls(codespaceName, domain, "port 8443 not found in gh codespace ports output");
 
+        // BusinessApp URL defaults to localhost if port isn't forwarded yet
+        businessAppUrl ??= "https://localhost:7245";
+
         Console.WriteLine(
-            $"[PRISM] Discovered Codespaces URLs — Keycloak: {keycloakUrl}  TestSite: {testSiteUrl ?? "(port 44345 not yet forwarded)"}");
-        return (keycloakUrl, testSiteUrl);
+            $"[PRISM] Discovered Codespaces URLs — Keycloak: {keycloakUrl}  TestSite: {testSiteUrl ?? "(port 44345 not yet forwarded)"}  BusinessApp: {businessAppUrl}");
+        return (keycloakUrl, testSiteUrl, businessAppUrl);
     }
     catch (Exception ex)
     {
@@ -197,13 +202,14 @@ static (string keycloakUrl, string? testSiteUrl) TryDiscoverCodespaceUrls(string
     }
 }
 
-static (string keycloakUrl, string? testSiteUrl) FallbackCodespaceUrls(string codespaceName, string domain, string reason)
+static (string keycloakUrl, string? testSiteUrl, string businessAppUrl) FallbackCodespaceUrls(string codespaceName, string domain, string reason)
 {
     Console.WriteLine(
         $"[PRISM] WARNING: Could not discover Codespaces URLs via gh CLI ({reason}). " +
         $"Falling back to legacy URL pattern — will not work if this Codespace uses the regional URL scheme.");
     return (
         $"https://{codespaceName}-8443.{domain}",
-        $"https://{codespaceName}-44345.{domain}"
+        $"https://{codespaceName}-44345.{domain}",
+        $"https://{codespaceName}-7245.{domain}"
     );
 }
