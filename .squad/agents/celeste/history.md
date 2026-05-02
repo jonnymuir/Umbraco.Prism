@@ -27,6 +27,7 @@
 - Practical baseline works best when focused on public/protected API surface in Auth, Services, Middleware, and boundary Models before private internals.
 - Parameter and return tags should be explicit for request/tenant/security context values to improve IntelliSense safety during integration work.
 - Docs-only passes should stay behavior-neutral and be validated with full build plus Core tests to keep risk minimal.
+- **2026-05-02: devcontainer.json timing nuance:** `customizations.vscode.settings` in devcontainer.json is applied *late* in VS Code startup (sometimes after `postAttachCommand` runs). When relying on editor associations (like `workbench.editorAssociations`), place them in `.vscode/settings.json` at the workspace root instead — this loads earlier and reliably. Keep devcontainer settings as a belt-and-braces fallback for robustness.
 
 ## Learnings
 
