@@ -215,3 +215,5 @@ Now all three sites follow identical dual-gating pattern.
 ### Status
 ✅ **APPROVED FOR MERGE** (Copper's security review, 2026-05-02 14:30)
 
+
+**2026-05-02** — Completed: Validated regression; rejected current behavior because non-JSON HTML responses were still treated as success; added/identified regression coverage for HTML and non-JSON false positives. Findings cascaded to Brewster for fix implementation.

@@ -6,6 +6,31 @@
 
 ---
 
+## Session: Codespaces BusinessApp Backchannel Fix (2026-05-02)
+
+**Status:** ✅ Complete — main/09baa09
+
+**Scope:** Fixed "200 OK text/html 'Connecting to the forwarded port...'" issue when the TestSite's `DownstreamDemoController` made server-side HTTP client calls to the BusinessApp in Codespaces. Root cause: The AppHost was setting `PrismBusinessApp__WorkflowApiBaseUrl` to the **public Codespaces forwarded URL** (e.g., `https://fluffy-invention-...-7245.app.github.dev`), but GitHub's port-forwarding proxy intercepts server-to-server calls to public forwarded URLs and returns HTML instead of forwarding to the actual service.
+
+**Changes:**
+- `src/UmbracoPrism.AppHost/Program.cs`:
+  - Added `BUSINESSAPP_BACKCHANNEL_URL` environment variable in Codespaces, set to `businessApp.GetEndpoint("https")` — the internal Aspire endpoint reference for server-to-server communication
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`:
+  - Modified `BuildTargetUrl()` to prefer `BUSINESSAPP_BACKCHANNEL_URL` over `PrismBusinessApp:WorkflowApiBaseUrl` when available
+  - Added comment explaining Codespaces backchannel pattern
+
+**Impact:** Server-to-server downstream demo calls now use the internal `https://localhost:7245` endpoint in Codespaces instead of the public forwarded URL, correctly returning JSON instead of HTML.
+
+**Test results:** 650 passed, 0 failed, 0 skipped — no regressions.
+
+**Build:** Succeeded, 0 errors, 6 pre-existing warnings (unchanged).
+
+**Decision:** Written to `.squad/decisions/inbox/blathers-codespaces-businessapp-backchannel.md`
+
+**Confidence:** HIGH — This is the same proven backchannel pattern used for Keycloak; applying it to BusinessApp is a direct extension.
+
+---
+
 ## Session: Codespaces BusinessApp Downstream Target Fix (2026-05-02)
 
 **Status:** ✅ Complete — worktree
@@ -131,3 +156,5 @@ Committed fix for port 7245 BusinessApp URL discovery in Codespaces environments
 
 Orchestration log written to 2026-05-02T13:14:32Z-blathers.md.
 
+
+**2026-05-02** — Completed: Diagnosed that server-side calls to the public Codespaces 7245 forwarded URL can return GitHub tunnel HTML instead of JSON; recommended backchannel transport path fix (approved by team, implemented by Brewster). Decision recorded in decisions.md.

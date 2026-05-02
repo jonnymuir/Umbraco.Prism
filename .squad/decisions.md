@@ -2,6 +2,7 @@
 
 Umbraco.Prism team decisions. Append-only ledger.
 
+
 ## 📌 2026-04-30: Blathers — PT2 Backend Security Batch (PR #40) — 5 Findings Fixed
 
 **Status:** ✅ MERGED — 5 commits on `main` (squashed as `83eb30e`); 618 tests passing (+17 new)
@@ -1671,3 +1672,146 @@ Extended Codespaces URL discovery to include port 7245:
 ### Basis
 
 Blathers' commit `6205bd4` implementation (2026-05-02); production deployment verification (Tom Nook, 2026-05-02); decision record in inbox (2026-05-02).
+
+
+# Decision: Codespaces BusinessApp Backchannel Fix
+
+**Date:** 2026-05-02  
+**Author:** Blathers  
+**Status:** Implemented  
+
+## Problem
+
+When running in GitHub Codespaces, the TestSite's `DownstreamDemoController` was making server-side HTTP client calls to the **public Codespaces forwarded URL** for the Mock Business App (e.g., `https://fluffy-invention-...-7245.app.github.dev/api/backoffice/me`). GitHub's port-forwarding proxy intercepted these server-to-server calls and returned "Connecting to the forwarded port..." HTML instead of forwarding to the actual service, resulting in a 200 OK with `text/html` content instead of JSON.
+
+## Root Cause
+
+The AppHost's `PrismBusinessApp__WorkflowApiBaseUrl` environment variable was being set to the **public Codespaces URL** (intended for browser access) instead of the **internal localhost endpoint** that should be used for server-to-server communication within the Codespace.
+
+## Solution
+
+Applied the same backchannel pattern used for Keycloak:
+
+1. **AppHost (`Program.cs`)**: In Codespaces environments, set `BUSINESSAPP_BACKCHANNEL_URL` to `businessApp.GetEndpoint("https")` — the internal Aspire endpoint reference that resolves to the actual localhost URL where the BusinessApp is running (e.g., `https://localhost:7245`).
+
+2. **DownstreamDemoController**: Modified `BuildTargetUrl()` to prefer `BUSINESSAPP_BACKCHANNEL_URL` over `PrismBusinessApp:WorkflowApiBaseUrl` when available. This ensures server-side HTTP client calls use the internal endpoint in Codespaces and bypass the port-forwarding proxy.
+
+## Implementation
+
+### AppHost Change
+
+```csharp
+// In Codespaces, the GitHub forwarded-port proxy blocks server-side HTTP client calls to the
+// external BusinessApp URL and returns "Connecting to the forwarded port..." HTML instead of
+// forwarding to the actual service. Point downstream demo at BusinessApp's internal HTTPS
+// endpoint so server-to-server calls bypass the proxy.
+if (codespaceName != null)
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("https"));
+```
+
+### DownstreamDemoController Change
+
+```csharp
+// In Codespaces, BUSINESSAPP_BACKCHANNEL_URL points to the internal endpoint
+// for server-to-server communication (bypasses GitHub port-forwarding proxy).
+// Outside Codespaces, falls back to PrismBusinessApp:WorkflowApiBaseUrl.
+var baseUrl = configuration["BUSINESSAPP_BACKCHANNEL_URL"]?.TrimEnd('/')
+    ?? configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+```
+
+## Impact
+
+- **Codespaces**: Server-to-server downstream demo calls now use `https://localhost:7245/api/backoffice/me` (internal) instead of the public forwarded URL, correctly returning JSON instead of HTML.
+- **Local dev**: No change — `BUSINESSAPP_BACKCHANNEL_URL` is not set, so `PrismBusinessApp:WorkflowApiBaseUrl` is used as before.
+- **Security**: No impact — backchannel URL is only used for server-to-server HTTP client calls, never for browser redirects or OIDC flows.
+
+## Verification
+
+- **Build**: Succeeded, 0 errors, 6 pre-existing warnings (unchanged)
+- **Tests**: 650 Core tests passing, 0 failed, 0 skipped
+- **Confidence**: HIGH — This is the same pattern already proven for Keycloak backchannel; applying it to BusinessApp is a direct extension.
+
+## Related Patterns
+
+- `KEYCLOAK_BACKCHANNEL_URL` (token refresh, JWKS fetch)
+- GitHub Codespaces port-forwarding proxy blocks server-side calls to public forwarded URLs
+- Aspire `.GetEndpoint()` API provides internal endpoint references for service-to-service communication
+
+## Follow-Up
+
+None — this completes the Codespaces backchannel pattern for all services that require server-to-server communication.
+
+
+# Downstream Demo: Content-Type Validation
+
+**Date:** 2026-05-02  
+**Author:** Brewster (Umbraco Platform Specialist)  
+**Status:** Implemented  
+**Commit:** da7ddc9
+
+## Context
+
+The `DownstreamDemoController` endpoint (`/api/prism/downstream-demo`) makes HTTP requests to the MockBusinessApp on behalf of the authenticated user to demonstrate token forwarding in the dashboard UI. This endpoint is exposed to Codespaces port-forwarding quirks.
+
+### Problem
+
+When running in Codespaces, the public port-forwarding proxy sometimes returns HTML placeholder pages (e.g., "Connecting to the forwarded port...") instead of JSON from the target endpoint. The controller was treating these 200 OK HTML responses as successes, breaking the dashboard UI that expects structured JSON data.
+
+Tangy added regression tests and flagged this as a false-positive bug.
+
+### Root Cause
+
+The controller was checking HTTP status code but not validating the `Content-Type` header. Any 200 response was passed through to the dashboard as-is, including:
+- `text/html` (port-forwarding placeholders)
+- `text/plain` (misconfigured endpoints)
+
+## Decision
+
+**Validate `Content-Type` header before processing response body.**
+
+The controller now:
+
+1. **Checks for JSON content types** before parsing:
+   - `application/json`
+   - `application/problem+json`
+   - `text/json`
+
+2. **Returns a structured error** for non-JSON responses:
+   ```json
+   {
+     "statusCode": 0,
+     "statusText": "Invalid Response",
+     "contentType": "text/html",
+     "body": "Expected JSON but received text/html\n\n[user-friendly hint]"
+   }
+   ```
+
+3. **Preserves Blathers' backchannel URL fix** — the `BUSINESSAPP_BACKCHANNEL_URL` environment variable still takes precedence over `PrismBusinessApp:WorkflowApiBaseUrl` in Codespaces to bypass the proxy for server-to-server calls.
+
+## Implementation
+
+Added `IsJsonContentType(string)` helper method that checks for common JSON MIME types. The validation happens immediately after receiving the HTTP response, before attempting to parse or pretty-print the body.
+
+If an HTML page is detected, the error message includes a user-friendly hint about Codespaces port-forwarding delays.
+
+## Test Coverage
+
+- `DownstreamDemo_ReturnsError_WhenResponseIsHtml` — validates detection of HTML responses
+- `DownstreamDemo_DetectsCodespacesPortForwardingPage` — specifically tests Codespaces placeholder pages
+- `DownstreamDemo_RejectsNonJsonContentType` — validates rejection of `text/plain` and other non-JSON types
+
+All 653 Core tests pass.
+
+## Impact
+
+**Fixed:**
+- HTML/non-JSON responses now surface as errors in the dashboard, not silent successes
+- Dashboard UI can show meaningful error messages instead of breaking on invalid JSON parse
+
+**Preserved:**
+- Blathers' backchannel URL fix for Codespaces server-to-server calls
+- All existing functionality (URL allowlisting, token refresh on 401, etc.)
+
+**End-to-End Note:**
+This fix ensures the dashboard shows a clear error when the port-forwarding page appears. The underlying cause (BusinessApp not ready yet) still requires waiting for Codespaces to fully forward the port — but users now see an actionable error instead of a broken UI.
+
