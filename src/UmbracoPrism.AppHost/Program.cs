@@ -160,6 +160,7 @@ static (string keycloakUrl, string? testSiteUrl, string businessAppUrl) TryDisco
             FileName = "gh",
             Arguments = $"codespace ports --codespace {codespaceName} --json sourcePort,browseUrl",
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -169,10 +170,16 @@ static (string keycloakUrl, string? testSiteUrl, string businessAppUrl) TryDisco
             return FallbackCodespaceUrls(codespaceName, domain, "gh process failed to start");
 
         var json = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
         process.WaitForExit(10_000);
 
         if (process.ExitCode != 0)
-            return FallbackCodespaceUrls(codespaceName, domain, $"gh exited with code {process.ExitCode}");
+        {
+            var reason = string.IsNullOrWhiteSpace(stderr)
+                ? $"gh exited with code {process.ExitCode}"
+                : $"gh exited with code {process.ExitCode}: {stderr.Trim()}";
+            return FallbackCodespaceUrls(codespaceName, domain, reason);
+        }
 
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         string? keycloakUrl = null, testSiteUrl = null, businessAppUrl = null;
@@ -195,8 +202,9 @@ static (string keycloakUrl, string? testSiteUrl, string businessAppUrl) TryDisco
         if (keycloakUrl is null)
             return FallbackCodespaceUrls(codespaceName, domain, "port 8443 not found in gh codespace ports output");
 
-        // BusinessApp URL defaults to localhost if port isn't forwarded yet
-        businessAppUrl ??= "https://localhost:7245";
+        // Derive missing port URLs from discovered URLs using the same host pattern
+        // (e.g., v7ldkc4c-8443.uks1.app.github.dev → v7ldkc4c-7245.uks1.app.github.dev)
+        businessAppUrl ??= DeriveCodespaceUrl(keycloakUrl, 7245);
 
         Console.WriteLine(
             $"[PRISM] Discovered Codespaces URLs — Keycloak: {keycloakUrl}  TestSite: {testSiteUrl ?? "(port 44345 not yet forwarded)"}  BusinessApp: {businessAppUrl}");
@@ -218,4 +226,32 @@ static (string keycloakUrl, string? testSiteUrl, string businessAppUrl) Fallback
         $"https://{codespaceName}-44345.{domain}",
         $"https://{codespaceName}-7245.{domain}"
     );
+}
+
+// Derives a Codespaces public URL for a different port by replacing the port number
+// in a known URL's hostname. Works with both legacy ({name}-{port}.app.github.dev)
+// and regional ({token}-{port}.{region}.app.github.dev) URL schemes.
+static string DeriveCodespaceUrl(string knownUrl, int targetPort)
+{
+    var uri = new Uri(knownUrl);
+    var hostname = uri.Host;
+    
+    // Find the last dash before the first dot (port separator in Codespaces URLs)
+    var firstDot = hostname.IndexOf('.');
+    if (firstDot == -1)
+        return $"https://{hostname}"; // Unexpected format, return as-is
+    
+    var lastDash = hostname.LastIndexOf('-', firstDot);
+    if (lastDash == -1)
+        return $"https://{hostname}"; // Unexpected format, return as-is
+    
+    // Extract the port substring and validate it's actually a number
+    var portSubstring = hostname.Substring(lastDash + 1, firstDot - lastDash - 1);
+    if (!int.TryParse(portSubstring, out _))
+        return $"https://{hostname}"; // Not a valid port, return as-is
+    
+    // Replace port: {prefix}-{oldPort}.{suffix} → {prefix}-{newPort}.{suffix}
+    var prefix = hostname.Substring(0, lastDash);
+    var suffix = hostname.Substring(firstDot);
+    return $"https://{prefix}-{targetPort}{suffix}";
 }
