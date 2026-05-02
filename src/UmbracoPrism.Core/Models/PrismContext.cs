@@ -112,6 +112,7 @@ public class PrismContext(
         string clientId;
         string clientSecret;
         string scope;
+        IReadOnlyDictionary<string, string>? backchannelForwardingHeaders = null;
 
         if (!string.IsNullOrWhiteSpace(CurrentTenant.OidcAuthority))
         {
@@ -128,6 +129,14 @@ public class PrismContext(
             // the public Keycloak URL (*.app.github.dev). When KEYCLOAK_BACKCHANNEL_URL is set
             // AND the environment is Development, rewrite the token endpoint host to the internal
             // backchannel URL before POSTing the refresh-token grant.
+            //
+            // We also include X-Forwarded-Proto / X-Forwarded-Host headers so that Keycloak
+            // (running with --proxy-headers xforwarded) computes its issuer URL as the public
+            // HTTPS authority rather than the raw HTTP localhost URL. Without these headers
+            // Keycloak derives the issuer as http://... which mismatches the https://... iss
+            // claim embedded in the refresh token (originally issued through the YARP proxy),
+            // causing Keycloak to return invalid_grant.
+            //
             // Transport rewrite ONLY: issuer/audience validation on the returned tokens remains
             // strict against the public OidcAuthority. Outside Development or when the env var
             // is absent, this block is never entered — zero behaviour change for production.
@@ -141,6 +150,15 @@ public class PrismContext(
                 var oidcPath = new Uri(CurrentTenant.OidcAuthority!.TrimEnd('/')).AbsolutePath.TrimEnd('/');
                 tokenEndpoint = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
                 Console.WriteLine($"[PRISM] RefreshTokenAsync: rewriting token endpoint to backchannel → {tokenEndpoint}");
+
+                // Derive X-Forwarded-* values from the public OidcAuthority so Keycloak
+                // computes its canonical issuer as https://<public-host>/realms/prism-dev.
+                var authorityUri = new Uri(CurrentTenant.OidcAuthority!.TrimEnd('/'));
+                backchannelForwardingHeaders = new Dictionary<string, string>
+                {
+                    ["X-Forwarded-Proto"] = authorityUri.Scheme,
+                    ["X-Forwarded-Host"]  = authorityUri.Host
+                };
             }
 
             clientId = CurrentTenant.OidcClientId;
@@ -189,7 +207,7 @@ public class PrismContext(
             formParameters["scope"] = scope;
         }
 
-        var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters, context.RequestAborted);
+        var result = await tokenRefreshService.RefreshAsync(tokenEndpoint, formParameters, context.RequestAborted, backchannelForwardingHeaders);
 
         if (!result.Success || result.AccessToken == null)
         {

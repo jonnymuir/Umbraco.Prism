@@ -13,11 +13,17 @@ public interface IPrismTokenRefreshService
     /// <param name="tokenEndpoint">Absolute token endpoint URL for the tenant authority.</param>
     /// <param name="formParameters">Form-encoded parameters required by the token endpoint.</param>
     /// <param name="cancellationToken">Cancellation token for the outbound refresh operation.</param>
+    /// <param name="requestHeaders">
+    /// Optional HTTP headers added to the outbound request (e.g. <c>X-Forwarded-Proto</c>,
+    /// <c>X-Forwarded-Host</c>). Used when the token endpoint has been rewritten to an internal
+    /// backchannel address so the upstream server can still derive the correct public issuer URL.
+    /// </param>
     /// <returns>The parsed refresh result including success state and returned token values.</returns>
     Task<TokenRefreshResult> RefreshAsync(
         string tokenEndpoint,
         IReadOnlyDictionary<string, string> formParameters,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? requestHeaders = null);
 }
 
 /// <summary>Result of a token refresh request.</summary>

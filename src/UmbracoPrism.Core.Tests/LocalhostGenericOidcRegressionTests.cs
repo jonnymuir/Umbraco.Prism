@@ -167,8 +167,9 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
             .Setup(t => t.RefreshAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken>((_, form, _) =>
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
+            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken, IReadOnlyDictionary<string, string>?>((_, form, _, _) =>
                 capturedFormData = form)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
@@ -223,8 +224,9 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
             .Setup(t => t.RefreshAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken>((endpoint, _, _) =>
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
+            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken, IReadOnlyDictionary<string, string>?>((endpoint, _, _, _) =>
                 capturedEndpoint = endpoint)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
@@ -284,7 +286,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         header.Should().BeNull("because refresh should fail closed when secret is unavailable");
         tokenRefreshService.Verify(
-            t => t.RefreshAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>()),
+            t => t.RefreshAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>(), It.IsAny<IReadOnlyDictionary<string, string>?>()),
             Times.Never,
             "because refresh should not be attempted without a valid client secret");
     }

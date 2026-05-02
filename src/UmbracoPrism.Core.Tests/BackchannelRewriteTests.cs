@@ -443,9 +443,10 @@ public class BackchannelRewriteTests
             .Setup(t => t.RefreshAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyDictionary<string, string>>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken>(
-                (endpoint, _, _) => onRefreshCall(endpoint))
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
+            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken, IReadOnlyDictionary<string, string>?>(
+                (endpoint, _, _, _) => onRefreshCall(endpoint))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
         var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
@@ -554,6 +555,146 @@ public class BackchannelRewriteTests
         identity.AddClaim(new Claim("iss", issuer));
         identity.AddClaim(new Claim("aud", clientId));
         return new ClaimsPrincipal(identity);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // Group E — X-Forwarded headers on backchannel refresh (invalid_grant fix)
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// When the backchannel rewrite is active, X-Forwarded-Proto and X-Forwarded-Host
+    /// must be passed to RefreshAsync so Keycloak (running with --proxy-headers xforwarded)
+    /// computes its canonical issuer as the public HTTPS authority.
+    ///
+    /// Without these headers Keycloak sees the backchannel HTTP request and derives its
+    /// issuer as http://... while the stored refresh token's iss claim is https://... —
+    /// the scheme mismatch causes Keycloak to return invalid_grant.
+    /// </summary>
+    [Fact]
+    public async Task RefreshTokenAsync_SendsForwardingHeaders_WhenBackchannelRewriteActive()
+    {
+        using var envDev = new TempEnvVar("ASPNETCORE_ENVIRONMENT", "Development");
+        using var envBc = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", BackchannelUrl);
+
+        IReadOnlyDictionary<string, string>? capturedHeaders = null;
+        var (prismContext, _) = BuildPrismContextWithHeaderCapture(
+            OidcAuthority, ClientId,
+            headers => capturedHeaders = headers);
+
+        await prismContext.GetAuthorizationHeaderAsync();
+
+        capturedHeaders.Should().NotBeNull("forwarding headers must be passed on the backchannel path");
+        capturedHeaders!.Should().ContainKey("X-Forwarded-Proto");
+        capturedHeaders["X-Forwarded-Proto"].Should().Be("https",
+            "the public OidcAuthority scheme is https so Keycloak must compute an https issuer");
+        capturedHeaders.Should().ContainKey("X-Forwarded-Host");
+        capturedHeaders["X-Forwarded-Host"].Should().Be(new Uri(OidcAuthority).Host,
+            "Keycloak must see the public hostname, not localhost");
+    }
+
+    /// <summary>
+    /// On the non-backchannel path (no rewrite), no X-Forwarded headers must be injected.
+    /// Adding forwarding headers to a direct HTTPS call to the public Keycloak endpoint
+    /// would be redundant and could confuse reverse proxies.
+    /// </summary>
+    [Fact]
+    public async Task RefreshTokenAsync_DoesNotSendForwardingHeaders_WhenBackchannelUnset()
+    {
+        using var envBc = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", null);
+
+        IReadOnlyDictionary<string, string>? capturedHeaders = null;
+        var (prismContext, _) = BuildPrismContextWithHeaderCapture(
+            OidcAuthority, ClientId,
+            headers => capturedHeaders = headers);
+
+        await prismContext.GetAuthorizationHeaderAsync();
+
+        capturedHeaders.Should().BeNull(
+            "no forwarding headers must be passed on the direct-to-public path");
+    }
+
+    /// <summary>
+    /// CRITICAL SAFETY: even when forwarding headers are passed to the backchannel refresh,
+    /// the X-Forwarded-Proto value must be derived from the configured OidcAuthority scheme
+    /// (https), never from the backchannel base URL scheme (http). Using the backchannel
+    /// scheme would produce an http forwarding header, which defeats the purpose of the fix
+    /// and could allow Keycloak to issue tokens with an http issuer.
+    /// </summary>
+    [Fact]
+    public async Task RefreshTokenAsync_ForwardingHeaders_UseAuthorityScheme_NotBackchannelScheme()
+    {
+        const string httpBackchannel = "http://localhost:8080"; // backchannel is always HTTP
+        using var envDev = new TempEnvVar("ASPNETCORE_ENVIRONMENT", "Development");
+        using var envBc = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", httpBackchannel);
+
+        IReadOnlyDictionary<string, string>? capturedHeaders = null;
+        var (prismContext, _) = BuildPrismContextWithHeaderCapture(
+            OidcAuthority, ClientId,  // OidcAuthority is https://...
+            headers => capturedHeaders = headers);
+
+        await prismContext.GetAuthorizationHeaderAsync();
+
+        capturedHeaders.Should().NotBeNull();
+        capturedHeaders!["X-Forwarded-Proto"].Should().Be("https",
+            "the X-Forwarded-Proto value must come from OidcAuthority (https), not the backchannel base (http)");
+        capturedHeaders["X-Forwarded-Proto"].Should().NotBe("http",
+            "passing X-Forwarded-Proto: http would make Keycloak compute an http issuer, reproducing the bug");
+    }
+
+    /// <summary>
+    /// Builds a PrismContext wired for an expired-token-then-refresh scenario, capturing
+    /// the <c>requestHeaders</c> argument passed to <see cref="IPrismTokenRefreshService.RefreshAsync"/>
+    /// so tests can assert which forwarding headers were (or were not) included.
+    /// </summary>
+    private static (PrismContext prismContext, Mock<IPrismTokenRefreshService> tokenRefreshService)
+        BuildPrismContextWithHeaderCapture(
+            string oidcAuthority, string clientId,
+            Action<IReadOnlyDictionary<string, string>?> onHeaders)
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" }
+        });
+
+        var principal = CreateKeycloakPrincipal(oidcAuthority, clientId);
+        var ticket = new AuthenticationTicket(principal, props, "PrismMemberCookie");
+        var authResult = AuthenticateResult.Success(ticket);
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new StubAuthService(authResult))
+            .BuildServiceProvider();
+
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.ResolveSecretAsync(PrismSecretProviderNames.Inline, ClientSecret))
+            .ReturnsAsync(ClientSecret);
+
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>()))
+            .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken, IReadOnlyDictionary<string, string>?>(
+                (_, _, _, headers) => onHeaders(headers))
+            .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
+
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = oidcAuthority,
+                OidcClientId = clientId,
+                OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+                OidcClientSecretReference = ClientSecret
+            }
+        };
+
+        return (prismContext, tokenRefreshService);
     }
 
     // ──────────────────────────────────────────────────────────────────────────────

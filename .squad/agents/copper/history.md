@@ -9,6 +9,33 @@ Previous history archived to reduce file size. Recent entries below.
 
 ---
 
+## 2026-05-02 — PR #45 Security Review: Codespaces URL Derivation Fix
+
+**Verdict:** APPROVED WITH NOTES
+
+**Context:** PR #45 fixes Codespaces URL derivation to handle both the legacy `{CODESPACE_NAME}-{port}.app.github.dev` and new regional `{token}-{port}.{region}.app.github.dev` URL schemes, using `gh codespace ports` as the authoritative source. Changes span AppHost URL discovery, DemoTenantSeeder, TenantService fallback lookup, and TestSite Request.Host override.
+
+**Bedrock Preserved:**
+- RequireHttpsMetadata untouched; BackchannelRewriteTests security gate continues passing.
+- ValidateIssuer/Audience re-enabled in IssuerSigningKeyResolver from DB values, not request headers.
+- Backchannel dual gate unchanged (codespaceName env var gate + IsDevelopment() throw-guard in TestSite).
+- IsRepoOwnedLocalDemoTenant semantics unchanged for non-Codespace traffic (hostname check uses tenant.Hostname from DB).
+- JWT issuer/audience strings come from tenant DB row, not request. New regression test confirms this for regional URL scheme.
+
+**Soft Notes Raised:**
+1. `TenantService` LIKE fallback (`%.app.github.dev`) has no ORDER BY — non-deterministic row selection if multiple .app.github.dev rows exist (orphan rows from token rotation). Not exploitable; could cause dev confusion.
+2. LIKE fallback not gated by IsDevelopment() in TenantService. Defense-in-depth concern only (seeder is already dev-gated so no production .app.github.dev rows can exist).
+
+**Key Learning:**
+- Request.Host override from a static env var (TESTSITE_PUBLIC_URL) is SAFER than reading the inbound Host header — it overrides whatever the client sends, making host-header injection impossible on that path.
+- The `gh codespace ports` startup-only pattern (ProcessStartInfo without shell, JSON.TryCreate downstream) is injection-safe and provides the correct authoritativ URL for both Codespace URL schemes.
+- When reviewing hostname-based tenant fallbacks, trace whether the returned tenant.Hostname (from DB) or the inbound request hostname is used for OIDC configuration downstream. In this PR, DB values are always the source — the fallback is config-routing only.
+
+**Test Results:** 647/647 passed (0 failures).
+**Artifacts:** `.squad/decisions/inbox/copper-pr45-security-review.md`
+
+---
+
 - User Impact: ✅ Positive (fresh clones work without manual Keycloak config)
 
 **Alignment:**
