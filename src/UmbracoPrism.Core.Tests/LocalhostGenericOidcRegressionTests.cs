@@ -23,8 +23,25 @@ namespace UmbracoPrism.Core.Tests;
 /// 
 /// These tests lock in the corrected minimal-scope behavior to prevent auth regressions.
 /// </summary>
-public class LocalhostGenericOidcRegressionTests
+[Collection(EnvVarSensitiveTestCollection.Name)]
+public class LocalhostGenericOidcRegressionTests : IDisposable
 {
+    // Snapshot env vars that PrismContext reads during refresh so that a parallel test mutating
+    // them cannot bleed into this class even though we don't mutate them ourselves.
+    private readonly string? _savedBackchannelUrl;
+    private readonly string? _savedAspNetCoreEnv;
+
+    public LocalhostGenericOidcRegressionTests()
+    {
+        _savedBackchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+        _savedAspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+    }
     private static readonly PrismTenant LocalhostKeycloakTenant = new()
     {
         Hostname = "localhost",

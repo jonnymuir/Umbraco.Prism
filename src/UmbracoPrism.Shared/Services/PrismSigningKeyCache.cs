@@ -147,7 +147,41 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
 
             var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
             var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
-            var manager = _configurationManagerFactory(http, metadataAddress, requireHttps);
+
+            // In Codespaces, Keycloak's discovery doc emits jwks_uri pointing at the public
+            // Codespace URL (KC_HOSTNAME). OpenIdConnectConfigurationRetriever follows that URL
+            // transitively, hitting the GitHub port-forwarding proxy which blocks unauthenticated
+            // server-side requests. When KEYCLOAK_BACKCHANNEL_URL is set AND the environment is
+            // Development, wrap the IDocumentRetriever so ALL Keycloak-origin URLs — both the
+            // discovery-doc fetch and the transitive jwks_uri fetch — are rewritten to the
+            // internal backchannel base before the HTTP call is made.
+            // Transport rewrite ONLY: issuer trust on JWT tokens remains against the public
+            // OidcAuthority (normalizedKey). Outside Development or when the env var is absent,
+            // the factory path is used unchanged — zero behaviour change for production.
+            var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+            var isDevelopment = string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
+
+            IConfigurationManager<OpenIdConnectConfiguration> manager;
+            if (isDevelopment && !string.IsNullOrEmpty(backchannelBase) &&
+                Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
+                publicUri.Scheme == Uri.UriSchemeHttps)
+            {
+                var publicOrigin = publicUri.GetLeftPart(UriPartial.Authority);
+                var innerRetriever = new HttpDocumentRetriever(http) { RequireHttps = requireHttps };
+                var rewritingRetriever = new BackchannelRewritingDocumentRetriever(
+                    publicOrigin, backchannelBase.TrimEnd('/'), innerRetriever);
+                manager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                    metadataAddress,
+                    new OpenIdConnectConfigurationRetriever(),
+                    rewritingRetriever);
+            }
+            else
+            {
+                manager = _configurationManagerFactory(http, metadataAddress, requireHttps);
+            }
 
             var config = await manager.GetConfigurationAsync(cancellationToken);
             var signingKeys = config.SigningKeys.ToList().AsReadOnly();
@@ -210,5 +244,29 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
             metadataAddress,
             new OpenIdConnectConfigurationRetriever(),
             new HttpDocumentRetriever(httpClient) { RequireHttps = requireHttps });
+    }
+
+    /// <summary>
+    /// Wraps an <see cref="IDocumentRetriever"/> and rewrites any URL whose origin matches
+    /// <paramref name="publicOrigin"/> to the internal <paramref name="backchannelBase"/> before
+    /// delegating. Covers both the discovery-document fetch and the transitive <c>jwks_uri</c>
+    /// fetch made by <see cref="OpenIdConnectConfigurationRetriever"/>.
+    /// </summary>
+    private sealed class BackchannelRewritingDocumentRetriever(
+        string publicOrigin,
+        string backchannelBase,
+        IDocumentRetriever inner) : IDocumentRetriever
+    {
+        public Task<string> GetDocumentAsync(string address, CancellationToken cancel)
+        {
+            if (address.StartsWith(publicOrigin, StringComparison.OrdinalIgnoreCase))
+            {
+                var rewritten = backchannelBase + address[publicOrigin.Length..];
+                Console.WriteLine($"[PRISM] BackchannelRewritingDocumentRetriever: rewriting {address} → {rewritten}");
+                address = rewritten;
+            }
+
+            return inner.GetDocumentAsync(address, cancel);
+        }
     }
 }

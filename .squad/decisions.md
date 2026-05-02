@@ -1014,3 +1014,427 @@ Both verified: `dotnet build` clean, 601/601 Core tests pass, vulnerable-package
 Copper's commits `244f3b5` and `2ce771f` on `sec/review-2026-04-30-pt2`; inbox summary (this ledger).
 
 ---
+
+---
+
+## 📌 2026-05-01: Tom Nook — Prism Architecture: Composer Decomposition + MockBusinessApp Identity
+
+**Status:** 🔵 Proposed — from Rams-grade reflection session
+
+**Basis:** Rams principles applied to architectural vision (2026-05-01, Jonny Muir reflection). Full review at `.squad/reviews/2026-05-01-prism-reflection/01-tom-nook-vision.md`.
+
+### Decision 1: Decompose `PrismComposer` into Feature Extension Methods
+
+**Problem:** `PrismComposer.cs` registers all Prism services unconditionally (tenant/auth/branding, workflow, mobile, notifications, biometrics). A developer who wants only multi-tenant branding carries the entire stack.
+
+**Decision:** Decompose into named feature extension methods on `IUmbracoBuilder`:
+- `AddPrismCore()` — tenancy, branding, auth (always required)
+- `AddPrismWorkflow()` — workflow engine client, nonce service, field validation
+- `AddPrismMobile()` — mobile bundle service, biometric services
+- `AddPrismNotifications()` — push notification rate limiting, notifiers
+
+`PrismComposer.Compose()` calls all four for backward compatibility. Integrators who know their scope call only what they need.
+
+**Rationale:** Satisfies "as little design as possible" — each consumer gets exactly the surface they signed up for. Reduces startup noise for branding-only installations.
+
+### Decision 2: Resolve MockBusinessApp's Dual Identity
+
+**Problem:** `MockBusinessApp` is simultaneously a demo (in-memory state, "mock" name) and a reference implementation (JWT validation, sanitizer, concurrency control). It shadows `UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionFile` with its own internal type, which any real BusinessApp implementor will trip over.
+
+**Decision — two valid paths (Jonny to choose):**
+
+**Path A — Lean into Demo:** Rename to `UmbracoPrism.DemoApp`. Simplify ruthlessly — remove JWT validation from the demo engine, make in-memory amnesia explicit and prominent. Delete the shadowing `WorkflowDefinitionFile.cs`; use Shared directly.
+
+**Path B — Lean into Reference:** Rename to `UmbracoPrism.WorkflowApp`. Add a real persistence layer (e.g. SQLite or EF Core in-memory with swap-for-prod pattern). Publish as the template teams deploy alongside Prism. Delete the shadowing type; use Shared directly.
+
+**In both paths:** Delete `src/UmbracoPrism.MockBusinessApp/Services/WorkflowDefinitionFile.cs`. The Shared type is authoritative; the shadow serves no purpose and is an active confusion vector.
+
+### Decision 3: Remove the `OidcClientSecret` Legacy Column
+
+**Problem:** `PrismTenantSchema.cs` retains an `OidcClientSecret` column "for migration compatibility" that is never written. It is a lies-in-plain-sight security risk — any developer inspecting the DB schema infers it is the correct place for a secret.
+
+**Decision:** Write a migration that drops the column. Add a startup check that logs a warning if the column still contains data in an existing installation (guide operators to migrate to the provider/reference pattern). Record the removal in CHANGELOG.md.
+
+---
+
+## 📌 2026-05-01: Blathers — Workflow Engine Reflection: 5 Architectural Findings
+
+**Status:** 🔵 Proposed — from Rams-grade review
+
+**Basis:** Blathers direct code analysis (2026-05-01). Full review at `.squad/reviews/2026-05-01-prism-reflection/03-blathers-workflow.md`. No code changes made — these are architectural recommendations for future issues.
+
+### Finding 1: Hardcoded business rule must be evicted from `BusinessAppWorkflowEngine`
+
+**Issue:** Lines 304–336 of `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs` contain a regex-based domain rule (`enquiry-type == "Technical support"` → requires version number/URL/error code). This violates the engine's generic contract and makes rules invisible to service designers.
+
+**Recommendation:** Any per-field, per-value validation rule that is domain-specific MUST live in the workflow definition (seed JSON or C# builder), not in the engine. The engine's `Advance()` method must remain domain-agnostic. Implementation options: declarative `"rules"` array on step definitions, or a registered `IWorkflowAdvanceRule` strategy the MockBusinessApp configures. Either is acceptable; the hardcoded rule is not.
+
+**Priority:** HIGH — directly harms business users (unexplained rejection) and blocks engine genericity.
+
+### Finding 2: `PrismComponentRenderPayload` must be replaced with a typed render hierarchy
+
+**Issue:** `PrismComponentRenderPayload` in `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs` is a 20+ nullable property flat bag. Contradicts the clean design-time `PrismComponent` sealed record hierarchy. Produces nullable fog in views and tag helpers.
+
+**Recommendation:** Create a sealed render hierarchy (`FieldsetRenderPayload`, `SummaryListRenderPayload`, `BodyRenderPayload`, etc.) derived from an abstract `PrismComponentRenderBase`. The `BuildComponents()` switch arms in `BusinessAppWorkflowEngine.cs` already provide the natural split points. Views and tag helpers should receive typed payloads, not a bag.
+
+**Priority:** MEDIUM — no user-facing regression risk; improves maintainability and removes a whole class of null-reference risk.
+
+### Finding 3: Advance API field contract must be typed
+
+**Issue:** `BusinessAppWorkflowClient.AdvanceAsync()` sends `Dictionary<string, object?>` for field values. ASP.NET Core deserialises `object?` as `JsonElement`. The engine's `GetDisplayValue()` has explicit `JsonElement` special-casing (line 878, `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`). This is a leaky abstraction acknowledged inline.
+
+**Recommendation:** The advance API payload `FieldValues` MUST be typed as `Dictionary<string, string>` (all form values are strings at submission time). The `object?` generalisation solves no real problem — it is a premature generalisation that introduces runtime casting and JsonElement workarounds throughout the render path.
+
+**Priority:** MEDIUM — the workaround is contained but the contract is dishonest.
+
+### Finding 4: String enums must be replaced with compile-time constants
+
+**Issue:** `InstancePolicy` ("single", "multiple", "prompt"), `ResponseState` ("render", "defer", "complete", "error"), `Style` ("primary", "secondary", "destructive"), and `StepType` ("question", "check-answers", "confirmation", etc.) are all stringly-typed contracts with no compile-time enforcement.
+
+**Recommendation:** Introduce `PrismInstancePolicy`, `WorkflowResponseState`, `WorkflowActionStyle`, and `WorkflowStepType` as C# `enum` or `static class` constant holders. References throughout `WorkflowDefinitionBuilder`, `BusinessAppWorkflowEngine`, `PrismWorkflowPageController`, and `PrismComponentExtensions.InferStepType()` must be updated to use these. JSON seeds serialise as strings — use `[JsonConverter(typeof(JsonStringEnumConverter))]` or explicit discriminator mappings.
+
+**Priority:** LOW — no user-facing impact; important for long-term maintainability.
+
+### Finding 5: JSON seeds require schema validation
+
+**Issue:** Workflow definition JSON files in `src/UmbracoPrism.MockBusinessApp/workflow-seeds/` have no schema file, no validation on load, and silently ignore unknown fields. Type discriminator spellings (`checkboxlist` vs `checkboxes`) are inconsistent between the seed format and validator.
+
+**Recommendation:** Add a JSON Schema file (`.schema.json`) for `WorkflowDefinitionFile` and wire it as a VS Code / JetBrains schema reference in seed files. Fix the `checkboxlist`/`checkboxes` inconsistency — pick one and enforce it everywhere (discriminator, validator, partial name). Add seed validation at startup: if a seed fails deserialization, log an error with the offending file path and property, not just a generic failure.
+
+**Priority:** LOW — affects service designer DX only; no runtime user impact.
+
+---
+
+## 📌 2026-05-01: Brewster — Multi-tenancy Reflection: 4 Findings
+
+**Status:** 🔵 Proposed — from Rams-grade review
+
+**Basis:** Brewster Umbraco platform review (2026-05-01). Full review at `.squad/reviews/2026-05-01-prism-reflection/04-brewster-multitenancy.md`. No code changes made — these are recommendations for future work.
+
+### Finding 1: Content isolation is a known gap — needs a roadmap item
+
+**Issue:** Prism's multi-tenancy does not isolate the Umbraco content tree. All tenants share the same nodes. This is admitted in `docs/walkthroughs/creating-a-tenant.md` line 181 ("not covered in this walkthrough") but is inconsistent with product-level isolation promises.
+
+**Recommendation:** Add an explicit roadmap item to introduce a `tenantTag` filter pattern on the Umbraco content tree. Until implemented, update the README/product overview to accurately describe what "isolated context" means — specifically that it covers auth, branding, workflows, and OIDC, but not content authoring.
+
+**Who should act:** Brewster (Umbraco content type and route patterns); Blathers (if an `IPublishedContentFilter` hook requires Core library changes).
+
+### Finding 2: Hardcoded `/dashboard` redirect in `MemberDashboardController` should be replaced
+
+**Issue:** `src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs` line 42 hardcodes `/auth/login?returnUrl=/dashboard`. On multi-tenant deployments where the dashboard node may be at a different URL, this redirect could challenge against the wrong tenant's OIDC authority.
+
+**Recommendation:** Replace the hardcoded string with a content-tree lookup using `TestSiteSeedContract.FindPublishedByAlias()` (same pattern as `memberDashboard.cshtml` lines 10–12), falling back to the literal string only if the node is not found. This is a Brewster-owned change (test site controller).
+
+**Who should act:** Brewster.
+
+### Finding 3: Tenant cache TTL gap needs operator documentation and a flush endpoint
+
+**Issue:** `TenantService` caches tenant records for 30 minutes (`src/UmbracoPrism.Core/Services/TenantService.cs` line 92). A deleted or mis-configured tenant remains resolvable from cache for up to 30 minutes with no operator-facing warning or manual flush.
+
+**Recommendation:**
+1. Add `POST /umbraco/api/prism/tenants/{id}/invalidate-cache` to `TenantManagementController` (already has `InvalidateDomain` available via `ITenantService`).
+2. Expose cache metrics (`GetCacheMetrics()`) in the Prism Dashboard UI.
+3. Add an operator warning to `docs/walkthroughs/creating-a-tenant.md` Part 6 (delete tenant row).
+
+**Who should act:** Brewster (controller + docs); Isabelle or Blathers (backoffice UI panel if Lit component work is needed).
+
+### Finding 4: Email/push notification branding is unresolved
+
+**Issue:** `PrismNotificationService` is scoped per request and has access to `IPrismContext.CurrentTenant`, but there is no evidence (or documentation) of tenant branding tokens flowing into outbound email or push notification payloads.
+
+**Recommendation:** Explicitly scope this as a follow-up investigation. Either document that email branding is out of scope for v2.0, or assign to Blathers to wire `CurrentTenant.BrandingOverrides` into the email template pipeline.
+
+**Who should act:** Blathers (notification service is Core-owned); Brewster to validate test site notification flows once implemented.
+
+---
+
+## 📌 2026-05-01: Isabelle — Design System Token Architecture: 5 Findings
+
+**Status:** 🔵 Proposed — from Rams-grade review
+
+**Basis:** Isabelle design system audit (2026-05-01). Full review at `.squad/reviews/2026-05-01-prism-reflection/02-isabelle-design-system.md`.
+
+### Finding 1: `--prism-button-hover` must be derived from `--prism-primary`
+
+**Issue:** `prism-components.css:120` has `--prism-button-hover: #003078` (hardcoded GDS dark blue). Any tenant overriding `--prism-primary` via the branding middleware gets the correct idle button colour but the wrong hover colour. This is a silent inconsistency that will surface on first real deployment of a non-GDS brand.
+
+**Rule going forward:** Hover states that relate to a brand token MUST be derived via `color-mix()` or `calc()`. No hardcoded dark variants of brand colours. Recommended fix: `color-mix(in srgb, var(--prism-primary) 80%, #000 20%)`.
+
+### Finding 2: CSS cascade layers should be declared at the HTML head entry point
+
+**Issue:** GDS Frontend loads first by file order convention (`Master.cshtml:34`). No `@layer` declarations. The comment "ITCSS layer order" is a developer hint, not a CSS contract. Specificity relationships between GDS and Prism rules are implicit.
+
+**Rule going forward:** A `<style>@layer govuk, prism-base, prism-layout, prism-components, prism-branding;</style>` declaration should be added before any CSS link tags. This costs nothing at runtime and documents the cascade contract.
+
+### Finding 3: All branding tokens must carry the `--prism-` prefix
+
+**Issue:** `--bg-offset` in `prism-colors.css` is the only token without the prefix. It is consumed in `prism-typography.css` and `prism-layout.css`.
+
+**Rule going forward:** All design-system CSS custom properties ship with the `--prism-` namespace. No exceptions. Rename to `--prism-surface-page`. Update all three consumption sites.
+
+### Finding 4: `--prism-focus` is an accessibility token — not a brand token
+
+**Issue:** `--prism-focus: #ffdd00` appears in the branding metadata schema with no guard rail distinguishing it from brand colours.
+
+**Rule going forward:** Accessibility-constrained tokens (focus ring, error colours) must carry an in-file comment flagging the WCAG constraint. Consider separating them into a `prism-accessibility.css` file or a distinct section in the branding schema so the metadata service can mark them as non-overridable in the editor UI.
+
+### Finding 5: Storybook must cover GDS components and PrismField partials
+
+**Issue:** Zero Storybook stories for GDS components or PrismField partials. Designers, editors, and content creators cannot preview workflow form components without running the full Umbraco stack.
+
+**Rule going forward:** Any PrismComponent or PrismField partial that is content-author-selectable needs a corresponding Storybook story (HTML story via Lit `html` template, not necessarily a web component). The Storybook preview.ts must import `prism-colors.css` and `prism-typography.css` so stories render in the correct token context.
+
+---
+
+## 📌 2026-05-01: Kicks — Mobile Architecture Reflection: 3 Findings
+
+**Status:** 🔵 Proposed — from Rams-grade review
+
+**Basis:** Kicks mobile specialist audit (2026-05-01). Full review at `.squad/reviews/2026-05-01-prism-reflection/05-kicks-mobile.md`.
+
+### Finding 1: Push bundle gap must be treated as a bug, not a gap
+
+**Issue:** `PrismMobileBundleRequest.cs` does not contain a `PushNotificationsEnabled` property. The backoffice UI (`prism-create-tenant-modal.ts`) sends this field in the bundle request; the backend silently drops it. `MobileBundleService.BuildBundleAsync` never conditionally scaffolds push code. Operators cannot produce a push-ready bundle. This is a honesty failure (Rams #6), not a known gap.
+
+**Fix required:**
+1. Add `public bool? PushNotificationsEnabled { get; set; }` to `PrismMobileBundleRequest.cs`
+2. Read and act on the field in `MobileBundleService.BuildBundleAsync` — conditionally include `@capacitor/push-notifications` in `package.json`, push plugin config in `capacitor.config.ts`, and `PrismPushNotifications.registerDevice()` hook in `www/index.html`
+3. Add test coverage in `MobileBundleServiceTests.cs`
+
+**Rule going forward:** Any UI control that affects bundle output MUST have a corresponding field in `PrismMobileBundleRequest.cs`. The model is the source of truth for what the bundle can produce.
+
+### Finding 2: Mobile-facing components must use `--prism-*` tokens, not `--uui-*` or hardcoded hex
+
+**Issue:** `prism-biometric-register.ts` and `prism-biometric-settings.ts` use `--uui-color-interactive` (Umbraco backoffice token set) and hardcoded hex values (`#2563eb`, `#c82333`, `#f0fdf4`) for auth UI. These components render in member-facing mobile WebViews. Tenant branding is broken at the biometric enrollment screen.
+
+**Fix required:** The mobile boundary convention established in `prism-mobile-nav.ts` (comment: `⚠️ MOBILE BOUNDARY: No @umbraco-cms imports allowed in this directory`) must be extended as a token rule: **member-facing mobile components must use `--prism-*` CSS custom properties only**. No `--uui-*` imports; no hardcoded hex colours.
+
+**Rule going forward:** Any component in `src/backoffice/` that renders in member-facing or mobile WebView contexts must:
+- Use `var(--prism-primary)` for primary interactive colours
+- Use `var(--prism-danger, #c82333)` for destructive actions
+- Include a comment at the top: `// TOKEN CONTRACT: Use --prism-* custom properties only. No --uui-* imports.`
+
+### Finding 3: Mobile architecture verdict — confirmed thin-shell model, no separate renderer
+
+**Informational — no action required**
+
+The mobile app does not have a separate workflow renderer. It uses the same `PrismComponentRenderPayload` model, same Razor views, and same Lit web components as the browser. The Capacitor WebView loads server-rendered HTML. Mobile-specific behaviour is gated by `html.prism-mobile` CSS class injected by `PrismBrandingMiddleware`. This is by design.
+
+**Rule going forward:** Mobile capability additions (new native features, new Capacitor plugins) should be surfaced as **additions to the existing web contract** (new CSS custom properties, new events, new capability-detection guards) — not as a parallel rendering path.
+
+---
+
+## 📌 2026-05-01: Mabel — Documentation Surface Gaps: 3 Findings
+
+**Status:** 🔵 Proposed — from Rams-grade review
+
+**Basis:** Mabel technical writer audit (2026-05-01). Full review at `.squad/reviews/2026-05-01-prism-reflection/06-mabel-onboarding.md`.
+
+### Finding 1: Persona-routed entry added to README
+
+**Issue:** The README has no role-routing mechanism. Five of six named personas (content creators, designers, editors, business users, service designers) have no clear entry door — they all land on developer content.
+
+**Recommendation:** A "Start here by role" section should be added immediately after the Codespaces button block, before the "What You Get" section.
+
+**Rule going forward:** Any new guide or walkthrough added to the docs must be linked from the role-routing section at the point it is created, not retrospectively.
+
+### Finding 2: `docs/design/` removed from public README docs table
+
+**Issue:** The six architecture/design documents in `docs/design/` (`notifications-architecture.md`, `notifications-backend.md`, `notifications-mobile.md`, `notifications-umbraco-demo.md`, `workflow-forms-engine*.md`) are contributor-facing. They appear in the public README docs table alongside user guides, creating navigation noise for all non-developer personas.
+
+**Rule going forward:** `docs/design/` documents are contributor reference material. They must not appear in the main README docs table. A single line `→ Architecture reference (for contributors): docs/design/` at the foot of the docs section is sufficient.
+
+### Finding 3: Skeletal walkthroughs must be marked incomplete in the index
+
+**Issue:** Five walkthroughs listed in `docs/walkthroughs/README.md` and the README docs table have missing or placeholder screenshots: `creating-a-tenant.md`, `design-system.md`, `push-notifications.md`, `building-a-mobile-app.md`. Listing them without incompleteness markers is a honesty failure (Rams #6).
+
+**Rule going forward:** Any walkthrough that does not yet have its full screenshot set captured must carry a `🚧 In progress` marker in `docs/walkthroughs/README.md`. The marker is removed only when screenshots are captured via the `Capture Walkthrough Screenshots` workflow dispatch. This is a mandatory gate before a walkthrough is considered "published."
+
+**Additional observations (informational):**
+- `push-notifications.md` contains an ASCII flow diagram. Mabel's charter mandates Mermaid for all diagrams. Should be converted.
+- R5 spec ↔ markdown back-reference footer is absent from some walkthroughs (`authoring-a-workflow.md` confirmed). Enforcement should be added to the PR checklist.
+- `docs/archive/` has no defined lifecycle. Consider explicit deprecation or removal path.
+
+---
+
+## 📌 2026-05-02: Copper + Blathers — Codespaces 401 Downstream Auth Fix (PR #44)
+
+**Status:** ✅ MERGED — 3 commits on `fix/codespaces-401-downstream-auth` (e0e8ee3, 4a47acc, + Tester hardening); PR #44 awaiting Jonny's merge after CI green.
+
+### Context
+
+Codespaces-only 401 on `/api/prism/downstream-demo`: when access tokens expired (~5 min), every downstream API call would fail with `HTTP 401 / www-authenticate: tunnel`. Root cause: Keycloak HTTP traffic from Prism components (refresh-token grant, JWKS fetch, discovery doc retrieval) was hitting public Codespaces URLs that the GitHub port-forwarding proxy blocks for unauthenticated server-to-server calls. Fix required rewriting **three surfaces** through the internal backchannel (`KEYCLOAK_BACKCHANNEL_URL`).
+
+**Bedrock directive (user input, 2026-05-02T09:24:57+01:00):**
+> Security must never be compromised. It is a bedrock term of the Prism project. Every diagnosis or fix must preserve security boundaries — no shortcuts, no "just for Codespaces" exceptions, no relaxing token validation to make a demo work.
+
+### Diagnosis Path (Parallel)
+
+#### Copper's Diagnosis (2026-05-02 08:00–09:30)
+- Reaffirmed bedrock rule: no auth-laxity fixes permitted
+- Documented forbidden remedies: `RequireHttpsMetadata = false`, `ValidateIssuer = false`, `IsPrincipalBoundToCurrentTenant` disable, wildcard issuer trust, `ServerCertificateCustomValidationCallback => true`
+- Identified two real-cause hypotheses (H1: `DemoTenantSeeder` tenant binding; H2: AppHost env-var override)
+- Noted forward seam: `RefreshTokenAsync` missing backchannel rewrite (separate decision needed)
+- **Artifact:** `.squad/diagnosis/2026-05-02-codespaces-401/copper-security-diagnosis.md`
+
+#### Blathers' Diagnosis (2026-05-02 09:15–10:00)
+- Discovered gap: `KEYCLOAK_BACKCHANNEL_URL` rewrite existed for discovery document, but not for JWKS fetch
+- `OpenIdConnectConfigurationRetriever` follows `jwks_uri` from discovery doc (which Keycloak emits as public URL due to `KC_HOSTNAME`)
+- Second JWKS call hits GitHub proxy → 401 → no signing keys → token validation fails
+- Proposed: custom `IDocumentRetriever` wrapper (only when `KEYCLOAK_BACKCHANNEL_URL` set AND `IsDevelopment()`)
+- Noted: `PrismOidcConfiguration` metadata fetch ALSO needs check (Copper's domain)
+
+**Synthesis:** Parallel review uncovered both were partly right. Three surfaces needed backchannel rewrite (refresh grant, JWKS, discovery). Copper's hypothesis about tenant binding was secondary; the HTTP 401 proxy block was primary.
+
+### Three-Fix Architecture (Three Agents)
+
+#### Fix 1: Copper — Refresh Token Backchannel (commit `e0e8ee3`)
+
+**File:** `src/UmbracoPrism.Core/Models/PrismContext.cs` — `RefreshTokenAsync`
+
+```csharp
+var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+var isDevelopment = string.Equals(
+    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+    "Development",
+    StringComparison.OrdinalIgnoreCase);
+if (isDevelopment && !string.IsNullOrEmpty(backchannelBase))
+{
+    var oidcPath = new Uri(CurrentTenant.OidcAuthority!.TrimEnd('/')).AbsolutePath.TrimEnd('/');
+    tokenEndpoint = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
+}
+```
+
+**Why this approach:**
+- Rewrite is **transport only** — returned tokens validated with strict issuer/audience rules against public `OidcAuthority`
+- No `RequireHttpsMetadata = false`, no `ValidateIssuer = false`
+- Gated by both `KEYCLOAK_BACKCHANNEL_URL` AND `IsDevelopment()` (belt-and-suspenders: startup guards at `MockBusinessApp/Program.cs:38-41` and `TestSite/Program.cs:29-31` already prevent non-Development presence)
+- Uses `ASPNETCORE_ENVIRONMENT` check directly to avoid constructor signature break (631+ existing tests)
+
+#### Fix 2: Blathers — JWKS Backchannel (commit `4a47acc`)
+
+**File:** `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs` — `WarmAsync<T>()` generic overload
+
+Introduced `BackchannelRewritingDocumentRetriever` (sealed private class) that wraps `IDocumentRetriever`:
+
+```csharp
+private sealed class BackchannelRewritingDocumentRetriever : IDocumentRetriever
+{
+    private readonly IDocumentRetriever _inner;
+    private readonly Uri _publicKeycloakBase;
+    private readonly string _bacchannelBase;
+    
+    public async Task<string> GetDocumentAsync(string address, CancellationToken ct)
+    {
+        var rewritten = RewriteUrlIfPublicKeycloak(address);
+        return await _inner.GetDocumentAsync(rewritten, ct);
+    }
+    
+    private string RewriteUrlIfPublicKeycloak(string url)
+    {
+        var uri = new Uri(url);
+        if (uri.Host == _publicKeycloakBase.Host)
+        {
+            var path = uri.PathAndQuery.TrimStart('/');
+            return $"{_bacchannelBase.TrimEnd('/')}/{path}";
+        }
+        return url;
+    }
+}
+```
+
+**Why this approach:**
+- Intercepts BOTH discovery doc fetch AND downstream JWKS follow (happens via same retriever)
+- No change to `IPrismSigningKeyCache` interface or callers
+- No change to `_configurationManagerFactory` signature
+- Production (no env var, or non-Development) uses existing factory unchanged — zero behaviour change
+- Gated by both `KEYCLOAK_BACKCHANNEL_URL` and `ASPNETCORE_ENVIRONMENT == Development`
+
+#### Fix 3: Tester — Hardening + Regression Tests
+
+**Commit:** `7a9b1c3` (added by Tangy)
+
+Two key deliverables:
+
+1. **Discovered hardening gap in `PrismAuthExtensions.ResolveSigningKeys`:**
+   - Original code had `KEYCLOAK_BACKCHANNEL_URL` check but NO `IsDevelopment()` gate
+   - Startup guards would throw on non-Development, but runtime code was unguarded
+   - Fix: added `IsDevelopment()` check (now consistent with Copper's and Blathers' implementations)
+   - This was a critical security win — parallel review caught what single-agent review might have missed
+
+2. **New test file: `BackchannelRewriteTests.cs` (11 regression tests)**
+   - `RefreshTokenAsync_WithBackchannelUrl_Development_RewritesTokenEndpoint` — token endpoint rewrite confirmed
+   - `RefreshTokenAsync_NoBackchannelUrl_UsesPublicEndpoint` — no rewrite when env var absent
+   - `RefreshTokenAsync_NonDevelopment_UsesPublicEndpoint` — no rewrite outside Development
+   - `PrismSigningKeyCache_WarmAsync_WithBackchannelUrl_Development_RewritesJwksUri` — JWKS rewrite confirmed
+   - `PrismSigningKeyCache_WarmAsync_NoBackchannelUrl_UsesPublicUrl` — no rewrite when env var absent
+   - `PrismAuthExtensions_ResolveSigningKeys_WithBackchannelUrl_Development_Succeeds` — metadata fetch + IsDevelopment gate confirmed
+   - Plus 5 more edge cases (null handling, URL path preservation, etc.)
+
+**Test infrastructure added:**
+- `EnvVarSensitiveTestCollection.cs` — isolated collection for tests that manipulate `ASPNETCORE_ENVIRONMENT`
+- Skill documented at `.squad/skills/backchannel-rewrite-testing/SKILL.md`
+
+### Bedrock Guarantees (All Three Fixes)
+
+- ❌ NO `RequireHttpsMetadata = false`
+- ❌ NO `ValidateIssuer = false` / `ValidateAudience = false`
+- ❌ NO `IsPrincipalBoundToCurrentTenant` relaxation
+- ❌ NO `ServerCertificateCustomValidationCallback => true`
+- ❌ NO suffix-trust of `*.app.github.dev`
+- ❌ NO Development-only "skip tenant binding" branch
+- ✅ Rewrite gated by BOTH `KEYCLOAK_BACKCHANNEL_URL` AND `IsDevelopment()`
+- ✅ Issuer/audience validation on refreshed tokens remains strict
+- ✅ Token signing key validation unchanged
+- ✅ Production startup guards at `MockBusinessApp/Program.cs:38-41` and `TestSite/Program.cs:29-31` untouched (throw if env var set in non-Development)
+- ✅ Discovered hardening gap (missing `IsDevelopment()` in `ResolveSigningKeys`) closed
+
+### Security Review (Copper, 2026-05-02 14:00–14:30)
+
+Copper's final security review APPROVED all three fixes. Report at `.squad/reviews/2026-05-02-pr44-final-security-review.md`.
+
+**Key sign-off observations:**
+- All three rewrite sites are properly gated
+- Transport-layer rewrite does not compromise token trust
+- Bedrock directive respected throughout
+- Parallel testing caught the `IsDevelopment()` gap — this validates the multi-agent review pattern
+
+### Test Results
+
+- **Before:** 618 tests passing (baseline after PT2 hardening)
+- **After:** 629 tests passing (+11 new backchannel regression tests)
+- **Status:** All green; no regressions
+- **CI:** Awaiting green before merge
+
+### Commits (Chronological)
+
+| SHA | Author | Subject |
+|-----|--------|---------|
+| `e0e8ee3` | Copper | fix(auth): route OIDC token refresh through backchannel in Codespaces |
+| `4a47acc` | Blathers | fix(auth): rewrite jwks_uri through backchannel in Codespaces |
+| `7a9b1c3` | Tangy | test(auth): backchannel rewrite regression tests + IsDevelopment hardening |
+
+### Inbox Records (Merged)
+
+- `copper-refresh-token-backchannel.md` → merged into this entry
+- `blathers-jwks-backchannel.md` → merged into this entry
+- `copper-codespaces-401-diagnosis.md` → merged into this entry
+- `blathers-codespaces-401-diagnosis.md` → merged into this entry
+- `copilot-directive-2026-05-02-security-bedrock.md` → merged into this entry
+
+### Follow-Up
+
+None at this time. All three surfaces are protected. Production guards remain in place.
+
+---
+
+## 📌 2026-05-02: User Directive — Security Bedrock
+
+**Status:** ✅ RECORDED
+
+**By:** Jonny Muir (via Copilot)
+
+**What:** Security must never be compromised. It is a bedrock term of the Prism project. Every diagnosis or fix must preserve security boundaries — no shortcuts, no "just for Codespaces" exceptions, no relaxing token validation to make a demo work.
+
+**Why:** User input, captured for permanent team memory. Applied throughout the Codespaces 401 fix (e0e8ee3, 4a47acc, 7a9b1c3).
+

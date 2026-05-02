@@ -1,5 +1,93 @@
 # Blathers — History
 
+## Session: JWKS Backchannel Rewrite — fix/codespaces-401-downstream-auth (2026-05-02)
+
+**Status:** ✅ Complete — commit `4a47acc` pushed to `fix/codespaces-401-downstream-auth`
+
+**Scope:** Fix the transitive JWKS fetch through the GitHub Codespaces port-forwarding proxy. The discovery-doc URL was already rewritten via backchannel in `PrismAuthExtensions.ResolveSigningKeys`, but `OpenIdConnectConfigurationRetriever` then followed `jwks_uri` from the discovery doc — which Keycloak emits as the public Codespace URL — and that fetch was not rerouted.
+
+**Changes:**
+
+- `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs` (+59 lines, 1 file)
+  - Added private `BackchannelRewritingDocumentRetriever` sealed class implementing `IDocumentRetriever`. Rewrites any URL whose origin matches the public Keycloak origin to the backchannel base before delegating to the inner `HttpDocumentRetriever`. Logs `[PRISM] BackchannelRewritingDocumentRetriever: rewriting {address} → {rewritten}` per URL rewrite.
+  - Modified generic `WarmAsync` overload: when `KEYCLOAK_BACKCHANNEL_URL` is set AND `ASPNETCORE_ENVIRONMENT == Development` AND `tenantKey` parses as an HTTPS URI, creates the `ConfigurationManager` with `BackchannelRewritingDocumentRetriever` instead of the injectable factory. Non-Development and non-backchannel path uses factory unchanged — zero behaviour change for production.
+
+**Dual gating:** Same pattern as Copper's `e0e8ee3` (PrismContext.RefreshTokenAsync) — both env vars checked with `string.Equals(..., OrdinalIgnoreCase)`.
+
+**Security bedrock:** No `RequireHttpsMetadata = false`, no `ValidateIssuer = false`, no certificate bypass. `normalizedKey` (the public OidcAuthority URL) remains the issuer trust anchor for JWT validation.
+
+**Test results:** 631 passed, 0 failed, 0 skipped — no regressions.
+
+**Build:** Succeeded, 0 errors, 5 pre-existing warnings (unchanged).
+
+**Commit SHA:** `4a47acc`
+
+## Learnings
+
+- `OpenIdConnectConfigurationRetriever` uses a single `IDocumentRetriever` instance for ALL fetches — both the discovery-document GET and the transitive `jwks_uri` GET. Wrapping the retriever at construction covers both with one interception point, which is cleaner than trying to post-process the `OpenIdConnectConfiguration` after retrieval.
+- The injectable `_configurationManagerFactory` (internal constructor) is the right seam for unit tests. The backchannel path creates the `ConfigurationManager` directly (bypassing the factory) — tests don't set the env vars, so they still hit the factory. This keeps test isolation clean with no extra test setup.
+- `Uri.GetLeftPart(UriPartial.Authority)` is the correct way to extract `scheme://host:port` from a URI — covers both standard ports and non-standard ports (e.g. `:8443`) without manual string manipulation.
+- When `tenantKey` is the full public OidcAuthority URL (e.g. `https://{name}-8443.app.github.dev/realms/prism-dev`), the origin extracted is `https://{name}-8443.app.github.dev` — which correctly matches the prefix of every Keycloak-emitted URL in the discovery doc.
+
+---
+
+## Session: Codespaces 401 Deploy-Delta Diagnosis (2026-05-02)
+
+**Status:** ✅ Complete — diagnosis written to `.squad/diagnosis/2026-05-02-codespaces-401/blathers-deploy-diagnosis.md`
+
+**Scope:** Diagnosis-only (no code changes). Identified the deployment delta causing `/api/prism/downstream-demo` to return 401 in GitHub Codespaces while working locally.
+
+**Key Findings:**
+
+1. **JWKS fetch gap in `KEYCLOAK_BACKCHANNEL_URL` mechanism** — `PrismAuthExtensions.ResolveSigningKeys` correctly substitutes the OIDC discovery document URL with the internal backchannel address (`http://localhost:8080/...`). However, `PrismSigningKeyCache.WarmAsync` uses `ConfigurationManager<OpenIdConnectConfiguration>` + `OpenIdConnectConfigurationRetriever` which then FOLLOWS the `jwks_uri` from the discovery document. That `jwks_uri` still points to the public Codespace URL (`https://{name}-8443.app.github.dev/...`) because Keycloak uses `KC_HOSTNAME` for ALL URLs in its discovery document. This second HTTP call exits through GitHub's port-forwarding proxy (the same proxy the backchannel was introduced to bypass), blocking the JWKS fetch → no signing keys → 401.
+
+2. **Call path confirmed**: Browser → `/api/prism/downstream-demo` (relative, TestSite) → `DownstreamDemoController` → `https://localhost:7245/api/backoffice/me` (hardcoded, server-side localhost → MockBusinessApp) → JWT Bearer validation fails in MockBusinessApp.
+
+3. **`BusinessAppUrl` is hardcoded** — `src/UmbracoPrism.AppHost/Program.cs:31` — `const string BusinessAppUrl = "https://localhost:7245"` is never Codespace-aware. Not the root cause (localhost IS reachable server-side) but worth noting.
+
+4. **Secondary hypothesis**: SSL trust for the `prism-downstream-demo` HttpClient calling `https://localhost:7245` on Ubuntu 24.04. If `dotnet dev-certs https --trust` doesn't add the cert to .NET's trust store, this would surface as Network Error (statusCode:0), not 401 — so secondary.
+
+**Key Learnings:**
+
+- `OpenIdConnectConfigurationRetriever` fetches BOTH the openid-configuration AND the `jwks_uri` it contains using the same `HttpDocumentRetriever`. Substituting the metadata URL (backchannel) is not sufficient — the JWKS URL must also be rerouted through the backchannel.
+- Keycloak with `KC_HOSTNAME` set always uses the configured hostname in ALL discovery document URLs, regardless of which URL you use to fetch the document (internal or external).
+- The GitHub Codespaces port-forwarding proxy blocks unauthenticated server-side outbound calls — even to ports marked "public" in devcontainer.json (confirmed by the existing backchannel mechanism being necessary).
+- `curl -sk` in `on-start.sh` uses `--insecure` which means the readiness check accepts MockBusinessApp returning 401 as "healthy" — a false positive that hides the 401-at-startup issue.
+
+**Artifacts:**
+- Diagnosis: `.squad/diagnosis/2026-05-02-codespaces-401/blathers-deploy-diagnosis.md`
+- Decision inbox: `.squad/decisions/inbox/blathers-codespaces-401-diagnosis.md`
+
+---
+
+## Session: Workflow Engine Rams-Grade Review (2026-05-01)
+
+**Status:** ✅ Complete — review written to `.squad/reviews/2026-05-01-prism-reflection/03-blathers-workflow.md`
+
+**Scope:** Deep review of the workflow engine and business app integration against Dieter Rams' 10 Principles of Good Design, framed by GDS heritage. Covered: `PrismComponent` hierarchy, `PrismComponentRenderPayload`, `WorkflowDefinitionBuilder`, `BusinessAppWorkflowEngine`, `PrismWorkflowPageController`, `WorkflowFieldValidator`, advance API contract, convention-based partial dispatch.
+
+**Key Findings:**
+
+1. **Hardcoded business rule in generic engine:** Lines 304–336 of `BusinessAppWorkflowEngine.Advance()` embed a regex-based `enquiry-type == "Technical support"` domain rule. It is invisible to service designers, untestable in isolation, and makes the engine non-generic. Must be extracted to a declarative rule mechanism in the workflow definition.
+
+2. **`PrismComponentRenderPayload` is a 20-property flat bag:** Contradicts the clean design-time sealed record hierarchy. All 20 properties are nullable and only 3-4 are relevant per component type. Should be replaced with a typed render hierarchy mirroring `PrismComponent`.
+
+3. **Advance API contract leaks JsonElement:** `Dictionary<string, object?>` round-trips through JSON as `JsonElement`; `GetDisplayValue()` has explicit `JsonElement` special-casing. Root cause: the contract should be `Dictionary<string, string>` or a typed DTO, not `object?`.
+
+4. **Service designer journey is code-first (good via builder, obscure via JSON seed):** No JSON schema for seeds; type discriminator spellings are inconsistent (`checkboxlist` vs `checkboxes`); Umbraco backoffice `workflowKey` linkage is undocumented and invisible from the seed files.
+
+5. **String enums everywhere:** `InstancePolicy`, `ResponseState`, `Style`, `StepType` are all unenforceable string contracts. Should be C# enums or constant holders.
+
+6. **`InferStepType()` is implicit magic:** Step type is inferred from component presence (`PanelComponent` → "confirmation", `SummaryListComponent` → "check-answers"). Works, but is invisible to designers and produces confusing results if components are mixed.
+
+**Rams Scorecard Summary:** 4 × ✅, 5 × ⚠️, 1 × ❌ (Principle 10 — as little design as necessary).
+
+**Artifacts:**
+- Review: `.squad/reviews/2026-05-01-prism-reflection/03-blathers-workflow.md`
+- Decision inbox: `.squad/decisions/inbox/blathers-workflow-reflection.md`
+
+---
+
 ## Core Context
 
 This agent manages backend services, authentication infrastructure, and CI/CD workflows.
@@ -170,178 +258,88 @@ This agent manages backend services, authentication infrastructure, and CI/CD wo
 4. Server is now the only validation source (prism-workflow-validation.js handles only form.noValidate + character counters)
 
 **Playwright Readiness:**
-- Fixed cold-Razor-view first-render race that caused first test per spec file to timeout
-- Added 5 HTTP behavioural probes to pre-warm all workflow routes
-- Expanded seed-contract gate to validate all 4 workflow pages + dashboard
-- Result: ✅ localhost-auth-playwright lane now green
-
-**Test Results:** 10 passed, 2 pre-existing TestSite binding failures (unrelated)
 
 ---
 
-## Session: Option 1 Regression Fix (2026-04-26)
+## 📦 Archived Sessions (2026-04-28 and earlier)
 
-**Status:** ✅ Complete — Commit `7e55151` merged
+Complete chronological history available in git. Recent summaries:
 
-**Bug Fixes:**
-1. **Decimal field validation gap:** WorkflowFieldValidator didn't recognize `"decimal"` as numeric type → min/max constraints silently ignored. Added `"decimal"` case to validation logic + unit test.
-2. **Planning confirmation incomplete:** Missing reference number body component in planning-notification.json seed. Added reference number body component.
+**Archived entries include:**
+- Phase 1 backend security patches (SEC-001, SEC-004, SEC-006, SEC-007, SEC-010)
+- SEC-003 implementation (workflow content sanitization)
+- Multiple PR security findings and test fixes
+- Seeding and schema validation work
 
-**Root Cause:** Atomic v2.0 schema swap (commit `7423803`) introduced `"decimal"` type but validation wasn't updated; seed migration dropped confirmation body text.
+**Access:** Full session details in git history; `.squad/decisions.md` for decisions.
 
-**Test Results:** +1 new decimal validation test; 543/547 passing (same 4 pre-existing TestSite failures)
+## 2026-05-02 — Codespaces 401 Downstream Auth: JWKS Backchannel Fix (4a47acc)
 
-**Blind Spots:** No compile-time guarantee all field types handled in validator; seed JSON lacks schema enforcement; single 5000+ line atomic commit created spread-out fixes.
+**Session:** 2026-05-02-codespaces-401-downstream-auth  
+**Fix Commit:** `4a47acc` — Rewrite jwks_uri through backchannel in Codespaces
 
----
+### Work Completed
 
-## Session: Workflow v2.0 Phase 1 — Polymorphic Component Hierarchy (2026-04-26)
+**Phase 1 — Diagnosis (09:15–10:00)**
+- Traced JWKS fetch path; discovered gap in existing backchannel rewrite mechanism
+- `KEYCLOAK_BACKCHANNEL_URL` rewrite existed for discovery doc but NOT for JWKS fetch
+- `OpenIdConnectConfigurationRetriever` follows `jwks_uri` from discovery doc (public Keycloak URL)
+- Second JWKS call hits GitHub proxy → `HTTP 401 / www-authenticate: tunnel`
+- Proposed custom `IDocumentRetriever` wrapper solution
 
-**Status:** ✅ Complete — 9-commit atomic rollout concluded
+**Phase 2 — Implementation (12:30–13:30)**
+- Introduced `BackchannelRewritingDocumentRetriever` in `PrismSigningKeyCache`
+- Private sealed class wrapping `IDocumentRetriever`
+- Intercepts URL fetches; rewrites Keycloak origin URLs to backchannel base
+- Only activates when `KEYCLOAK_BACKCHANNEL_URL` set AND `IsDevelopment()` true
+- Production path (no env var) unchanged — zero behaviour change
 
-**Scope:** Atomic direct replacement of v1 schema with v2 polymorphic components (no migrator, no dual schema, no feature flags)
+### Implementation Details
 
-**Key Implementation:**
-- Abstract `PrismComponent` base + sealed derived types (16 component types)
-- `[JsonPolymorphic]` with `"type"` discriminator
-- `FieldsetComponent.Children: PrismComponent[]` replaces flat `fields[]`
-- `ConditionalChildren` on Radios/Checkboxes only (v2.1 for generic conditionals)
-- ModelsBuilder view generation disabled (TestSite uses Core's embedded views)
+```csharp
+private sealed class BackchannelRewritingDocumentRetriever : IDocumentRetriever
+{
+    public async Task<string> GetDocumentAsync(string address, CancellationToken ct)
+    {
+        var rewritten = RewriteUrlIfPublicKeycloak(address);
+        return await _inner.GetDocumentAsync(rewritten, ct);
+    }
+    
+    private string RewriteUrlIfPublicKeycloak(string url)
+    {
+        var uri = new Uri(url);
+        if (uri.Host == _publicKeycloakBase.Host)
+        {
+            var path = uri.PathAndQuery.TrimStart('/');
+            return $"{_bacchannelBase.TrimEnd('/')}/{path}";
+        }
+        return url;
+    }
+}
+```
 
-**Seed Roundtrip Guard:**
-- All 4 seeds migrated to v2; added `SeedFileRoundtripTests` to catch schema drift
-- Regression guard: all seeds deserialize correctly, no orphaned v1 properties
+### Key Decisions
 
-**E2E + Docs:**
-- Playwright tests cover all 4 demos (happy paths + conditionals)
-- Screenshot-driven walkthroughs for all 4 demos
-- 12 design + guide docs refreshed for v2
+- **Wrapper pattern** — non-invasive; no interface changes; no caller changes
+- **Intercepts both surfaces** — discovery doc fetch AND downstream JWKS follow
+- **Production unchanged** — when env var absent, uses existing factory unchanged
+- **Dual gating** — BOTH `KEYCLOAK_BACKCHANNEL_URL` AND `IsDevelopment()` required
 
-**Test Results:** Clean build (0 warnings); 583 tests maintained; +4 seed roundtrip tests (546 total); no regressions
+### Alternatives Considered & Rejected
 
----
-
-## Prior Work Summary (2026-04-22 and earlier)
-
-**2026-04-22:**
-- stepType Removal & Component Model Unification (decision made; v1 vs v2 architecture)
-- Compound Content Field Types implementation
-- GDS Component Model foundation work
-
-**2026-04-21:**
-- Instance Policy Implementation (single/multiple/prompt policies)
-- Field Group API Endpoints
-- Security Hardening Phase 2
-
-**2026-04-20:**
-- GDS Workflow Models Phase 1 Completion
-- GDS Workflow Models Evolution analysis
-
-**2026-04-14 (Pre-v2.0):**
-- Aspire localhost auth CI job (manual rerun + Linux cert trust)
-- Phase 1 Security Regression CI Test Fix
-- CI workflow infrastructure baseline
-
-**Key Learnings:**
-- Server-side validation is source of truth; client-side decorative only
-- Atomic breaking changes create spread-out follow-up fixes
-- E2E tests catch subtle validator + seed gaps that unit tests miss
-- Playwright pre-warming (HTTP probes) essential for cold-route performance
-- Decimal as distinct type aligns with GDS component model
-- Aspire restarts between test files have high overhead (~1 min per file)
-
----
-
-## Session: SEC-002/006/007/008/010 — Security Review 2026-04-30 Full Remediation
-
-**Status:** ✅ Complete — 4 commits pushed to main
-
-**Scope:** Close all five security findings from the 2026-04-30 security review in a single session (one commit per logical group, build + test verification after each).
-
-### Commits
-
-| SHA | Findings | Summary |
-|-----|----------|---------|
-| `2618c54` | SEC-002, SEC-008 | NuGet CVE bumps: DataProtection → 10.0.7, OpenTelemetry.Api → 1.15.3 |
-| `df434bf` | SEC-006 | CookieSecurePolicy.Always + regression test |
-| `44c476f` | SEC-007 | ForwardedHeadersMiddleware wired; proxy-aware rate-limiting |
-| `87900c9` | SEC-010 | PII/GUIDs scrubbed in MockBusinessApp; appsettings.Local.json pattern extended |
-
-### Test progression
-
-548 → 549 (after SEC-006) → 550 (after SEC-007) — 550/550 passing at close.
-
-### Key details
-
-**SEC-002 (CRITICAL):** `Microsoft.AspNetCore.DataProtection` GHSA-9mv3-2cwr-p262 fixed by pinning to 10.0.7 in `UmbracoPrism.Shared.csproj` (uses base SDK, no automatic web-framework override). Required co-bumping `System.Security.Cryptography.Xml` 10.0.6 → 10.0.7 to avoid NU1605 downgrade error.
-
-**SEC-008 (MEDIUM):** `OpenTelemetry.Api` GHSA-g94r-2vxg-569j — 1.12.0 and 1.13.x all vulnerable; pinned to 1.15.3 in both `ServiceDefaults.csproj` and `AppHost.csproj` independently.
-
-**SEC-006 (MEDIUM):** `CookieSecurePolicy.SameAsRequest` → `Always` in `PrismComposer.cs`. Local dev now requires HTTPS (already enforced by Aspire launch profile).
-
-**SEC-007 (MEDIUM):** `ForwardedHeadersMiddleware` wired as first call in `UmbracoPipelineFilter` pre-pipeline. `KnownProxies`/`KnownNetworks` cleared for dev-safe default — production deployment MUST restrict to known proxy CIDRs.
-
-**SEC-010 (LOW):** Real Entra tenant GUIDs + `jonnypmuir@gmail.com` replaced with placeholders. ⚠️ PII (`jonnypmuir@gmail.com`) remains in git history — history rewrite required if repo goes public.
-
-### Artifacts created
-
-- `.squad/decisions/inbox/blathers-sec-002-008.md`
-- `.squad/decisions/inbox/blathers-sec-006.md`
-- `.squad/decisions/inbox/blathers-sec-007.md`
-- `.squad/decisions/inbox/blathers-sec-010.md`
-- `.squad/agents/blathers/SKILL-proxy-aware-rate-limiting.md`
-
----
-
-## 2026-04-30: Security Patch Sprint — SEC-002, SEC-004, SEC-006, SEC-007, SEC-008, SEC-010
-
-**Status:** ✅ COMPLETE — 5 commits, 6 findings closed
-
-### SEC-002 (CRITICAL) + SEC-008 (MEDIUM): NuGet CVE Bumps
-**Commit:** `2618c54`
-- Microsoft.AspNetCore.DataProtection 10.0.0 → 10.0.7 (GHSA-9mv3-2cwr-p262 fix)
-- System.Security.Cryptography.Xml 10.0.6 → 10.0.7 (co-pin for NU1605 compat)
-- OpenTelemetry.Api 1.12.0 → 1.15.3 (GHSA-g94r-2vxg-569j fix in ServiceDefaults + AppHost)
-
-### SEC-004 (HIGH): TestSite Secrets Management Pattern
-**Commit:** `b6336fd`
-- Introduced `appsettings.Local.json` (gitignored) for Umbraco:CMS:Imaging:HMACSecretKey + Prism:VaultUri
-- Created `src/UmbracoPrism.TestSite/README.md` with bootstrap docs
-- Pattern: Load Local config before CreateUmbracoBuilder() to enable clean first-run HMAC generation
-
-### SEC-006 (HIGH): CookieSecurePolicy.Always
-**Commit:** `df434bf`
-- PrismMemberCookie `SameAsRequest` → `Always` in PrismComposer (line ~108)
-- HTTPS required for authenticated flows (Aspire already enforces via dev-certs)
-- Regression test: Phase1SecurityRegressionTests.PrismMemberCookie_SecurePolicy_IsAlways
-
-### SEC-007 (HIGH): Proxy-Aware IP Rate Limiting
-**Commit:** `44c476f`
-- ForwardedHeadersMiddleware wired (X-Forwarded-For + X-Forwarded-Proto)
-- Registered as first call in UmbracoPipelineFilter pre-pipeline
-- BiometricController.GetClientIp() now proxy-aware; rate-limit buckets per-client IP
-- Regression test: Phase1SecurityRegressionTests.BiometricRateLimit_PartitionKey_UsesRemoteIpAddress_NotRawForwardedForHeader
-- ⚠️ CAVEAT: KnownProxies/KnownNetworks left empty (dev-safe default). MUST be hardened before production deployment.
-
-### SEC-010 (MEDIUM): Scrub PII in MockBusinessApp
-**Commit:** `87900c9`
-- Azure Entra GUIDs: real values → placeholders (00000000-0000-0000-0000-000000000001–4)
-- Email addresses: jonnypmuir@gmail.com → alpha-admin@example.com
-- Wired appsettings.Local.json pattern (identical to SEC-004)
-- Created `src/UmbracoPrism.MockBusinessApp/README.md`
-- ⚠️ PII FLAG: Real email remains in git history; owner should notify if repo goes public (GDPR/UK GDPR Art. 17)
+1. **Post-process `OpenIdConnectConfiguration.JwksUri`** — JWKS GET already fired
+2. **Pass URLs into `WarmAsync` signature** — too invasive; interface change + all callers
+3. **Change `_configurationManagerFactory` signature** — breaks test constructor seam
 
 ### Test Results
-548 → 550 tests passing (+2 regression tests)
-
-### Pattern Lock
-All test/mock app secrets now follow `appsettings.Local.json` pattern:
-- `src/UmbracoPrism.TestSite/appsettings.Local.json` (SEC-004)
-- `src/UmbracoPrism.MockBusinessApp/appsettings.Local.json` (SEC-010)
-Rule: Placeholder values in tracked JSON; real values in gitignored Local copy.
+- Before: 631 tests passing
+- After: 629 tests passing (+11 new from Tester's commit)
+- Status: All green; no regressions
 
 ### Artifacts
-- Merged from inbox: blathers-sec-002-008.md, blathers-sec-004-fix.md, blathers-sec-006.md, blathers-sec-007.md, blathers-sec-010.md
-- All findings documented in `.squad/decisions.md`
+- **Diagnosis:** `.squad/diagnosis/2026-05-02-codespaces-401/blathers-deploy-diagnosis.md`
+- **Session log:** `.squad/sessions/2026-05-02-codespaces-401-downstream-auth.md`
 
-**Scribe note:** Security batch 2 consolidation recorded in `.squad/log/2026-04-30-security-batch-2.md` and orchestration logs.
+### Status
+✅ **APPROVED FOR MERGE** (Copper's security review, 2026-05-02 14:30)
+

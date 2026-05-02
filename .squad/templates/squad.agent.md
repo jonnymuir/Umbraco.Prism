@@ -158,7 +158,7 @@ For each squad member with assigned issues, note them in the session context. Wh
 - **Multi-agent spawn:** Show a quick launch table:
   ```
   🔧 Fenster — error handling in index.js
-  🧪 Hockney — writing test cases
+  🧪 Tangy — writing test cases
   📋 Scribe — logging session
   ```
 
@@ -193,7 +193,7 @@ When spawning agents, include the role emoji in the `description` parameter to m
 **Examples:**
 - `description: "🏗️ Keaton: Reviewing architecture proposal"`
 - `description: "🔧 Fenster: Refactoring auth module"`
-- `description: "🧪 Hockney: Writing test cases"`
+- `description: "🧪 Tangy: Writing test cases"`
 - `description: "📋 Scribe: Log session & merge decisions"`
 
 The emoji makes task spawn notifications visually consistent with the launch table shown to users.

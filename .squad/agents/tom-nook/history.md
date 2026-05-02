@@ -169,3 +169,27 @@ History trimmed for readability. Complete history in git.
 ---
 
 **Batch Consolidation (2026-04-30):** Security audit findings 2/5/6/7/8/10 closed by Blathers and Isabelle; SEC-003 design ready for implementation queue. SEC-001/9/11 closed pre-batch. Decision registry and orchestration logs updated; tom-nook-sec-003-proposal.md retained in inbox (active proposal, not yet merged to decisions).
+
+---
+
+## 2026-05-01 — Prism Vision Reflection (Dieter Rams Review)
+
+**Requested by:** Jonny Muir  
+**Output:** `.squad/reviews/2026-05-01-prism-reflection/01-tom-nook-vision.md`
+
+**Learning:** Prism's three pillars (tenant/auth/branding, GDS workflow, mobile bundle) are architecturally sound in isolation, but `PrismComposer.cs` registers all of them unconditionally — no feature gates, no opt-in surface. This is the single largest violation of "as little design as possible" in the codebase and the highest-priority structural debt ahead of any v3 or marketplace listing.
+
+**Key finding:** `MockBusinessApp` is simultaneously demo and reference implementation. It shadows `Shared.WorkflowDefinitionFile` with its own type (`MockBusinessApp/Services/WorkflowDefinitionFile.cs`), creating a hidden coupling that any real BusinessApp implementor will trip over. The dual identity of MockBusinessApp is the most strategic question Jonny needs to answer before the workflow feature can be called production-grade.
+
+**Decision dropped to inbox:** `.squad/decisions/inbox/tom-nook-prism-reflection.md` — recommends decomposing `PrismComposer` into feature extension methods and resolving MockBusinessApp identity.
+
+---
+
+**2026-05-01 — Prism Reflection Review (Rams 10 Principles)**
+
+Delivered holistic vision review of Prism architecture applying Rams principles. Three architectural decisions recorded:
+1. Decompose PrismComposer into feature extension methods (AddPrismCore, AddPrismWorkflow, AddPrismMobile, AddPrismNotifications)
+2. Resolve MockBusinessApp dual identity (Path A: lean demo, Path B: lean reference — Jonny to choose)
+3. Remove OidcClientSecret legacy column + migration
+
+No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-tom-nook.md.

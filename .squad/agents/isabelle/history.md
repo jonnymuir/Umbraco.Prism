@@ -2,6 +2,34 @@
 
 ## 📋 Recent History
 
+---
+
+## Session: 2026-05-01 — Design System Rams Review
+
+**Role:** Frontend lead; deep audit of the Prism design system against Dieter Rams' 10 principles.
+
+**Output:** `.squad/reviews/2026-05-01-prism-reflection/02-isabelle-design-system.md`
+
+**Key findings:**
+- ITCSS is approximated but inverted: Settings layer (branding tokens) loads last, not first
+- GDS Frontend runs as an opaque minified blob with no `@layer` contract — cascade is correct by file order convention, not explicit declaration
+- `--prism-button-hover: #003078` is hardcoded GDS dark blue, not derived from `--prism-primary` — any brand colour change breaks hover state
+- `--bg-offset` token missing `--prism-` prefix; `--prism-nav-height` declared twice across two branding files; body declared in three separate files
+- GDS form typography not consumed by `--prism-font-body` token — workflow fields stay in GDS Transport regardless of font override
+- Branding middleware + metadata service + `@prism` annotations form a solid backend for per-tenant theming; the editor-facing UI to consume them is not yet visible
+- Storybook covers 5 backoffice/mobile web components; zero coverage for GDS components or PrismField partials — invisible to designers and editors
+- `prism-mobile-nav` Shadow DOM theming via CSS custom properties is correctly implemented and well-documented
+
+**Recommendations (prioritised):**
+1. Derive `--prism-button-hover` from `--prism-primary` using `color-mix()` (`prism-components.css:120`)
+2. Declare CSS cascade layers in `Master.cshtml` to make GDS/Prism boundary explicit
+3. Rename `--bg-offset` → `--prism-surface-page` and consolidate triplicated `body {}` declarations
+
+**Decisions:** `.squad/decisions/inbox/isabelle-design-system-reflection.md`
+**Skills:** `.squad/skills/css-custom-property-token-review/SKILL.md`
+
+**Status:** ✅ Complete.
+
 Previous history (pre-2026-04-22) archived to `.squad/agents/isabelle/archive/history-archive-2026-04-30.md` for traceability.
 
 ---
@@ -110,3 +138,16 @@ Previous history (pre-2026-04-22) archived to `.squad/agents/isabelle/archive/hi
 ---
 
 **Scribe note:** Isabelle's history summarized (archived pre-2026-04-22 content). Recent entries track SEC-005 closure, v2.0 e2e/walkthroughs, and component system migration. All closed findings documented in decisions.md and orchestration logs.
+
+---
+
+**2026-05-01 — Prism Reflection Review (Rams 10 Principles)**
+
+Delivered design system token architecture review applying Rams principles. Five design system findings recorded:
+1. --prism-button-hover must be derived from --prism-primary (not hardcoded)
+2. CSS cascade layers should be declared at HTML head entry point
+3. All branding tokens must carry --prism- prefix
+4. --prism-focus is accessibility token, not brand token
+5. Storybook must cover GDS components and PrismField partials
+
+No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-isabelle.md.

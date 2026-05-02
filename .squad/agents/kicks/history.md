@@ -150,3 +150,44 @@ Previous history archived to reduce file size. Recent entries below.
 
 **Files changed:**
 - `src/UmbracoPrism.Core/Services/MobileBundleService.cs` — `BuildBootstrapAndroidScript` method only
+
+
+---
+
+## 2026-05-01: Prism Reflection — Mobile Architecture Review
+
+**Task:** Deep Rams-grade review of the mobile story, commissioned by Jonny Muir.
+
+**Output:** `.squad/reviews/2026-05-01-prism-reflection/05-kicks-mobile.md`
+
+**Verdict:** Mobile is genuinely part of Prism. The thin-Capacitor-shell-over-web-workflow model is sound and the biometric stack is production-grade end-to-end. One critical honesty failure identified.
+
+**Key findings:**
+
+1. **The push bundle gap (❌ Rams #6):** `prism-create-tenant-modal.ts` sends `pushNotificationsEnabled` to `POST .../produce-mobile`. `PrismMobileBundleRequest.cs` has no such field. The backend silently discards it. `MobileBundleService.BuildBundleAsync` never scaffolds push code regardless of the operator's toggle choice. The UI lies.
+
+2. **Biometric UI tokens (⚠️ Rams #10):** `prism-biometric-register.ts` and `prism-biometric-settings.ts` use hardcoded hex colors and `--uui-color-*` tokens (Umbraco's backoffice design system) instead of `--prism-primary`. This breaks tenant branding at the enrollment screen — the highest-trust moment in the mobile UX.
+
+3. **Design system inheritance is opportunistic, not formal:** Mobile inherits branding via `PrismBrandingMiddleware` CSS injection — this works and is coherent. But there is no token contract file. The `⚠️ MOBILE BOUNDARY` comment in `prism-mobile-nav.ts` is not replicated in the biometric components.
+
+4. **What works today:** Biometric auth is fully wired (client + server). Bundle generation produces a deployable ZIP. Bootstrap scripts are platform-correct (Gradle 8.14 after June fix). `prism-mobile-nav` correctly consumes `--prism-primary`. Mobile workflow rendering reuses `PrismComponentRenderPayload` without modification — the WebView is the renderer.
+
+5. **Push backend is implemented:** `PrismNotificationController.cs` has all four push endpoints. The gap is purely in the bundle generator — not the backend.
+
+**Three prioritised improvements identified:**
+1. Wire `PushNotificationsEnabled` through `PrismMobileBundleRequest.cs` → `MobileBundleService.cs`
+2. Replace hardcoded hex in `prism-biometric-register.ts` + `prism-biometric-settings.ts` with `--prism-*` tokens
+3. Add post-download checklist panel in `prism-create-tenant-modal.ts`
+
+**Decisions inbox:** `.squad/decisions/inbox/kicks-mobile-reflection.md`
+
+---
+
+**2026-05-01 — Prism Reflection Review (Rams 10 Principles)**
+
+Delivered mobile coherence with design system review applying Rams principles. Three mobile findings recorded:
+1. Push bundle gap is a bug not gap (UI sends field, backend drops it silently)
+2. Mobile-facing components must use --prism-* tokens only, not --uui-* or hex
+3. Mobile architecture verdict confirmed: thin-shell model, no separate renderer
+
+No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-kicks.md.
