@@ -123,6 +123,26 @@ public class PrismContext(
             }
 
             tokenEndpoint = $"{CurrentTenant.OidcAuthority.TrimEnd('/')}/protocol/openid-connect/token";
+
+            // In Codespaces, the GitHub forwarded-port proxy blocks server-side HTTP calls to
+            // the public Keycloak URL (*.app.github.dev). When KEYCLOAK_BACKCHANNEL_URL is set
+            // AND the environment is Development, rewrite the token endpoint host to the internal
+            // backchannel URL before POSTing the refresh-token grant.
+            // Transport rewrite ONLY: issuer/audience validation on the returned tokens remains
+            // strict against the public OidcAuthority. Outside Development or when the env var
+            // is absent, this block is never entered — zero behaviour change for production.
+            var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+            var isDevelopment = string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
+            if (isDevelopment && !string.IsNullOrEmpty(backchannelBase))
+            {
+                var oidcPath = new Uri(CurrentTenant.OidcAuthority!.TrimEnd('/')).AbsolutePath.TrimEnd('/');
+                tokenEndpoint = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
+                Console.WriteLine($"[PRISM] RefreshTokenAsync: rewriting token endpoint to backchannel → {tokenEndpoint}");
+            }
+
             clientId = CurrentTenant.OidcClientId;
             clientSecret = await vault.ResolveSecretAsync(CurrentTenant.OidcClientSecretProvider, CurrentTenant.OidcClientSecretReference);
             scope = PrismOidcConfiguration.GetRefreshScope(CurrentTenant) ?? string.Empty;
