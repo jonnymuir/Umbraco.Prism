@@ -323,6 +323,108 @@ public class DashboardLocalEndpointsValidationTests
         root.GetProperty("logout").GetProperty("idTokenHintReady").GetBoolean().Should().BeFalse();
     }
 
+    [Fact]
+    public async Task DownstreamDemo_ReturnsError_WhenResponseIsHtml()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "<html><body>Connecting to the forwarded port...</body></html>",
+                    Encoding.UTF8,
+                    "text/html")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(0);
+        root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
+        root.GetProperty("body").GetString().Should().Contain(
+            "Expected JSON but received text/html",
+            because: "HTML responses from port-forwarding pages must be detected and surfaced as errors");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_DetectsCodespacesPortForwardingPage()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "<!DOCTYPE html><html><body><h1>Connecting to forwarded port...</h1></body></html>",
+                    Encoding.UTF8,
+                    "text/html")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(0);
+        root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
+        root.GetProperty("body").GetString().Should().Contain(
+            "HTML page",
+            because: "port-forwarding placeholder pages must be clearly identified");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_RejectsNonJsonContentType()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "Service temporarily unavailable",
+                    Encoding.UTF8,
+                    "text/plain")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(0);
+        root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
+        root.GetProperty("body").GetString().Should().Contain(
+            "Expected JSON but received text/plain",
+            because: "non-JSON responses must be detected as errors");
+    }
+
     private static DownstreamDemoController BuildController(
         HttpMessageHandler handler,
         IDictionary<string, string?> configValues,
