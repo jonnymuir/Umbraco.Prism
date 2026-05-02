@@ -130,12 +130,11 @@ if (testSitePublicUrl != null)
 if (codespaceName != null)
     testsite.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
 
-// In Codespaces, the GitHub forwarded-port proxy blocks server-side HTTP client calls to the
-// external BusinessApp URL and returns "Connecting to the forwarded port..." HTML instead of
-// forwarding to the actual service. Point downstream demo at BusinessApp's internal HTTPS
-// endpoint so server-to-server calls bypass the proxy.
-if (codespaceName != null)
-    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("https"));
+// NOTE: We do NOT set BUSINESSAPP_BACKCHANNEL_URL in Codespaces. Unlike Keycloak (a container
+// with explicit port mappings), BusinessApp is an Aspire project and businessApp.GetEndpoint("https")
+// returns a service discovery URL that doesn't resolve correctly from TestSite's plain HttpClient.
+// Server-side calls should use the public Codespaces URL (PrismBusinessApp__WorkflowApiBaseUrl)
+// which works reliably once GitHub's port forwarding is initialized.
 
 // BusinessApp also fetches Keycloak signing keys server-side for JWT Bearer validation.
 // Same backchannel fix: without this the external Keycloak URL is blocked by the

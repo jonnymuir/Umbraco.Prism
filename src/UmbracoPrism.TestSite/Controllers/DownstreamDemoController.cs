@@ -233,11 +233,11 @@ public class DownstreamDemoController(
         if (!string.IsNullOrWhiteSpace(url))
             return url;
 
-        // In Codespaces, BUSINESSAPP_BACKCHANNEL_URL points to the internal endpoint
-        // for server-to-server communication (bypasses GitHub port-forwarding proxy).
-        // Outside Codespaces, falls back to PrismBusinessApp:WorkflowApiBaseUrl.
-        var baseUrl = configuration["BUSINESSAPP_BACKCHANNEL_URL"]?.TrimEnd('/')
-            ?? configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        // Use the discovered BusinessApp URL for server-to-server calls.
+        // In Codespaces this is the public forwarded URL (e.g., https://{token}-7245.app.github.dev).
+        // There may be a brief startup delay while GitHub initializes port forwarding; the controller's
+        // content-type validation will detect HTML responses and provide a helpful error message.
+        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
             throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
 
