@@ -1,5 +1,57 @@
 # Blathers — History
 
+## Session: Codespaces URL Derivation Fix — fix/codespaces-url-derivation (2026-05-02)
+
+**Status:** ✅ Complete — PR opened as draft on `fix/codespaces-url-derivation`
+
+**Scope:** Stop all Codespaces public-URL derivation from using the legacy
+`{CODESPACE_NAME}-{port}.{domain}` string-concat pattern, which fails on the
+new regional URL scheme (`{opaque-token}-{port}.{region}.app.github.dev`).
+
+**Changes:**
+
+- `src/UmbracoPrism.AppHost/Program.cs` — Replace string-concat with
+  `gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl`
+  discovery via `System.Diagnostics.Process`. Falls back to legacy pattern with
+  a visible console warning if gh is unavailable or the lookup fails. Both
+  `keycloakProxyUrl` (port 8443) and `testSitePublicUrl` (port 44345) are
+  derived this way. Local dev (no CODESPACE_NAME) is unchanged.
+- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` — `BuildCodespaceTestSiteHostname()`
+  now reads `TESTSITE_PUBLIC_URL` first (set by AppHost via gh discovery) and
+  falls back to the legacy `{CODESPACE_NAME}-44345.{domain}` construction.
+  Codespace Keycloak authority now uses `keycloakBaseUrl` (from `KEYCLOAK_URL`,
+  already set correctly by AppHost) instead of the broken
+  `{codespaceName}-8443.{domain}` construct.
+- `src/UmbracoPrism.Core/Services/TenantService.cs` — Added lenient
+  `LIKE '%.app.github.dev'` fallback in `GetByDomainAsync` when no exact
+  hostname match exists for a `.app.github.dev` request. Security gate
+  (`IsRepoOwnedLocalDemoTenant`) unchanged and downstream.
+- `src/UmbracoPrism.TestSite/Program.cs` — Updated comments to document the
+  two-path derivation (TESTSITE_PUBLIC_URL preferred; inbound host as fallback).
+- `.devcontainer/on-start.sh` — Added `get_codespace_url()` function using
+  `gh codespace ports` with `jq`/`python3` fallback. All printed Codespace URLs
+  now use the helper instead of string-concat.
+- `src/UmbracoPrism.Core.Tests/BackchannelRewriteTests.cs` — Added Group D:
+  two tests proving `BackchannelRewritingDocumentRetriever` and issuer validation
+  work correctly with the new `v7ldkc4c-8443.uks1.app.github.dev` URL form.
+- `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs` — Added
+  `[Theory]` over both legacy and regional Codespaces hostname forms for
+  `IsRepoOwnedLocalDemoTenant`, and a False-case test for non-.app.github.dev.
+- `src/UmbracoPrism.Core.Tests/PrismAuthExtensionsSecurityTests.cs` — Added
+  `[Collection(EnvVarSensitiveTestCollection.Name)]` to prevent parallel
+  env-var races introduced by the new Group D tests.
+
+**Security bedrock:** All PR #44 invariants preserved. No `RequireHttpsMetadata = false`,
+no `ValidateIssuer = false`. The tenant lenient lookup uses `*.app.github.dev` only for
+tenant *lookup*, never for security validation — `IsRepoOwnedLocalDemoTenant` remains
+the downstream gate.
+
+**Test results:** 647 passed, 0 failed, 0 skipped.
+
+**Build:** Succeeded, 0 errors, 5 pre-existing warnings (unchanged).
+
+---
+
 ## Session: JWKS Backchannel Rewrite — fix/codespaces-401-downstream-auth (2026-05-02)
 
 **Status:** ✅ Complete — commit `4a47acc` pushed to `fix/codespaces-401-downstream-auth`
@@ -28,6 +80,11 @@
 - The injectable `_configurationManagerFactory` (internal constructor) is the right seam for unit tests. The backchannel path creates the `ConfigurationManager` directly (bypassing the factory) — tests don't set the env vars, so they still hit the factory. This keeps test isolation clean with no extra test setup.
 - `Uri.GetLeftPart(UriPartial.Authority)` is the correct way to extract `scheme://host:port` from a URI — covers both standard ports and non-standard ports (e.g. `:8443`) without manual string manipulation.
 - When `tenantKey` is the full public OidcAuthority URL (e.g. `https://{name}-8443.app.github.dev/realms/prism-dev`), the origin extracted is `https://{name}-8443.app.github.dev` — which correctly matches the prefix of every Keycloak-emitted URL in the discovery doc.
+- `BackchannelRewritingDocumentRetriever` works unchanged with regional Codespaces URLs (`v7ldkc4c-8443.uks1.app.github.dev`): it operates on URI origins, not hostname patterns, so no scheme-specific code was needed.
+- When adding env-var-sensitive tests to `BackchannelRewriteTests` (in `EnvVarSensitiveTestCollection`), also add `[Collection(EnvVarSensitiveTestCollection.Name)]` to ANY other test class that reads those same env vars without setting them — otherwise parallel test runs can race on the env var window.
+- `gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl` is the authoritative URL source. The output is stable per-session and should be queried ONCE at AppHost startup, stored in variables, then threaded into child processes via Aspire env vars.
+- The Codespaces lenient tenant fallback (`LIKE '%.app.github.dev'`) in `TenantService.GetByDomainAsync` should be narrowly scoped to tenant *lookup*, never to security validation. `IsRepoOwnedLocalDemoTenant` remains the downstream security gate.
+- `TESTSITE_PUBLIC_URL` (env var set by AppHost) is the cleanest seam for passing the correct Codespace hostname to `DemoTenantSeeder` — avoids the seeder needing to run `gh` itself and keeps the discovery logic in one place (AppHost).
 
 ---
 
