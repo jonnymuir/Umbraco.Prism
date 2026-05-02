@@ -2,5 +2,12 @@
   // Limit background analysis to open files only.
   // Prevents the C# language server from running a full solution build in the background
   // which races with manual builds over the .dswa.cache.json lock file (intermittent MSB4018).
-  "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "openFiles"
+  "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "openFiles",
+
+  // Ensure CODESPACES.md opens in markdown preview by default (applied early in VS Code startup,
+  // before devcontainer customizations). This is especially important in Codespaces where the
+  // postAttachCommand may run before customizations.vscode.settings is fully applied.
+  "workbench.editorAssociations": {
+    "CODESPACES.md": "vscode.markdown.preview.editor"
+  }
 }

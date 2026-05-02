@@ -4,20 +4,26 @@
 
 ---
 
-## ⏳ What's happening right now?
+## ⏳ Be patient — the stack is starting
 
-The Aspire stack is starting in the background. This launches four services — **Keycloak** (identity), **MockBusinessApp** (workflow API), **TestSite** (the Umbraco site), and the **Aspire Dashboard** — all wired together automatically.
-
-**A browser tab will open automatically** on port 3000 with a live status page. Watch that tab — each service ticks from 🔄 to ✅ as it becomes ready.
-
-### How long will this take?
+The Aspire stack is launching in the background. Don't panic if things look quiet for a moment!
 
 | Scenario | Estimated time |
 |---|---|
 | **First time** (Codespace just created, packages being built) | ~5–8 minutes |
 | **Subsequent starts** (Codespace resumed, pre-built) | ~2–4 minutes |
 
+**You don't need to do anything** — just watch the status page (it opens automatically on port 3000). Each service will tick from 🔄 to ✅ as it becomes ready.
+
 Go make a brew. ☕
+
+---
+
+## What's happening right now?
+
+The Aspire stack launches four services — **Keycloak** (identity), **MockBusinessApp** (workflow API), **TestSite** (the Umbraco site), and the **Aspire Dashboard** — all wired together automatically.
+
+**A browser tab will open automatically** on port 3000 with a live status page. Watch that tab — each service ticks from 🔄 to ✅ as it becomes ready.
 
 ---
 
