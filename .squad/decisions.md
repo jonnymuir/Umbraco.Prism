@@ -1438,3 +1438,185 @@ None at this time. All three surfaces are protected. Production guards remain in
 
 **Why:** User input, captured for permanent team memory. Applied throughout the Codespaces 401 fix (e0e8ee3, 4a47acc, 7a9b1c3).
 
+
+---
+
+## 📌 2026-05-02: Blathers — Codespaces URL derivation implementation shipped
+
+**Status:** ✅ Shipped — PR `fix/codespaces-url-derivation` merged to main
+
+All Codespaces public-URL derivation sites now use `gh codespace ports` instead of the legacy `{CODESPACE_NAME}-{port}.{domain}` string-concat pattern. The fix covers:
+
+- **AppHost/Program.cs**: `TryDiscoverCodespaceUrls()` queries `gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl` via `System.Diagnostics.Process` at startup. Parses port 8443 → `keycloakProxyUrl`, port 44345 → `testSitePublicUrl`. Both are threaded into child services as env vars.
+- **DemoTenantSeeder.cs**: `BuildCodespaceTestSiteHostname()` reads `TESTSITE_PUBLIC_URL` first (set by AppHost), falling back to the legacy pattern. Keycloak authority now uses `KEYCLOAK_URL` (AppHost-sourced) rather than a reconstructed hostname.
+- **TenantService.cs**: Lenient `LIKE '%.app.github.dev'` fallback in `GetByDomainAsync` handles the case where the opaque forwarding token rotates between restarts.
+- **.devcontainer/on-start.sh**: `get_codespace_url()` function queries `gh codespace ports` and replaces all string-concat URL construction.
+
+**Fallback design:** When `gh` is unavailable, `Process.Start()` returns null or exits non-zero, or the JSON doesn't contain the expected port, the code falls back to the legacy `{CODESPACE_NAME}-{port}.{domain}` pattern with a console warning. This ensures non-Codespaces local dev environments continue to work.
+
+**Bedrock invariants preserved:**
+- `RequireHttpsMetadata = true`
+- `ValidateIssuer = true`, `ValidateAudience = true`, `ValidateIssuerSigningKey = true`
+- Backchannel rewrite gated on `KEYCLOAK_BACKCHANNEL_URL` + `IsDevelopment()`
+- No transport-derived identity
+- `*.app.github.dev` suffix used ONLY for tenant lookup, never for security validation
+
+**Tests:** 647 passed, 0 failed. New tests added: BackchannelRewriteTests Group D (2 tests for regional URL scheme regression), PrismOidcConfigurationTests (3 new tests for IsRepoOwnedLocalDemoTenant Theory), total +5 new tests.
+
+---
+
+## 📌 2026-05-02: Blathers — Codespaces URL derivation forms (decision proposal)
+
+**Status:** Proposed (completed in PR #45)
+
+GitHub Codespaces has rolled out a new port-forwarding URL scheme for some regions/codespaces: `{per-codespace-token}-{port}.{region}.app.github.dev` (e.g. `v7ldkc4c-3000.uks1.app.github.dev`). The leading token is opaque and not derivable from `CODESPACE_NAME`. The legacy form `{CODESPACE_NAME}-{port}.app.github.dev` is no longer universally produced.
+
+**Decision:** The codebase must stop assuming the legacy pattern. All Codespaces public-URL derivation sites must use:
+1. `gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl` queried at AppHost / on-start time and threaded into Aspire env vars, OR
+2. Trust the inbound request hostname and derive sibling-port URLs by swapping the port segment.
+
+Tenant resolution for the local demo Codespaces tenant must be lenient on hostname (any `*.app.github.dev` matching the local demo client) rather than seeded by one exact hostname.
+
+---
+
+## 📌 2026-05-02: Blathers — Inject X-Forwarded Headers on Backchannel Refresh Token Requests
+
+**Status:** ✅ Shipped — PR `fix/codespaces-invalid-grant-refresh`
+
+**Problem:** Keycloak 26 running with `--proxy-headers xforwarded` derives its canonical issuer URL scheme from the `X-Forwarded-Proto` header. The backchannel refresh POST to `http://localhost:8080` carried no forwarding headers, so Keycloak computed an `http://...` issuer. The stored refresh token's `iss` claim was `https://...` (set when the token was originally issued through YARP, which does forward headers). Keycloak's issuer comparison on the refresh token grant detected the scheme mismatch and returned `invalid_grant`.
+
+**Decision:** When the backchannel rewrite is active (`KEYCLOAK_BACKCHANNEL_URL` set + `ASPNETCORE_ENVIRONMENT=Development`), `PrismContext.RefreshTokenAsync` now derives `X-Forwarded-Proto` and `X-Forwarded-Host` from `OidcAuthority` (the public HTTPS URL) and passes them as optional `requestHeaders` to `IPrismTokenRefreshService.RefreshAsync`. `PrismTokenRefreshService` applies these headers to the `HttpRequestMessage` before sending.
+
+**Rationale:**
+- **Correctness:** The forwarding headers must come from `OidcAuthority` (HTTPS), not the backchannel base URL (HTTP), so Keycloak sees the same scheme and host it used when issuing the token.
+- **Security bedrock preserved:** `ValidIssuer` in Prism's JWT validation remains the public `OidcAuthority`. The headers only affect Keycloak's grant-time issuer computation; Prism's own token validation is unchanged.
+- **Minimal blast radius:** The new `requestHeaders` parameter is optional with a `null` default, so all non-backchannel paths (production, generic OIDC, Entra) are unaffected.
+
+**Tests:** 647 passed, 0 failed. New tests added in BackchannelRewriteTests Group E (3 new tests covering positive case, no-rewrite negative case, and critical "scheme must come from authority not backchannel" anti-regression).
+
+---
+
+## 📌 2026-05-02: Blathers — SEC-PT2-005 Backoffice Scheme Isolation Analysis
+
+**Status:** ✅ CONFIRMED SAFE — PR #43 `sec/pt2-backoffice-test`
+
+The concern that `DefaultAuthenticateScheme = PrismMemberCookie` made unconditional (commit `42b85e5`) might allow member cookies to grant access to backoffice routes is safe by design.
+
+**Auth scheme behaviour:** `PrismMemberCookie` and `UmbracoBackOffice` are separate ASP.NET Core auth schemes with separate handlers. Explicit named-scheme `[Authorize(AuthenticationSchemes = "UmbracoBackOffice")]` on backoffice controllers means Prism's `DefaultAuthenticateScheme` has no bearing on backoffice access control. The only theoretical leak is that `HttpContext.User` briefly becomes a member principal on backoffice routes when a member cookie is present, but this does not create an exploitable access path because Umbraco's backoffice middleware is scheme-aware and doesn't rely on `HttpContext.User` for access decisions.
+
+**Regression tests added:** `src/UmbracoPrism.Core.Tests/BackofficeSchemeIsolationTests.cs` with 4 tests: DefaultAuthenticateScheme unconditional guard, DefaultChallengeScheme completeness, scheme boundary documentation, isolation proof (UmbracoBackOffice auth fails even when PrismMemberCookie succeeds). Test count: 627 → 631 (+4).
+
+---
+
+## 📌 2026-05-02: Celeste — Marketplace README Strategy — Plain-Text Variant
+
+**Status:** ✅ IMPLEMENTED — Commit `b5588bb` on `fix/codespaces-url-derivation`
+
+**Problem:** The primary README.md uses decorative HTML blocks (`<div align="center">`, `<img>` tags) that render perfectly on GitHub. But the Umbraco Marketplace injects README content as plain text — HTML tags appear literally, breaking the listing appearance.
+
+**Decision: Dual-Markdown Strategy**
+- **Primary GitHub README.md:** Retains all HTML blocks, rich formatting, sidebar includes. Unchanged from current state.
+- **New MARKETPLACE.md:** Plain-text safe markdown variant. All HTML blocks replaced with markdown equivalents. Decorated `<div>` containers → explicit links and descriptions. `<img>` tags → markdown image syntax + links to full GitHub documentation. All relative links → absolute GitHub URLs.
+- **umbraco-marketplace.json Update:** DocumentationUrl updated to raw GitHub URL of MARKETPLACE.md.
+
+**Rationale:** Respects single-intent schema, preserves GitHub experience (README.md unchanged), marketplace-friendly (MARKETPLACE.md renders clean as markdown with zero HTML tag pollution), maintainable (two files kept in sync), self-documenting.
+
+**Validation:** `grep -n "<div\|<img\|<picture\|<details\|<h[123]>" MARKETPLACE.md` returns zero matches.
+
+---
+
+## 📌 2026-05-02: Copper — Security Review: PR #45 — Codespaces URL derivation fix
+
+**Reviewer:** Copper (Security Engineer)
+
+**Verdict:** ✅ APPROVED WITH NOTES
+
+All 7 bedrock invariants preserved. No new attack surface introduced. Two low-severity soft notes flagged for follow-up.
+
+**Bedrock Invariant Checklist:**
+1. ✅ RequireHttpsMetadata = true — PRESERVED. No change.
+2. ✅ ValidateIssuer / ValidateAudience / ValidateIssuerSigningKey all true — PRESERVED.
+3. ✅ Backchannel rewrite dual-gated (env var + IsDevelopment) — PRESERVED.
+4. ✅ Tenant resolution must NOT trust hostname suffix for security decisions — PRESERVED (with soft notes — see below).
+5. ✅ No new code path that derives identity, scopes, or auth from the request hostname — PRESERVED.
+6. ✅ `IsRepoOwnedLocalDemoTenant` semantics unchanged for non-Codespace traffic — PRESERVED.
+7. ✅ JWT issuer/audience strings come from configured authority, not request — PRESERVED.
+
+**Soft notes:**
+- **Soft note A:** The `LIKE '%.app.github.dev'` fallback query has no `ORDER BY`. If multiple `.app.github.dev` rows exist, the selected row is non-deterministic. Not exploitable (all such rows resolve to the same seeded Keycloak authority), but could cause mysterious authentication failures in dev. Recommend adding `ORDER BY Id DESC LIMIT 1` or a comment acknowledging non-determinism.
+- **Soft note B:** The LIKE fallback is not gated by `IsDevelopment()`. In production, no `.app.github.dev` tenant rows would exist, so not exploitable in practice. However, defense-in-depth would improve by adding an `IsDevelopment` guard in `TenantService` for this fallback path.
+
+**Test Results:** 647 passed, 0 failed.
+
+---
+
+## 📌 2026-05-02: Copper — PR #46 Security Verdict (`fix/codespaces-invalid-grant-refresh`)
+
+**Date:** 2026-05-02
+**Verdict:** ✅ **APPROVE**
+
+## Bedrock Invariants — All Pass
+
+1. ✅ **HTTPS metadata required** — `RequireHttpsMetadata` not touched; guarded by existing test.
+2. ✅ **Validation flags untouched** — `ValidateIssuer/Audience = true` at `PrismOidcConfiguration.cs:171-172, 184-185`; `ValidateLifetime = true` preserved; `ValidateIssuerSigningKey` defaults preserved.
+3. ✅ **Issuer/audience DB-sourced** — `validationParameters.ValidIssuer = tenant.OidcAuthority`; no request-derived fallback added.
+4. ✅ **Dual gating preserved** — `if (isDevelopment && !string.IsNullOrEmpty(backchannelBase))`; forwarding headers assigned only inside that branch; `backchannelForwardingHeaders` is `null` outside.
+5. ✅ **No transport-derived identity** — `X-Forwarded-Proto/Host` derived from `new Uri(CurrentTenant.OidcAuthority!...)`; never from `HttpContext.Request`, `Host` header, or env var. Verified by `RefreshTokenAsync_ForwardingHeaders_UseAuthorityScheme_NotBackchannelScheme`.
+6. ✅ **Headers scoped to backchannel only** — `backchannelForwardingHeaders` is local, set only when rewrite fires, and passed to `RefreshAsync` alongside the rewritten endpoint. The non-rewrite branch leaves it `null`; `PrismTokenRefreshService.cs:574` no-ops on null.
+7. ✅ **`IsRepoOwnedLocalDemoTenant` gate untouched** — Unchanged.
+8. ✅ **Group E tests present** — Three new tests in `BackchannelRewriteTests.cs` cover positive case, no-rewrite negative case, and critical "scheme must come from authority not backchannel" anti-regression.
+
+**Notes:** `TryAddWithoutValidation` is correct here (these are non-standard request headers); no header-injection risk because values come from a `Uri`-parsed DB string, not user input. No production `.app.github.dev` seeding introduced; PR is transport-only.
+
+**No bedrock violations. Ship it.**
+
+---
+
+## 📌 2026-05-02: Isabelle — PT2 Razor Hardening (SEC-PT2-007, SEC-PT2-008)
+
+**Branch:** `sec/pt2-razor-hardening`
+**Status:** ✅ IMPLEMENTED
+
+### SEC-PT2-007 — Accordion `Content` Razor trap
+
+**Approach:** Injected `IWorkflowContentSanitizer` at the view layer via `@inject` in `_PrismComponent-Accordion.cshtml` and routed `accordionSection.Content` through `Sanitizer.Sanitize()` before it reaches `@Html.Raw`.
+
+**Why view-layer `@inject` rather than the engine seam:** Today no producer populates `accordionSection.Content`, so adding sanitization at `BuildComponents` would be no-op with no test surface. The mission guidance explicitly preferred "as close to the render site as possible (defence in depth — even if a producer bypasses the engine seam, the view-layer sanitizer catches it)." `IWorkflowContentSanitizer` is already registered as a singleton in DI, so injection is zero-boilerplate.
+
+**Tests added:** `AccordionContentSanitizationTests` (4 tests) — `<script>` tag stripped; legitimate body paragraph preserved; `<img onerror=>` stripped; `onclick` on allowed `<a>` stripped; legitimate rich text (h3, p, ul, a) passes through intact.
+
+### SEC-PT2-008 — VinylRecord RTE `@Html.Raw`
+
+**Approach:** Injected `IWorkflowContentSanitizer` at the view layer via `@inject` in `VinylRecord.cshtml`, routing the Umbraco RTE `description` field through `Sanitizer.Sanitize()` before it reaches `@Html.Raw`.
+
+**Why the same singleton (GDS allowlist), not a separate instance:** Standard TinyMCE output for an album description is: paragraphs, bold/italic, unordered lists, and external links. All are in the GDS allowlist.
+
+**Tests added:** `VinylRecordRteSanitizationTests` (5 tests) — `<script>` stripped; `<img onerror=>` stripped; `<svg onload=>` stripped; legitimate TinyMCE output (p, strong, em, ul, a) passes through intact; null/empty/whitespace inputs return empty string safely.
+
+**Build & test summary:** `dotnet build UmbracoPrism.sln -c Release`: clean (0 errors, pre-existing warnings only). `dotnet test … --filter "FullyQualifiedName~UmbracoPrism.Core.Tests"`: 627 passed, 0 failed (baseline was 618; +9 new tests).
+
+---
+
+## 📌 2026-05-02: Tangy — Test Review: PR #45 — Codespaces URL derivation fix
+
+**Date:** 2026-05-02
+**Reviewer:** Tangy (Tester)
+**PR:** https://github.com/jonnymuir/Umbraco.Prism/pull/45
+
+**Verdict:** APPROVED WITH NOTES
+
+**Test run:** 647 passed, 0 failed, 0 skipped ✅
+
+**Criteria Assessment:**
+
+1. ✅ **New Codespaces URL form covered** — Group D of `BackchannelRewriteTests.cs` (+65 lines) adds two tests using the regional token-based URL `v7ldkc4c-8443.uks1.app.github.dev`. `JwksFetch_RewritesUrl_ForRegionalCodespacesUrlScheme` proves the JWKS backchannel rewrite works with the new host scheme. `JwtValidation_StillRejectsTokenWithMismatchedIssuer_ForRegionalCodespacesUrl` proves issuer validation remains strict.
+
+2. ✅ **Regression test for the user's actual symptom** — JWKS fetch rewrite with the new regional URL as authority is directly regression-tested.
+
+3. ⚠️ **Request.Host override middleware — NO unit test** — `TestSite/Program.cs` lines 44–54 add a middleware that reads `TESTSITE_PUBLIC_URL` and overrides `Request.Host` for HTTPS requests. This is untested at the unit level. Recommended follow-up: Add a test to `PrismTenantMiddlewareTests` or a new `RequestHostOverrideMiddlewareTests` class.
+
+4. ⚠️ **Hostname-lenient TenantService LIKE fallback — partially tested** — `PrismOidcConfigurationTests.cs` (+41 lines) correctly covers `IsRepoOwnedLocalDemoTenant`. However, the `TenantService.GetByDomainAsync` lenient `LIKE '%.app.github.dev'` fallback has no unit test. Recommended follow-up: Add two tests to `TenantServiceCacheStrategyTests.cs` covering the lenient lookup path.
+
+5. ✅ **No deleted, skipped, or ignored tests** — Confirmed: no `[Ignore]`, no `Skip =`, no removed `[Fact]`/`[Theory]`. The only change to `PrismAuthExtensionsSecurityTests.cs` is adding the `[Collection(EnvVarSensitiveTestCollection.Name)]` attribute for test isolation — correct.
+
+**Summary:** All new tests are green and correctly written as behavioural contracts. Neither follow-up gap blocks the merge — the production symptom's critical path (JWKS rewrite, issuer validation, IsRepoOwnedLocalDemoTenant) is fully covered and green.
