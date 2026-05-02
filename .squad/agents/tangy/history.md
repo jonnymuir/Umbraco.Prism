@@ -34,7 +34,35 @@ QA validation, test coverage analysis, and edge-case identification.
 
 ---
 
-## Prior Work Summary (2026-04-20 and earlier)
+## Session: Backchannel Rewrite Regression Tests (2025-07-XX)
+
+**Status:** ✅ Complete — 11 new tests, 642 total passing
+
+**Task:** Regression coverage for Development-only backchannel URL rewrites:
+- Copper's refresh-token rewrite (`PrismContext.RefreshTokenAsync`)
+- Blathers' JWKS rewrite (`PrismAuthExtensions.ResolveSigningKeys`)
+
+**Security Fix Found & Applied:**
+`PrismAuthExtensions.ResolveSigningKeys` was missing the `isDevelopment` check on the JWKS backchannel rewrite path. Only `KEYCLOAK_BACKCHANNEL_URL` was checked; now requires `ASPNETCORE_ENVIRONMENT=Development` too. Matches Copper's dual-gate pattern.
+
+**Test File:** `src/UmbracoPrism.Core.Tests/BackchannelRewriteTests.cs`
+
+**Coverage (3 groups):**
+- Group A: Refresh-token rewrite gating — endpoint URL, dev vs. prod gating, issuer validation resilience
+- Group B: JWKS fetch rewrite gating — metadataAddress capture via mock IPrismSigningKeyCache, dual-gate verification
+- Group C: Bedrock invariants — ValidateIssuer/ValidateAudience always true, MockBusinessApp fail-loud guard exists
+
+**Test Stability Fix:**
+Added `EnvVarSensitiveTestCollection` to serialise `BackchannelRewriteTests` and `PrismSigningKeyCacheTests`. Parallel env-var leakage (KEYCLOAK_BACKCHANNEL_URL + ASPNETCORE_ENVIRONMENT=Development) caused intermittent failures in `WarmAsync_WithMetadataAddress_RequiresHttps_ForHttpsUrl`.
+
+**Key Learnings:**
+- `BackOfficeTenant` is a positional record — config keys must match property names exactly: `EntraTenantId`, `ClientId`, `Code`, `DisplayName`, `OidcAuthority`. Wrong keys (`OidcClientId`) silently produce empty tenant lists causing early return in `ResolveSigningKeys`.
+- JWKS tests need mock `IPrismSigningKeyCache` registered BEFORE `AddPrismAuthentication` (uses `TryAddSingleton`). Mock must return `IsExpired: true, ContainsRequestedKey: false` to trigger `WarmAsync` call.
+- Env var mutations in parallel tests need `[Collection]` isolation to prevent flakiness.
+- Path from test binary to solution root: `AppContext.BaseDirectory` = `bin/Release/net10.0/` → 5× `../` to reach solution root.
+
+---
+
 
 **2026-04-20:**
 - GDS Field Type Test Coverage Phase 1 Completion (validator tests)
