@@ -207,7 +207,11 @@ public class DownstreamDemoController(
         if (!string.IsNullOrWhiteSpace(url))
             return url;
 
-        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        // In Codespaces, BUSINESSAPP_BACKCHANNEL_URL points to the internal endpoint
+        // for server-to-server communication (bypasses GitHub port-forwarding proxy).
+        // Outside Codespaces, falls back to PrismBusinessApp:WorkflowApiBaseUrl.
+        var baseUrl = configuration["BUSINESSAPP_BACKCHANNEL_URL"]?.TrimEnd('/')
+            ?? configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
             throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
 

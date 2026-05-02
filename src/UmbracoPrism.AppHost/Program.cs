@@ -130,6 +130,13 @@ if (testSitePublicUrl != null)
 if (codespaceName != null)
     testsite.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
 
+// In Codespaces, the GitHub forwarded-port proxy blocks server-side HTTP client calls to the
+// external BusinessApp URL and returns "Connecting to the forwarded port..." HTML instead of
+// forwarding to the actual service. Point downstream demo at BusinessApp's internal HTTPS
+// endpoint so server-to-server calls bypass the proxy.
+if (codespaceName != null)
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("https"));
+
 // BusinessApp also fetches Keycloak signing keys server-side for JWT Bearer validation.
 // Same backchannel fix: without this the external Keycloak URL is blocked by the
 // GitHub Codespaces proxy and every Bearer token is rejected with 401.
