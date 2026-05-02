@@ -15,6 +15,7 @@ using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests;
 
+[Collection(EnvVarSensitiveTestCollection.Name)]
 public class PrismAuthExtensionsSecurityTests
 {
     private const string LocalOidcAuthority = "https://localhost:8443/realms/prism-dev";

@@ -32,9 +32,15 @@ if (!app.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnv
 }
 
 // In GitHub Codespaces, the browser accesses the app via a public URL like
-// https://{name}-44345.app.github.dev, but Codespaces does not forward that hostname
-// in the Host header — Kestrel sees localhost:44345 instead. Override Request.Host so
-// the OIDC middleware generates the correct redirect_uri for the Codespace domain.
+// https://{token}-44345.{region}.app.github.dev, but Codespaces does not forward that
+// hostname in the Host header — Kestrel sees localhost:44345 instead. Override Request.Host
+// so the OIDC middleware generates the correct redirect_uri for the Codespace domain.
+//
+// Derivation priority:
+//   1. TESTSITE_PUBLIC_URL (preferred) — set by AppHost via `gh codespace ports`, works
+//      with both legacy and new regional Codespaces URL schemes.
+//   2. Inbound request Host header — used when TESTSITE_PUBLIC_URL is not set (e.g. local
+//      Aspire dev without AppHost, or when running TestSite standalone).
 var testSitePublicUrl = Environment.GetEnvironmentVariable("TESTSITE_PUBLIC_URL");
 if (testSitePublicUrl is not null)
 {

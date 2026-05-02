@@ -55,19 +55,29 @@ public class DemoTenantSeeder(
         ReconcileTenant(db, LocalhostHostname, TenantName, oidcAuthority);
 
         // In GitHub Codespaces the browser reaches the app via a forwarded hostname like
-        // {name}-44345.app.github.dev. Seed a matching tenant so OIDC works over that URL.
+        // {token}-44345.{region}.app.github.dev. Seed a matching tenant so OIDC works over
+        // that URL. The hostname is taken from TESTSITE_PUBLIC_URL (set by AppHost via
+        // `gh codespace ports` — works with both legacy and new regional URL schemes).
         var codespaceHostname = BuildCodespaceTestSiteHostname();
         if (codespaceHostname is not null)
         {
-            var codespaceName = Environment.GetEnvironmentVariable("CODESPACE_NAME")!;
-            var domain = Environment.GetEnvironmentVariable("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN") ?? "app.github.dev";
-            var codespaceKeycloakAuthority = $"https://{codespaceName}-8443.{domain}/realms/prism-dev";
+            // Keycloak authority uses KEYCLOAK_URL (already set by AppHost via gh codespace ports).
+            var codespaceKeycloakAuthority = oidcAuthority;
             ReconcileTenant(db, codespaceHostname, $"{TenantName} (Codespaces)", codespaceKeycloakAuthority);
         }
     }
 
     private static string? BuildCodespaceTestSiteHostname()
     {
+        // Prefer TESTSITE_PUBLIC_URL set by AppHost (derived from `gh codespace ports` —
+        // authoritative for both legacy and new regional Codespaces URL schemes).
+        var testSitePublicUrl = Environment.GetEnvironmentVariable("TESTSITE_PUBLIC_URL");
+        if (!string.IsNullOrWhiteSpace(testSitePublicUrl) &&
+            Uri.TryCreate(testSitePublicUrl, UriKind.Absolute, out var uri))
+            return uri.Host;
+
+        // Fallback: construct from CODESPACE_NAME (legacy scheme only — will be incorrect
+        // in regional Codespaces where the opaque token ≠ CODESPACE_NAME).
         var codespaceName = Environment.GetEnvironmentVariable("CODESPACE_NAME");
         if (string.IsNullOrWhiteSpace(codespaceName)) return null;
         var domain = Environment.GetEnvironmentVariable("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN") ?? "app.github.dev";
