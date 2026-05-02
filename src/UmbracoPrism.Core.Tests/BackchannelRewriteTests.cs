@@ -341,8 +341,71 @@ public class BackchannelRewriteTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
-    // Helpers
+    // Group D — Regional Codespaces URL regression (new {token}-{port}.{region}.app.github.dev scheme)
     // ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Regression test for the new Codespaces regional URL scheme:
+    /// {opaque-token}-{port}.{region}.app.github.dev (e.g. v7ldkc4c-8443.uks1.app.github.dev).
+    /// The BackchannelRewritingDocumentRetriever must rewrite these URLs identically to the
+    /// legacy {CODESPACE_NAME}-{port}.app.github.dev form — both are just HTTPS origins and
+    /// the rewriter works on URI origins, not hostname patterns.
+    /// </summary>
+    [Fact]
+    public void JwksFetch_RewritesUrl_ForRegionalCodespacesUrlScheme()
+    {
+        const string regionalAuthority = "https://v7ldkc4c-8443.uks1.app.github.dev/realms/prism-dev";
+
+        using var envDev = new TempEnvVar("ASPNETCORE_ENVIRONMENT", "Development");
+        using var envBc = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", BackchannelUrl);
+
+        string? capturedMetadataAddress = null;
+        var resolver = BuildIssuerSigningKeyResolver(
+            regionalAuthority, ClientId,
+            metaAddr => capturedMetadataAddress = metaAddr);
+
+        InvokeResolverWith(resolver, regionalAuthority, ClientId);
+
+        capturedMetadataAddress.Should().StartWith(BackchannelUrl,
+            "the JWKS backchannel rewrite must work with the new regional Codespaces URL scheme");
+        capturedMetadataAddress.Should().EndWith(".well-known/openid-configuration");
+        capturedMetadataAddress.Should().Contain("/realms/prism-dev/");
+        capturedMetadataAddress.Should().NotContain("v7ldkc4c-8443.uks1.app.github.dev",
+            "the regional Codespaces hostname must be replaced by the internal backchannel host");
+    }
+
+    /// <summary>
+    /// Regression: issuer validation must still reject a mismatched iss even when the
+    /// OidcAuthority uses the new regional Codespaces URL scheme.
+    /// </summary>
+    [Fact]
+    public void JwtValidation_StillRejectsTokenWithMismatchedIssuer_ForRegionalCodespacesUrl()
+    {
+        const string regionalAuthority = "https://v7ldkc4c-8443.uks1.app.github.dev/realms/prism-dev";
+
+        using var envDev = new TempEnvVar("ASPNETCORE_ENVIRONMENT", "Development");
+        using var envBc = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", BackchannelUrl);
+
+        var options = BuildJwtOptions(new Dictionary<string, string?>
+        {
+            ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
+            ["PrismBusinessApp:Tenants:0:ClientId"] = ClientId,
+            ["PrismBusinessApp:Tenants:0:Code"] = "prism-dev",
+            ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Dev",
+            ["PrismBusinessApp:Tenants:0:OidcAuthority"] = regionalAuthority
+        });
+
+        var evilToken = CreateOidcToken("https://evil.example.com", ClientId);
+
+        var act = () => options.TokenValidationParameters.IssuerValidator!(
+            "https://evil.example.com",
+            evilToken,
+            options.TokenValidationParameters);
+
+        act.Should().Throw<SecurityTokenInvalidIssuerException>(
+            "issuer validation must remain strict regardless of the Codespaces URL scheme in use");
+    }
+
 
     /// <summary>
     /// Builds a PrismContext wired for an expired-token-then-refresh scenario using a

@@ -6,14 +6,46 @@
 
 DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 
+# ── Codespaces URL discovery ──────────────────────────────────────────────────
+# Query `gh codespace ports` once for the authoritative browseUrl of each forwarded
+# port. Works with both the legacy `{CODESPACE_NAME}-{port}.app.github.dev` scheme and
+# the new regional `{token}-{port}.{region}.app.github.dev` scheme where the opaque
+# token ≠ CODESPACE_NAME. Falls back to the legacy pattern if gh is unavailable.
+CODESPACE_PORTS_JSON=""
+if [ -n "$CODESPACE_NAME" ] && command -v gh >/dev/null 2>&1; then
+    CODESPACE_PORTS_JSON=$(gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl 2>/dev/null || true)
+fi
+
+get_codespace_url() {
+    local port="$1"
+    local fallback="https://${CODESPACE_NAME}-${port}.${DOMAIN}"
+    if [ -z "$CODESPACE_PORTS_JSON" ]; then
+        echo "$fallback"
+        return
+    fi
+    local url=""
+    if command -v jq >/dev/null 2>&1; then
+        url=$(printf '%s' "$CODESPACE_PORTS_JSON" | jq -r ".[] | select(.sourcePort == $port) | .browseUrl" 2>/dev/null | tr -d '/' || true)
+    elif command -v python3 >/dev/null 2>&1; then
+        url=$(printf '%s' "$CODESPACE_PORTS_JSON" | python3 -c \
+            "import sys,json; ports=json.load(sys.stdin); print(next((p['browseUrl'].rstrip('/') for p in ports if p['sourcePort']==$port), ''))" 2>/dev/null || true)
+    fi
+    if [ -n "$url" ] && [ "$url" != "null" ]; then
+        echo "$url"
+    else
+        echo "⚠️  WARNING: Port $port not found via gh codespace ports; using legacy URL form." >&2
+        echo "$fallback"
+    fi
+}
+
 # If AppHost is already running (resumed Codespace), just print the URLs and exit.
 if pgrep -f "UmbracoPrism.AppHost" > /dev/null 2>&1; then
     echo "✅ Umbraco Prism stack is already running."
     if [ -n "$CODESPACE_NAME" ]; then
         echo ""
-        echo "   Startup status    https://${CODESPACE_NAME}-3000.${DOMAIN}"
-        echo "   Aspire Dashboard  https://${CODESPACE_NAME}-15135.${DOMAIN}"
-        echo "   TestSite          https://${CODESPACE_NAME}-44345.${DOMAIN}"
+        echo "   Startup status    $(get_codespace_url 3000)"
+        echo "   Aspire Dashboard  $(get_codespace_url 15135)"
+        echo "   TestSite          $(get_codespace_url 44345)"
     fi
     exit 0
 fi
@@ -118,10 +150,10 @@ echo "   <base href> in dashboard HTML:    ${DASH_BASEHREF:-not found}"
 echo ""
 
 if [ -n "$CODESPACE_NAME" ]; then
-    echo "   Status page       https://${CODESPACE_NAME}-3000.${DOMAIN}"
-    echo "   Aspire Dashboard  https://${CODESPACE_NAME}-15135.${DOMAIN}"
-    echo "   TestSite          https://${CODESPACE_NAME}-44345.${DOMAIN}"
-    echo "   Keycloak admin    https://${CODESPACE_NAME}-8443.${DOMAIN}/admin"
+    echo "   Status page       $(get_codespace_url 3000)"
+    echo "   Aspire Dashboard  $(get_codespace_url 15135)"
+    echo "   TestSite          $(get_codespace_url 44345)"
+    echo "   Keycloak admin    $(get_codespace_url 8443)/admin"
 else
     echo "   Status page       http://localhost:3000"
     echo "   Aspire Dashboard  https://localhost:17214"

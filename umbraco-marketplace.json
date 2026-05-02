@@ -6,7 +6,7 @@
   "Category": "Developer Tools",
   "PackageType": "Package",
   "LicenseTypes": ["Free"],
-  "DocumentationUrl": "https://github.com/jonnymuir/Umbraco.Prism#readme",
+  "DocumentationUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/MARKETPLACE.md",
   "IssueTrackerUrl": "https://github.com/jonnymuir/Umbraco.Prism/issues",
   "RepositoryUrl": "https://github.com/jonnymuir/Umbraco.Prism",
   "Tags": [
