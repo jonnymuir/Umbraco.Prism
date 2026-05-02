@@ -37,7 +37,39 @@
 
 ---
 
-## 2026-04-21T20:58:11Z: Workflow API Documentation Session
+## 2026-05-02T11:55:13Z: Marketplace README Solution
+
+**Problem:** GitHub renders HTML tags correctly, but the Umbraco Marketplace ingests README content as plain text — raw `<div>`, `<img>`, `<picture>` blocks appear as literal text, ruining the listing appearance.
+
+**Investigation Findings:**
+- Marketplace schema (https://marketplace.umbraco.com/umbraco-marketplace-schema.json) has NO separate field for marketplace-specific documentation — only `DocumentationUrl` field
+- Schema supports: DocumentationUrl, Description, VideoUrl, Screenshots (structured), but no "MarketplaceReadmeUrl" or similar override
+- Current umbraco-marketplace.json points DocumentationUrl to GitHub README anchor (`#readme`)
+- README.md contains three decorative HTML blocks that render as plain text in marketplace:
+  - Line 1–4: Centered logo with tagline (`<div align="center">`)
+  - Line 100–103: Two side-by-side screenshot images (`<div align="center">` + `<img>` tags)
+  - Line 135–137: Centered iOS screenshot (`<div align="center">` + `<img>`)
+
+**Solution Implemented:**
+1. Created MARKETPLACE.md with all HTML blocks replaced by markdown equivalents:
+   - Removed `<div align="center">` containers
+   - Converted `<img>` tags to markdown `![alt](url)` syntax
+   - Added inline "Screenshots: [See on GitHub]" links where visual elements were removed
+   - Made all links absolute (to https://github.com/...) for marketplace rendering
+2. Updated umbraco-marketplace.json to point DocumentationUrl at:
+   `https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/MARKETPLACE.md`
+3. Kept README.md unchanged — developers still see full rich HTML experience
+
+**Result:** 
+- ✅ Marketplace now renders MARKETPLACE.md as clean, plain-text markdown with no stray tags
+- ✅ All content, structure, and marketing intent preserved
+- ✅ GitHub README unchanged; developers still see logo, centered images, and rich formatting
+- ✅ No script/automation needed; both files remain in sync via manual edit
+
+**Key Learning:** The Umbraco Marketplace schema does not support separate documentation URLs — it's single-intent. The workaround is to point the single `DocumentationUrl` at a marketplace-optimized variant and maintain the full-featured version separately.
+
+---
+
 
 **Scope:** XML documentation for all new public API surface
 
