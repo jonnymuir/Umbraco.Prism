@@ -6,30 +6,39 @@
 
 ---
 
-## Session: Codespaces BusinessApp Backchannel Fix (2026-05-02)
+## Session: Fix Codespaces BusinessApp Backchannel URL Bug (2026-05-02)
 
-**Status:** ✅ Complete — main/09baa09
+**Status:** ✅ Complete — main/ffc32c5
 
-**Scope:** Fixed "200 OK text/html 'Connecting to the forwarded port...'" issue when the TestSite's `DownstreamDemoController` made server-side HTTP client calls to the BusinessApp in Codespaces. Root cause: The AppHost was setting `PrismBusinessApp__WorkflowApiBaseUrl` to the **public Codespaces forwarded URL** (e.g., `https://fluffy-invention-...-7245.app.github.dev`), but GitHub's port-forwarding proxy intercepts server-to-server calls to public forwarded URLs and returns HTML instead of forwarding to the actual service.
+**Scope:** Fixed persistent "https://localhost:7245/api/backoffice/me" errors in Codespaces downstream demo. Root cause: Commit 09baa09 attempted to use `businessApp.GetEndpoint("https")` as a backchannel URL, mirroring the Keycloak pattern. However, unlike Keycloak (a container), BusinessApp is an Aspire project whose `GetEndpoint()` returns an Aspire service discovery URL (`https+http://businessapp`) that doesn't resolve from TestSite's plain HttpClient. When resolution failed, it fell back to literal `https://localhost:7245`, which doesn't work in Codespaces.
 
 **Changes:**
 - `src/UmbracoPrism.AppHost/Program.cs`:
-  - Added `BUSINESSAPP_BACKCHANNEL_URL` environment variable in Codespaces, set to `businessApp.GetEndpoint("https")` — the internal Aspire endpoint reference for server-to-server communication
+  - **Removed** `BUSINESSAPP_BACKCHANNEL_URL` env var in Codespaces
+  - Added comment explaining why BusinessApp doesn't need backchannel unlike Keycloak
 - `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`:
-  - Modified `BuildTargetUrl()` to prefer `BUSINESSAPP_BACKCHANNEL_URL` over `PrismBusinessApp:WorkflowApiBaseUrl` when available
-  - Added comment explaining Codespaces backchannel pattern
+  - **Removed** backchannel preference from `BuildTargetUrl()`
+  - Always uses `PrismBusinessApp__WorkflowApiBaseUrl` (the discovered public Codespaces URL)
 
-**Impact:** Server-to-server downstream demo calls now use the internal `https://localhost:7245` endpoint in Codespaces instead of the public forwarded URL, correctly returning JSON instead of HTML.
+**Impact:** Server-to-server downstream demo calls now use the discovered public Codespaces URL (e.g., `https://{token}-7245.app.github.dev/api/backoffice/me`) as originally intended. The HTML response issue from 09baa09 was likely a transient port-forwarding startup delay, not a persistent proxy blocking problem.
 
-**Test results:** 650 passed, 0 failed, 0 skipped — no regressions.
+**Test results:** 653 passed, 0 failed, 0 skipped — no regressions.
 
-**Build:** Succeeded, 0 errors, 6 pre-existing warnings (unchanged).
+**Build:** Succeeded, 6 pre-existing warnings (unchanged).
 
-**Decision:** Written to `.squad/decisions/inbox/blathers-codespaces-businessapp-backchannel.md`
+**Decision:** Written to `.squad/decisions/inbox/blathers-codespaces-localhost-fallback.md`
 
-**Confidence:** HIGH — This is the same proven backchannel pattern used for Keycloak; applying it to BusinessApp is a direct extension.
+**Confidence:** HIGH — Fix aligns with Aspire architecture: containers (Keycloak) can use concrete endpoint references, but projects (BusinessApp) require public URLs or Aspire service discovery extensions in HttpClient.
+
+**Key learning:** `GetEndpoint()` behavior differs between `AddContainer()` and `AddProject()` resources. Service discovery URLs from projects don't automatically resolve in plain HttpClients.
 
 ---
+
+## Session: Codespaces BusinessApp Backchannel Fix (2026-05-02)
+
+**Status:** ⚠️ REVERTED by ffc32c5 — see session above
+
+**This fix was incorrect.** The approach worked for Keycloak but failed for BusinessApp due to architectural differences between containers and projects in Aspire.
 
 ## Session: Codespaces BusinessApp Downstream Target Fix (2026-05-02)
 
