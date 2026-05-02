@@ -14,6 +14,7 @@ namespace UmbracoPrism.Core.Tests;
 /// Security regression tests for KEYCLOAK_BACKCHANNEL_URL feature.
 /// Ensures backchannel URL does not bypass critical security validations.
 /// </summary>
+[Collection(EnvVarSensitiveTestCollection.Name)]
 public class BackchannelSecurityTests
 {
     private const string OidcAuthority = "https://keycloak.example.com/realms/prism-dev";

@@ -122,6 +122,58 @@ Then append `src/UmbracoPrism.MockBusinessApp/Program.cs`.
 
 ---
 
+## Gotchas
+
+### Serialising env-var-mutating tests is necessary but NOT sufficient
+
+Putting env-var-mutating tests into `EnvVarSensitiveTestCollection` prevents them from running
+in parallel with *each other*. It does **not** automatically protect *other* test classes that
+merely *read* those same env vars — unless those readers are also in the same collection.
+
+**The rule:** every test class that reads `KEYCLOAK_BACKCHANNEL_URL` or
+`ASPNETCORE_ENVIRONMENT` — directly, or transitively through production code under test
+(e.g. `PrismContext.GetAuthorizationHeaderAsync`, `PrismOidcConfiguration` callbacks) —
+must either:
+
+1. Join `EnvVarSensitiveTestCollection` (add `[Collection(EnvVarSensitiveTestCollection.Name)]`), **AND**
+2. Add a defensive snapshot/restore in its constructor/`Dispose()` so that even within a
+   serialised sequence, a test that crashes mid-mutation cannot leave env vars dirty for the
+   next test.
+
+**Why local CPUs hide the race:** On a developer's machine, xUnit's default thread count
+matches available cores. Most machines finish the mutating tests and restore the env vars
+*before* the reader tests are scheduled. On a CI box running multiple agent jobs, or with
+fewer threads, the scheduler can interleave them, exposing the leak.
+
+**Belt-and-braces pattern for reader classes (don't mutate, but still vulnerable):**
+
+```csharp
+[Collection(EnvVarSensitiveTestCollection.Name)]
+public class LocalhostGenericOidcRegressionTests : IDisposable
+{
+    private readonly string? _savedBackchannelUrl;
+    private readonly string? _savedAspNetCoreEnv;
+
+    public LocalhostGenericOidcRegressionTests()
+    {
+        _savedBackchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+        _savedAspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+    }
+}
+```
+
+This snapshot/restore in a *reader* ensures that if any test in the serialised sequence leaves
+env vars dirty (e.g. due to an unhandled exception in a mutator), subsequent reader tests
+still see a clean slate.
+
+---
+
 ## Security Checklist for Backchannel Rewrites
 
 When reviewing a new backchannel transport rewrite, verify:
