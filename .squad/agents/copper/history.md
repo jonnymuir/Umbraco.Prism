@@ -199,199 +199,75 @@ Previous history archived to reduce file size. Recent entries below.
 
 ### 2026-04-20 — Aspire 13.2.2 Upgrade: OTLP Telemetry Warning Resolved
 
-**Context:** Aspire 9.2.0 displayed OTLP telemetry warning. After upgrade to 13.2.2, warning persists and is understood to be correct behavior.
-
-**Root Cause:** Three distinct Aspire security controls were conflated in prior investigation attempts:
-1. `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS` → Dashboard **UI** authentication (browser access)
-2. `ASPIRE_ALLOW_UNSECURED_TRANSPORT` → HTTP vs HTTPS transport (protocol security)
-3. `Dashboard__Otlp__AuthMode` → OTLP endpoint **API key authentication** (telemetry ingestion security)
-
-**Critical Learning:** Environment variables in AppHost's `launchSettings.json` do NOT automatically propagate to the dashboard child process. AppHost controls dashboard configuration **programmatically** via `DashboardLifecycleHook.cs`. When no OTLP API key is configured, AppHost always sets `OtlpAuthMode.Unsecured`.
-
-**Security Distinction:**
-- `Unsecured` mode = any local process can push telemetry without credentials (development-only, acceptable)
-- `ApiKey` mode = requires API key for telemetry ingestion (production/staging/shared environments, required)
-
-**Decision:** Accept the warning as expected behavior in local development. Suppressing the warning requires API key configuration (unjustified for localhost). The warning correctly informs developers of the security posture.
-
-**Production Guidance:** Always use `Dashboard__Otlp__AuthMode=ApiKey` in non-development environments with secure API key distribution.
-
-**Key Learning for Squad:**
-- **Read the source code instead of guessing** — prior fix attempts could have been avoided
-- **Process boundaries matter** — parent process env vars don't automatically reach child processes
-- **Security warnings serve a purpose** — suppressing them should require understanding why they exist first
-- **Local dev vs production security** — some warnings are informational in dev but critical in production
-
-**Decision:** `.squad/decisions/2026-04-20-copper-otlp-telemetry-upgrade.md` (recorded in main decisions ledger)
-
 ---
 
-## Learnings / 2026-04-30
+## 📦 Archived Sessions (2026-04-25 and earlier)
 
-**Review:** Full-stack security audit post-V2 polymorphic component model.
+Complete chronological history available in git. Recent summaries:
 
-**Top 3 findings:**
-1. **WorkflowPollController (HIGH — PATCHED):** `GET /api/prism/workflow/poll` had no `[Authorize]` attribute, exposing workflow state (step type, state version) to unauthenticated callers. Fixed immediately; regression test added to Phase1SecurityRegressionTests.cs.
-2. **Microsoft.AspNetCore.DataProtection 10.0.0 (CRITICAL CVE):** Transitive dep in `UmbracoPrism.Shared` has advisory GHSA-9mv3-2cwr-p262. DataProtection is the cryptographic substrate for cookie encryption and antiforgery. Must upgrade via Umbraco.Cms version bump or explicit override.
-3. **HMACSecretKey committed (HIGH):** Real base64 HMAC signing key committed in `TestSite/appsettings.json`. Key is compromised; rotate immediately.
+**Archived entries include:**
+- Phase 1 & Phase 2 security reviews (breadth-first and depth-first)
+- Full codebase security audit findings
+- SEC-003 implementation and allowlist verification
+- CVE patches and dependency security work
 
-**Also patched:** `DescribedBy` aria attribute used unencoded `FieldKey` (operator-controlled injection surface). Log injection in `PrismTenantMiddleware` (string interpolation → structured logging).
+**Access:** Full session details in git history; `.squad/decisions.md` for decisions.
 
-**Phase1SecurityRegressionTests.cs state:** 547 passing. Gaps remain for security headers, CookieSecurePolicy, and X-Forwarded-For rate limiting.
+## 2026-05-02 — Codespaces 401 on Downstream Demo: Diagnosis (no code changes)
 
-**Confirmed solid:** Open redirect hardening, OIDC nonce validation, SQL parameterisation, antiforgery on workflow POST, biometric tenant cross-check, TenantManagementController double-auth, WrapperAttrs/PatternAttr encoding.
+**Context:** Dashboard "Call Mock Business App API" button returns 401 in Codespaces (`upgraded-bassoon-4g5v5r9vghq5p6-44345.app.github.dev`) but works on localhost.
 
-**Watch items for next review:**
-- SEC-003 (XSS in @Html.Raw content) — needs sanitiser design before definition editor leaves Dev-only mode
-- SEC-006 (CookieSecurePolicy) — easy fix, low urgency but should not ship to production as-is
-- SEC-007 (rate-limit bypass via proxy) — required before any cloud deployment
+**Bedrock directive captured:** "Security must never be compromised. No 'just for Codespaces' shortcuts on token validation." All hypotheses & remediation candidates respect that rule.
 
-**Key learning:** V2 polymorphic component model introduced no new XSS surface at the Razor TagHelper level (all attrs encoded), but the pre-existing `@Html.Raw(Content)` pattern in display components is a latent risk that grows as the system matures.
+**Top hypothesis (≈55%):** Self-inflicted 401 from `DownstreamDemoController` itself — `PrismContext.GetAuthorizationHeaderAsync` returns null because `IsPrincipalBoundToCurrentTenant` rejects the principal when `CurrentTenant` is null. Most plausible cause: `DemoTenantSeeder` did not insert a `prismTenants` row for the Codespace hostname (env-var visibility on the TestSite child process, or a stale DB).
 
-### 2026-04-30 — SEC-004 Closed by Blathers
+**Other hypotheses ranked:**
+- H2 (≈25%) JWT issuer mismatch on MockBusinessApp (`PrismBusinessApp__Tenants__2__OidcAuthority` env-var binding hygiene)
+- H3 (≈8%) HTTPS dev-cert trust between TestSite→MockBusinessApp on Linux Codespaces
+- H4 (≈7%) Cookie not sent — unlikely (same-origin)
+- H5 (≈5%) Token refresh path doesn't use backchannel URL — bites later in session, not at first call
 
-**Commit:** `b6336fd` (main)
+**Bedrock-violating shortcuts explicitly rejected:** disabling `RequireHttpsMetadata`, `ValidateIssuer`, `ValidateAudience`, `IsPrincipalBoundToCurrentTenant`; whitelisting `*.app.github.dev`; bypassing TLS cert validation in `prism-downstream-demo`; Development-only "skip tenant binding" branches.
 
-**Finding:** HIGH — HMAC signing key and Vault URI committed in tracked `TestSite/appsettings.json`.
+**Single most informative artefact for triage:** `/api/prism/downstream-demo/session-contract` response immediately after the 401 — `downstream.failureReason` collapses the hypothesis space.
 
-**Remediation:** Blathers implemented the `appsettings.Local.json` pattern (gitignored, loaded before Umbraco builder). Pattern decision recorded in decisions.md.
+**Handoff to Blathers:** seeded-tenant inspection first; failure-reason field second; MockBusinessApp `[PRISM AUTH FAILED]` console output third. Cross-check that AppHost env-var index `Tenants__2` still binds PRISM-DEMO (any reorder of `MockBusinessApp/appsettings.json` would silently break the override).
 
-**Status:** ✅ CLOSED — Build passes, 547/547 tests green, no secrets in tracked files.
-
-
-
-
-## 2026-04-30: Full Security Audit Post-V2 Rollout — 11 Findings Reviewed, 6 Closed This Batch
-
-**Status:** ✅ BATCH COMPLETE — 6 findings closed (SEC-002, SEC-005, SEC-006, SEC-007, SEC-008, SEC-010); 1 in-flight (SEC-003 design); 4 pre-batch (SEC-001, SEC-004, SEC-009, SEC-011 closed earlier)
-
-**Audit Scope:** Comprehensive codebase security review following v2.0 polymorphic component model rollout.
-
-**Closed Findings Summary:**
-1. **SEC-002 (CRITICAL):** Microsoft.AspNetCore.DataProtection GHSA-9mv3-2cwr-p262 → 10.0.0→10.0.7 (Blathers/NuGet bump)
-2. **SEC-005 (HIGH):** npm CVE chain (1 critical + 10 high) → 0 critical, 0 high (Isabelle/npm audit fix)
-3. **SEC-006 (HIGH):** CookieSecurePolicy SameAsRequest → Always (Blathers/security regression test)
-4. **SEC-007 (HIGH):** Proxy-aware IP for rate limiting (Blathers/ForwardedHeadersMiddleware)
-5. **SEC-008 (MEDIUM):** OpenTelemetry.Api GHSA-g94r-2vxg-569j → 1.12.0→1.15.3 (Blathers/NuGet bump)
-6. **SEC-010 (MEDIUM):** Scrub PII + Vault IDs in MockBusinessApp (Blathers/appsettings.Local.json pattern)
-
-**In-Flight / Designed (Not Yet Implemented):**
-- **SEC-003 (HIGH):** @Html.Raw content sanitization — IWorkflowContentSanitizer design + allowlist frozen (Tom Nook proposal in inbox awaiting team sign-off)
-
-**Earlier (Pre-Batch):**
-- **SEC-001 (HIGH):** WorkflowPollController auth (2026-04-30, immediate fix)
-- **SEC-004 (HIGH):** TestSite secrets management (already implemented, consolidated in batch)
-- **SEC-009 (LOW):** Log injection (2026-04-30, immediate fix)
-- **SEC-011 (LOW):** HTML encoding (2026-04-30, immediate fix)
-
-**Triaged & Locked Decisions:**
-- `IWorkflowContentSanitizer` (Ganss.Xss + GDS allowlist) is precondition for shipping definition editor to non-dev
-- `CookieSecurePolicy.Always` + `ForwardedHeadersMiddleware` required pre-production
-- Secrets policy: no real keys in version-controlled appsettings.json; use dotnet user-secrets (local) / env vars (CI/CD)
-
-**Test Coverage:**
-- 547 baseline → 550 passing (+3 findings tested)
-- Phase1SecurityRegressionTests: 3 new cases (CookieSecurePolicy, ForwardedHeaders, rate-limit partitioning)
-
-**Production Gates Remaining:**
-- SEC-003 implementation (awaiting team go-ahead)
-- SEC-007 KnownProxies/KnownNetworks hardening (dev-safe default; production must specify)
-- SEC-010 PII notification per applicable data protection law (jonnypmuir@gmail.com in git history)
+**Forward security note (not in scope of this fix):** `PrismContext.RefreshTokenAsync` calls `OidcAuthority` directly — does NOT use `KEYCLOAK_BACKCHANNEL_URL`. Refresh in Codespaces will fail once access tokens expire. Separate hardening item; flagged in diagnosis.
 
 **Artifacts:**
-- `.squad/decisions.md` — 6 findings + SEC-003 design proposal consolidated
-- `.squad/orchestration-log/2026-04-30T12:*-{agent}.md` — Per-agent logs (Tom Nook, Isabelle, Blathers)
-- `.squad/log/2026-04-30-security-batch-2.md` — Batch session summary
-- `.squad/security-review-2026-04-30.md` — Full audit report (if exists; reference from decisions.md)
+- `.squad/diagnosis/2026-05-02-codespaces-401/copper-security-diagnosis.md`
+- `.squad/decisions/inbox/copper-codespaces-401-diagnosis.md`
 
-**Batch Scope:** All 6 closed findings reviewed, approved, tested, and merged to main. SEC-003 design frozen pending implementation assignment.
+## Learnings
 
----
+### 2026-05-02 — Codespaces 401: Refresh-Token Backchannel Fix (PrismContext.RefreshTokenAsync)
 
-## 2026-04-30: SEC-003 T2+T8+T9 — WorkflowContentSanitizer Implementation
+**Context:** Confirmed root cause from session-contract data: `cookie.accessTokenExpired: true`, `downstream.failureReason: "http-401"`, JWKS curl returning `HTTP/2 401 / www-authenticate: tunnel`. This was H5 from the earlier diagnosis — token refresh hitting the public Codespaces Keycloak URL which the GitHub port-forwarding proxy blocks for server-side callers.
 
-**Commit:** `ae616a2` (main)
+**What changed:**
+- `src/UmbracoPrism.Core/Models/PrismContext.cs` — `RefreshTokenAsync` (around lines 125–144)
+- After building the public `tokenEndpoint` for the generic OIDC path, added a backchannel rewrite block
+- Guard: `KEYCLOAK_BACKCHANNEL_URL` env var set AND `ASPNETCORE_ENVIRONMENT == Development`
+- If both true: rewrite `tokenEndpoint` host to backchannel internal URL before `tokenRefreshService.RefreshAsync`
+- Add `Console.WriteLine("[PRISM] RefreshTokenAsync: rewriting token endpoint to backchannel → ...")` for auditability
+- Transport rewrite only — issuer/audience on returned tokens validated strictly against public OidcAuthority
 
-### Work Completed
+**Why:**
+- `KEYCLOAK_BACKCHANNEL_URL` already solved this class of failure for OIDC discovery and initial token exchange (login flow). Token refresh was the remaining gap.
+- Gating on BOTH env var AND IsDevelopment: dual protection. The startup-level throw at `MockBusinessApp/Program.cs:38-41` and `TestSite/Program.cs:29-31` prevents the env var from being set in non-Development — the code-level `IsDevelopment` check adds belt-and-suspenders.
+- `ASPNETCORE_ENVIRONMENT` env var check (not constructor-injected `IWebHostEnvironment`) preserves the existing 3-parameter constructor — all 631 existing tests continue to pass without modification.
 
-**T2 — Real implementation:**
-- Created `src/UmbracoPrism.Core/Services/Sanitization/WorkflowContentSanitizer.cs`
-- Ganss.Xss 9.0.892 configured with GDS-aligned allowlist per Tom Nook's §4.3 (exact compliance — no deviations from security policy)
-- Tags: p, ul, ol, li, blockquote, br, h2, h3, h4, strong, em, b, i, code, abbr, span, a
-- Attributes: href (a only, scheme-checked in RemovingAttribute handler), rel (a only), title (abbr only)
-- Schemes: http, https, mailto, tel — all others blocked
-- Post-processing: rel=noopener noreferrer + target=_blank injected for external http(s) links
-- DI updated: NoOpWorkflowContentSanitizer → WorkflowContentSanitizer (singleton)
-- NoOp retained as internal test fixture (comment updated)
+**Bedrock check passed:**
+- ❌ No `RequireHttpsMetadata = false`
+- ❌ No `ValidateIssuer = false` / `ValidateAudience = false`
+- ❌ No `IsPrincipalBoundToCurrentTenant` relaxation
+- ❌ No `ServerCertificateCustomValidationCallback => true`
+- ❌ No suffix-trust of `*.app.github.dev`
+- ✅ Rewrite gated by BOTH env var AND IsDevelopment
+- ✅ Issuer/audience validation unchanged on refreshed tokens
 
-**T8 — Unit tests:**
-- Created `src/UmbracoPrism.Core.Tests/Services/Sanitization/WorkflowContentSanitizerTests.cs`
-- 40 test cases covering allowed tags, href schemes, event handler stripping, disallowed tags, inline style, idempotency, null/whitespace
-
-**T9 — Un-skip regression tests:**
-- Removed Skip attribute from all 6 `Phase1SecurityRegressionTests` in WorkflowContent region
-- Updated `BuildEnginePayloadForBody` helper to use real `WorkflowContentSanitizer` (not mock NoOp)
-
-### Test Delta
-
-| State | Count |
-|-------|-------|
-| Blathers handoff | 554 passing, 6 skipped |
-| After T8 + T9 | **601 passing, 0 skipped, 0 failed** |
-
-### Key Technical Decision
-
-Used `RemovingAttribute` event with empty `AllowedAttributes` for per-tag attribute enforcement. Ganss.Xss only applies `AllowedSchemes` to attributes surviving the `AllowedAttributes` gate — since `href` is not in `AllowedAttributes`, we perform our own scheme check in the event handler. This gives strict per-tag enforcement (e.g. `href` on `<div>` is stripped) rather than global allowance.
-
-### Production Gate Status
-
-SEC-003 implementation complete. Precondition for definition editor's non-Dev rollout is now satisfied.
-
-### Artifacts
-
-- `.squad/decisions/inbox/copper-sec-003-impl.md` — allowlist verification, deviations, test counts
-- `.squad/skills/ganss-xss-gds-allowlist/SKILL.md` — reusable Ganss.Xss GDS allowlist pattern
-
----
-
-
----
-
-## 2026-04-30 — PR #39 Closeout: Pt2 Security Review (Depth-First, claude-opus-4.7)
-
-**Context:** Second-pass depth-first security review following Pt1 (breadth-first, gpt-5). Pt1 closed 11 findings on 2026-04-26; Pt2 raised 10 additional findings with premium model on targeted high-risk areas.
-
-**Scope:** Auth/identity defaults, sanitizer producer-side coverage, anonymous endpoints, CSRF posture, security response headers, dependency CVEs, DataProtection key management, CORS/origin trust on BiometricController.
-
-**Findings:** 0 Critical / 0 High / 5 Medium (2 patched, 3 open) / 4 Low (open) / 1 Info (open)
-
-**Fixes Landed:**
-1. **SEC-PT2-002** — Bumped transitive `OpenTelemetry.Exporter.OpenTelemetryProtocol 1.11.2 → 1.15.3` (CVE-2026-42191). Pt1 missed transitive; audit now clean.
-   - Commit: `244f3b5`
-2. **SEC-PT2-001** — Gated anonymous `/api/test/reset` endpoint behind `IsDevelopment()`. Neighbouring `/admin/*` guard didn't cover this path.
-   - Commit: `2ce771f`
-
-**Quality:** `dotnet build` clean, 601/601 Core tests green, vulnerable-package audit clean.
-
-**Open Items (Dispatched as `sec/pt2-backend`, separate PR):**
-- SEC-PT2-003: Logout-CSRF (GET → POST + antiforgery)
-- SEC-PT2-004: Missing security response headers (middleware + exemptions)
-- SEC-PT2-005: `DefaultAuthenticateScheme` integration test gap (assignee: Blathers)
-- SEC-PT2-006: DataProtection ephemeral keys; needs `PrismDataProtectionOptions`
-- SEC-PT2-007: Unsanitized `accordionSection.Content` Razor partial (XSS trap; unused today)
-- SEC-PT2-008: RTE field operator-trust pattern; informational
-- SEC-PT2-009: Antiforgery gap on JSON endpoints (mitigated by SameSite=Lax)
-- SEC-PT2-010: `IsCapacitorOrigin` localhost acceptance (risk-accept candidate)
-
-**Ledger:** `.squad/security-review-2026-04-30-pt2.md`
-
-**Model Used:** claude-opus-4.7
-
-**Key Learning:**
-- Transitive vulnerability audits must be explicit in full-stack reviews.
-- Middleware guards require path clarity; `/admin/*` doesn't cover `/api/test/*`.
-- Standard practice going forward: breadth-first pass + depth-first follow-up per security cycle.
-
-**Decision Recorded:** `.squad/decisions.md` § 2026-04-30 (merged from inbox).
-
----
+**PR:** #44 (draft) on branch `fix/codespaces-401-downstream-auth`
+**Commit:** `e0e8ee3`
+**Tests:** 631 passed, 0 failed
+**Next:** Blathers (JWKS rewrite) + Tester (regression tests) commit to same branch before merge
