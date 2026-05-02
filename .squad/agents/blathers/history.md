@@ -1,5 +1,65 @@
 # Blathers — History
 
+## Session: JWKS Backchannel Rewrite — fix/codespaces-401-downstream-auth (2026-05-02)
+
+**Status:** ✅ Complete — commit `4a47acc` pushed to `fix/codespaces-401-downstream-auth`
+
+**Scope:** Fix the transitive JWKS fetch through the GitHub Codespaces port-forwarding proxy. The discovery-doc URL was already rewritten via backchannel in `PrismAuthExtensions.ResolveSigningKeys`, but `OpenIdConnectConfigurationRetriever` then followed `jwks_uri` from the discovery doc — which Keycloak emits as the public Codespace URL — and that fetch was not rerouted.
+
+**Changes:**
+
+- `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs` (+59 lines, 1 file)
+  - Added private `BackchannelRewritingDocumentRetriever` sealed class implementing `IDocumentRetriever`. Rewrites any URL whose origin matches the public Keycloak origin to the backchannel base before delegating to the inner `HttpDocumentRetriever`. Logs `[PRISM] BackchannelRewritingDocumentRetriever: rewriting {address} → {rewritten}` per URL rewrite.
+  - Modified generic `WarmAsync` overload: when `KEYCLOAK_BACKCHANNEL_URL` is set AND `ASPNETCORE_ENVIRONMENT == Development` AND `tenantKey` parses as an HTTPS URI, creates the `ConfigurationManager` with `BackchannelRewritingDocumentRetriever` instead of the injectable factory. Non-Development and non-backchannel path uses factory unchanged — zero behaviour change for production.
+
+**Dual gating:** Same pattern as Copper's `e0e8ee3` (PrismContext.RefreshTokenAsync) — both env vars checked with `string.Equals(..., OrdinalIgnoreCase)`.
+
+**Security bedrock:** No `RequireHttpsMetadata = false`, no `ValidateIssuer = false`, no certificate bypass. `normalizedKey` (the public OidcAuthority URL) remains the issuer trust anchor for JWT validation.
+
+**Test results:** 631 passed, 0 failed, 0 skipped — no regressions.
+
+**Build:** Succeeded, 0 errors, 5 pre-existing warnings (unchanged).
+
+**Commit SHA:** `4a47acc`
+
+## Learnings
+
+- `OpenIdConnectConfigurationRetriever` uses a single `IDocumentRetriever` instance for ALL fetches — both the discovery-document GET and the transitive `jwks_uri` GET. Wrapping the retriever at construction covers both with one interception point, which is cleaner than trying to post-process the `OpenIdConnectConfiguration` after retrieval.
+- The injectable `_configurationManagerFactory` (internal constructor) is the right seam for unit tests. The backchannel path creates the `ConfigurationManager` directly (bypassing the factory) — tests don't set the env vars, so they still hit the factory. This keeps test isolation clean with no extra test setup.
+- `Uri.GetLeftPart(UriPartial.Authority)` is the correct way to extract `scheme://host:port` from a URI — covers both standard ports and non-standard ports (e.g. `:8443`) without manual string manipulation.
+- When `tenantKey` is the full public OidcAuthority URL (e.g. `https://{name}-8443.app.github.dev/realms/prism-dev`), the origin extracted is `https://{name}-8443.app.github.dev` — which correctly matches the prefix of every Keycloak-emitted URL in the discovery doc.
+
+---
+
+## Session: Codespaces 401 Deploy-Delta Diagnosis (2026-05-02)
+
+**Status:** ✅ Complete — diagnosis written to `.squad/diagnosis/2026-05-02-codespaces-401/blathers-deploy-diagnosis.md`
+
+**Scope:** Diagnosis-only (no code changes). Identified the deployment delta causing `/api/prism/downstream-demo` to return 401 in GitHub Codespaces while working locally.
+
+**Key Findings:**
+
+1. **JWKS fetch gap in `KEYCLOAK_BACKCHANNEL_URL` mechanism** — `PrismAuthExtensions.ResolveSigningKeys` correctly substitutes the OIDC discovery document URL with the internal backchannel address (`http://localhost:8080/...`). However, `PrismSigningKeyCache.WarmAsync` uses `ConfigurationManager<OpenIdConnectConfiguration>` + `OpenIdConnectConfigurationRetriever` which then FOLLOWS the `jwks_uri` from the discovery document. That `jwks_uri` still points to the public Codespace URL (`https://{name}-8443.app.github.dev/...`) because Keycloak uses `KC_HOSTNAME` for ALL URLs in its discovery document. This second HTTP call exits through GitHub's port-forwarding proxy (the same proxy the backchannel was introduced to bypass), blocking the JWKS fetch → no signing keys → 401.
+
+2. **Call path confirmed**: Browser → `/api/prism/downstream-demo` (relative, TestSite) → `DownstreamDemoController` → `https://localhost:7245/api/backoffice/me` (hardcoded, server-side localhost → MockBusinessApp) → JWT Bearer validation fails in MockBusinessApp.
+
+3. **`BusinessAppUrl` is hardcoded** — `src/UmbracoPrism.AppHost/Program.cs:31` — `const string BusinessAppUrl = "https://localhost:7245"` is never Codespace-aware. Not the root cause (localhost IS reachable server-side) but worth noting.
+
+4. **Secondary hypothesis**: SSL trust for the `prism-downstream-demo` HttpClient calling `https://localhost:7245` on Ubuntu 24.04. If `dotnet dev-certs https --trust` doesn't add the cert to .NET's trust store, this would surface as Network Error (statusCode:0), not 401 — so secondary.
+
+**Key Learnings:**
+
+- `OpenIdConnectConfigurationRetriever` fetches BOTH the openid-configuration AND the `jwks_uri` it contains using the same `HttpDocumentRetriever`. Substituting the metadata URL (backchannel) is not sufficient — the JWKS URL must also be rerouted through the backchannel.
+- Keycloak with `KC_HOSTNAME` set always uses the configured hostname in ALL discovery document URLs, regardless of which URL you use to fetch the document (internal or external).
+- The GitHub Codespaces port-forwarding proxy blocks unauthenticated server-side outbound calls — even to ports marked "public" in devcontainer.json (confirmed by the existing backchannel mechanism being necessary).
+- `curl -sk` in `on-start.sh` uses `--insecure` which means the readiness check accepts MockBusinessApp returning 401 as "healthy" — a false positive that hides the 401-at-startup issue.
+
+**Artifacts:**
+- Diagnosis: `.squad/diagnosis/2026-05-02-codespaces-401/blathers-deploy-diagnosis.md`
+- Decision inbox: `.squad/decisions/inbox/blathers-codespaces-401-diagnosis.md`
+
+---
+
 ## Session: Workflow Engine Rams-Grade Review (2026-05-01)
 
 **Status:** ✅ Complete — review written to `.squad/reviews/2026-05-01-prism-reflection/03-blathers-workflow.md`
