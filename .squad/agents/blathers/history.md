@@ -343,3 +343,35 @@ private sealed class BackchannelRewritingDocumentRetriever : IDocumentRetriever
 ### Status
 ✅ **APPROVED FOR MERGE** (Copper's security review, 2026-05-02 14:30)
 
+
+## 2026-05-02 — Codespaces URL Forms (Investigation, no code change)
+
+**Trigger:** Jonny saw two URL forms in a fresh Codespace:
+1. `symmetrical-space-computing-machine-96p9w7vgw9f775q.github.dev` (no port suffix, no `app.` prefix) — this is the VS Code **web editor** for the Codespace (the in-browser IDE), not a forwarded application port.
+2. `v7ldkc4c-3000.uks1.app.github.dev` — a **forwarded port** under the new GitHub Codespaces URL scheme: `{per-codespace-token}-{port}.{region}.app.github.dev`. The leading `v7ldkc4c` is an opaque per-codespace forwarding token (NOT derived from `CODESPACE_NAME`). `uks1` = UK South 1 region segment. Older form `{CODESPACE_NAME}-{port}.app.github.dev` still works in some regions but is being superseded.
+
+**Implication:** Our entire `https://{CODESPACE_NAME}-{port}.{GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}` derivation is **wrong** when GitHub assigns the new short-token form, because:
+- `CODESPACE_NAME` is the friendly name (`symmetrical-…`), not the short token (`v7ldkc4c`).
+- Even though `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN` may correctly be `uks1.app.github.dev`, gluing `{CODESPACE_NAME}-{port}` in front of it produces a hostname Codespaces does NOT serve.
+
+**Affected sites in Prism:**
+- `src/UmbracoPrism.AppHost/Program.cs` lines 12–14, 28–30 (constructs `keycloakProxyUrl` and `testSitePublicUrl`).
+- `src/UmbracoPrism.TestSite/DemoTenantSeeder.cs` `BuildCodespaceTestSiteHostname` and `ReconcileLocalhostTenant` (seeds tenant by the wrong hostname → tenant lookup misses the real request hostname → OIDC tenant resolution fails at the front door).
+- `KC_HOSTNAME` passed to Keycloak container → Keycloak emits discovery `issuer` and form-action URLs at the wrong hostname → browser redirects/POSTs to a host that doesn't exist.
+- `TESTSITE_PUBLIC_URL` → middleware overrides `Request.Host` to a wrong host.
+
+**PR #44 backchannel fix is structurally fine** — it rewrites by `OidcAuthority` origin, not by request hostname. But it can never engage if the issuer chain itself is wrong upstream. The 401 we just fixed is independent of this URL-form issue.
+
+**`IsRepoOwnedLocalDemoTenant` check (PrismOidcConfiguration.cs line 80)** already uses `EndsWith(".app.github.dev")` — that still matches the new form. ✓
+
+## Learnings
+
+- **Two distinct `*.github.dev` URLs per Codespace.** The bare `{name}.github.dev` is the VS Code web editor (not a forwarded port). Forwarded ports always have a port number suffix.
+- **GitHub is rolling out a new port-forwarding URL scheme:** `{token}-{port}.{region}.app.github.dev` (e.g. `v7ldkc4c-3000.uks1.app.github.dev`). The `{token}` is **NOT** derivable from `CODESPACE_NAME` and **NOT** exposed as an env var. The `{region}` segment IS captured by `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN` (e.g. `uks1.app.github.dev`).
+- **Concatenating `{CODESPACE_NAME}-{port}.{GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}` is fragile.** It only works in regions/codespaces still on the legacy URL scheme.
+- **Robust ways to discover the real public URL:**
+  1. `gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl` from inside the container — returns the actual forwarded URL per port.
+  2. Trust the inbound request hostname at runtime (it IS the real public host) — derive sibling URLs by swapping the port segment (`-44345` → `-8443`). Works because all forwarded ports for one codespace share the same `{token}` and `{region}` prefix.
+- **Origin-prefix matching in `BackchannelRewritingDocumentRetriever` survives this.** It anchors on the configured `OidcAuthority` origin — agnostic to URL form. So PR #44's invariants hold.
+- **`EndsWith(".app.github.dev")` is the safe Codespaces hostname check.** Both legacy and new forms end this way.
+
