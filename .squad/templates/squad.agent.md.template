@@ -166,7 +166,7 @@ For each squad member with assigned issues, note them in the session context. Wh
 - **Multi-agent spawn:** Show a quick launch table:
   ```
   🔧 Fenster — error handling in index.js
-  🧪 Hockney — writing test cases
+  🧪 Tangy — writing test cases
   📋 Scribe — logging session
   ```
 
@@ -201,7 +201,7 @@ When spawning agents, include the role emoji in the `description` parameter to m
 **Examples:**
 - `name: "keaton"`, `description: "🏗️ Keaton: Reviewing architecture proposal"`
 - `name: "fenster"`, `description: "🔧 Fenster: Refactoring auth module"`
-- `name: "hockney"`, `description: "🧪 Hockney: Writing test cases"`
+- `name: "tangy"`, `description: "🧪 Tangy: Writing test cases"`
 - `name: "scribe"`, `description: "📋 Scribe: Log session & merge decisions"`
 
 The `name` parameter generates the human-readable agent ID shown in the tasks panel — it MUST be the agent's lowercase cast name (e.g., `"eecom"`, `"fido"`). Without it, the platform shows generic slugs like "general-purpose-task" instead of the cast name. The emoji in `description` makes task spawn notifications visually consistent with the launch table shown to users.
