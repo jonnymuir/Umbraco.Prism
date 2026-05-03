@@ -222,3 +222,20 @@ Orchestration log written to 2026-05-02T13:14:45Z-tom-nook.md.
 **Decision:** Preserve production `PrismOidcConfiguration` contract; treat test layer as regression gate.
 
 **Consequence:** CI repair stays focused, product code unchanged, regression coverage intact.
+
+---
+
+### 2026-05-03 20:12:13 — Branch Cleanup: aspire-dynamic-endpoint-backchannels Skill
+
+**Event:** Final cleanup and preparation of `squad/fix-backchannel-endpoint-discovery` for merge.
+
+**Work:**
+1. Evaluated untracked `.squad/skills/aspire-dynamic-endpoint-backchannels/` directory
+2. Decision: **KEEP** — Earned, well-documented skill with test contracts, diagnosis patterns, and anti-patterns
+3. Added skill to branch as a new commit
+4. Verified branch is clean and working-tree is empty
+
+**Outcome:** Branch is ship-ready for merge to main. Single commit ahead of origin:
+- `2078604` docs: add aspire-dynamic-endpoint-backchannels skill
+
+**Key Finding:** Skill extraction as part of PR closure is a discipline pattern. The skill emerged from real work diagnosing Codespaces backchannel timeouts and is reusable for future infrastructure issues.
