@@ -127,3 +127,36 @@ Recommendation: Enhanced health checks should verify both internal (localhost) a
 
 **Files Created:**
 - `.squad/orchestration-log/2026-05-03T13-59-46Z-tangy.md` — orchestration report
+
+---
+
+## 2026-05-03 — Codespaces Dashboard Port 17214 Contract Validation
+
+**Timestamp:** 2026-05-03T15:12:55.439+01:00  
+**Status:** ✅ Complete
+
+### Task
+
+Add automated validation for the Codespaces dashboard contract: users must be directed to the forwarded HTTPS Aspire dashboard endpoint on port 17214, not the redirecting HTTP endpoint on port 15135.
+
+### Outcome
+
+- **Blathers had already fixed the code** — both `on-start.sh` and `server.js` now correctly advertise port 17214 for Codespaces users
+- Added two new tests to `DashboardLocalEndpointsValidationTests.cs`:
+  1. `CodespacesStartupScript_AdvertisesHttpsPort17214_NotHttpPort15135` — validates on-start.sh uses port 17214
+  2. `StatusServer_UsesPort17214ForCodespacesPublicUrl` — validates server.js uses port 17214
+- Both tests pass, confirming the contract is met
+- Ran full test suite for `DashboardLocalEndpointsValidationTests`: all 25 tests pass
+
+### Contract Enforced
+
+✅ **Codespaces users are directed to port 17214 (HTTPS Aspire dashboard)**  
+❌ Port 15135 (HTTP redirect endpoint) is no longer advertised
+
+### Learnings
+
+**Test-as-contract pattern:** When a critical operational contract emerges (like port forwarding behavior), codify it as a test immediately. This prevents regression and documents the requirement for future contributors.
+
+## 2026-05-03 — Scribe: Dashboard Port Contract Decision Merged
+
+Scribe merged tangy-dashboard-17214-contract.md decision documenting test coverage and port 17214 contract for Codespaces.

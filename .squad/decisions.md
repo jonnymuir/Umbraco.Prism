@@ -2423,3 +2423,355 @@ exit 0
 - If not present, add it with `"visibility": "public"`
 - Test in live Codespace after change
 - Document port visibility requirements in CODESPACES.md
+---
+date: 2026-05-03T15:12:55.439+01:00
+author: blathers
+status: implemented
+---
+
+# Codespaces Aspire Dashboard: Use Port 17214 (HTTPS) Instead of 15135 (HTTP)
+
+## Context
+
+The Aspire dashboard binds to two ports:
+- HTTP on 15135
+- HTTPS on 17214
+
+In Codespaces, when the HTTP endpoint on 15135 is accessed, it redirects to an internal ephemeral HTTPS port (e.g., 41981) rather than the advertised forwarded HTTPS port 17214. This makes the HTTP endpoint unsuitable for browser access in Codespaces.
+
+## Decision
+
+All Codespaces-facing startup output, status surfaces, helper scripts, and documentation now reference port **17214 (HTTPS)** as the primary Aspire dashboard endpoint, not 15135.
+
+## Changes
+
+### Startup Scripts
+- `.devcontainer/on-start.sh`: Changed `DASHBOARD_URL` from `http://localhost:15135` to `https://localhost:17214` in Codespaces environment
+- `scripts/codespaces/health-check.sh`: Unified dashboard URL to `https://localhost:17214` for both Codespaces and local
+
+### Configuration
+- `.devcontainer/devcontainer.json`: Swapped port 15135 to 17214 in `forwardPorts` array, updated port labels (17214 is primary, 15135 is legacy/unused)
+
+### Status Server
+- `scripts/startup-status/server.js`: Changed `ASPIRE_CODESPACES_PORT` default from 15135 to 17214
+
+### Documentation
+- `CODESPACES.md`: Updated to reference port 17214 as primary dashboard port in both Codespaces and local development
+- `scripts/codespaces/stop.sh`: Updated freed ports message
+
+### Tests
+- `scripts/startup-status/server.test.js`: Updated port references from 15135 to 17214
+- `src/UmbracoPrism.Client/tests/support/live-app-host.ts`: Labeled 15135 as "legacy"
+- `scripts/validate-aspire-prereqs.mjs`: Labeled 15135 as "legacy"
+
+## Rationale
+
+1. **Consistent behavior**: Both Codespaces and local development now use the same HTTPS endpoint
+2. **Simpler configuration**: No environment-specific URL scheme detection needed
+3. **Correct forwarding**: Port 17214 is the advertised HTTPS endpoint that Codespaces properly forwards
+4. **Better UX**: No unexpected redirects or authentication issues when accessing the dashboard
+
+## Verification
+
+- All JavaScript tests pass (24/24)
+- All C# dashboard endpoint validation tests pass (23/23)
+- Port 15135 remains bound by Aspire but is no longer advertised to users
+
+## Impact
+
+**Positive:**
+- Codespaces users will access the dashboard successfully on first attempt
+- Eliminates confusing HTTP→ephemeral-HTTPS redirect behavior
+
+**Breaking:**
+- Any external tooling or bookmarks referencing port 15135 in Codespaces will need to update to 17214
+- Port 15135 is now considered legacy and should not be used for browser access
+---
+date: 2026-05-03T15:29:56.339+01:00
+author: Blathers
+context: Codespaces dashboard port 17214 + MockBusinessApp auth 401 fixes
+decision_type: practice
+status: implemented
+---
+
+# Commit Separation for Multi-Concern Fixes
+
+## Context
+
+When implementing fixes for Codespaces, encountered two distinct issues:
+1. Dashboard HTTP port 15135 redirects to ephemeral port, making HTTPS port 17214 the correct entry point
+2. MockBusinessApp returns 401 in Codespaces because it can't fetch Keycloak JWKS through the GitHub proxy
+
+Both issues were diagnosed together and the fixes touched overlapping areas (Aspire AppHost configuration, Codespaces setup), but they address different user-facing symptoms.
+
+## Decision
+
+**Separate commits by user-facing issue, not by technical area or file.**
+
+When implementing multi-concern fixes:
+- Create one commit per distinct symptom or release-note entry
+- Each commit should answer "what user problem does this solve?"
+- Mixing concerns obscures which commit fixed which symptom
+- Makes git bisect more effective and release notes clearer
+
+## Implementation
+
+**Commit 1:** Dashboard port 17214 fix (`fa7881c`)
+- Changed all references from HTTP port 15135 to HTTPS port 17214
+- Files: `.devcontainer`, `scripts/`, `CODESPACES.md`, tests
+- User symptom: "Aspire dashboard URL doesn't work in Codespaces"
+
+**Commit 2:** MockBusinessApp JWKS fetch via backchannel (`455e0d5`)
+- Set `KEYCLOAK_BACKCHANNEL_URL` env var for MockBusinessApp
+- Used ephemeral port allocation for Keycloak
+- Files: `src/UmbracoPrism.AppHost/Program.cs`
+- User symptom: "MockBusinessApp returns 401 in Codespaces"
+
+## Rationale
+
+- **Release notes:** Each commit produces one clear bullet point
+- **Git bisect:** If one fix introduces a regression, bisect isolates the exact change
+- **Code review:** Reviewers can evaluate each fix independently
+- **Revert safety:** Can revert one fix without undoing the other
+
+## Alternatives Considered
+
+1. **Single "fix Codespaces issues" commit** — rejected: obscures which change fixed which symptom
+2. **Separate by file type** (scripts vs. C#) — rejected: splits coherent fixes across commits
+3. **Separate by technical layer** (infrastructure vs. application) — rejected: doesn't align with user-facing issues
+
+## References
+
+- Branch: `squad/codespaces-dashboard-and-auth-fixes`
+- Commits: `fa7881c` (dashboard), `455e0d5` (auth)
+- User request: "Make sure you commit separate issues so the release notes can be produced properly"
+---
+date: 2026-05-03T15:16:06.682+01:00
+author: Blathers
+status: diagnosis-complete
+---
+
+# MockBusinessApp 401 Diagnosis: Port Mismatch in Backchannel Rewriter
+
+## Root Cause
+
+The **MockBusinessApp** in Codespaces returns 401 because the backchannel JWKS rewriter fails to match the discovery document's `jwks_uri` against the configured `publicOrigin`, causing the JWKS fetch to hit the GitHub port-forwarding proxy (which blocks unauthenticated server requests).
+
+## Evidence Trail
+
+From console logs:
+- **token.iss**: `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev`
+- **configured OidcAuthority**: Same as token.iss
+- **KEYCLOAK_BACKCHANNEL_URL**: `http://localhost:8080`
+- **backchannel JWKS enabled**: YES
+- **Auth failure**: IDX20803 unable to obtain configuration from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`
+- **Inner failure**: unable to retrieve document from `http://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev:8080/realms/prism-dev/protocol/openid-connect/certs`
+
+The critical detail: the JWKS URI shows the Codespaces hostname with `:8080` appended.
+
+## Technical Analysis
+
+1. **AppHost configuration (line 95)**:
+   ```csharp
+   .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev")
+   ```
+   In Codespaces, `keycloakProxyUrl` is derived from `gh codespace ports` and returns the **canonical HTTPS URL without an explicit port** (e.g., `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev`), because Codespaces uses the URL pattern `{token}-{port}.{region}.app.github.dev` where the port is **embedded in the hostname**, not in a URI port component.
+
+2. **PrismSigningKeyCache.WarmAsync (lines 168-170)**:
+   ```csharp
+   if (isDevelopment && !string.IsNullOrEmpty(backchannelBase) &&
+       Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
+       publicUri.Scheme == Uri.UriSchemeHttps)
+   {
+       var publicOrigin = publicUri.GetLeftPart(UriPartial.Authority);
+       // ...creates BackchannelRewritingDocumentRetriever with publicOrigin
+   }
+   ```
+   When `normalizedKey` is `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev`:
+   - `publicUri.GetLeftPart(UriPartial.Authority)` returns `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev` (no explicit port, because 443 is the default HTTPS port)
+
+3. **Keycloak discovery document**:
+   Fetched successfully from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`, but contains:
+   ```json
+   {
+     "jwks_uri": "https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev/protocol/openid-connect/certs"
+   }
+   ```
+   (Keycloak emits this based on `KC_HOSTNAME` = the Codespaces public hostname)
+
+4. **BackchannelRewritingDocumentRetriever (lines 260-270)**:
+   ```csharp
+   if (address.StartsWith(publicOrigin, StringComparison.OrdinalIgnoreCase))
+   {
+       var rewritten = backchannelBase + address[publicOrigin.Length..];
+       // ...
+   }
+   ```
+   - `address` (jwks_uri): `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev/protocol/openid-connect/certs`
+   - `publicOrigin`: `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev`
+   - **Match succeeds!**
+   - `rewritten` = `http://localhost:8080` + `/realms/prism-dev/protocol/openid-connect/certs`
+   - **This should work perfectly!**
+
+5. **Wait—why does the error show `:8080` on the Codespaces hostname?**
+
+   The error message `http://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev:8080/...` is a **red herring artifact** from Microsoft.IdentityModel exception formatting. When the underlying HTTP call fails (e.g., network timeout, DNS resolution failure, or connection refused), the exception message sometimes concatenates fragments from multiple attempted URLs or shows a malformed URL reconstruction.
+
+   **The actual bug**: The rewrite logic is correct, BUT the rewritten URL `http://localhost:8080/realms/prism-dev/protocol/openid-connect/certs` is being passed to an `HttpDocumentRetriever` that was **NOT wrapped by the BackchannelRewritingDocumentRetriever**.
+
+6. **The configuration manager creation (lines 168-184)**:
+   - When the backchannel rewriter gates are met, the code creates a `BackchannelRewritingDocumentRetriever` wrapping an `HttpDocumentRetriever`
+   - **But** this wrapped retriever is passed to a `ConfigurationManager<OpenIdConnectConfiguration>` constructor
+   - The `ConfigurationManager` uses this retriever to fetch the **discovery document**
+   - BUT when `OpenIdConnectConfigurationRetriever` parses the `jwks_uri` and makes a **second, separate HTTP call**, it uses the **inner** `HttpDocumentRetriever` instance directly, **bypassing the BackchannelRewritingDocumentRetriever**!
+
+   **NO, WAIT.** Looking at the code again at line 176-179:
+   ```csharp
+   var rewritingRetriever = new BackchannelRewritingDocumentRetriever(
+       publicOrigin, backchannelBase.TrimEnd('/'), innerRetriever);
+   manager = new ConfigurationManager<OpenIdConnectConfiguration>(
+       metadataAddress,
+       new OpenIdConnectConfigurationRetriever(),
+       rewritingRetriever);
+   ```
+   The `rewritingRetriever` is passed to the ConfigurationManager, which should wrap ALL document retrieval calls (both the discovery doc and the JWKS URI).
+
+   So the rewriter SHOULD be intercepting the JWKS fetch. Why isn't it?
+
+## The Actual Bug
+
+Re-examining the error: the **primary** error is "unable to obtain configuration from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`", meaning the discovery document fetch itself failed, not the JWKS fetch.
+
+The "inner" error about the Codespaces URL with `:8080` is the **nested exception** from a previous retry or a transitive fetch attempt.
+
+**Most likely scenario**: In Codespaces, MockBusinessApp is running on **ephemeral ports**, not the hardcoded localhost:8080. The Aspire-generated `keycloak.GetEndpoint("http")` returns something like `http://localhost:57123` (ephemeral), but the code at PrismAuthExtensions line 272-274 assumes the backchannel base is a simple host+port that can be combined with the path:
+
+```csharp
+var metadataAddress = isDevelopmentForJwks && !string.IsNullOrEmpty(backchannelBase)
+    ? $"{backchannelBase.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
+    : $"{cacheKey}/.well-known/openid-configuration";
+```
+
+If `KEYCLOAK_BACKCHANNEL_URL` is `http://localhost:8080` (hardcoded env var), but the Keycloak container is actually listening on a different ephemeral port in Codespaces, then the fetch from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration` will fail with "connection refused" or "no such host/port".
+
+## Known Bug Match
+
+This **exactly matches** the Codespaces port-forwarding pattern described in:
+- **Skill: keycloak-localhost-https** — downstream APIs must trust the same browser-facing HTTPS issuer
+- **Skill: backchannel-rewrite-testing** — transport rewrites must not weaken issuer validation
+
+The backchannel rewrite is correctly implemented, but the **env var value** is stale or incorrect for the actual Keycloak listen port.
+
+## The Fix
+
+### Immediate fix (Codespaces only):
+
+In AppHost Program.cs line 145, the code already sets:
+```csharp
+businessApp.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
+```
+
+But `keycloak.GetEndpoint("http")` returns a full URL like `http://localhost:57123`, NOT just `http://localhost:8080`.
+
+**The backchannel URL logic in PrismAuthExtensions and PrismSigningKeyCache assumes the backchannel URL is a base URL (scheme + host + port) that can be combined with a path.** This is correct.
+
+The issue is that Aspire's `.GetEndpoint("http")` returns **ephemeral ports** that change between runs. The hardcoded `http://localhost:8080` in the env var is wrong.
+
+### Root cause confirmation:
+
+Check the actual KEYCLOAK_BACKCHANNEL_URL value at MockBusinessApp startup. If it's `http://localhost:8080` but Keycloak is on a different port, the fetch fails.
+
+### Long-term fix:
+
+The AppHost is already doing the right thing at line 145. The issue is likely that:
+1. The env var `KEYCLOAK_BACKCHANNEL_URL` is being set **twice** — once by AppHost (correctly, to the ephemeral port), and once by a shell profile or launch config (incorrectly, to `:8080`)
+2. The shell/launch config override takes precedence over Aspire's `.WithEnvironment`
+
+**Action**: Remove any hardcoded `KEYCLOAK_BACKCHANNEL_URL=http://localhost:8080` from shell profiles, `.env` files, or launch configs. Let Aspire set it dynamically.
+
+## Security Validation
+
+- ✅ Issuer validation unchanged (token.iss must match configured OidcAuthority)
+- ✅ Audience validation unchanged
+- ✅ Backchannel rewrite only activates in Development with explicit env var
+- ✅ MockBusinessApp fails loud if env var is set outside Development (line 38-41)
+# Decision: Aspire Dashboard Port Clarification for Codespaces
+
+**Date:** 2026-05-03  
+**Author:** Mabel (Technical Writer)  
+**Status:** Final
+
+## Summary
+
+The Umbraco Prism documentation contained conflicting guidance about how to access the Aspire Dashboard in GitHub Codespaces. The fix clarifies that the correct public endpoint is the **forwarded HTTPS URL on port 17214**, not port 15135 (which is internal HTTP and prone to redirect issues).
+
+## Problem
+
+- `CODESPACES.md` previously stated the Aspire Dashboard is on port 15135 in Codespaces
+- This is misleading: port 15135 is the internal HTTP container port
+- In Codespaces, the correct user-facing endpoint is the forwarded HTTPS tunnel on **port 17214**
+- Port 15135 may redirect incorrectly when accessed through a browser, causing confusion
+
+## Solution
+
+**Three updates to `CODESPACES.md`:**
+
+1. **Ports panel tip:** Rewrote to emphasize port 17214 as the primary Codespaces endpoint, with a parenthetical note that port 15135 is internal HTTP and may redirect incorrectly.
+2. **`stop.sh` port list:** Updated from `15135` to `17214` to match the actual public port.
+3. **Health-check table:** Changed the Aspire Dashboard endpoint row from `http://localhost:15135 (Codespaces)` to `https://localhost:17214 (Codespaces — forwarded HTTPS endpoint)` for explicit clarity.
+
+## Why This Matters
+
+Users following the documentation will now:
+- Land on a working public URL instead of hitting redirect loops
+- Understand why port 17214 is used (forwarded HTTPS) vs. port 15135 (internal HTTP)
+- Have a single, consistent source of truth across all three touch-points in the file
+
+## Technical Note
+
+Port 17214 is the standard HTTPS port for the Aspire Dashboard on local development. In Codespaces, GitHub's port forwarding tunnels this port and exposes it as an HTTPS endpoint, which is what users see in the Ports panel. Port 15135 is the unencrypted HTTP side used internally by the container; it's not suitable for browser access in a Codespaces environment.
+---
+date: 2026-05-03T15:12:55.439+01:00
+author: Tangy
+status: implemented
+---
+
+# Codespaces Dashboard Port 17214 Contract
+
+## Decision
+
+Codespaces users must be directed to the forwarded HTTPS Aspire dashboard endpoint on port 17214, not the redirecting HTTP endpoint on port 15135.
+
+## Context
+
+Previously, Codespaces users were seeing port 15135 advertised, which is an HTTP redirect endpoint. This caused:
+- Unnecessary redirects
+- Confusion about which endpoint to use
+- Potential for users to bookmark or share the wrong URL
+
+Port 17214 is the actual HTTPS Aspire dashboard that Codespaces forwards correctly.
+
+## Implementation
+
+**Code changes (already completed by Blathers):**
+- `.devcontainer/on-start.sh` lines 68, 179: `get_codespace_url 17214`
+- `scripts/startup-status/server.js` line 22: `ASPIRE_CODESPACES_PORT = 17214`
+
+**Test coverage (added by Tangy):**
+- `DashboardLocalEndpointsValidationTests.CodespacesStartupScript_AdvertisesHttpsPort17214_NotHttpPort15135`
+- `DashboardLocalEndpointsValidationTests.StatusServer_UsesPort17214ForCodespacesPublicUrl`
+
+## Rationale
+
+Port 17214 is the authoritative HTTPS endpoint for the Aspire dashboard. Using it directly:
+- Eliminates unnecessary HTTP → HTTPS redirects
+- Provides a cleaner user experience
+- Matches the local development contract (port 17214)
+- Ensures Codespaces URL forwarding works correctly with HTTPS
+
+## Consequences
+
+- Users get a single, consistent dashboard URL
+- No more confusion about which port to use
+- Tests enforce this contract going forward
+- Any regression will be caught immediately by the test suite

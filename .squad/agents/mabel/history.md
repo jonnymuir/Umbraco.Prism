@@ -75,6 +75,23 @@ The optional `v` prefix in release tags (`[v1.8.0]`) is documented but the gate 
 
 ---
 
+## Session: Codespaces Dashboard Port Documentation Fix (2026-05-03)
+
+**Status:** ✅ Complete
+
+**Task:** Update CODESPACES.md to clarify the correct Aspire Dashboard URL for Codespaces users.
+
+### Changes
+
+Corrected three references in CODESPACES.md:
+1. **Ports panel tip (line 61):** Clarified that the public forwarded HTTPS endpoint is port 17214; noted port 15135 is internal HTTP that may redirect incorrectly for browser use.
+2. **Port cleanup info (line 92):** Updated port list from `15135` to `17214` in `stop.sh` documentation.
+3. **Health-check table (line 132):** Updated Aspire Dashboard endpoint from `http://localhost:15135` to `https://localhost:17214` with Codespaces context.
+
+**Impact:** Codespaces users will now have a clear, single source of truth: use the forwarded HTTPS endpoint on **port 17214** for reliable browser access.
+
+---
+
 ## 2026-04-30: Full Documentation Review & v2 Schema Cleanup — COMPLETE
 
 **Session:** Comprehensive documentation audit, v2 schema terminology cleanup, and walkthrough consolidation
@@ -96,3 +113,6 @@ Complete chronological history available in git. Recent summaries:
 - Redirect Hardening Sprint (2026-04-14)
 
 **Access:** Full session details in git history; `.squad/decisions.md` for decisions.
+## 2026-05-03 — Scribe: Documentation Port 17214 Decision Merged
+
+Scribe merged mabel-dashboard-docs-17214.md decision documenting CODESPACES.md clarification work for Aspire Dashboard port guidance.
