@@ -2067,3 +2067,186 @@ Port 3000 is pre-declared in `devcontainer.json` as a forwarded public port (`on
 
 Brewster's commit 1633f73; inbox decision.
 
+
+## 📌 2026-05-03: Blathers — Enhanced 401 Diagnostics for Live Codespaces
+
+**Status:** ✅ SHIPPED — Enhanced logging deployed to PrismAuthExtensions.cs and MockBusinessApp
+
+**Summary:** Preemptive diagnostic enhancements added to capture token `kid`, ASPNETCORE_ENVIRONMENT, computed backchannel JWKS state, and JWKS metadata URLs when HTTP 401 `invalid_token` failures occur.
+
+**Context**
+
+User reported HTTP 401 `invalid_token` from MockBusinessApp when calling from the Codespaces dashboard. The existing `OnAuthenticationFailed` logging lacked critical debugging details — token key ID (kid), environment state, dual-gate condition evaluation, and JWKS metadata URLs — making root cause diagnosis difficult for operators without shell access.
+
+**Decision**
+
+Ship preemptive diagnostic enhancements before the next live Codespaces failure occurs, revealing dual-gate logic transparently and providing actionable evidence.
+
+**Changes**
+
+1. **Token `kid` extraction** — Logged when present in JWT header
+2. **ASPNETCORE_ENVIRONMENT display** — Shows whether Development-gated logic applies
+3. **Computed `backchannel JWKS enabled`** — Boolean showing if dual-gate condition is true
+4. **JWKS metadata URL** — Logged for `SecurityTokenSignatureKeyNotFoundException`
+5. **Enhanced `/debug/auth` endpoint** — Now shows `backchannelJwksEnabled` matching validator logic
+
+**Rationale**
+
+"Do not guess; prefer logging and messages that reveal the real problem." Enhanced diagnostics make dual-gate logic transparent and provide operators with actionable evidence for diagnosing 401s remotely.
+
+**Impact**
+
+When the next 401 occurs in live Codespaces, operators can:
+- `curl https://{codespace}/debug/auth` to confirm backchannel state
+- Read console logs to see token `kid` and JWKS metadata URL
+- Compare binary build timestamp vs. git commit to detect stale runtime
+
+No behaviour change — diagnostics only.
+
+**Test Coverage**
+
+- All 672 Core tests passing
+- All 20 PrismAuthExtensions security tests passing
+
+**Files Changed**
+
+- `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`
+- `src/UmbracoPrism.MockBusinessApp/Program.cs`
+
+---
+
+## 📌 2026-05-03: Blathers — Stale Runtime Restart Pattern (Operational Guidance)
+
+**Status:** 📋 PROPOSED GUIDANCE — Documented in `.squad/skills/`
+
+**Summary:** Established operational pattern for handling stale auth validation config in long-running Aspire processes after code pulls.
+
+**Context**
+
+User reported persistent 401 `invalid_token` from MockBusinessApp after running `refresh.sh` and pulling latest code. The BusinessApp had been running for 2h+ and predated PR #46's JWKS backchannel fix for generic OIDC bearer validation. Code-side changes do not affect running processes until they restart.
+
+**Decision**
+
+**Always restart the Aspire stack after pulling auth-related changes.**
+
+The `refresh.sh` script already implements this:
+1. Stop AppHost
+2. Pull latest code
+3. Restart via `.devcontainer/on-start.sh`
+
+**Rationale**
+
+- Aspire-managed services (TestSite, BusinessApp, KeycloakProxy) are launched once and stay resident
+- Auth validation config is set at startup (e.g., JwtBearerOptions, signing key resolvers)
+- A code change in the worktree does not affect running processes until they restart
+- The `live-oidc-401-stale-runtime` skill documents this pattern
+
+**Alternatives Considered**
+
+1. **Hot reload** — ASP.NET Core hot reload does not cover JwtBearerOptions or validator delegates
+2. **Manual Aspire restart** — Works, but `refresh.sh` is the canonical operator path
+3. **Process start time warnings** — Could add diagnostics, but simpler to just restart after pulls
+
+**Operational Guidance**
+
+- Use `refresh.sh` after `git pull` when auth changes are suspected
+- For single-service changes, use Aspire Dashboard restart button (https://localhost:17214)
+- No code changes needed; this is operational discipline
+
+---
+
+## 📌 2026-05-03: Brewster — Fix Malformed Codespaces URL (tr -d '/' Regression)
+
+**Status:** ✅ IMPLEMENTED — One-line fix in `.devcontainer/on-start.sh`
+
+**Problem**
+
+After the "full-URL output on startup" change landed, users reported:
+- Browser download prompt on every link printed by `refresh.sh`
+- 404 errors when following those links
+
+**Root Cause**
+
+In `get_codespace_url()` (`.devcontainer/on-start.sh`), the `jq` branch piped through `tr -d '/'` to strip trailing slashes. However, `tr -d '/'` deletes **every** forward slash in the string — including the `//` in `https://`.
+
+Example:
+- Input: `https://codespace-name-3000.app.github.dev/`
+- Output: `https:codespace-name-3000.app.github.dev` ← invalid URL
+
+Since `jq` is installed in the Ubuntu 24.04 devcontainer, this branch always ran. The Python fallback (which correctly used `.rstrip('/')`) was never reached.
+
+**Fix**
+
+Replaced `| tr -d '/'` with `| sed 's|/*$||'` in the `jq` branch.  
+`sed 's|/*$||'` strips only trailing slashes, preserving `://` in the scheme.
+
+**Impact**
+
+- Printed Codespaces URLs are now valid clickable links
+- No other behaviour changed
+- Python fallback remains as-is (was already correct)
+
+---
+
+## 📌 2026-05-03: User Directives (Operational Memory)
+
+**Status:** 🎯 Guidance for team cognition
+
+**Three Directives from Jonny Muir (2026-05-03T12:00–12:07)**
+
+1. **Codespaces as Primary Runtime:** When diagnosing auth/runtime issues, remember the problem is in Codespaces, not the local machine. (2026-05-03T12:00:19)
+
+2. **Diagnose Before Fixing:** When diagnosing or suggesting a fix, do not guess; prefer logging and messages that reveal more about the problem over a fix we do not know will work. (2026-05-03T12:00:19)
+
+3. **Diagnose Against Actual Failure:** Do not assume Codespaces is the primary runtime for this class of failure; diagnose against the runtime that is actually failing. For the current issue, the failing path is the live Codespaces dashboard call to MockBusinessApp. (2026-05-03T12:07:19)
+
+---
+
+## 📌 2026-05-03: Copper — MockBusinessApp 401 Stale Runtime Pattern Review
+
+**Status:** ✅ REVIEWED & RECOMMENDED
+
+**Summary:** Security review of HTTP 401 `invalid_token` from MockBusinessApp confirms stale runtime pattern (high confidence) and validates code-side trust chain.
+
+**Context**
+
+User reported: "TestSite is back up, but the Mock Business App call returns HTTP 401 Unauthorized with `WWW-Authenticate: Bearer error=\"invalid_token\"` and no response body."
+
+**Investigation Summary**
+
+**Root Cause (HIGH CONFIDENCE): Stale Runtime**
+
+- Aspire MockBusinessApp (port 7245): Started 09:45:37, running 2h+ at investigation time
+- TestSite: Recently restarted (user confirmed "back up")
+- Last auth code change: bf1c6e7 (2026-05-02 11:23:54)
+- Pattern: TestSite fresh runtime + MockBusinessApp stale runtime = validation mismatch
+
+**Code-Side Trust Chain: VERIFIED ✅**
+
+- Token issuer: `https://localhost:8443/realms/prism-dev`
+- MockBusinessApp OidcAuthority: `https://localhost:8443/realms/prism-dev` (appsettings.json line 26)
+- ClientId: `prism-client` (appsettings.json line 25)
+- Issuer/audience validators correctly implemented (PrismAuthExtensions.cs lines 115–163)
+- Backchannel JWKS fetch correctly scoped to Development + env var guard (lines 232–242)
+
+**Recommendation**
+
+**Primary Action:** Restart MockBusinessApp Aspire resource (port 7245) before investigating code-side issues.
+
+**If restart doesn't fix**, the problem is NOT stale runtime — it's a real validation mismatch. Next steps:
+1. Capture `OnAuthenticationFailed` console diagnostics (PrismAuthExtensions.cs lines 27–68)
+2. Compare actual token `iss`/`azp` claims vs configured `OidcAuthority`/`ClientId`
+3. Verify token is reaching MockBusinessApp (not stripped by middleware)
+4. Check for typo in ClientId or OidcAuthority config
+
+**Optional Diagnostic Improvements**
+
+**Current `OnAuthenticationFailed` handler is good** but user didn't provide console output.
+
+**Suggested improvements (OPTIONAL):**
+- Log auth failures to structured sink (e.g., Seq, Application Insights)
+- OR surface diagnostics in test harness for easier repro investigation
+- OR add health check endpoint that reports auth config (Development-only)
+
+**Trade-off:** More diagnostic surface area = more attack surface. Keep Development-gated.
+
