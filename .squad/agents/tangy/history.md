@@ -193,3 +193,55 @@ Blathers had produced a quick-reference text file, but it still left too much op
 - Browser devtools integration provides superior visibility over static endpoint lists
 - Public URL transformation critical for user-facing API responses
 - Regression test coverage ensures reliability across environment configurations
+
+## 2026-05-03: Diagnostics Script Python Runtime Guardrail
+
+**Timestamp:** 2026-05-03T21:32:41.296+01:00  
+**Status:** ✅ Complete
+
+### Outcome
+
+- Reviewed the reported `ModuleNotFoundError: No module named 'json'` failure and confirmed it points to shell/runtime contamination, not a missing project package.
+- Verified the runtime hardening in `scripts/codespaces/diagnose-downstream.sh` now survives poisoned `PYTHONHOME` / `PYTHONPATH` values.
+- Added a regression test and operator guidance so the remaining failure mode is clearly framed as a broken active Python interpreter.
+
+### Remaining Runtime Assumptions
+
+- The selected `python3` executable still has to be a real interpreter with a working standard library.
+- `gh codespace ports` remains the authoritative forwarded-URL source; fallback hostname derivation is still only best-effort.
+- The script still assumes the stack is already running, so connection-refused probes remain an environment/readiness signal rather than a script bug.
+
+### Validation
+
+- `bash -n scripts/codespaces/diagnose-downstream.sh`
+- `PYTHONHOME=/nonexistent PYTHONPATH=/nonexistent bash scripts/codespaces/diagnose-downstream.sh`
+- `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --filter DashboardLocalEndpointsValidationTests --nologo`
+
+### Decision Recorded
+
+- `.squad/decisions/inbox/tangy-diagnostics-script-runtime.md`
+
+---
+
+## 2026-05-03: Diagnostics Script Runtime Contract Strengthening — Team Orchestration
+
+**Status:** ✅ Complete (decision merged to .squad/decisions.md)
+
+**Team Context:** Orchestrated with Blathers (runtime implementation) and Mabel (product commit to main)
+
+**Decision:** Codespaces Diagnostics Script Must Ignore Ambient Python Shell State
+- Explicit runtime isolation requirement for diagnostics scripts
+- Recovery path documentation for operators with contaminated shells
+- Identified remaining assumptions: broken python3 binary, gh codespace ports, stack readiness
+
+**Test Contract Contributions:**
+- Verified `CodespacesDiagnosticsScript_IgnoresAmbientPythonShellOverrides()` test case
+- Documented remaining environmental assumptions
+- QA signoff on recovery steps for shell-level diagnostics
+
+**Collaboration:**
+- Blathers implemented runtime detection and `-I` isolation
+- Mabel landed product-scoped fix to main (commit fb1b324) with updated CODESPACES.md
+- Decisions merged by Scribe (this session)
+
+**Outcome:** Test contract strengthened. QA assumptions documented.

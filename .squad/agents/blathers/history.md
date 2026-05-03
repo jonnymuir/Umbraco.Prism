@@ -159,6 +159,7 @@ Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token 
 ## Learnings
 
 - **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
+- **2026-05-03T21:32:41.296+01:00:** Codespaces helper scripts that embed Python should self-check a working stdlib runtime and launch it with `-I` plus `PYTHONHOME`/`PYTHONPATH` scrubbed; activated toolchains can otherwise break even basic imports like `json`.
 
 ---
 ## 2026-05-03: Codespaces Downstream Diagnostics Script
@@ -174,3 +175,23 @@ Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token 
 - Live runtime probes more reliable than static config validation in Codespaces environment
 - Internal backchannel URLs must not be exposed in browser-facing responses
 - Manual diagnosis flow critical for operator troubleshooting
+
+---
+
+## 2026-05-03: Diagnostics Script Python Runtime Hardening — Team Orchestration
+
+**Status:** ✅ Complete (decision merged to .squad/decisions.md)
+
+**Team Context:** Orchestrated with Tangy (test contract validation) and Mabel (product commit to main)
+
+**Decision:** Codespaces Diagnostics Scripts Should Verify a Clean Python Runtime
+- Added runtime detection and `-I` isolation to diagnose-downstream.sh
+- Scrub PYTHONHOME, PYTHONPATH environment overrides
+- Fallback handling for broken system Python
+
+**Collaboration:**
+- Tangy hardened the test contract: `CodespacesDiagnosticsScript_IgnoresAmbientPythonShellOverrides()`
+- Mabel landed product-scoped fix to main (commit fb1b324) with supporting documentation
+- Decisions merged by Scribe (this session)
+
+**Outcome:** Product deliverable live on main. Scope discipline established for future product vs bookkeeping separation.

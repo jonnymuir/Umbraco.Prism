@@ -1,224 +1,58 @@
-# Mabel — History
+# Mabel — History (Technical Writer)
+
+**Agent:** Documentation specialist shipping Codespaces and product-facing guidance, walkthrough architectures, diagnostic flows, and onboarding surface improvements.
+
+**Recent focus:** Diagnostics script landing, runtime troubleshooting docs, port clarification, dashboard accessibility, and scope discipline (product vs bookkeeping separation).
+
+---
 
 ## Project Seed
 
 - **Project:** Umbraco.Prism — a syntax highlighting package for Umbraco CMS using Prism.js
 - **Stack:** .NET 10.0.x, Node.js 22.17.1, Web Components/Storybook, Playwright, xUnit
 - **User:** Jonny Muir
-- **My scope:** Public-facing documentation — README, /docs/, marketplace listing, changelogs
-
-
-
-## 📋 Recent Sessions
-
-History trimmed for readability. Complete history in git.
+- **Scope:** Public-facing documentation — README, /docs/, marketplace listing, changelogs, Codespaces guides
 
 ---
 
-## Session: Rams-Grade Docs & Onboarding Review (2026-05-01)
+## 2026-05-03: Diagnostics Script Runtime Fix — Product Commit to Main
 
-**Status:** ✅ Complete — Output at `.squad/reviews/2026-05-01-prism-reflection/06-mabel-onboarding.md`
+**Status:** ✅ Complete (product commit fb1b324 pushed to origin/main)
 
-**Task:** Deep review of the full documentation and onboarding surface through Dieter Rams' 10 principles, for 6 named personas: developers, content creators, designers, editors, business users, service designers.
+**Team Context:** Orchestrated with Blathers (runtime implementation) and Tangy (test contract validation)
 
-### Findings
+**Decisions Generated:**
 
-- **Developer:** Only persona with a clear entry door. README, umbraco-setup.md, authoring walkthrough all solid.
-- **Content creators, editors, business users:** No door at all. Completely absent from docs surface.
-- **Service designers:** Accidental door — end-user walkthroughs exist but pivot mid-step into OIDC/JSON implementation detail.
-- **Designers:** Partial door via branding-design-system.md, but design-system walkthrough is skeletal (all screenshots TODO).
-- **Walkthroughs:** 4 fully automated (community-enquiry, payment-demo, planning-notification, information-request); 5 skeletal (creating-a-tenant, design-system, push-notifications, building-a-mobile-app, authoring-a-workflow has narrative but no screenshots).
-- **Honesty gap:** Five skeletal walkthroughs listed in README table without incompleteness markers.
-- **Surfacing internal docs:** `docs/design/` (6 architecture decision docs) appear in public README navigation table — contributor-facing, not user-facing.
-- **ASCII diagram violation:** `push-notifications.md` contains ASCII flow diagram; charter mandates Mermaid.
-- **R5 compliance:** Not consistently applied across all walkthroughs.
+1. **Diagnostics Script Landing: Scope Discipline** (implemented)
+   - Pattern: land product deliverables on main; keep .squad bookkeeping separate
+   - Clean separation between user-facing artifacts and agent documentation
 
-### Three Prioritised Recommendations
+2. **Diagnostics Script Runtime Isolation — Commitment to Main** (implemented)
+   - Product commit fb1b324 now live on origin/main
+   - Files: `scripts/codespaces/diagnose-downstream.sh`, `CODESPACES.md`, test contract integration
+   - Deferred agent skill extraction to separate bookkeeping merge
 
-1. Add "Start here by role" section to `README.md` — six bullet points, one per persona, with links.
-2. Strip `docs/design/` entries from the public README docs table; replace with single contributor link.
-3. Mark skeletal walkthroughs with `🚧 In progress` in `docs/walkthroughs/README.md`.
+**Work Product:**
+- Commit fb1b324: Complete, releasable product commit
+- CODESPACES.md: Added diagnostics guidance and recovery steps
+- Test integration: DashboardLocalEndpointsValidationTests.cs with new contract
+- Decision trail: Clear scope discipline for future product vs bookkeeping merges
 
-### Decisions Written
+**Implementation Notes:**
+- Followed git hygiene: one commit = one complete, releasable unit
+- Users can immediately pull and use diagnostics script in Codespaces
+- .squad/ bookkeeping deferred to separate session to maintain clean history
 
-`.squad/decisions/inbox/mabel-docs-reflection.md`
-
----
-
-## Session: PR #38 CI Green — v1.8.0 CHANGELOG + Workflow Regex Fix (2026-04-30)
-
-**Status:** ✅ Complete — Commits `da5d29d`, `8809c64` on `fix/ci-green` (merged as `dc316fb` on main)
-
-**Scope:** Add CHANGELOG entry for 1.8.0 release milestone and fix Squad Release workflow version guard.
-
-### Changes
-
-1. **CHANGELOG entry (commit `da5d29d`):**
-   - Added `## [v1.8.0] — 2026-04-30` section
-   - Consolidated security review findings (SEC-001 through SEC-011)
-   - Listed feature additions, behavioral changes, fixes, and security CVE bumps
-
-2. **Workflow regex fix (commit `8809c64`):**
-   - Fixed `squad-release.yml`, `squad-preview.yml`, `squad-promote.yml`
-   - Changed version check from `grep -q "## \[$VERSION\]"` to `grep -qE "^## \[v?$VERSION\]"`
-   - Now accepts both `[1.8.0]` and `[v1.8.0]` formats
-
-### Impact
-
-- Release gate satisfied: CI version consistency check passes
-- Squad Release/Preview/Promote workflows unblocked for all version formats
-- Prevents future release regressions
-
-### Architectural Note
-
-The optional `v` prefix in release tags (`[v1.8.0]`) is documented but the gate didn't validate it. This was a silent hole — regex fix catches it for future releases.
+**Outcome:** Product live. Users can pull and use immediately. Scope discipline model established for team.
 
 ---
 
-## Session: Codespaces Dashboard Port Documentation Fix (2026-05-03)
+## Recent Session Archive
 
-**Status:** ✅ Complete
+Detailed session histories (2026-04-30, 2026-05-01, and earlier) available in `history-archive.md`. Quick reference:
 
-**Task:** Update CODESPACES.md to clarify the correct Aspire Dashboard URL for Codespaces users.
+- **2026-05-01:** Rams-Grade documentation review (onboarding surface audit)
+- **2026-04-30:** PR #38 CI green (CHANGELOG + workflow regex fix)
+- **2026-05-03 (multiple sessions):** Codespaces port docs, PR #49 merge, branch reconciliation, diagnostics script landing, runtime fix
 
-### Changes
-
-Corrected three references in CODESPACES.md:
-1. **Ports panel tip (line 61):** Clarified that the public forwarded HTTPS endpoint is port 17214; noted port 15135 is internal HTTP that may redirect incorrectly for browser use.
-2. **Port cleanup info (line 92):** Updated port list from `15135` to `17214` in `stop.sh` documentation.
-3. **Health-check table (line 132):** Updated Aspire Dashboard endpoint from `http://localhost:15135` to `https://localhost:17214` with Codespaces context.
-
-**Impact:** Codespaces users will now have a clear, single source of truth: use the forwarded HTTPS endpoint on **port 17214** for reliable browser access.
-
----
-
-## 2026-04-30: Full Documentation Review & v2 Schema Cleanup — COMPLETE
-
-**Session:** Comprehensive documentation audit, v2 schema terminology cleanup, and walkthrough consolidation
-
----
-
-## 📦 Archived Sessions (2026-04-22 and earlier)
-
-Complete chronological history available in git. Recent summaries:
-
-**Archived entries include:**
-- Keycloak Local Dev Documentation Refactor (2026-04-14)
-- GDS Phase 2 Interactive Walkthrough (2026-04-19)
-- Workflow Documentation Rewrite (2026-04-21, 2026-04-22)
-- Custom Field Types Documentation (2026-04-22)
-- Walkthrough Screenshot Runbook (2026-04-22)
-- Release v1.8.0 (2026-04-14)
-- Security Hardening (2026-04-14, 2026-04-15)
-- Redirect Hardening Sprint (2026-04-14)
-
-**Access:** Full session details in git history; `.squad/decisions.md` for decisions.
-## 2026-05-03 — Scribe: Documentation Port 17214 Decision Merged
-
-Scribe merged mabel-dashboard-docs-17214.md decision documenting CODESPACES.md clarification work for Aspire Dashboard port guidance.
-
----
-
-## Session: PR #49 Merge — AppHost Dynamic Backchannel Fix (2026-05-03)
-
-**Status:** ✅ Complete — Merged as commit `a8e2d86`
-
-**Task:** Finish PR #49 and merge to main with preserved commit history.
-
-### Actions
-
-1. **Verified PR readiness:** All CI checks green (core-tests, storybook-tests, auth-playwright, squad-ci)
-2. **Pushed local commit:** d6cfe4e (squad: merge downstream timeout diagnosis decisions) to origin
-3. **Merged with history preservation:** Selected "Create a merge commit" strategy (not squash) to maintain readable commit history
-4. **Cleaned branch:** Deleted local and remote feature branches
-5. **Synced main:** Local main already fast-forwarded to origin/main
-
-### Commit History
-
-- **a8e2d86** — Merge pull request #49 (preserve history)
-  - **d6cfe4e** — squad: merge downstream timeout diagnosis decisions
-  - **2a46494** — fix(codespaces): use dynamic endpoint discovery for BusinessApp backchannel
-
-### Product Impact
-
-The fix enables Codespaces developers to use the downstream demo API without timeouts. Dynamic endpoint discovery via `businessApp.GetEndpoint("http")` replaces the hardcoded localhost:5163 assumption, allowing Aspire to assign ports correctly in container environments.
-
-**Next step for users:** Restart the Aspire AppHost in Codespaces to pick up the new configuration.
-
-### Skill Documentation
-
-Extracted reusable pattern to `.squad/skills/aspire-dynamic-endpoint-backchannels/SKILL.md` for future backchannel URL configuration tasks.
-
----
-
-## Session: Post-Merge Branch Reconciliation (2026-05-03)
-
-**Status:** ✅ Complete
-
-**Task:** Reconcile residual branch state after PR #49 merge. Feature branch `squad/fix-backchannel-endpoint-discovery` had uncommitted changes in `.squad/agents/tom-nook/history.md` and a post-merge skill documentation commit.
-
-### Work
-
-1. **Evaluated skill merit:** `aspire-dynamic-endpoint-backchannels` — captured earned pattern with test contracts, diagnosis steps, and anti-patterns. **Decision: KEEP** — reusable across infrastructure diagnostics.
-
-2. **Staged Tom Nook's history:** Committed uncommitted `.squad/agents/tom-nook/history.md` entry documenting skill extraction as part of the branch cleanup process.
-
-3. **Rebased feature branch:** Cleaned branch divergence by rebasing feature branch onto local main (which had Mabel's post-merge history commit).
-
-4. **Merged cleanly:** Fast-forward merge landed skill + history updates onto main as two discrete commits:
-   - `9ee9a25` docs: add aspire-dynamic-endpoint-backchannels skill
-   - `ed2b5cd` docs: update tom-nook history — aspire-dynamic-endpoint-backchannels skill extraction
-
-### Outcome
-
-- ✅ Skill documentation landed on main
-- ✅ Tom Nook's history synchronized
-- ✅ Main and feature branch now synchronized at commit `ed2b5cd`
-- ✅ Working tree clean
-- ⚠️ Local main is 3 commits ahead of origin/main (Mabel's post-merge session + 2 skill commits); awaiting push authorization
-
-### Pattern
-
-Post-merge .squad-only work should be staged before branch closure, then merged using rebase-onto approach to maintain linear history when PR merge introduces divergence.
-
----
-
----
-
-## Session: Final Push to Origin (2026-05-03)
-
-**Status:** ✅ Complete
-
-**Task:** Push main branch containing the four .squad-only commits (post-merge reconciliation work) to origin, and clean up merged feature branches.
-
-### Actions
-
-1. **Pushed main:** origin/main now at commit `e1d54e7` (was `a8e2d86`)
-2. **Deleted remote merged branches:**
-   - ✅ fix/codespaces-businessapp-http-backchannel
-   - ✅ squad/12-biometric-device-credentials-table
-   - ✅ squad/20-21-biometric-platform-config
-   - ✅ squad/22-capacitor-biometric-bridge
-   - ✅ squad/23-biometric-registration-ui
-   - ✅ squad/25-biometric-device-management-ui
-   - ✅ squad/codespaces-dashboard-and-auth-fixes
-   - ✅ squad/fix-browser-url-leak
-   - ⚠️ squad/fix-backchannel-endpoint-discovery (already deleted on remote, cleaned local)
-
-3. **Final state:** Local main synced to origin/main at `e1d54e7`, working tree clean, all merged feature branches cleaned.
-
-### Commits Pushed
-
-- **e1d54e7** docs: mabel session history — post-merge reconciliation complete
-- **ed2b5cd** docs: update tom-nook history — aspire-dynamic-endpoint-backchannels skill extraction
-- **9ee9a25** docs: add aspire-dynamic-endpoint-backchannels skill
-- **e44c8bf** chore: mabel session history — PR #49 merge complete
-
----
-
-## Learnings
-
-- **Branch divergence recovery:** When PR merge creates a local divergence (post-merge bookkeeping vs feature branch work), rebase the feature branch onto the post-merge commit before merge, not the other way.
-- **Skill extraction timing:** Earning and extracting skills as part of PR closure discipline ensures patterns get captured and shared while diagnostic context is fresh.
-- **History precision:** Documenting skill extraction in agent history (Tom Nook's record) + skill itself (.squad/skills/) provides two-layer traceability: "what we learned" + "how to use it".
-- **Cleanup discipline:** Merged feature branches should be deleted from both remote and local once their work is fully integrated into main. This keeps the branch list legible and signals closure to the team.
+**Access full chronology:** Git history and `.squad/decisions.md` for decision trail.

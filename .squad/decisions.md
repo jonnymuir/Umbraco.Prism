@@ -1168,3 +1168,245 @@ Added skill as commit `2078604` on `squad/fix-backchannel-endpoint-discovery` du
 - Implementation: PR #49 (commit `2a46494`)
 - Test contract: `DashboardLocalEndpointsValidationTests.AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls`
 - Decision: `.squad/decisions/inbox/blathers-backchannel-dynamic-discovery.md`
+---
+date: 2026-05-03T21:32:41.296+01:00
+author: Blathers
+status: PROPOSED
+area: codespaces, diagnostics, runtime
+---
+
+# Codespaces Diagnostics Scripts Should Verify a Clean Python Runtime
+
+## Context
+
+`scripts/codespaces/diagnose-downstream.sh` is intentionally invoked as a plain shell command from the repo root. In Codespaces, contributors may already have activated another Python toolchain or exported `PYTHONHOME` / `PYTHONPATH`, which can make `python3` start without a usable standard library and fail on imports as basic as `json`.
+
+## Decision
+
+Codespaces operator scripts that embed Python should:
+
+1. Probe for a working interpreter before running the main payload
+2. Launch that interpreter with `-I`
+3. Scrub shell-level Python environment overrides such as `PYTHONHOME` and `PYTHONPATH`
+4. Fall back to a system interpreter when the first `python3` on `PATH` is broken
+
+## Why
+
+- Operators should not have to debug their shell state just to run first-line diagnostics
+- `-I` and explicit env scrubbing keep these scripts dependency-free while restoring predictable stdlib imports
+- A small runtime guard is cheaper and less invasive than rewriting an otherwise working diagnostics payload
+
+---
+date: 2026-05-03T21:26:34.690+01:00
+agent: mabel
+issue: diagnostics-script-landing
+status: implemented
+---
+
+# Diagnostics Script Landing: Scope Discipline
+
+## Decision
+
+Land **product-scoped** diagnostics work (script + flow guide) directly onto main branch in a single, clear commit. Keep **agent-scoped** work (.squad bookkeeping, skills) separate and untracked on main.
+
+## Context
+
+After previous work on downstream API timeout diagnosis (PR #49), two artifacts emerged:
+
+1. **Product deliverables:** `scripts/codespaces/diagnose-downstream.sh`, `MANUAL_DIAGNOSIS_FLOW.md`, updated `CODESPACES.md`
+2. **Agent bookkeeping:** Blathers' reference note + extracted browser-diagnostics skill
+
+Both were created during the same diagnostic effort but serve different audiences:
+- Product files: Codespaces users needing to troubleshoot API/auth/tunnel issues
+- Agent work: Squad team learning and skill reuse
+
+## Choice
+
+**Commit product files to main; leave agent work in .squad/**
+
+### Product Commit (926ca7a)
+
+```
+docs: add downstream diagnostics script and flow guide
+
+- Add scripts/codespaces/diagnose-downstream.sh for debugging API/auth/tunnel issues
+- Add MANUAL_DIAGNOSIS_FLOW.md for step-by-step troubleshooting guide
+- Update CODESPACES.md with reference to new diagnostics script and flow
+
+The script checks local endpoints, reads safe runtime diagnostics,
+probes TestSite/MockBusinessApp/Keycloak connectivity, and supports
+optional bearer token authentication for full testing.
+```
+
+### Agent Work (Untracked, Not Merged)
+
+- `.squad/agents/blathers/QUICK_DIAGNOSIS_REFERENCE.txt` — Blathers' diagnostic notes
+- `.squad/skills/browser-devtools-api-diagnosis/` — Reusable pattern for future devtools-level debugging
+
+## Rationale
+
+**Separation enables clarity:**
+
+1. **Product surface** (main branch) stays focused on user-facing assets — no .squad clutter
+2. **Agent work** stays in .squad/ — available for future sessions but not blocking product merges
+3. **Git history** reads clearly: "We shipped diagnostics tooling" vs "We learned a pattern"
+
+**Timing impact:** Landing product immediately unblocks Codespaces users; agent skill can be refined/merged in future work without rushing.
+
+## Implementation
+
+1. Stage only product files: `scripts/codespaces/diagnose-downstream.sh`, `MANUAL_DIAGNOSIS_FLOW.md`, `CODESPACES.md`
+2. Commit with clear scope message
+3. Push to origin/main
+4. Leave .squad/ untracked (will be staged separately if/when Scribe merges agent decisions)
+
+## Follow-Up
+
+- Mark `.playwright-cli/` for addition to `.gitignore` (build artifact, not product)
+- Blathers' reference note + skill remain in .squad/ for Squad team access
+- If browser-devtools-api-diagnosis pattern proves reusable, merge skill to main in a future PR with Blathers' sign-off
+
+---
+date: 2026-05-03T20:53:49.355+01:00
+agent: mabel
+issue: diagnostics-script-runtime
+status: implemented
+---
+
+# Diagnostics Script Runtime Isolation — Commitment to Main
+
+**Date:** 2026-05-03  
+**Decision Owner:** Mabel (Technical Writer)  
+**Commit:** `fb1b324`  
+**Status:** ✅ Landed on main
+
+## Problem
+
+Codespaces users with other Python toolchains (Conda, Poetry, .venv, etc.) activated in their shell would encounter:
+
+```
+ModuleNotFoundError: No module named 'json'
+```
+
+when running `bash scripts/codespaces/diagnose-downstream.sh`. The issue occurred because the diagnostics script attempted to use Python with ambient `PYTHONHOME` and `PYTHONPATH` environment variables that pointed to incompatible or incomplete Python installations.
+
+## Solution
+
+### Three-part fix:
+
+1. **Runtime detection** — Added `resolve_python_runtime()` to probe for working Python interpreters, validating each with a stdlib import check (`import json`, `argparse`, etc.)
+
+2. **Isolation** — Invoke detected Python with `-I` flag and explicit env var unset:
+   ```bash
+   env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__ \
+       "$PYTHON_BIN" -I - "$@" <<'PY'
+   ```
+
+3. **Documentation** — Updated CODESPACES.md with:
+   - Clear statement that the script now self-checks and ignores shell overrides
+   - Recovery step: fresh shell + preflight check `python3 -I -c 'import json'`
+   - Added test contract: `CodespacesDiagnosticsScript_IgnoresAmbientPythonShellOverrides()`
+
+## Scope
+
+**Landed as single product commit:**
+- `scripts/codespaces/diagnose-downstream.sh`
+- `CODESPACES.md`
+- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`
+
+**Not landed (untracked):**
+- `.squad/agents/*/history.md` — will update separately
+- `.squad/skills/`, `.playwright-cli/` — reference/build artifacts
+- Agent reference notes — (Blathers, Tangy, etc.)
+
+This separation keeps the product commit focused and clean, while bookkeeping stays in .squad/.
+
+## Impact
+
+✅ **Codespaces experience:** Users no longer need to close/reopen shells or manually diagnose Python runtime conflicts.  
+✅ **Operator clarity:** CODESPACES.md now gives actionable steps if the script itself fails.  
+✅ **Contract enforcement:** Test ensures future contributors maintain the isolation pattern.
+
+## User Action
+
+Pull main and rerun the diagnostics script in a fresh Codespaces shell.
+
+---
+date: 2026-05-03T21:32:41.296+01:00
+author: Tangy
+status: PROPOSED
+area: testing, codespaces, runtime-assumptions
+---
+
+# Codespaces Diagnostics Script Must Ignore Ambient Python Shell State
+
+## Context
+
+`scripts/codespaces/diagnose-downstream.sh` failed before any downstream checks with:
+
+```text
+ModuleNotFoundError: No module named 'json'
+```
+
+Because `json` is in Python's standard library, the likely failure mode is shell-level runtime contamination or a broken active interpreter, not a missing repo dependency.
+
+## Decision
+
+Run the diagnostics helper with an isolated Python runtime and make the recovery path explicit for operators.
+
+## Consequences
+
+- The script should unset ambient `PYTHON*` overrides and use `python -I` for both its preflight and main execution paths.
+- If that still fails, the error should point operators at the shell runtime itself with a minimal `python3 -I -c 'import json'` preflight.
+- QA should still call out the remaining assumptions: a genuinely broken `python3` binary cannot be recovered in-script, `gh codespace ports` remains the authoritative public URL source, and stack readiness is still a prerequisite for meaningful probe results.
+
+---
+date: 2026-05-03T21:26:34.690+01:00
+author: Tom Nook
+status: DECISION
+area: git-hygiene, diagnostics, codespaces
+---
+
+# Landing Diagnostics Script: Separate Product from Bookkeeping
+
+## Problem
+
+**Current state:**
+- Local `main` is 1 commit ahead of `origin/main` (42bae10, a squad bookkeeping commit)
+- That commit's message claims it includes "scripts/codespaces/diagnose-downstream.sh" and "updated CODESPACES.md"
+- **But the actual script files are untracked** — not included in the commit
+- The untracked product work: `diagnose-downstream.sh`, `MANUAL_DIAGNOSIS_FLOW.md`, `QUICK_DIAGNOSIS_REFERENCE.txt`, `browser-devtools-api-diagnosis/` skill, and `CODESPACES.md` update
+
+**Consequence:**
+- The commit message is dishonest (says it includes files that don't exist in it)
+- The script cannot be pulled into Codespaces because it's not actually in the repo
+- Squad bookkeeping and product work are entangled in one incomplete commit
+
+## Decision
+
+**Separate product from bookkeeping:**
+1. Reset `main` to `origin/main` (discard the incomplete bookkeeping commit)
+2. Stage and commit the diagnostics script work in a single, focused product commit
+3. Push the product commit to `main`
+4. Defer squad bookkeeping consolidation to a separate session
+
+**Rationale:**
+- Product commits should contain exactly what their messages claim
+- Jonny can immediately pull the script into Codespaces
+- Bookkeeping (decision merges, history updates) is a separate concern and should land separately
+- Follows "each commit is a complete, releasable unit" discipline
+
+## Implementation
+
+1. `git reset --hard origin/main` (discard 42bae10)
+2. Stage: `CODESPACES.md`, `scripts/codespaces/diagnose-downstream.sh`, `MANUAL_DIAGNOSIS_FLOW.md`, `.squad/agents/blathers/QUICK_DIAGNOSIS_REFERENCE.txt`, `.squad/skills/browser-devtools-api-diagnosis/`
+3. Commit with message: `feat(codespaces): add downstream diagnostics script and supporting docs`
+4. Push to `main`
+
+## Outcome
+
+- ✅ Script lands on main in a clean, focused commit
+- ✅ Jonny can pull and use it immediately
+- ✅ Bookkeeping will follow in a separate commit when consolidated
+
+**No risk:** The diagnostics script is new work (no regressions); the skill docs are documentation.
