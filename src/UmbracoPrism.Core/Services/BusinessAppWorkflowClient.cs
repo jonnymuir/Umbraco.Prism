@@ -146,13 +146,22 @@ public class BusinessAppWorkflowClient(
     // Helpers
     // -----------------------------------------------------------------------
 
-    /// <summary>Gets the workflow API base URL from configuration.</summary>
+    /// <summary>Gets the workflow API base URL, preferring the internal backchannel in Codespaces.</summary>
     /// <returns>The base URL, with trailing slashes removed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the URL is not configured.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if neither backchannel nor config URL is set.</exception>
+    /// <remarks>
+    /// In Codespaces, <c>BUSINESSAPP_BACKCHANNEL_URL</c> is injected by AppHost so server-to-server
+    /// calls bypass the GitHub forwarded-port proxy (which blocks unauthenticated requests with 401).
+    /// <c>PrismBusinessApp:WorkflowApiBaseUrl</c> remains the browser-facing public URL.
+    /// </remarks>
     private string BaseUrl
     {
         get
         {
+            var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(backchannelUrl))
+                return backchannelUrl;
+
             var url = configuration["PrismBusinessApp:WorkflowApiBaseUrl"];
             if (string.IsNullOrWhiteSpace(url))
                 throw new InvalidOperationException(
