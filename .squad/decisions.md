@@ -490,3 +490,217 @@ Local `.squad/` history files remained uncommitted (not mixed into product PR), 
 ## Consistency with PR #47
 
 This approach is consistent with PR #47 merge strategy (also used `--merge` to preserve dashboard + auth fix commits). Establishing this as the standard practice for PRs with multiple concerns.
+---
+date: 2026-05-03T19:40:50.786+01:00
+author: Blathers
+status: implemented
+area: codespaces, aspire-orchestration, backchannel-urls
+---
+
+# Use Dynamic Endpoint Discovery for Aspire Project Backchannels
+
+## Context
+
+The downstream API demo was timing out in Codespaces after the URL transformation fix (PR #48). The browser-facing URL was correct (showing the public Codespaces URL), but the server-side API call was timing out after 10 seconds.
+
+Root cause: AppHost hardcoded `BUSINESSAPP_BACKCHANNEL_URL=http://localhost:5163`, assuming port 5163 would always be correct. However, Aspire may assign ephemeral ports or not bind the HTTP endpoint at the expected address in Codespaces.
+
+## Decision
+
+**For Aspire project resources (not containers), use dynamic endpoint discovery for backchannel URLs.**
+
+Pattern:
+```csharp
+// Container resources (Keycloak) — already using dynamic discovery
+testsite.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
+
+// Project resources (MockBusinessApp) — NOW using dynamic discovery
+testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"));
+```
+
+**Do not hardcode ports** for backchannel URLs, even if they're defined in launchSettings.json. Aspire's dynamic port assignment takes precedence.
+
+## Why This Matters
+
+1. **Codespaces reliability**: Aspire's port assignment may differ from launchSettings.json in containerized environments
+2. **Consistency**: Matches the Keycloak backchannel pattern which works reliably
+3. **Maintainability**: Single source of truth for endpoint addresses (Aspire's runtime discovery)
+
+## Why GetEndpoint("http") Works for Projects
+
+**Historical context**: An earlier attempt used `businessApp.GetEndpoint("https")` and failed because it returned a service discovery URL that didn't resolve from plain HttpClient.
+
+**Why HTTP works**: The HTTP endpoint returns a plain `http://localhost:{port}` URL (not a service discovery URL), which works from plain HttpClient without Aspire service discovery extensions.
+
+## Test Contract
+
+Updated `DashboardLocalEndpointsValidationTests.AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls`:
+
+```csharp
+program.Should().Contain(".WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", businessApp.GetEndpoint(\"http\"))",
+    because: "Aspire's dynamic endpoint discovery ensures the correct HTTP port is used, " +
+             "avoiding hardcoded ports that may differ across environments or Aspire configurations");
+```
+
+This validates the dynamic discovery pattern and prevents regression to hardcoded ports.
+
+## Operational Recovery
+
+**After merging PR #49**: Restart the Aspire AppHost in Codespaces. The backchannel will automatically resolve to the correct runtime HTTP endpoint, fixing the timeout.
+
+No database migrations, no secrets updates, no client-side changes required.
+
+## Alternatives Considered
+
+**Alternative 1: Keep hardcoded localhost:5163**  
+Rejected: Already proven to fail in Codespaces. No reason to assume port assignment will be stable.
+
+**Alternative 2: Use GetEndpoint("https")**  
+Rejected: Historical evidence (commit `ffc32c5`) shows HTTPS endpoints return service discovery URLs that don't work from plain HttpClient.
+
+**Alternative 3: Configure Aspire to force specific ports**  
+Rejected: Fights against Aspire's design. Dynamic discovery is the intended pattern.
+
+## References
+
+- Implementation: PR #49 (`squad/fix-backchannel-endpoint-discovery`)
+- Commit: `2a46494`
+- Test: `DashboardLocalEndpointsValidationTests.AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls`
+- Prior failed attempt: Commit `ffc32c5` (removed businessApp.GetEndpoint("https"))
+- History: `.squad/agents/blathers/history.md` — "BusinessApp Backchannel Timeout Fix"
+---
+date: 2026-05-03T19:40:50.786+01:00
+author: Tangy
+status: DIAGNOSED
+area: testing, codespaces, aspire-endpoints
+---
+
+# Downstream API Timeout: Hardcoded Backchannel Port vs Aspire Runtime Endpoint
+
+## Context
+
+User reports: "The downstream API demo now shows the public 7245 URL, but the browser call still times out after 10 seconds even though the Mock Business App admin page is reachable."
+
+## Investigation
+
+**What's working:**
+- ✅ URL transformation fix (commit `6774c55`, `2ebec5a`) correctly transforms internal `http://localhost:5163` to public Codespaces URL in browser-facing responses
+- ✅ Unit test `DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport` validates the transformation logic
+- ✅ MockBusinessApp admin page is reachable from browser (confirms app is running)
+- ✅ Playwright test validates displayed URL doesn't contain `:5163`
+
+**What's broken:**
+- ❌ Server-to-server call from TestSite to MockBusinessApp times out after 10 seconds
+- ❌ `DownstreamDemoController` line 289 timeout triggers, returns "Timeout" response to browser
+
+## Root Cause
+
+AppHost line 142 hardcodes the backchannel URL:
+
+```csharp
+if (codespaceName != null)
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+```
+
+This assumes MockBusinessApp's HTTP endpoint is bound to port 5163. However:
+
+1. **Aspire may assign ephemeral ports** - the actual runtime port might not be 5163
+2. **Keycloak pattern** (line 134) uses the correct approach: `keycloak.GetEndpoint("http")` to get the actual runtime endpoint
+3. **MockBusinessApp is started with `launchProfile: "https"`** (line 97), which specifies `"applicationUrl": "https://localhost:7245;http://localhost:5163"` in launchSettings.json
+
+The hardcoded `http://localhost:5163` is fragile and doesn't work when Aspire assigns different ports in Codespaces.
+
+## Behavioral Contract Violation
+
+**Contract:** Server-to-server API calls must complete within the configured timeout (10 seconds)
+
+**Current behavior:**
+- TestSite attempts to call `http://localhost:5163/api/backoffice/me`
+- Request times out after 10 seconds
+- Controller returns "Timeout" response with statusCode 0, statusText "Timeout"
+- Browser displays: "We could not reach the Mock Business App. Check that it is running, then try again."
+
+**Expected behavior:**
+- TestSite calls MockBusinessApp's actual HTTP endpoint
+- Request completes successfully (200 OK)
+- Browser displays: "Mock Business App responded successfully."
+
+## Test Coverage Gap
+
+**Current tests:**
+- ✅ Unit tests validate URL transformation logic with stub handlers
+- ✅ Playwright test validates displayed URL format
+- ❌ **No test validates backchannel endpoint is actually reachable**
+- ❌ **No test validates AppHost backchannel configuration matches Aspire reality**
+
+**Smallest regression test surface:**
+
+The existing Playwright test `callBusinessAppApi()` (localhost-auth-session.spec.ts, line 150-186) **SHOULD** catch this bug because it:
+1. Clicks "Call Mock Business App API"
+2. Expects `#api-status-badge` to show "200 OK"
+3. Expects response body to contain tenant and role info
+
+If the backchannel times out, this test should fail with:
+```
+Expected API call to succeed with 200 OK, but got:
+Status: Timeout
+Summary: We could not reach the Mock Business App...
+Body: Request timed out after 10 seconds. Is MockBusinessApp running?
+```
+
+**Question:** Does this Playwright test run in Codespaces with Aspire? If not, that's the coverage gap.
+
+## Recommended Fix (For Blathers)
+
+Change AppHost line 142 from:
+
+```csharp
+if (codespaceName != null)
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+```
+
+To:
+
+```csharp
+if (codespaceName != null)
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"));
+```
+
+This matches the Keycloak pattern (line 134) and ensures TestSite uses the actual runtime HTTP endpoint that Aspire assigned to MockBusinessApp.
+
+**Note:** This requires MockBusinessApp to expose an HTTP endpoint. Verify the launchProfile "https" includes both HTTPS and HTTP in applicationUrl (currently: `"https://localhost:7245;http://localhost:5163"`).
+
+## Test Fix
+
+The failing unit test `AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls` (line 302) needs updating:
+
+Current:
+```csharp
+program.Should().Contain(".WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", \"http://localhost:5163\")");
+```
+
+Should be:
+```csharp
+program.Should().Contain("testsite.WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", businessApp.GetEndpoint(\"http\"))");
+```
+
+Or make it more flexible:
+```csharp
+program.Should().Contain("BUSINESSAPP_BACKCHANNEL_URL");
+program.Should().Contain("businessApp.GetEndpoint(\"http\")");
+```
+
+## Why This Matters
+
+1. **Codespaces-critical:** Hardcoded localhost ports don't work reliably when Aspire assigns ephemeral ports
+2. **Consistency:** Keycloak already uses `.GetEndpoint("http")` pattern - MockBusinessApp should match
+3. **Behavioral contract:** The Playwright test should catch this, but only if it runs in the actual Codespaces + Aspire environment
+
+## References
+
+- AppHost configuration: `src/UmbracoPrism.AppHost/Program.cs` lines 134, 142
+- Controller timeout: `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` line 289
+- Keycloak pattern: AppHost line 134 (`testsite.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"))`)
+- MockBusinessApp launchSettings: `src/UmbracoPrism.MockBusinessApp/Properties/launchSettings.json`
+- Playwright test: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts` line 150-186
+- Related decisions: `.squad/decisions.md` - "Transport URLs vs Display URLs: Separate Concerns in API Responses"

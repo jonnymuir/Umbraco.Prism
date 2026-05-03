@@ -299,7 +299,9 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             "UmbracoPrism.AppHost",
             "Program.cs"));
 
-        program.Should().Contain(".WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", \"http://localhost:5163\")");
+        program.Should().Contain(".WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", businessApp.GetEndpoint(\"http\"))",
+            because: "Aspire's dynamic endpoint discovery ensures the correct HTTP port is used, " +
+                     "avoiding hardcoded ports that may differ across environments or Aspire configurations");
     }
 
     [Fact]

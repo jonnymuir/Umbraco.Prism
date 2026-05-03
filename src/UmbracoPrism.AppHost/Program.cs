@@ -138,8 +138,9 @@ if (codespaceName != null)
 // because the forwarded port is browser-facing and often private. Use the BusinessApp's internal
 // HTTP endpoint for server-to-server traffic; keep PrismBusinessApp__WorkflowApiBaseUrl as the
 // browser/public URL only.
+// NOTE: Aspire may assign ephemeral ports, so use GetEndpoint("http") for dynamic discovery.
 if (codespaceName != null)
-    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"));
 
 // BusinessApp also fetches Keycloak signing keys server-side for JWT Bearer validation.
 // Same backchannel fix: without this the external Keycloak URL is blocked by the

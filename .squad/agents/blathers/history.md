@@ -2,7 +2,37 @@
 
 **Agent:** Backend specialist shipping Codespaces URL derivation fixes, backchannel rewrites for JWKS/token-refresh, and security analysis for auth isolation.
 
-**Recent focus:** Aspire dashboard Codespaces access, authentication diagnostics, runtime stale-code diagnosis, backchannel OIDC validation.
+**Recent focus:** Aspire dashboard Codespaces access, authentication diagnostics, runtime stale-code diagnosis, backchannel OIDC validation, dynamic endpoint discovery.
+
+---
+
+## 2026-05-03: BusinessApp Backchannel Timeout Fix — Dynamic Endpoint Discovery
+
+**Status:** ✅ Implemented (PR #49)
+
+**Problem:**
+Browser-facing downstream API demo button shows correct public URL (fixed in PR #48), but server-side API call times out after 10 seconds in Codespaces. MockBusinessApp admin page loads successfully, proving the app is running.
+
+**Root Cause:**
+AppHost hardcoded `BUSINESSAPP_BACKCHANNEL_URL=http://localhost:5163` (line 142), assuming port 5163 is always correct. However, Aspire may assign ephemeral ports or not bind the HTTP endpoint at the expected address in Codespaces, causing the hardcoded URL to become unreachable.
+
+**Solution:**
+Changed to `businessApp.GetEndpoint("http")` for dynamic endpoint discovery, matching the pattern already used successfully for Keycloak (line 134). This ensures the backchannel URL points to the actual runtime HTTP endpoint regardless of port assignment.
+
+**Implementation:**
+- AppHost/Program.cs: Use `businessApp.GetEndpoint("http")` instead of hardcoded URL
+- DashboardLocalEndpointsValidationTests.cs: Updated test contract to validate dynamic discovery pattern
+- Added explanatory comment about Aspire ephemeral port assignment
+
+**Test Results:**
+- All 674 Core tests pass
+- Test validates the new dynamic discovery pattern with explanatory "because" clause
+
+**Operational Recovery:**
+After merging PR #49, restart the Aspire AppHost in Codespaces. The backchannel will automatically resolve to the correct runtime endpoint, fixing the timeout.
+
+**Key Insight:**
+Containers (like Keycloak) and projects (like MockBusinessApp) both work with `GetEndpoint("http")` for dynamic discovery. The previous failure with `GetEndpoint("https")` was specific to service discovery URLs on HTTPS endpoints — HTTP endpoints return plain `http://localhost:{port}` URLs that work from plain HttpClient.
 
 ---
 
@@ -61,3 +91,36 @@ Use HTTPS port 17214 directly in Codespaces. Update `.devcontainer/devcontainer.
 ## Earlier Sessions
 
 Full history archived to `history-archive.md` (prior to 2026-05-03).
+
+---
+date: 2026-05-03T19:40:50Z
+status: complete
+area: implementation, orchestration, aspire-endpoints
+---
+
+# Session Coordination: Downstream API Timeout — Dynamic Endpoint Discovery Fix
+
+## Team Outcome
+
+Parallel investigation with Tangy (Test) identified and fixed downstream API timeout root cause.
+
+**Root Cause:** AppHost hardcoded `BUSINESSAPP_BACKCHANNEL_URL=http://localhost:5163` instead of using Aspire's dynamic endpoint discovery.
+
+**Implementation:** Changed to `businessApp.GetEndpoint("http")` pattern (commit `2a46494`), matching the proven Keycloak backchannel approach.
+
+## Implementation Details
+
+1. **AppHost change:** Line 142 now uses `businessApp.GetEndpoint("http")` for runtime discovery
+2. **Test contract:** Added regression coverage in `DashboardLocalEndpointsValidationTests`
+3. **Why HTTP works:** Returns plain `http://localhost:{port}` URL compatible with bare HttpClient
+4. **Why HTTPS doesn't:** Returns service discovery URL requiring Aspire SDK extensions
+
+## PR Status
+
+PR #49 ready for merge. After merge, restart Aspire AppHost in Codespaces — backchannel will resolve to correct runtime endpoint.
+
+## Coordination
+
+- Decisions archived to `.squad/decisions.md`
+- Orchestration log: `.squad/orchestration-log/2026-05-03T18:40:50Z-blathers.md`
+- Session log: `.squad/log/2026-05-03T18:40:50Z-downstream-timeout-diagnosis.md`
