@@ -112,3 +112,57 @@ Scribe merged 5 decision inbox files from Blathers session:
 - MockBusinessApp backchannel diagnosis
 Also added decisions from Mabel, Tangy, and Copper re: this work.
 
+### 2026-05-03: PR #47 Merged — Codespaces Dashboard and Auth Fixes
+
+**Status:** ✅ Complete
+
+Successfully created and merged PR #47 (`squad/codespaces-dashboard-and-auth-fixes` → `main`).
+
+**PR Contents:**
+- Commit `fa7881c`: Dashboard port 17214 fix (10 files changed)
+- Commit `455e0d5`: MockBusinessApp backchannel auth fix (1 file changed)
+- Commit `c2b5a2b`: Squad decisions merge (5 `.squad/` files)
+
+**CI Results:**
+- ✅ test (9 seconds)
+- ✅ core-tests (55 seconds)
+- ✅ storybook-tests (111 seconds)
+- ✅ localhost-auth-playwright (959 seconds / ~16 minutes)
+
+**Key Learning:**
+Playwright integration tests with full Aspire + Keycloak stack legitimately take 15-16 minutes to complete. Don't assume a long-running check is stuck — integration tests with container orchestration, OIDC flows, and browser automation require patience.
+
+**Merge Strategy:**
+Used `--merge` (not squash) to preserve the two separate product commits for clean release notes. Each commit addresses a distinct user-facing issue, making it easier to track fixes in changelogs and git bisect operations.
+
+**Local State:**
+Local `main` branch synced to `origin/main` at commit `cfe90fc` (merge commit for PR #47).
+
+
+---
+
+## 2026-05-03: PR #47 Merge Completion
+
+**Status:** ✅ Merged to main
+
+**Merge Details:**
+- Used `--merge` strategy (preserved separate commits)
+- PR created from squad/codespaces-dashboard-and-auth-fixes
+- All CI checks passed within expected timeframe
+- Merge commit: cfe90fc
+- Local main synced to origin/main
+
+**Decision Rationale Recorded:**
+Separate commits preserved because:
+1. Dashboard port 17214 fix (fa7881c) is independent user-facing issue
+2. MockBusinessApp backchannel auth fix (455e0d5) is separate concern
+3. Release notes need to track fixes independently
+4. Git bisect operations benefit from granular history
+
+This strategy standardized for future PRs with multiple concerns.
+
+**Team Impact:**
+Two significant product fixes shipped:
+- Codespaces users get correct HTTPS dashboard URL
+- MockBusinessApp auth backchannel works correctly
+- Foundation set for multi-concern PR merge strategy

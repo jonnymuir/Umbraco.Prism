@@ -28,3 +28,29 @@
 
 **Basis:** Charter pattern (append-only ledger, merge inbox newest-at-top, dated, attributed), session close directive (Jonny 2026-04-26).
 
+
+## 2026-05-03: Post-Merge Orchestration — PR #47 Decisions & Logs
+
+**Status:** ✅ Complete
+
+**Tasks Executed:**
+- Pre-check: decisions.md at 153KB (archived check; no entries older than 7 days)
+- Merged 1 inbox decision entry (Blathers PR #47 merge strategy)
+- Wrote orchestration log for Blathers spawn
+- Wrote session log for codespaces-pr-merge  
+- Updated agent history files
+
+**Decisions.md Status:**
+- Before: 153776 bytes, 1 inbox file
+- After: merged entry, 0 inbox files
+- Archive: no entries archived (all decisions recent)
+
+**Files Created:**
+- `.squad/orchestration-log/2026-05-03T14-38-52-blathers.md` — Agent spawn log with decision rationale
+- `.squad/log/2026-05-03T14-38-52-codespaces-pr-merge.md` — Session summary
+
+**Key Decision Documented:**
+PR #47 used `--merge` strategy to preserve separate commits for independent user-facing fixes (dashboard port + auth backchannel). Recorded rationale: release notes traceability, git bisect clarity, cherry-pick flexibility.
+
+**Team Impact:**
+Standardized merge strategy for multi-concern PRs going forward. Future similar PRs should follow same pattern: separate commits by user-facing issue, preserve via `--merge`.

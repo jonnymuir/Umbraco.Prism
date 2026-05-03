@@ -2775,3 +2775,53 @@ Port 17214 is the authoritative HTTPS endpoint for the Aspire dashboard. Using i
 - No more confusion about which port to use
 - Tests enforce this contract going forward
 - Any regression will be caught immediately by the test suite
+
+## [2026-05-03] Blathers — PR #47 Merge Strategy: Preserve Commits for Multi-Fix Features
+
+**Status:** ✅ IMPLEMENTED — PR #47 merged to main; local main at cfe90fc
+
+### Decision
+
+Use `gh pr merge --merge` (not `--squash`) to preserve separate commits when:
+1. Each commit addresses a distinct user-facing issue
+2. Commits are already clean and well-documented
+3. Release notes need to track fixes independently
+4. Git bisect operations benefit from granular history
+
+### Rationale
+
+PR #47 contained two separate product fixes plus squad metadata:
+- `fa7881c`: Dashboard port 17214 fix
+- `455e0d5`: MockBusinessApp backchannel auth fix
+- `c2b5a2b`: Squad decisions merge
+
+Squashing would merge two unrelated fixes into one commit, making it harder to:
+- Generate release notes ("what fixed the 401 error?")
+- Bisect regressions ("which change broke the dashboard?")
+- Cherry-pick fixes to release branches
+
+The two product commits are already atomic, tested, and documented with conventional commit messages. Preserving them maintains traceability.
+
+### CI Timing Expectations
+
+Playwright integration tests with Aspire + Keycloak + browser automation took **16 minutes** to complete. This is normal for:
+- Container orchestration startup
+- OIDC discovery and token flows
+- Full browser automation suite
+- Certificate trust chain validation
+
+Don't assume long-running checks are stuck — integration tests with full stack require patience.
+
+### Outcome
+
+PR successfully merged into `main` at commit `cfe90fc`. All CI checks passed:
+- test: 9s ✅
+- core-tests: 55s ✅
+- storybook-tests: 111s ✅
+- localhost-auth-playwright: 959s ✅
+
+Local `main` synced to `origin/main` without conflicts.
+
+### Team Impact
+
+Future PRs with multiple concerns should follow the same pattern: separate commits by user-facing issue, preserve commits via `--merge`, document CI timing expectations for integration test suites.
