@@ -78,6 +78,7 @@ Use these scripts when you need to update code or recover a broken stack without
 | You want to stop the stack without restarting | `bash scripts/codespaces/stop.sh` |
 | NuGet packages or project references changed | `bash scripts/codespaces/refresh.sh --rebuild` |
 | You just want to know if everything is up | `bash scripts/codespaces/health-check.sh` |
+| Downstream API / auth / backchannel behaviour looks wrong | `bash scripts/codespaces/diagnose-downstream.sh` |
 
 ### The scripts
 
@@ -135,6 +136,29 @@ Probes all four readiness endpoints and prints a ✅/❌ summary:
 | MockBusinessApp | `https://localhost:7245/debug/auth` |
 
 Exits `0` when all services are ready, `1` if any are not.
+
+#### `diagnose-downstream.sh` — Inspect downstream API, auth, and tunnel behaviour
+
+```bash
+bash scripts/codespaces/diagnose-downstream.sh
+```
+
+Use this when the **Call Mock Business App API** flow is failing, timing out, or returning confusing Codespaces results.
+
+It:
+- checks local TestSite / MockBusinessApp / Keycloak endpoints from inside the Codespace
+- reads safe runtime diagnostics from MockBusinessApp `/debug/auth`
+- probes TestSite's same-origin downstream endpoints in a non-browser-safe way (`401` without your browser cookie is expected)
+- probes public `app.github.dev` URLs without hiding redirects or tunnel/auth HTML pages
+- prints only safe environment values and avoids dumping cookies or bearer tokens
+
+If you already have a fresh bearer token and want the script to try authenticated downstream calls too:
+
+```bash
+PRISM_BEARER_TOKEN='<access-token>' bash scripts/codespaces/diagnose-downstream.sh
+```
+
+This script is intentionally **Codespaces-oriented**. It is most useful when run from the Codespace terminal after the AppHost is already running.
 
 ### Confirming the stack is healthy
 
