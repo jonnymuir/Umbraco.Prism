@@ -108,123 +108,6 @@ Blathers' commit `b6336fd` implementation; security review findings (2026-04-30,
 
 ---
 
-## 📌 2026-04-26: Copilot (Coordinator) — v2.0 Polymorphic Component Rollout Completion
-
-**Status:** ✅ COMPLETE — 9-commit atomic rollout concluded; v2.0 schema is canonical
-
-**Session Summary:**
-The v2.0 polymorphic component hierarchy rollout converged through three phases:
-1. **Initial Plan Collapse** (copilot-3commit-replan): 8-commit sequence deemed infeasible due to C# type system constraints. Collapsed to 3-commit atomic plan (schema replacement, design doc refresh, ledger update).
-2. **Expanded Rollout** (follow-through progress reports): 3-commit plan expanded to 9 total commits as blockers were discovered and resolved:
-   - Commit `7423803` (feat): Atomic schema replacement — 40–60 file diff, single coherent change
-   - Commits `2cdb0dc`, `f3c0ea5`, `67bb57b`: Seed fixes + e2e tests + 4th workflow seeding
-   - Commit `989f595`: Archive redesign blueprint, refresh conditional-fields doc
-   - Commit `dc87e5f`: ModelsBuilder views fix (disable auto-generation)
-   - Commit `392c64e`: Playwright walkthroughs with screenshot capture
-   - Commits `2698c1d`, `a48229b`: Design + guide doc refresh, screenshot script
-
-**Key Decisions Locked In:**
-- **No migrator, no V2 suffix, no schemaVersion field** — direct replacement of v1 schema with polymorphic components
-- **Generic ConditionalOn deferred to v2.1** — v2.0 ships with ConditionalChildren on Radios/Checkboxes only
-- **ModelsBuilder view generation disabled** — TestSite uses Core's embedded views, prevents model-binding conflicts
-
-**Seed File Roundtrip Guard:**
-- Gap identified: payment-demo.json and information-request.json were out of sync with v2 polymorphic schema
-- Regression guard added: `SeedFileRoundtripTests.cs` ensures all seeds deserialize correctly and have no orphaned v1 properties
-- All 4 seeds migrated to v2 in Commit `2cdb0dc`
-
-**E2E + Documentation Coverage:**
-- Playwright tests cover all 4 demo workflows (community-enquiry, payment-demo, planning-notification, information-request) with happy paths + conditional logic
-- Screenshot-driven walkthroughs for all 4 demos with state transitions captured
-- 12 design + guide docs refreshed for v2 polymorphic schema
-
-**Test Results:**
-- Clean build: 0 warnings
-- Core tests: 583 baseline → maintained; Seed roundtrip tests: +4 (546 total)
-- No regressions; all changes backward-compatible or documented as breaking (no live consumers)
-
-**Basis:** User directive (2026-04-26, Jonny Muir), Tom Nook's direct-replacement sequencing plan (2026-04-26), follow-through progress reports (Copilot 2026-04-09, 2026-04-26), Copilot 3-commit replan (2026-04-26), blocker resolution (ModelsBuilder fix 2026-04-26).
-
----
-
-## 📌 2026-04-26: Tom Nook — Design Doc Audit: 9 Docs Reviewed, 7 Marked for v2.0 Rewrite
-
-**Status:** ✅ Audit complete; recommendations implemented in rollout
-
-**Scope:** 9 workflow design + guide documents reviewed against v2 polymorphic component plan
-
-**Audit Findings:**
-- **7 docs need rewrite** (design docs: forms-engine.md, forms-engine-backend.md, forms-engine-client.md, forms-engine-umbraco.md, validation.md, forms-engine-demo.md, forms-engine-security.md; guide: conditional-fields.md, workflow-gds-components.md, workflow-validation.md, workflow-setup.md, workflow-customisation.md)
-- **1 doc stays as-is** (architecture/workflow-forms-engine.md contains architecture principles that transcend v1/v2)
-- **1 doc archived** (workflow-forms-engine-redesign.md → docs/archive/ with pointer to v2 plan)
-
-**Rewrite Priorities:**
-- **Red banners** (critical mismatches): 4 docs
-  - Forms engine backend/client (component tree traversal examples)
-  - Umbraco integration (JSON schema examples heavily v1-focused)
-  - Setup guide (seed JSONs all v1 shape)
-- **Yellow banners** (partial updates): 3 docs
-  - Validation + forms-engine-demo (fieldType → type, fields → children)
-- **Archive + pointer** (obsolete): 1 doc
-  - Redesign blueprint (superseded by actual v2 implementation)
-
-**Rewrite Pattern:**
-- Replace `fieldType` discriminator with `type` on all components
-- Replace `fields[]` array (flat field list) with `children[]` (typed component tree)
-- Update JSON examples to show polymorphic shapes (fieldset with children, radios with conditionalChildren)
-- Add v2 callout boxes noting new capabilities (ConditionalChildren, component polymorphism, waiting state)
-- Remove v1 artifact references (no more "FieldFile", "PrismComponentRenderPayload", "PrismFieldTagHelper")
-
-**Action:** All rewrites completed in Commits `989f595` (conditional-fields refresh) and `2698c1d` (bulk refresh).
-
-**Basis:** Formal design audit memo (2026-04-26, Tom Nook, in `.squad/decisions/inbox/`), implemented per rollout plan phases.
-
----
-
-## 📌 2026-04-26: Jonny Muir — Direct Schema Replacement Directive (No Migrator, No Dual Schema)
-
-**Decision:** Skip v1→v2 schema migrator entirely. No live consumers; make polymorphic component hierarchy THE schema. Direct replacement of `WorkflowDefinitionFile`, `FieldDefinition`, etc. Update all 4 seed workflows, engine, builder, tag helpers, Razor partials, tests, and design docs in one coherent change.
-
-**Context:** v2.0 rollout plan (Tom Nook) designed for live product with graduated migration phases (migrator, dual schema acceptance, builder rewrite, partial collapse, doc refresh). Umbraco.Prism is prototype-stage; no external customers. Transitional infrastructure is pure cost.
-
-**Rationale:** Simpler is better. One atomic change to main is faster than multi-phase rollout. Collapses Tom's planned phases P2→P6 into single integrated workstream.
-
-**Banned (Locked):**
-- ❌ No migrator
-- ❌ No V2 class names (`WorkflowDefinitionFileV2`, `StepDefinitionV2`)
-- ❌ No `schemaVersion` discriminator
-- ❌ No dual schema acceptance in engine
-- ❌ No feature flags
-
-**Deferred to v2.1:**
-- Generic `ConditionalOn` + `VisibleWhen` on arbitrary components → use v2.1 spike for tree-traversal infrastructure
-- **v2.0 ships with:** `ConditionalChildren` on Radios/Checkboxes only (canonical "Other → specify" pattern)
-
-**Implication:** P2 (migrator), P3 (dual acceptance) deleted outright. P4 (builder rewrite), P5 (tag helper collapse), P6 (doc rewrites) merge into one effort.
-
-**Basis:** User directive (2026-04-26, Jonny Muir, delivered via Copilot coordinator).
-
----
-
-## 📌 2026-04-30: Mabel (Technical Writer) — v2 Schema Terminology Cleanup (Docs Only)
-
-**Status:** ✅ IMPLEMENTED — Documentation terminology unified across 12 public-facing docs
-
-**Decision:** Remove all "v2.0 Schema Update" banners and "v1 vs v2 framing" from public-facing documentation. Replace with clear terminology that the polymorphic component model is the **current schema**.
-
-**Rationale:** The polymorphic component model is the shipping schema; there is no shipped "v1" to distinguish from. Banners like "⚠️ v2.0 Schema Update" falsely suggest migration requirements and confuse new users about what is "current."
-
-**Changes:**
-- Removed banners from 12 docs (guides, design, walkthroughs, README)
-- Normalized terminology: "v2.0 examples" → "current examples"; "v1 vs v2 comparison" → "Design evolution" (design docs only)
-- Code identifiers (e.g., `WorkflowDefinitionFileV2.cs`, `ComponentPolymorphismTests.cs`) unchanged; internal naming deferred to Tom Nook/Blathers
-
-**Verification:** All public docs use consistent "polymorphic component model" terminology; no v1/v2 framing in public scope (historical context in archive only).
-
-**Basis:** Documentation review memo (2026-04-30, Mabel, technical writer).
-
----
-
 ## 📌 2026-04-29: Copilot (Backend, acting as Blathers) — CI Readiness Fix: localhost-auth Playwright Lane
 
 **Status:** ✅ IMPLEMENTED — Commit `c2ff66a` merged to `origin/main`
@@ -2337,3 +2220,206 @@ Users open forwarded URLs, not localhost. A health check that only tests localho
 **Application:** Team commits to this discipline when assigned diagnostic or remediation tasks.
 
 ---
+
+## 📌 2026-05-03: Blathers — Aspire Dashboard Codespaces 401 Redirect — Diagnosis & Next Steps
+
+# Aspire Dashboard Codespaces 401 Redirect — Diagnosis & Next Steps
+
+## Problem Statement
+
+When accessing the Aspire dashboard at the public Codespaces URL (`https://organic-space-fortnight-77g9wvq6jxhxg97-15135.app.github.dev/`):
+- Browser redirects to `https://localhost:41981` (not a valid public URL)
+- `curl -kI` shows `HTTP/2 401` with header `www-authenticate: tunnel`
+- Result: Dashboard appears inaccessible from public URL
+
+## Root Cause: Codespaces Tunnel Authentication
+
+**The 401 + `www-authenticate: tunnel` response is NOT a dashboard bug — it's GitHub Codespaces' port forwarding authentication layer.**
+
+When the Codespaces port forwarding proxy receives a request and the destination port:
+- Returns 401 or is unreachable → proxy responds with `www-authenticate: tunnel`
+- Browser's tunnel client then attempts to negotiate on an ephemeral port (41981 in this case)
+- If tunnel negotiation fails, the browser shows the redirect as broken
+
+## Configuration Assessment: CORRECT ✅
+
+**All repo-side setup is properly configured for anonymous dashboard:**
+
+| Component | Configuration | Status |
+|-----------|---|---|
+| on-start.sh | Exports `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` before `dotnet run` | ✅ Correct |
+| launchSettings.json | Hardcodes same flag in environment variables | ✅ Correct |
+| devcontainer.json | Port 15135 marked as public HTTP | ✅ Correct |
+| Env var inheritance | Exported before `nohup`, so child process will inherit | ✅ Correct |
+
+**This is NOT a configuration bug; this is a runtime diagnosis needed.**
+
+## Diagnosis: What's Actually Running?
+
+The 401 response suggests one of these runtime conditions:
+
+### Most Likely: Dashboard Not Listening on Port 15135
+When Codespaces tunnel proxy tries to reach `localhost:15135` and the port is either:
+- Not listening at all → tunnel proxy returns 401
+- Listening but not responding to HTTP → tunnel proxy returns 401
+- Listening on wrong protocol (HTTPS only) → tunnel proxy returns 401
+
+### Next Most Likely: Environment Variables Not Reached AppHost
+Though `nohup` preserves parent env vars in standard Unix, the process might have:
+- Lost the exports if there's a shell/exec boundary
+- Been started before the export statement
+- Env var set to wrong value (typo in on-start.sh)
+
+### Possible: Codespaces Workspace Config Requires Auth
+GitHub Codespaces allows workspace-level policies that can require auth even for ports marked public in devcontainer.json.
+
+## Recommended Action: Run These Diagnostics
+
+**Inside the running Codespaces terminal:**
+
+```bash
+# 1. PRIMARY: Is dashboard listening?
+curl -v http://localhost:15135/ 2>&1 | head -30
+
+# 2. SECONDARY: Did AppHost get the env var?
+pgrep -f "dotnet run.*AppHost" | xargs -I{} cat /proc/{}/environ | tr '\0' '\n' | grep DOTNET_DASHBOARD
+
+# 3. Check if port is even bound
+lsof -i :15135  # or: netstat -tlnp | grep 15135
+
+# 4. Review AppHost startup logs for port binding info
+tail -50 artifacts/startup-status/prism-apphost.log | grep -i "listening\|port\|dashboard\|http"
+
+# 5. Use the status server diagnostic endpoint
+curl http://localhost:3000/api/diag | jq .
+```
+
+**Expected healthy output:**
+- Step 1 should return HTML (Blazor app markup)
+- Step 2 should show `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`
+- Step 3 should show `dotnet` process on port 15135
+
+## If Diagnostics Show Dashboard Not Responding
+
+**Potential Fixes (Do Not Implement Yet — Diagnostics First):**
+
+1. Restart AppHost: `bash scripts/codespaces/refresh.sh`
+2. Check if launchSettings profile is being used: `ASPNETCORE_LAUNCH_PROFILE=https dotnet run --project src/UmbracoPrism.AppHost`
+3. Verify HTTP binding is active in Program.cs
+4. Check AppHost logs for startup errors: `tail -f artifacts/startup-status/prism-apphost.log`
+
+## Decision
+
+**No code changes recommended at this time.** The repo configuration is correct. This appears to be either:
+1. A Codespaces runtime state issue (AppHost not actually running/listening on port 15135)
+2. An environment variable derivation issue (env vars not reaching the process)
+
+**Next session should focus on:**
+1. Running the diagnostic commands from inside the failing Codespaces
+2. Confirming actual port binding and environment state
+3. Then deciding if code-side fix is needed (unlikely) or if it's a Codespaces-specific workaround
+
+## Learning: Port 41981
+
+The ephemeral port 41981 is assigned by GitHub Codespaces' tunnel client for negotiating the tunnel connection. It's a symptom, not the problem. The real problem is whatever causes the initial 401 response (likely: dashboard not listening).
+
+---
+
+**Related:** GitHub Codespaces tunnel authentication protocol  
+**Severity:** Non-blocking (local development convenience, not production)  
+**Requires Review:** Yes — before implementing any code fixes
+
+---
+
+## 📌 2026-05-03: Tangy — Aspire Dashboard Codespaces URL Contract — Diagnosis & Acceptance Criteria
+
+
+# Aspire Dashboard Codespaces URL Contract — Diagnosis & Acceptance Criteria
+
+## Problem Statement
+
+Dashboard forwarded URL in Codespaces returns HTTP 401 with `www-authenticate: tunnel` header, causing:
+- Browser redirects to GitHub login (confusing UX)
+- Dashboard never loads
+- Users see blank or download-prompts when clicking the Aspire Dashboard link
+
+## Root Cause
+
+**Port 15135 visibility in Codespaces infrastructure**, not application misconfiguration.
+
+- The Aspire app is correctly configured with `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`
+- Internal healthchecks (`curl https://localhost:15135`) succeed
+- But the Codespaces tunnel proxy does not expose port 15135 publicly
+- Result: Tunnel layer intercepts and demands GitHub authentication via `www-authenticate: tunnel` header
+
+## What HTTP 401 + `www-authenticate: tunnel` Means
+
+Codespaces-specific infrastructure protocol:
+- **401** = Not authenticated to tunnel proxy
+- **`www-authenticate: tunnel`** = Authenticate via Codespaces (GitHub login required)
+
+This is **NOT** an app error. Port is simply not marked public.
+
+## Expected User-Facing Contract
+
+When a user clicks "Aspire Dashboard" link from status page or VS Code Ports panel in Codespaces:
+
+### ✅ Success States
+- HTTP 200 response (or compatible 2xx)
+- Dashboard HTML renders immediately
+- No GitHub login redirect
+- Service telemetry visible (TestSite, Keycloak, MockBiz, MockBusinessApp, Dashboard health)
+- ZERO occurrence of `www-authenticate: tunnel` header
+
+### ❌ Failure States  
+- HTTP 401 with `www-authenticate: tunnel` header
+- Browser shows "Sign in to GitHub" prompt
+- Dashboard does not render
+- User sees blank page or empty response
+
+## Acceptance Criteria — How to Verify Fix
+
+| Scenario | Test | Expected |
+|----------|------|----------|
+| **Port visibility** | Check `.devcontainer/devcontainer.json` ports array or VS Code Ports panel | Port 15135 is explicitly declared or marked public |
+| **No tunnel auth** | `curl -kI https://{forwarded-url}:15135/` | HTTP 200 (no 401, no `www-authenticate` header) |
+| **Dashboard accessible** | Open dashboard forwarded URL in browser | Loads immediately, shows service list + telemetry |
+| **No login prompt** | Follow forwarded URL from status page | No GitHub login screen, dashboard renders |
+
+## Recommended Test Script
+
+Add to health-check or CI:
+
+```bash
+#!/bin/bash
+DASHBOARD_URL="http://localhost:15135"
+CODE=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "$DASHBOARD_URL/")
+AUTH_HDR=$(curl -sk --max-time 5 -i "$DASHBOARD_URL/" 2>/dev/null | grep -i "www-authenticate:" || true)
+
+echo "Dashboard HTTP Status: $CODE"
+if [ -n "$AUTH_HDR" ]; then
+  echo "⚠️  TUNNEL AUTH HEADER DETECTED: $AUTH_HDR"
+  exit 1
+fi
+
+if [ "$CODE" != "200" ]; then
+  echo "❌ Expected 200, got $CODE"
+  exit 1
+fi
+
+echo "✅ Dashboard contract OK"
+exit 0
+```
+
+## Related Context
+
+- Tangy history (2026-05-03): Port 44345 (TestSite) confirmed NOT forwarded → HTTP 404 from tunnel layer
+- Port visibility requires explicit declaration in devcontainer.json or manual VS Code toggle
+- Previous false positive: internal localhost checks (✅) masked external tunnel visibility issue (❌)
+
+## Follow-Up
+
+- Verify port 15135 is in `.devcontainer/devcontainer.json` forwardPorts array
+- If not present, add it with `"visibility": "public"`
+- Test in live Codespace after change
+- Document port visibility requirements in CODESPACES.md

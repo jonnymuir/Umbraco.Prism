@@ -443,3 +443,120 @@ builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.c
 
 ---
 
+## 📌 2026-04-26: Copilot (Coordinator) — v2.0 Polymorphic Component Rollout Completion
+
+**Status:** ✅ COMPLETE — 9-commit atomic rollout concluded; v2.0 schema is canonical
+
+**Session Summary:**
+The v2.0 polymorphic component hierarchy rollout converged through three phases:
+1. **Initial Plan Collapse** (copilot-3commit-replan): 8-commit sequence deemed infeasible due to C# type system constraints. Collapsed to 3-commit atomic plan (schema replacement, design doc refresh, ledger update).
+2. **Expanded Rollout** (follow-through progress reports): 3-commit plan expanded to 9 total commits as blockers were discovered and resolved:
+   - Commit `7423803` (feat): Atomic schema replacement — 40–60 file diff, single coherent change
+   - Commits `2cdb0dc`, `f3c0ea5`, `67bb57b`: Seed fixes + e2e tests + 4th workflow seeding
+   - Commit `989f595`: Archive redesign blueprint, refresh conditional-fields doc
+   - Commit `dc87e5f`: ModelsBuilder views fix (disable auto-generation)
+   - Commit `392c64e`: Playwright walkthroughs with screenshot capture
+   - Commits `2698c1d`, `a48229b`: Design + guide doc refresh, screenshot script
+
+**Key Decisions Locked In:**
+- **No migrator, no V2 suffix, no schemaVersion field** — direct replacement of v1 schema with polymorphic components
+- **Generic ConditionalOn deferred to v2.1** — v2.0 ships with ConditionalChildren on Radios/Checkboxes only
+- **ModelsBuilder view generation disabled** — TestSite uses Core's embedded views, prevents model-binding conflicts
+
+**Seed File Roundtrip Guard:**
+- Gap identified: payment-demo.json and information-request.json were out of sync with v2 polymorphic schema
+- Regression guard added: `SeedFileRoundtripTests.cs` ensures all seeds deserialize correctly and have no orphaned v1 properties
+- All 4 seeds migrated to v2 in Commit `2cdb0dc`
+
+**E2E + Documentation Coverage:**
+- Playwright tests cover all 4 demo workflows (community-enquiry, payment-demo, planning-notification, information-request) with happy paths + conditional logic
+- Screenshot-driven walkthroughs for all 4 demos with state transitions captured
+- 12 design + guide docs refreshed for v2 polymorphic schema
+
+**Test Results:**
+- Clean build: 0 warnings
+- Core tests: 583 baseline → maintained; Seed roundtrip tests: +4 (546 total)
+- No regressions; all changes backward-compatible or documented as breaking (no live consumers)
+
+**Basis:** User directive (2026-04-26, Jonny Muir), Tom Nook's direct-replacement sequencing plan (2026-04-26), follow-through progress reports (Copilot 2026-04-09, 2026-04-26), Copilot 3-commit replan (2026-04-26), blocker resolution (ModelsBuilder fix 2026-04-26).
+
+---
+
+## 📌 2026-04-26: Tom Nook — Design Doc Audit: 9 Docs Reviewed, 7 Marked for v2.0 Rewrite
+
+**Status:** ✅ Audit complete; recommendations implemented in rollout
+
+**Scope:** 9 workflow design + guide documents reviewed against v2 polymorphic component plan
+
+**Audit Findings:**
+- **7 docs need rewrite** (design docs: forms-engine.md, forms-engine-backend.md, forms-engine-client.md, forms-engine-umbraco.md, validation.md, forms-engine-demo.md, forms-engine-security.md; guide: conditional-fields.md, workflow-gds-components.md, workflow-validation.md, workflow-setup.md, workflow-customisation.md)
+- **1 doc stays as-is** (architecture/workflow-forms-engine.md contains architecture principles that transcend v1/v2)
+- **1 doc archived** (workflow-forms-engine-redesign.md → docs/archive/ with pointer to v2 plan)
+
+**Rewrite Priorities:**
+- **Red banners** (critical mismatches): 4 docs
+  - Forms engine backend/client (component tree traversal examples)
+  - Umbraco integration (JSON schema examples heavily v1-focused)
+  - Setup guide (seed JSONs all v1 shape)
+- **Yellow banners** (partial updates): 3 docs
+  - Validation + forms-engine-demo (fieldType → type, fields → children)
+- **Archive + pointer** (obsolete): 1 doc
+  - Redesign blueprint (superseded by actual v2 implementation)
+
+**Rewrite Pattern:**
+- Replace `fieldType` discriminator with `type` on all components
+- Replace `fields[]` array (flat field list) with `children[]` (typed component tree)
+- Update JSON examples to show polymorphic shapes (fieldset with children, radios with conditionalChildren)
+- Add v2 callout boxes noting new capabilities (ConditionalChildren, component polymorphism, waiting state)
+- Remove v1 artifact references (no more "FieldFile", "PrismComponentRenderPayload", "PrismFieldTagHelper")
+
+**Action:** All rewrites completed in Commits `989f595` (conditional-fields refresh) and `2698c1d` (bulk refresh).
+
+**Basis:** Formal design audit memo (2026-04-26, Tom Nook, in `.squad/decisions/inbox/`), implemented per rollout plan phases.
+
+---
+
+## 📌 2026-04-26: Jonny Muir — Direct Schema Replacement Directive (No Migrator, No Dual Schema)
+
+**Decision:** Skip v1→v2 schema migrator entirely. No live consumers; make polymorphic component hierarchy THE schema. Direct replacement of `WorkflowDefinitionFile`, `FieldDefinition`, etc. Update all 4 seed workflows, engine, builder, tag helpers, Razor partials, tests, and design docs in one coherent change.
+
+**Context:** v2.0 rollout plan (Tom Nook) designed for live product with graduated migration phases (migrator, dual schema acceptance, builder rewrite, partial collapse, doc refresh). Umbraco.Prism is prototype-stage; no external customers. Transitional infrastructure is pure cost.
+
+**Rationale:** Simpler is better. One atomic change to main is faster than multi-phase rollout. Collapses Tom's planned phases P2→P6 into single integrated workstream.
+
+**Banned (Locked):**
+- ❌ No migrator
+- ❌ No V2 class names (`WorkflowDefinitionFileV2`, `StepDefinitionV2`)
+- ❌ No `schemaVersion` discriminator
+- ❌ No dual schema acceptance in engine
+- ❌ No feature flags
+
+**Deferred to v2.1:**
+- Generic `ConditionalOn` + `VisibleWhen` on arbitrary components → use v2.1 spike for tree-traversal infrastructure
+- **v2.0 ships with:** `ConditionalChildren` on Radios/Checkboxes only (canonical "Other → specify" pattern)
+
+**Implication:** P2 (migrator), P3 (dual acceptance) deleted outright. P4 (builder rewrite), P5 (tag helper collapse), P6 (doc rewrites) merge into one effort.
+
+**Basis:** User directive (2026-04-26, Jonny Muir, delivered via Copilot coordinator).
+
+---
+
+## 📌 2026-04-30: Mabel (Technical Writer) — v2 Schema Terminology Cleanup (Docs Only)
+
+**Status:** ✅ IMPLEMENTED — Documentation terminology unified across 12 public-facing docs
+
+**Decision:** Remove all "v2.0 Schema Update" banners and "v1 vs v2 framing" from public-facing documentation. Replace with clear terminology that the polymorphic component model is the **current schema**.
+
+**Rationale:** The polymorphic component model is the shipping schema; there is no shipped "v1" to distinguish from. Banners like "⚠️ v2.0 Schema Update" falsely suggest migration requirements and confuse new users about what is "current."
+
+**Changes:**
+- Removed banners from 12 docs (guides, design, walkthroughs, README)
+- Normalized terminology: "v2.0 examples" → "current examples"; "v1 vs v2 comparison" → "Design evolution" (design docs only)
+- Code identifiers (e.g., `WorkflowDefinitionFileV2.cs`, `ComponentPolymorphismTests.cs`) unchanged; internal naming deferred to Tom Nook/Blathers
+
+**Verification:** All public docs use consistent "polymorphic component model" terminology; no v1/v2 framing in public scope (historical context in archive only).
+
+**Basis:** Documentation review memo (2026-04-30, Mabel, technical writer).
+
+---
+

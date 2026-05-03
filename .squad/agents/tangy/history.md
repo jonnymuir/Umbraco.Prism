@@ -91,3 +91,39 @@ Recommendation: Enhanced health checks should verify both internal (localhost) a
 
 **2026-05-03T11:58:20Z:** Dispatched as Tangy-8 — Reproduce dashboard and debug evidence path (agent: Tangy). Concluded: localhost:5163 is expected internal hop; minimal UX-only improvement made to messaging for operators (indicate localhost is internal, prompt refresh + /debug/auth if 401 persists); targeted dashboard tests and full core tests passed; no regressions.
 
+---
+
+## Learnings
+
+### HTTP 401 + www-authenticate: tunnel = Codespaces Port Visibility Issue
+
+**Observed:** Dashboard URL returns HTTP 401 with `www-authenticate: tunnel` header on forwarded Codespaces URL.
+
+**Analysis:**
+- `www-authenticate: tunnel` is Codespaces infrastructure auth protocol (requires GitHub login)
+- Indicates port 15135 is not publicly visible to the Codespaces tunnel proxy layer
+- Application-level security (`DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`) is correct
+- Issue is Codespaces-infrastructure-level port visibility, not app misconfiguration
+
+**Contract:** Dashboard URL must:
+1. Not return HTTP 401 with `www-authenticate` on the forwarded public URL
+2. Not redirect to GitHub login
+3. Serve dashboard immediately (telemetry + logs visible)
+4. Respond HTTP 200 or compatible success code
+
+**Fix verification:** Ensure port 15135 is explicitly public in `.devcontainer/devcontainer.json` ports declaration or manually toggled visible in VS Code Ports panel.
+
+
+## 2026-05-03 — Codespaces Dashboard Port Visibility Validation (Background)
+
+**Task:** Validate HTTP 401 + `www-authenticate: tunnel` diagnosis; define dashboard contract acceptance criteria.
+
+**Findings:**
+- Confirmed 401 is GitHub Codespaces tunnel layer authentication, not app configuration issue
+- Identified health check false positive: localhost checks pass but tunnel forwarding inaccessible
+- Drafted acceptance criteria for dashboard forwarded URL (HTTP 200, no auth header, immediate render)
+
+**Decision Record:** `.squad/decisions.md` entries 2026-05-03 (Tangy)
+
+**Files Created:**
+- `.squad/orchestration-log/2026-05-03T13-59-46Z-tangy.md` — orchestration report

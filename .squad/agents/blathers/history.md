@@ -189,3 +189,72 @@ Documented operational pattern: Always restart Aspire stack after pulling auth-r
 
 **2026-05-03T11:58:20Z:** Dispatched as Blathers-18 — Diagnose MockBusinessApp 401 path (agent: Blathers). Concluded: localhost:5163 is expected backchannel hop; stale runtime or closed gate suspected; no code changes; build and core tests passed. Evidence: backchannel connectivity verified, seed contract gates all four workflow pages correctly, no security token rejection.
 
+---
+
+## 2026-05-03: Aspire Dashboard Codespaces 401 Redirect Diagnosis
+
+**Status:** ✅ Non-destructive diagnosis complete
+
+**Scope:** Investigate why Aspire dashboard at public Codespaces URL (`https://...app.github.dev/`) redirects to `https://localhost:41981` and returns `HTTP/2 401` with `www-authenticate: tunnel`.
+
+**Key Finding: Codespaces Tunnel Authentication Protocol**
+
+The 401 + `www-authenticate: tunnel` response is **GitHub Codespaces' port forwarding authentication layer**, not a dashboard bug. This header indicates:
+- The Codespaces port proxy has intercepted the request
+- The proxy is demanding tunnel authentication
+- The proxy should NOT demand auth if dashboard is configured as anonymous
+
+**Configuration Status: CORRECT**
+
+All repo-side configuration is properly set for anonymous dashboard in Codespaces:
+1. **on-start.sh** exports `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` before launching AppHost
+2. **launchSettings.json** hardcodes the same flag as fallback
+3. **devcontainer.json** marks port 15135 as public HTTP
+4. Env vars are exported before `nohup dotnet run` (correct inheritance)
+
+**Port 41981 Mystery**
+
+The ephemeral port 41981 is **NOT in any repo configuration**. This indicates:
+- GitHub Codespaces assigns this port for tunnel negotiation
+- Browser attempts tunnel auth on this port when it receives 401
+- Tunnel negotiation fails because dashboard isn't responding
+
+**Root Cause Assessment (Most to Least Likely)**
+
+1. **Dashboard NOT listening on HTTP port 15135** — tunnel proxy returns 401 when destination port is unreachable/not responding
+2. **Dashboard only listening on HTTPS 17214** — not on expected HTTP 15135
+3. **Env vars not reaching AppHost process** — unlikely (nohup preserves parent env), but unverified
+4. **Codespaces workspace misconfigured** — port 15135 marked as private or requires auth
+
+**This is a Runtime Issue, Not a Code Issue**
+
+The repo configuration is sound; the problem is almost certainly in the running Codespaces environment (process state, env var inheritance, or port binding).
+
+**Recommended Next Steps (1-3 Concrete Diagnostics)**
+
+1. **PRIMARY:** Inside Codespaces: `curl -v http://localhost:15135/ | head -20` — should show Blazor HTML or connection refused
+2. **SECONDARY:** Check AppHost process env: `pgrep -f "dotnet run.*AppHost" | xargs -I{} cat /proc/{}/environ | tr '\0' '\n' | grep DOTNET_DASHBOARD`
+3. **TERTIARY:** Verify port binding: `lsof -i :15135` or `netstat -tlnp | grep 15135`
+
+**Learnings**
+
+- `www-authenticate: tunnel` is GitHub Codespaces' specific auth protocol; does not indicate dashboard auth failure
+- Redirect to localhost:41981 is tunnel client behavior, not app-side redirect
+- `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS` must be set BEFORE AppHost process starts (not inside appsettings)
+- Env vars exported in on-start.sh BEFORE `nohup` will reach child process (standard Unix behavior)
+
+
+## 2026-05-03 — Aspire Dashboard 401 Diagnosis (Background)
+
+**Task:** Diagnose localhost:41981 redirect and HTTP 401 response in Codespaces.
+
+**Diagnosis:**
+- 401 + tunnel auth header is Codespaces port-forwarding layer, not app bug
+- App config is CORRECT: `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` properly set
+- Most likely cause: dashboard not listening on localhost:15135 OR env var derivation failure
+- Provided diagnostic commands for next session (port binding, env vars, AppHost logs)
+
+**Decision:** No code changes recommended; runtime diagnostics needed first
+
+**Files Created:**
+- `.squad/orchestration-log/2026-05-03T13-59-46Z-blathers.md` — orchestration report
