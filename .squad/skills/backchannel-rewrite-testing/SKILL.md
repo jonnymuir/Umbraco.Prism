@@ -172,6 +172,16 @@ This snapshot/restore in a *reader* ensures that if any test in the serialised s
 env vars dirty (e.g. due to an unhandled exception in a mutator), subsequent reader tests
 still see a clean slate.
 
+### Callback-path loopback tests need product-side gating too
+
+`PrismOidcConfiguration.OnAuthorizationCodeReceived` may execute a real token exchange and JWKS fetch,
+not just a mocked resolver path. If a regression test uses an explicit loopback authority like
+`http://127.0.0.1:{port}`, the backchannel rewrite must stay OFF even when `KEYCLOAK_BACKCHANNEL_URL`
+and `ASPNETCORE_ENVIRONMENT=Development` are present from nearby tests.
+
+**Rule:** only build callback/JWKS backchannel URLs for HTTPS public authorities. This preserves the
+Codespaces Keycloak rewrite while keeping isolated loopback providers pointed at their own test server.
+
 ---
 
 ## Security Checklist for Backchannel Rewrites
