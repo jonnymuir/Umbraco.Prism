@@ -1815,3 +1815,68 @@ This landing reaffirms the **product/bookkeeping separation pattern** as team-wi
 - **Release clarity:** Clean git history enables users and release automation to reason about what shipped and why
 
 Suggest Scribe consider updating `.squad/conventions.md` to document this as explicit team guidance for future multi-agent product handoffs.
+
+---
+date: 2026-05-03T23:26:29.163+01:00
+author: Blathers
+status: decision
+area: diagnostics, downstream-demo, backchannel
+---
+
+# Decision: Safe deeper downstream timeout diagnostics
+
+## Context
+
+Jonny needed better browser-visible detail for downstream demo timeouts, especially when TestSite calls MockBusinessApp through an internal backchannel in Codespaces or local Aspire wiring.
+
+## Decision
+
+Keep masking internal backchannel ports in `transport.transportBaseUrl` as `http://localhost:****`, but add safe timeout details that do not expose raw internal ports:
+
+- `transport.usingBackchannel`
+- `transport.targetPath`
+- `timeout.timedOutByUs`
+- `timeout.cancellationSource`
+- short `summary` / `nextCheck` hints
+
+Also enrich server logs with the masked transport base URL and target path so operators can correlate browser output with backend logs.
+
+## Rationale
+
+The browser already needs to know whether TestSite used the backchannel, which path it targeted, and whether the 10-second timeout came from our own request window. Those details help diagnose stale AppHost wiring and public-tunnel fallbacks, while the raw localhost port still stays hidden from browser-visible JSON.
+
+---
+date: 2026-05-03T23:26:29.163+01:00
+author: Tangy
+status: decision
+area: testing, diagnostics, downstream-demo
+---
+
+# Decision: Timeout Diagnostics Must Distinguish Deadline vs Cancellation Without Leaking Backchannel Ports
+
+## Context
+
+`DownstreamDemoController` now exposes richer timeout diagnostics for `/api/prism/downstream-demo` so operators can tell whether a failed request used the public tunnel or the internal backchannel. The remaining behavioural risk was ambiguity between a real controller timeout and an externally cancelled request, especially in unit tests that throw `TaskCanceledException` directly.
+
+## Decision
+
+Browser-visible timeout responses should preserve these contracts:
+
+1. **Deadline vs cancellation must be explicit.**
+   - Timeout responses expose `statusText`, `timeout.timedOutByUs`, and `timeout.cancellationSource`.
+   - Behavioural tests cover both the controller-owned timeout window and a separate external-cancellation path.
+
+2. **Internal-backchannel diagnostics must stay masked.**
+   - Responses may identify `internal-backchannel`, the target path, and suggested next checks.
+   - `transport.transportBaseUrl` must remain masked (`http://localhost:****`) and raw internal ports must not appear anywhere in browser-visible JSON.
+
+3. **Operator guidance should point to configuration and health checks, not implementation leaks.**
+   - `summary` and `nextCheck` should reference the downstream path and wiring checks like `BUSINESSAPP_BACKCHANNEL_URL`.
+   - Guidance should avoid exposing raw localhost ports while still telling operators what to verify next.
+
+## Test Coverage
+
+- `DownstreamDemo_IncludesTransportDiagnostics_OnTimeout`
+- `DownstreamDemo_IncludesMaskedInternalBackchannelTimeoutDiagnostics`
+- `DownstreamDemo_LabelsExternalCancellation_SeparatelyFromTimeoutWindow`
+- Existing masking contract in `DownstreamDemo_DoesNotExposeRawBackchannelPortInDiagnostics`
