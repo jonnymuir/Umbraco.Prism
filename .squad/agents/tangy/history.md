@@ -232,3 +232,25 @@ Now all three sites follow identical dual-gating pattern.
 ## 2026-05-03: Team Spawn — Startup Helper Validation
 
 **Status Update (Scribe):** Tangy validated startup helper uses `/api/*` endpoints (no loops on missing legacy routes), reports TestSite ready off correct readiness route. Safari download issue not reproduced locally after fix.
+
+---
+
+## 2026-05-03: Downstream Diagnostics Coverage
+
+**Status:** ✅ Complete; merged to main with 618 tests passing (+17 new).
+
+**Scope:** Improve downstream dashboard diagnostics for non-JSON responses and add regression coverage.
+
+**Enhanced `DownstreamDemoController`:**
+- Log non-JSON downstream responses with HTTP headers
+- Preserve real HTTP status/reason (not flattened to `statusCode: 0`)
+- Include diagnostic text with headers like `WWW-Authenticate` for 401 auth rejections
+- Retry logic uses per-request cancellation token (no mutation of `HttpClient.Timeout` between requests)
+
+**New Regression Tests:**
+- 401 Unauthorized with `WWW-Authenticate` header surfacing
+- 302 redirects with `Location` header diagnostics
+- Unknown Content-Type responses with real HTTP metadata preservation
+
+**Impact:** Live Codespaces repro will now clearly distinguish transport failure, auth rejection, proxy redirects, and HTML tunnel pages.
+

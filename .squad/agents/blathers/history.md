@@ -53,3 +53,26 @@ Full history archived to `history-archive.md` (prior to 2026-05-01).
 ## 2026-05-03: Team Spawn — HMAC Secret Remediation
 
 **Status Update (Scribe):** Blathers completed local TestSite appsettings drift repair. Tracked `appsettings.json` no longer contains real HMAC secret; local-only config now in gitignored `appsettings.Local.json`. Decision recorded in decisions.md (entry dated 2026-05-03).
+
+---
+
+## 2026-05-03: Downstream Diagnostics & 401 Refresh Path
+
+**Status:** ✅ Complete; merged to main.
+
+**Scope:** Diagnose localhost:5163 invalid-response path and fix downstream security diagnostics.
+
+**Security Findings Triaged:**
+- **HTTP Metadata Preservation:** Real downstream HTTP status/reason now preserved (not flattened to `statusCode: 0`)
+- **Header Logging:** Real downstream headers (e.g., `WWW-Authenticate`) now logged and included in diagnostics
+- **401 Refresh/Retry Fix:** Eliminated mutation of `HttpClient.Timeout` between requests; uses per-request cancellation token
+
+**Root Cause Diagnosed:**
+Live Codespaces symptom (`http://localhost:5163/api/backoffice/me`, `contentType: unknown`) was hiding real HTTP metadata behind flattened "Invalid Response" response. This made 401 auth rejections appear as transport errors.
+
+**Impact:** Dashboard diagnostics now surface actionable clues for:
+- Transport failures (`Network Error` / `Timeout`)
+- Auth rejections (`401 Unauthorized` + `WWW-Authenticate`)
+- Redirect/proxy behaviour (`302 Found` + `Location`)
+- HTML tunnel pages (text/html diagnostics)
+

@@ -1979,3 +1979,61 @@ When `Umbraco:CMS:Imaging:HMACSecretKey` drift occurs in tracked `appsettings.js
 - Local developers keep a stable imaging key without recommitting it.
 - README guidance and `.gitignore` remain the source of truth for local setup.
 
+
+## 📌 2026-05-03: Blathers — Downstream HTTP Diagnostics for Non-JSON Responses
+
+**Status:** 📝 In progress; merged from inbox.
+
+**Summary:** Preserve real downstream HTTP status/reason and headers when responses are non-JSON, rather than flattening to `statusCode: 0 / Invalid Response`.
+
+**Decision:** `DownstreamDemoController` now logs non-JSON downstream responses with headers and preserves real HTTP status/reason in the payload.
+
+**Why:** Live Codespaces symptom (`http://localhost:5163/api/backoffice/me`, `contentType: unknown`) is produced by a real HTTP response. Flattening that into status code 0 hides critical clues like bare `401 Unauthorized` challenge with `WWW-Authenticate` header.
+
+**Implementation notes:**
+- Response payload preserves real HTTP status/reason and includes `invalidResponse: true`
+- Diagnostic text now includes headers such as `WWW-Authenticate`
+- Retry logic uses per-request cancellation token instead of mutating `HttpClient.Timeout`
+
+**Expected effect:** Next live repro will clearly distinguish transport failure, auth rejection, redirect behaviour, and HTML tunnel pages.
+
+---
+
+## 📌 2026-05-03: Brewster — Codespaces Recovery Scripts
+
+**Status:** ✅ MERGED; scripts under `scripts/codespaces/`, CODESPACES.md updated.
+
+**Summary:** Added operator scripts for fast recovery path without full Codespace rebuild.
+
+**Three scripts:**
+1. **`stop.sh`** — kills AppHost and status server gracefully (force-kill fallback)
+2. **`refresh.sh`** — standard cycle: stop → `git pull origin main` → conditional `npm install` → restart. Flags: `--rebuild` (adds `dotnet restore` + `dotnet build`), `--no-start`
+3. **`health-check.sh`** — probes five readiness endpoints, exits 0/1
+
+**Rationale:**
+- `refresh.sh` without `--rebuild` is fast (~90 seconds) for code-only changes
+- Rebuild is opt-in; auto-detect `package-lock.json` changes
+- Scripts delegate to `.devcontainer/on-start.sh` (single source of truth)
+- Health-check can run standalone
+
+**Readiness Endpoints:**
+| Port | Service | Endpoint |
+|---|---|---|
+| 3000 | Status server | `http://localhost:3000/api/status` |
+| 15135 | Aspire Dashboard | `http://localhost:15135` |
+| 44345 | TestSite | `/api/prism/downstream-demo/seed-contract-ready` |
+| 8443 | Keycloak | `/realms/prism-dev/.well-known/openid-configuration` |
+| 7245 | MockBusinessApp | `/debug/auth` |
+
+**Full rebuild needed if:** `devcontainer.json`, `on-create.sh`, Docker-in-Docker, or SDK version constraints change.
+
+---
+
+## 📌 2026-05-03: User Directive — Codespaces Diagnostics Focus
+
+**Status:** 🎯 Guidance for team.
+
+**Directive:** Do not keep guessing at Codespaces downstream failure; diagnose it properly with useful logs/diagnostics, or request a specific site-side check to test a concrete hypothesis.
+
+**Source:** User request (Jonny Muir via Copilot).
+
