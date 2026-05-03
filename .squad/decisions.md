@@ -1543,3 +1543,221 @@ Commit fb1b324 (2026-05-03, earlier session) established this pattern. Commit 22
 
 - **Scribe:** Consider updating `.squad/conventions.md` to document this landing workflow
 - **Future technical writes:** Use this pattern for all multi-agent product handoffs
+
+---
+date: 2026-05-03T23:00:12.742+01:00
+agent: blathers
+status: proposed
+---
+
+# Downstream Demo Transport Diagnostics Should Be Response-Visible
+
+## Context
+
+The downstream demo endpoint (`/api/prism/downstream-demo`) serves as a live diagnostic tool for operators testing server-to-server bearer token forwarding. When calls fail in Codespaces, the failure could be:
+- Stale AppHost wiring (backchannel URL not set or pointing to wrong port)
+- GitHub port-forwarding tunnel blocking internal requests
+- MockBusinessApp not running or rejecting tokens
+- Network timeout vs external cancellation
+
+Previously, failures logged to the server but returned generic error messages, forcing operators to manually inspect environment variables and AppHost logs to determine the actual transport path.
+
+## Decision
+
+Embed transport path diagnostics directly in the JSON response payload for all outcomes (success, timeout, network error, non-JSON response).
+
+### What Gets Exposed
+
+Response includes a `transport` object with:
+- `transport`: "internal-backchannel", "public-tunnel", or "public-url"
+- `backchannelPresent`: boolean flag for BUSINESSAPP_BACKCHANNEL_URL
+- `transportBaseUrl`: masked for internal URLs (`http://localhost:****`), full for public
+- `targetUrlScheme`: http/https indicator
+
+Structured logs also include this metadata for searchability.
+
+### Security Considerations
+
+**Safe to expose:**
+- Whether backchannel URL is configured (boolean flag)
+- Transport type classification
+- Public URLs (already browser-visible)
+- URL scheme (http/https)
+
+**Must mask:**
+- Actual backchannel port numbers → shown as `http://localhost:****`
+- Bearer tokens, refresh tokens, cookies
+- Client secrets, JWKS keys
+
+### Why Response-Visible
+
+1. **Immediate operator insight** — Failure response immediately shows which transport path was attempted
+2. **No log hunting** — Operators don't need AppHost logs or environment variable inspection for first-pass triage
+3. **Context-aware hints** — Error messages can tailor advice based on transport (e.g., "Try refresh.sh" for backchannel timeouts)
+4. **Test-friendly** — Future automated tests can assert on transport metadata
+5. **Safe for dev environments** — Already gated behind IsDevelopment or explicit config flag
+
+## Implementation
+
+Added `BuildTransportDiagnostics()` helper that:
+1. Checks `BUSINESSAPP_BACKCHANNEL_URL` environment variable
+2. Falls back to `PrismBusinessApp:WorkflowApiBaseUrl` config
+3. Classifies as internal-backchannel, public-tunnel, or public-url
+4. Masks internal URLs, shows public URLs in full
+5. Returns tuple for structured logging and response inclusion
+
+Updated all response paths (success, timeout, HttpRequestException, non-JSON) to include transport metadata.
+
+## Alternatives Considered
+
+**Log-only diagnostics:**
+- Rejected: Requires operator to have AppHost log access and grep skills
+- Log hunting for every failure slows down diagnosis
+
+**Expose actual backchannel port:**
+- Rejected: Ephemeral ports are internal runtime detail; exposing them doesn't help operators since they can't directly call localhost from their browser anyway
+- Masked representation conveys "internal backchannel in use" without leaking port
+
+**Separate diagnostic endpoint:**
+- Rejected: Response-visible diagnostics on the actual failing endpoint give immediate context
+- Separate endpoint requires two requests to correlate transport with failure
+
+## Consequences
+
+**Benefits:**
+- Next Codespaces timeout immediately shows "internal-backchannel" vs "public-tunnel"
+- Operators can distinguish stale wiring from downstream auth failures in one request
+- Contextual hints tailored to actual transport type
+- Structured logging enables pattern analysis across failures
+
+**Risks:**
+- Exposing transport implementation detail in API contract
+- Mitigation: Already dev-only endpoint; transport metadata is descriptive, not prescriptive
+
+**Maintenance:**
+- Transport classification logic lives in one helper method
+- If new transport types emerge (e.g., service mesh, sidecar), update classification in one place
+
+## Related Decisions
+
+- `.squad/skills/dev-session-contract-probe/SKILL.md` — Precedent for response-visible diagnostics without token exposure
+- `.squad/skills/inline-api-failure-states/SKILL.md` — Normalize from Response.status first, layer diagnostic fields
+- `.squad/skills/aspire-dynamic-endpoint-backchannels/SKILL.md` — Why backchannel URLs exist and how they're resolved
+
+## Test Coverage
+
+All 680 Core tests pass. No new test failures introduced. Transport diagnostics are response-visible but don't break existing contract expectations.
+
+Tangy added five behavioural contract tests guarding backchannel/public tunnel classification and timeout/error transport metadata; all tests pass.
+
+---
+date: 2026-05-03T22:49:38.255+01:00
+author: Blathers
+status: PROPOSED
+area: diagnostics, authentication, http-client
+---
+
+# Downstream API Timeout Diagnosis: Unregistered HttpClient Root Cause
+
+## Context
+
+The DownstreamDemoController times out after 10 seconds when calling MockBusinessApp from TestSite. Evidence gathered:
+
+1. **Browser call:** `/api/prism/downstream-demo` → timeout after 10s
+2. **Session contract:** Shows authenticated session, access token present, `authorizationHeaderReady=true`
+3. **Diagnostics script:** Internal `http://localhost:{port}/debug/auth` returns 200 (BusinessApp is listening and healthy)
+4. **Keycloak backchannel:** Healthy and reachable
+5. **TestSite same-origin probes:** Healthy
+
+## Root Cause Identified
+
+`DownstreamDemoController.cs` uses a named HttpClient that is **not registered**:
+
+```csharp
+// Line 286:
+var client = httpClientFactory.CreateClient("prism-downstream-demo");
+```
+
+**Impact:**
+- HttpClientFactory creates an unconfigured default client
+- The CancellationToken timeout (10s) is respected, but the client lacks proper handler configuration
+- Unregistered clients may have issues with localhost resolution, certificate validation, or connection pooling in containerized environments
+
+## Decision
+
+**Register the "prism-downstream-demo" HttpClient with explicit configuration.**
+
+This is justified because:
+1. Named clients should always be registered (codebase pattern)
+2. The timeout alone (via CancellationToken) doesn't guarantee proper handler chain setup
+3. Matches the pattern used for "PrismBusinessApp" and "PrismTokenRefresh"
+4. Low risk: Won't break existing behavior if the issue is elsewhere
+
+## Implementation
+
+In `PrismComposer.cs` or `TestSiteComposer.cs`:
+
+```csharp
+// Add after existing HttpClient registrations:
+builder.Services.AddHttpClient("prism-downstream-demo")
+    .ConfigureHttpClient(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(15); // Slightly higher than CancellationToken timeout
+    });
+```
+
+OR in development-only scope (since this is a demo controller):
+
+```csharp
+// In TestSiteComposer.cs or wherever dev-only services are registered:
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddHttpClient("prism-downstream-demo")
+        .ConfigureHttpClient(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+}
+```
+
+## Alternative: Verify Runtime Environment First
+
+If registering the client doesn't fix the timeout, the next diagnostic step is:
+
+**Add logging to DownstreamDemoController to capture the actual URL being called:**
+
+```csharp
+private string ResolveBusinessAppTransportBaseUrl()
+{
+    var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+    if (!string.IsNullOrWhiteSpace(backchannelUrl))
+    {
+        logger.LogInformation("[PRISM] Using backchannel URL: {Url}", backchannelUrl);
+        return backchannelUrl;
+    }
+    
+    var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+    
+    logger.LogInformation("[PRISM] Falling back to public URL: {Url}", baseUrl);
+    return baseUrl;
+}
+```
+
+This will confirm:
+- Whether BUSINESSAPP_BACKCHANNEL_URL is actually set at runtime
+- Whether the URL matches what the diagnostics script successfully tested
+
+## Test Coverage
+
+After implementing, verify:
+1. TestSite can call MockBusinessApp via the demo button (< 2 seconds)
+2. Browser-facing response still shows public URL (not backchannel)
+3. Diagnostics script still shows healthy backchannel connectivity
+
+## References
+
+- History note: "Named HttpClients have default timeouts (100s); the custom timeout only applies when the named client is registered."
+- `DownstreamDemoController.cs` line 286
+- `PrismComposer.cs` lines 34-35 (existing HttpClient registrations)

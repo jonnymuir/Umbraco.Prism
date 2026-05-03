@@ -108,3 +108,51 @@ These three checks isolate:
 
 **Artifact:** `.squad/orchestration-log/2026-05-03T21-27-45Z-tangy.md`
 
+---
+
+## Learnings
+
+### 2026-05-03T22:49:38+01:00: Fastest Environment Variable Configuration Check
+
+**Context:** When downstream API timeouts have already ruled out BusinessApp itself (via diagnostics script internal probe), but public URL still hangs, the fastest triage is checking the exact environment variable TestSite reads at runtime.
+
+**Pattern:** `echo "VAR_NAME = ${VAR_NAME:-not set}"` in the Codespace terminal immediately shows whether configuration is wrong (public URL when internal required) or runtime is stalled.
+
+**Signal:** If `BUSINESSAPP_BACKCHANNEL_URL` is unset or contains a public tunnel URL, that's the fix—no further diagnosis needed. If it's correctly set to `http://localhost:5163`, then the timeout is a deeper Keycloak JWKS or BusinessApp validation issue.
+
+### 2026-05-03T23:00:12+01:00: Safe Transport Diagnostics in API Responses
+
+**Context:** Blathers added structured transport diagnostics to the DownstreamDemo controller responses, exposing whether backchannel was used and whether it was configured, without leaking secrets.
+
+**Pattern:** Test coverage guards three behavioral contracts:
+1. **Transport classification**: Responses include `transport.transport` field ("internal-backchannel", "public-tunnel", "public-url") so operators can distinguish failure modes without raw URL inspection
+2. **Backchannel wiring signal**: `transport.backchannelPresent` boolean indicates whether `BUSINESSAPP_BACKCHANNEL_URL` env var was configured, independent of whether the request succeeded
+3. **Masked internal URLs**: Internal backchannel URLs are rendered as `http://localhost:****` in `transport.transportBaseUrl` to avoid exposing actual ports in browser-visible diagnostics
+
+**Verification:** Added 5 tests in `DashboardLocalEndpointsValidationTests.cs`:
+- `DownstreamDemo_ExposesTransportDiagnostics_WhenBackchannelIsConfigured`
+- `DownstreamDemo_ExposesTransportDiagnostics_WhenBackchannelIsNotConfigured`
+- `DownstreamDemo_IncludesTransportDiagnostics_InErrorResponses`
+- `DownstreamDemo_IncludesTransportDiagnostics_OnTimeout`
+- `DownstreamDemo_DoesNotExposeRawBackchannelPortInDiagnostics`
+
+All 680 tests pass. The new diagnostics provide enough signal for Codespaces operators to triage timeout root causes (backchannel vs public tunnel) without exposing tokens, ports, or other secrets.
+
+
+---
+
+## Cross-Agent Update: 2026-05-03T23:08:07Z Scribe Coordination
+
+**Spawn manifest consolidated:** Tangy added 5 behavioural contract tests for transport diagnostics. Blathers implemented response-visible transport path metadata.
+
+**Orchestration record logged:**
+- `.squad/orchestration-log/2026-05-03T22:08:07Z-tangy.md`
+
+**Test coverage:**
+- Backchannel/public tunnel classification validated
+- Timeout/error transport metadata validated
+- All 680 Core tests passing
+- Masking behavior (localhost:****) verified
+
+**Team coordination complete.** Decisions merged to main registry.
+
