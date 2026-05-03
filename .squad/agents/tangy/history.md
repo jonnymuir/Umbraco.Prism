@@ -245,3 +245,51 @@ Blathers had produced a quick-reference text file, but it still left too much op
 - Decisions merged by Scribe (this session)
 
 **Outcome:** Test contract strengthened. QA assumptions documented.
+
+---
+## 2026-05-03: Diagnostics Script Common Path No Longer Requires Python
+
+**Timestamp:** 2026-05-03T21:49:23.079+01:00  
+**Status:** ✅ Complete
+
+### Outcome
+
+- Re-reviewed the reported preflight failure and confirmed the previous Python-isolation hardening still left the common Codespaces path dependent on a healthy Python runtime.
+- Swapped `scripts/codespaces/diagnose-downstream.sh` to shell-native probes (`bash` + `curl` + `jq`) so poisoned Python state no longer blocks operators before the diagnostics banner.
+- Tightened the regression contract and operator guidance to state that Python is no longer required, while still calling out the remaining assumptions around `jq`, `gh codespace ports`, and stack readiness.
+
+### Validation
+
+- `bash -n scripts/codespaces/diagnose-downstream.sh`
+- `PYTHONHOME=/nonexistent PYTHONPATH=/nonexistent bash scripts/codespaces/diagnose-downstream.sh`
+- `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --nologo`
+
+### Decision Recorded
+
+- `.squad/decisions/inbox/tangy-diagnostics-no-python.md`
+
+## 2026-05-03: Diagnostics Script No-Python Rewrite (SESSION COMPLETION)
+
+**Orchestration log:** `.squad/orchestration-log/2026-05-03T21:00:48Z-tangy.md`
+
+### Work Summary
+- Reviewed Blathers' shell-native diagnostics rewrite (no-Python path)
+- Strengthened regression test coverage to lock no-Python contract
+- Documented operator-facing runtime assumptions explicitly (curl + jq required, gh codespace ports authoritative, fallback hostnames best-effort)
+- Confirmed fragile assumptions narrower and explicit
+- Validated stack availability requirement for meaningful probes
+
+### Decision Established
+- **Codespaces Diagnostics Common Path Must Not Require Python** (PROPOSED)
+  - Consequences: Broken/polluted Python no longer blocks default diagnostics command
+  - Remaining assumptions documented and tested
+  - Future reintroduction of Python treated as regression unless justified non-common-path fallback
+
+### Cross-Agent Context
+- **Blathers (Backend Dev):** Wrote shell-native script with curl probes, documented implementation guidance
+- **Mabel (Technical Writer):** Committed product changes to main as 22843a2; established clean product/bookkeeping workflow
+
+### Testing Notes
+- Regression coverage locked on shell-native contract
+- Operator-facing assumptions clearly documented
+- Fragile paths identified for future maintenance

@@ -160,6 +160,7 @@ Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token 
 
 - **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
 - **2026-05-03T21:32:41.296+01:00:** Codespaces helper scripts that embed Python should self-check a working stdlib runtime and launch it with `-I` plus `PYTHONHOME`/`PYTHONPATH` scrubbed; activated toolchains can otherwise break even basic imports like `json`.
+- **2026-05-03T21:49:23.079+01:00:** For operator-facing Codespaces diagnostics, prefer shell-native `curl`/`gh` probes over embedded runtimes. A helper that only needs Bash plus the stock network tools is more reliable than trying to harden around a missing or broken Python install.
 
 ---
 ## 2026-05-03: Codespaces Downstream Diagnostics Script
@@ -195,3 +196,26 @@ Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token 
 - Decisions merged by Scribe (this session)
 
 **Outcome:** Product deliverable live on main. Scope discipline established for future product vs bookkeeping separation.
+
+## 2026-05-03: Diagnostics Script No-Python Rewrite (SESSION COMPLETION)
+
+**Orchestration log:** `.squad/orchestration-log/2026-05-03T21:00:48Z-blathers.md`
+
+### Work Summary
+- Rewrote `scripts/codespaces/diagnose-downstream.sh` to be shell-native (curl-based probes)
+- Eliminated Python runtime dependency for Codespaces operator troubleshooting
+- Implemented `gh codespace ports` integration for forwarded browse URLs
+- Updated documentation: CODESPACES.md, MANUAL_DIAGNOSIS_FLOW.md
+- Validated no-Python code path end-to-end
+
+### Decision Established
+- **Codespaces Downstream Diagnostics Must Not Depend on Python** (PROPOSED)
+  - Rationale: Reliability for broken environments; operator ergonomics; security on secrets handling
+  - Preference: Bash, curl, gh CLI first; fallback only when no shell-native alternative exists
+
+### Cross-Agent Context
+- **Tangy (Tester):** Reviewed and strengthened regression coverage for no-Python contract
+- **Mabel (Technical Writer):** Committed product changes to main as 22843a2; established product/bookkeeping separation workflow
+
+### Next Steps
+- Production validation by users and future Codespaces diagnostics maintenance follow established shell-first preference

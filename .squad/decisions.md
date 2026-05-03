@@ -1410,3 +1410,136 @@ area: git-hygiene, diagnostics, codespaces
 - ✅ Bookkeeping will follow in a separate commit when consolidated
 
 **No risk:** The diagnostics script is new work (no regressions); the skill docs are documentation.
+---
+date: 2026-05-03T21:49:23.079+01:00
+author: Blathers
+status: PROPOSED
+area: codespaces, diagnostics, tooling
+---
+
+# Codespaces Downstream Diagnostics Must Not Depend on Python
+
+## Context
+
+`scripts/codespaces/diagnose-downstream.sh` is meant to be the first-response operator tool when downstream API calls, tunnel redirects, or Keycloak backchannel wiring go wrong in Codespaces.
+
+The prior hardening still failed in shells where there was no usable Python runtime at all. In that state, the script exited before any diagnostics banner or reachability checks, which defeated the purpose of having a low-friction troubleshooting helper.
+
+## Decision
+
+The downstream diagnostics helper should be implemented with shell-native tooling and must not require Python to be installed or healthy.
+
+### Implementation guidance
+
+1. Use `curl` for HTTP/HTTPS probes, including detection of:
+   - internal service reachability
+   - public tunnel/auth HTML interception
+   - same-origin runtime endpoint availability
+   - authenticated vs unauthenticated downstream responses
+2. Use `gh codespace ports` as the authoritative source for forwarded browse URLs when Codespaces metadata is available.
+3. Parse only the minimum JSON fields needed for operator guidance with shell-safe extraction rather than embedding a secondary runtime.
+4. Keep the fallback hostname derivation path for cases where `gh` metadata is unavailable.
+
+## Why This Matters
+
+- **Reliability:** A script intended for broken environments must keep working when optional runtimes are broken too.
+- **Operator ergonomics:** `bash scripts/codespaces/diagnose-downstream.sh` should remain the single obvious command to run.
+- **Security posture:** Shell-only summaries still avoid printing cookies, bearer tokens, or other secrets.
+
+## Consequences
+
+- Future enhancements to this helper should prefer Bash, `curl`, and `gh` first.
+- If richer parsing is ever needed, it should only be added when there is no credible shell-native alternative and the operator experience remains robust when that dependency is absent.
+
+---
+date: 2026-05-03T21:49:23.079+01:00
+author: Tangy
+status: PROPOSED
+area: testing, codespaces, diagnostics
+---
+
+# Codespaces Diagnostics Common Path Must Not Require Python
+
+## Context
+
+`scripts/codespaces/diagnose-downstream.sh` was still failing before any useful diagnostics when the active shell exposed a broken Python runtime. The Python-isolation patch improved one failure mode, but the common Codespaces operator path still depended on Python being present and healthy before the script could even reach its first probe.
+
+## Decision
+
+For the common Codespaces path, the downstream diagnostics helper should be shell-only and must not require Python at all. Regression coverage should lock that contract by asserting the script stays on shell-native tooling and by documenting the operator-facing runtime assumptions explicitly.
+
+## Consequences
+
+- A broken or polluted Python interpreter can no longer block the default diagnostics command.
+- The remaining fragile assumptions are now narrower and explicit: `curl` + `jq` must exist in the shell, `gh codespace ports` remains the authoritative browse-URL source when Codespaces metadata is available, fallback hostnames are still best-effort, and the stack still has to be running for the probes to be meaningful.
+- Future fixes should treat any reintroduction of Python into this script as a regression unless there is a clearly justified non-common-path fallback.
+
+---
+date: 2026-05-03T21:49:23.079+01:00
+author: Mabel
+status: IMPLEMENTED
+area: product-hygiene, git-workflow, scope-discipline
+---
+
+# Diagnostics Script Landing: Product vs. Bookkeeping Separation
+
+## Context
+
+Blathers and Tangy completed the no-Python diagnostics rewrite (shell-only probe logic, updated tests, browser devtools skill extraction). This landing session faced the scope question: **Should we land product + bookkeeping in one commit, or keep them separate?**
+
+The working tree contained:
+- **Product files** (should go to main): `scripts/codespaces/diagnose-downstream.sh`, `CODESPACES.md`, `MANUAL_DIAGNOSIS_FLOW.md`, test contract
+- **Bookkeeping files** (should be deferred): `.squad/agents/blathers/history.md`, `.squad/agents/tangy/history.md`, `.squad/skills/browser-devtools-api-diagnosis/`, `.playwright-cli/`
+
+## Decision
+
+**Product and bookkeeping files must be committed separately to main.**
+
+- **Product commit (22843a2):** Only user-facing deliverables go to main. Users pull, get working diagnostics script, no noise.
+- **Bookkeeping session:** Agent histories, skills, and session artifacts are coordinated separately, keeping the main branch clean and releasable.
+
+### Rationale
+
+1. **Main branch hygiene:** main should contain only shipping artifacts. `.squad/` bookkeeping is internal coordination noise.
+2. **User clarity:** When a user pulls a commit message "Fix: Rewrite diagnostics script...", they should see only the files they care about, not agent history or skill extraction artifacts.
+3. **Release boundaries:** One commit = one releasable unit. Product commit 22843a2 is production-ready; bookkeeping is orthogonal.
+4. **Git history signal:** Future readers reviewing main history see only meaningful product decisions, not agent coordination artifacts.
+
+### Implementation
+
+**Workflow for multi-agent coordination going forward:**
+
+1. Implementation agents (Blathers, Tangy) complete their work
+2. Technical Writer (Mabel) **stages only product files** (`git add <product-files>`)
+3. Create clean product commit with single concern
+4. **Leave .squad/ files unstaged**
+5. Separate bookkeeping session: Update agent histories and merge them without product files
+
+**Git commands:**
+```bash
+# Stage only product files
+git add scripts/codespaces/diagnose-downstream.sh CODESPACES.md MANUAL_DIAGNOSIS_FLOW.md src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs
+
+# Commit to main
+git commit -m "Fix: Rewrite diagnostics script to eliminate Python runtime dependency..."
+
+# Push product commit
+git push origin main
+
+# Later: Separate bookkeeping merge with only .squad/ files
+```
+
+### Exception: When bookkeeping is tightly coupled
+
+If a product file genuinely requires a .squad/ reference for correctness (e.g., a decision embedded in a code comment), include it in the product commit. Otherwise: separate.
+
+---
+
+## Precedent
+
+Commit fb1b324 (2026-05-03, earlier session) established this pattern. Commit 22843a2 reinforces it.
+
+## Follow-up
+
+- **Scribe:** Consider updating `.squad/conventions.md` to document this landing workflow
+- **Future technical writes:** Use this pattern for all multi-agent product handoffs
