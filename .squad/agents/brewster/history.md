@@ -207,3 +207,7 @@ No code changes — review-only. Decisions merged to decisions.md by Scribe. Orc
 ## 2026-05-03: Team Spawn — Startup Helper Aspire Contract Alignment
 
 **Status Update (Scribe):** Brewster fixed port-3000 startup helper to use current live Codespaces/AppHost contract. Codespaces public URLs from `gh codespace ports`, correct dashboard port, safe legacy endpoint handling. Artifact logging now repo-local (not `/tmp`).
+
+## 2026-05-03: Team Spawn — View Stub Cleanup
+
+**Status Update (Scribe):** Brewster removed stray local workflowPage/workflowHub view stubs. Canonical embedded Core views now active; TestSite view binding tests pass. Orchestration logged to 2026-05-03T09:32:20Z-brewster.md.

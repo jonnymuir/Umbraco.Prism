@@ -49,3 +49,7 @@
 ## Earlier Sessions
 
 Full history archived to `history-archive.md` (prior to 2026-05-01).
+
+## 2026-05-03: Team Spawn — HMAC Secret Remediation
+
+**Status Update (Scribe):** Blathers completed local TestSite appsettings drift repair. Tracked `appsettings.json` no longer contains real HMAC secret; local-only config now in gitignored `appsettings.Local.json`. Decision recorded in decisions.md (entry dated 2026-05-03).

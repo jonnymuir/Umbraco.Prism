@@ -1960,3 +1960,22 @@ The helper had drifted from the real stack: it still guessed Codespaces URLs fro
 ### Additional Rule
 
 Keep startup-helper logs under `artifacts/startup-status/` inside the repo, not `/tmp`, so the helper stays aligned with repo security constraints and troubleshooting docs.
+
+## 📌 2026-05-03: Blathers — Local HMAC Secret Remediation (appsettings Drift)
+
+**Status:** ✅ MERGED
+
+### Summary
+
+Repaired local TestSite appsettings drift so tracked `appsettings.json` no longer contains a real HMAC secret and local-only config is handled safely.
+
+### Decision
+
+When `Umbraco:CMS:Imaging:HMACSecretKey` drift occurs in tracked `appsettings.json` during local development, remove the HMAC key from tracked `appsettings.json` and keep the local runtime value in the gitignored `src/UmbracoPrism.TestSite/appsettings.Local.json` override instead.
+
+### Consequences
+
+- Repository stays compliant with the secret guard.
+- Local developers keep a stable imaging key without recommitting it.
+- README guidance and `.gitignore` remain the source of truth for local setup.
+
