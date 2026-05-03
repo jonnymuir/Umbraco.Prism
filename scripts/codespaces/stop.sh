@@ -45,7 +45,7 @@ fi
 
 if [ "$STOPPED_ANYTHING" = true ]; then
     echo ""
-    echo "✅ Stack stopped. Ports 3000, 15135, 44345, 8443, 7245 should now be free."
+    echo "✅ Stack stopped. Ports 3000, 17214, 44345, 8443, 7245 should now be free."
 else
     echo ""
     echo "✅ Nothing was running — already stopped."

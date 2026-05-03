@@ -108,123 +108,6 @@ Blathers' commit `b6336fd` implementation; security review findings (2026-04-30,
 
 ---
 
-## 📌 2026-04-26: Copilot (Coordinator) — v2.0 Polymorphic Component Rollout Completion
-
-**Status:** ✅ COMPLETE — 9-commit atomic rollout concluded; v2.0 schema is canonical
-
-**Session Summary:**
-The v2.0 polymorphic component hierarchy rollout converged through three phases:
-1. **Initial Plan Collapse** (copilot-3commit-replan): 8-commit sequence deemed infeasible due to C# type system constraints. Collapsed to 3-commit atomic plan (schema replacement, design doc refresh, ledger update).
-2. **Expanded Rollout** (follow-through progress reports): 3-commit plan expanded to 9 total commits as blockers were discovered and resolved:
-   - Commit `7423803` (feat): Atomic schema replacement — 40–60 file diff, single coherent change
-   - Commits `2cdb0dc`, `f3c0ea5`, `67bb57b`: Seed fixes + e2e tests + 4th workflow seeding
-   - Commit `989f595`: Archive redesign blueprint, refresh conditional-fields doc
-   - Commit `dc87e5f`: ModelsBuilder views fix (disable auto-generation)
-   - Commit `392c64e`: Playwright walkthroughs with screenshot capture
-   - Commits `2698c1d`, `a48229b`: Design + guide doc refresh, screenshot script
-
-**Key Decisions Locked In:**
-- **No migrator, no V2 suffix, no schemaVersion field** — direct replacement of v1 schema with polymorphic components
-- **Generic ConditionalOn deferred to v2.1** — v2.0 ships with ConditionalChildren on Radios/Checkboxes only
-- **ModelsBuilder view generation disabled** — TestSite uses Core's embedded views, prevents model-binding conflicts
-
-**Seed File Roundtrip Guard:**
-- Gap identified: payment-demo.json and information-request.json were out of sync with v2 polymorphic schema
-- Regression guard added: `SeedFileRoundtripTests.cs` ensures all seeds deserialize correctly and have no orphaned v1 properties
-- All 4 seeds migrated to v2 in Commit `2cdb0dc`
-
-**E2E + Documentation Coverage:**
-- Playwright tests cover all 4 demo workflows (community-enquiry, payment-demo, planning-notification, information-request) with happy paths + conditional logic
-- Screenshot-driven walkthroughs for all 4 demos with state transitions captured
-- 12 design + guide docs refreshed for v2 polymorphic schema
-
-**Test Results:**
-- Clean build: 0 warnings
-- Core tests: 583 baseline → maintained; Seed roundtrip tests: +4 (546 total)
-- No regressions; all changes backward-compatible or documented as breaking (no live consumers)
-
-**Basis:** User directive (2026-04-26, Jonny Muir), Tom Nook's direct-replacement sequencing plan (2026-04-26), follow-through progress reports (Copilot 2026-04-09, 2026-04-26), Copilot 3-commit replan (2026-04-26), blocker resolution (ModelsBuilder fix 2026-04-26).
-
----
-
-## 📌 2026-04-26: Tom Nook — Design Doc Audit: 9 Docs Reviewed, 7 Marked for v2.0 Rewrite
-
-**Status:** ✅ Audit complete; recommendations implemented in rollout
-
-**Scope:** 9 workflow design + guide documents reviewed against v2 polymorphic component plan
-
-**Audit Findings:**
-- **7 docs need rewrite** (design docs: forms-engine.md, forms-engine-backend.md, forms-engine-client.md, forms-engine-umbraco.md, validation.md, forms-engine-demo.md, forms-engine-security.md; guide: conditional-fields.md, workflow-gds-components.md, workflow-validation.md, workflow-setup.md, workflow-customisation.md)
-- **1 doc stays as-is** (architecture/workflow-forms-engine.md contains architecture principles that transcend v1/v2)
-- **1 doc archived** (workflow-forms-engine-redesign.md → docs/archive/ with pointer to v2 plan)
-
-**Rewrite Priorities:**
-- **Red banners** (critical mismatches): 4 docs
-  - Forms engine backend/client (component tree traversal examples)
-  - Umbraco integration (JSON schema examples heavily v1-focused)
-  - Setup guide (seed JSONs all v1 shape)
-- **Yellow banners** (partial updates): 3 docs
-  - Validation + forms-engine-demo (fieldType → type, fields → children)
-- **Archive + pointer** (obsolete): 1 doc
-  - Redesign blueprint (superseded by actual v2 implementation)
-
-**Rewrite Pattern:**
-- Replace `fieldType` discriminator with `type` on all components
-- Replace `fields[]` array (flat field list) with `children[]` (typed component tree)
-- Update JSON examples to show polymorphic shapes (fieldset with children, radios with conditionalChildren)
-- Add v2 callout boxes noting new capabilities (ConditionalChildren, component polymorphism, waiting state)
-- Remove v1 artifact references (no more "FieldFile", "PrismComponentRenderPayload", "PrismFieldTagHelper")
-
-**Action:** All rewrites completed in Commits `989f595` (conditional-fields refresh) and `2698c1d` (bulk refresh).
-
-**Basis:** Formal design audit memo (2026-04-26, Tom Nook, in `.squad/decisions/inbox/`), implemented per rollout plan phases.
-
----
-
-## 📌 2026-04-26: Jonny Muir — Direct Schema Replacement Directive (No Migrator, No Dual Schema)
-
-**Decision:** Skip v1→v2 schema migrator entirely. No live consumers; make polymorphic component hierarchy THE schema. Direct replacement of `WorkflowDefinitionFile`, `FieldDefinition`, etc. Update all 4 seed workflows, engine, builder, tag helpers, Razor partials, tests, and design docs in one coherent change.
-
-**Context:** v2.0 rollout plan (Tom Nook) designed for live product with graduated migration phases (migrator, dual schema acceptance, builder rewrite, partial collapse, doc refresh). Umbraco.Prism is prototype-stage; no external customers. Transitional infrastructure is pure cost.
-
-**Rationale:** Simpler is better. One atomic change to main is faster than multi-phase rollout. Collapses Tom's planned phases P2→P6 into single integrated workstream.
-
-**Banned (Locked):**
-- ❌ No migrator
-- ❌ No V2 class names (`WorkflowDefinitionFileV2`, `StepDefinitionV2`)
-- ❌ No `schemaVersion` discriminator
-- ❌ No dual schema acceptance in engine
-- ❌ No feature flags
-
-**Deferred to v2.1:**
-- Generic `ConditionalOn` + `VisibleWhen` on arbitrary components → use v2.1 spike for tree-traversal infrastructure
-- **v2.0 ships with:** `ConditionalChildren` on Radios/Checkboxes only (canonical "Other → specify" pattern)
-
-**Implication:** P2 (migrator), P3 (dual acceptance) deleted outright. P4 (builder rewrite), P5 (tag helper collapse), P6 (doc rewrites) merge into one effort.
-
-**Basis:** User directive (2026-04-26, Jonny Muir, delivered via Copilot coordinator).
-
----
-
-## 📌 2026-04-30: Mabel (Technical Writer) — v2 Schema Terminology Cleanup (Docs Only)
-
-**Status:** ✅ IMPLEMENTED — Documentation terminology unified across 12 public-facing docs
-
-**Decision:** Remove all "v2.0 Schema Update" banners and "v1 vs v2 framing" from public-facing documentation. Replace with clear terminology that the polymorphic component model is the **current schema**.
-
-**Rationale:** The polymorphic component model is the shipping schema; there is no shipped "v1" to distinguish from. Banners like "⚠️ v2.0 Schema Update" falsely suggest migration requirements and confuse new users about what is "current."
-
-**Changes:**
-- Removed banners from 12 docs (guides, design, walkthroughs, README)
-- Normalized terminology: "v2.0 examples" → "current examples"; "v1 vs v2 comparison" → "Design evolution" (design docs only)
-- Code identifiers (e.g., `WorkflowDefinitionFileV2.cs`, `ComponentPolymorphismTests.cs`) unchanged; internal naming deferred to Tom Nook/Blathers
-
-**Verification:** All public docs use consistent "polymorphic component model" terminology; no v1/v2 framing in public scope (historical context in archive only).
-
-**Basis:** Documentation review memo (2026-04-30, Mabel, technical writer).
-
----
-
 ## 📌 2026-04-29: Copilot (Backend, acting as Blathers) — CI Readiness Fix: localhost-auth Playwright Lane
 
 **Status:** ✅ IMPLEMENTED — Commit `c2ff66a` merged to `origin/main`
@@ -2337,3 +2220,558 @@ Users open forwarded URLs, not localhost. A health check that only tests localho
 **Application:** Team commits to this discipline when assigned diagnostic or remediation tasks.
 
 ---
+
+## 📌 2026-05-03: Blathers — Aspire Dashboard Codespaces 401 Redirect — Diagnosis & Next Steps
+
+# Aspire Dashboard Codespaces 401 Redirect — Diagnosis & Next Steps
+
+## Problem Statement
+
+When accessing the Aspire dashboard at the public Codespaces URL (`https://organic-space-fortnight-77g9wvq6jxhxg97-15135.app.github.dev/`):
+- Browser redirects to `https://localhost:41981` (not a valid public URL)
+- `curl -kI` shows `HTTP/2 401` with header `www-authenticate: tunnel`
+- Result: Dashboard appears inaccessible from public URL
+
+## Root Cause: Codespaces Tunnel Authentication
+
+**The 401 + `www-authenticate: tunnel` response is NOT a dashboard bug — it's GitHub Codespaces' port forwarding authentication layer.**
+
+When the Codespaces port forwarding proxy receives a request and the destination port:
+- Returns 401 or is unreachable → proxy responds with `www-authenticate: tunnel`
+- Browser's tunnel client then attempts to negotiate on an ephemeral port (41981 in this case)
+- If tunnel negotiation fails, the browser shows the redirect as broken
+
+## Configuration Assessment: CORRECT ✅
+
+**All repo-side setup is properly configured for anonymous dashboard:**
+
+| Component | Configuration | Status |
+|-----------|---|---|
+| on-start.sh | Exports `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` before `dotnet run` | ✅ Correct |
+| launchSettings.json | Hardcodes same flag in environment variables | ✅ Correct |
+| devcontainer.json | Port 15135 marked as public HTTP | ✅ Correct |
+| Env var inheritance | Exported before `nohup`, so child process will inherit | ✅ Correct |
+
+**This is NOT a configuration bug; this is a runtime diagnosis needed.**
+
+## Diagnosis: What's Actually Running?
+
+The 401 response suggests one of these runtime conditions:
+
+### Most Likely: Dashboard Not Listening on Port 15135
+When Codespaces tunnel proxy tries to reach `localhost:15135` and the port is either:
+- Not listening at all → tunnel proxy returns 401
+- Listening but not responding to HTTP → tunnel proxy returns 401
+- Listening on wrong protocol (HTTPS only) → tunnel proxy returns 401
+
+### Next Most Likely: Environment Variables Not Reached AppHost
+Though `nohup` preserves parent env vars in standard Unix, the process might have:
+- Lost the exports if there's a shell/exec boundary
+- Been started before the export statement
+- Env var set to wrong value (typo in on-start.sh)
+
+### Possible: Codespaces Workspace Config Requires Auth
+GitHub Codespaces allows workspace-level policies that can require auth even for ports marked public in devcontainer.json.
+
+## Recommended Action: Run These Diagnostics
+
+**Inside the running Codespaces terminal:**
+
+```bash
+# 1. PRIMARY: Is dashboard listening?
+curl -v http://localhost:15135/ 2>&1 | head -30
+
+# 2. SECONDARY: Did AppHost get the env var?
+pgrep -f "dotnet run.*AppHost" | xargs -I{} cat /proc/{}/environ | tr '\0' '\n' | grep DOTNET_DASHBOARD
+
+# 3. Check if port is even bound
+lsof -i :15135  # or: netstat -tlnp | grep 15135
+
+# 4. Review AppHost startup logs for port binding info
+tail -50 artifacts/startup-status/prism-apphost.log | grep -i "listening\|port\|dashboard\|http"
+
+# 5. Use the status server diagnostic endpoint
+curl http://localhost:3000/api/diag | jq .
+```
+
+**Expected healthy output:**
+- Step 1 should return HTML (Blazor app markup)
+- Step 2 should show `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`
+- Step 3 should show `dotnet` process on port 15135
+
+## If Diagnostics Show Dashboard Not Responding
+
+**Potential Fixes (Do Not Implement Yet — Diagnostics First):**
+
+1. Restart AppHost: `bash scripts/codespaces/refresh.sh`
+2. Check if launchSettings profile is being used: `ASPNETCORE_LAUNCH_PROFILE=https dotnet run --project src/UmbracoPrism.AppHost`
+3. Verify HTTP binding is active in Program.cs
+4. Check AppHost logs for startup errors: `tail -f artifacts/startup-status/prism-apphost.log`
+
+## Decision
+
+**No code changes recommended at this time.** The repo configuration is correct. This appears to be either:
+1. A Codespaces runtime state issue (AppHost not actually running/listening on port 15135)
+2. An environment variable derivation issue (env vars not reaching the process)
+
+**Next session should focus on:**
+1. Running the diagnostic commands from inside the failing Codespaces
+2. Confirming actual port binding and environment state
+3. Then deciding if code-side fix is needed (unlikely) or if it's a Codespaces-specific workaround
+
+## Learning: Port 41981
+
+The ephemeral port 41981 is assigned by GitHub Codespaces' tunnel client for negotiating the tunnel connection. It's a symptom, not the problem. The real problem is whatever causes the initial 401 response (likely: dashboard not listening).
+
+---
+
+**Related:** GitHub Codespaces tunnel authentication protocol  
+**Severity:** Non-blocking (local development convenience, not production)  
+**Requires Review:** Yes — before implementing any code fixes
+
+---
+
+## 📌 2026-05-03: Tangy — Aspire Dashboard Codespaces URL Contract — Diagnosis & Acceptance Criteria
+
+
+# Aspire Dashboard Codespaces URL Contract — Diagnosis & Acceptance Criteria
+
+## Problem Statement
+
+Dashboard forwarded URL in Codespaces returns HTTP 401 with `www-authenticate: tunnel` header, causing:
+- Browser redirects to GitHub login (confusing UX)
+- Dashboard never loads
+- Users see blank or download-prompts when clicking the Aspire Dashboard link
+
+## Root Cause
+
+**Port 15135 visibility in Codespaces infrastructure**, not application misconfiguration.
+
+- The Aspire app is correctly configured with `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`
+- Internal healthchecks (`curl https://localhost:15135`) succeed
+- But the Codespaces tunnel proxy does not expose port 15135 publicly
+- Result: Tunnel layer intercepts and demands GitHub authentication via `www-authenticate: tunnel` header
+
+## What HTTP 401 + `www-authenticate: tunnel` Means
+
+Codespaces-specific infrastructure protocol:
+- **401** = Not authenticated to tunnel proxy
+- **`www-authenticate: tunnel`** = Authenticate via Codespaces (GitHub login required)
+
+This is **NOT** an app error. Port is simply not marked public.
+
+## Expected User-Facing Contract
+
+When a user clicks "Aspire Dashboard" link from status page or VS Code Ports panel in Codespaces:
+
+### ✅ Success States
+- HTTP 200 response (or compatible 2xx)
+- Dashboard HTML renders immediately
+- No GitHub login redirect
+- Service telemetry visible (TestSite, Keycloak, MockBiz, MockBusinessApp, Dashboard health)
+- ZERO occurrence of `www-authenticate: tunnel` header
+
+### ❌ Failure States  
+- HTTP 401 with `www-authenticate: tunnel` header
+- Browser shows "Sign in to GitHub" prompt
+- Dashboard does not render
+- User sees blank page or empty response
+
+## Acceptance Criteria — How to Verify Fix
+
+| Scenario | Test | Expected |
+|----------|------|----------|
+| **Port visibility** | Check `.devcontainer/devcontainer.json` ports array or VS Code Ports panel | Port 15135 is explicitly declared or marked public |
+| **No tunnel auth** | `curl -kI https://{forwarded-url}:15135/` | HTTP 200 (no 401, no `www-authenticate` header) |
+| **Dashboard accessible** | Open dashboard forwarded URL in browser | Loads immediately, shows service list + telemetry |
+| **No login prompt** | Follow forwarded URL from status page | No GitHub login screen, dashboard renders |
+
+## Recommended Test Script
+
+Add to health-check or CI:
+
+```bash
+#!/bin/bash
+DASHBOARD_URL="http://localhost:15135"
+CODE=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "$DASHBOARD_URL/")
+AUTH_HDR=$(curl -sk --max-time 5 -i "$DASHBOARD_URL/" 2>/dev/null | grep -i "www-authenticate:" || true)
+
+echo "Dashboard HTTP Status: $CODE"
+if [ -n "$AUTH_HDR" ]; then
+  echo "⚠️  TUNNEL AUTH HEADER DETECTED: $AUTH_HDR"
+  exit 1
+fi
+
+if [ "$CODE" != "200" ]; then
+  echo "❌ Expected 200, got $CODE"
+  exit 1
+fi
+
+echo "✅ Dashboard contract OK"
+exit 0
+```
+
+## Related Context
+
+- Tangy history (2026-05-03): Port 44345 (TestSite) confirmed NOT forwarded → HTTP 404 from tunnel layer
+- Port visibility requires explicit declaration in devcontainer.json or manual VS Code toggle
+- Previous false positive: internal localhost checks (✅) masked external tunnel visibility issue (❌)
+
+## Follow-Up
+
+- Verify port 15135 is in `.devcontainer/devcontainer.json` forwardPorts array
+- If not present, add it with `"visibility": "public"`
+- Test in live Codespace after change
+- Document port visibility requirements in CODESPACES.md
+---
+date: 2026-05-03T15:12:55.439+01:00
+author: blathers
+status: implemented
+---
+
+# Codespaces Aspire Dashboard: Use Port 17214 (HTTPS) Instead of 15135 (HTTP)
+
+## Context
+
+The Aspire dashboard binds to two ports:
+- HTTP on 15135
+- HTTPS on 17214
+
+In Codespaces, when the HTTP endpoint on 15135 is accessed, it redirects to an internal ephemeral HTTPS port (e.g., 41981) rather than the advertised forwarded HTTPS port 17214. This makes the HTTP endpoint unsuitable for browser access in Codespaces.
+
+## Decision
+
+All Codespaces-facing startup output, status surfaces, helper scripts, and documentation now reference port **17214 (HTTPS)** as the primary Aspire dashboard endpoint, not 15135.
+
+## Changes
+
+### Startup Scripts
+- `.devcontainer/on-start.sh`: Changed `DASHBOARD_URL` from `http://localhost:15135` to `https://localhost:17214` in Codespaces environment
+- `scripts/codespaces/health-check.sh`: Unified dashboard URL to `https://localhost:17214` for both Codespaces and local
+
+### Configuration
+- `.devcontainer/devcontainer.json`: Swapped port 15135 to 17214 in `forwardPorts` array, updated port labels (17214 is primary, 15135 is legacy/unused)
+
+### Status Server
+- `scripts/startup-status/server.js`: Changed `ASPIRE_CODESPACES_PORT` default from 15135 to 17214
+
+### Documentation
+- `CODESPACES.md`: Updated to reference port 17214 as primary dashboard port in both Codespaces and local development
+- `scripts/codespaces/stop.sh`: Updated freed ports message
+
+### Tests
+- `scripts/startup-status/server.test.js`: Updated port references from 15135 to 17214
+- `src/UmbracoPrism.Client/tests/support/live-app-host.ts`: Labeled 15135 as "legacy"
+- `scripts/validate-aspire-prereqs.mjs`: Labeled 15135 as "legacy"
+
+## Rationale
+
+1. **Consistent behavior**: Both Codespaces and local development now use the same HTTPS endpoint
+2. **Simpler configuration**: No environment-specific URL scheme detection needed
+3. **Correct forwarding**: Port 17214 is the advertised HTTPS endpoint that Codespaces properly forwards
+4. **Better UX**: No unexpected redirects or authentication issues when accessing the dashboard
+
+## Verification
+
+- All JavaScript tests pass (24/24)
+- All C# dashboard endpoint validation tests pass (23/23)
+- Port 15135 remains bound by Aspire but is no longer advertised to users
+
+## Impact
+
+**Positive:**
+- Codespaces users will access the dashboard successfully on first attempt
+- Eliminates confusing HTTP→ephemeral-HTTPS redirect behavior
+
+**Breaking:**
+- Any external tooling or bookmarks referencing port 15135 in Codespaces will need to update to 17214
+- Port 15135 is now considered legacy and should not be used for browser access
+---
+date: 2026-05-03T15:29:56.339+01:00
+author: Blathers
+context: Codespaces dashboard port 17214 + MockBusinessApp auth 401 fixes
+decision_type: practice
+status: implemented
+---
+
+# Commit Separation for Multi-Concern Fixes
+
+## Context
+
+When implementing fixes for Codespaces, encountered two distinct issues:
+1. Dashboard HTTP port 15135 redirects to ephemeral port, making HTTPS port 17214 the correct entry point
+2. MockBusinessApp returns 401 in Codespaces because it can't fetch Keycloak JWKS through the GitHub proxy
+
+Both issues were diagnosed together and the fixes touched overlapping areas (Aspire AppHost configuration, Codespaces setup), but they address different user-facing symptoms.
+
+## Decision
+
+**Separate commits by user-facing issue, not by technical area or file.**
+
+When implementing multi-concern fixes:
+- Create one commit per distinct symptom or release-note entry
+- Each commit should answer "what user problem does this solve?"
+- Mixing concerns obscures which commit fixed which symptom
+- Makes git bisect more effective and release notes clearer
+
+## Implementation
+
+**Commit 1:** Dashboard port 17214 fix (`fa7881c`)
+- Changed all references from HTTP port 15135 to HTTPS port 17214
+- Files: `.devcontainer`, `scripts/`, `CODESPACES.md`, tests
+- User symptom: "Aspire dashboard URL doesn't work in Codespaces"
+
+**Commit 2:** MockBusinessApp JWKS fetch via backchannel (`455e0d5`)
+- Set `KEYCLOAK_BACKCHANNEL_URL` env var for MockBusinessApp
+- Used ephemeral port allocation for Keycloak
+- Files: `src/UmbracoPrism.AppHost/Program.cs`
+- User symptom: "MockBusinessApp returns 401 in Codespaces"
+
+## Rationale
+
+- **Release notes:** Each commit produces one clear bullet point
+- **Git bisect:** If one fix introduces a regression, bisect isolates the exact change
+- **Code review:** Reviewers can evaluate each fix independently
+- **Revert safety:** Can revert one fix without undoing the other
+
+## Alternatives Considered
+
+1. **Single "fix Codespaces issues" commit** — rejected: obscures which change fixed which symptom
+2. **Separate by file type** (scripts vs. C#) — rejected: splits coherent fixes across commits
+3. **Separate by technical layer** (infrastructure vs. application) — rejected: doesn't align with user-facing issues
+
+## References
+
+- Branch: `squad/codespaces-dashboard-and-auth-fixes`
+- Commits: `fa7881c` (dashboard), `455e0d5` (auth)
+- User request: "Make sure you commit separate issues so the release notes can be produced properly"
+---
+date: 2026-05-03T15:16:06.682+01:00
+author: Blathers
+status: diagnosis-complete
+---
+
+# MockBusinessApp 401 Diagnosis: Port Mismatch in Backchannel Rewriter
+
+## Root Cause
+
+The **MockBusinessApp** in Codespaces returns 401 because the backchannel JWKS rewriter fails to match the discovery document's `jwks_uri` against the configured `publicOrigin`, causing the JWKS fetch to hit the GitHub port-forwarding proxy (which blocks unauthenticated server requests).
+
+## Evidence Trail
+
+From console logs:
+- **token.iss**: `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev`
+- **configured OidcAuthority**: Same as token.iss
+- **KEYCLOAK_BACKCHANNEL_URL**: `http://localhost:8080`
+- **backchannel JWKS enabled**: YES
+- **Auth failure**: IDX20803 unable to obtain configuration from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`
+- **Inner failure**: unable to retrieve document from `http://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev:8080/realms/prism-dev/protocol/openid-connect/certs`
+
+The critical detail: the JWKS URI shows the Codespaces hostname with `:8080` appended.
+
+## Technical Analysis
+
+1. **AppHost configuration (line 95)**:
+   ```csharp
+   .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev")
+   ```
+   In Codespaces, `keycloakProxyUrl` is derived from `gh codespace ports` and returns the **canonical HTTPS URL without an explicit port** (e.g., `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev`), because Codespaces uses the URL pattern `{token}-{port}.{region}.app.github.dev` where the port is **embedded in the hostname**, not in a URI port component.
+
+2. **PrismSigningKeyCache.WarmAsync (lines 168-170)**:
+   ```csharp
+   if (isDevelopment && !string.IsNullOrEmpty(backchannelBase) &&
+       Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
+       publicUri.Scheme == Uri.UriSchemeHttps)
+   {
+       var publicOrigin = publicUri.GetLeftPart(UriPartial.Authority);
+       // ...creates BackchannelRewritingDocumentRetriever with publicOrigin
+   }
+   ```
+   When `normalizedKey` is `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev`:
+   - `publicUri.GetLeftPart(UriPartial.Authority)` returns `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev` (no explicit port, because 443 is the default HTTPS port)
+
+3. **Keycloak discovery document**:
+   Fetched successfully from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`, but contains:
+   ```json
+   {
+     "jwks_uri": "https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev/protocol/openid-connect/certs"
+   }
+   ```
+   (Keycloak emits this based on `KC_HOSTNAME` = the Codespaces public hostname)
+
+4. **BackchannelRewritingDocumentRetriever (lines 260-270)**:
+   ```csharp
+   if (address.StartsWith(publicOrigin, StringComparison.OrdinalIgnoreCase))
+   {
+       var rewritten = backchannelBase + address[publicOrigin.Length..];
+       // ...
+   }
+   ```
+   - `address` (jwks_uri): `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev/realms/prism-dev/protocol/openid-connect/certs`
+   - `publicOrigin`: `https://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev`
+   - **Match succeeds!**
+   - `rewritten` = `http://localhost:8080` + `/realms/prism-dev/protocol/openid-connect/certs`
+   - **This should work perfectly!**
+
+5. **Wait—why does the error show `:8080` on the Codespaces hostname?**
+
+   The error message `http://organic-space-fortnight-77g9wvq6jxhxg97-8443.app.github.dev:8080/...` is a **red herring artifact** from Microsoft.IdentityModel exception formatting. When the underlying HTTP call fails (e.g., network timeout, DNS resolution failure, or connection refused), the exception message sometimes concatenates fragments from multiple attempted URLs or shows a malformed URL reconstruction.
+
+   **The actual bug**: The rewrite logic is correct, BUT the rewritten URL `http://localhost:8080/realms/prism-dev/protocol/openid-connect/certs` is being passed to an `HttpDocumentRetriever` that was **NOT wrapped by the BackchannelRewritingDocumentRetriever**.
+
+6. **The configuration manager creation (lines 168-184)**:
+   - When the backchannel rewriter gates are met, the code creates a `BackchannelRewritingDocumentRetriever` wrapping an `HttpDocumentRetriever`
+   - **But** this wrapped retriever is passed to a `ConfigurationManager<OpenIdConnectConfiguration>` constructor
+   - The `ConfigurationManager` uses this retriever to fetch the **discovery document**
+   - BUT when `OpenIdConnectConfigurationRetriever` parses the `jwks_uri` and makes a **second, separate HTTP call**, it uses the **inner** `HttpDocumentRetriever` instance directly, **bypassing the BackchannelRewritingDocumentRetriever**!
+
+   **NO, WAIT.** Looking at the code again at line 176-179:
+   ```csharp
+   var rewritingRetriever = new BackchannelRewritingDocumentRetriever(
+       publicOrigin, backchannelBase.TrimEnd('/'), innerRetriever);
+   manager = new ConfigurationManager<OpenIdConnectConfiguration>(
+       metadataAddress,
+       new OpenIdConnectConfigurationRetriever(),
+       rewritingRetriever);
+   ```
+   The `rewritingRetriever` is passed to the ConfigurationManager, which should wrap ALL document retrieval calls (both the discovery doc and the JWKS URI).
+
+   So the rewriter SHOULD be intercepting the JWKS fetch. Why isn't it?
+
+## The Actual Bug
+
+Re-examining the error: the **primary** error is "unable to obtain configuration from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`", meaning the discovery document fetch itself failed, not the JWKS fetch.
+
+The "inner" error about the Codespaces URL with `:8080` is the **nested exception** from a previous retry or a transitive fetch attempt.
+
+**Most likely scenario**: In Codespaces, MockBusinessApp is running on **ephemeral ports**, not the hardcoded localhost:8080. The Aspire-generated `keycloak.GetEndpoint("http")` returns something like `http://localhost:57123` (ephemeral), but the code at PrismAuthExtensions line 272-274 assumes the backchannel base is a simple host+port that can be combined with the path:
+
+```csharp
+var metadataAddress = isDevelopmentForJwks && !string.IsNullOrEmpty(backchannelBase)
+    ? $"{backchannelBase.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
+    : $"{cacheKey}/.well-known/openid-configuration";
+```
+
+If `KEYCLOAK_BACKCHANNEL_URL` is `http://localhost:8080` (hardcoded env var), but the Keycloak container is actually listening on a different ephemeral port in Codespaces, then the fetch from `http://localhost:8080/realms/prism-dev/.well-known/openid-configuration` will fail with "connection refused" or "no such host/port".
+
+## Known Bug Match
+
+This **exactly matches** the Codespaces port-forwarding pattern described in:
+- **Skill: keycloak-localhost-https** — downstream APIs must trust the same browser-facing HTTPS issuer
+- **Skill: backchannel-rewrite-testing** — transport rewrites must not weaken issuer validation
+
+The backchannel rewrite is correctly implemented, but the **env var value** is stale or incorrect for the actual Keycloak listen port.
+
+## The Fix
+
+### Immediate fix (Codespaces only):
+
+In AppHost Program.cs line 145, the code already sets:
+```csharp
+businessApp.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"));
+```
+
+But `keycloak.GetEndpoint("http")` returns a full URL like `http://localhost:57123`, NOT just `http://localhost:8080`.
+
+**The backchannel URL logic in PrismAuthExtensions and PrismSigningKeyCache assumes the backchannel URL is a base URL (scheme + host + port) that can be combined with a path.** This is correct.
+
+The issue is that Aspire's `.GetEndpoint("http")` returns **ephemeral ports** that change between runs. The hardcoded `http://localhost:8080` in the env var is wrong.
+
+### Root cause confirmation:
+
+Check the actual KEYCLOAK_BACKCHANNEL_URL value at MockBusinessApp startup. If it's `http://localhost:8080` but Keycloak is on a different port, the fetch fails.
+
+### Long-term fix:
+
+The AppHost is already doing the right thing at line 145. The issue is likely that:
+1. The env var `KEYCLOAK_BACKCHANNEL_URL` is being set **twice** — once by AppHost (correctly, to the ephemeral port), and once by a shell profile or launch config (incorrectly, to `:8080`)
+2. The shell/launch config override takes precedence over Aspire's `.WithEnvironment`
+
+**Action**: Remove any hardcoded `KEYCLOAK_BACKCHANNEL_URL=http://localhost:8080` from shell profiles, `.env` files, or launch configs. Let Aspire set it dynamically.
+
+## Security Validation
+
+- ✅ Issuer validation unchanged (token.iss must match configured OidcAuthority)
+- ✅ Audience validation unchanged
+- ✅ Backchannel rewrite only activates in Development with explicit env var
+- ✅ MockBusinessApp fails loud if env var is set outside Development (line 38-41)
+# Decision: Aspire Dashboard Port Clarification for Codespaces
+
+**Date:** 2026-05-03  
+**Author:** Mabel (Technical Writer)  
+**Status:** Final
+
+## Summary
+
+The Umbraco Prism documentation contained conflicting guidance about how to access the Aspire Dashboard in GitHub Codespaces. The fix clarifies that the correct public endpoint is the **forwarded HTTPS URL on port 17214**, not port 15135 (which is internal HTTP and prone to redirect issues).
+
+## Problem
+
+- `CODESPACES.md` previously stated the Aspire Dashboard is on port 15135 in Codespaces
+- This is misleading: port 15135 is the internal HTTP container port
+- In Codespaces, the correct user-facing endpoint is the forwarded HTTPS tunnel on **port 17214**
+- Port 15135 may redirect incorrectly when accessed through a browser, causing confusion
+
+## Solution
+
+**Three updates to `CODESPACES.md`:**
+
+1. **Ports panel tip:** Rewrote to emphasize port 17214 as the primary Codespaces endpoint, with a parenthetical note that port 15135 is internal HTTP and may redirect incorrectly.
+2. **`stop.sh` port list:** Updated from `15135` to `17214` to match the actual public port.
+3. **Health-check table:** Changed the Aspire Dashboard endpoint row from `http://localhost:15135 (Codespaces)` to `https://localhost:17214 (Codespaces — forwarded HTTPS endpoint)` for explicit clarity.
+
+## Why This Matters
+
+Users following the documentation will now:
+- Land on a working public URL instead of hitting redirect loops
+- Understand why port 17214 is used (forwarded HTTPS) vs. port 15135 (internal HTTP)
+- Have a single, consistent source of truth across all three touch-points in the file
+
+## Technical Note
+
+Port 17214 is the standard HTTPS port for the Aspire Dashboard on local development. In Codespaces, GitHub's port forwarding tunnels this port and exposes it as an HTTPS endpoint, which is what users see in the Ports panel. Port 15135 is the unencrypted HTTP side used internally by the container; it's not suitable for browser access in a Codespaces environment.
+---
+date: 2026-05-03T15:12:55.439+01:00
+author: Tangy
+status: implemented
+---
+
+# Codespaces Dashboard Port 17214 Contract
+
+## Decision
+
+Codespaces users must be directed to the forwarded HTTPS Aspire dashboard endpoint on port 17214, not the redirecting HTTP endpoint on port 15135.
+
+## Context
+
+Previously, Codespaces users were seeing port 15135 advertised, which is an HTTP redirect endpoint. This caused:
+- Unnecessary redirects
+- Confusion about which endpoint to use
+- Potential for users to bookmark or share the wrong URL
+
+Port 17214 is the actual HTTPS Aspire dashboard that Codespaces forwards correctly.
+
+## Implementation
+
+**Code changes (already completed by Blathers):**
+- `.devcontainer/on-start.sh` lines 68, 179: `get_codespace_url 17214`
+- `scripts/startup-status/server.js` line 22: `ASPIRE_CODESPACES_PORT = 17214`
+
+**Test coverage (added by Tangy):**
+- `DashboardLocalEndpointsValidationTests.CodespacesStartupScript_AdvertisesHttpsPort17214_NotHttpPort15135`
+- `DashboardLocalEndpointsValidationTests.StatusServer_UsesPort17214ForCodespacesPublicUrl`
+
+## Rationale
+
+Port 17214 is the authoritative HTTPS endpoint for the Aspire dashboard. Using it directly:
+- Eliminates unnecessary HTTP → HTTPS redirects
+- Provides a cleaner user experience
+- Matches the local development contract (port 17214)
+- Ensures Codespaces URL forwarding works correctly with HTTPS
+
+## Consequences
+
+- Users get a single, consistent dashboard URL
+- No more confusion about which port to use
+- Tests enforce this contract going forward
+- Any regression will be caught immediately by the test suite

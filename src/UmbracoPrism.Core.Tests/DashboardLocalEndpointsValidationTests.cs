@@ -338,6 +338,28 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     }
 
     [Fact]
+    public void CodespacesStartupScript_AdvertisesHttpsPort17214_NotHttpPort15135()
+    {
+        var onStartScript = File.ReadAllText(Path.Combine(RepoRoot, ".devcontainer", "on-start.sh"));
+
+        onStartScript.Should().Contain("get_codespace_url 17214",
+            because: "Codespaces users must be directed to the forwarded HTTPS Aspire dashboard (port 17214), not the HTTP redirect endpoint (port 15135)");
+        onStartScript.Should().NotContain("get_codespace_url 15135",
+            because: "port 15135 is an internal HTTP redirect and should not be advertised to users in Codespaces");
+    }
+
+    [Fact]
+    public void StatusServer_UsesPort17214ForCodespacesPublicUrl()
+    {
+        var serverJs = File.ReadAllText(Path.Combine(RepoRoot, "scripts", "startup-status", "server.js"));
+
+        serverJs.Should().Contain("ASPIRE_CODESPACES_PORT = Number(process.env.PRISM_STARTUP_ASPIRE_CODESPACES_PUBLIC_PORT || 17214)",
+            because: "the status server must advertise the HTTPS Aspire dashboard (port 17214) to Codespaces users");
+        serverJs.Should().NotContain("ASPIRE_CODESPACES_PORT = Number(process.env.PRISM_STARTUP_ASPIRE_CODESPACES_PUBLIC_PORT || 15135)",
+            because: "port 15135 is an internal HTTP redirect and should not be the public-facing Codespaces URL");
+    }
+
+    [Fact]
     public async Task DownstreamDemo_SessionContract_ReportsCookieTokens_AndLogoutHintReadiness()
     {
         var authProperties = new AuthenticationProperties();

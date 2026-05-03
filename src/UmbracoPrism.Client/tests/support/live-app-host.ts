@@ -87,7 +87,7 @@ const readinessChecks = [
 
 const requiredPorts = [
   { name: 'Aspire dashboard', port: 17214 },
-  { name: 'Aspire dashboard HTTP', port: 15135 },
+  { name: 'Aspire dashboard HTTP (legacy)', port: 15135 },
   { name: 'Aspire dashboard OTLP', port: 21233 },
   { name: 'Aspire resource service', port: 22194 },
   { name: 'Keycloak upstream', port: 8080 },

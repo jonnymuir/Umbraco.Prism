@@ -19,7 +19,7 @@
   "postAttachCommand": "code CODESPACES.md",
   "forwardPorts": [
     3000,
-    15135,
+    17214,
     44345,
     7245,
     8443
@@ -30,14 +30,14 @@
       "onAutoForward": "openBrowser",
       "visibility": "public"
     },
-    "15135": {
-      "label": "Aspire Dashboard",
+    "17214": {
+      "label": "Aspire Dashboard (HTTPS)",
       "onAutoForward": "notify",
       "visibility": "public"
     },
-    "17214": {
-      "label": "Aspire Dashboard (HTTPS — local only)",
-      "onAutoForward": "notify",
+    "15135": {
+      "label": "Aspire Dashboard (HTTP — legacy, unused)",
+      "onAutoForward": "silent",
       "visibility": "public"
     },
     "18888": {

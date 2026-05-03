@@ -58,8 +58,9 @@ The status page will show all four services green and surface direct links. Here
 
 ## 💡 Useful tips
 
-- **Ports panel** (VS Code sidebar) — shows all forwarded ports with their labels and public URLs once they're ready. The Aspire Dashboard is on port **15135** in Codespaces (HTTP — the Codespaces proxy handles HTTPS at the edge)
+- **Ports panel** (VS Code sidebar) — shows all forwarded ports with their labels and public URLs once they're ready. The Aspire Dashboard is on port **17214** (HTTPS) in both Codespaces and local development.
 - **Status page** (port 3000) — stays live and updates in real time as services start or restart. The terminal prints the full clickable URL when the server comes up.
+- **If a forwarded URL downloads, opens a blank tab, or returns an empty `404`** — that usually means the Codespaces tunnel is not currently serving that port on that hostname. For the status page specifically, copy the current port **3000** URL from the **Ports** panel or rerun `bash scripts/codespaces/refresh.sh` to restart and re-register it.
 - **AppHost logs** — if anything looks stuck, run `tail -f artifacts/startup-status/prism-apphost.log` in the terminal
 
 ---
@@ -88,7 +89,7 @@ All scripts live in `scripts/codespaces/` and should be run from the **repo root
 bash scripts/codespaces/stop.sh
 ```
 
-Gracefully kills the Aspire AppHost (`UmbracoPrism.AppHost`) and the startup status server (port 3000). Safe to run even if services are already stopped. After stopping, ports 3000, 15135, 44345, 8443, and 7245 are freed.
+Gracefully kills the Aspire AppHost (`UmbracoPrism.AppHost`) and the startup status server (port 3000). Safe to run even if services are already stopped. After stopping, ports 3000, 17214, 44345, 8443, and 7245 are freed.
 
 #### `refresh.sh` — Stop → pull → restart
 
@@ -128,7 +129,7 @@ Probes all four readiness endpoints and prints a ✅/❌ summary:
 | Service | Endpoint |
 |---|---|
 | Status server | `http://localhost:3000/api/status` |
-| Aspire Dashboard | `http://localhost:15135` (Codespaces) |
+| Aspire Dashboard | `https://localhost:17214` |
 | TestSite | `https://localhost:44345/api/prism/downstream-demo/seed-contract-ready` |
 | Keycloak | `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration` |
 | MockBusinessApp | `https://localhost:7245/debug/auth` |
