@@ -84,7 +84,7 @@ public class DownstreamDemoController(
             if (!IsJsonContentType(contentType))
             {
                 var errorMessage = BuildInvalidResponseSummary(response, contentType, targetUrl, rawBody);
-                var summary = BuildInvalidResponseUiSummary(response, contentType);
+                var summary = BuildInvalidResponseUiSummary(response, contentType, targetUrl);
                 var diagnosticBody = CreateDiagnosticBody(response, contentType, rawBody, out var diagnosticBodyTruncated);
 
                 logger.LogWarning(
@@ -415,6 +415,11 @@ public class DownstreamDemoController(
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
             errorMessage += " This usually means Mock Business App rejected the bearer token before the request reached the controller.";
+            if (IsLocalBackchannelUrl(targetUrl) && HasInvalidTokenChallenge(response))
+            {
+                errorMessage += " The displayed localhost URL is the internal TestSite → Mock Business App backchannel hop, not the browser URL. " +
+                    "In Codespaces, the clearest next step is to run `bash scripts/codespaces/refresh.sh`; if it still fails, check Mock Business App `/debug/auth` for backchannel and JWKS state.";
+            }
         }
 
         if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
@@ -437,11 +442,16 @@ public class DownstreamDemoController(
         return errorMessage;
     }
 
-    private static string BuildInvalidResponseUiSummary(HttpResponseMessage response, string contentType)
+    private static string BuildInvalidResponseUiSummary(HttpResponseMessage response, string contentType, string targetUrl)
     {
         var status = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase ?? response.StatusCode.ToString()}";
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
+            if (IsLocalBackchannelUrl(targetUrl) && HasInvalidTokenChallenge(response))
+            {
+                return $"The downstream service replied with {status}. The displayed localhost URL is the internal TestSite → Mock Business App hop, not the browser URL. In Codespaces, run `bash scripts/codespaces/refresh.sh`, then check `/debug/auth` if it still fails.";
+            }
+
             return $"The downstream service replied with {status}. This usually means Mock Business App rejected the bearer token before your request reached the controller.";
         }
 
@@ -451,6 +461,21 @@ public class DownstreamDemoController(
         }
 
         return $"The downstream service replied with {status} and {contentType} instead of JSON. See diagnostics below.";
+    }
+
+    private static bool HasInvalidTokenChallenge(HttpResponseMessage response)
+    {
+        return response.Headers.WwwAuthenticate.Any(header =>
+            string.Equals(header.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(header.Parameter) &&
+            header.Parameter.Contains("error=\"invalid_token\"", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsLocalBackchannelUrl(string targetUrl)
+    {
+        return Uri.TryCreate(targetUrl, UriKind.Absolute, out var uri) &&
+               (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                uri.Host.Equals("127.0.0.1", StringComparison.Ordinal));
     }
 
     private static string CreateDiagnosticBody(

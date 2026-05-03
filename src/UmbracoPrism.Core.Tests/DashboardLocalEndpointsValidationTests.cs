@@ -618,9 +618,17 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         root.GetProperty("statusText").GetString().Should().Be("Unauthorized");
         root.GetProperty("contentType").GetString().Should().Be("unknown");
         root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
+        root.GetProperty("summary").GetString().Should().Contain("displayed localhost URL is the internal TestSite → Mock Business App hop")
+            .And.Contain("bash scripts/codespaces/refresh.sh")
+            .And.Contain("/debug/auth",
+                because: "Codespaces-facing 401 invalid_token failures should point operators at the internal hop explanation and the clearest next diagnostic action");
         root.GetProperty("body").GetString().Should().Contain(
             "Mock Business App rejected the bearer token",
             because: "an empty 401 challenge is the most likely source of the live Codespaces symptom");
+        root.GetProperty("body").GetString().Should().Contain("displayed localhost URL is the internal TestSite → Mock Business App backchannel hop")
+            .And.Contain("bash scripts/codespaces/refresh.sh")
+            .And.Contain("/debug/auth",
+                because: "the richer diagnostic body should explain why localhost is expected here and what to do next");
         root.GetProperty("diagnosticBody").GetString().Should().Contain("HTTP 401 Unauthorized")
             .And.Contain("Content-Type: unknown")
             .And.Contain("WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"The signature key was not found\"")
