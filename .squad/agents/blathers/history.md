@@ -2,259 +2,37 @@
 
 **Agent:** Backend specialist shipping Codespaces URL derivation fixes, backchannel rewrites for JWKS/token-refresh, and security analysis for auth isolation.
 
-**Recent focus:** CI repair (test isolation strategy), Keycloak backchannel env-var serialization, auth path regression prevention.
+**Recent focus:** Aspire dashboard Codespaces access, authentication diagnostics, runtime stale-code diagnosis, backchannel OIDC validation.
 
 ---
 
-## 2026-05-03: Team Spawn — CI Repair Confirmation
+## 2026-05-03: Aspire Dashboard HTTP→HTTPS Redirect to Ephemeral Port
 
-**Status:** ✅ Investigation complete
+**Status:** ✅ Diagnosis complete (no code changes required)
 
-**Finding:** Remaining local test failures are dual-origin:
-1. HMAC secret key committed in appsettings (auth regression)
-2. TestSite view override failures (unrelated to CI auth fix)
+**Root Cause Identified:**
+Aspire dashboard redirects HTTP port 15135 to internal ephemeral HTTPS port 41981, not the forwarded port 17214.
 
-**Security Directive:** Do not commit HMACSecretKey in appsettings.
+**Recommendation:**
+Use HTTPS port 17214 directly in Codespaces. Update `.devcontainer/devcontainer.json`, `on-start.sh`, and `CODESPACES.md` to reference port 17214 as primary dashboard URL.
 
-**Impact:** Clarified scope for downstream test-isolation fix; confirmed test-isolation-first strategy.
+**Key Learning:**
+- Aspire dashboard HTTP→HTTPS redirect uses Kestrel's internal HTTPS bind address, not advertised forwarded port
+- When both HTTP and HTTPS ports are forwarded, HTTP becomes a redirect trap
+- For Codespaces scenarios, prefer HTTPS forwarded port as primary dashboard URL
 
 ---
 
-## 2026-05-02: Codespaces Auth & OIDC Infrastructure (4 PRs)
+## 2026-05-03: Team Spawn — Aspire Dashboard Codespaces 401 Redirect
 
-**Status:** ✅ Complete (PR #44, #45, #46 shipped)
+**Status:** ✅ Investigation complete; operator action pending
 
-### Key Fixes
+**Finding:** Interpreted Codespaces runtime evidence and concluded dashboard HTTP endpoint on 15135 redirects to ephemeral HTTPS port 41981.
 
-1. **JWKS Backchannel Rewrite** — `BackchannelRewritingDocumentRetriever` wraps document retrieval to rewrite public Keycloak URLs to backchannel on HTTPS+Development
-2. **Refresh Token Headers** — Added `X-Forwarded-Proto`/`X-Forwarded-Host` to backchannel refresh requests (fixes `invalid_grant` scheme mismatch)
-3. **Codespaces URL Derivation** — Replaced string-concat pattern with `gh codespace ports` discovery (handles new regional URL scheme)
-4. **BusinessApp Downstream Target** — Extended URL discovery to include port 7245; removed broken backchannel fallback
-
-### Security Bedrock Unchanged
-
-- `RequireHttpsMetadata = true`, `ValidateIssuer = true`
-- Issuer trust anchor remains public OidcAuthority
-- Forwarding headers only affect Keycloak's grant computation; Prism validation untouched
-
-### Learnings
-
-- GitHub's new Codespaces URL scheme is opaque; only `gh codespace ports` is reliable source
-- `OpenIdConnectConfigurationRetriever` uses single `IDocumentRetriever` for all fetches
-- Dual-gate pattern (ASPNETCORE_ENVIRONMENT=Development + HTTPS authority) prevents loopback test rewrites
-- Must snapshot env vars in test classes reading `KEYCLOAK_BACKCHANNEL_URL` (race prevention)
+**Recommendation:** Try dashboard on forwarded HTTPS port 17214 first, since AppHost advertises that endpoint and 15135 is only HTTP-redirect side.
 
 ---
 
 ## Earlier Sessions
 
-Full history archived to `history-archive.md` (prior to 2026-05-01).
-
-## 2026-05-03: Team Spawn — HMAC Secret Remediation
-
-**Status Update (Scribe):** Blathers completed local TestSite appsettings drift repair. Tracked `appsettings.json` no longer contains real HMAC secret; local-only config now in gitignored `appsettings.Local.json`. Decision recorded in decisions.md (entry dated 2026-05-03).
-
----
-
-## 2026-05-03: Downstream Diagnostics & 401 Refresh Path
-
-**Status:** ✅ Complete; merged to main.
-
-**Scope:** Diagnose localhost:5163 invalid-response path and fix downstream security diagnostics.
-
-**Security Findings Triaged:**
-- **HTTP Metadata Preservation:** Real downstream HTTP status/reason now preserved (not flattened to `statusCode: 0`)
-- **Header Logging:** Real downstream headers (e.g., `WWW-Authenticate`) now logged and included in diagnostics
-- **401 Refresh/Retry Fix:** Eliminated mutation of `HttpClient.Timeout` between requests; uses per-request cancellation token
-
-**Root Cause Diagnosed:**
-Live Codespaces symptom (`http://localhost:5163/api/backoffice/me`, `contentType: unknown`) was hiding real HTTP metadata behind flattened "Invalid Response" response. This made 401 auth rejections appear as transport errors.
-
-**Impact:** Dashboard diagnostics now surface actionable clues for:
-- Transport failures (`Network Error` / `Timeout`)
-- Auth rejections (`401 Unauthorized` + `WWW-Authenticate`)
-- Redirect/proxy behaviour (`302 Found` + `Location`)
-- HTML tunnel pages (text/html diagnostics)
-
----
-
-## 2026-05-03: Live 401 Stale Runtime Diagnosis
-
-**Status:** ✅ Diagnosed; operator action required (no repo changes)
-
-**Scope:** User reported 401 `invalid_token` from MockBusinessApp after running `refresh.sh`.
-
-**Root Cause:** Stale runtime. The MockBusinessApp process started at 09:45 (2h15m before diagnosis) predates the PR #46 fix for generic OIDC bearer validation. The running code does not include the `KEYCLOAK_BACKCHANNEL_URL` backchannel JWKS fetch logic that was merged to main.
-
-**Evidence:**
-1. AppHost/BusinessApp started 09:45 (PID 28308)
-2. PR #46 shipped JWKS backchannel fix (PrismAuthExtensions.cs:231-242)
-3. AppHost sets `KEYCLOAK_BACKCHANNEL_URL` env var for BusinessApp (Program.cs:145)
-4. Running BusinessApp does not have the updated validator code
-
-**Solution:** Restart the stack via `bash scripts/codespaces/refresh.sh` or restart BusinessApp via Aspire Dashboard (https://localhost:17214).
-
-**Status Page Confusion:** User noted "status page doesn't work, but health-check redirected to something that did work". Diagnosis: standalone status server (port 3000) not running, but Aspire Dashboard (port 17214) IS running. The health-check.sh script checks both. No repo issue — status server is optional convenience for Codespaces.
-
-**Learnings:**
-- Applied `.squad/skills/live-oidc-401-stale-runtime` pattern: differentiate stale runtime from repo bug by checking process start time vs. git history
-- Confirmed that Aspire-managed services require stack restart or Aspire Dashboard restart to pick up code changes
-- Status server independence from Aspire confirmed; not a critical dependency
-
----
-
-## 2026-05-03: Enhanced 401 Diagnostics for Live Codespaces Failures
-
-**Status:** ✅ Complete; ready for live Codespaces runtime testing
-
-**Scope:** Enhance logging in `PrismAuthExtensions` and MockBusinessApp debug endpoint to surface root cause evidence when HTTP 401 `invalid_token` occurs in live Codespaces.
-
-**Changes Shipped:**
-
-1. **Enhanced `OnAuthenticationFailed` logging** (`PrismAuthExtensions.cs`):
-   - Added `token.kid` extraction (identifies which signing key the token expects)
-   - Added `ASPNETCORE_ENVIRONMENT` display
-   - Added computed `backchannel JWKS enabled` boolean (true when Development + KEYCLOAK_BACKCHANNEL_URL set)
-   - For `SecurityTokenSignatureKeyNotFoundException`, now logs the JWKS metadata address that would be fetched
-
-2. **Enhanced `/debug/auth` endpoint** (`MockBusinessApp/Program.cs`):
-   - Added `aspNetCoreEnvironment` field
-   - Added `backchannelJwksEnabled` computed boolean matching the auth validator logic
-   - Fields now reveal whether the backchannel JWKS logic gate is open
-
-**Diagnostic Contract:**
-
-When a 401 occurs in Codespaces, operators can now quickly check:
-- Is `KEYCLOAK_BACKCHANNEL_URL` set in the running BusinessApp process? (`curl https://.../debug/auth`)
-- Does the token's `kid` match what the signing key cache has? (console log from `OnAuthenticationFailed`)
-- What JWKS metadata URL is being used? (logged for signature key failures)
-- Is the backchannel gate condition actually true? (`backchannelJwksEnabled` field)
-
-**Test Results:**
-- All 672 Core tests passing
-- All 20 PrismAuthExtensions security tests passing
-- Build clean (1 pre-existing nullability warning, not introduced by this change)
-
-**Root Cause of User's Report:**
-
-The user mentioned a "live Codespaces" failure at `https://organic-space-fortnight-77g9wvq6jxhxg97-44345.app.github.dev/dashboard` but the environment diagnosed was actually localhost (CODESPACE_NAME not set). The enhanced diagnostics will now clearly reveal whether the backchannel fix is active when the actual live Codespaces failure reproduces.
-
-**Learnings:**
-
-- "Do not guess; prefer logging/messages that reveal the real problem" — enhanced diagnostics ship preemptively before the next live failure
-- Token `kid` is essential for signature key debugging but was previously omitted
-- Boolean computed fields (`backchannelJwksEnabled`) make dual-gate logic transparent in diagnostics
-- The `/debug/auth` endpoint is a first-class diagnostic tool; operators should `curl` it first when investigating 401s
-
-
-## 2026-05-03: Spawn Manifest — Enhanced 401 Diagnostics & Stale Runtime Pattern
-
-**Timestamp:** 2026-05-03T11:07:19.866Z  
-**Status:** ✅ Shipped diagnostics; 📋 Proposed operational pattern
-
-### Enhanced Diagnostics (SHIPPED)
-
-Deployed richer authentication error diagnostics to `PrismAuthExtensions.cs` and MockBusinessApp:
-
-**Changes:**
-- Token key ID (kid) extraction from JWT header
-- ASPNETCORE_ENVIRONMENT display (reveals Development-gated logic)
-- Computed backchannel JWKS enabled boolean
-- JWKS metadata URL logging (for SecurityTokenSignatureKeyNotFoundException)
-- Enhanced `/debug/auth` endpoint showing backchannel state
-
-**Test Coverage:** All 672 Core tests passing; no regressions.
-
-**Rationale:** "Do not guess; prefer logging that reveals the real problem." When the next 401 occurs in live Codespaces, operators will have actionable evidence without requiring shell access.
-
-### Stale Runtime Restart Pattern (PROPOSED GUIDANCE)
-
-Documented operational pattern: Always restart Aspire stack after pulling auth-related code changes.
-
-**Why:** Auth validation config is set at startup (JwtBearerOptions, validators). Running processes do not pick up code changes until they restart. Aspire container lifecycle already supports this via `refresh.sh`.
-
-**Alternatives Rejected:** Hot reload doesn't cover JwtBearerOptions; manual restart works but canonical path is `refresh.sh`.
-
-**Artifacts:** `.squad/skills/live-oidc-401-stale-runtime/SKILL.md` + `artifacts/codespaces-401-runbook.md`
-
-### Team Alignment
-
-- Tangy reproduced dashboard failure
-- Copper verified trust chain (no code-side issues)
-- Brewster fixed Codespaces URL printing
-- User directives: diagnose before fixing; use actual runtime failure, not assumptions
-
-
----
-
-**2026-05-03T11:58:20Z:** Dispatched as Blathers-18 — Diagnose MockBusinessApp 401 path (agent: Blathers). Concluded: localhost:5163 is expected backchannel hop; stale runtime or closed gate suspected; no code changes; build and core tests passed. Evidence: backchannel connectivity verified, seed contract gates all four workflow pages correctly, no security token rejection.
-
----
-
-## 2026-05-03: Aspire Dashboard Codespaces 401 Redirect Diagnosis
-
-**Status:** ✅ Non-destructive diagnosis complete
-
-**Scope:** Investigate why Aspire dashboard at public Codespaces URL (`https://...app.github.dev/`) redirects to `https://localhost:41981` and returns `HTTP/2 401` with `www-authenticate: tunnel`.
-
-**Key Finding: Codespaces Tunnel Authentication Protocol**
-
-The 401 + `www-authenticate: tunnel` response is **GitHub Codespaces' port forwarding authentication layer**, not a dashboard bug. This header indicates:
-- The Codespaces port proxy has intercepted the request
-- The proxy is demanding tunnel authentication
-- The proxy should NOT demand auth if dashboard is configured as anonymous
-
-**Configuration Status: CORRECT**
-
-All repo-side configuration is properly set for anonymous dashboard in Codespaces:
-1. **on-start.sh** exports `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` before launching AppHost
-2. **launchSettings.json** hardcodes the same flag as fallback
-3. **devcontainer.json** marks port 15135 as public HTTP
-4. Env vars are exported before `nohup dotnet run` (correct inheritance)
-
-**Port 41981 Mystery**
-
-The ephemeral port 41981 is **NOT in any repo configuration**. This indicates:
-- GitHub Codespaces assigns this port for tunnel negotiation
-- Browser attempts tunnel auth on this port when it receives 401
-- Tunnel negotiation fails because dashboard isn't responding
-
-**Root Cause Assessment (Most to Least Likely)**
-
-1. **Dashboard NOT listening on HTTP port 15135** — tunnel proxy returns 401 when destination port is unreachable/not responding
-2. **Dashboard only listening on HTTPS 17214** — not on expected HTTP 15135
-3. **Env vars not reaching AppHost process** — unlikely (nohup preserves parent env), but unverified
-4. **Codespaces workspace misconfigured** — port 15135 marked as private or requires auth
-
-**This is a Runtime Issue, Not a Code Issue**
-
-The repo configuration is sound; the problem is almost certainly in the running Codespaces environment (process state, env var inheritance, or port binding).
-
-**Recommended Next Steps (1-3 Concrete Diagnostics)**
-
-1. **PRIMARY:** Inside Codespaces: `curl -v http://localhost:15135/ | head -20` — should show Blazor HTML or connection refused
-2. **SECONDARY:** Check AppHost process env: `pgrep -f "dotnet run.*AppHost" | xargs -I{} cat /proc/{}/environ | tr '\0' '\n' | grep DOTNET_DASHBOARD`
-3. **TERTIARY:** Verify port binding: `lsof -i :15135` or `netstat -tlnp | grep 15135`
-
-**Learnings**
-
-- `www-authenticate: tunnel` is GitHub Codespaces' specific auth protocol; does not indicate dashboard auth failure
-- Redirect to localhost:41981 is tunnel client behavior, not app-side redirect
-- `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS` must be set BEFORE AppHost process starts (not inside appsettings)
-- Env vars exported in on-start.sh BEFORE `nohup` will reach child process (standard Unix behavior)
-
-
-## 2026-05-03 — Aspire Dashboard 401 Diagnosis (Background)
-
-**Task:** Diagnose localhost:41981 redirect and HTTP 401 response in Codespaces.
-
-**Diagnosis:**
-- 401 + tunnel auth header is Codespaces port-forwarding layer, not app bug
-- App config is CORRECT: `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` properly set
-- Most likely cause: dashboard not listening on localhost:15135 OR env var derivation failure
-- Provided diagnostic commands for next session (port binding, env vars, AppHost logs)
-
-**Decision:** No code changes recommended; runtime diagnostics needed first
-
-**Files Created:**
-- `.squad/orchestration-log/2026-05-03T13-59-46Z-blathers.md` — orchestration report
+Full history archived to `history-archive.md` (prior to 2026-05-03).
