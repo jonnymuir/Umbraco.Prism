@@ -10,6 +10,77 @@ QA validation, test coverage analysis, and edge-case identification.
 
 ---
 
+## 2026-05-03 11:46 — TestSite 404 / Blank Page Repro
+
+**Status:** ✅ Root cause confirmed — Aspire stack not running
+
+### Findings
+
+Probed all Aspire stack ports externally against `organic-space-fortnight-77g9wvq6jxhxg97`:
+
+| Port | Service | Result | Meaning |
+|------|---------|--------|---------|
+| 3000 | Status server | 401 `www-authenticate: tunnel` | **Alive** — GitHub private-port auth wall |
+| 44345 | TestSite | 404 + no Content-Type + 0 bytes | **Not listening** |
+| 15135 | Aspire Dashboard | 404 + no Content-Type + 0 bytes | **Not listening** |
+| 8443 | Keycloak | 404 + no Content-Type + 0 bytes | **Not listening** |
+| 7245 | MockBiz | 404 + no Content-Type + 0 bytes | **Not listening** |
+
+Playwright screenshot of port 44345: **blank white page** (browser renders GitHub's 0-byte 404 as empty document). Screenshot of port 3000 in unauthenticated browser: GitHub's "Connecting to the forwarded port…" splash (port is alive, requires GitHub session cookie).
+
+### Root Cause
+
+The Aspire AppHost stack is **entirely down**. The status server (port 3000) survived (it's a plain Node.js process), but all four Aspire-managed services have no listener behind the Codespaces tunnel. GitHub's tunnel returns `HTTP 404, content-length: 0, no Content-Type` for ports with nothing listening — identical pattern to the earlier port-3000 outage, but this time it is the full Aspire stack, not the status server.
+
+The user sees a blank white page rather than an error because the 0-byte 404 renders as an empty document in Chrome/Edge.
+
+### Fix Direction (for Brewster / Jonny)
+
+Not a repo code bug — the Aspire AppHost process is simply not running inside the Codespace. Likely causes:
+1. Codespace was suspended and `on-start.sh` fast-exited (the AppHost `pgrep` check passes if the binary is cached, but the .NET runtime and services may not have re-bound their ports in time)
+2. AppHost crashed — needs `artifacts/startup-status/prism-apphost.log` review inside the Codespace
+3. Docker-in-Docker may not have been ready when AppHost tried to start containers
+
+**Recommended action:** In the Codespace terminal: `tail -50 artifacts/startup-status/prism-apphost.log` to see last known crash/state, then `dotnet run --project src/UmbracoPrism.AppHost` if it needs a manual restart.
+
+### Key Learning
+
+When all Aspire ports return GitHub-tunnel 404, the diagnosis is always "AppHost not running" not "app error" — look at the AppHost log, not the TestSite logs. The status server at port 3000 is the health canary: if it's 401 (alive), the Codespace is up; if all app ports are 404, the stack hasn't started.
+
+---
+
+## 2026-05-03 11:11 — Live Codespaces Download Repro
+
+**Status:** ✅ Root cause confirmed; fix identified as not yet live on Codespace
+
+### Findings
+
+Reproduced the "download question" via external probe of `https://organic-space-fortnight-77g9wvq6jxhxg97-3000.app.github.dev`.
+
+| Path | Status | Content-Type |
+|------|--------|--------------|
+| `/` | 404 | (none) |
+| `/api/status` | 404 | (none) |
+| `/api/log` | 404 | (none) |
+
+The `x-served-by: tunnels-prod-rel-uks1-v3-cluster` header confirms responses come from the GitHub Codespaces tunnel proxy, NOT from the Node.js server. Port 3000 is not listening in the Codespace.
+
+### Root Cause
+
+GitHub's tunnel proxy returns **HTTP 404 with no `Content-Type`** when the underlying port is not listening. Combined with `X-Content-Type-Options: nosniff`, browsers (especially Safari) treat this as an unknown/downloadable blob and prompt a file-download dialog.
+
+The mechanism: when a Codespace disconnects-and-reconnects without full suspension, `AppHost` survives but the Node.js status server (port 3000) dies. The old `on-start.sh` fast-exits on `pgrep AppHost` and never restarts the Node server.
+
+### Fix State
+
+Fix commit `5f41b03` (`fix(codespaces): restart status server on resume if port 3000 is dead`) is on `origin/main` and correctly addresses the root cause. The running Codespace has NOT pulled this commit yet — it needs `git pull` + reconnect (or manual `node scripts/startup-status/server.js &`) to activate the fix.
+
+### Key Learning
+
+GitHub Codespaces tunnel returns HTTP 404 + no Content-Type (not 502/503) when the backend port is not listening. This 0-byte 404 is treated as an unknown file by Safari and some Chrome configurations, triggering a download dialog. The fix must be in the `postStartCommand` fast-exit path, not just the full startup path.
+
+---
+
 ## 2026-05-02 — PR #45 Test Review: Codespaces URL Derivation Fix
 
 **Status:** ✅ APPROVED WITH NOTES  
