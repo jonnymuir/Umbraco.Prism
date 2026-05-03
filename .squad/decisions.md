@@ -1761,3 +1761,57 @@ After implementing, verify:
 - History note: "Named HttpClients have default timeouts (100s); the custom timeout only applies when the named client is registered."
 - `DownstreamDemoController.cs` line 286
 - `PrismComposer.cs` lines 34-35 (existing HttpClient registrations)
+
+---
+date: 2026-05-03T23:13:53.622+01:00
+session: transport-diagnostics-landing
+title: Transport Diagnostics Landing — Product Commit 17edf9c
+author: Mabel (Technical Writer)
+affected: downstream-demo, diagnostics workflow
+status: implemented
+---
+
+# Transport Diagnostics Landing Decision
+
+## Context
+
+Transport diagnostics feature (implementation by Blathers, testing by Tangy) was ready to land on main. Two product files contained the changes:
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` — diagnostics instrumentation
+- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs` — test contracts
+
+Unrelated changes present (`.playwright-cli/`, `.squad/` agent artifacts) required clean staging.
+
+## Decision
+
+**Staged only the two product files.** Committed with conventional commit message (`feat(diagnostics):...`) and required Co-authored-by trailer. Pushed to origin/main as commit 17edf9c.
+
+## Rationale
+
+1. **Single-unit release boundary:** One commit = one releasable feature. No mixing product and bookkeeping in the same commit.
+2. **Clean user history:** When users pull origin/main, they see only the shipped diagnostics feature, not internal agent coordination.
+3. **Conventional signal for release notes:** `feat(diagnostics)` prefix enables Mabel to infer minor version bump when generating CHANGELOG.
+4. **Hygiene pattern reaffirmed:** Continues established product/bookkeeping separation from earlier diagnostics landings (22843a2, fb1b324).
+
+## Outcome
+
+✅ **Product commit 17edf9c now live on origin/main.**
+
+Users can immediately:
+- `git pull origin main` to get transport diagnostics feature
+- See transport type (internal-backchannel vs public-tunnel) in diagnostic responses
+- Understand backchannel configuration state and target URL scheme for troubleshooting
+
+## Files Changed
+
+- DownstreamDemoController.cs: +60 lines (diagnostics instrumentation)
+- DashboardLocalEndpointsValidationTests.cs: +175 lines (test contracts)
+
+## Convention Implication
+
+This landing reaffirms the **product/bookkeeping separation pattern** as team-wide convention:
+
+- **Main branch:** Shipping artifacts only (user-facing code changes)
+- **Bookkeeping:** .squad/ agent histories, decisions, coordination logs (deferred to separate sessions or merges)
+- **Release clarity:** Clean git history enables users and release automation to reason about what shipped and why
+
+Suggest Scribe consider updating `.squad/conventions.md` to document this as explicit team guidance for future multi-agent product handoffs.

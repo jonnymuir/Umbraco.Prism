@@ -156,3 +156,11 @@ All 680 tests pass. The new diagnostics provide enough signal for Codespaces ope
 
 **Team coordination complete.** Decisions merged to main registry.
 
+
+## 2026-05-03 · Transport Diagnostics Validation Spawn
+
+**Spawn outcome:** Defined highest-confidence proof step: rerun diagnostics with fresh PRISM_BEARER_TOKEN and read authenticated backchannel result.
+
+**Session:** transport-diagnostics-landing | Coordinator spawned to validate transport diagnostics feature post-landing (commit 17edf9c).
+
+**Coordination:** Blathers (DevOps) in parallel spawn identified root cause of timeout (backchannel initialization) and recommended refresh.sh.

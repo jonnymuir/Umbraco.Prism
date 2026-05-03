@@ -83,3 +83,11 @@ Full history archived to `history-archive.md` (prior to 2026-05-03 learnings sec
 
 **Team coordination complete.** Ready for PR review and merge.
 
+
+## 2026-05-03 · Transport Diagnostics Validation Spawn
+
+**Spawn outcome:** Diagnosed internal backchannel timeout as root cause (not instrumentation defect). Recommended refresh.sh as operational fix.
+
+**Session:** transport-diagnostics-landing | Coordinator spawned to validate transport diagnostics feature post-landing (commit 17edf9c).
+
+**Coordination:** Tangy (Tester) in parallel spawn identified next proof step: fresh token authentication test.
