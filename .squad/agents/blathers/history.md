@@ -8,12 +8,14 @@
 
 ## Learnings
 
+- **2026-05-03T23:43:13.870+01:00:** A Downstream Demo timeout payload that reports `transport: internal-backchannel`, `backchannelPresent: true`, and `cancellationSource: request-timeout-window` proves TestSite chose the backchannel target and waited on its own 10s HttpClient window; it does not prove MockBusinessApp accepted the connection or that `/api/backoffice/me` executed. To prove arrival at MockBusinessApp itself, add a request log before `app.UseAuthentication()` in `src/UmbracoPrism.MockBusinessApp/Program.cs`, and add a second log inside the `/api/backoffice/me` handler if you need proof that endpoint code ran.
 - **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
 - **2026-05-03T21:32:41.296+01:00:** Codespaces helper scripts that embed Python should self-check a working stdlib runtime and launch it with `-I` plus `PYTHONHOME`/`PYTHONPATH` scrubbed; activated toolchains can otherwise break even basic imports like `json`.
 - **2026-05-03T21:49:23.079+01:00:** For operator-facing Codespaces diagnostics, prefer shell-native `curl`/`gh` probes over embedded runtimes. A helper that only needs Bash plus the stock network tools is more reliable than trying to harden around a missing or broken Python install.
 - **2026-05-03T22:27:45.244+01:00:** When downstream API timeout isn't preceded by 401, check whether TestSite is using the backchannel URL or the public app.github.dev URL — if BUSINESSAPP_BACKCHANNEL_URL is actually set at runtime, the timeout is internal; if not, it's hitting the GitHub forwarding tunnel. Named HttpClients have default timeouts (100s); the custom timeout only applies when the named client is registered.
 - **2026-05-03T22:49:38.255+01:00:** Named HttpClients used in controllers must be registered via AddHttpClient() even when timeout is managed via CancellationToken, because unregistered clients lack proper handler configuration for connection pooling, localhost resolution, and certificate validation in containerized environments. The "prism-downstream-demo" client was unregistered, causing reliable timeouts despite the backchannel URL being correct.
 - **2026-05-03T23:00:12.742+01:00:** Downstream demo diagnostics should surface transport path metadata (internal backchannel vs public tunnel, whether BUSINESSAPP_BACKCHANNEL_URL was present) and timeout cause (timeout CancellationToken vs external cancellation) directly in the response JSON and logs without exposing actual backchannel port numbers or raw tokens. Mask localhost ports as `http://localhost:****` in diagnostics; show full public URLs since they're browser-visible anyway.
+- **2026-05-03T23:26:29.163+01:00:** For downstream timeout payloads in `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, keep `transportBaseUrl` masked as `http://localhost:****` for internal backchannels, but add safe operator-facing detail such as `usingBackchannel`, `targetPath`, `timeout.timedOutByUs`, `timeout.cancellationSource`, and a short `nextCheck` hint. `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs` is the contract test file for these browser-visible diagnostics.
 
 ---
 
@@ -91,3 +93,18 @@ Full history archived to `history-archive.md` (prior to 2026-05-03 learnings sec
 **Session:** transport-diagnostics-landing | Coordinator spawned to validate transport diagnostics feature post-landing (commit 17edf9c).
 
 **Coordination:** Tangy (Tester) in parallel spawn identified next proof step: fresh token authentication test.
+
+## Cross-Agent Update: 2026-05-03T22:46:14Z Scribe Consolidation
+
+**Spawn outcome merged:** Determined timeout payload does not prove MockBusinessApp request-handling code ran. Recommended arrival logging before auth middleware and at `/api/backoffice/me` handler as smallest decisive proof.
+
+**Orchestration record logged:**
+- `.squad/orchestration-log/2026-05-03T22-46-14Z-blathers.md`
+
+**Decisions merged to main registry:**
+- Deeper Downstream Timeout Diagnostics Landing (commit 442c5e9)
+- Browser-Facing API Responses Must Return Public URLs, Not Internal Backchannel URLs
+
+**Team coordination:** Tangy's test contracts and Mabel's landing decision logged. All booking complete.
+
+**Next steps:** Arrival logging implementation when team reopens timeout diagnostics work.

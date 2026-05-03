@@ -112,6 +112,17 @@ These three checks isolate:
 
 ## Learnings
 
+### 2026-05-03T23:26:29.163+01:00: Timeout Diagnostics Need Structured Cause + Masked Transport Context
+
+**Context:** `DownstreamDemoController` now emits richer timeout diagnostics for `/api/prism/downstream-demo`, including a `timeout` payload, `summary`, `nextCheck`, and transport metadata for both public-tunnel and internal-backchannel paths.
+
+**Pattern:** Behavioural tests should prove three things together:
+1. **Timeout vs cancellation is explicit** — `statusText`, `timeout.timedOutByUs`, and `timeout.cancellationSource` must distinguish the controller's 10-second deadline from external cancellations.
+2. **Internal-backchannel diagnostics stay safe** — browser-visible payloads may name the transport and target path, but the transport base URL must remain masked as `http://localhost:****`.
+3. **Operator guidance is actionable** — timeout responses should include `summary`/`nextCheck` text that points to AppHost wiring (`BUSINESSAPP_BACKCHANNEL_URL`) or downstream health checks instead of raw port leakage.
+
+**Key file paths:** `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`, `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`
+
 ### 2026-05-03T22:49:38+01:00: Fastest Environment Variable Configuration Check
 
 **Context:** When downstream API timeouts have already ruled out BusinessApp itself (via diagnostics script internal probe), but public URL still hangs, the fastest triage is checking the exact environment variable TestSite reads at runtime.
@@ -164,3 +175,17 @@ All 680 tests pass. The new diagnostics provide enough signal for Codespaces ope
 **Session:** transport-diagnostics-landing | Coordinator spawned to validate transport diagnostics feature post-landing (commit 17edf9c).
 
 **Coordination:** Blathers (DevOps) in parallel spawn identified root cause of timeout (backchannel initialization) and recommended refresh.sh.
+
+## Cross-Agent Update: 2026-05-03T22:46:14Z Scribe Consolidation
+
+**Spawn outcomes merged:** Test contracts for backchannel vs. public-tunnel timeout paths and masking behavior validated. All 680 tests passing.
+
+**Orchestration record logged:**
+- `.squad/log/2026-05-03T22-46-14Z-timeout-diagnostics.md`
+
+**Decisions merged to main registry:**
+- Timeout Diagnostics Must Distinguish Deadline vs Cancellation Without Leaking Backchannel Ports (status: decision, 2026-05-03T23:26:29+01:00)
+
+**Coordination:** Blathers' arrival logging recommendation noted in orchestration log for potential follow-up work.
+
+**Team bookkeeping:** Complete. Product feature (commit 442c5e9) with full test coverage now linked to decision history.

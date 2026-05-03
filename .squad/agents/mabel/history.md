@@ -113,3 +113,71 @@ Detailed session histories (2026-04-30, 2026-05-01, and earlier) available in `h
 ### Convention Update Recommendation
 - Scribe should consider updating `.squad/conventions.md` with this landing workflow pattern
 - Future technical writers should use this pattern for all multi-agent product handoffs
+
+## 2026-05-03: Transport Diagnostics Landing — Clean Product Commit to Main
+
+**Status:** ✅ Complete (product commit 17edf9c pushed to origin/main)
+
+**Work:** Landed transport and backchannel diagnostics feature for downstream demo.
+
+**Scope Applied:**
+- Staged only product files: DownstreamDemoController.cs and DashboardLocalEndpointsValidationTests.cs
+- Left unrelated changes unstaged (.playwright-cli/, .squad agent artifacts)
+- Created single, releasable product commit
+
+**Commit:** `17edf9c` — feat(diagnostics): expose transport and backchannel diagnostics in downstream demo
+- Adds transport type, backchannel presence, base URL, and scheme diagnostics to all downstream responses
+- Enhances test coverage with three new contract tests
+- Users now have actionable context for Codespaces troubleshooting
+
+**Push Result:** origin/main now points to 17edf9c. Product changes live and ready for users.
+
+**Pattern Reaffirmed:** One commit = one releasable unit. Product/bookkeeping separation workflow continues.
+
+---
+
+## 2026-05-03: Deeper Downstream Timeout Diagnostics — Product Commit to Main
+
+**Status:** ✅ Complete (product commit 442c5e9 pushed to origin/main)
+
+**Work:** Landed enhanced timeout diagnostics with deeper context for downstream demo controller.
+
+**Scope Applied:**
+- Staged only product files: DownstreamDemoController.cs and DashboardLocalEndpointsValidationTests.cs
+- Left .squad/ bookkeeping files unstaged
+- Created single, releasable product commit
+
+**Commit:** `442c5e9` — feat(diagnostics): enhance downstream timeout diagnostics with deeper context
+- Adds explicit backchannel usage indicators (usingBackchannel field)
+- Surface target path diagnostics for timeout scenarios
+- Include timeout window and cancellation source metadata
+- Improves timeout guidance pointing operators to wiring checks
+- Extended test coverage for both backchannel and public-tunnel timeout paths
+
+**Push Result:** origin/main now points to 442c5e9. Product changes live and ready for users.
+
+**Pattern:** Continues established product/bookkeeping separation workflow. Three-agent coordination (Blathers implementation, Tangy testing, Mabel landing) maintains clean git history.
+
+---
+
+## Learnings
+
+- Transport diagnostics feature scope: Core responsibility is surfacing enough diagnostic context to help users disambiguate between backchannel and public tunnel failures without exposing internal URLs.
+- Release hygiene: Confirmed that downstream-demo diagnostics follow the established product commit pattern (clean staging, conventional commits, single unit delivery).
+- Team coordination: Three-agent workflow (Blathers implementation, Tangy testing, Mabel landing) continues to yield clean history.
+- Timeout diagnostics deepening: When extending diagnostic surface for timeouts, critical to expose backchannel state, target path, and cancellation reason to enable operators to triage public-tunnel vs. backchannel wiring issues.
+
+## Cross-Agent Update: 2026-05-03T22:46:14Z Scribe Consolidation
+
+**Inbox decision merged:** Deeper Downstream Timeout Diagnostics Landing decision logged to decisions.md (commit 442c5e9).
+
+**Orchestration record logged:**
+- `.squad/log/2026-05-03T22-46-14Z-timeout-diagnostics.md`
+
+**Decisions merged to main registry:**
+- Deeper Downstream Timeout Diagnostics Landing (status: IMPLEMENTED, commit 442c5e9)
+- Team approval chain: Tom Nook (Lead), Blathers (Implementation), Tangy (Test coverage)
+
+**Clean-up:** Deleted inbox file `mabel-timeout-diagnostics-landing.md`.
+
+**Team bookkeeping:** Complete. Product commits 17edf9c and 442c5e9 now linked to decision history.

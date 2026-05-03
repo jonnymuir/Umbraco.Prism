@@ -1880,3 +1880,44 @@ Browser-visible timeout responses should preserve these contracts:
 - `DownstreamDemo_IncludesMaskedInternalBackchannelTimeoutDiagnostics`
 - `DownstreamDemo_LabelsExternalCancellation_SeparatelyFromTimeoutWindow`
 - Existing masking contract in `DownstreamDemo_DoesNotExposeRawBackchannelPortInDiagnostics`
+
+---
+date: 2026-05-03T23:38:00.000+01:00
+author: Mabel
+status: IMPLEMENTED
+area: diagnostics, backend, testing
+---
+
+# Decision: Deeper Downstream Timeout Diagnostics Landing
+
+## Summary
+
+Landed enhanced timeout diagnostics feature to origin/main. Product commit exposes backchannel state, target path, and cancellation context to help operators triage timeout failures in Codespaces environments.
+
+## Implementation
+
+**Staged and committed:**
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` — Implements richer timeout diagnostic fields
+- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs` — Enhanced test coverage for timeout scenarios
+
+**Scope discipline:**
+- Left `.squad/` files unstaged (Scribe merged bookkeeping separately)
+- Clean product boundary: only user-facing artifacts in commit
+
+## Rationale
+
+Timeout diagnostics must expose enough state to distinguish:
+1. **Backchannel wiring failures** — When BUSINESSAPP_BACKCHANNEL_URL points to an unreachable internal service
+2. **Public-tunnel timeouts** — When Codespaces tunneling infrastructure is slow or misconfigured
+
+New fields enable operators to immediately see:
+- `usingBackchannel` — Explicit confirmation of which path was attempted
+- `targetPath` — Path component of the downstream call (safe to expose; URL masked)
+- `timeoutWindowMs` + `cancellationSource` — Timeout boundary and which component fired it
+
+## Owners
+
+- Lead (Tom Nook) — Feature approved
+- Blathers (Backend Dev) — Implementation approved
+- Tangy (Tester) — Test coverage approved
+- Commit: 442c5e9
