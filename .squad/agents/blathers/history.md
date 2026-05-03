@@ -166,3 +166,61 @@ Two significant product fixes shipped:
 - Codespaces users get correct HTTPS dashboard URL
 - MockBusinessApp auth backchannel works correctly
 - Foundation set for multi-concern PR merge strategy
+
+### 2026-05-03: Codespaces Login Callback Localhost:9250 Regression Diagnosis
+
+**Context:** After restarting Codespaces, Safari opens OIDC callback URL `https://localhost:9250/signin-oidc?...` instead of the public forwarded URL, causing "cannot connect to server localhost" error.
+
+**Root Cause — Port 44345 Discovery Race:**
+
+AppHost Program.cs line 21 calls `TryDiscoverCodespaceUrls()` which queries `gh codespace ports` for the authoritative browseUrl of port 44345. If port 44345 is **not yet forwarded** when AppHost starts (common after Codespaces resume), `gh codespace ports` returns no entry for 44345, and `testSitePublicUrl` is set to **null** (line 203-204 in AppHost).
+
+When `testSitePublicUrl` is null, AppHost line 127-128 **does not call** `.WithEnvironment("TESTSITE_PUBLIC_URL", ...)` on the testsite resource. TestSite then launches **without** the environment variable.
+
+TestSite Program.cs line 44 reads `TESTSITE_PUBLIC_URL`. If absent, the middleware at lines 48-52 is **never registered**, so `context.Request.Host` is never overridden. The OIDC middleware at PrismOidcConfiguration.cs line 320 builds `redirect_uri` using the raw inbound `context.Request.Host`, which Codespaces forwards as `localhost:44345` or `localhost:9250` (depending on which port the browser hit).
+
+**Why `https://localhost:9250` specifically:**
+
+Aspire's launch profile advertises both `https://localhost:44345` and `http://localhost:9250` (launchSettings.json line 24). When TestSite starts before port 44345 is forwarded, the browser may hit the HTTP endpoint first (port 9250), then get redirected or rewritten by Codespaces proxy to HTTPS. The OIDC middleware captures the **mixed state** — HTTPS scheme with the HTTP port's host value — yielding `https://localhost:9250/signin-oidc`.
+
+**Why flaky across restarts:**
+
+GitHub Codespaces port forwarding is **asynchronous**. On fresh start or resume, port 44345 may not appear in `gh codespace ports` output for 5-30 seconds. If AppHost queries `gh codespace ports` **before** port 44345 is registered, `testSitePublicUrl` is null and TestSite launches without the override middleware. If AppHost queries **after** port registration, the middleware is correctly wired and login works.
+
+**Immediate diagnostic:**
+
+Check AppHost startup logs in `artifacts/startup-status/prism-apphost.log` for the line:
+```
+[PRISM] Discovered Codespaces URLs — Keycloak: ... TestSite: (port 44345 not yet forwarded) ...
+```
+
+If present, confirms port 44345 was not forwarded when AppHost started.
+
+**Safe fix (minimal):**
+
+AppHost line 212 already has fallback logic to **derive** the TestSite URL from the discovered Keycloak URL when port 44345 is absent:
+```csharp
+businessAppUrl ??= DeriveCodespaceUrl(keycloakUrl, 7245);
+```
+
+Add the same pattern for TestSite:
+```csharp
+testSitePublicUrl ??= DeriveCodespaceUrl(keycloakUrl, 44345);
+```
+
+This ensures `TESTSITE_PUBLIC_URL` is always set in Codespaces, even if port 44345 is not yet forwarded when AppHost starts.
+
+**Recommended next step:**
+
+Add the one-line fix to AppHost Program.cs line 212 (right after `businessAppUrl ??= ...`), then test a cold Codespace restart to confirm the derived URL is correct.
+
+
+## 2026-05-03: Codespaces Login Callback Startup Sequence Diagnosis
+
+**Outcome**: Traced runtime/config source of wrong callback and startup sequence dependency after restart.
+
+**Scope**: Investigated why AppHost startup lag causes TESTSITE_PUBLIC_URL propagation failure on Codespaces resume.
+
+**Key Finding**: Codespaces tunnel rewrites inbound `Host` header to `localhost:44345` before forwarding to Kestrel. TestSite has Host override middleware that corrects this—but only when `TESTSITE_PUBLIC_URL` env var is set. On restart, AppHost must set the var before TestSite starts; timing drift on resume causes OIDC fallback to internal HTTP port 9250.
+
+**Decision**: Contributed to decisions.md entry. Three fix options documented: fail-fast (recommended), fallback detection, test coverage.

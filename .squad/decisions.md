@@ -2825,3 +2825,42 @@ Local `main` synced to `origin/main` without conflicts.
 ### Team Impact
 
 Future PRs with multiple concerns should follow the same pattern: separate commits by user-facing issue, preserve commits via `--merge`, document CI timing expectations for integration test suites.
+
+## 📌 2026-05-03: Tangy — Codespaces Login Callback Port Mismatch
+
+**Status:** DIAGNOSED
+
+### Summary
+
+After Codespaces restart, TestSite login flow redirects to `https://localhost:9250/signin-oidc` instead of public Codespaces URL. **Root cause:** Missing/stale `TESTSITE_PUBLIC_URL` environment variable leaves Host header override middleware inactive, so OIDC handler generates unreachable redirect_uri using internal port 9250.
+
+### Root Cause
+
+Codespaces tunnel rewrites inbound `Host` header from public URL (e.g., `v7ldkc4c-44345.uks1.app.github.dev`) to `localhost:44345` before forwarding to Kestrel. Program.cs contains Host override middleware (lines 44-54) that corrects this—*but only when `TESTSITE_PUBLIC_URL` environment variable is set*.
+
+**Behavioral contract violated**: After restart, TestSite login must redirect to public Codespaces URL, not `localhost:9250`.
+
+### Why Feels Flaky
+
+1. **Timing dependency**: AppHost must set `TESTSITE_PUBLIC_URL` before TestSite starts; cold start works but resume/restart may lag
+2. **HTTP vs HTTPS confusion**: TestSite listens on both `https://localhost:44345` and `http://localhost:9250`; without Host override, OIDC uses wrong port
+3. **Silent failure**: No logging when `TESTSITE_PUBLIC_URL` missing; issue only surfaces when user clicks "Sign in"
+
+### Regression Gap
+
+`LocalhostGenericOidcRegressionTests.cs` doesn't test:
+- Public host used when `TESTSITE_PUBLIC_URL` set
+- Host override middleware for HTTPS requests
+- Warning/error if `TESTSITE_PUBLIC_URL` missing in Codespaces
+
+### Proposed Fix
+
+Option 1 (recommended): **Fail-fast** — require `TESTSITE_PUBLIC_URL` in Codespaces, log error immediately if missing  
+Option 2: Fallback to `X-Forwarded-*` headers if env var absent  
+Option 3: Add test coverage to codify Host override contract
+
+### Basis
+
+Tangy's diagnostic investigation (2026-05-03); Blathers' correlation of startup sequence and env propagation lag.
+
+---
