@@ -38,6 +38,8 @@ public class DownstreamDemoController(
     ILogger<DownstreamDemoController> logger) : ControllerBase
 {
     private const int MaxDiagnosticBodyLength = 4096;
+    private const int DownstreamTimeoutSeconds = 10;
+    private const int DownstreamTimeoutMs = DownstreamTimeoutSeconds * 1000;
     private const string DiagnosticBodyTruncationNotice = "\n\n[Response body truncated for display.]";
     private static readonly JsonSerializerOptions PrettyPrint = new() { WriteIndented = true };
 
@@ -68,7 +70,7 @@ public class DownstreamDemoController(
             return Unauthorized(new { error = "No Prism session — please sign in again." });
 
         var targetUrl = BuildTargetUrl(url);
-        var (transport, backchannelPresent, transportBaseUrl, targetUrlScheme) = BuildTransportDiagnostics(targetUrl);
+        var transportDiagnostics = BuildTransportDiagnostics(targetUrl);
 
         var sw = Stopwatch.StartNew();
         try
@@ -94,8 +96,8 @@ public class DownstreamDemoController(
                     (int)response.StatusCode,
                     response.ReasonPhrase ?? response.StatusCode.ToString(),
                     contentType,
-                    transport,
-                    backchannelPresent,
+                    transportDiagnostics.Transport,
+                    transportDiagnostics.BackchannelPresent,
                     FormatHeaders(response),
                     rawBody.Length);
 
@@ -111,13 +113,7 @@ public class DownstreamDemoController(
                     diagnosticBody,
                     diagnosticBodyTruncated,
                     invalidResponse = true,
-                    transport = new
-                    {
-                        transport,
-                        backchannelPresent,
-                        transportBaseUrl,
-                        targetUrlScheme
-                    }
+                    transport = CreateTransportPayload(transportDiagnostics)
                 });
             }
 
@@ -141,50 +137,57 @@ public class DownstreamDemoController(
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType,
                 body = displayBody,
-                transport = new
-                {
-                    transport,
-                    backchannelPresent,
-                    transportBaseUrl,
-                    targetUrlScheme
-                }
+                transport = CreateTransportPayload(transportDiagnostics)
             });
         }
-        catch (TaskCanceledException ex)
+        catch (DownstreamRequestCancelledException ex)
         {
             sw.Stop();
-            var wasTimeoutCancellation = ex.CancellationToken.IsCancellationRequested;
+            var cancellationSource = ex.TimedOutByRequestWindow
+                ? "request-timeout-window"
+                : HttpContext?.RequestAborted.IsCancellationRequested == true
+                    ? "request-aborted"
+                    : "external-cancellation";
+
             logger.LogWarning(
-                "Downstream demo timed out calling {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}; Cancellation source: {CancellationSource}",
+                ex,
+                "Downstream demo request did not complete calling {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}; TargetPath: {TargetPath}; TransportBaseUrl: {TransportBaseUrl}; Cancellation source: {CancellationSource}",
                 targetUrl,
                 sw.ElapsedMilliseconds,
-                transport,
-                backchannelPresent,
-                wasTimeoutCancellation ? "timeout" : "external");
-            
-            var timeoutDetail = wasTimeoutCancellation
-                ? "Request timed out after 10 seconds."
+                transportDiagnostics.Transport,
+                transportDiagnostics.BackchannelPresent,
+                transportDiagnostics.TargetPath,
+                transportDiagnostics.TransportBaseUrl,
+                cancellationSource);
+
+            var timeoutDetail = ex.TimedOutByRequestWindow
+                ? $"Request timed out after {DownstreamTimeoutSeconds} seconds."
                 : "Request was cancelled before completion.";
-            
-            var hint = transport == "public-tunnel"
-                ? " The request was targeting a public Codespaces URL which may hit GitHub's forwarding proxy. Check if BUSINESSAPP_BACKCHANNEL_URL is configured in the AppHost."
-                : " The request was targeting an internal backchannel. Check if MockBusinessApp is listening on the expected port. In Codespaces, try `bash scripts/codespaces/refresh.sh`.";
+
+            var summary = ex.TimedOutByRequestWindow
+                ? $"Timed out after {DownstreamTimeoutSeconds} seconds via {transportDiagnostics.Transport} while targeting {transportDiagnostics.TargetPath}."
+                : $"Request was cancelled before the {DownstreamTimeoutSeconds}-second timeout while targeting {transportDiagnostics.TargetPath}.";
+            var hint = BuildTimeoutHint(transportDiagnostics);
+            var nextCheck = BuildTimeoutNextCheck(transportDiagnostics);
 
             return Ok(new
             {
                 statusCode = 0,
-                statusText = "Timeout",
+                statusText = ex.TimedOutByRequestWindow ? "Timeout" : "Cancelled",
                 url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
-                body = timeoutDetail + hint,
-                transport = new
+                summary,
+                nextCheck,
+                body = $"{timeoutDetail} {hint}",
+                timeout = new
                 {
-                    transport,
-                    backchannelPresent,
-                    transportBaseUrl,
-                    targetUrlScheme
-                }
+                    timedOutByUs = ex.TimedOutByRequestWindow,
+                    timeoutWindowMs = DownstreamTimeoutMs,
+                    cancellationSource,
+                    detail = timeoutDetail
+                },
+                transport = CreateTransportPayload(transportDiagnostics)
             });
         }
         catch (HttpRequestException ex)
@@ -192,13 +195,15 @@ public class DownstreamDemoController(
             sw.Stop();
             logger.LogWarning(
                 ex,
-                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}",
+                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}; TargetPath: {TargetPath}; TransportBaseUrl: {TransportBaseUrl}",
                 targetUrl,
                 sw.ElapsedMilliseconds,
-                transport,
-                backchannelPresent);
+                transportDiagnostics.Transport,
+                transportDiagnostics.BackchannelPresent,
+                transportDiagnostics.TargetPath,
+                transportDiagnostics.TransportBaseUrl);
             
-            var hint = transport == "internal-backchannel"
+            var hint = transportDiagnostics.Transport == "internal-backchannel"
                 ? "\n\nThe request used an internal backchannel URL. If running in Codespaces, check that AppHost is passing the correct dynamic endpoint. Try `bash scripts/codespaces/refresh.sh`."
                 : "\n\nMake sure MockBusinessApp is running:\n  dotnet run --project src/UmbracoPrism.MockBusinessApp";
             
@@ -210,13 +215,7 @@ public class DownstreamDemoController(
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
                 body = $"Could not reach the service: {ex.Message}{hint}",
-                transport = new
-                {
-                    transport,
-                    backchannelPresent,
-                    transportBaseUrl,
-                    targetUrlScheme
-                }
+                transport = CreateTransportPayload(transportDiagnostics)
             });
         }
     }
@@ -337,8 +336,18 @@ public class DownstreamDemoController(
         var client = httpClientFactory.CreateClient("prism-downstream-demo");
         using var request = new HttpRequestMessage(HttpMethod.Get, targetUrl);
         request.Headers.Authorization = authHeader;
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        return await client.SendAsync(request, timeoutCts.Token);
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(DownstreamTimeoutSeconds));
+
+        try
+        {
+            return await client.SendAsync(request, timeoutCts.Token);
+        }
+        catch (TaskCanceledException ex)
+        {
+            throw new DownstreamRequestCancelledException(
+                timeoutCts.IsCancellationRequested || ex.CancellationToken.IsCancellationRequested,
+                ex);
+        }
     }
 
     private bool IsDemoEnabled()
@@ -347,7 +356,7 @@ public class DownstreamDemoController(
             || configuration.GetValue<bool>("Prism:EnableDownstreamDemo", false);
     }
 
-    private (string transport, bool backchannelPresent, string transportBaseUrl, string targetUrlScheme) BuildTransportDiagnostics(string targetUrl)
+    private TransportDiagnostics BuildTransportDiagnostics(string targetUrl)
     {
         var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
         var backchannelPresent = !string.IsNullOrWhiteSpace(backchannelUrl);
@@ -367,9 +376,17 @@ public class DownstreamDemoController(
             transportBaseUrl = MaskPublicUrl(publicUrl ?? "");
         }
 
-        var targetUrlScheme = Uri.TryCreate(targetUrl, UriKind.Absolute, out var uri) ? uri.Scheme : "unknown";
+        var targetUri = Uri.TryCreate(targetUrl, UriKind.Absolute, out var uri) ? uri : null;
+        var targetUrlScheme = targetUri?.Scheme ?? "unknown";
+        var targetPath = targetUri?.AbsolutePath ?? "/";
 
-        return (transport, backchannelPresent, transportBaseUrl, targetUrlScheme);
+        return new TransportDiagnostics(
+            transport,
+            transport == "internal-backchannel",
+            backchannelPresent,
+            transportBaseUrl,
+            targetUrlScheme,
+            targetPath);
     }
 
     private static string MaskInternalUrl(string url)
@@ -390,6 +407,40 @@ public class DownstreamDemoController(
     {
         // Show full public URL since it's browser-visible anyway
         return url;
+    }
+
+    private static object CreateTransportPayload(TransportDiagnostics diagnostics) => new
+    {
+        transport = diagnostics.Transport,
+        usingBackchannel = diagnostics.UsingBackchannel,
+        backchannelPresent = diagnostics.BackchannelPresent,
+        transportBaseUrl = diagnostics.TransportBaseUrl,
+        targetUrlScheme = diagnostics.TargetUrlScheme,
+        targetPath = diagnostics.TargetPath
+    };
+
+    private static string BuildTimeoutHint(TransportDiagnostics diagnostics)
+    {
+        if (diagnostics.UsingBackchannel)
+        {
+            return $"The request used the internal backchannel path `{diagnostics.TargetPath}`. Check that MockBusinessApp is listening and that AppHost passed the current BUSINESSAPP_BACKCHANNEL_URL. If Codespaces was resumed or refreshed, run `bash scripts/codespaces/refresh.sh`.";
+        }
+
+        return diagnostics.Transport == "public-tunnel"
+            ? $"The request was targeting the public Codespaces URL for `{diagnostics.TargetPath}` instead of the internal backchannel. Check whether BUSINESSAPP_BACKCHANNEL_URL is present in AppHost, then verify the forwarded MockBusinessApp port is healthy."
+            : $"The request was targeting the configured public URL for `{diagnostics.TargetPath}`. Check that MockBusinessApp is running and reachable from TestSite.";
+    }
+
+    private static string BuildTimeoutNextCheck(TransportDiagnostics diagnostics)
+    {
+        if (diagnostics.UsingBackchannel)
+        {
+            return $"Check MockBusinessApp health for `{diagnostics.TargetPath}` and confirm AppHost injected BUSINESSAPP_BACKCHANNEL_URL.";
+        }
+
+        return diagnostics.Transport == "public-tunnel"
+            ? $"Check whether AppHost should be using BUSINESSAPP_BACKCHANNEL_URL instead of the public Codespaces tunnel for `{diagnostics.TargetPath}`."
+            : $"Check that the configured public base URL can serve `{diagnostics.TargetPath}` from TestSite.";
     }
 
     private string ResolveBusinessAppTransportBaseUrl()
@@ -460,6 +511,20 @@ public class DownstreamDemoController(
     {
         return tokens.FirstOrDefault(token => token.Name == name)?.Value;
     }
+
+    private sealed class DownstreamRequestCancelledException(bool timedOutByRequestWindow, Exception innerException)
+        : Exception(innerException.Message, innerException)
+    {
+        public bool TimedOutByRequestWindow { get; } = timedOutByRequestWindow;
+    }
+
+    private readonly record struct TransportDiagnostics(
+        string Transport,
+        bool UsingBackchannel,
+        bool BackchannelPresent,
+        string TransportBaseUrl,
+        string TargetUrlScheme,
+        string TargetPath);
 
     private static bool IsExpired(string? expiresAt)
     {

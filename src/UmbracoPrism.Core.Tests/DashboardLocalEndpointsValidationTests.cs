@@ -763,10 +763,14 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             because: "when BUSINESSAPP_BACKCHANNEL_URL is set, the transport should be labeled as internal-backchannel");
         root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeTrue(
             because: "backchannelPresent should reflect the presence of BUSINESSAPP_BACKCHANNEL_URL env var");
+        root.GetProperty("transport").GetProperty("usingBackchannel").GetBoolean().Should().BeTrue(
+            because: "the response should explicitly confirm when the internal backchannel is in use");
         root.GetProperty("transport").GetProperty("transportBaseUrl").GetString().Should().Be("http://localhost:****",
             because: "internal URLs should be masked to avoid exposing the actual port in diagnostics");
         root.GetProperty("transport").GetProperty("targetUrlScheme").GetString().Should().Be("http",
             because: "the target URL scheme should be surfaced for protocol diagnostics");
+        root.GetProperty("transport").GetProperty("targetPath").GetString().Should().Be("/api/backoffice/me",
+            because: "path-only diagnostics help explain the target without leaking the full internal URL");
     }
 
     [Fact]
@@ -799,8 +803,12 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             because: "when BUSINESSAPP_BACKCHANNEL_URL is not set and the URL is a Codespaces tunnel, transport should be public-tunnel");
         root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeFalse(
             because: "backchannelPresent should be false when BUSINESSAPP_BACKCHANNEL_URL is not set");
+        root.GetProperty("transport").GetProperty("usingBackchannel").GetBoolean().Should().BeFalse(
+            because: "the response should make it obvious when the backchannel was not used");
         root.GetProperty("transport").GetProperty("transportBaseUrl").GetString().Should().Be("https://codespace-7245.uks1.app.github.dev",
             because: "public URLs should not be masked since they are browser-visible anyway");
+        root.GetProperty("transport").GetProperty("targetPath").GetString().Should().Be("/api/backoffice/me",
+            because: "path-only diagnostics are safe and useful for tunnel troubleshooting");
     }
 
     [Fact]
@@ -844,7 +852,8 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     {
         Environment.SetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL", null);
         
-        var handler = new StubHttpMessageHandler(_ => throw new TaskCanceledException("Timeout"));
+        var handler = new StubHttpMessageHandler((_, _) =>
+            Task.FromCanceled<HttpResponseMessage>(new CancellationToken(canceled: true)));
 
         var controller = BuildController(
             handler,
@@ -863,12 +872,99 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
 
         root.GetProperty("statusCode").GetInt32().Should().Be(0);
         root.GetProperty("statusText").GetString().Should().Be("Timeout");
+        root.GetProperty("summary").GetString().Should().Contain("/api/backoffice/me",
+            because: "timeout summaries should name the targeted downstream path");
+        root.GetProperty("nextCheck").GetString().Should().Contain("BUSINESSAPP_BACKCHANNEL_URL",
+            because: "timeout guidance should point operators at the next relevant wiring check");
         root.GetProperty("transport").GetProperty("transport").GetString().Should().Be("public-tunnel",
             because: "timeout diagnostics should surface whether backchannel was used");
         root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeFalse(
             because: "knowing backchannel wasn't configured helps triage public tunnel timeout issues");
+        root.GetProperty("transport").GetProperty("targetPath").GetString().Should().Be("/api/backoffice/me",
+            because: "timeout diagnostics should surface the targeted path");
+        root.GetProperty("timeout").GetProperty("timedOutByUs").GetBoolean().Should().BeTrue(
+            because: "a downstream TaskCanceledException from the controller-owned HTTP timeout should be reported as a timeout");
+        root.GetProperty("timeout").GetProperty("timeoutWindowMs").GetInt32().Should().Be(10000);
+        root.GetProperty("timeout").GetProperty("cancellationSource").GetString().Should().Be("request-timeout-window");
         root.GetProperty("body").GetString().Should().Contain("public Codespaces URL",
             because: "timeout hint should explain the public tunnel path when backchannel is not configured");
+        root.GetProperty("body").GetString().Should().Contain("Request timed out after 10 seconds.",
+            because: "timeout responses should clearly report the downstream deadline rather than looking like an arbitrary cancellation");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_IncludesMaskedInternalBackchannelTimeoutDiagnostics()
+    {
+        using var backchannel = new TempEnvVar("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+
+        var handler = new StubHttpMessageHandler((_, _) =>
+            Task.FromCanceled<HttpResponseMessage>(new CancellationToken(canceled: true)));
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+        var json = JsonSerializer.Serialize(ok.Value);
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(0);
+        root.GetProperty("statusText").GetString().Should().Be("Timeout");
+        root.GetProperty("url").GetString().Should().Be("https://codespace-7245.app.github.dev/api/backoffice/me",
+            because: "browser-visible diagnostics must keep the public URL even when transport uses the backchannel");
+        root.GetProperty("transport").GetProperty("transport").GetString().Should().Be("internal-backchannel");
+        root.GetProperty("transport").GetProperty("usingBackchannel").GetBoolean().Should().BeTrue();
+        root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeTrue();
+        root.GetProperty("transport").GetProperty("transportBaseUrl").GetString().Should().Be("http://localhost:****",
+            because: "internal timeout diagnostics must keep the backchannel masked");
+        root.GetProperty("transport").GetProperty("targetPath").GetString().Should().Be("/api/backoffice/me");
+        root.GetProperty("summary").GetString().Should().Contain("internal-backchannel");
+        root.GetProperty("timeout").GetProperty("timedOutByUs").GetBoolean().Should().BeTrue();
+        root.GetProperty("timeout").GetProperty("cancellationSource").GetString().Should().Be("request-timeout-window");
+        root.GetProperty("nextCheck").GetString().Should().Contain("BUSINESSAPP_BACKCHANNEL_URL",
+            because: "operators should be directed to the masked transport metadata and AppHost wiring instead of a raw internal port");
+        root.GetProperty("body").GetString().Should().Contain("internal backchannel");
+        root.GetProperty("body").GetString().Should().Contain("/api/backoffice/me");
+        json.Should().NotContain("5163",
+            because: "internal timeout diagnostics must not leak the raw backchannel port into browser-visible JSON");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_LabelsExternalCancellation_SeparatelyFromTimeoutWindow()
+    {
+        Environment.SetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL", null);
+
+        var handler = new StubHttpMessageHandler(_ => throw new TaskCanceledException("Cancelled"));
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusText").GetString().Should().Be("Cancelled",
+            because: "external cancellations should not be mislabeled as our timeout window");
+        root.GetProperty("timeout").GetProperty("timedOutByUs").GetBoolean().Should().BeFalse(
+            because: "the response should make it clear when our timeout window did not fire");
+        root.GetProperty("timeout").GetProperty("cancellationSource").GetString().Should().Be("external-cancellation",
+            because: "callers need a direct signal for non-timeout cancellations");
     }
 
     [Fact]
@@ -953,10 +1049,22 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         return controller;
     }
 
-    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> factory) : HttpMessageHandler
+    private sealed class StubHttpMessageHandler : HttpMessageHandler
     {
+        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _factory;
+
+        public StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> factory)
+            : this((request, _) => Task.FromResult(factory(request)))
+        {
+        }
+
+        public StubHttpMessageHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> factory)
+        {
+            _factory = factory;
+        }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(factory(request));
+            _factory(request, cancellationToken);
     }
 
     private sealed class TempEnvVar : IDisposable
