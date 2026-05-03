@@ -10,6 +10,25 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 
 ---
 
+## 2026-05-03: Startup Health-Check vs Forwarded URL Mismatch
+
+**Status:** ✅ Complete.
+
+**Change:** Added `forwardPorts` array to `.devcontainer/devcontainer.json` to pre-forward critical ports (3000, 15135, 44345, 7245, 8443) before health checks run.
+
+**Root cause:** Health checks probe localhost endpoints (e.g., `https://localhost:44345/api/prism/...`), which validate that the local service is running and responding correctly. However, they do **not** validate that the forwarded Codespaces URL exists or is serving content correctly. Port 44345 was declared in `portsAttributes` but **not** in `forwardPorts`, meaning it only forwarded after auto-detection. This created a timing gap where:
+- Health checks passed (localhost works)
+- Forwarded URL didn't exist yet or returned GitHub's "connecting..." tunnel page
+- Users clicking the forwarded URL got a download prompt or blank page
+
+**Fix:** Pre-forward all critical ports by adding them to the `forwardPorts` array. This ensures forwarded URLs exist from the start, eliminating the timing gap.
+
+**Learning:** Health checks validate the **localhost surface**, not the **forwarded surface**. When ports are declared in `portsAttributes` but not `forwardPorts`, Codespaces forwards them lazily after auto-detection, which can happen **after** health checks pass. Pre-forwarding critical ports ensures the user-facing URLs are ready when the status page says "ready".
+
+**Decision:** `📌 2026-05-03: Brewster — Pre-Forward Critical Ports in Codespaces` (decisions.md, IMPLEMENTED)
+
+---
+
 ## 2026-05-03: Status Server Missing After Codespace Resume
 
 **Status:** ✅ Complete.

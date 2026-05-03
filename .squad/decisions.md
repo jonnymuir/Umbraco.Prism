@@ -2250,3 +2250,74 @@ User reported: "TestSite is back up, but the Mock Business App call returns HTTP
 
 **Trade-off:** More diagnostic surface area = more attack surface. Keep Development-gated.
 
+---
+
+## 📌 2026-05-03: Brewster — Pre-Forward Critical Ports in Codespaces
+
+**Status:** ✅ IMPLEMENTED — Commit to `.devcontainer/devcontainer.json`
+
+### Summary
+
+Codespaces health checks reported "ready" but forwarded TestSite URL (port 44345) served GitHub tunnel 404 downloads. Root cause: ports declared in `portsAttributes` but not pre-forwarded, creating timing gap between localhost readiness and public URL availability.
+
+### Decision
+
+Added `"forwardPorts": [3000, 15135, 44345, 7245, 8443]` to `.devcontainer/devcontainer.json` to eagerly pre-forward all critical ports on container start, eliminating the timing gap.
+
+### Why Safe
+
+- Codespaces already declares these ports in `portsAttributes`
+- Pre-forwarding does not change health check logic (still probes localhost)
+- If localhost readiness passes, forwarded URLs now exist and should be available
+- Port 3000 (status page) was already implicitly forwarded via `"onAutoForward": "openBrowser"`
+
+### Rule Going Forward
+
+All critical Codespaces ports must be explicit in `forwardPorts` array to guarantee they exist before health checks run. This prevents misleading "ready" signals when user-facing forwarded URLs are not yet accessible.
+
+### Related Context
+
+- 2026-05-03: Tangy identified that health checks only verify localhost, not tunnel accessibility
+- 2026-05-03: Downstream demo HTML validation previously showed tunnel 404 as content success (now fixed)
+
+---
+
+## 📌 2026-05-03: Tangy — Health Checks Must Verify Tunnel Accessibility
+
+**Status:** 🔵 PROPOSED — Diagnostic finding from live Codespaces reproduction
+
+### Summary
+
+Health check script (`scripts/codespaces/health-check.sh`) probes `curl https://localhost:{port}` which succeeds when app is running locally, but **does not verify** that forwarded Codespaces URLs are publicly accessible. Live test on 2026-05-03 showed:
+- Port 44345 localhost check: ✅ HTTP 200
+- Port 44345 forwarded URL: ❌ HTTP 404 (tunnel-level, not app-level)
+
+This creates a **false positive** — startup page reports "ready" while public URL is inaccessible.
+
+### Decision
+
+Health checks in Codespaces must verify **both** internal and tunnel surfaces:
+
+1. **Internal readiness** — `curl https://localhost:{port}` confirms app is listening
+2. **Tunnel accessibility** — Test the actual forwarded URL (via `gh codespace ports --json` or `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN`)
+
+If tunnel-level check fails, status page must report port as "not publicly accessible" with actionable guidance (e.g., "Port 44345 is private. Make it public in the Ports panel.").
+
+### Implementation Guidance
+
+- Use `gh codespace ports --json sourcePort,browseUrl,visibility` to discover forwarded URLs and visibility
+- For each critical port, test both localhost and public `browseUrl`
+- Distinguish failures: localhost failure = service not started; tunnel failure = port not forwarded or misconfigured visibility
+
+### Rationale
+
+Users open forwarded URLs, not localhost. A health check that only tests localhost is incomplete and misleading. This is especially important in multi-tenant or demo scenarios where endpoint availability is a trust signal.
+
+### Affected Components
+
+- `scripts/codespaces/health-check.sh`
+- `scripts/startup-status/server.js` (status page backend)
+- `.devcontainer/on-start.sh` (readiness signaling)
+
+**Evidence:** Tangy's live session (2026-05-03 12:28:26 UTC+1)
+
