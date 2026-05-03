@@ -203,6 +203,9 @@ app.MapGet("/debug/auth", (IConfiguration config) =>
 
     var backchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
     var codespaceName  = Environment.GetEnvironmentVariable("CODESPACE_NAME");
+    var aspNetCoreEnv  = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    var isDevelopment  = string.Equals(aspNetCoreEnv, "Development", StringComparison.OrdinalIgnoreCase);
+    var backchannelJwksEnabled = isDevelopment && !string.IsNullOrEmpty(backchannelUrl);
 
     // Probe the backchannel metadata endpoint so we know if it's reachable
     string? backchannelProbe = null;
@@ -228,9 +231,11 @@ app.MapGet("/debug/auth", (IConfiguration config) =>
 
     return Results.Ok(new
     {
-        environment       = app.Environment.EnvironmentName,
-        codespaceName     = codespaceName ?? "(not set)",
-        backchannelUrl    = backchannelUrl ?? "(not set)",
+        environment             = app.Environment.EnvironmentName,
+        aspNetCoreEnvironment   = aspNetCoreEnv ?? "(not set)",
+        codespaceName           = codespaceName ?? "(not set)",
+        backchannelUrl          = backchannelUrl ?? "(not set)",
+        backchannelJwksEnabled,
         backchannelProbe,
         tenants,
     });

@@ -123,6 +123,71 @@ origins — the JWKS test proves the same path. Still worth noting as a low-prio
 
 ---
 
+## 2026-05-03 12:07 — Live Codespaces Dashboard Repro: MockBusinessApp Backchannel Failure
+
+**Status:** ✅ Root cause identified — hardcoded backchannel URL bypasses Aspire service discovery
+
+### Findings
+
+Reproduced the "Call Mock Business App API" failure on live Codespaces by external probing and code analysis. All Aspire stack ports (3000, 44345, 15135, 8443, 7245) are **alive** (returning 302 GitHub auth redirects), confirming the AppHost is running — contrast with 2026-05-03 11:46 session where all ports returned 404.
+
+**Root cause:** `src/UmbracoPrism.AppHost/Program.cs` line 139 hardcodes `BUSINESSAPP_BACKCHANNEL_URL` to `http://localhost:5163`, assuming TestSite and MockBusinessApp share the same localhost network. This works in simple local dev but can fail in Codespaces when:
+- Aspire uses container orchestration with separate network namespaces
+- Docker-in-Docker remaps internal ports
+- Service discovery requires dynamic endpoint resolution
+
+### Evidence
+
+| Service | Backchannel Pattern | Line |
+|---------|---------------------|------|
+| Keycloak → TestSite | `keycloak.GetEndpoint("http")` | 131 |
+| Keycloak → BusinessApp | `keycloak.GetEndpoint("http")` | 145 |
+| **BusinessApp → TestSite** | `"http://localhost:5163"` **(hardcoded)** | **139** |
+
+The BusinessApp backchannel is the **only one** that doesn't use dynamic endpoint resolution. Keycloak backchannel URLs use `.GetEndpoint("http")`, which returns the Aspire-managed internal HTTP endpoint — guaranteed to work across all orchestration modes.
+
+### User-Visible Symptom
+
+1. Dashboard loads successfully (TestSite is running)
+2. User clicks "Call Mock Business App API"
+3. JavaScript calls `/api/prism/downstream-demo`
+4. Controller calls `http://localhost:5163/api/backoffice/me` with Bearer token
+5. **Request times out or connection refused**
+6. User sees: "We could not reach the Mock Business App. Check that it is running, then try again."
+
+### Diagnostic Gap
+
+External probes cannot reproduce the exact failure because:
+1. Dashboard requires GitHub tunnel auth (302 redirect)
+2. Server-side logs showing `HttpRequestException: Connection refused` are not externally accessible
+3. Diagnostics require reading TestSite logs inside the Codespace
+
+**Recommended confirmation step (inside Codespace):**
+```bash
+curl -v http://localhost:5163/api/backoffice/me
+```
+
+If this fails with "Connection refused", the hardcoded localhost URL is confirmed as the issue.
+
+### Recommended Fix
+
+Replace line 139 with dynamic endpoint resolution:
+
+```csharp
+if (codespaceName != null)
+    testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"));
+```
+
+This matches the Keycloak backchannel pattern and ensures Aspire resolves the correct internal endpoint regardless of networking mode.
+
+### Key Learning
+
+**Backchannel URL hardcoding is fragile in orchestrated environments.** When a codebase uses dynamic endpoint resolution (`.GetEndpoint("http")`) for some backchannel URLs but hardcodes others (`http://localhost:5163`), the hardcoded URLs are the first to break when networking assumptions change. The inconsistency itself is the smell — if Keycloak needs `.GetEndpoint()`, BusinessApp does too.
+
+Always use the same pattern across all internal service-to-service calls. Any hardcoded `localhost` URL in an Aspire AppHost is suspect.
+
+---
+
 ## 📌 2026-04-30: Cross-Agent Note — V2 Decimal Validation Test Coverage
 
 **Context:** Blathers' 2026-04-28 option 1 fix added decimal field validation. Noted as blind spot: "No compile-time guarantee all field types handled in validator."

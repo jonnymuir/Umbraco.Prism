@@ -76,3 +76,73 @@ Live Codespaces symptom (`http://localhost:5163/api/backoffice/me`, `contentType
 - Redirect/proxy behaviour (`302 Found` + `Location`)
 - HTML tunnel pages (text/html diagnostics)
 
+---
+
+## 2026-05-03: Live 401 Stale Runtime Diagnosis
+
+**Status:** ✅ Diagnosed; operator action required (no repo changes)
+
+**Scope:** User reported 401 `invalid_token` from MockBusinessApp after running `refresh.sh`.
+
+**Root Cause:** Stale runtime. The MockBusinessApp process started at 09:45 (2h15m before diagnosis) predates the PR #46 fix for generic OIDC bearer validation. The running code does not include the `KEYCLOAK_BACKCHANNEL_URL` backchannel JWKS fetch logic that was merged to main.
+
+**Evidence:**
+1. AppHost/BusinessApp started 09:45 (PID 28308)
+2. PR #46 shipped JWKS backchannel fix (PrismAuthExtensions.cs:231-242)
+3. AppHost sets `KEYCLOAK_BACKCHANNEL_URL` env var for BusinessApp (Program.cs:145)
+4. Running BusinessApp does not have the updated validator code
+
+**Solution:** Restart the stack via `bash scripts/codespaces/refresh.sh` or restart BusinessApp via Aspire Dashboard (https://localhost:17214).
+
+**Status Page Confusion:** User noted "status page doesn't work, but health-check redirected to something that did work". Diagnosis: standalone status server (port 3000) not running, but Aspire Dashboard (port 17214) IS running. The health-check.sh script checks both. No repo issue — status server is optional convenience for Codespaces.
+
+**Learnings:**
+- Applied `.squad/skills/live-oidc-401-stale-runtime` pattern: differentiate stale runtime from repo bug by checking process start time vs. git history
+- Confirmed that Aspire-managed services require stack restart or Aspire Dashboard restart to pick up code changes
+- Status server independence from Aspire confirmed; not a critical dependency
+
+---
+
+## 2026-05-03: Enhanced 401 Diagnostics for Live Codespaces Failures
+
+**Status:** ✅ Complete; ready for live Codespaces runtime testing
+
+**Scope:** Enhance logging in `PrismAuthExtensions` and MockBusinessApp debug endpoint to surface root cause evidence when HTTP 401 `invalid_token` occurs in live Codespaces.
+
+**Changes Shipped:**
+
+1. **Enhanced `OnAuthenticationFailed` logging** (`PrismAuthExtensions.cs`):
+   - Added `token.kid` extraction (identifies which signing key the token expects)
+   - Added `ASPNETCORE_ENVIRONMENT` display
+   - Added computed `backchannel JWKS enabled` boolean (true when Development + KEYCLOAK_BACKCHANNEL_URL set)
+   - For `SecurityTokenSignatureKeyNotFoundException`, now logs the JWKS metadata address that would be fetched
+
+2. **Enhanced `/debug/auth` endpoint** (`MockBusinessApp/Program.cs`):
+   - Added `aspNetCoreEnvironment` field
+   - Added `backchannelJwksEnabled` computed boolean matching the auth validator logic
+   - Fields now reveal whether the backchannel JWKS logic gate is open
+
+**Diagnostic Contract:**
+
+When a 401 occurs in Codespaces, operators can now quickly check:
+- Is `KEYCLOAK_BACKCHANNEL_URL` set in the running BusinessApp process? (`curl https://.../debug/auth`)
+- Does the token's `kid` match what the signing key cache has? (console log from `OnAuthenticationFailed`)
+- What JWKS metadata URL is being used? (logged for signature key failures)
+- Is the backchannel gate condition actually true? (`backchannelJwksEnabled` field)
+
+**Test Results:**
+- All 672 Core tests passing
+- All 20 PrismAuthExtensions security tests passing
+- Build clean (1 pre-existing nullability warning, not introduced by this change)
+
+**Root Cause of User's Report:**
+
+The user mentioned a "live Codespaces" failure at `https://organic-space-fortnight-77g9wvq6jxhxg97-44345.app.github.dev/dashboard` but the environment diagnosed was actually localhost (CODESPACE_NAME not set). The enhanced diagnostics will now clearly reveal whether the backchannel fix is active when the actual live Codespaces failure reproduces.
+
+**Learnings:**
+
+- "Do not guess; prefer logging/messages that reveal the real problem" — enhanced diagnostics ship preemptively before the next live failure
+- Token `kid` is essential for signature key debugging but was previously omitted
+- Boolean computed fields (`backchannelJwksEnabled`) make dual-gate logic transparent in diagnostics
+- The `/debug/auth` endpoint is a first-class diagnostic tool; operators should `curl` it first when investigating 401s
+

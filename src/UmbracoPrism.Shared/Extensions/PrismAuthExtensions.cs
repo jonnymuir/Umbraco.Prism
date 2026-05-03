@@ -29,6 +29,7 @@ public static class PrismAuthExtensions
                         // Decode token header only (no signature validation) for diagnostic output.
                         string? tokenIssuer = null;
                         string? tokenAzp = null;
+                        string? tokenKid = null;
                         var rawToken = context.Request.Headers.Authorization.FirstOrDefault()
                             ?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
                             ? context.Request.Headers.Authorization.First()["Bearer ".Length..]
@@ -40,6 +41,14 @@ public static class PrismAuthExtensions
                                 var parts = rawToken.Split('.');
                                 if (parts.Length >= 2)
                                 {
+                                    // Extract kid from header
+                                    var headerPad = (4 - parts[0].Length % 4) % 4;
+                                    var headerJson = System.Text.Encoding.UTF8.GetString(
+                                        Convert.FromBase64String(parts[0].Replace('-', '+').Replace('_', '/') + new string('=', headerPad)));
+                                    using var headerDoc = System.Text.Json.JsonDocument.Parse(headerJson);
+                                    if (headerDoc.RootElement.TryGetProperty("kid", out var kidProp))
+                                        tokenKid = kidProp.GetString();
+                                    
                                     var pad = (4 - parts[1].Length % 4) % 4;
                                     var payloadJson = System.Text.Encoding.UTF8.GetString(
                                         Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/') + new string('=', pad)));
@@ -58,12 +67,35 @@ public static class PrismAuthExtensions
                             .Where(t => !string.IsNullOrWhiteSpace(t.OidcAuthority))
                             .Select(t => t.OidcAuthority!) ?? [];
                         var backchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                        var aspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                        var isDevelopment = string.Equals(aspNetCoreEnv, "Development", StringComparison.OrdinalIgnoreCase);
 
                         Console.WriteLine($"[PRISM AUTH FAILED] {context.Exception.GetType().Name}: {context.Exception.Message}");
                         Console.WriteLine($"  token.iss : {tokenIssuer ?? "(none/unparseable)"}");
                         Console.WriteLine($"  token.azp : {tokenAzp ?? "(none)"}");
+                        Console.WriteLine($"  token.kid : {tokenKid ?? "(none)"}");
                         Console.WriteLine($"  configured OidcAuthorities : {(configuredAuthorities.Any() ? string.Join(", ", configuredAuthorities) : "(none)")}");
+                        Console.WriteLine($"  ASPNETCORE_ENVIRONMENT : {aspNetCoreEnv ?? "(not set)"}");
                         Console.WriteLine($"  KEYCLOAK_BACKCHANNEL_URL : {backchannelUrl ?? "(not set)"}");
+                        Console.WriteLine($"  backchannel JWKS enabled : {(isDevelopment && !string.IsNullOrEmpty(backchannelUrl) ? "YES" : "NO")}");
+                        
+                        // For generic OIDC failures with no signing keys, log the metadata address that would be used
+                        if (context.Exception is SecurityTokenSignatureKeyNotFoundException && !string.IsNullOrWhiteSpace(tokenIssuer))
+                        {
+                            var oidcTenant = tenants?.FirstOrDefault(t =>
+                                !string.IsNullOrWhiteSpace(t.OidcAuthority) &&
+                                string.Equals(t.OidcAuthority.TrimEnd('/'), tokenIssuer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+                            
+                            if (oidcTenant != null)
+                            {
+                                var cacheKey = oidcTenant.OidcAuthority!.TrimEnd('/');
+                                var metadataAddress = isDevelopment && !string.IsNullOrEmpty(backchannelUrl)
+                                    ? $"{backchannelUrl.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
+                                    : $"{cacheKey}/.well-known/openid-configuration";
+                                Console.WriteLine($"  JWKS metadata address : {metadataAddress}");
+                            }
+                        }
+                        
                         return Task.CompletedTask;
                     }
                 };

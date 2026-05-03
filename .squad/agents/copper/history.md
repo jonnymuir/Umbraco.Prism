@@ -75,3 +75,71 @@ This agent specializes in security engineering, threat modeling, and bedrock inv
 7. JWT issuer/audience strings sourced from configured authority, never from request
 
 **Review discipline:** Pre-merge security assessment on all PRs touching auth, OIDC, cryptography, or infrastructure.
+
+## 2026-05-03 — MockBusinessApp 401 Invalid Token Investigation
+
+**Date:** 2026-05-03  
+**Context:** User reported TestSite is back up but downstream call to MockBusinessApp returns `HTTP 401 Unauthorized` with `WWW-Authenticate: Bearer error="invalid_token"`.
+
+### Investigation
+
+**Scope:** Reviewed downstream token trust chain, identified most likely root cause, determined stale runtime vs code-side validation mismatch.
+
+**Key Findings:**
+
+1. **Stale Runtime Confirmed (HIGH CONFIDENCE)**
+   - Aspire MockBusinessApp (PID 28308, port 7245): Started 09:45:37, running 2h+ at investigation time
+   - TestSite: Recently restarted (user confirmed "back up")
+   - Last auth code change: bf1c6e7 (2026-05-02 11:23:54) — 24+ hours before investigation
+   - Classic pattern: TestSite restarted → fresh runtime; MockBusinessApp NOT restarted → stale runtime
+
+2. **Token Trust Chain Verified (Code-Side)**
+   - Browser → Keycloak HTTPS proxy (`https://localhost:8443/realms/prism-dev`)
+   - Token issued with `iss: "https://localhost:8443/realms/prism-dev"`
+   - MockBusinessApp `appsettings.json` OidcAuthority: `"https://localhost:8443/realms/prism-dev"` ✅
+   - ClientId: `"prism-client"` ✅
+   - Issuer validator (line 115-126) matches token issuer against `t.OidcAuthority` ✅
+   - Audience validator (line 146-163) accepts `aud` OR `azp` claim (Keycloak pattern) ✅
+
+3. **Backchannel JWKS Fetch Pattern Verified**
+   - `KEYCLOAK_BACKCHANNEL_URL` only set in Codespaces (AppHost line 145)
+   - Local dev: MockBusinessApp fetches JWKS from HTTPS proxy (correct)
+   - Keycloak HTTP backchannel advertises `http://localhost:8080/realms/prism-dev` as issuer
+   - Keycloak HTTPS proxy advertises `https://localhost:8443/realms/prism-dev` as issuer
+   - Code correctly separates issuer validation (uses `OidcAuthority` config) from JWKS fetch (uses backchannel when set)
+
+4. **Manual Fresh Instance Detected**
+   - User started manual MockBusinessApp on port 9245 at 12:02 with `KEYCLOAK_BACKCHANNEL_URL` set
+   - Matches "live-oidc-401-stale-runtime" skill pattern: fresh comparison instance
+
+### Recommendation
+
+**Primary:** Restart MockBusinessApp Aspire resource (port 7245) to pick up current runtime state.
+
+**If restart doesn't fix:**
+- Real code-side issue (issuer/audience/signing key mismatch)
+- Check `OnAuthenticationFailed` console diagnostics (PrismAuthExtensions.cs lines 27-68) for actual token `iss`/`azp` vs configured authorities
+- Verify token is actually reaching MockBusinessApp (not being stripped by middleware)
+
+### Missing Diagnostics
+
+**Console output from MockBusinessApp's OnAuthenticationFailed handler would materially improve this failure mode:**
+- Actual token `iss` claim
+- Actual token `azp` claim  
+- Configured `OidcAuthorities` from appsettings
+- `KEYCLOAK_BACKCHANNEL_URL` env var status
+
+**Current diagnostics are good** (lines 27-68), but user didn't provide the output. If stale runtime is ruled out, these logs are the next step.
+
+### Relevant Skills Applied
+
+- `.squad/skills/live-oidc-401-stale-runtime/SKILL.md` — Pattern matched: persistent 401 after partial stack restart
+- `.squad/skills/generic-oidc-downstream-bearer-validation/SKILL.md` — Verified trust chain, issuer/audience validators, azp claim handling
+
+### Learnings
+
+1. **Aspire child processes can outlive parent orchestrator restarts** — TestSite restart doesn't guarantee MockBusinessApp restart
+2. **Keycloak backchannel issuer mismatch is handled correctly** — Code separates issuer validation (config-sourced) from JWKS fetch (backchannel-aware)
+3. **OnAuthenticationFailed diagnostics are good but need to be surfaced** — User didn't provide console output; consider logging to structured sink or test harness
+4. **Manual fresh instance is a strong signal** — User started port 9245 comparison instance; suggests they're following the "stale runtime" skill pattern
+
