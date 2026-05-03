@@ -184,3 +184,8 @@ Documented operational pattern: Always restart Aspire stack after pulling auth-r
 - Brewster fixed Codespaces URL printing
 - User directives: diagnose before fixing; use actual runtime failure, not assumptions
 
+
+---
+
+**2026-05-03T11:58:20Z:** Dispatched as Blathers-18 — Diagnose MockBusinessApp 401 path (agent: Blathers). Concluded: localhost:5163 is expected backchannel hop; stale runtime or closed gate suspected; no code changes; build and core tests passed. Evidence: backchannel connectivity verified, seed contract gates all four workflow pages correctly, no security token rejection.
+

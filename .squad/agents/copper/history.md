@@ -186,3 +186,8 @@ All code-side authentication components correct:
 - Brewster: Fixed Codespaces URL regression
 - User directive: Diagnose against actual failing runtime (live Codespaces), not assumptions
 
+
+---
+
+**2026-05-03T11:58:20Z:** Dispatched as Copper-6 — Security-review downstream token rejection (agent: Copper). Concluded: real downstream bearer-token rejection at MockBusinessApp; no code changes required. Evidence gaps noted: missing /debug/auth output, PRISM AUTH FAILED log block, and runtime build/start evidence to be collected next session. Core tests passing.
+

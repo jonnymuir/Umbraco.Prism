@@ -2321,3 +2321,19 @@ Users open forwarded URLs, not localhost. A health check that only tests localho
 
 **Evidence:** Tangy's live session (2026-05-03 12:28:26 UTC+1)
 
+
+---
+
+## 📌 2026-05-03: User Directive — Hypothesis Proof Before Fixes
+
+**Status:** ✅ POLICY RECORDED
+
+**By:** Jonny Muir (via Copilot)
+
+**Directive:** Diagnose and obtain hypothesis proof in logs, responses, or other appropriate evidence before proposing a fix. Prefer proof over guessing.
+
+**Rationale:** Evidence-driven problem-solving prevents thrashing on incorrect hypotheses and accelerates root-cause convergence.
+
+**Application:** Team commits to this discipline when assigned diagnostic or remediation tasks.
+
+---

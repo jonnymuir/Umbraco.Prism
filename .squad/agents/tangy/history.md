@@ -86,3 +86,8 @@ Full network capture and analysis: `codespaces-port-mismatch-evidence.md`
 
 Recommendation: Enhanced health checks should verify both internal (localhost) and external (forwarded URL) surfaces. Uses `gh codespace ports` to discover and test forwarded URLs and visibility. Complements Brewster's pre-forwarding fix.
 
+
+---
+
+**2026-05-03T11:58:20Z:** Dispatched as Tangy-8 — Reproduce dashboard and debug evidence path (agent: Tangy). Concluded: localhost:5163 is expected internal hop; minimal UX-only improvement made to messaging for operators (indicate localhost is internal, prompt refresh + /debug/auth if 401 persists); targeted dashboard tests and full core tests passed; no regressions.
+
