@@ -55,12 +55,36 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/api/backoffice/me", StringComparison.OrdinalIgnoreCase))
+    {
+        app.Logger.LogInformation(
+            "BusinessApp arrival before auth: {Method} {Path} trace={TraceIdentifier} authHeaderPresent={AuthHeaderPresent} callerTraceId={CallerTraceId}",
+            ctx.Request.Method,
+            ctx.Request.Path.Value ?? "/",
+            ctx.TraceIdentifier,
+            ctx.Request.Headers.ContainsKey("Authorization"),
+            GetCallerTraceId(ctx.Request));
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 
-app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =>
+app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, ILogger<Program> logger) =>
 {
+    logger.LogInformation(
+        "BusinessApp handler entry: {Method} {Path} trace={TraceIdentifier} authHeaderPresent={AuthHeaderPresent} callerTraceId={CallerTraceId} userAuthenticated={UserAuthenticated}",
+        context.Request.Method,
+        context.Request.Path.Value ?? "/",
+        context.TraceIdentifier,
+        context.Request.Headers.ContainsKey("Authorization"),
+        GetCallerTraceId(context.Request),
+        user.Identity?.IsAuthenticated ?? false);
 
     var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
 
@@ -674,6 +698,20 @@ app.MapPut("/admin/workflow/definition/{key}", async (string key, HttpContext ct
 });
 
 app.Run();
+
+static string GetCallerTraceId(HttpRequest request)
+{
+    if (request.Headers.TryGetValue("X-Prism-Caller-TraceId", out var values))
+    {
+        var callerTraceId = values.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(callerTraceId))
+        {
+            return callerTraceId;
+        }
+    }
+
+    return "absent";
+}
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);
 

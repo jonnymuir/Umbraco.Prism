@@ -41,6 +41,7 @@ public class DownstreamDemoController(
     private const int DownstreamTimeoutSeconds = 10;
     private const int DownstreamTimeoutMs = DownstreamTimeoutSeconds * 1000;
     private const string DiagnosticBodyTruncationNotice = "\n\n[Response body truncated for display.]";
+    private const string CallerTraceIdHeaderName = "X-Prism-Caller-TraceId";
     private static readonly JsonSerializerOptions PrettyPrint = new() { WriteIndented = true };
 
     [HttpGet]
@@ -71,6 +72,7 @@ public class DownstreamDemoController(
 
         var targetUrl = BuildTargetUrl(url);
         var transportDiagnostics = BuildTransportDiagnostics(targetUrl);
+        var callerTraceId = GetCallerTraceId();
 
         var sw = Stopwatch.StartNew();
         try
@@ -91,10 +93,11 @@ public class DownstreamDemoController(
                 var diagnosticBody = CreateDiagnosticBody(response, contentType, rawBody, out var diagnosticBodyTruncated);
 
                 logger.LogWarning(
-                    "Downstream demo received non-JSON response from {TargetUrl}. HTTP {StatusCode} {ReasonPhrase}; content-type {ContentType}; transport {Transport}; backchannel {Backchannel}; headers {Headers}; bodyLength {BodyLength}",
+                    "Downstream demo received non-JSON response from {TargetUrl}. HTTP {StatusCode} {ReasonPhrase}; callerTraceId {CallerTraceId}; content-type {ContentType}; transport {Transport}; backchannel {Backchannel}; headers {Headers}; bodyLength {BodyLength}",
                     targetUrl,
                     (int)response.StatusCode,
                     response.ReasonPhrase ?? response.StatusCode.ToString(),
+                    callerTraceId,
                     contentType,
                     transportDiagnostics.Transport,
                     transportDiagnostics.BackchannelPresent,
@@ -151,9 +154,10 @@ public class DownstreamDemoController(
 
             logger.LogWarning(
                 ex,
-                "Downstream demo request did not complete calling {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}; TargetPath: {TargetPath}; TransportBaseUrl: {TransportBaseUrl}; Cancellation source: {CancellationSource}",
+                "Downstream demo request did not complete calling {TargetUrl} after {ElapsedMs}ms. CallerTraceId: {CallerTraceId}; Transport: {Transport}; Backchannel present: {BackchannelPresent}; TargetPath: {TargetPath}; TransportBaseUrl: {TransportBaseUrl}; Cancellation source: {CancellationSource}",
                 targetUrl,
                 sw.ElapsedMilliseconds,
+                callerTraceId,
                 transportDiagnostics.Transport,
                 transportDiagnostics.BackchannelPresent,
                 transportDiagnostics.TargetPath,
@@ -195,9 +199,10 @@ public class DownstreamDemoController(
             sw.Stop();
             logger.LogWarning(
                 ex,
-                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}; TargetPath: {TargetPath}; TransportBaseUrl: {TransportBaseUrl}",
+                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms. CallerTraceId: {CallerTraceId}; Transport: {Transport}; Backchannel present: {BackchannelPresent}; TargetPath: {TargetPath}; TransportBaseUrl: {TransportBaseUrl}",
                 targetUrl,
                 sw.ElapsedMilliseconds,
+                callerTraceId,
                 transportDiagnostics.Transport,
                 transportDiagnostics.BackchannelPresent,
                 transportDiagnostics.TargetPath,
@@ -336,6 +341,7 @@ public class DownstreamDemoController(
         var client = httpClientFactory.CreateClient("prism-downstream-demo");
         using var request = new HttpRequestMessage(HttpMethod.Get, targetUrl);
         request.Headers.Authorization = authHeader;
+        request.Headers.TryAddWithoutValidation(CallerTraceIdHeaderName, GetCallerTraceId());
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(DownstreamTimeoutSeconds));
 
         try
@@ -355,6 +361,8 @@ public class DownstreamDemoController(
         return environment.IsDevelopment()
             || configuration.GetValue<bool>("Prism:EnableDownstreamDemo", false);
     }
+
+    private string GetCallerTraceId() => HttpContext?.TraceIdentifier ?? "unknown";
 
     private TransportDiagnostics BuildTransportDiagnostics(string targetUrl)
     {

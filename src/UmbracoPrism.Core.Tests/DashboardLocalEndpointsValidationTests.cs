@@ -132,6 +132,40 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     }
 
     [Fact]
+    public async Task DownstreamDemo_ForwardsCallerTraceIdHeader_ToBusinessApp()
+    {
+        const string traceIdentifier = "trace-dashboard-001";
+        string? forwardedTraceId = null;
+
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            request.Headers.TryGetValues("X-Prism-Caller-TraceId", out var values);
+            forwardedTraceId = values?.SingleOrDefault();
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            };
+        });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true,
+            traceIdentifier: traceIdentifier);
+
+        var result = await controller.Get();
+
+        result.Should().BeOfType<OkObjectResult>();
+        forwardedTraceId.Should().Be(traceIdentifier,
+            because: "MockBusinessApp arrival logs need a safe correlation hint that matches TestSite logs");
+    }
+
+    [Fact]
     public async Task DownstreamDemo_Blocks_WhenNotInDevelopmentAndNotExplicitlyEnabled()
     {
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -1004,7 +1038,8 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         AuthenticationHeaderValue? authHeader,
         bool isDevelopment = true,
         AuthenticateResult? authResult = null,
-        PrismTenant? tenant = null)
+        PrismTenant? tenant = null,
+        string? traceIdentifier = null)
     {
         var client = new HttpClient(handler);
         var clientFactory = new Mock<IHttpClientFactory>();
@@ -1038,12 +1073,19 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult ?? AuthenticateResult.NoResult()))
             .BuildServiceProvider();
 
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = services
+        };
+
+        if (!string.IsNullOrWhiteSpace(traceIdentifier))
+        {
+            httpContext.TraceIdentifier = traceIdentifier;
+        }
+
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext
-            {
-                RequestServices = services
-            }
+            HttpContext = httpContext
         };
 
         return controller;
