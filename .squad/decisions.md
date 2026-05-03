@@ -2037,3 +2037,33 @@ When `Umbraco:CMS:Imaging:HMACSecretKey` drift occurs in tracked `appsettings.js
 
 **Source:** User request (Jonny Muir via Copilot).
 
+
+---
+
+## 📌 2026-05-03: Brewster — Print Full Status Page URL on Startup
+
+**Status:** ✅ IMPLEMENTED; `.devcontainer/on-start.sh` updated; CODESPACES.md refreshed.
+
+**Summary:** Status server startup now prints the full forwarded URL (Codespaces browseUrl or localhost fallback) instead of generic "open port 3000" instruction.
+
+**Decision**
+
+When the startup status server successfully starts, print the full forwarded URL:
+
+- **In Codespaces:** calls `get_codespace_url 3000` to resolve `browseUrl` via `gh codespace ports`, with fallback to legacy `{CODESPACE_NAME}-3000.{DOMAIN}` pattern.
+- **Locally (non-Codespaces):** prints `http://localhost:3000`.
+
+**Rationale**
+
+Port 3000 is pre-declared in `devcontainer.json` as a forwarded public port (`onAutoForward: openBrowser`), so Codespaces registers it before status server starts. `CODESPACE_PORTS_JSON` (fetched at script start) reliably contains the `browseUrl`. The `get_codespace_url()` helper already handles both regional opaque-token and legacy name-based schemes.
+
+**Impact**
+
+- Terminal output becomes a clickable link in VS Code / Codespaces terminals
+- No behaviour change for local development
+- CODESPACES.md "Useful tips" section updated
+
+**Basis**
+
+Brewster's commit 1633f73; inbox decision.
+
