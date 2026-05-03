@@ -242,3 +242,251 @@ Diagnosis complete. Recommend **Option A** (separate transport and display URLs)
 
 ---
 
+---
+date: 2026-05-03T18:24:57.531+01:00
+author: Scribe
+status: COMPLETE
+---
+
+# Cleanup: Stray Diagnosis Artifact Consolidated
+
+## Action
+
+Deleted `.squad/agents/tangy/diagnosis-mockbiz-timeout.md` — an untracked artifact that was already fully consolidated into `.squad/decisions.md`.
+
+## Context
+
+The Tangy diagnosis on the MockBusinessApp timeout was merged into the decisions file with date 2026-05-03T18:12:37.055+01:00. The original markdown file remained in the worktree as untracked. The diagnostic content (contract violations, root cause analysis, test gaps, fix options) is complete in decisions.md; the artifact file was redundant.
+
+## Decision
+
+Stray diagnostic files that have been consolidated into `.squad/decisions.md` should be deleted to keep the `.squad/` directory authoritative and avoid confusion. The decisions file is the source of truth; temporary diagnostic artifacts don't need to be retained once merged.
+
+## Result
+
+Worktree is clean. `main` is up to date with origin.
+---
+date: 2026-05-03T18:29:38.303+01:00
+author: Blathers
+status: implemented
+area: api-contracts, codespaces, url-separation
+---
+
+# Transport URLs vs Display URLs: Separate Concerns in API Responses
+
+## Context
+
+The DownstreamDemoController uses `BUSINESSAPP_BACKCHANNEL_URL` for server-to-server calls to optimize transport in Codespaces (bypassing the GitHub port-forwarding proxy). However, the controller was returning this internal URL in the JSON response to the browser, causing user confusion and perceived failures.
+
+**Symptom:** Users saw `http://localhost:5163/api/backoffice/me` displayed in the dashboard, which timed out because that port is unreachable from the browser. In Codespaces, only port 7245 (HTTPS) is forwarded for browser access.
+
+## Decision
+
+**API responses must separate transport URLs from display URLs.**
+
+When a backchannel URL is configured for server-to-server efficiency:
+1. Use the backchannel URL for the actual HTTP call (transport layer)
+2. Transform it to the public URL before returning in the response (display layer)
+
+This separation ensures:
+- Server-side calls remain efficient (use internal HTTP endpoints)
+- Browser-facing responses show reachable URLs (use public HTTPS endpoints)
+
+## Implementation
+
+Added to `DownstreamDemoController.cs`:
+
+```csharp
+private string ResolveBusinessAppDisplayBaseUrl()
+{
+    var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+    return baseUrl;
+}
+
+private string TransformToDisplayUrl(string transportUrl)
+{
+    var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+    if (string.IsNullOrWhiteSpace(backchannelUrl))
+        return transportUrl;
+
+    if (!transportUrl.StartsWith(backchannelUrl, StringComparison.OrdinalIgnoreCase))
+        return transportUrl;
+
+    var displayBaseUrl = ResolveBusinessAppDisplayBaseUrl();
+    return displayBaseUrl + transportUrl.Substring(backchannelUrl.Length);
+}
+```
+
+All response returns now use `TransformToDisplayUrl(targetUrl)` instead of bare `targetUrl`.
+
+## Test Contract
+
+Updated `DashboardLocalEndpointsValidationTests.cs`:
+
+```csharp
+[Fact]
+public async Task DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport()
+{
+    // ... setup ...
+    
+    // Backend uses backchannel for transport efficiency
+    capturedRequestUri.Should().Be(new Uri("http://localhost:5163/api/backoffice/me"));
+    
+    // But response to browser uses public URL
+    root.GetProperty("url").GetString().Should().Be(
+        "https://codespace-7245.app.github.dev/api/backoffice/me",
+        because: "browser-facing URLs must be publicly accessible");
+}
+```
+
+This test validates the contract: transport uses backchannel, response shows public URL.
+
+## Why This Matters
+
+1. **User Experience:** Users see URLs they can actually reach, not internal addresses
+2. **Codespaces-Critical:** Port forwarding rules make public vs internal URLs non-negotiable
+3. **Security Posture:** Don't expose internal routing details (ports, HTTP vs HTTPS) to the browser
+4. **Test Contracts:** Codify that transport optimization doesn't leak into UI concerns
+
+## Alternatives Considered
+
+**Alternative 1: Don't use backchannel URLs**  
+Rejected: The backchannel pattern is valid for server-to-server efficiency in Codespaces; the fix is in response transformation, not transport choice.
+
+**Alternative 2: Add separate `displayUrl` field**  
+Acceptable but more complex: Would require UI updates and adds redundancy. Transforming the existing `url` field is simpler and clearer.
+
+**Alternative 3: Document that `url` shows internal address**  
+Rejected: Users expect displayed URLs to be reachable. This would violate the principle of least surprise.
+
+## References
+
+- Implementation: PR #48 (`squad/fix-browser-url-leak`)
+- Commit: `6774c55`
+- Test: `DashboardLocalEndpointsValidationTests.DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport`
+- Prior diagnosis: `.squad/agents/blathers/history.md` — "MockBusinessApp API Demo Timeout"
+- Related decision: `.squad/decisions.md` — "Browser-Facing API Responses Must Not Expose Internal Backchannel URLs"
+---
+date: 2026-05-03T18:29:38.303+01:00
+author: Tangy
+status: implemented
+area: testing, playwright, browser-contracts
+---
+
+# Browser-Level Regression Test for Backchannel URL Visibility
+
+## Context
+
+Following Blathers' implementation of `TransformToDisplayUrl()` in `DownstreamDemoController` (commit `6774c55`), added Playwright test coverage to ensure the browser-facing contract is enforced at the user experience level.
+
+The unit test validates the controller logic, but doesn't exercise the full browser → server → response → DOM rendering path. A Playwright test completes the coverage by validating what users actually see.
+
+## Decision
+
+**Add browser-level assertion to `callBusinessAppApi()` in Playwright test suite.**
+
+The test validates the URL displayed in element `#api-url-label` after clicking "Call Mock Business App API" in the member dashboard.
+
+## Implementation
+
+Updated `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`:
+
+```typescript
+async function callBusinessAppApi(page: Page): Promise<void> {
+  // ... existing setup and success assertions ...
+  
+  // Contract: Browser-facing API responses must not expose internal backchannel URLs
+  const displayedUrl = await apiUrl.textContent();
+  expect(displayedUrl).not.toContain(':5163', 
+    'displayed URL must not expose the internal backchannel port 5163');
+  expect(displayedUrl).toContain('https://localhost:7245',
+    'displayed URL must show the public-facing HTTPS endpoint');
+}
+```
+
+## Why This Matters
+
+1. **Full-stack validation**: Unit tests validate controller logic; Playwright validates the complete user experience
+2. **Behavior-level contract**: Test what users see, not just what the code does
+3. **Regression prevention**: This test would have caught the original bug where `localhost:5163` leaked to the dashboard
+4. **Environment coverage**: Works in both localhost and Codespaces contexts
+
+## Test Results
+
+- **All 25 unit tests pass**: `DashboardLocalEndpointsValidationTests`
+- **Playwright test updated**: `localhost-auth-session.spec.ts` — `callBusinessAppApi()` function
+- **Commit**: `2ebec5a` on `squad/fix-browser-url-leak` branch
+
+## Coordination
+
+Worked in parallel with Blathers on the same feature branch:
+- Blathers: Controller fix + unit test (`6774c55`)
+- Tangy: Playwright contract test (`2ebec5a`)
+
+Clean commit history, no conflicts.
+
+## References
+
+- Commit: `2ebec5a` — "test: add browser-level contract for backchannel URL visibility"
+- Related decision: `blathers-mockbiz-browser-url-fix.md` (controller implementation)
+- Test file: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts`
+- History: `.squad/agents/tangy/history.md` — "Browser URL Leak Fix — Test Coverage"
+---
+date: 2026-05-03T18:29:38.303+01:00
+author: Blathers
+status: EXECUTED
+area: git-workflow, merge-strategy, release-notes
+---
+
+# PR #48 Merge Strategy — Preserve Commit History
+
+## Context
+
+PR #48 (`squad/fix-browser-url-leak`) contained two commits:
+1. `6774c55` — Core fix: Transform internal backchannel URLs to public URLs
+2. `2ebec5a` — Browser test: Add Playwright contract for URL visibility
+
+Both commits were release-note-relevant and addressed distinct concerns (implementation vs validation).
+
+## Decision
+
+**Merged PR #48 using `--merge` strategy to preserve the two separate commits in main.**
+
+Rationale:
+- Each commit addresses a distinct aspect (fix vs test coverage)
+- Release notes benefit from granular history
+- Git bisect operations benefit from separated concerns
+- Avoids squashing away test coverage commit into fix commit
+
+## Implementation
+
+```bash
+gh pr merge 48 --repo jonnymuir/Umbraco.Prism --merge --body "All checks passed. Merging to main."
+```
+
+Resulted in merge commit `0f79c12` on main, preserving both `6774c55` and `2ebec5a`.
+
+## CI Results
+
+All checks passed:
+- ✅ test (9 seconds)
+- ✅ core-tests (53 seconds)
+- ✅ storybook-tests (1m53s)
+- ✅ localhost-auth-playwright (15m32s)
+
+**Note:** Playwright tests with full Aspire + Keycloak + browser automation legitimately take 15+ minutes. This is expected behavior for integration tests with container orchestration and OIDC flows.
+
+## Local Sync
+
+After merge, synced local main:
+```bash
+git checkout main && git pull origin main
+```
+
+Local `.squad/` history files remained uncommitted (not mixed into product PR), preserving separation between product work and squad coordination files.
+
+## Consistency with PR #47
+
+This approach is consistent with PR #47 merge strategy (also used `--merge` to preserve dashboard + auth fix commits). Establishing this as the standard practice for PRs with multiple concerns.
