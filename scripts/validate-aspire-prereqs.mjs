@@ -35,7 +35,7 @@ if (!dockerResult.ok) {
 if (runLocalhostAuthSuite) {
   const requiredPorts = [
     ['Aspire dashboard', 17214],
-    ['Aspire dashboard HTTP', 15135],
+    ['Aspire dashboard HTTP (legacy)', 15135],
     ['Aspire dashboard OTLP', 21233],
     ['Aspire resource service', 22194],
     ['TestSite', 44345],

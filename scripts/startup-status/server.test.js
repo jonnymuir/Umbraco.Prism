@@ -63,7 +63,7 @@ describe('parseCodespacePorts', () => {
   test('parses all four service ports', () => {
     const json = JSON.stringify([
       { sourcePort: 3000,  browseUrl: 'https://tok-3000.eu.app.github.dev/' },
-      { sourcePort: 15135, browseUrl: 'https://tok-15135.eu.app.github.dev/' },
+      { sourcePort: 17214, browseUrl: 'https://tok-17214.eu.app.github.dev/' },
       { sourcePort: 44345, browseUrl: 'https://tok-44345.eu.app.github.dev/' },
       { sourcePort: 8443,  browseUrl: 'https://tok-8443.eu.app.github.dev/' },
     ]);
@@ -116,7 +116,7 @@ describe('deriveCodespacesUrl', () => {
 
   test('preserves regional suffix (.westeurope.app.github.dev)', () => {
     const result = deriveCodespacesUrl(
-      'https://tok-15135.westeurope.app.github.dev',
+      'https://tok-17214.westeurope.app.github.dev',
       44345,
     );
     assert.equal(result, 'https://tok-44345.westeurope.app.github.dev');
@@ -147,7 +147,7 @@ describe('makePublicUrl', () => {
   ]);
   const fullMap = new Map([
     [3000,  'https://abc123xyz-3000.northeurope.app.github.dev'],
-    [15135, 'https://abc123xyz-15135.northeurope.app.github.dev'],
+    [17214, 'https://abc123xyz-17214.northeurope.app.github.dev'],
     [44345, 'https://abc123xyz-44345.northeurope.app.github.dev'],
     [8443,  'https://abc123xyz-8443.northeurope.app.github.dev'],
     [7245,  'https://abc123xyz-7245.northeurope.app.github.dev'],
@@ -160,7 +160,7 @@ describe('makePublicUrl', () => {
 
   test('respects localScheme option for non-HTTPS services on localhost', () => {
     const publicUrl = makePublicUrl({ codespaceName: '', domain: 'app.github.dev', portUrls: new Map() });
-    assert.equal(publicUrl(15135, { localScheme: 'http' }), 'http://localhost:15135');
+    assert.equal(publicUrl(17214, { localScheme: 'https' }), 'https://localhost:17214');
   });
 
   test('returns exact URL from map when port is registered', () => {
@@ -169,11 +169,11 @@ describe('makePublicUrl', () => {
   });
 
   test('derives URL for unregistered port when any other port is known', () => {
-    // port 3000 is known; derive URLs for 44345, 8443, 7245, 15135
+    // port 3000 is known; derive URLs for 44345, 8443, 7245, 17214
     const publicUrl = makePublicUrl({ codespaceName: 'myspace', domain: 'app.github.dev', portUrls: regionalMap });
     assert.equal(publicUrl(44345), 'https://abc123xyz-44345.northeurope.app.github.dev');
     assert.equal(publicUrl(8443),  'https://abc123xyz-8443.northeurope.app.github.dev');
-    assert.equal(publicUrl(15135), 'https://abc123xyz-15135.northeurope.app.github.dev');
+    assert.equal(publicUrl(17214), 'https://abc123xyz-17214.northeurope.app.github.dev');
   });
 
   test('derived URLs preserve the regional domain suffix', () => {
@@ -203,7 +203,7 @@ describe('makePublicUrl', () => {
   test('all four service port URLs have https:// scheme in Codespaces', () => {
     // Guard: no URL should ever come back as https: (missing //) due to slash-stripping.
     const publicUrl = makePublicUrl({ codespaceName: 'myspace', domain: 'app.github.dev', portUrls: fullMap });
-    const ports = [15135, 44345, 8443, 7245];
+    const ports = [17214, 44345, 8443, 7245];
     for (const port of ports) {
       const url = publicUrl(port);
       assert.ok(url.startsWith('https://'), `port ${port} URL missing https:// — got: ${url}`);
@@ -215,7 +215,7 @@ describe('makePublicUrl', () => {
     // port 3000 is not in CODESPACE_PORT_URLS but other service ports are.
     // publicUrl(3000) must derive from a known service URL, not fall back to legacy.
     const resumeMap = new Map([
-      [15135, 'https://abc123xyz-15135.northeurope.app.github.dev'],
+      [17214, 'https://abc123xyz-17214.northeurope.app.github.dev'],
       [44345, 'https://abc123xyz-44345.northeurope.app.github.dev'],
     ]);
     const publicUrl = makePublicUrl({ codespaceName: 'myspace', domain: 'app.github.dev', portUrls: resumeMap });

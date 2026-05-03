@@ -13,12 +13,8 @@ set -euo pipefail
 CODESPACE_NAME="${CODESPACE_NAME:-}"
 DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 
-# Determine dashboard URL (HTTP in Codespaces, HTTPS locally)
-if [ -n "$CODESPACE_NAME" ]; then
-    DASHBOARD_URL="http://localhost:15135"
-else
-    DASHBOARD_URL="https://localhost:17214"
-fi
+# Determine dashboard URL (HTTPS on 17214 in both Codespaces and local)
+DASHBOARD_URL="https://localhost:17214"
 
 TESTSITE_URL="https://localhost:44345/api/prism/downstream-demo/seed-contract-ready"
 KEYCLOAK_URL="https://localhost:8443/realms/prism-dev/.well-known/openid-configuration"
@@ -48,7 +44,7 @@ check() {
 FAILED=0
 
 check "Status server      (port 3000)" "http://localhost:3000/api/status" "200" || FAILED=1
-check "Aspire Dashboard   (port 15135/17214)" "$DASHBOARD_URL" "aspire" || FAILED=1
+check "Aspire Dashboard   (port 17214)" "$DASHBOARD_URL" "aspire" || FAILED=1
 check "TestSite seed-ready (port 44345)" "$TESTSITE_URL" "200" || FAILED=1
 check "Keycloak discovery (port 8443)" "$KEYCLOAK_URL" "200" || FAILED=1
 check "MockBusinessApp    (port 7245)" "$MOCKBIZ_URL" "200" || FAILED=1

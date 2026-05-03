@@ -65,7 +65,7 @@ if pgrep -f "UmbracoPrism.AppHost" > /dev/null 2>&1; then
     if [ -n "$CODESPACE_NAME" ]; then
         echo ""
         echo "   Startup status    $(get_codespace_url 3000)"
-        echo "   Aspire Dashboard  $(get_codespace_url 15135)"
+        echo "   Aspire Dashboard  $(get_codespace_url 17214)"
         echo "   TestSite          $(get_codespace_url 44345)"
     fi
     exit 0
@@ -101,12 +101,12 @@ echo ""
 # login token so the Codespaces port proxy doesn't redirect to the token login page.
 # ASPIRE_ALLOW_UNSECURED_TRANSPORT is also set — this relaxes OTLP exporter transport
 # security for service-to-service communication inside the stack.
-# In Codespaces, the dashboard is accessed on HTTP port 15135 (Codespaces proxy forwards HTTP,
-# not HTTPS). Locally, port 17214 HTTPS is used directly.
+# In Codespaces, the dashboard is accessed on HTTPS port 17214 (the forwarded HTTPS endpoint).
+# Locally, port 17214 HTTPS is also used directly.
 if [ -n "$CODESPACE_NAME" ]; then
     export DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
-    DASHBOARD_URL=http://localhost:15135
+    DASHBOARD_URL=https://localhost:17214
 else
     DASHBOARD_URL=https://localhost:17214
 fi
@@ -176,7 +176,7 @@ echo ""
 
 if [ -n "$CODESPACE_NAME" ]; then
     echo "   Status page       $(get_codespace_url 3000)"
-    echo "   Aspire Dashboard  $(get_codespace_url 15135)"
+    echo "   Aspire Dashboard  $(get_codespace_url 17214)"
     echo "   TestSite          $(get_codespace_url 44345)"
     echo "   Keycloak admin    $(get_codespace_url 8443)/admin"
 else

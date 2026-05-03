@@ -19,9 +19,9 @@ const CODESPACE_PORTS_JSON = process.env.PRISM_CODESPACE_PORTS_JSON || '';
 const CODESPACE_PORT_URLS = parseCodespacePorts(CODESPACE_PORTS_JSON);
 
 const ASPIRE_LOCAL_PORT = Number(process.env.PRISM_STARTUP_ASPIRE_PUBLIC_PORT || 17214);
-const ASPIRE_CODESPACES_PORT = Number(process.env.PRISM_STARTUP_ASPIRE_CODESPACES_PUBLIC_PORT || 15135);
+const ASPIRE_CODESPACES_PORT = Number(process.env.PRISM_STARTUP_ASPIRE_CODESPACES_PUBLIC_PORT || 17214);
 const ASPIRE_PROBE_URL = process.env.PRISM_STARTUP_ASPIRE_URL
-  || (CODESPACE_NAME ? 'http://localhost:15135' : `https://localhost:${ASPIRE_LOCAL_PORT}`);
+  || `https://localhost:${ASPIRE_LOCAL_PORT}`;
 const TESTSITE_READY_URL = process.env.PRISM_STARTUP_TESTSITE_READY_URL
   || 'https://localhost:44345/api/prism/downstream-demo/seed-contract-ready';
 const TESTSITE_PUBLIC_PORT = Number(process.env.PRISM_STARTUP_TESTSITE_PUBLIC_PORT || 44345);
