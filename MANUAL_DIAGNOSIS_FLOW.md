@@ -4,7 +4,7 @@
 **Component:** MockBusinessApp API (requires Bearer token)  
 **Timeout:** 10 seconds (configured in DownstreamDemoController line 289)
 
-> **Prefer the scripted pass first in Codespaces:** run `bash scripts/codespaces/diagnose-downstream.sh` before stepping through the manual flow below. The script separates internal reachability, public tunnel/auth HTML, bearer-token failures, and Keycloak backchannel problems in one pass.
+> **Prefer the scripted pass first in Codespaces:** run `bash scripts/codespaces/diagnose-downstream.sh` before stepping through the manual flow below. The shell-only helper separates internal reachability, public tunnel/auth HTML, bearer-token failures, and Keycloak backchannel problems in one pass.
 
 ---
 

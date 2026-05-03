@@ -144,7 +144,7 @@ bash scripts/codespaces/diagnose-downstream.sh
 ```
 
 Use this when the **Call Mock Business App API** flow is failing, timing out, or returning confusing Codespaces results.
-The script now self-checks its Python runtime and ignores broken `PYTHONHOME` / `PYTHONPATH` shell overrides, so the plain command above should work even if you previously activated another toolchain in the terminal. If it fails before printing the diagnostics banner, treat that as a broken active Python runtime and verify it in a fresh shell with `python3 -I -c 'import json'`.
+The helper is now shell-only (`bash` + `curl`, with optional `gh codespace ports` when Codespaces metadata is available), so a plain `bash scripts/codespaces/diagnose-downstream.sh` run no longer depends on Python being installed or healthy in the current shell. If it fails before printing the diagnostics banner, treat that as a broken shell toolchain or Codespace image and verify `curl --version` in a fresh shell.
 
 It:
 - checks local TestSite / MockBusinessApp / Keycloak endpoints from inside the Codespace
@@ -159,7 +159,7 @@ If you already have a fresh bearer token and want the script to try authenticate
 PRISM_BEARER_TOKEN='<access-token>' bash scripts/codespaces/diagnose-downstream.sh
 ```
 
-This script is intentionally **Codespaces-oriented**. It is most useful when run from the Codespace terminal after the AppHost is already running.
+This script is intentionally **Codespaces-oriented**. It is most useful when run from the Codespace terminal after the AppHost is already running. Remaining assumptions: `gh codespace ports` is still the authoritative public browse URL source when Codespaces metadata is present, fallback hostnames are only best-effort, and the stack still has to be running for the probes to mean anything.
 
 ### Confirming the stack is healthy
 

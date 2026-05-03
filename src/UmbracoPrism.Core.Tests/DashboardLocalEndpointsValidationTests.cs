@@ -318,7 +318,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     }
 
     [Fact]
-    public void CodespacesDiagnosticsScript_IgnoresAmbientPythonShellOverrides()
+    public void CodespacesDiagnosticsScript_IsShellOnly_AndDoesNotDependOnPython()
     {
         var script = File.ReadAllText(Path.Combine(
             RepoRoot,
@@ -326,12 +326,16 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             "codespaces",
             "diagnose-downstream.sh"));
 
-        script.Should().Contain("env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__",
-            because: "Codespaces shells may inherit Python overrides from other toolchains that should not break stdlib imports");
-        script.Should().Contain("\"$PYTHON_BIN\" -I - \"$@\" <<'PY'",
-            because: "the embedded diagnostics helper should run in isolated mode");
-        script.Should().Contain("Preflight: python3 -I -c 'import json'",
-            because: "operators need an actionable runtime check if the active Python interpreter itself is broken");
+        script.Should().Contain("curl \"${curl_args[@]}\" \"$url\"",
+            because: "the diagnostics helper should probe runtime endpoints with shell-native tooling");
+        script.Should().Contain("json_get_string()",
+            because: "the shell-only helper should parse only the small JSON fields it needs without a second runtime dependency");
+        script.Should().Contain("gh codespace ports --codespace",
+            because: "Codespaces browse URLs should still come from the authoritative gh CLI when available");
+        script.Should().NotContain("python3",
+            because: "the plain diagnostics command must not depend on Python being installed or healthy");
+        script.Should().NotContain("PYTHONHOME",
+            because: "the shell-only helper should not need Python-specific runtime hardening");
     }
 
     [Fact]

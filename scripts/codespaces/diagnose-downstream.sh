@@ -22,628 +22,664 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-python_supports_diagnostics() {
-    local candidate="$1"
-    env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__ \
-        "$candidate" -I -c 'import argparse, json, os, ssl, subprocess, sys, urllib.error, urllib.request' \
-        >/dev/null 2>&1
+PROGRAM_CS="$REPO_ROOT/src/UmbracoPrism.AppHost/Program.cs"
+APPSETTINGS_JSON="$REPO_ROOT/src/UmbracoPrism.MockBusinessApp/appsettings.json"
+
+DEFAULT_INTERNAL_BUSINESS_URL="${PRISM_BUSINESSAPP_INTERNAL_URL:-http://localhost:5163}"
+DEFAULT_INTERNAL_BUSINESS_URL="${DEFAULT_INTERNAL_BUSINESS_URL%/}"
+DEFAULT_LOCAL_BUSINESS_URL="${PRISM_LOCAL_BUSINESSAPP_URL:-https://localhost:7245}"
+DEFAULT_LOCAL_BUSINESS_URL="${DEFAULT_LOCAL_BUSINESS_URL%/}"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  bash scripts/codespaces/diagnose-downstream.sh [--token <bearer-token>]
+
+Optional environment variables:
+  PRISM_BEARER_TOKEN              Bearer token to test authenticated downstream calls
+  PRISM_BUSINESSAPP_INTERNAL_URL  Override default internal BusinessApp URL
+  PRISM_LOCAL_BUSINESSAPP_URL     Override default local HTTPS BusinessApp URL
+EOF
 }
 
-resolve_python_runtime() {
-    local candidate
-    for candidate in \
-        "$(command -v python3 2>/dev/null || true)" \
-        "/usr/bin/python3" \
-        "$(command -v python 2>/dev/null || true)"
-    do
-        [ -n "$candidate" ] || continue
-        [ -x "$candidate" ] || continue
+trim() {
+    local value="${1-}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
 
-        if python_supports_diagnostics "$candidate"; then
-            printf '%s\n' "$candidate"
+shell_quote() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\"'\"'/g")"
+}
+
+safe_env() {
+    local name="$1"
+    local value
+    value="$(trim "${!name-}")"
+    if [ -n "$value" ]; then
+        printf '%s' "$value"
+    else
+        printf '%s' '(not set in current shell)'
+    fi
+}
+
+print_section() {
+    printf '\n== %s ==\n' "$1"
+}
+
+report() {
+    local label="$1"
+    local verdict="$2"
+    local message="$3"
+    shift 3
+
+    local icon='⚠️'
+    case "$verdict" in
+        PASS) icon='✅' ;;
+        WARN) icon='⚠️' ;;
+        FAIL) icon='❌' ;;
+        SKIP) icon='⏭️' ;;
+    esac
+
+    printf '%s %s: %s\n' "$icon" "$label" "$message"
+    local step
+    for step in "$@"; do
+        printf '   next: %s\n' "$step"
+    done
+}
+
+probe_get() {
+    local var_name="${1}_${2}"
+    printf '%s' "${!var_name-}"
+}
+
+status_line() {
+    local prefix="$1"
+    if [ "$(probe_get "$prefix" network_error)" = 'true' ]; then
+        printf 'network error (%s)' "$(probe_get "$prefix" error)"
+    else
+        printf 'HTTP %s' "$(probe_get "$prefix" status)"
+    fi
+}
+
+json_compact() {
+    printf '%s' "$1" | tr '\r\n' '  '
+}
+
+json_get_string() {
+    local compact key escaped_key
+    compact="$(json_compact "$1")"
+    key="$2"
+    escaped_key="$(printf '%s' "$key" | sed 's/[][\\/.^$*]/\\&/g')"
+    printf '%s' "$compact" | sed -nE "s/.*\"${escaped_key}\"[[:space:]]*:[[:space:]]*\"([^\"]*)\".*/\\1/p" | head -n 1
+}
+
+json_get_bool() {
+    local compact key escaped_key
+    compact="$(json_compact "$1")"
+    key="$2"
+    escaped_key="$(printf '%s' "$key" | sed 's/[][\\/.^$*]/\\&/g')"
+    printf '%s' "$compact" | sed -nE "s/.*\"${escaped_key}\"[[:space:]]*:[[:space:]]*(true|false).*/\\1/p" | head -n 1
+}
+
+extract_realm_path() {
+    if [ -z "${1-}" ]; then
+        return 0
+    fi
+
+    printf '%s' "$1" | sed -nE 's#^[a-zA-Z]+://[^/]+(/realms/.*)$#\1#p' | head -n 1
+}
+
+read_expected_authority() {
+    sed -nE 's/.*"OidcAuthority"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$APPSETTINGS_JSON" | head -n 1
+}
+
+read_apphost_expectations() {
+    if grep -Fq '.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"))' "$PROGRAM_CS"; then
+        EXPECTS_BUSINESS_DYNAMIC='true'
+    else
+        EXPECTS_BUSINESS_DYNAMIC='false'
+    fi
+
+    if grep -Fq 'businessApp.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"))' "$PROGRAM_CS"; then
+        EXPECTS_KEYCLOAK_DYNAMIC='true'
+    else
+        EXPECTS_KEYCLOAK_DYNAMIC='false'
+    fi
+}
+
+discover_public_url() {
+    local port="$1"
+    local url_var="$2"
+    local source_var="$3"
+    local codespace_name browse_url domain
+
+    codespace_name="$(trim "${CODESPACE_NAME:-}")"
+    if [ -z "$codespace_name" ]; then
+        printf -v "$url_var" 'https://localhost:%s' "$port"
+        printf -v "$source_var" 'local'
+        return 0
+    fi
+
+    browse_url=''
+    if command -v gh >/dev/null 2>&1; then
+        browse_url="$(gh codespace ports --codespace "$codespace_name" --json sourcePort,browseUrl --jq ".[] | select(.sourcePort==$port) | .browseUrl" 2>/dev/null | head -n 1 | tr -d '\r')"
+        browse_url="${browse_url%/}"
+        if [ -n "$browse_url" ] && [ "$browse_url" != 'null' ]; then
+            printf -v "$url_var" '%s' "$browse_url"
+            printf -v "$source_var" 'gh'
             return 0
         fi
-    done
+    fi
 
-    return 1
+    domain="$(trim "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}")"
+    if [ -z "$domain" ]; then
+        domain='app.github.dev'
+    fi
+
+    printf -v "$url_var" 'https://%s-%s.%s' "$codespace_name" "$port" "$domain"
+    printf -v "$source_var" 'fallback'
 }
 
-if ! PYTHON_BIN="$(resolve_python_runtime)"; then
-    echo "diagnose-downstream.sh: no working Python runtime with the standard library was found." >&2
-    echo "Try clearing PYTHONHOME/PYTHONPATH or reopening the Codespaces shell, then rerun the script." >&2
-    echo "Preflight: python3 -I -c 'import json'" >&2
-    exit 1
+probe_into() {
+    local prefix="$1"
+    local url="$2"
+    local insecure="$3"
+    local token_value="${4-}"
+    local timeout="${5-6}"
+    local response body meta status content_type redirect_url error curl_exit ok redirect tunnel_html
+    local -a curl_args
+
+    curl_args=(
+        -sS
+        --max-time "$timeout"
+        --connect-timeout "$timeout"
+        -H 'User-Agent: UmbracoPrism-Diagnostics/1.0'
+        -H 'Accept: application/json, text/html;q=0.9, */*;q=0.1'
+        -w $'\n__PRISM_META__\nhttp_code=%{http_code}\ncontent_type=%{content_type}\nredirect_url=%{redirect_url}\n'
+    )
+
+    if [ "$insecure" = 'true' ]; then
+        curl_args+=(-k)
+    fi
+
+    if [ -n "$token_value" ]; then
+        curl_args+=(-H "Authorization: Bearer $token_value")
+    fi
+
+    curl_exit=0
+    response="$(curl "${curl_args[@]}" "$url" 2>&1)" || curl_exit=$?
+
+    if [ "$curl_exit" -ne 0 ]; then
+        error="$(printf '%s' "$response" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')"
+        if [ -z "$error" ]; then
+            error="curl exited with status $curl_exit"
+        fi
+
+        printf -v "${prefix}_network_error" '%s' 'true'
+        printf -v "${prefix}_error" '%s' "$error"
+        printf -v "${prefix}_status" '%s' ''
+        printf -v "${prefix}_content_type" '%s' ''
+        printf -v "${prefix}_location" '%s' ''
+        printf -v "${prefix}_body" '%s' ''
+        printf -v "${prefix}_tunnel_html" '%s' 'false'
+        printf -v "${prefix}_redirect" '%s' 'false'
+        return 0
+    fi
+
+    if [[ "$response" == *$'\n__PRISM_META__\n'* ]]; then
+        body="${response%%$'\n__PRISM_META__\n'*}"
+        meta="${response#*$'\n__PRISM_META__\n'}"
+    else
+        body="$response"
+        meta=''
+    fi
+
+    status="$(printf '%s' "$meta" | sed -n 's/^http_code=//p' | head -n 1)"
+    content_type="$(printf '%s' "$meta" | sed -n 's/^content_type=//p' | head -n 1 | tr '[:upper:]' '[:lower:]')"
+    content_type="${content_type%%;*}"
+    redirect_url="$(printf '%s' "$meta" | sed -n 's/^redirect_url=//p' | head -n 1)"
+
+    ok='false'
+    redirect='false'
+    if [ -n "$status" ] && [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+        ok='true'
+    fi
+    if [ -n "$status" ] && [ "$status" -ge 300 ] && [ "$status" -lt 400 ]; then
+        redirect='true'
+    fi
+
+    tunnel_html='false'
+    if printf '%s' "$body" | grep -qi 'Connecting to the forwarded port\|forwarded port'; then
+        tunnel_html='true'
+    fi
+
+    printf -v "${prefix}_network_error" '%s' 'false'
+    printf -v "${prefix}_error" '%s' ''
+    printf -v "${prefix}_status" '%s' "$status"
+    printf -v "${prefix}_content_type" '%s' "$content_type"
+    printf -v "${prefix}_location" '%s' "$redirect_url"
+    printf -v "${prefix}_body" '%s' "$body"
+    printf -v "${prefix}_tunnel_html" '%s' "$tunnel_html"
+    printf -v "${prefix}_redirect" '%s' "$redirect"
+}
+
+join_by() {
+    local separator="$1"
+    shift
+    local first="${1-}"
+    if [ "$#" -eq 0 ]; then
+        return 0
+    fi
+
+    shift
+    printf '%s' "$first"
+    local value
+    for value in "$@"; do
+        printf '%s%s' "$separator" "$value"
+    done
+}
+
+TOKEN="$(trim "${PRISM_BEARER_TOKEN:-}")"
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --token)
+            shift
+            if [ "$#" -eq 0 ]; then
+                echo 'diagnose-downstream.sh: --token requires a value.' >&2
+                usage >&2
+                exit 1
+            fi
+            TOKEN="$(trim "$1")"
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "diagnose-downstream.sh: unknown argument: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+EXPECTED_AUTHORITY="$(read_expected_authority || true)"
+read_apphost_expectations
+
+discover_public_url 7245 PUBLIC_BUSINESS_URL PUBLIC_BUSINESS_SOURCE
+discover_public_url 8443 PUBLIC_KEYCLOAK_URL PUBLIC_KEYCLOAK_SOURCE
+discover_public_url 44345 PUBLIC_TESTSITE_URL PUBLIC_TESTSITE_SOURCE
+
+probe_into INTERNAL_DEBUG "${DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth" false ''
+probe_into LOCAL_HTTPS_DEBUG "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth" true ''
+probe_into PUBLIC_API_NO_AUTH "${PUBLIC_BUSINESS_URL}/api/backoffice/me" false ''
+probe_into PUBLIC_KEYCLOAK_DISCOVERY "${PUBLIC_KEYCLOAK_URL}/realms/prism-dev/.well-known/openid-configuration" false ''
+probe_into TESTSITE_SEED_READY 'https://localhost:44345/api/prism/downstream-demo/seed-contract-ready' true ''
+probe_into TESTSITE_SESSION_CONTRACT 'https://localhost:44345/api/prism/downstream-demo/session-contract' true ''
+probe_into TESTSITE_DOWNSTREAM_NO_COOKIE 'https://localhost:44345/api/prism/downstream-demo' true ''
+probe_into PUBLIC_TESTSITE_SEED_READY "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready" false ''
+
+RUNTIME_DEBUG_BODY=''
+if [ "$(probe_get INTERNAL_DEBUG content_type)" = 'application/json' ] && [ -n "$(probe_get INTERNAL_DEBUG body)" ]; then
+    RUNTIME_DEBUG_BODY="$(probe_get INTERNAL_DEBUG body)"
+elif [ "$(probe_get LOCAL_HTTPS_DEBUG content_type)" = 'application/json' ] && [ -n "$(probe_get LOCAL_HTTPS_DEBUG body)" ]; then
+    RUNTIME_DEBUG_BODY="$(probe_get LOCAL_HTTPS_DEBUG body)"
 fi
 
-env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__ \
-    "$PYTHON_BIN" -I - "$@" <<'PY'
-import argparse
-import json
-import os
-import ssl
-import subprocess
-import sys
-import urllib.error
-import urllib.request
-from pathlib import Path
+RUNTIME_BACKCHANNEL_URL="$(json_get_string "$RUNTIME_DEBUG_BODY" 'backchannelUrl')"
+RUNTIME_BACKCHANNEL_PROBE="$(json_get_string "$RUNTIME_DEBUG_BODY" 'backchannelProbe')"
+RUNTIME_AUTHORITY="$(json_get_string "$RUNTIME_DEBUG_BODY" 'OidcAuthority')"
+REALM_PATH="$(extract_realm_path "$RUNTIME_AUTHORITY")"
+if [ -z "$REALM_PATH" ]; then
+    REALM_PATH="$(extract_realm_path "$EXPECTED_AUTHORITY")"
+fi
+if [ -z "$REALM_PATH" ]; then
+    REALM_PATH='/realms/prism-dev'
+fi
 
-REPO_ROOT = Path.cwd()
-PROGRAM_CS = REPO_ROOT / "src/UmbracoPrism.AppHost/Program.cs"
-APPSETTINGS_JSON = REPO_ROOT / "src/UmbracoPrism.MockBusinessApp/appsettings.json"
+if [ -n "$RUNTIME_BACKCHANNEL_URL" ] && [ "$RUNTIME_BACKCHANNEL_URL" != '(not set)' ]; then
+    probe_into RUNTIME_BACKCHANNEL_DISCOVERY "${RUNTIME_BACKCHANNEL_URL%/}${REALM_PATH}/.well-known/openid-configuration" false ''
+    probe_into RUNTIME_BACKCHANNEL_CERTS "${RUNTIME_BACKCHANNEL_URL%/}${REALM_PATH}/protocol/openid-connect/certs" false ''
+fi
 
-DEFAULT_INTERNAL_BUSINESS_URL = os.environ.get("PRISM_BUSINESSAPP_INTERNAL_URL", "http://localhost:5163").rstrip("/")
-DEFAULT_LOCAL_BUSINESS_URL = os.environ.get("PRISM_LOCAL_BUSINESSAPP_URL", "https://localhost:7245").rstrip("/")
+if [ -n "$TOKEN" ]; then
+    probe_into INTERNAL_API_AUTH "${DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me" false "$TOKEN"
+    probe_into PUBLIC_API_AUTH "${PUBLIC_BUSINESS_URL}/api/backoffice/me" false "$TOKEN"
+fi
 
+printf 'Umbraco Prism — Codespaces downstream diagnostics\n'
+printf 'Repo root: %s\n' "$REPO_ROOT"
+printf 'BusinessApp public URL: %s (%s)\n' "$PUBLIC_BUSINESS_URL" "$PUBLIC_BUSINESS_SOURCE"
+printf 'Keycloak public URL:   %s (%s)\n' "$PUBLIC_KEYCLOAK_URL" "$PUBLIC_KEYCLOAK_SOURCE"
+printf 'TestSite public URL:   %s (%s)\n' "$PUBLIC_TESTSITE_URL" "$PUBLIC_TESTSITE_SOURCE"
+if [ -n "$(trim "${CODESPACE_NAME:-}")" ]; then
+    printf 'Codespace name:        %s\n' "$(trim "${CODESPACE_NAME}")"
+else
+    printf '⚠️ Codespaces shell variables were not detected. Public forwarded-port checks may be limited.\n'
+fi
+if [ "$PUBLIC_BUSINESS_SOURCE" = 'fallback' ] || [ "$PUBLIC_KEYCLOAK_SOURCE" = 'fallback' ]; then
+    printf '⚠️ gh codespace ports did not return browse URLs, so fallback hostnames were used.\n'
+    printf '   next: gh codespace ports --codespace "$CODESPACE_NAME"\n'
+fi
 
-class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+print_section 'Safe env snapshot (current shell only)'
+printf 'CODESPACE_NAME=%s\n' "$(safe_env 'CODESPACE_NAME')"
+printf 'GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=%s\n' "$(safe_env 'GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN')"
+printf 'ASPNETCORE_ENVIRONMENT=%s\n' "$(safe_env 'ASPNETCORE_ENVIRONMENT')"
+printf 'TESTSITE_PUBLIC_URL=%s\n' "$(safe_env 'TESTSITE_PUBLIC_URL')"
+printf 'KEYCLOAK_URL=%s\n' "$(safe_env 'KEYCLOAK_URL')"
+printf 'KEYCLOAK_BACKCHANNEL_URL=%s\n' "$(safe_env 'KEYCLOAK_BACKCHANNEL_URL')"
+printf 'BUSINESSAPP_BACKCHANNEL_URL=%s\n' "$(safe_env 'BUSINESSAPP_BACKCHANNEL_URL')"
+printf 'PrismBusinessApp__WorkflowApiBaseUrl=%s\n' "$(safe_env 'PrismBusinessApp__WorkflowApiBaseUrl')"
+printf 'Note: app runtime env may differ from the terminal; /debug/auth and /session-contract are the runtime truth sources below.\n'
 
+print_section 'Internal service vs public tunnel'
+if [ "$(probe_get INTERNAL_DEBUG status)" = '200' ]; then
+    report \
+        'Internal BusinessApp backchannel' \
+        'PASS' \
+        "${DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth returned JSON ($(status_line INTERNAL_DEBUG)). The internal service is up."
+elif [ "$(probe_get LOCAL_HTTPS_DEBUG status)" = '200' ]; then
+    report \
+        'Internal BusinessApp backchannel' \
+        'WARN' \
+        "${DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth failed with $(status_line INTERNAL_DEBUG), but ${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth succeeded. BusinessApp is running, but the default internal HTTP hop looks stale or wrong." \
+        'bash scripts/codespaces/refresh.sh' \
+        'tail -f artifacts/startup-status/prism-apphost.log' \
+        'gh codespace ports --codespace "$CODESPACE_NAME"'
+else
+    report \
+        'Internal BusinessApp backchannel' \
+        'FAIL' \
+        "Neither ${DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth nor ${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth responded successfully. BusinessApp itself may not be running." \
+        'bash scripts/codespaces/health-check.sh' \
+        'bash scripts/codespaces/refresh.sh' \
+        'tail -f artifacts/startup-status/prism-apphost.log'
+fi
 
-def build_opener(insecure: bool):
-    context = ssl._create_unverified_context() if insecure else ssl.create_default_context()
-    return urllib.request.build_opener(NoRedirectHandler(), urllib.request.HTTPSHandler(context=context))
+if [ "$(probe_get PUBLIC_API_NO_AUTH tunnel_html)" = 'true' ]; then
+    report \
+        'Public forwarded BusinessApp URL' \
+        'WARN' \
+        "${PUBLIC_BUSINESS_URL}/api/backoffice/me returned the Codespaces tunnel/auth HTML page instead of API JSON. This is a public forwarding/auth problem, not an internal app outage." \
+        'gh codespace ports --codespace "$CODESPACE_NAME"' \
+        "curl -i $(shell_quote "${PUBLIC_BUSINESS_URL}/api/backoffice/me")"
+elif [ "$(probe_get PUBLIC_API_NO_AUTH status)" = '400' ] || [ "$(probe_get PUBLIC_API_NO_AUTH status)" = '401' ]; then
+    report \
+        'Public forwarded BusinessApp URL' \
+        'PASS' \
+        "${PUBLIC_BUSINESS_URL}/api/backoffice/me reached BusinessApp ($(status_line PUBLIC_API_NO_AUTH)). Public forwarding works; auth is the only thing missing on this probe."
+elif [ "$(probe_get PUBLIC_API_NO_AUTH network_error)" = 'true' ]; then
+    report \
+        'Public forwarded BusinessApp URL' \
+        'FAIL' \
+        "${PUBLIC_BUSINESS_URL}/api/backoffice/me could not be reached ($(status_line PUBLIC_API_NO_AUTH)). This points to forwarding or stack readiness, not token validation." \
+        'gh codespace ports --codespace "$CODESPACE_NAME"' \
+        'bash scripts/codespaces/health-check.sh' \
+        'bash scripts/codespaces/refresh.sh'
+else
+    report \
+        'Public forwarded BusinessApp URL' \
+        'WARN' \
+        "${PUBLIC_BUSINESS_URL}/api/backoffice/me returned $(status_line PUBLIC_API_NO_AUTH). That is neither the expected auth response nor the tunnel page, so inspect the raw endpoint directly." \
+        "curl -i $(shell_quote "${PUBLIC_BUSINESS_URL}/api/backoffice/me")" \
+        "curl -sk $(shell_quote "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth")"
+fi
 
+print_section 'TestSite same-origin probes'
+if [ "$(probe_get TESTSITE_SEED_READY status)" = '200' ]; then
+    report \
+        'TestSite seed-contract-ready' \
+        'PASS' \
+        'https://localhost:44345/api/prism/downstream-demo/seed-contract-ready returned JSON 200. TestSite is up and its seed contract is ready.'
+elif [ "$(probe_get TESTSITE_SEED_READY status)" = '503' ]; then
+    report \
+        'TestSite seed-contract-ready' \
+        'WARN' \
+        'https://localhost:44345/api/prism/downstream-demo/seed-contract-ready reached TestSite but returned 503. The app is up, but the seeded route contract is not ready yet.' \
+        'bash scripts/codespaces/health-check.sh' \
+        'bash scripts/codespaces/refresh.sh'
+else
+    report \
+        'TestSite seed-contract-ready' \
+        'FAIL' \
+        "https://localhost:44345/api/prism/downstream-demo/seed-contract-ready failed ($(status_line TESTSITE_SEED_READY))." \
+        'bash scripts/codespaces/health-check.sh' \
+        'tail -f artifacts/startup-status/prism-apphost.log'
+fi
 
-def probe(url: str, *, insecure: bool = False, token: str | None = None, timeout: int = 6) -> dict:
-    headers = {"User-Agent": "UmbracoPrism-Diagnostics/1.0", "Accept": "application/json, text/html;q=0.9, */*;q=0.1"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+SESSION_CONTRACT_BODY=''
+if [ "$(probe_get TESTSITE_SESSION_CONTRACT content_type)" = 'application/json' ] && [ -n "$(probe_get TESTSITE_SESSION_CONTRACT body)" ]; then
+    SESSION_CONTRACT_BODY="$(probe_get TESTSITE_SESSION_CONTRACT body)"
+fi
 
-    req = urllib.request.Request(url, headers=headers)
-    opener = build_opener(insecure)
+TENANT_RESOLVED="$(json_get_bool "$SESSION_CONTRACT_BODY" 'resolved')"
+TENANT_HOSTNAME="$(json_get_string "$SESSION_CONTRACT_BODY" 'hostname')"
+COOKIE_AUTHENTICATED="$(json_get_bool "$SESSION_CONTRACT_BODY" 'isAuthenticated')"
+HAS_ACCESS_TOKEN="$(json_get_bool "$SESSION_CONTRACT_BODY" 'hasAccessToken')"
+ACCESS_TOKEN_EXPIRED="$(json_get_bool "$SESSION_CONTRACT_BODY" 'accessTokenExpired')"
+AUTHORIZATION_HEADER_READY="$(json_get_bool "$SESSION_CONTRACT_BODY" 'authorizationHeaderReady')"
+SEED_READY_FLAG="$(json_get_bool "$SESSION_CONTRACT_BODY" 'ready')"
+if [ -z "$SEED_READY_FLAG" ]; then
+    SEED_READY_FLAG="$(json_get_bool "$SESSION_CONTRACT_BODY" 'Ready')"
+fi
 
-    try:
-        with opener.open(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8", errors="replace")
-            headers_map = dict(response.headers.items())
-            return normalize_response(url, response.status, response.reason, headers_map, body)
-    except urllib.error.HTTPError as ex:
-        body = ex.read().decode("utf-8", errors="replace")
-        headers_map = dict(ex.headers.items())
-        return normalize_response(url, ex.code, ex.reason, headers_map, body)
-    except urllib.error.URLError as ex:
-        return {
-            "url": url,
-            "ok": False,
-            "network_error": True,
-            "error": str(ex.reason),
-            "status": None,
-            "reason": None,
-            "content_type": None,
-            "location": None,
-            "body": "",
-            "body_preview": "",
-            "json": None,
-            "tunnel_html": False,
-            "redirect": False,
-        }
-    except Exception as ex:  # pragma: no cover - defensive diagnostics path
-        return {
-            "url": url,
-            "ok": False,
-            "network_error": True,
-            "error": str(ex),
-            "status": None,
-            "reason": None,
-            "content_type": None,
-            "location": None,
-            "body": "",
-            "body_preview": "",
-            "json": None,
-            "tunnel_html": False,
-            "redirect": False,
-        }
+if [ "$(probe_get TESTSITE_SESSION_CONTRACT status)" = '200' ] && [ -n "$SESSION_CONTRACT_BODY" ]; then
+    report \
+        'TestSite session-contract' \
+        'PASS' \
+        'https://localhost:44345/api/prism/downstream-demo/session-contract returned JSON, so the non-browser probe is available.'
+    printf '   tenantResolved=%s\n' "${TENANT_RESOLVED:-'(missing)'}"
+    printf '   tenantHostname=%s\n' "${TENANT_HOSTNAME:-'(missing)'}"
+    printf '   cookieAuthenticated=%s\n' "${COOKIE_AUTHENTICATED:-'(missing)'}"
+    printf '   hasAccessToken=%s\n' "${HAS_ACCESS_TOKEN:-'(missing)'}"
+    printf '   accessTokenExpired=%s\n' "${ACCESS_TOKEN_EXPIRED:-'(missing)'}"
+    printf '   authorizationHeaderReady=%s\n' "${AUTHORIZATION_HEADER_READY:-'(missing)'}"
+    printf '   seedReady=%s\n' "${SEED_READY_FLAG:-'(missing)'}"
+    printf '   note: terminal requests do not carry your browser cookie, so auth-related flags will usually be false here.\n'
+else
+    report \
+        'TestSite session-contract' \
+        'WARN' \
+        "https://localhost:44345/api/prism/downstream-demo/session-contract returned $(status_line TESTSITE_SESSION_CONTRACT)."
+fi
 
+if [ "$(probe_get TESTSITE_DOWNSTREAM_NO_COOKIE status)" = '401' ]; then
+    report \
+        'TestSite downstream-demo without browser cookie' \
+        'PASS' \
+        'https://localhost:44345/api/prism/downstream-demo returned 401, which proves the same-origin endpoint is present and auth-protected.'
+elif [ "$(probe_get TESTSITE_DOWNSTREAM_NO_COOKIE status)" = '200' ]; then
+    report \
+        'TestSite downstream-demo without browser cookie' \
+        'WARN' \
+        'https://localhost:44345/api/prism/downstream-demo returned 200 without a browser cookie. That is unusual for the current auth contract.'
+else
+    report \
+        'TestSite downstream-demo without browser cookie' \
+        'WARN' \
+        "https://localhost:44345/api/prism/downstream-demo returned $(status_line TESTSITE_DOWNSTREAM_NO_COOKIE)."
+fi
 
-def normalize_response(url: str, status: int, reason: str | None, headers_map: dict, body: str) -> dict:
-    content_type = headers_map.get("Content-Type", "").split(";", 1)[0].strip().lower() or None
-    preview = body[:400]
-    tunnel_html = "Connecting to the forwarded port" in body or "forwarded port" in body.lower()
-    parsed_json = None
-    if content_type == "application/json":
-        try:
-            parsed_json = json.loads(body)
-        except json.JSONDecodeError:
-            parsed_json = None
+if [ "$(probe_get PUBLIC_TESTSITE_SEED_READY tunnel_html)" = 'true' ]; then
+    report \
+        'Public TestSite seed-contract-ready' \
+        'WARN' \
+        "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready returned the Codespaces tunnel/auth HTML page instead of app JSON." \
+        'gh codespace ports --codespace "$CODESPACE_NAME"' \
+        "curl -i $(shell_quote "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready")"
+elif [ "$(probe_get PUBLIC_TESTSITE_SEED_READY status)" = '200' ]; then
+    report \
+        'Public TestSite seed-contract-ready' \
+        'PASS' \
+        "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready returned JSON 200, so the forwarded TestSite URL is serving the app."
+elif [ "$(probe_get PUBLIC_TESTSITE_SEED_READY status)" = '503' ]; then
+    report \
+        'Public TestSite seed-contract-ready' \
+        'WARN' \
+        "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready reached TestSite but reported not-ready (503)."
+elif [ "$(probe_get PUBLIC_TESTSITE_SEED_READY redirect)" = 'true' ]; then
+    report \
+        'Public TestSite seed-contract-ready' \
+        'WARN' \
+        "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready redirected ($(status_line PUBLIC_TESTSITE_SEED_READY)). Do not treat that as app success." \
+        "curl -i $(shell_quote "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready")"
+else
+    report \
+        'Public TestSite seed-contract-ready' \
+        'WARN' \
+        "${PUBLIC_TESTSITE_URL}/api/prism/downstream-demo/seed-contract-ready returned $(status_line PUBLIC_TESTSITE_SEED_READY)."
+fi
 
-    return {
-        "url": url,
-        "ok": 200 <= status < 300,
-        "network_error": False,
-        "error": None,
-        "status": status,
-        "reason": reason,
-        "content_type": content_type,
-        "location": headers_map.get("Location"),
-        "body": body,
-        "body_preview": preview,
-        "json": parsed_json,
-        "tunnel_html": tunnel_html,
-        "redirect": 300 <= status < 400,
-    }
+print_section 'BusinessApp availability vs token validation'
+if [ -z "$TOKEN" ]; then
+    report \
+        'Authenticated downstream check' \
+        'SKIP' \
+        'No bearer token supplied, so the script can only prove transport and forwarding. Token-validation checks were skipped.' \
+        "In the browser console, run: (async () => { const r = await fetch('/api/prism/downstream-demo/session-contract'); console.log(await r.json()); })()" \
+        "Then rerun with: PRISM_BEARER_TOKEN='<access-token>' bash scripts/codespaces/diagnose-downstream.sh"
+else
+    if [ "$(probe_get INTERNAL_API_AUTH status)" = '200' ]; then
+        report \
+            'Authenticated internal backchannel' \
+            'PASS' \
+            "${DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me accepted the bearer token ($(status_line INTERNAL_API_AUTH)). BusinessApp and Keycloak validation are both healthy on the internal hop."
+    elif [ "$(probe_get INTERNAL_API_AUTH status)" = '401' ]; then
+        report \
+            'Authenticated internal backchannel' \
+            'WARN' \
+            "${DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me is reachable but rejected the bearer token ($(status_line INTERNAL_API_AUTH)). This is an auth/session/Keycloak-validation problem, not a BusinessApp outage." \
+            "curl -sk $(shell_quote "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth")" \
+            'bash scripts/codespaces/refresh.sh'
+    elif [ "$(probe_get INTERNAL_API_AUTH network_error)" = 'true' ]; then
+        report \
+            'Authenticated internal backchannel' \
+            'FAIL' \
+            "Authenticated call to ${DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me never reached BusinessApp ($(status_line INTERNAL_API_AUTH)). Fix internal service reachability first." \
+            'bash scripts/codespaces/refresh.sh' \
+            'tail -f artifacts/startup-status/prism-apphost.log'
+    else
+        report \
+            'Authenticated internal backchannel' \
+            'WARN' \
+            "Authenticated call returned $(status_line INTERNAL_API_AUTH). Inspect the app response body and Keycloak diagnostics next." \
+            "curl -sk $(shell_quote "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth")"
+    fi
 
+    if [ "$(probe_get PUBLIC_API_AUTH tunnel_html)" = 'true' ]; then
+        report \
+            'Authenticated public BusinessApp URL' \
+            'WARN' \
+            "Even with a bearer token, ${PUBLIC_BUSINESS_URL}/api/backoffice/me returned the Codespaces tunnel/auth page. The public forwarding layer is still intercepting the request." \
+            'gh codespace ports --codespace "$CODESPACE_NAME"' \
+            "curl -i $(shell_quote "${PUBLIC_BUSINESS_URL}/api/backoffice/me")"
+    elif [ "$(probe_get PUBLIC_API_AUTH status)" = '200' ]; then
+        report \
+            'Authenticated public BusinessApp URL' \
+            'PASS' \
+            "${PUBLIC_BUSINESS_URL}/api/backoffice/me also accepted the token ($(status_line PUBLIC_API_AUTH)). Browser-facing auth path looks healthy too."
+    elif [ "$(probe_get PUBLIC_API_AUTH status)" = '401' ]; then
+        report \
+            'Authenticated public BusinessApp URL' \
+            'WARN' \
+            "Public BusinessApp URL is reachable but rejected the token ($(status_line PUBLIC_API_AUTH)). That aligns with an auth/token issue rather than a forwarding outage." \
+            'bash scripts/codespaces/refresh.sh' \
+            "curl -sk $(shell_quote "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth")"
+    elif [ "$(probe_get PUBLIC_API_AUTH network_error)" = 'true' ]; then
+        report \
+            'Authenticated public BusinessApp URL' \
+            'FAIL' \
+            "Authenticated call to ${PUBLIC_BUSINESS_URL}/api/backoffice/me failed before it reached the app ($(status_line PUBLIC_API_AUTH)). Treat this as forwarding or stack readiness trouble first." \
+            'gh codespace ports --codespace "$CODESPACE_NAME"' \
+            'bash scripts/codespaces/health-check.sh'
+    else
+        report \
+            'Authenticated public BusinessApp URL' \
+            'WARN' \
+            "Authenticated public call returned $(status_line PUBLIC_API_AUTH). Inspect the raw response body and forwarding state next." \
+            "curl -i $(shell_quote "${PUBLIC_BUSINESS_URL}/api/backoffice/me")"
+    fi
+fi
 
-def discover_public_url(port: int) -> tuple[str, str]:
-    codespace_name = os.environ.get("CODESPACE_NAME", "").strip()
-    if not codespace_name:
-        return (f"https://localhost:{port}", "local")
+print_section 'Keycloak backchannel health'
+if [ "$(probe_get PUBLIC_KEYCLOAK_DISCOVERY status)" = '200' ]; then
+    PUBLIC_ISSUER=''
+    if [ "$(probe_get PUBLIC_KEYCLOAK_DISCOVERY content_type)" = 'application/json' ]; then
+        PUBLIC_ISSUER="$(json_get_string "$(probe_get PUBLIC_KEYCLOAK_DISCOVERY body)" 'issuer')"
+    fi
+    report \
+        'Public Keycloak discovery' \
+        'PASS' \
+        "${PUBLIC_KEYCLOAK_URL}/realms/prism-dev/.well-known/openid-configuration responded ($(status_line PUBLIC_KEYCLOAK_DISCOVERY)). Issuer: ${PUBLIC_ISSUER:-'(missing from payload)'}."
+else
+    report \
+        'Public Keycloak discovery' \
+        'FAIL' \
+        "Public Keycloak discovery failed at ${PUBLIC_KEYCLOAK_URL}/realms/prism-dev/.well-known/openid-configuration ($(status_line PUBLIC_KEYCLOAK_DISCOVERY)). Fix stack readiness before chasing token bugs." \
+        'bash scripts/codespaces/health-check.sh' \
+        'bash scripts/codespaces/refresh.sh'
+fi
 
-    try:
-        result = subprocess.run(
-            ["gh", "codespace", "ports", "--codespace", codespace_name, "--json", "sourcePort,browseUrl"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10,
-        )
-        data = json.loads(result.stdout or "[]")
-        for entry in data:
-            if int(entry.get("sourcePort", -1)) == port and entry.get("browseUrl"):
-                return (entry["browseUrl"].rstrip("/"), "gh")
-    except Exception:
-        pass
+if [ -n "$RUNTIME_BACKCHANNEL_URL" ] && [ "$RUNTIME_BACKCHANNEL_URL" != '(not set)' ]; then
+    RUNTIME_MESSAGE="BusinessApp reports KEYCLOAK_BACKCHANNEL_URL=${RUNTIME_BACKCHANNEL_URL}."
+    if [ -n "$RUNTIME_BACKCHANNEL_PROBE" ]; then
+        RUNTIME_MESSAGE="${RUNTIME_MESSAGE} Probe: ${RUNTIME_BACKCHANNEL_PROBE}."
+    fi
 
-    domain = os.environ.get("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev").strip()
-    return (f"https://{codespace_name}-{port}.{domain}", "fallback")
+    STALE_REASONS=()
+    if [ "$EXPECTS_KEYCLOAK_DYNAMIC" = 'true' ] && [ "$(probe_get RUNTIME_BACKCHANNEL_DISCOVERY status)" != '200' ]; then
+        STALE_REASONS+=('repo expects a dynamic Keycloak backchannel, but the running BusinessApp cannot fetch discovery over that backchannel')
+    fi
+    if [ "$EXPECTS_KEYCLOAK_DYNAMIC" = 'true' ] && [ -n "$RUNTIME_AUTHORITY" ] && [ "$PUBLIC_KEYCLOAK_SOURCE" != 'local' ] && [[ "$RUNTIME_AUTHORITY" != *"${PUBLIC_KEYCLOAK_URL}"* ]]; then
+        STALE_REASONS+=('running BusinessApp still trusts a different public OIDC authority than the current Codespaces forwarded URL')
+    fi
+    if [ "$(probe_get RUNTIME_BACKCHANNEL_CERTS status)" != '200' ]; then
+        STALE_REASONS+=('the backchannel JWKS endpoint is not returning 200')
+    fi
 
+    if [ "${#STALE_REASONS[@]}" -gt 0 ]; then
+        report \
+            'Runtime Keycloak backchannel' \
+            'WARN' \
+            "${RUNTIME_MESSAGE} This looks stale or broken because $(join_by '; ' "${STALE_REASONS[@]}")." \
+            'bash scripts/codespaces/refresh.sh' \
+            "curl -sk $(shell_quote "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth")" \
+            'tail -f artifacts/startup-status/prism-apphost.log'
+    else
+        report \
+            'Runtime Keycloak backchannel' \
+            'PASS' \
+            "${RUNTIME_MESSAGE} Discovery/JWKS checks line up with the current repo wiring, so a remaining 401 is more likely a stale token/session than a bad endpoint."
+    fi
+else
+    if [ "$EXPECTS_KEYCLOAK_DYNAMIC" = 'true' ]; then
+        report \
+            'Runtime Keycloak backchannel' \
+            'WARN' \
+            'BusinessApp /debug/auth did not report a KEYCLOAK_BACKCHANNEL_URL even though the repo expects one in Codespaces. That usually means the running stack is stale or needs a restart.' \
+            'bash scripts/codespaces/refresh.sh' \
+            "curl -sk $(shell_quote "${DEFAULT_LOCAL_BUSINESS_URL}/debug/auth")"
+    else
+        report \
+            'Runtime Keycloak backchannel' \
+            'SKIP' \
+            'BusinessApp /debug/auth did not expose a KEYCLOAK_BACKCHANNEL_URL, and the repo does not currently insist on one.'
+    fi
+fi
 
-def read_expected_authority() -> str | None:
-    try:
-        data = json.loads(APPSETTINGS_JSON.read_text())
-        tenants = data.get("PrismBusinessApp", {}).get("Tenants", [])
-        for tenant in tenants:
-            authority = tenant.get("OidcAuthority")
-            if authority:
-                return authority.rstrip("/")
-    except Exception:
-        return None
-    return None
-
-
-def read_apphost_expectations() -> tuple[bool, bool]:
-    text = PROGRAM_CS.read_text()
-    expects_business_dynamic = 'testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"))' in text
-    expects_keycloak_dynamic = 'businessApp.WithEnvironment("KEYCLOAK_BACKCHANNEL_URL", keycloak.GetEndpoint("http"))' in text
-    return expects_business_dynamic, expects_keycloak_dynamic
-
-
-def shell_quote(value: str) -> str:
-    return "'" + value.replace("'", "'\"'\"'") + "'"
-
-
-def safe_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    return value or "(not set in current shell)"
-
-
-def status_line(result: dict) -> str:
-    if result.get("network_error"):
-        return f"network error ({result.get('error')})"
-    return f"HTTP {result.get('status')} {result.get('reason') or ''}".strip()
-
-
-def print_section(title: str):
-    print(f"\n== {title} ==")
-
-
-def report(label: str, verdict: str, message: str, next_steps: list[str] | None = None):
-    icon = {
-        "PASS": "✅",
-        "WARN": "⚠️",
-        "FAIL": "❌",
-        "SKIP": "⏭️",
-    }[verdict]
-    print(f"{icon} {label}: {message}")
-    if next_steps:
-        for step in next_steps:
-            print(f"   next: {step}")
-
-
-parser = argparse.ArgumentParser(add_help=True)
-parser.add_argument("--token", dest="token", default=os.environ.get("PRISM_BEARER_TOKEN", ""), help="Bearer token for authenticated downstream probes")
-args = parser.parse_args()
-token = args.token.strip() or None
-
-public_business_url, public_business_source = discover_public_url(7245)
-public_keycloak_url, public_keycloak_source = discover_public_url(8443)
-public_testsite_url, public_testsite_source = discover_public_url(44345)
-expected_authority = read_expected_authority()
-expects_business_dynamic, expects_keycloak_dynamic = read_apphost_expectations()
-
-internal_debug = probe(f"{DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth")
-local_https_debug = probe(f"{DEFAULT_LOCAL_BUSINESS_URL}/debug/auth", insecure=True)
-public_api_no_auth = probe(f"{public_business_url}/api/backoffice/me")
-public_keycloak_discovery = probe(f"{public_keycloak_url}/realms/prism-dev/.well-known/openid-configuration")
-testsite_seed_ready = probe("https://localhost:44345/api/prism/downstream-demo/seed-contract-ready", insecure=True)
-testsite_session_contract = probe("https://localhost:44345/api/prism/downstream-demo/session-contract", insecure=True)
-testsite_downstream_no_cookie = probe("https://localhost:44345/api/prism/downstream-demo", insecure=True)
-public_testsite_seed_ready = probe(f"{public_testsite_url}/api/prism/downstream-demo/seed-contract-ready")
-
-runtime_debug_json = internal_debug.get("json") or local_https_debug.get("json") or {}
-runtime_backchannel_url = runtime_debug_json.get("backchannelUrl") if isinstance(runtime_debug_json, dict) else None
-runtime_backchannel_probe = runtime_debug_json.get("backchannelProbe") if isinstance(runtime_debug_json, dict) else None
-runtime_tenants = runtime_debug_json.get("tenants") if isinstance(runtime_debug_json, dict) else []
-runtime_authority = None
-if isinstance(runtime_tenants, list):
-    for tenant in runtime_tenants:
-        if isinstance(tenant, dict) and tenant.get("OidcAuthority"):
-            runtime_authority = str(tenant["OidcAuthority"]).rstrip("/")
-            break
-
-realm_path = "/realms/prism-dev"
-if runtime_authority and "/realms/" in runtime_authority:
-    realm_path = runtime_authority[runtime_authority.index("/realms/"):]
-elif expected_authority and "/realms/" in expected_authority:
-    realm_path = expected_authority[expected_authority.index("/realms/"):]
-
-runtime_backchannel_discovery = None
-runtime_backchannel_certs = None
-if runtime_backchannel_url and runtime_backchannel_url != "(not set)":
-    base = runtime_backchannel_url.rstrip("/")
-    runtime_backchannel_discovery = probe(f"{base}{realm_path}/.well-known/openid-configuration")
-    runtime_backchannel_certs = probe(f"{base}{realm_path}/protocol/openid-connect/certs")
-
-internal_api_auth = None
-public_api_auth = None
-if token:
-    internal_api_auth = probe(f"{DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me", token=token)
-    public_api_auth = probe(f"{public_business_url}/api/backoffice/me", token=token)
-
-print("Umbraco Prism — Codespaces downstream diagnostics")
-print(f"Repo root: {REPO_ROOT}")
-print(f"BusinessApp public URL: {public_business_url} ({public_business_source})")
-print(f"Keycloak public URL:   {public_keycloak_url} ({public_keycloak_source})")
-print(f"TestSite public URL:   {public_testsite_url} ({public_testsite_source})")
-if os.environ.get("CODESPACE_NAME"):
-    print(f"Codespace name:        {os.environ.get('CODESPACE_NAME')}")
-else:
-    print("⚠️ Codespaces shell variables were not detected. Public forwarded-port checks may be limited.")
-if public_business_source == "fallback" or public_keycloak_source == "fallback":
-    print("⚠️ gh codespace ports did not return browse URLs, so fallback hostnames were used.")
-    print("   next: gh codespace ports --codespace \"$CODESPACE_NAME\"")
-
-print_section("Safe env snapshot (current shell only)")
-print(f"CODESPACE_NAME={safe_env('CODESPACE_NAME')}")
-print(f"GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN={safe_env('GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN')}")
-print(f"ASPNETCORE_ENVIRONMENT={safe_env('ASPNETCORE_ENVIRONMENT')}")
-print(f"TESTSITE_PUBLIC_URL={safe_env('TESTSITE_PUBLIC_URL')}")
-print(f"KEYCLOAK_URL={safe_env('KEYCLOAK_URL')}")
-print(f"KEYCLOAK_BACKCHANNEL_URL={safe_env('KEYCLOAK_BACKCHANNEL_URL')}")
-print(f"BUSINESSAPP_BACKCHANNEL_URL={safe_env('BUSINESSAPP_BACKCHANNEL_URL')}")
-print(f"PrismBusinessApp__WorkflowApiBaseUrl={safe_env('PrismBusinessApp__WorkflowApiBaseUrl')}")
-print("Note: app runtime env may differ from the terminal; /debug/auth and /session-contract are the runtime truth sources below.")
-
-print_section("Internal service vs public tunnel")
-if internal_debug.get("status") == 200:
-    report(
-        "Internal BusinessApp backchannel",
-        "PASS",
-        f"{DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth returned JSON ({status_line(internal_debug)}). The internal service is up.",
-    )
-elif local_https_debug.get("status") == 200:
-    report(
-        "Internal BusinessApp backchannel",
-        "WARN",
-        f"{DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth failed with {status_line(internal_debug)}, but {DEFAULT_LOCAL_BUSINESS_URL}/debug/auth succeeded. BusinessApp is running, but the default internal HTTP hop looks stale or wrong.",
-        [
-            "bash scripts/codespaces/refresh.sh",
-            "tail -f artifacts/startup-status/prism-apphost.log",
-            "gh codespace ports --codespace \"$CODESPACE_NAME\"",
-        ],
-    )
-else:
-    report(
-        "Internal BusinessApp backchannel",
-        "FAIL",
-        f"Neither {DEFAULT_INTERNAL_BUSINESS_URL}/debug/auth nor {DEFAULT_LOCAL_BUSINESS_URL}/debug/auth responded successfully. BusinessApp itself may not be running.",
-        [
-            "bash scripts/codespaces/health-check.sh",
-            "bash scripts/codespaces/refresh.sh",
-            "tail -f artifacts/startup-status/prism-apphost.log",
-        ],
-    )
-
-if public_api_no_auth.get("tunnel_html"):
-    report(
-        "Public forwarded BusinessApp URL",
-        "WARN",
-        f"{public_business_url}/api/backoffice/me returned the Codespaces tunnel/auth HTML page instead of API JSON. This is a public forwarding/auth problem, not an internal app outage.",
-        [
-            "gh codespace ports --codespace \"$CODESPACE_NAME\"",
-            f"curl -i {shell_quote(public_business_url + '/api/backoffice/me')}",
-        ],
-    )
-elif public_api_no_auth.get("status") in {400, 401}:
-    report(
-        "Public forwarded BusinessApp URL",
-        "PASS",
-        f"{public_business_url}/api/backoffice/me reached BusinessApp ({status_line(public_api_no_auth)}). Public forwarding works; auth is the only thing missing on this probe.",
-    )
-elif public_api_no_auth.get("network_error"):
-    report(
-        "Public forwarded BusinessApp URL",
-        "FAIL",
-        f"{public_business_url}/api/backoffice/me could not be reached ({status_line(public_api_no_auth)}). This points to forwarding or stack readiness, not token validation.",
-        [
-            "gh codespace ports --codespace \"$CODESPACE_NAME\"",
-            "bash scripts/codespaces/health-check.sh",
-            "bash scripts/codespaces/refresh.sh",
-        ],
-    )
-else:
-    report(
-        "Public forwarded BusinessApp URL",
-        "WARN",
-        f"{public_business_url}/api/backoffice/me returned {status_line(public_api_no_auth)}. That is neither the expected auth response nor the tunnel page, so inspect the raw endpoint directly.",
-        [
-            f"curl -i {shell_quote(public_business_url + '/api/backoffice/me')}",
-            f"curl -sk {shell_quote(DEFAULT_LOCAL_BUSINESS_URL + '/debug/auth')}",
-        ],
-    )
-
-print_section("TestSite same-origin probes")
-if testsite_seed_ready.get("status") == 200:
-    report(
-        "TestSite seed-contract-ready",
-        "PASS",
-        "https://localhost:44345/api/prism/downstream-demo/seed-contract-ready returned JSON 200. TestSite is up and its seed contract is ready.",
-    )
-elif testsite_seed_ready.get("status") == 503:
-    report(
-        "TestSite seed-contract-ready",
-        "WARN",
-        "https://localhost:44345/api/prism/downstream-demo/seed-contract-ready reached TestSite but returned 503. The app is up, but the seeded route contract is not ready yet.",
-        [
-            "bash scripts/codespaces/health-check.sh",
-            "bash scripts/codespaces/refresh.sh",
-        ],
-    )
-else:
-    report(
-        "TestSite seed-contract-ready",
-        "FAIL",
-        f"https://localhost:44345/api/prism/downstream-demo/seed-contract-ready failed ({status_line(testsite_seed_ready)}).",
-        [
-            "bash scripts/codespaces/health-check.sh",
-            "tail -f artifacts/startup-status/prism-apphost.log",
-        ],
-    )
-
-session_contract_json = testsite_session_contract.get("json") if isinstance(testsite_session_contract.get("json"), dict) else {}
-tenant = session_contract_json.get("tenant") if isinstance(session_contract_json, dict) else {}
-cookie = session_contract_json.get("cookie") if isinstance(session_contract_json, dict) else {}
-downstream = session_contract_json.get("downstream") if isinstance(session_contract_json, dict) else {}
-seed = session_contract_json.get("seed") if isinstance(session_contract_json, dict) else {}
-
-if testsite_session_contract.get("status") == 200 and session_contract_json:
-    report(
-        "TestSite session-contract",
-        "PASS",
-        "https://localhost:44345/api/prism/downstream-demo/session-contract returned JSON, so the non-browser probe is available.",
-    )
-    print(f"   tenantResolved={tenant.get('resolved', '(missing)')}")
-    print(f"   tenantHostname={tenant.get('hostname', '(missing)')}")
-    print(f"   cookieAuthenticated={cookie.get('isAuthenticated', '(missing)')}")
-    print(f"   hasAccessToken={cookie.get('hasAccessToken', '(missing)')}")
-    print(f"   accessTokenExpired={cookie.get('accessTokenExpired', '(missing)')}")
-    print(f"   authorizationHeaderReady={downstream.get('authorizationHeaderReady', '(missing)')}")
-    print(f"   seedReady={seed.get('ready', seed.get('Ready', '(missing)'))}")
-    print("   note: terminal requests do not carry your browser cookie, so auth-related flags will usually be false here.")
-else:
-    report(
-        "TestSite session-contract",
-        "WARN",
-        f"https://localhost:44345/api/prism/downstream-demo/session-contract returned {status_line(testsite_session_contract)}.",
-    )
-
-if testsite_downstream_no_cookie.get("status") == 401:
-    report(
-        "TestSite downstream-demo without browser cookie",
-        "PASS",
-        "https://localhost:44345/api/prism/downstream-demo returned 401, which proves the same-origin endpoint is present and auth-protected.",
-    )
-elif testsite_downstream_no_cookie.get("status") == 200:
-    report(
-        "TestSite downstream-demo without browser cookie",
-        "WARN",
-        "https://localhost:44345/api/prism/downstream-demo returned 200 without a browser cookie. That is unusual for the current auth contract.",
-    )
-else:
-    report(
-        "TestSite downstream-demo without browser cookie",
-        "WARN",
-        f"https://localhost:44345/api/prism/downstream-demo returned {status_line(testsite_downstream_no_cookie)}.",
-    )
-
-if public_testsite_seed_ready.get("tunnel_html"):
-    report(
-        "Public TestSite seed-contract-ready",
-        "WARN",
-        f"{public_testsite_url}/api/prism/downstream-demo/seed-contract-ready returned the Codespaces tunnel/auth HTML page instead of app JSON.",
-        [
-            "gh codespace ports --codespace \"$CODESPACE_NAME\"",
-            f"curl -i {shell_quote(public_testsite_url + '/api/prism/downstream-demo/seed-contract-ready')}",
-        ],
-    )
-elif public_testsite_seed_ready.get("status") == 200:
-    report(
-        "Public TestSite seed-contract-ready",
-        "PASS",
-        f"{public_testsite_url}/api/prism/downstream-demo/seed-contract-ready returned JSON 200, so the forwarded TestSite URL is serving the app.",
-    )
-elif public_testsite_seed_ready.get("status") == 503:
-    report(
-        "Public TestSite seed-contract-ready",
-        "WARN",
-        f"{public_testsite_url}/api/prism/downstream-demo/seed-contract-ready reached TestSite but reported not-ready (503).",
-    )
-elif public_testsite_seed_ready.get("redirect"):
-    report(
-        "Public TestSite seed-contract-ready",
-        "WARN",
-        f"{public_testsite_url}/api/prism/downstream-demo/seed-contract-ready redirected ({status_line(public_testsite_seed_ready)}). Do not treat that as app success.",
-        [
-            f"curl -i {shell_quote(public_testsite_url + '/api/prism/downstream-demo/seed-contract-ready')}",
-        ],
-    )
-else:
-    report(
-        "Public TestSite seed-contract-ready",
-        "WARN",
-        f"{public_testsite_url}/api/prism/downstream-demo/seed-contract-ready returned {status_line(public_testsite_seed_ready)}.",
-    )
-
-print_section("BusinessApp availability vs token validation")
-if not token:
-    report(
-        "Authenticated downstream check",
-        "SKIP",
-        "No bearer token supplied, so the script can only prove transport and forwarding. Token-validation checks were skipped.",
-        [
-            "In the browser console, run: (async () => { const r = await fetch('/api/prism/downstream-demo/session-contract'); console.log(await r.json()); })()",
-            "Then rerun with: PRISM_BEARER_TOKEN='<access-token>' bash scripts/codespaces/diagnose-downstream.sh",
-        ],
-    )
-else:
-    if internal_api_auth and internal_api_auth.get("status") == 200:
-        report(
-            "Authenticated internal backchannel",
-            "PASS",
-            f"{DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me accepted the bearer token ({status_line(internal_api_auth)}). BusinessApp and Keycloak validation are both healthy on the internal hop.",
-        )
-    elif internal_api_auth and internal_api_auth.get("status") == 401:
-        report(
-            "Authenticated internal backchannel",
-            "WARN",
-            f"{DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me is reachable but rejected the bearer token ({status_line(internal_api_auth)}). This is an auth/session/Keycloak-validation problem, not a BusinessApp outage.",
-            [
-                f"curl -sk {shell_quote(DEFAULT_LOCAL_BUSINESS_URL + '/debug/auth')}",
-                "bash scripts/codespaces/refresh.sh",
-            ],
-        )
-    elif internal_api_auth and internal_api_auth.get("network_error"):
-        report(
-            "Authenticated internal backchannel",
-            "FAIL",
-            f"Authenticated call to {DEFAULT_INTERNAL_BUSINESS_URL}/api/backoffice/me never reached BusinessApp ({status_line(internal_api_auth)}). Fix internal service reachability first.",
-            [
-                "bash scripts/codespaces/refresh.sh",
-                "tail -f artifacts/startup-status/prism-apphost.log",
-            ],
-        )
-    else:
-        report(
-            "Authenticated internal backchannel",
-            "WARN",
-            f"Authenticated call returned {status_line(internal_api_auth or {})}. Inspect the app response body and Keycloak diagnostics next.",
-            [
-                f"curl -sk {shell_quote(DEFAULT_LOCAL_BUSINESS_URL + '/debug/auth')}",
-            ],
-        )
-
-    if public_api_auth and public_api_auth.get("tunnel_html"):
-        report(
-            "Authenticated public BusinessApp URL",
-            "WARN",
-            f"Even with a bearer token, {public_business_url}/api/backoffice/me returned the Codespaces tunnel/auth page. The public forwarding layer is still intercepting the request.",
-            [
-                "gh codespace ports --codespace \"$CODESPACE_NAME\"",
-                f"curl -i {shell_quote(public_business_url + '/api/backoffice/me')}",
-            ],
-        )
-    elif public_api_auth and public_api_auth.get("status") == 200:
-        report(
-            "Authenticated public BusinessApp URL",
-            "PASS",
-            f"{public_business_url}/api/backoffice/me also accepted the token ({status_line(public_api_auth)}). Browser-facing auth path looks healthy too.",
-        )
-    elif public_api_auth and public_api_auth.get("status") == 401:
-        report(
-            "Authenticated public BusinessApp URL",
-            "WARN",
-            f"Public BusinessApp URL is reachable but rejected the token ({status_line(public_api_auth)}). That aligns with an auth/token issue rather than a forwarding outage.",
-            [
-                "bash scripts/codespaces/refresh.sh",
-                f"curl -sk {shell_quote(DEFAULT_LOCAL_BUSINESS_URL + '/debug/auth')}",
-            ],
-        )
-
-print_section("Keycloak backchannel health")
-if public_keycloak_discovery.get("status") == 200:
-    issuer = None
-    if isinstance(public_keycloak_discovery.get("json"), dict):
-        issuer = public_keycloak_discovery["json"].get("issuer")
-    report(
-        "Public Keycloak discovery",
-        "PASS",
-        f"{public_keycloak_url}/realms/prism-dev/.well-known/openid-configuration responded ({status_line(public_keycloak_discovery)}). Issuer: {issuer or '(missing from payload)'}.",
-    )
-else:
-    report(
-        "Public Keycloak discovery",
-        "FAIL",
-        f"Public Keycloak discovery failed at {public_keycloak_url}/realms/prism-dev/.well-known/openid-configuration ({status_line(public_keycloak_discovery)}). Fix stack readiness before chasing token bugs.",
-        [
-            "bash scripts/codespaces/health-check.sh",
-            "bash scripts/codespaces/refresh.sh",
-        ],
-    )
-
-if runtime_backchannel_url and runtime_backchannel_url != "(not set)":
-    runtime_message = f"BusinessApp reports KEYCLOAK_BACKCHANNEL_URL={runtime_backchannel_url}."
-    if runtime_backchannel_probe:
-        runtime_message += f" Probe: {runtime_backchannel_probe}."
-
-    stale_reasons = []
-    if expects_keycloak_dynamic and runtime_backchannel_discovery and runtime_backchannel_discovery.get("status") != 200:
-        stale_reasons.append("repo expects a dynamic Keycloak backchannel, but the running BusinessApp cannot fetch discovery over that backchannel")
-    if expects_keycloak_dynamic and runtime_authority and public_keycloak_source != "local" and public_keycloak_url not in runtime_authority:
-        stale_reasons.append("running BusinessApp still trusts a different public OIDC authority than the current Codespaces forwarded URL")
-    if runtime_backchannel_certs and runtime_backchannel_certs.get("status") != 200:
-        stale_reasons.append("the backchannel JWKS endpoint is not returning 200")
-
-    if stale_reasons:
-        report(
-            "Runtime Keycloak backchannel",
-            "WARN",
-            runtime_message + " This looks stale or broken because " + "; ".join(stale_reasons) + ".",
-            [
-                "bash scripts/codespaces/refresh.sh",
-                f"curl -sk {shell_quote(DEFAULT_LOCAL_BUSINESS_URL + '/debug/auth')}",
-                "tail -f artifacts/startup-status/prism-apphost.log",
-            ],
-        )
-    else:
-        report(
-            "Runtime Keycloak backchannel",
-            "PASS",
-            runtime_message + " Discovery/JWKS checks line up with the current repo wiring, so a remaining 401 is more likely a stale token/session than a bad endpoint.",
-        )
-else:
-    if expects_keycloak_dynamic:
-        report(
-            "Runtime Keycloak backchannel",
-            "WARN",
-            "BusinessApp /debug/auth did not report a KEYCLOAK_BACKCHANNEL_URL even though the repo expects one in Codespaces. That usually means the running stack is stale or needs a restart.",
-            [
-                "bash scripts/codespaces/refresh.sh",
-                f"curl -sk {shell_quote(DEFAULT_LOCAL_BUSINESS_URL + '/debug/auth')}",
-            ],
-        )
-    else:
-        report(
-            "Runtime Keycloak backchannel",
-            "SKIP",
-            "BusinessApp /debug/auth did not expose a KEYCLOAK_BACKCHANNEL_URL, and the repo does not currently insist on one.",
-        )
-
-if expected_authority:
-    print(f"\nRepo expected fallback OIDC authority: {expected_authority}")
-if runtime_authority:
-    print(f"Runtime BusinessApp OIDC authority:      {runtime_authority}")
-if expects_business_dynamic:
-    print("Repo expectation: BUSINESSAPP_BACKCHANNEL_URL should be discovered dynamically in Codespaces.")
-if expects_keycloak_dynamic:
-    print("Repo expectation: KEYCLOAK_BACKCHANNEL_URL should be discovered dynamically in Codespaces.")
-PY
+if [ -n "$EXPECTED_AUTHORITY" ]; then
+    printf '\nRepo expected fallback OIDC authority: %s\n' "$EXPECTED_AUTHORITY"
+fi
+if [ -n "$RUNTIME_AUTHORITY" ]; then
+    printf 'Runtime BusinessApp OIDC authority:      %s\n' "$RUNTIME_AUTHORITY"
+fi
+if [ "$EXPECTS_BUSINESS_DYNAMIC" = 'true' ]; then
+    printf 'Repo expectation: BUSINESSAPP_BACKCHANNEL_URL should be discovered dynamically in Codespaces.\n'
+fi
+if [ "$EXPECTS_KEYCLOAK_DYNAMIC" = 'true' ]; then
+    printf 'Repo expectation: KEYCLOAK_BACKCHANNEL_URL should be discovered dynamically in Codespaces.\n'
+fi
