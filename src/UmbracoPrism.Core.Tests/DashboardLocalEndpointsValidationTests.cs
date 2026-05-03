@@ -95,7 +95,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     }
 
     [Fact]
-    public async Task DownstreamDemo_PrefersBusinessAppBackchannelUrl_WhenConfigured()
+    public async Task DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport()
     {
         using var backchannel = new TempEnvVar("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
         Uri? capturedRequestUri = null;
@@ -123,8 +123,12 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         var root = doc.RootElement;
 
+        // Backend uses backchannel for transport efficiency
         capturedRequestUri.Should().Be(new Uri("http://localhost:5163/api/backoffice/me"));
-        root.GetProperty("url").GetString().Should().Be("http://localhost:5163/api/backoffice/me");
+        
+        // But response to browser uses public URL
+        root.GetProperty("url").GetString().Should().Be("https://codespace-7245.app.github.dev/api/backoffice/me",
+            because: "browser-facing URLs must be publicly accessible");
     }
 
     [Fact]

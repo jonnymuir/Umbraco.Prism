@@ -100,7 +100,7 @@ public class DownstreamDemoController(
                 {
                     statusCode = (int)response.StatusCode,
                     statusText = response.ReasonPhrase ?? response.StatusCode.ToString(),
-                    url = targetUrl,
+                    url = TransformToDisplayUrl(targetUrl),
                     elapsedMs = sw.ElapsedMilliseconds,
                     contentType,
                     body = errorMessage,
@@ -127,7 +127,7 @@ public class DownstreamDemoController(
             {
                 statusCode = (int)response.StatusCode,
                 statusText = response.StatusCode.ToString(),
-                url = targetUrl,
+                url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType,
                 body = displayBody
@@ -144,7 +144,7 @@ public class DownstreamDemoController(
             {
                 statusCode = 0,
                 statusText = "Timeout",
-                url = targetUrl,
+                url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
                 body = "Request timed out after 10 seconds. Is MockBusinessApp running?"
@@ -162,7 +162,7 @@ public class DownstreamDemoController(
             {
                 statusCode = 0,
                 statusText = "Network Error",
-                url = targetUrl,
+                url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
                 body = $"Could not reach the service: {ex.Message}\n\nMake sure MockBusinessApp is running:\n  dotnet run --project src/UmbracoPrism.MockBusinessApp"
@@ -307,6 +307,28 @@ public class DownstreamDemoController(
             throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
 
         return baseUrl;
+    }
+
+    private string ResolveBusinessAppDisplayBaseUrl()
+    {
+        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+
+        return baseUrl;
+    }
+
+    private string TransformToDisplayUrl(string transportUrl)
+    {
+        var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(backchannelUrl))
+            return transportUrl;
+
+        if (!transportUrl.StartsWith(backchannelUrl, StringComparison.OrdinalIgnoreCase))
+            return transportUrl;
+
+        var displayBaseUrl = ResolveBusinessAppDisplayBaseUrl();
+        return displayBaseUrl + transportUrl.Substring(backchannelUrl.Length);
     }
 
     private bool IsUrlAllowed(string url)

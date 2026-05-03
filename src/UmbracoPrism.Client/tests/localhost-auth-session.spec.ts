@@ -154,6 +154,7 @@ async function callBusinessAppApi(page: Page): Promise<void> {
   const statusBadge = page.locator('#api-status-badge');
   const apiSummary = page.locator('#api-summary');
   const apiBody = page.locator('#api-body');
+  const apiUrl = page.locator('#api-url-label');
 
   try {
     await expect(statusBadge).toHaveText(/200 OK/, { timeout: 120_000 });
@@ -175,6 +176,13 @@ async function callBusinessAppApi(page: Page): Promise<void> {
   await expect(apiBody).toContainText('"tenant": "Prism Demo (Keycloak)"');
   await expect(apiBody).toContainText('"assignedRole": "Admin"');
   await expect(apiBody).toContainText('"userEmail": "demo@prism.local"');
+
+  // Contract: Browser-facing API responses must not expose internal backchannel URLs
+  const displayedUrl = await apiUrl.textContent();
+  expect(displayedUrl).not.toContain(':5163', 
+    'displayed URL must not expose the internal backchannel port 5163');
+  expect(displayedUrl).toContain('https://localhost:7245',
+    'displayed URL must show the public-facing HTTPS endpoint');
 }
 
 async function openDashboard(page: Page): Promise<void> {
