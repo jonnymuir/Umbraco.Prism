@@ -44,6 +44,7 @@ Move the generated key to `appsettings.Local.json` instead:
 Then revert `appsettings.json` to remove the key (`git checkout src/UmbracoPrism.TestSite/appsettings.json`). On subsequent runs Umbraco reads the key from `appsettings.Local.json` and does not regenerate it.
 
 **Rule:** Never commit values for `Umbraco:CMS:Imaging:HMACSecretKey` or `Prism:VaultUri` to `appsettings.json`.
+The Core test suite now fails if any tracked `appsettings*.json` file contains `Umbraco:CMS:Imaging:HMACSecretKey`.
 
 ### User secrets (alternative)
 

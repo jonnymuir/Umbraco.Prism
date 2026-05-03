@@ -162,7 +162,10 @@
                     <p id="api-summary" aria-live="polite" style="margin:0 0 12px; font-size:var(--prism-text-size-sm,13px);"></p>
                     <div style="background:var(--prism-surface-alt,#f8fafc); border:1px solid var(--prism-border,#e2e8f0); border-radius:10px; overflow:hidden;">
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:var(--prism-surface,#fff); border-bottom:1px solid var(--prism-border,#e2e8f0);">
-                            <span id="api-content-type" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace;"></span>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span id="api-body-label" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-weight:700;"></span>
+                                <span id="api-content-type" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace;"></span>
+                            </div>
                             <button onclick="resetApiDemo()" type="button" style="background:none; border:none; color:var(--prism-muted,#64748b); cursor:pointer; font-size:var(--prism-text-size-sm,13px); padding:2px 6px;">✕ Reset</button>
                         </div>
                         <pre id="api-body" style="margin:0; padding:16px; font-size:var(--prism-text-size-sm,13px); overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--prism-text,#0f172a);"></pre>
@@ -182,6 +185,7 @@
                     badge: document.getElementById('api-status-badge'),
                     url: document.getElementById('api-url-label'),
                     timing: document.getElementById('api-timing'),
+                    bodyLabel: document.getElementById('api-body-label'),
                     contentType: document.getElementById('api-content-type'),
                     body: document.getElementById('api-body'),
                     summary: document.getElementById('api-summary')
@@ -198,6 +202,10 @@
             }
 
             function readApiBody(payload, rawText, fallbackMessage) {
+                if (payload && typeof payload.diagnosticBody === 'string' && payload.diagnosticBody.trim()) {
+                    return payload.diagnosticBody.trim();
+                }
+
                 if (payload && typeof payload.body === 'string' && payload.body.trim()) {
                     return payload.body.trim();
                 }
@@ -217,7 +225,19 @@
                 return fallbackMessage;
             }
 
-            function createApiSummary(statusCode, statusText) {
+            function createApiSummary(statusCode, statusText, contentType) {
+                const normalizedContentType = typeof contentType === 'string'
+                    ? contentType.toLowerCase()
+                    : '';
+
+                if (statusText === 'Invalid Response') {
+                    if (normalizedContentType.includes('html')) {
+                        return 'The downstream service returned HTML instead of JSON. Inspect the raw response below.';
+                    }
+
+                    return `The downstream service returned ${contentType || 'non-JSON content'} instead of JSON.`;
+                }
+
                 if (statusCode >= 200 && statusCode < 300) {
                     return 'Mock Business App responded successfully.';
                 }
@@ -239,7 +259,7 @@
 
             function renderApiResult(model) {
                 const elements = getApiElements();
-                if (!elements.loading || !elements.badge || !elements.result || !elements.url || !elements.timing || !elements.contentType || !elements.body || !elements.summary) {
+                if (!elements.loading || !elements.badge || !elements.result || !elements.url || !elements.timing || !elements.bodyLabel || !elements.contentType || !elements.body || !elements.summary) {
                     return;
                 }
 
@@ -251,6 +271,7 @@
                 elements.badge.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
                 elements.url.textContent = model.url;
                 elements.timing.textContent = typeof model.elapsedMs === 'number' ? `${model.elapsedMs}ms` : '';
+                elements.bodyLabel.textContent = model.bodyLabel || 'Response body';
                 elements.contentType.textContent = model.contentType || 'unknown';
                 elements.body.textContent = model.body;
                 elements.summary.textContent = model.summary;
@@ -280,7 +301,9 @@
                     ? payload.contentType.trim()
                     : (res.headers.get('content-type')?.split(';')[0] || 'unknown');
                 const elapsedMs = Number.isFinite(payload?.elapsedMs) ? payload.elapsedMs : null;
-                const summary = createApiSummary(statusCode, statusText);
+                const hasDiagnosticBody = typeof payload?.diagnosticBody === 'string' && payload.diagnosticBody.trim();
+                const diagnosticBodyTruncated = payload?.diagnosticBodyTruncated === true;
+                const summary = createApiSummary(statusCode, statusText, contentType);
                 const body = readApiBody(payload, rawText, summary);
 
                 return {
@@ -290,7 +313,10 @@
                     elapsedMs,
                     contentType,
                     body,
-                    summary
+                    summary,
+                    bodyLabel: hasDiagnosticBody
+                        ? `Raw downstream response (text only${diagnosticBodyTruncated ? ', truncated' : ''})`
+                        : 'Response body'
                 };
             }
 
@@ -323,7 +349,7 @@
 
             function resetApiDemo() {
                 const elements = getApiElements();
-                if (!elements.result || !elements.loading || !elements.body || !elements.summary || !elements.timing || !elements.contentType || !elements.url || !elements.badge) {
+                if (!elements.result || !elements.loading || !elements.body || !elements.summary || !elements.timing || !elements.bodyLabel || !elements.contentType || !elements.url || !elements.badge) {
                     return;
                 }
 
@@ -333,6 +359,7 @@
                 elements.badge.textContent = '';
                 elements.url.textContent = '';
                 elements.timing.textContent = '';
+                elements.bodyLabel.textContent = '';
                 elements.contentType.textContent = '';
                 elements.summary.textContent = '';
                 elements.body.textContent = '';

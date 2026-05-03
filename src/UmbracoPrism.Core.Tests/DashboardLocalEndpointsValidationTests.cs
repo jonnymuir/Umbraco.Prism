@@ -18,10 +18,19 @@ using UmbracoPrism.TestSite.Controllers;
 
 namespace UmbracoPrism.Core.Tests;
 
-public class DashboardLocalEndpointsValidationTests
+[Collection(EnvVarSensitiveTestCollection.Name)]
+public class DashboardLocalEndpointsValidationTests : IDisposable
 {
+    private readonly string? _savedBusinessAppBackchannelUrl =
+        Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL");
+
     private static string RepoRoot =>
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL", _savedBusinessAppBackchannelUrl);
+    }
 
     [Fact]
     public async Task DownstreamDemo_UsesConfiguredHttpsBusinessAppUrl_OnSuccess()
@@ -82,6 +91,39 @@ public class DashboardLocalEndpointsValidationTests
         root.GetProperty("url").GetString().Should().Be("https://localhost:7245/api/backoffice/me");
         root.GetProperty("body").GetString().Should().Contain("Could not reach the service");
         root.GetProperty("body").GetString().Should().Contain("dotnet run --project src/UmbracoPrism.MockBusinessApp");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_PrefersBusinessAppBackchannelUrl_WhenConfigured()
+    {
+        using var backchannel = new TempEnvVar("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+        Uri? capturedRequestUri = null;
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            capturedRequestUri = request.RequestUri;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            };
+        });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        capturedRequestUri.Should().Be(new Uri("http://localhost:5163/api/backoffice/me"));
+        root.GetProperty("url").GetString().Should().Be("http://localhost:5163/api/backoffice/me");
     }
 
     [Fact]
@@ -244,6 +286,57 @@ public class DashboardLocalEndpointsValidationTests
     }
 
     [Fact]
+    public void AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls()
+    {
+        var program = File.ReadAllText(Path.Combine(
+            RepoRoot,
+            "src",
+            "UmbracoPrism.AppHost",
+            "Program.cs"));
+
+        program.Should().Contain(".WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", \"http://localhost:5163\")");
+    }
+
+    [Fact]
+    public void AppHost_DoesNotReuseBrokenAspireHttpsBackchannelPattern_ForBusinessApp()
+    {
+        var program = File.ReadAllText(Path.Combine(
+            RepoRoot,
+            "src",
+            "UmbracoPrism.AppHost",
+            "Program.cs"));
+
+        program.Should().NotContain(".WithEnvironment(\"BUSINESSAPP_BACKCHANNEL_URL\", businessApp.GetEndpoint(\"https\"))",
+            because: "an earlier Codespaces fix tried the Aspire-discovered HTTPS endpoint and regressed the downstream demo");
+    }
+
+    [Fact]
+    public void MockBusinessApp_LaunchSettings_AdvertiseLocalHttpBackchannelPort()
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            RepoRoot,
+            "src",
+            "UmbracoPrism.MockBusinessApp",
+            "Properties",
+            "launchSettings.json")));
+
+        var profiles = doc.RootElement.GetProperty("profiles");
+        profiles
+            .GetProperty("https")
+            .GetProperty("applicationUrl")
+            .GetString()
+            .Should()
+            .Be("https://localhost:7245;http://localhost:5163",
+                because: "the explicit backchannel URL must match a real MockBusinessApp listener");
+        profiles
+            .GetProperty("http")
+            .GetProperty("applicationUrl")
+            .GetString()
+            .Should()
+            .Be("http://localhost:5163");
+    }
+
+    [Fact]
     public async Task DownstreamDemo_SessionContract_ReportsCookieTokens_AndLogoutHintReadiness()
     {
         var authProperties = new AuthenticationProperties();
@@ -355,6 +448,10 @@ public class DashboardLocalEndpointsValidationTests
         root.GetProperty("body").GetString().Should().Contain(
             "Expected JSON but received text/html",
             because: "HTML responses from port-forwarding pages must be detected and surfaced as errors");
+        root.GetProperty("diagnosticBody").GetString().Should().Be(
+            "<html><body>Connecting to the forwarded port...</body></html>",
+            because: "the raw HTML should be available as inert diagnostic text for troubleshooting");
+        root.GetProperty("diagnosticBodyTruncated").GetBoolean().Should().BeFalse();
     }
 
     [Fact]
@@ -373,7 +470,7 @@ public class DashboardLocalEndpointsValidationTests
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -387,8 +484,10 @@ public class DashboardLocalEndpointsValidationTests
         root.GetProperty("statusCode").GetInt32().Should().Be(0);
         root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
         root.GetProperty("body").GetString().Should().Contain(
-            "HTML page",
-            because: "port-forwarding placeholder pages must be clearly identified");
+            "GitHub Codespaces port-forwarding proxy",
+            because: "Codespaces HTML tunnel pages should be surfaced as proxy/visibility issues, not JSON API bugs");
+        root.GetProperty("diagnosticBody").GetString().Should().Contain("<!DOCTYPE html>",
+            because: "the HTML diagnostic payload should be preserved as plain text");
     }
 
     [Fact]
@@ -423,6 +522,55 @@ public class DashboardLocalEndpointsValidationTests
         root.GetProperty("body").GetString().Should().Contain(
             "Expected JSON but received text/plain",
             because: "non-JSON responses must be detected as errors");
+        root.GetProperty("diagnosticBody").GetString().Should().Be("Service temporarily unavailable");
+        root.GetProperty("diagnosticBodyTruncated").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_TruncatesLargeDiagnosticBodies()
+    {
+        var oversizedBody = "<html>" + new string('x', 5000) + "</html>";
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(oversizedBody, Encoding.UTF8, "text/html")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        var diagnosticBody = root.GetProperty("diagnosticBody").GetString();
+        diagnosticBody.Should().NotBeNull();
+        diagnosticBody!.Length.Should().BeLessThan(4200,
+            because: "diagnostic payloads should be capped to avoid dumping unbounded HTML into the dashboard");
+        diagnosticBody.Should().EndWith("[Response body truncated for display.]");
+        root.GetProperty("diagnosticBodyTruncated").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public void MemberDashboard_RendersDiagnosticBodies_AsTextOnly()
+    {
+        var viewPath = Path.Combine(RepoRoot, "src", "UmbracoPrism.TestSite", "Views", "memberDashboard.cshtml");
+        var content = File.ReadAllText(viewPath);
+
+        content.Should().Contain("payload.diagnosticBody",
+            because: "the dashboard should prefer the raw diagnostic body when the downstream API returns non-JSON content");
+        content.Should().Contain("elements.body.textContent = model.body;",
+            because: "diagnostic HTML must be rendered as inert text, not live markup");
+        content.Should().NotContain("elements.body.innerHTML",
+            because: "rendering returned HTML as markup would create an XSS sink in the dashboard");
     }
 
     private static DownstreamDemoController BuildController(
@@ -479,6 +627,24 @@ public class DashboardLocalEndpointsValidationTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(factory(request));
+    }
+
+    private sealed class TempEnvVar : IDisposable
+    {
+        private readonly string _name;
+        private readonly string? _previousValue;
+
+        public TempEnvVar(string name, string? value)
+        {
+            _name = name;
+            _previousValue = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable(_name, _previousValue);
+        }
     }
 
     private sealed class TestAuthenticationService(AuthenticateResult result) : IAuthenticationService

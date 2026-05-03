@@ -34,6 +34,8 @@ public class DownstreamDemoController(
     IPublishedContentQuery publishedContentQuery,
     IWebHostEnvironment environment) : ControllerBase
 {
+    private const int MaxDiagnosticBodyLength = 4096;
+    private const string DiagnosticBodyTruncationNotice = "\n\n[Response body truncated for display.]";
     private static readonly JsonSerializerOptions PrettyPrint = new() { WriteIndented = true };
 
     [HttpGet]
@@ -78,14 +80,8 @@ public class DownstreamDemoController(
             // and other misconfigured endpoints that return HTML/plain text instead of JSON
             if (!IsJsonContentType(contentType))
             {
-                var errorMessage = $"Expected JSON but received {contentType}";
-                if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase) && 
-                    rawBody.Contains("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase))
-                {
-                    errorMessage += "\n\nReceived an HTML page instead of JSON. " +
-                        "If running in Codespaces, the port may not be forwarded correctly yet. " +
-                        "Wait a moment and try again.";
-                }
+                var errorMessage = BuildInvalidResponseSummary(contentType, targetUrl, rawBody);
+                var diagnosticBody = CreateDiagnosticBody(rawBody, out var diagnosticBodyTruncated);
 
                 return Ok(new
                 {
@@ -94,7 +90,9 @@ public class DownstreamDemoController(
                     url = targetUrl,
                     elapsedMs = sw.ElapsedMilliseconds,
                     contentType,
-                    body = errorMessage
+                    body = errorMessage,
+                    diagnosticBody,
+                    diagnosticBodyTruncated
                 });
             }
 
@@ -233,14 +231,7 @@ public class DownstreamDemoController(
         if (!string.IsNullOrWhiteSpace(url))
             return url;
 
-        // Use the discovered BusinessApp URL for server-to-server calls.
-        // In Codespaces this is the public forwarded URL (e.g., https://{token}-7245.app.github.dev).
-        // There may be a brief startup delay while GitHub initializes port forwarding; the controller's
-        // content-type validation will detect HTML responses and provide a helpful error message.
-        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(baseUrl))
-            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
-
+        var baseUrl = ResolveBusinessAppTransportBaseUrl();
         return $"{baseUrl}/api/backoffice/me";
     }
 
@@ -278,6 +269,19 @@ public class DownstreamDemoController(
     {
         return environment.IsDevelopment()
             || configuration.GetValue<bool>("Prism:EnableDownstreamDemo", false);
+    }
+
+    private string ResolveBusinessAppTransportBaseUrl()
+    {
+        var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+        if (!string.IsNullOrWhiteSpace(backchannelUrl))
+            return backchannelUrl;
+
+        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+
+        return baseUrl;
     }
 
     private bool IsUrlAllowed(string url)
@@ -362,6 +366,53 @@ public class DownstreamDemoController(
                targetUri.Host.Equals(allowedUri.Host, StringComparison.OrdinalIgnoreCase) &&
                targetUri.Port == allowedUri.Port &&
                targetUri.AbsolutePath.StartsWith(allowedUri.AbsolutePath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCodespacesUrl(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Host.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildInvalidResponseSummary(string contentType, string targetUrl, string rawBody)
+    {
+        var errorMessage = $"Expected JSON but received {contentType}.";
+        if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
+        {
+            if (IsCodespacesUrl(targetUrl))
+            {
+                errorMessage += " Received an HTML page instead of JSON. " +
+                    "This usually means the request hit the GitHub Codespaces port-forwarding proxy " +
+                    "instead of Mock Business App. Private or not-yet-ready forwarded ports can return " +
+                    "an HTML tunnel/auth page for server-side requests.";
+            }
+            else if (rawBody.Contains("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase))
+            {
+                errorMessage += " Received an HTML page instead of JSON. " +
+                    "If running in Codespaces, the port may not be forwarded correctly yet. " +
+                    "Wait a moment and try again.";
+            }
+        }
+
+        return errorMessage;
+    }
+
+    private static string? CreateDiagnosticBody(string rawBody, out bool wasTruncated)
+    {
+        wasTruncated = false;
+        if (string.IsNullOrWhiteSpace(rawBody))
+        {
+            return null;
+        }
+
+        var trimmedBody = rawBody.Trim();
+        if (trimmedBody.Length <= MaxDiagnosticBodyLength)
+        {
+            return trimmedBody;
+        }
+
+        wasTruncated = true;
+        return trimmedBody[..MaxDiagnosticBodyLength] + DiagnosticBodyTruncationNotice;
     }
 
     private SeedContractStatus BuildSeedContract()
