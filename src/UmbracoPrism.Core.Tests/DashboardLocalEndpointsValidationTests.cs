@@ -733,6 +733,175 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             because: "rendering returned HTML as markup would create an XSS sink in the dashboard");
     }
 
+    [Fact]
+    public async Task DownstreamDemo_ExposesTransportDiagnostics_WhenBackchannelIsConfigured()
+    {
+        using var backchannel = new TempEnvVar("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+        
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("transport").GetProperty("transport").GetString().Should().Be("internal-backchannel",
+            because: "when BUSINESSAPP_BACKCHANNEL_URL is set, the transport should be labeled as internal-backchannel");
+        root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeTrue(
+            because: "backchannelPresent should reflect the presence of BUSINESSAPP_BACKCHANNEL_URL env var");
+        root.GetProperty("transport").GetProperty("transportBaseUrl").GetString().Should().Be("http://localhost:****",
+            because: "internal URLs should be masked to avoid exposing the actual port in diagnostics");
+        root.GetProperty("transport").GetProperty("targetUrlScheme").GetString().Should().Be("http",
+            because: "the target URL scheme should be surfaced for protocol diagnostics");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_ExposesTransportDiagnostics_WhenBackchannelIsNotConfigured()
+    {
+        Environment.SetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL", null);
+        
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("transport").GetProperty("transport").GetString().Should().Be("public-tunnel",
+            because: "when BUSINESSAPP_BACKCHANNEL_URL is not set and the URL is a Codespaces tunnel, transport should be public-tunnel");
+        root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeFalse(
+            because: "backchannelPresent should be false when BUSINESSAPP_BACKCHANNEL_URL is not set");
+        root.GetProperty("transport").GetProperty("transportBaseUrl").GetString().Should().Be("https://codespace-7245.uks1.app.github.dev",
+            because: "public URLs should not be masked since they are browser-visible anyway");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_IncludesTransportDiagnostics_InErrorResponses()
+    {
+        using var backchannel = new TempEnvVar("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+        
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "<html>Connecting...</html>",
+                    Encoding.UTF8,
+                    "text/html")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
+        root.GetProperty("transport").GetProperty("transport").GetString().Should().Be("internal-backchannel",
+            because: "transport diagnostics should be included even in error responses");
+        root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeTrue(
+            because: "error responses need backchannel wiring signal to diagnose timeout root causes");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_IncludesTransportDiagnostics_OnTimeout()
+    {
+        Environment.SetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL", null);
+        
+        var handler = new StubHttpMessageHandler(_ => throw new TaskCanceledException("Timeout"));
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(0);
+        root.GetProperty("statusText").GetString().Should().Be("Timeout");
+        root.GetProperty("transport").GetProperty("transport").GetString().Should().Be("public-tunnel",
+            because: "timeout diagnostics should surface whether backchannel was used");
+        root.GetProperty("transport").GetProperty("backchannelPresent").GetBoolean().Should().BeFalse(
+            because: "knowing backchannel wasn't configured helps triage public tunnel timeout issues");
+        root.GetProperty("body").GetString().Should().Contain("public Codespaces URL",
+            because: "timeout hint should explain the public tunnel path when backchannel is not configured");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_DoesNotExposeRawBackchannelPortInDiagnostics()
+    {
+        using var backchannel = new TempEnvVar("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+        
+        var handler = new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var json = JsonSerializer.Serialize(ok.Value);
+
+        json.Should().NotContain("5163",
+            because: "the actual backchannel port should not leak into browser-visible diagnostics");
+        json.Should().Contain("http://localhost:****",
+            because: "internal URLs should use masked port representation");
+    }
+
     private static DownstreamDemoController BuildController(
         HttpMessageHandler handler,
         IDictionary<string, string?> configValues,

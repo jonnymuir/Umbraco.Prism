@@ -68,6 +68,7 @@ public class DownstreamDemoController(
             return Unauthorized(new { error = "No Prism session — please sign in again." });
 
         var targetUrl = BuildTargetUrl(url);
+        var (transport, backchannelPresent, transportBaseUrl, targetUrlScheme) = BuildTransportDiagnostics(targetUrl);
 
         var sw = Stopwatch.StartNew();
         try
@@ -88,11 +89,13 @@ public class DownstreamDemoController(
                 var diagnosticBody = CreateDiagnosticBody(response, contentType, rawBody, out var diagnosticBodyTruncated);
 
                 logger.LogWarning(
-                    "Downstream demo received non-JSON response from {TargetUrl}. HTTP {StatusCode} {ReasonPhrase}; content-type {ContentType}; headers {Headers}; bodyLength {BodyLength}",
+                    "Downstream demo received non-JSON response from {TargetUrl}. HTTP {StatusCode} {ReasonPhrase}; content-type {ContentType}; transport {Transport}; backchannel {Backchannel}; headers {Headers}; bodyLength {BodyLength}",
                     targetUrl,
                     (int)response.StatusCode,
                     response.ReasonPhrase ?? response.StatusCode.ToString(),
                     contentType,
+                    transport,
+                    backchannelPresent,
                     FormatHeaders(response),
                     rawBody.Length);
 
@@ -107,7 +110,14 @@ public class DownstreamDemoController(
                     summary,
                     diagnosticBody,
                     diagnosticBodyTruncated,
-                    invalidResponse = true
+                    invalidResponse = true,
+                    transport = new
+                    {
+                        transport,
+                        backchannelPresent,
+                        transportBaseUrl,
+                        targetUrlScheme
+                    }
                 });
             }
 
@@ -130,16 +140,36 @@ public class DownstreamDemoController(
                 url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType,
-                body = displayBody
+                body = displayBody,
+                transport = new
+                {
+                    transport,
+                    backchannelPresent,
+                    transportBaseUrl,
+                    targetUrlScheme
+                }
             });
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException ex)
         {
             sw.Stop();
+            var wasTimeoutCancellation = ex.CancellationToken.IsCancellationRequested;
             logger.LogWarning(
-                "Downstream demo timed out calling {TargetUrl} after {ElapsedMs}ms.",
+                "Downstream demo timed out calling {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}; Cancellation source: {CancellationSource}",
                 targetUrl,
-                sw.ElapsedMilliseconds);
+                sw.ElapsedMilliseconds,
+                transport,
+                backchannelPresent,
+                wasTimeoutCancellation ? "timeout" : "external");
+            
+            var timeoutDetail = wasTimeoutCancellation
+                ? "Request timed out after 10 seconds."
+                : "Request was cancelled before completion.";
+            
+            var hint = transport == "public-tunnel"
+                ? " The request was targeting a public Codespaces URL which may hit GitHub's forwarding proxy. Check if BUSINESSAPP_BACKCHANNEL_URL is configured in the AppHost."
+                : " The request was targeting an internal backchannel. Check if MockBusinessApp is listening on the expected port. In Codespaces, try `bash scripts/codespaces/refresh.sh`.";
+
             return Ok(new
             {
                 statusCode = 0,
@@ -147,7 +177,14 @@ public class DownstreamDemoController(
                 url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
-                body = "Request timed out after 10 seconds. Is MockBusinessApp running?"
+                body = timeoutDetail + hint,
+                transport = new
+                {
+                    transport,
+                    backchannelPresent,
+                    transportBaseUrl,
+                    targetUrlScheme
+                }
             });
         }
         catch (HttpRequestException ex)
@@ -155,9 +192,16 @@ public class DownstreamDemoController(
             sw.Stop();
             logger.LogWarning(
                 ex,
-                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms.",
+                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms. Transport: {Transport}; Backchannel present: {BackchannelPresent}",
                 targetUrl,
-                sw.ElapsedMilliseconds);
+                sw.ElapsedMilliseconds,
+                transport,
+                backchannelPresent);
+            
+            var hint = transport == "internal-backchannel"
+                ? "\n\nThe request used an internal backchannel URL. If running in Codespaces, check that AppHost is passing the correct dynamic endpoint. Try `bash scripts/codespaces/refresh.sh`."
+                : "\n\nMake sure MockBusinessApp is running:\n  dotnet run --project src/UmbracoPrism.MockBusinessApp";
+            
             return Ok(new
             {
                 statusCode = 0,
@@ -165,7 +209,14 @@ public class DownstreamDemoController(
                 url = TransformToDisplayUrl(targetUrl),
                 elapsedMs = sw.ElapsedMilliseconds,
                 contentType = "none",
-                body = $"Could not reach the service: {ex.Message}\n\nMake sure MockBusinessApp is running:\n  dotnet run --project src/UmbracoPrism.MockBusinessApp"
+                body = $"Could not reach the service: {ex.Message}{hint}",
+                transport = new
+                {
+                    transport,
+                    backchannelPresent,
+                    transportBaseUrl,
+                    targetUrlScheme
+                }
             });
         }
     }
@@ -294,6 +345,51 @@ public class DownstreamDemoController(
     {
         return environment.IsDevelopment()
             || configuration.GetValue<bool>("Prism:EnableDownstreamDemo", false);
+    }
+
+    private (string transport, bool backchannelPresent, string transportBaseUrl, string targetUrlScheme) BuildTransportDiagnostics(string targetUrl)
+    {
+        var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+        var backchannelPresent = !string.IsNullOrWhiteSpace(backchannelUrl);
+        
+        string transport;
+        string transportBaseUrl;
+        
+        if (backchannelPresent)
+        {
+            transport = "internal-backchannel";
+            transportBaseUrl = MaskInternalUrl(backchannelUrl!);
+        }
+        else
+        {
+            var publicUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+            transport = IsCodespacesUrl(publicUrl ?? "") ? "public-tunnel" : "public-url";
+            transportBaseUrl = MaskPublicUrl(publicUrl ?? "");
+        }
+
+        var targetUrlScheme = Uri.TryCreate(targetUrl, UriKind.Absolute, out var uri) ? uri.Scheme : "unknown";
+
+        return (transport, backchannelPresent, transportBaseUrl, targetUrlScheme);
+    }
+
+    private static string MaskInternalUrl(string url)
+    {
+        // Show scheme and localhost indicator but not the actual port for security
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var hostIndicator = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                               uri.Host.Equals("127.0.0.1", StringComparison.Ordinal)
+                ? "localhost"
+                : "internal";
+            return $"{uri.Scheme}://{hostIndicator}:****";
+        }
+        return "internal:****";
+    }
+
+    private static string MaskPublicUrl(string url)
+    {
+        // Show full public URL since it's browser-visible anyway
+        return url;
     }
 
     private string ResolveBusinessAppTransportBaseUrl()
