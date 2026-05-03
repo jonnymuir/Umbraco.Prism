@@ -303,7 +303,9 @@
                 const elapsedMs = Number.isFinite(payload?.elapsedMs) ? payload.elapsedMs : null;
                 const hasDiagnosticBody = typeof payload?.diagnosticBody === 'string' && payload.diagnosticBody.trim();
                 const diagnosticBodyTruncated = payload?.diagnosticBodyTruncated === true;
-                const summary = createApiSummary(statusCode, statusText, contentType);
+                const summary = typeof payload?.summary === 'string' && payload.summary.trim()
+                    ? payload.summary.trim()
+                    : createApiSummary(statusCode, statusText, contentType);
                 const body = readApiBody(payload, rawText, summary);
 
                 return {
@@ -315,7 +317,7 @@
                     body,
                     summary,
                     bodyLabel: hasDiagnosticBody
-                        ? `Raw downstream response (text only${diagnosticBodyTruncated ? ', truncated' : ''})`
+                        ? `Downstream diagnostics${diagnosticBodyTruncated ? ' (truncated)' : ''}`
                         : 'Response body'
                 };
             }

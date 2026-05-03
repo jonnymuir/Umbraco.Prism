@@ -52,8 +52,24 @@ namespace UmbracoPrism.Core.Tests;
 /// 3. Notification authorization (admin-only broadcast)
 /// 4. Downstream demo restriction (dev/config-gated)
 /// </summary>
-public class Phase1SecurityRegressionTests
+[Collection(EnvVarSensitiveTestCollection.Name)]
+public class Phase1SecurityRegressionTests : IDisposable
 {
+    private readonly string? _savedBackchannelUrl;
+    private readonly string? _savedAspNetCoreEnv;
+
+    public Phase1SecurityRegressionTests()
+    {
+        _savedBackchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+        _savedAspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+    }
+
     // ------------------------------------------------------------------
     // 1. OPEN REDIRECT HARDENING
     // ------------------------------------------------------------------
@@ -626,7 +642,8 @@ public class Phase1SecurityRegressionTests
             config,
             prismContext.Object,
             publishedContentQuery.Object,
-            environment);
+            environment,
+            NullLogger<DownstreamDemoController>.Instance);
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> factory) : HttpMessageHandler

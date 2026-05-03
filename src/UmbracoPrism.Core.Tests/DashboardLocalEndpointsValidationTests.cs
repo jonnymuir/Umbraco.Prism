@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -443,14 +444,19 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         var root = doc.RootElement;
 
-        root.GetProperty("statusCode").GetInt32().Should().Be(0);
-        root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
+        root.GetProperty("statusCode").GetInt32().Should().Be(200);
+        root.GetProperty("statusText").GetString().Should().Be("OK");
+        root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
+        root.GetProperty("summary").GetString().Should().Be(
+            "The downstream service replied with HTTP 200 OK and text/html instead of JSON. See diagnostics below.");
         root.GetProperty("body").GetString().Should().Contain(
-            "Expected JSON but received text/html",
+            "Expected JSON but received text/html (HTTP 200 OK)",
             because: "HTML responses from port-forwarding pages must be detected and surfaced as errors");
-        root.GetProperty("diagnosticBody").GetString().Should().Be(
-            "<html><body>Connecting to the forwarded port...</body></html>",
-            because: "the raw HTML should be available as inert diagnostic text for troubleshooting");
+        root.GetProperty("diagnosticBody").GetString().Should().Contain("HTTP 200 OK")
+            .And.Contain("Content-Type: text/html")
+            .And.Contain("Content-Length: 61")
+            .And.Contain("<html><body>Connecting to the forwarded port...</body></html>",
+                because: "diagnostics should preserve response metadata as well as the raw HTML body");
         root.GetProperty("diagnosticBodyTruncated").GetBoolean().Should().BeFalse();
     }
 
@@ -481,13 +487,16 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         var root = doc.RootElement;
 
-        root.GetProperty("statusCode").GetInt32().Should().Be(0);
-        root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
+        root.GetProperty("statusCode").GetInt32().Should().Be(200);
+        root.GetProperty("statusText").GetString().Should().Be("OK");
+        root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
         root.GetProperty("body").GetString().Should().Contain(
             "GitHub Codespaces port-forwarding proxy",
             because: "Codespaces HTML tunnel pages should be surfaced as proxy/visibility issues, not JSON API bugs");
-        root.GetProperty("diagnosticBody").GetString().Should().Contain("<!DOCTYPE html>",
-            because: "the HTML diagnostic payload should be preserved as plain text");
+        root.GetProperty("diagnosticBody").GetString().Should().Contain("HTTP 200 OK")
+            .And.Contain("Content-Type: text/html")
+            .And.Contain("<!DOCTYPE html>",
+                because: "the HTML diagnostic payload should be preserved alongside response metadata");
     }
 
     [Fact]
@@ -517,13 +526,105 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         var root = doc.RootElement;
 
-        root.GetProperty("statusCode").GetInt32().Should().Be(0);
-        root.GetProperty("statusText").GetString().Should().Be("Invalid Response");
+        root.GetProperty("statusCode").GetInt32().Should().Be(200);
+        root.GetProperty("statusText").GetString().Should().Be("OK");
+        root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
+        root.GetProperty("summary").GetString().Should().Be(
+            "The downstream service replied with HTTP 200 OK and text/plain instead of JSON. See diagnostics below.");
         root.GetProperty("body").GetString().Should().Contain(
-            "Expected JSON but received text/plain",
+            "Expected JSON but received text/plain (HTTP 200 OK)",
             because: "non-JSON responses must be detected as errors");
-        root.GetProperty("diagnosticBody").GetString().Should().Be("Service temporarily unavailable");
+        root.GetProperty("diagnosticBody").GetString().Should().Contain("HTTP 200 OK")
+            .And.Contain("Content-Type: text/plain")
+            .And.Contain("Content-Length: 31")
+            .And.Contain("Service temporarily unavailable");
         root.GetProperty("diagnosticBodyTruncated").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_IncludesStatusAndLocation_WhenResponseTypeIsUnknown()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = new Uri("http://localhost:5163/signin", UriKind.Absolute);
+            response.Content = new ByteArrayContent([]);
+            return response;
+        });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get(url: "http://localhost:5163/api/backoffice/me");
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(302);
+        root.GetProperty("statusText").GetString().Should().Be("Found");
+        root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
+        root.GetProperty("contentType").GetString().Should().Be("unknown");
+        root.GetProperty("summary").GetString().Should().Be(
+            "The downstream service replied with HTTP 302 Found but did not identify the response type. See diagnostics below.");
+        root.GetProperty("diagnosticBody").GetString().Should().Be(
+            "HTTP 302 Found" + Environment.NewLine +
+            "Content-Type: unknown" + Environment.NewLine +
+            "Location: http://localhost:5163/signin" + Environment.NewLine +
+            "Content-Length: 0" + Environment.NewLine +
+            Environment.NewLine +
+            "[No response body]",
+            because: "empty non-JSON responses should still surface the upstream HTTP metadata needed for diagnosis");
+    }
+
+    [Fact]
+    public async Task DownstreamDemo_SurfacesUnauthorizedChallengeMetadata_WhenBearerTokenIsRejected()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            {
+                Content = new ByteArrayContent([])
+            };
+            response.Headers.WwwAuthenticate.Add(
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    "error=\"invalid_token\", error_description=\"The signature key was not found\""));
+            return response;
+        });
+
+        var controller = BuildController(
+            handler,
+            new Dictionary<string, string?>
+            {
+                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+            },
+            authHeader: new AuthenticationHeaderValue("Bearer", "token"),
+            isDevelopment: true);
+
+        var result = await controller.Get(url: "http://localhost:5163/api/backoffice/me");
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var root = doc.RootElement;
+
+        root.GetProperty("statusCode").GetInt32().Should().Be(401);
+        root.GetProperty("statusText").GetString().Should().Be("Unauthorized");
+        root.GetProperty("contentType").GetString().Should().Be("unknown");
+        root.GetProperty("invalidResponse").GetBoolean().Should().BeTrue();
+        root.GetProperty("body").GetString().Should().Contain(
+            "Mock Business App rejected the bearer token",
+            because: "an empty 401 challenge is the most likely source of the live Codespaces symptom");
+        root.GetProperty("diagnosticBody").GetString().Should().Contain("HTTP 401 Unauthorized")
+            .And.Contain("Content-Type: unknown")
+            .And.Contain("WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"The signature key was not found\"")
+            .And.Contain("[No response body]");
     }
 
     [Fact]
@@ -567,6 +668,8 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
 
         content.Should().Contain("payload.diagnosticBody",
             because: "the dashboard should prefer the raw diagnostic body when the downstream API returns non-JSON content");
+        content.Should().Contain("payload?.summary",
+            because: "the dashboard should show controller-supplied summaries when richer diagnostics are available");
         content.Should().Contain("elements.body.textContent = model.body;",
             because: "diagnostic HTML must be rendered as inert text, not live markup");
         content.Should().NotContain("elements.body.innerHTML",
@@ -606,7 +709,8 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             configuration, 
             prismContext.Object,
             publishedContentQuery.Object,
-            environment.Object);
+            environment.Object,
+            Mock.Of<ILogger<DownstreamDemoController>>());
 
         var services = new ServiceCollection()
             .AddSingleton<IAuthenticationService>(new TestAuthenticationService(authResult ?? AuthenticateResult.NoResult()))

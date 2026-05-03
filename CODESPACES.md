@@ -60,7 +60,107 @@ The status page will show all four services green and surface direct links. Here
 
 - **Ports panel** (VS Code sidebar) — shows all forwarded ports with their labels and public URLs once they're ready. The Aspire Dashboard is on port **15135** in Codespaces (HTTP — the Codespaces proxy handles HTTPS at the edge)
 - **Status page** (port 3000) — stays live and updates in real time as services start or restart
-- **AppHost logs** — if anything looks stuck, run `tail -f /tmp/prism-apphost.log` in the terminal
+- **AppHost logs** — if anything looks stuck, run `tail -f artifacts/startup-status/prism-apphost.log` in the terminal
+
+---
+
+## 🔄 Refreshing the stack (pull latest & restart)
+
+Use these scripts when you need to update code or recover a broken stack without rebuilding the entire Codespace.
+
+### When to use
+
+| Situation | What to do |
+|---|---|
+| You've pulled (or want to pull) latest code and restart | `bash scripts/codespaces/refresh.sh` |
+| Services are misbehaving and you want a clean restart | `bash scripts/codespaces/refresh.sh` |
+| You want to stop the stack without restarting | `bash scripts/codespaces/stop.sh` |
+| NuGet packages or project references changed | `bash scripts/codespaces/refresh.sh --rebuild` |
+| You just want to know if everything is up | `bash scripts/codespaces/health-check.sh` |
+
+### The scripts
+
+All scripts live in `scripts/codespaces/` and should be run from the **repo root**.
+
+#### `stop.sh` — Stop all running services
+
+```bash
+bash scripts/codespaces/stop.sh
+```
+
+Gracefully kills the Aspire AppHost (`UmbracoPrism.AppHost`) and the startup status server (port 3000). Safe to run even if services are already stopped. After stopping, ports 3000, 15135, 44345, 8443, and 7245 are freed.
+
+#### `refresh.sh` — Stop → pull → restart
+
+```bash
+bash scripts/codespaces/refresh.sh
+```
+
+The standard refresh path. Does the least-destructive update cycle:
+
+1. **Stop** — calls `stop.sh` to kill the running stack
+2. **Pull** — `git pull origin main`
+3. **npm install** — automatically runs if `package-lock.json` changed in the pull
+4. **Restart** — calls `.devcontainer/on-start.sh`, the real startup contract (starts status page on port 3000, waits for Docker, launches AppHost)
+
+**With `--rebuild`** — use this after pulling changes that add/remove NuGet packages, change project structure, or when you want a clean compile:
+
+```bash
+bash scripts/codespaces/refresh.sh --rebuild
+```
+
+This adds `dotnet restore` + `dotnet build` before the restart.
+
+**With `--no-start`** — stop and update but don't restart:
+
+```bash
+bash scripts/codespaces/refresh.sh --no-start
+```
+
+#### `health-check.sh` — Confirm the stack is healthy
+
+```bash
+bash scripts/codespaces/health-check.sh
+```
+
+Probes all four readiness endpoints and prints a ✅/❌ summary:
+
+| Service | Endpoint |
+|---|---|
+| Status server | `http://localhost:3000/api/status` |
+| Aspire Dashboard | `http://localhost:15135` (Codespaces) |
+| TestSite | `https://localhost:44345/api/prism/downstream-demo/seed-contract-ready` |
+| Keycloak | `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration` |
+| MockBusinessApp | `https://localhost:7245/debug/auth` |
+
+Exits `0` when all services are ready, `1` if any are not.
+
+### Confirming the stack is healthy
+
+After running `refresh.sh`, the status page (port 3000) updates automatically. You can also run:
+
+```bash
+bash scripts/codespaces/health-check.sh
+```
+
+All five entries should be ✅. If Keycloak or TestSite are still pending, wait 30–60 seconds and try again — the Aspire cold-start can take 3–5 minutes on a resumed Codespace.
+
+You can also watch the AppHost log directly:
+
+```bash
+tail -f artifacts/startup-status/prism-apphost.log
+```
+
+### When a full Codespace rebuild is actually necessary
+
+A `refresh.sh` is enough for the vast majority of updates. Rebuild the whole Codespace (via **Codespaces → Rebuild Container** in VS Code or the GitHub UI) only when:
+
+- The `.devcontainer/devcontainer.json` or a feature has changed (Docker image or features update)
+- The `.devcontainer/on-create.sh` has changed (one-time setup steps like `dotnet dev-certs --trust` or the initial `dotnet restore`)
+- You hit a broken Docker-in-Docker state that `stop.sh` can't fix (symptom: `docker info` hangs or fails repeatedly)
+- The `.NET SDK` or `Node.js` version constraint in the devcontainer has changed
+
+A full rebuild takes 5–10 minutes and resets the Umbraco SQLite database — the demo data will be reseeded automatically on next start.
 
 ---
 

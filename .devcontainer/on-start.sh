@@ -5,6 +5,11 @@
 # page on port 3000 so users can see progress rather than blank screens.
 
 DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
+STARTUP_STATUS_DIR="artifacts/startup-status"
+STATUS_SERVER_LOG="$STARTUP_STATUS_DIR/prism-status-server.log"
+APPHOST_LOG="$STARTUP_STATUS_DIR/prism-apphost.log"
+
+mkdir -p "$STARTUP_STATUS_DIR"
 
 # ── Codespaces URL discovery ──────────────────────────────────────────────────
 # Query `gh codespace ports` once for the authoritative browseUrl of each forwarded
@@ -15,6 +20,9 @@ CODESPACE_PORTS_JSON=""
 if [ -n "$CODESPACE_NAME" ] && command -v gh >/dev/null 2>&1; then
     CODESPACE_PORTS_JSON=$(gh codespace ports --codespace "$CODESPACE_NAME" --json sourcePort,browseUrl 2>/dev/null || true)
 fi
+export PRISM_CODESPACE_PORTS_JSON="$CODESPACE_PORTS_JSON"
+export PRISM_STARTUP_LOG_DIR="$STARTUP_STATUS_DIR"
+export PRISM_APPHOST_LOG_FILE="$APPHOST_LOG"
 
 get_codespace_url() {
     local port="$1"
@@ -58,7 +66,7 @@ echo ""
 # The status page polls /api/status (served by the same process) which probes
 # downstream services server-side, avoiding any CORS issues.
 echo "🌐 Starting startup status page on port 3000..."
-node scripts/startup-status/server.js > /tmp/prism-status-server.log 2>&1 &
+node scripts/startup-status/server.js > "$STATUS_SERVER_LOG" 2>&1 &
 STATUS_SERVER_PID=$!
 
 # Brief pause to confirm the status server is up before Codespaces tries to open it.
@@ -66,7 +74,7 @@ sleep 2
 if kill -0 "$STATUS_SERVER_PID" 2>/dev/null; then
     echo "✅ Status page ready — open port 3000 in your browser to follow progress."
 else
-    echo "⚠️  Status server did not start (check /tmp/prism-status-server.log)"
+    echo "⚠️  Status server did not start (check $STATUS_SERVER_LOG)"
 fi
 
 echo ""
@@ -103,31 +111,31 @@ done
 
 # ── Launch AppHost ────────────────────────────────────────────────────────────
 echo ""
-echo "🔄 Launching AppHost (full logs: /tmp/prism-apphost.log)..."
+echo "🔄 Launching AppHost (full logs: $APPHOST_LOG)..."
 echo "   The status page will update automatically as each service becomes ready."
 echo ""
-nohup dotnet run --project src/UmbracoPrism.AppHost > /tmp/prism-apphost.log 2>&1 &
+nohup dotnet run --project src/UmbracoPrism.AppHost > "$APPHOST_LOG" 2>&1 &
 
 # Keep the terminal informed while the status page does the visual heavy-lifting.
 echo -n "   Waiting for all services"
 for i in $(seq 1 150); do
-    # Check Aspire + TestSite + Keycloak + MockBiz
+    # Check Aspire + TestSite seed contract + Keycloak discovery + MockBiz debug endpoint
     A=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" "$DASHBOARD_URL" 2>/dev/null)
-    T=$(curl -s --max-time 3 -o /dev/null -w "%{http_code}" http://localhost:9250/api/health 2>/dev/null)
-    K=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:8443/realms/prism-dev 2>/dev/null)
-    M=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:7245 2>/dev/null)
+    T=$(curl -sk --max-time 3 -o /dev/null -w "%{http_code}" https://localhost:44345/api/prism/downstream-demo/seed-contract-ready 2>/dev/null)
+    K=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:8443/realms/prism-dev/.well-known/openid-configuration 2>/dev/null)
+    M=$(curl -sk --max-time 2 -o /dev/null -w "%{http_code}" https://localhost:7245/debug/auth 2>/dev/null)
 
     if [[ "$A" -gt 0 && "$A" -lt 500 ]] && \
-       [[ "$T" -gt 0 && "$T" -lt 500 ]] && \
-       [[ "$K" -gt 0 && "$K" -lt 500 ]] && \
-       [[ "$M" -gt 0 && "$M" -lt 500 ]]; then
+       [[ "$T" -eq 200 ]] && \
+       [[ "$K" -eq 200 ]] && \
+       [[ "$M" -eq 200 ]]; then
         echo " ✅"
         break
     fi
     echo -n "."
     sleep 4
     if [ "$i" -eq 150 ]; then
-        echo " ⏱️  (timed out — check the status page or /tmp/prism-apphost.log)"
+        echo " ⏱️  (timed out — check the status page or $APPHOST_LOG)"
     fi
 done
 

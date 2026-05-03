@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -32,7 +34,8 @@ public class DownstreamDemoController(
     IConfiguration configuration,
     IPrismContext prismContext,
     IPublishedContentQuery publishedContentQuery,
-    IWebHostEnvironment environment) : ControllerBase
+    IWebHostEnvironment environment,
+    ILogger<DownstreamDemoController> logger) : ControllerBase
 {
     private const int MaxDiagnosticBodyLength = 4096;
     private const string DiagnosticBodyTruncationNotice = "\n\n[Response body truncated for display.]";
@@ -80,19 +83,31 @@ public class DownstreamDemoController(
             // and other misconfigured endpoints that return HTML/plain text instead of JSON
             if (!IsJsonContentType(contentType))
             {
-                var errorMessage = BuildInvalidResponseSummary(contentType, targetUrl, rawBody);
-                var diagnosticBody = CreateDiagnosticBody(rawBody, out var diagnosticBodyTruncated);
+                var errorMessage = BuildInvalidResponseSummary(response, contentType, targetUrl, rawBody);
+                var summary = BuildInvalidResponseUiSummary(response, contentType);
+                var diagnosticBody = CreateDiagnosticBody(response, contentType, rawBody, out var diagnosticBodyTruncated);
+
+                logger.LogWarning(
+                    "Downstream demo received non-JSON response from {TargetUrl}. HTTP {StatusCode} {ReasonPhrase}; content-type {ContentType}; headers {Headers}; bodyLength {BodyLength}",
+                    targetUrl,
+                    (int)response.StatusCode,
+                    response.ReasonPhrase ?? response.StatusCode.ToString(),
+                    contentType,
+                    FormatHeaders(response),
+                    rawBody.Length);
 
                 return Ok(new
                 {
-                    statusCode = 0,
-                    statusText = "Invalid Response",
+                    statusCode = (int)response.StatusCode,
+                    statusText = response.ReasonPhrase ?? response.StatusCode.ToString(),
                     url = targetUrl,
                     elapsedMs = sw.ElapsedMilliseconds,
                     contentType,
                     body = errorMessage,
+                    summary,
                     diagnosticBody,
-                    diagnosticBodyTruncated
+                    diagnosticBodyTruncated,
+                    invalidResponse = true
                 });
             }
 
@@ -121,6 +136,10 @@ public class DownstreamDemoController(
         catch (TaskCanceledException)
         {
             sw.Stop();
+            logger.LogWarning(
+                "Downstream demo timed out calling {TargetUrl} after {ElapsedMs}ms.",
+                targetUrl,
+                sw.ElapsedMilliseconds);
             return Ok(new
             {
                 statusCode = 0,
@@ -134,6 +153,11 @@ public class DownstreamDemoController(
         catch (HttpRequestException ex)
         {
             sw.Stop();
+            logger.LogWarning(
+                ex,
+                "Downstream demo could not reach {TargetUrl} after {ElapsedMs}ms.",
+                targetUrl,
+                sw.ElapsedMilliseconds);
             return Ok(new
             {
                 statusCode = 0,
@@ -260,9 +284,10 @@ public class DownstreamDemoController(
         AuthenticationHeaderValue authHeader)
     {
         var client = httpClientFactory.CreateClient("prism-downstream-demo");
-        client.DefaultRequestHeaders.Authorization = authHeader;
-        client.Timeout = TimeSpan.FromSeconds(10);
-        return await client.GetAsync(targetUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, targetUrl);
+        request.Headers.Authorization = authHeader;
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        return await client.SendAsync(request, timeoutCts.Token);
     }
 
     private bool IsDemoEnabled()
@@ -374,9 +399,24 @@ public class DownstreamDemoController(
             && uri.Host.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string BuildInvalidResponseSummary(string contentType, string targetUrl, string rawBody)
+    private static string BuildInvalidResponseSummary(
+        HttpResponseMessage response,
+        string contentType,
+        string targetUrl,
+        string rawBody)
     {
-        var errorMessage = $"Expected JSON but received {contentType}.";
+        var errorMessage = $"Expected JSON but received {contentType} (HTTP {(int)response.StatusCode} {response.ReasonPhrase ?? response.StatusCode.ToString()}).";
+
+        if (string.IsNullOrWhiteSpace(rawBody))
+        {
+            errorMessage += " The downstream service returned an empty body.";
+        }
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            errorMessage += " This usually means Mock Business App rejected the bearer token before the request reached the controller.";
+        }
+
         if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
         {
             if (IsCodespacesUrl(targetUrl))
@@ -397,22 +437,72 @@ public class DownstreamDemoController(
         return errorMessage;
     }
 
-    private static string? CreateDiagnosticBody(string rawBody, out bool wasTruncated)
+    private static string BuildInvalidResponseUiSummary(HttpResponseMessage response, string contentType)
     {
-        wasTruncated = false;
-        if (string.IsNullOrWhiteSpace(rawBody))
+        var status = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase ?? response.StatusCode.ToString()}";
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            return null;
+            return $"The downstream service replied with {status}. This usually means Mock Business App rejected the bearer token before your request reached the controller.";
         }
 
-        var trimmedBody = rawBody.Trim();
-        if (trimmedBody.Length <= MaxDiagnosticBodyLength)
+        if (contentType.Equals("unknown", StringComparison.OrdinalIgnoreCase))
         {
-            return trimmedBody;
+            return $"The downstream service replied with {status} but did not identify the response type. See diagnostics below.";
+        }
+
+        return $"The downstream service replied with {status} and {contentType} instead of JSON. See diagnostics below.";
+    }
+
+    private static string CreateDiagnosticBody(
+        HttpResponseMessage response,
+        string contentType,
+        string rawBody,
+        out bool wasTruncated)
+    {
+        wasTruncated = false;
+
+        var responseBody = string.IsNullOrWhiteSpace(rawBody)
+            ? "[No response body]"
+            : rawBody.Trim();
+
+        var lines = new List<string>
+        {
+            $"HTTP {(int)response.StatusCode} {response.ReasonPhrase ?? response.StatusCode.ToString()}",
+            $"Content-Type: {contentType}"
+        };
+
+        foreach (var header in GetDiagnosticHeaders(response))
+        {
+            lines.Add(header);
+        }
+
+        lines.Add(string.Empty);
+        lines.Add(responseBody);
+
+        var diagnosticText = string.Join(Environment.NewLine, lines);
+        if (diagnosticText.Length <= MaxDiagnosticBodyLength)
+        {
+            return diagnosticText;
         }
 
         wasTruncated = true;
-        return trimmedBody[..MaxDiagnosticBodyLength] + DiagnosticBodyTruncationNotice;
+        return diagnosticText[..MaxDiagnosticBodyLength] + DiagnosticBodyTruncationNotice;
+    }
+
+    private static IReadOnlyList<string> GetDiagnosticHeaders(HttpResponseMessage response)
+    {
+        return response.Headers
+            .Concat(response.Content.Headers)
+            .Select(header => $"{header.Key}: {string.Join(", ", header.Value)}")
+            .ToList();
+    }
+
+    private static string FormatHeaders(HttpResponseMessage response)
+    {
+        var headers = GetDiagnosticHeaders(response);
+        return headers.Count == 0
+            ? "[none]"
+            : string.Join("; ", headers);
     }
 
     private SeedContractStatus BuildSeedContract()
