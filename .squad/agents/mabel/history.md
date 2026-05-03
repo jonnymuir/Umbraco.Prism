@@ -183,8 +183,42 @@ Post-merge .squad-only work should be staged before branch closure, then merged 
 
 ---
 
+---
+
+## Session: Final Push to Origin (2026-05-03)
+
+**Status:** ✅ Complete
+
+**Task:** Push main branch containing the four .squad-only commits (post-merge reconciliation work) to origin, and clean up merged feature branches.
+
+### Actions
+
+1. **Pushed main:** origin/main now at commit `e1d54e7` (was `a8e2d86`)
+2. **Deleted remote merged branches:**
+   - ✅ fix/codespaces-businessapp-http-backchannel
+   - ✅ squad/12-biometric-device-credentials-table
+   - ✅ squad/20-21-biometric-platform-config
+   - ✅ squad/22-capacitor-biometric-bridge
+   - ✅ squad/23-biometric-registration-ui
+   - ✅ squad/25-biometric-device-management-ui
+   - ✅ squad/codespaces-dashboard-and-auth-fixes
+   - ✅ squad/fix-browser-url-leak
+   - ⚠️ squad/fix-backchannel-endpoint-discovery (already deleted on remote, cleaned local)
+
+3. **Final state:** Local main synced to origin/main at `e1d54e7`, working tree clean, all merged feature branches cleaned.
+
+### Commits Pushed
+
+- **e1d54e7** docs: mabel session history — post-merge reconciliation complete
+- **ed2b5cd** docs: update tom-nook history — aspire-dynamic-endpoint-backchannels skill extraction
+- **9ee9a25** docs: add aspire-dynamic-endpoint-backchannels skill
+- **e44c8bf** chore: mabel session history — PR #49 merge complete
+
+---
+
 ## Learnings
 
 - **Branch divergence recovery:** When PR merge creates a local divergence (post-merge bookkeeping vs feature branch work), rebase the feature branch onto the post-merge commit before merge, not the other way.
 - **Skill extraction timing:** Earning and extracting skills as part of PR closure discipline ensures patterns get captured and shared while diagnostic context is fresh.
 - **History precision:** Documenting skill extraction in agent history (Tom Nook's record) + skill itself (.squad/skills/) provides two-layer traceability: "what we learned" + "how to use it".
+- **Cleanup discipline:** Merged feature branches should be deleted from both remote and local once their work is fully integrated into main. This keeps the branch list legible and signals closure to the team.
