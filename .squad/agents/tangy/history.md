@@ -217,3 +217,14 @@ Now all three sites follow identical dual-gating pattern.
 
 
 **2026-05-02** — Completed: Validated regression; rejected current behavior because non-JSON HTML responses were still treated as success; added/identified regression coverage for HTML and non-JSON false positives. Findings cascaded to Brewster for fix implementation.
+---
+
+### 2026-05-03 09:39:06 — CI Test-Isolation Fix Implementation
+
+**Event:** Received test-isolation scope from Tom Nook review.
+
+**Role:** Test specialist. Revised Blathers' fix per scope: removed runtime changes, kept `EnvVarSensitiveTestCollection`, preserved env snapshot/restore, maintained regression coverage.
+
+**Changes:** Test layer only — no product-code behavior modifications.
+
+**Status:** Implementation ready for CI validation.

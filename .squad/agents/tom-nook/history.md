@@ -210,3 +210,15 @@ Verified successful landing of Blathers' Codespaces BusinessApp URL discovery fi
 
 Orchestration log written to 2026-05-02T13:14:45Z-tom-nook.md.
 
+
+---
+
+### 2026-05-03 09:39:06 — CI Repair Scope Review
+
+**Event:** Reviewed Blathers' CI fix proposal.
+
+**Role:** Architecture reviewer. Identified scope creep (runtime changes), ruled CI fix should remain at test layer. Directed narrowing to env-var snapshot/restore.
+
+**Decision:** Preserve production `PrismOidcConfiguration` contract; treat test layer as regression gate.
+
+**Consequence:** CI repair stays focused, product code unchanged, regression coverage intact.

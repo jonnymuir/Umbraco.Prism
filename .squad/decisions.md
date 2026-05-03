@@ -1815,3 +1815,123 @@ All 653 Core tests pass.
 **End-to-End Note:**
 This fix ensures the dashboard shows a clear error when the port-forwarding page appears. The underlying cause (BusinessApp not ready yet) still requires waiting for Codespaces to fully forward the port — but users now see an actionable error instead of a broken UI.
 
+
+---
+
+## 📌 2026-05-02: Blathers — Codespaces: Remove BusinessApp Backchannel URL
+
+**Status:** ✅ IMPLEMENTED — Commit `ffc32c5` on `main`
+
+### Decision
+
+**Remove `BUSINESSAPP_BACKCHANNEL_URL` entirely.**
+
+Server-side calls should use the **discovered public Codespaces URL** (`PrismBusinessApp__WorkflowApiBaseUrl`), which is already set correctly by the AppHost's `TryDiscoverCodespaceUrls()` logic.
+
+### Why
+
+**Keycloak vs BusinessApp architectural difference:**
+- **Keycloak:** A Docker container added with `AddContainer()`. `keycloak.GetEndpoint("http")` returns a concrete HTTP endpoint that works with YARP's built-in service discovery.
+- **BusinessApp:** An Aspire project added with `AddProject()`. `businessApp.GetEndpoint("https")` returns an Aspire service discovery URL (e.g., `https+http://businessapp`) that only resolves when the HttpClient is configured with Aspire service discovery extensions.
+
+**The TestSite's `DownstreamDemoController` uses a plain `IHttpClientFactory.CreateClient()` without Aspire service discovery**, so it cannot resolve `https+http://businessapp` URLs. When the URL fails to resolve, it falls back to the raw string `https://localhost:7245`, which doesn't work in Codespaces' port-forwarding context.
+
+The original HTML response issue was likely a **transient port-forwarding startup delay**, not a persistent proxy blocking problem.
+
+### Changes
+
+1. **AppHost (`Program.cs`):**
+   - Removed the `if (codespaceName != null) testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", ...)` block
+   - Added comment explaining why BusinessApp doesn't need a backchannel URL like Keycloak does
+
+2. **DownstreamDemoController (`BuildTargetUrl`):**
+   - Removed `BUSINESSAPP_BACKCHANNEL_URL` preference
+   - Always uses `PrismBusinessApp:WorkflowApiBaseUrl` (which is the discovered public Codespaces URL or localhost:7245 for local dev)
+
+### Test Results
+
+- Core tests: 653 passed, 0 failed, 0 skipped
+- Build: Succeeded
+
+### Confidence
+
+**HIGH** — The fix aligns with Aspire's service architecture:
+- Containers (Keycloak) can use concrete endpoint references
+- Projects (BusinessApp) should use public URLs or require Aspire service discovery extensions
+
+---
+
+## 📌 2026-05-02: User Directive — Downstream Non-JSON Response Diagnostics
+
+**Directive:** For downstream non-JSON failures, expose the returned HTML for diagnosis instead of only saying HTML was received and is wrong.
+
+**Source:** Jonny Muir (via Copilot, 2026-05-02T17:05:58)
+
+**Status:** Captured for team memory.
+
+---
+
+## 📌 2026-05-02: User Directive — HMACSecretKey Committed in Appsettings
+
+**Directive:** Do not commit HMACSecretKey in appsettings; stop this from being committed.
+
+**Source:** Jonny Muir (via Copilot, 2026-05-02T17:05:58)
+
+**Status:** Captured for team memory.
+
+---
+
+## 📌 2026-05-03: User Directive — Never Have Failing Tests
+
+**Directive:** We should never have failing tests.
+
+**Source:** Jonny Muir (via Copilot, 2026-05-03T09:32:21)
+
+**Status:** Captured for team memory — driving CI repair and test isolation strategy.
+
+---
+
+## 📌 2026-05-03: Tangy — CI Fix Scope: Test Isolation Only
+
+**Status:** 📋 DECISION RECORD
+
+### Decision
+
+For the current CI repair, keep the change set at the **test layer**: serialize env-var-sensitive tests and snapshot/restore `KEYCLOAK_BACKCHANNEL_URL` plus `ASPNETCORE_ENVIRONMENT` in reader classes that exercise env-sensitive auth paths.
+
+Do **not** broaden `PrismOidcConfiguration` runtime behavior as part of this repair unless a separate production bug is proven.
+
+### Why
+
+The observed failure mode is env-var bleed between tests in CI, not a confirmed product defect in the app's OIDC callback/runtime flow. Narrowing the fix preserves the original production contract while still locking down the regression at the place it occurs.
+
+### Consequence
+
+- Keep `EnvVarSensitiveTestCollection` + env snapshot/restore patterns
+- Preserve regression coverage around env bleed and auth-path stability
+- Revisit product-side OIDC backchannel gating only under a distinct bug/requirement, not piggy-backed onto this CI fix
+
+---
+
+## 📌 2026-05-03: Blathers — CI Keycloak Backchannel Isolation
+
+**Status:** 📋 DECISION RECORD
+
+### Decision
+
+Keep generic OIDC callback backchannel rewrites dual-gated to `ASPNETCORE_ENVIRONMENT=Development` and HTTPS public authorities only, and treat callback/loopback regression tests as env-var-sensitive readers.
+
+### Why
+
+`Phase1SecurityRegressionTests` executes the real `PrismOidcConfiguration.OnAuthorizationCodeReceived` path against an in-process loopback OIDC server on `http://127.0.0.1`. When another test class temporarily sets `KEYCLOAK_BACKCHANNEL_URL=http://keycloak-internal:8080`, the callback code must not rewrite that loopback authority to the Codespaces-only Keycloak backchannel host.
+
+The smallest durable fix is:
+
+1. only honor the backchannel env var for Development + HTTPS public authorities, and
+2. serialise/snapshot any test class that reads those env vars transitively through Prism auth code.
+
+### Consequence
+
+- Codespaces/local-demo backchannel behavior stays intact for real HTTPS Keycloak authorities
+- Isolated loopback auth tests no longer inherit `keycloak-internal:8080`
+- Future callback-path tests must join `EnvVarSensitiveTestCollection` if they can observe `KEYCLOAK_BACKCHANNEL_URL` or `ASPNETCORE_ENVIRONMENT`
