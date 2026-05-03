@@ -33,7 +33,7 @@ get_codespace_url() {
     fi
     local url=""
     if command -v jq >/dev/null 2>&1; then
-        url=$(printf '%s' "$CODESPACE_PORTS_JSON" | jq -r ".[] | select(.sourcePort == $port) | .browseUrl" 2>/dev/null | tr -d '/' || true)
+        url=$(printf '%s' "$CODESPACE_PORTS_JSON" | jq -r ".[] | select(.sourcePort == $port) | .browseUrl" 2>/dev/null | sed 's|/*$||' || true)
     elif command -v python3 >/dev/null 2>&1; then
         url=$(printf '%s' "$CODESPACE_PORTS_JSON" | python3 -c \
             "import sys,json; ports=json.load(sys.stdin); print(next((p['browseUrl'].rstrip('/') for p in ports if p['sourcePort']==$port), ''))" 2>/dev/null || true)

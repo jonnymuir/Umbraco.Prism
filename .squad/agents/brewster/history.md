@@ -10,6 +10,20 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 
 ---
 
+## 2026-05-03: Codespaces URL Regression Fix
+
+**Status:** ✅ Complete.
+
+**Change:** Fixed a one-line bug in `get_codespace_url()` in `.devcontainer/on-start.sh` introduced by the full-URL output change.
+
+**Root cause:** The `jq` branch used `| tr -d '/'` to strip trailing slashes from `browseUrl`. `tr -d '/'` strips **all** forward slashes — including `//` in `https://` — producing invalid URLs like `https:CODESPACE-3000.app.github.dev`. This caused browser download prompts and 404 errors on every link printed after `refresh.sh`.
+
+**Fix:** Changed `| tr -d '/'` → `| sed 's|/*$||'` which strips only trailing slashes. The Python fallback already used `.rstrip('/')` correctly and was not touched.
+
+**Learning:** `tr -d CHAR` is a global delete — it removes every occurrence in the stream, not just trailing. Use `sed 's|CHAR*$||'` when the intent is "strip trailing occurrences only". When in doubt, test with a real URL string before shipping.
+
+---
+
 ## 2026-05-03: Status Page — Full URL on Startup
 
 **Status:** ✅ Complete.
