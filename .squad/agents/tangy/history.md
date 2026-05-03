@@ -228,3 +228,7 @@ Now all three sites follow identical dual-gating pattern.
 **Changes:** Test layer only — no product-code behavior modifications.
 
 **Status:** Implementation ready for CI validation.
+
+## 2026-05-03: Team Spawn — Startup Helper Validation
+
+**Status Update (Scribe):** Tangy validated startup helper uses `/api/*` endpoints (no loops on missing legacy routes), reports TestSite ready off correct readiness route. Safari download issue not reproduced locally after fix.

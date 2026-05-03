@@ -1935,3 +1935,28 @@ The smallest durable fix is:
 - Codespaces/local-demo backchannel behavior stays intact for real HTTPS Keycloak authorities
 - Isolated loopback auth tests no longer inherit `keycloak-internal:8080`
 - Future callback-path tests must join `EnvVarSensitiveTestCollection` if they can observe `KEYCLOAK_BACKCHANNEL_URL` or `ASPNETCORE_ENVIRONMENT`
+
+---
+
+## 📌 2026-05-03: Brewster — Startup Helper Aspire/Codespaces Contract Alignment
+
+**Status:** 📋 DECISION RECORD
+
+### Decision
+
+The port-3000 startup helper now follows the live AppHost and Codespaces contracts instead of guessing older defaults.
+
+- **Codespaces public URLs** come from `gh codespace ports` output when available, with hostname-port derivation as fallback, instead of assuming `{CODESPACE_NAME}-{port}.app.github.dev`.
+- **Aspire dashboard links** use the real Codespaces dashboard port `15135`, while local development still uses `https://localhost:17214`.
+- **Service readiness** uses the current live contracts:
+  - TestSite → `https://localhost:44345/api/prism/downstream-demo/seed-contract-ready`
+  - Keycloak → `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration`
+  - MockBusinessApp → `https://localhost:7245/debug/auth`
+
+### Why
+
+The helper had drifted from the real stack: it still guessed Codespaces URLs from `CODESPACE_NAME`, linked the dashboard to the wrong public port, and tolerated stale helper endpoint assumptions. That produced false startup states and noisy repeated polling failures even when the forwarded applications were healthy.
+
+### Additional Rule
+
+Keep startup-helper logs under `artifacts/startup-status/` inside the repo, not `/tmp`, so the helper stays aligned with repo security constraints and troubleshooting docs.

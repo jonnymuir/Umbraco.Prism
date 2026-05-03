@@ -204,3 +204,6 @@ Delivered multi-tenancy editor lens review applying Rams principles. Four multi-
 No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-brewster.md.
 
 **2026-05-02** — Completed: Implemented content-type validation so HTML/non-JSON responses are surfaced as errors instead of false-positive successes; preserved Blathers' backchannel transport fix; passed 653 core tests; commit da7ddc9 merged to main. Decision recorded in decisions.md.
+## 2026-05-03: Team Spawn — Startup Helper Aspire Contract Alignment
+
+**Status Update (Scribe):** Brewster fixed port-3000 startup helper to use current live Codespaces/AppHost contract. Codespaces public URLs from `gh codespace ports`, correct dashboard port, safe legacy endpoint handling. Artifact logging now repo-local (not `/tmp`).
