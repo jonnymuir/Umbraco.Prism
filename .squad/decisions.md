@@ -704,3 +704,467 @@ program.Should().Contain("businessApp.GetEndpoint(\"http\")");
 - MockBusinessApp launchSettings: `src/UmbracoPrism.MockBusinessApp/Properties/launchSettings.json`
 - Playwright test: `src/UmbracoPrism.Client/tests/localhost-auth-session.spec.ts` line 150-186
 - Related decisions: `.squad/decisions.md` - "Transport URLs vs Display URLs: Separate Concerns in API Responses"
+---
+date: 2026-05-03T21:12:36.429+01:00
+status: RECORDED
+author: Blathers
+area: diagnostics, operations, codespaces
+---
+
+# Codespaces Downstream Diagnostics Should Prefer Live Runtime Probes
+
+## Context
+
+The downstream API/auth investigation now spans three distinct surfaces:
+
+1. **Local Codespace runtime** (`localhost` HTTPS endpoints)
+2. **Internal backchannel state** (for Keycloak and MockBusinessApp)
+3. **Public forwarded URLs** (`*.app.github.dev`) that may return redirects or GitHub tunnel/auth HTML instead of the app
+
+Manual curl commands were becoming easy to misread, especially when a public forwarded URL returned HTML or a redirect that looked superficially like the app was healthy.
+
+## Decision
+
+**Codespaces diagnostics should prefer live runtime probes over guessed ports, and public forwarded-port checks must classify redirects / tunnel HTML as proxy evidence rather than app success.**
+
+## Implementation
+
+Added `scripts/codespaces/diagnose-downstream.sh` to:
+
+- read authoritative forwarded browse URLs from `gh codespace ports`
+- probe local TestSite / MockBusinessApp / Keycloak endpoints directly from the Codespace
+- summarize safe runtime state from MockBusinessApp `/debug/auth`
+- probe public forwarded URLs without following redirects, so tunnel/auth interception stays obvious
+- avoid printing secrets, cookies, or bearer tokens
+
+## Why This Matters
+
+1. **Correctness:** dynamic Aspire / Codespaces endpoints are safer to read from runtime than to guess from stale localhost assumptions
+2. **Operator clarity:** HTML tunnel pages and redirects are a different class of failure from app JSON or auth responses
+3. **Security posture:** diagnostics remain useful without exposing secrets
+
+## References
+
+- `scripts/codespaces/diagnose-downstream.sh`
+- `src/UmbracoPrism.MockBusinessApp/Program.cs` (`/debug/auth`)
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` (`/session-contract`, `seed-contract-ready`)
+---
+date: 2026-05-03T20:53:49.355+01:00
+status: complete
+domain: diagnostics, operations
+---
+
+# Decision: Manual Diagnosis Flow for Downstream API Timeouts
+
+## Problem
+
+When the MockBusinessApp API times out (10s) in Codespaces, operators face ambiguity:
+- Is the API unreachable or just hung?
+- Is the bearer token invalid or the Keycloak backchannel blocked?
+- Is it a browser→API issue or a server→API issue?
+- Previous "fixes" that didn't work eroded confidence in troubleshooting.
+
+## Solution
+
+Created **operator-friendly diagnostic flows** that use curl to isolate each layer:
+
+### Deliverables
+
+1. **`MANUAL_DIAGNOSIS_FLOW.md`** — Comprehensive guide
+   - 5-step progression from quick reachability checks to deep backchannel validation
+   - Expected outcomes for each curl command (not just "try this")
+   - Diagnosis flowchart mapping symptoms → root causes
+   - Common failure points with fixes
+   - Operator checklist for closure
+
+2. **`.squad/agents/blathers/QUICK_DIAGNOSIS_REFERENCE.txt`** — One-page cheat sheet
+   - Test order (fastest to deepest)
+   - Decision tree for symptom interpretation
+   - Top 5 root causes by frequency
+   - Files to check and environment variables
+
+### Key Principles
+
+1. **Layered Testing**
+   - Internal backchannel (http://localhost:5163) → proves API listens
+   - Public endpoint (https://{codespace}-7245.app.github.dev) → proves port forwarding
+   - Bearer token tests → proves auth chain
+   - Keycloak backchannel → proves signing key access
+
+2. **No Code Changes**
+   - Uses existing curl, gh CLI, browser DevTools
+   - No temporary logging or instrumentation needed
+   - Can be run by operators with no repo knowledge
+
+3. **Expected Outcomes Explicit**
+   - Not "try this command"
+   - But "run this; if you see X expect result Y; if Z expect result W"
+   - Maps exact output (401, HTML, timeout, connection refused) to root causes
+
+4. **Separation of Concerns**
+   - Browser-facing path (public HTTPS + port forwarding)
+   - Server-side path (internal backchannel + token forwarding)
+   - Keycloak trust chain (issuer, JWKS, token validation)
+   - Each testable independently
+
+## Five Distinct Failure Modes
+
+The 10-second timeout can originate from:
+
+1. **Aspire port reassignment** — Port 5163 not listening
+   - Test: `curl http://localhost:5163/api/backoffice/me`
+   - Result: Connection refused
+   - Fix: Check `gh codespace ports` for actual port
+
+2. **Service hung** — Port listening but no response
+   - Test: Same curl, hangs for 10s
+   - Fix: Restart AppHost or check MockBusinessApp logs
+
+3. **Bearer token expired/invalid** — API responds 401
+   - Test: `curl -H "Authorization: Bearer {TOKEN}" ...`
+   - Result: 401 Unauthorized
+   - Fix: Check token expiry, re-sign in
+
+4. **Keycloak backchannel blocked** — Signing keys unreachable
+   - Test: `curl http://localhost:8080/realms/prism-dev/.well-known/openid-configuration`
+   - Result: Connection refused or timeout
+   - Fix: Restart Keycloak, verify port
+
+5. **GitHub tunnel auth page** — Port forwarding returns HTML
+   - Test: `curl https://{codespace}-7245.app.github.dev/api/backoffice/me`
+   - Result: `<h1>Connecting to the forwarded port...</h1>`
+   - Fix: Include Bearer token in Authorization header
+
+## Why This Matters
+
+- **Previous approach**: "Try this fix, restart AppHost, hope it works"
+- **New approach**: "Run these 5 tests in order; at step N you'll know whether it's port/auth/tunnel"
+- **Operator confidence**: Diagnosis is reproducible and deterministic, not magical
+
+## Not Changing Code
+
+This is a **read-only diagnostic aid** — no code changes, no new dependencies, no Aspire modifications. It documents existing troubleshooting best practices discovered during PR #49 work.
+
+## Related
+
+- `.squad/skills/aspire-dynamic-endpoint-backchannels/SKILL.md` — The fix (code change)
+- `.squad/skills/generic-oidc-downstream-bearer-validation/SKILL.md` — Token validation patterns
+- `.squad/skills/live-oidc-401-stale-runtime/SKILL.md` — Runtime restart detection
+- PR #49 — Implementation of dynamic endpoint discovery
+# Final Push to Origin & Branch Cleanup
+
+**Author:** Mabel  
+**Date:** 2026-05-03  
+**Status:** COMPLETED  
+
+---
+
+## Task
+
+Push the finished main branch to origin (which contained 4 .squad-only commits after PR #49 merge and residual reconciliation). Clean up merged feature branches from both remote and local.
+
+## Actions Completed
+
+### Push Main
+- Local main (commit `e1d54e7`) pushed to origin/main
+- 4 commits delivered:
+  - `e1d54e7` docs: mabel session history — post-merge reconciliation complete
+  - `ed2b5cd` docs: update tom-nook history — aspire-dynamic-endpoint-backchannels skill extraction
+  - `9ee9a25` docs: add aspire-dynamic-endpoint-backchannels skill
+  - `e44c8bf` chore: mabel session history — PR #49 merge complete
+
+### Remote Cleanup
+Deleted 9 merged feature branches from origin (all were fully merged into main):
+- fix/codespaces-businessapp-http-backchannel
+- squad/12-biometric-device-credentials-table
+- squad/20-21-biometric-platform-config
+- squad/22-capacitor-biometric-bridge
+- squad/23-biometric-registration-ui
+- squad/25-biometric-device-management-ui
+- squad/codespaces-dashboard-and-auth-fixes
+- squad/fix-backchannel-endpoint-discovery
+- squad/fix-browser-url-leak
+
+### Local Cleanup
+Deleted corresponding local feature branches:
+- fix/codespaces-businessapp-http-backchannel ✅
+- squad/codespaces-dashboard-and-auth-fixes ✅
+- squad/fix-browser-url-leak ✅
+- squad/fix-backchannel-endpoint-discovery ✅ (force-deleted; remote was already gone)
+
+One local branch remains: `fix/codespaces-mockbiz-401` (not merged; kept for ongoing work).
+
+## Final State
+
+- **Local main:** At commit `e1d54e7`, synced to origin/main
+- **Working tree:** Clean
+- **Local branches:** 2 remaining (`main`, `fix/codespaces-mockbiz-401` — the latter for ongoing work)
+- **Risk:** None — all deletions were of fully merged branches; no history was lost
+
+## Pattern
+
+Safe cleanup after merge:
+1. Verify branches are fully merged into main using `git branch -r --merged origin/main`
+2. Delete from origin first (remote source of truth)
+3. Delete from local after remote confirms deletion
+4. Keep branches only if they contain active work not yet merged
+
+This is low-risk workflow maintenance that signals closure and keeps branch lists legible.
+# Post-Merge Branch State Reconciliation
+
+**Author:** Mabel  
+**Date:** 2026-05-03  
+**Status:** COMPLETED  
+**Issue:** Residual squad-only work on `squad/fix-backchannel-endpoint-discovery` after PR #49 merge
+
+---
+
+## Context
+
+PR #49 merged to main (commit `a8e2d86` on origin/main), but the local feature branch had:
+1. Uncommitted changes to `.squad/agents/tom-nook/history.md` (documenting skill extraction)
+2. A post-merge skill documentation commit on the branch
+
+Mabel had also made a local post-merge session history commit to main, creating branch divergence.
+
+## Decision
+
+**Outcome:** Keep and land the skill documentation cleanly.
+
+- **Skill verdict:** `aspire-dynamic-endpoint-backchannels` is **earned, well-documented, and reusable**. Merits inclusion in shared skills library.
+- **History verdict:** Tom Nook's documentation of the extraction process belongs in the history record.
+- **Merge strategy:** Rebase feature branch onto main's post-merge commit, then fast-forward merge to preserve linear history.
+
+## Rationale
+
+1. **Skill quality:** The skill has test contracts, anti-patterns, diagnosis steps, and cross-references. It captures a real learning from Codespaces backchannel timeout diagnosis (PR #49 work).
+
+2. **Clean history:** Feature branch rebase resolves divergence without creating merge commits. Final state: linear main history with two skill-related commits.
+
+3. **Pattern establishment:** Archiving learned skills as part of PR closure is a discipline. This reconciliation sets the precedent: skills extracted during work should be included in the merge, not left behind on a stale branch.
+
+## Implementation
+
+- ✅ Staged Tom Nook's history entry
+- ✅ Rebased feature branch onto main
+- ✅ Fast-forward merged to main
+- ✅ Both main and feature branch now at commit `ed2b5cd`
+- ✅ Working tree clean
+
+## Downstream
+
+- **Next step:** Push reconciled main to origin (awaiting authorization)
+- **Feature branch:** Can be deleted or left as historical marker; feature branch head points to merged commit
+- **No code changes:** This is purely .squad/ bookkeeping; no product or implementation impact
+
+## Related
+
+- Skill: `.squad/skills/aspire-dynamic-endpoint-backchannels/SKILL.md`
+- Tom Nook history: `.squad/agents/tom-nook/history.md` (entry dated 2026-05-03 20:12:13)
+- Original PR: #49
+- Decision: Kept as-is per established routing policy (Mabel owns PR/merge workflow)
+# PR #49 Merge Strategy — Preserve Commit History
+
+**Date:** 2026-05-03  
+**Agent:** Mabel (Technical Writer / Release)  
+**Merge Commit:** a8e2d86
+
+## Decision
+
+Merged PR #49 using **create a merge commit** strategy (not squash) to preserve the readable product history:
+
+```
+a8e2d86 Merge pull request #49 ...
+├─ d6cfe4e squad: merge downstream timeout diagnosis decisions
+└─ 2a46494 fix(codespaces): use dynamic endpoint discovery for BusinessApp backchannel
+```
+
+## Rationale
+
+- **Preserve product narrative:** The two commits represent distinct concerns:
+  1. **2a46494:** User-facing fix (endpoint discovery solves the timeout)
+  2. **d6cfe4e:** Team bookkeeping (decision history consolidation)
+- **Release notes clarity:** Future release notes can reference `2a46494` directly as the fix, with d6cfe4e as supporting team documentation
+- **Bisect-friendly:** If issues arise, engineers can identify the exact commit that introduced them
+- **Consistency:** Aligns with project history strategy: meaningful atomic commits > squashed history
+
+## Alternative Considered
+
+- **Squash merge:** Would flatten both commits into one. This loses the distinction between the fix and team documentation, making future release notes and bisecting harder.
+- **Rebase merge:** Would linearize but wouldn't create an explicit merge commit, risking confusion about which commits belonged to this PR.
+
+## Impact
+
+- All CI checks passed before merge ✅
+- Local main automatically fast-forwarded to origin/main
+- Feature branch cleaned (local + remote deletion)
+- Ready for next development cycle
+---
+date: 2026-05-03T20:53:49.355+01:00
+status: RECORDED
+author: Tangy
+area: testing, diagnosis, browser-debugging
+---
+
+# Browser DevTools Manual API Diagnosis Playbook
+
+## Context
+
+After several rounds of timeout investigations on the "Call Mock Business App API" button, a repeatable manual diagnostic pattern emerged. Users need a structured way to isolate failures at three levels: button flow, auth/headers, and network reachability.
+
+## Decision
+
+**Testers, developers, and QA should follow the 8-phase diagnostic playbook to manually isolate API timeouts from the browser side.**
+
+The playbook prioritizes separating concerns so that a single observation (e.g., "timeout") can be quickly traced to a root cause (button flow broken, auth header missing, port unreachable, CORS blocked).
+
+## Diagnostic Approach
+
+### Phase Separation
+
+1. **Capture** (DevTools Network tab) → Know if a request was fired
+2. **Inspect auth** (Request Headers) → Know if token was attached
+3. **Check status** (Response Status) → Know if server responded
+4. **Inspect response** (Response Body) → Know what the failure was
+5. **Isolate endpoint** (cURL copy) → Know if it's browser-specific
+6. **Test health** (Direct curl, no auth) → Know if endpoint exists
+7. **Compare levels** (With/without auth) → Know if auth is the issue
+8. **Check console** (Browser errors) → Know if JS or CORS failed
+
+### Key Observation Points
+
+- **No request in DevTools** → Button flow broken (JavaScript)
+- **Request with 401** → Auth header missing or token invalid
+- **Request with 200** → Success; check response body for expected fields
+- **Request with 0 (timeout)** → Endpoint unreachable or misconfigured
+- **URL contains `:5163`** → Internal backchannel port (not browser-reachable)
+- **cURL succeeds, browser times out** → CORS or browser-specific issue
+- **Both fail identically** → Network or endpoint health issue
+
+## Implementation
+
+Documented in: `.squad/skills/browser-devtools-api-diagnosis/SKILL.md`
+
+Includes:
+- Step-by-step walkthrough for each phase
+- Expected/unexpected responses at each phase
+- Decision tree for quick diagnosis
+- cURL examples for copying from DevTools
+- 3 worked examples (auth missing, port unreachable, CORS blocked)
+- Environment-specific notes (localhost, Codespaces, CI/CD)
+
+## Use Cases Covered
+
+1. **Timeout after 10 seconds** → Isolate between button flow, network, auth token validation
+2. **401 Unauthorized** → Confirm token is being sent and isn't expired
+3. **Endpoint unreachable** → Distinguish between browser CORS block vs. true network failure
+4. **Port forwarding confusion** → Recognize internal localhost URLs (`:5163`) vs. public endpoints
+5. **Button doesn't seem to do anything** → Confirm request is being fired vs. JavaScript failing
+
+## Testing Edge Cases
+
+The playbook surfaces these edge cases:
+
+- **Token valid in auth context but rejected during header validation** → Token validation timeout
+- **Endpoint works without auth (401) but times out with auth** → Token processor hanging
+- **cURL works but browser times out** → CORS headers missing or wrong
+- **Internal backchannel URL in response** → URL transformation not applied (regression in PR #48)
+
+## Regression Test Coverage
+
+The existing Playwright test `callBusinessAppApi()` (localhost-auth-session.spec.ts) already validates end-to-end but doesn't surface intermediate failures well. The manual playbook allows testers to go deeper when automated tests fail, following the same phases: capture → inspect headers → check status → inspect body → isolate endpoint.
+
+## Team Impact
+
+- **Testers:** Can diagnose timeouts without asking developers
+- **Developers:** Can provide better error responses (include `statusCode`, `statusText`, attempted URL in response body)
+- **Ops/Infra:** Can correlate browser diagnoses with server logs to confirm backchannel vs. external failures
+
+## References
+
+- Previous timeout diagnoses: `tangy-downstream-timeout.md`, `tangy-mockbiz-timeout-diagnosis.md`
+- Related skills: `aspire-dynamic-endpoint-backchannels`, `inline-api-failure-states`, `dev-session-contract-probe`
+- Playwright test: `localhost-auth-session.spec.ts::callBusinessAppApi()`
+---
+date: 2026-05-03T21:12:36.429+01:00
+author: Tangy
+status: PROPOSED
+area: testing, diagnostics, codespaces
+---
+
+# Codespaces Downstream Diagnostics Must Separate Transport, Tunnel, and Token Failures
+
+## Context
+
+Manual curl checks were proving that some endpoints returned `200`, but operators still had to guess whether the real failure was:
+
+- the internal TestSite → MockBusinessApp hop
+- the public GitHub forwarded-port tunnel/auth layer
+- bearer token rejection inside MockBusinessApp
+- stale Keycloak backchannel wiring in the running stack
+
+A Codespaces helper script needs to turn those into distinct outcomes instead of a single generic "timeout" story.
+
+## Decision
+
+A Codespaces downstream diagnostics script must:
+
+1. **Check the internal BusinessApp hop separately from the public forwarded URL** so operators can tell "service is up internally" from "public tunnel returned HTML/auth".
+2. **Use safe runtime diagnostics (`/debug/auth`) before asking for tokens** so the script can inspect backchannel/JWKS health without dumping secrets.
+3. **Treat authenticated 401s as an auth-validation branch, not an availability branch** when the internal app probe already succeeded.
+4. **Compare repo expectations with runtime backchannel state** so the script can call out likely stale AppHost/runtime wiring and recommend `bash scripts/codespaces/refresh.sh`.
+5. **Print next commands inline for every failure state** so operators do not need to cross-reference a separate playbook.
+
+## Why
+
+The same user-visible timeout can come from different layers, and the remediation is different for each one. A good script must say "forwarding problem", "token problem", or "stale backchannel problem" explicitly, otherwise the operator wastes time chasing the wrong service.
+---
+author: "Tom Nook"
+date: "2026-05-03T20:12:13+01:00"
+decision_type: "pattern"
+status: "implemented"
+---
+
+# Skill Extraction Discipline — aspire-dynamic-endpoint-backchannels
+
+## Decision
+
+**EXTRACT** earned knowledge as `.squad/skills/{skill-name}/SKILL.md` as part of PR closure workflow.
+
+## Context
+
+`squad/fix-backchannel-endpoint-discovery` included:
+- **Fix:** Aspire's `GetEndpoint("http")` for dynamic backchannel URL discovery in Codespaces
+- **Bookkeeping:** Decision logs, history updates, agent charters
+- **Untracked:** `.squad/skills/aspire-dynamic-endpoint-backchannels/` directory
+
+The skill captures reusable patterns:
+1. Why GetEndpoint("http") works vs GetEndpoint("https")
+2. Test contract validation
+3. Diagnosis steps for backchannel timeouts
+4. Anti-patterns (hardcoded ports, wrong endpoint types)
+
+## Resolution
+
+**KEEP the skill.** It is:
+- Earned through real work (PR #49)
+- Well-documented with concrete examples
+- Cross-referenced in related skills
+- Immediately reusable for future Codespaces/Aspire work
+
+## Consequences
+
+1. **Knowledge Preservation:** Infrastructure patterns become team assets, not lost in commit history
+2. **Onboarding:** New contributors can understand Codespaces backchannel without reverse-engineering
+3. **Decision Trail:** Skills link back to PRs and orchestration logs for full context
+4. **Reuse:** Future Aspire work can reference this pattern instead of re-diagnosing
+
+## Implementation
+
+Added skill as commit `2078604` on `squad/fix-backchannel-endpoint-discovery` during branch cleanup.
+
+## Related
+
+- Implementation: PR #49 (commit `2a46494`)
+- Test contract: `DashboardLocalEndpointsValidationTests.AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls`
+- Decision: `.squad/decisions/inbox/blathers-backchannel-dynamic-discovery.md`

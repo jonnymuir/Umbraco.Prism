@@ -124,3 +124,53 @@ PR #49 ready for merge. After merge, restart Aspire AppHost in Codespaces — ba
 - Decisions archived to `.squad/decisions.md`
 - Orchestration log: `.squad/orchestration-log/2026-05-03T18:40:50Z-blathers.md`
 - Session log: `.squad/log/2026-05-03T18:40:50Z-downstream-timeout-diagnosis.md`
+
+---
+
+## 2026-05-03: Manual Diagnostic Flow — Read-Only
+
+**Status:** ✅ Complete (read-only task)
+
+**Goal:** Provide operator-friendly diagnostic steps to manually prove:
+1. API reachability (internal backchannel vs public)
+2. Bearer token validity
+3. Keycloak backchannel accessibility
+4. Separation of browser-facing vs server-side failures
+
+**Deliverables:**
+- `MANUAL_DIAGNOSIS_FLOW.md` — Comprehensive step-by-step guide with expected outcomes
+- `.squad/agents/blathers/QUICK_DIAGNOSIS_REFERENCE.txt` — Cheat sheet for quick triage
+
+**Key Insight:**
+The 10-second timeout in DownstreamDemoController can fail in 5 distinct ways:
+1. **Aspire port reassignment** — Port 5163 isn't actually listening (connection refused)
+2. **Service hung** — Port listens but no response (timeout persists)
+3. **Bearer token expired** — API responds with 401 but no retry
+4. **Keycloak backchannel blocked** — Signing keys unreachable (401 from validation)
+5. **GitHub port forwarding tunnel** — HTML page returned instead of JSON
+
+**Diagnostic Strategy:**
+Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token → Keycloak backchannel. Each layer is testable independently without code changes or complex tooling.
+
+**Files Changed:** None (read-only task)
+
+---
+
+## Learnings
+
+- **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
+
+---
+## 2026-05-03: Codespaces Downstream Diagnostics Script
+
+**Spawn manifest outcome recorded.** 
+- Added `scripts/codespaces/diagnose-downstream.sh` for live runtime diagnostics
+- Updated `CODESPACES.md` with diagnostic workflow
+- Recorded decision: "Codespaces Downstream Diagnostics Should Prefer Live Runtime Probes"
+- Validated DashboardLocalEndpointsValidationTests passed
+- Collaborated with Tangy on enhanced browser diagnostics integration
+
+**Learnings:**
+- Live runtime probes more reliable than static config validation in Codespaces environment
+- Internal backchannel URLs must not be exposed in browser-facing responses
+- Manual diagnosis flow critical for operator troubleshooting

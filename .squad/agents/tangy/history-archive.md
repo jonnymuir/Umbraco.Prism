@@ -1,256 +1,390 @@
-# Tangy — History
+## 2026-05-03: Browser Timeout on MockBusinessApp API Call — Backchannel URL Exposure
 
-## Core Context
-
-QA validation, test coverage analysis, and edge-case identification.
-
-**Key domains:** Playwright testing, E2E validation, Edge case coverage, CI/CD readiness, Performance analysis
-
-## 📋 Recent Sessions
-
----
-
-## 2026-05-03: Spawn Manifest — Codespaces Dashboard Failure Reproduction
-
-**Timestamp:** 2026-05-03T11:07:19.866Z  
-**Status:** ✅ Reproduced
-
-Tangy reproduced the live Codespaces dashboard failure at `https://organic-space-fortnight-77g9wvq6jxhxg97-44345.app.github.dev/dashboard`.
-
-**Evidence Captured:**
-- Found hardcoded `BUSINESSAPP_BACKCHANNEL_URL=http://localhost:5163` in code
-- This may not resolve correctly in live Codespaces environment
-- Hypothesis: backend service discovery issue or network isolation
-
-**Coordination:**
-- Blathers deployed enhanced diagnostics (token kid, ASPNETCORE_ENVIRONMENT, JWKS URLs)
-- Copper verified trust chain and recommended restart of MockBusinessApp
-- Brewster fixed Codespaces URL printing regression
-
-**Next Steps:**
-- Monitor operator actions when next 401 occurs in live Codespaces
-- Use enhanced /debug/auth endpoint to confirm backchannel state
-- Leverage Codespaces recovery scripts if needed
-
-
----
-
-## 2026-05-03: Codespaces Port Forwarding Mismatch
-
-**Timestamp:** 2026-05-03T12:28:26.122+01:00  
-**Status:** ✅ Reproduced & Root-caused
+**Timestamp:** 2026-05-03T18:12:37.055+01:00  
+**Status:** 🔍 Diagnosed (contract violation identified, test gap documented)
 
 ### Problem
 
-User reported that the startup status page (port 3000) shows "everything is ready" after health-check, but opening the TestSite forwarded URL (port 44345) results in a download/blank-file experience.
+User reports: After sign-in works, clicking "Call Mock Business App API" on the dashboard tries to call `http://localhost:5163/api/backoffice/me` and times out.
 
 ### Investigation
 
-Used playwright-cli to reproduce live behavior at both URLs:
+The DownstreamDemoController successfully calls the MockBusinessApp backend using the internal backchannel URL (`http://localhost:5163`), but then **returns that internal URL to the browser** in the JSON response:
 
-**Port 44345 (TestSite):**
-- HTTP 404 from `tunnels-prod-rel-uks1-v3-cluster`
-- `content-length: 0` (empty body, not an app error page)
-- `x-served-by: tunnels-prod-rel-uks1-v3-cluster`
-- Playwright error: `net::ERR_HTTP_RESPONSE_CODE_FAILURE`
+```csharp
+return Ok(new
+{
+    statusCode = (int)response.StatusCode,
+    url = targetUrl,  // ← "http://localhost:5163/api/backoffice/me"
+    ...
+});
+```
 
-**Port 3000 (Status Page):**
-- HTTP 401 with `www-authenticate: tunnel`
-- Redirects to GitHub login for Codespaces auth
-- Port is private and requires authentication
+The dashboard JavaScript displays this URL to the user (memberDashboard.cshtml line 272). In Codespaces, only port 7245 (HTTPS) is forwarded — port 5163 is never exposed publicly, making the displayed URL unreachable and confusing.
 
-### Root Cause
+### Contract Violations
 
-**Port 44345 is not forwarded/visible in the Codespace.**
+1. **Browser-Facing Content Includes Unreachable Localhost URL**
+   - **Contract:** URLs displayed to users must be publicly reachable from their browser
+   - **Violation:** The response contains `http://localhost:5163`, an internal server-to-server backchannel endpoint that is never forwarded in Codespaces
+   - **Expected:** Return the public-facing URL (e.g., `https://v7ldkc4c-7245.uks1.app.github.dev/api/backoffice/me`) or clearly label internal URLs as "not browser-accessible"
 
-The health-check script tests `https://localhost:44345` **internally** (inside the Codespace), which succeeds because the app is listening. However, the Codespaces tunnel infrastructure does NOT expose port 44345 publicly, resulting in:
+2. **Diagnostic Information Exposes Implementation Details**
+   - **Contract:** User-facing error messages should focus on observable behavior and actionable next steps
+   - **Violation:** Displaying the internal backchannel hop exposes dual HTTP/HTTPS listener setup and internal port numbers
+   - **Expected:** Show only the public URL users would use for direct access
 
-- Internal check: ✅ `curl https://localhost:44345` succeeds
-- External URL: ❌ HTTP 404 from tunnel layer
+### Regression Gap
 
-This creates a **false positive** — the status page reports "ready" based on internal checks while the public URL is inaccessible.
+**Existing test coverage:** `DashboardLocalEndpointsValidationTests.cs` has extensive coverage but:
 
-### Learnings
+✅ Line 97-128: `DownstreamDemo_PrefersBusinessAppBackchannelUrl_WhenConfigured` validates that the backchannel URL is used for transport AND returned in the response  
+✅ Line 126-127: Actually **asserts** that `http://localhost:5163` is returned, treating it as correct behavior
 
-1. **Localhost checks ≠ tunnel accessibility.** Health checks must verify the actual forwarded URL, not just localhost.
-2. **HTTP 404 with content-length: 0 from `tunnels-prod-*` clusters indicates port not forwarded**, not an application error.
-3. **Port visibility must be explicit.** Codespaces requires `.devcontainer/devcontainer.json` port declarations or manual visibility changes via UI/CLI.
+❌ **No test validates the browser-facing URL contract:**
+- No assertion that URLs returned to the dashboard are publicly accessible
+- No check that internal backchannel URLs are transformed or hidden
+- No validation of URL accessibility in different environments
 
-### Evidence
+**Pattern:** Tests focused on "does the server call the right endpoint" miss "is the response safe/useful for the browser client."
 
-Full network capture and analysis: `codespaces-port-mismatch-evidence.md`
+### Minimal Reproduction
+
+**Playwright (Codespaces):**
+```typescript
+await callBusinessAppApi(page);
+const apiUrl = page.locator('#api-url-label');
+// Will show "http://localhost:5163/api/backoffice/me" — unreachable
+```
+
+The current test only checks for `200 OK` status and response body content, not the displayed URL.
+
+**Manual (Codespaces):**
+1. Sign in to TestSite dashboard
+2. Click "Call Mock Business App API"
+3. Observe displayed URL: `http://localhost:5163/api/backoffice/me`
+4. Try accessing that URL in browser → timeout
+
+### Recommended Fix
+
+**Option 1 (Preferred):** Return the public-facing URL when backchannel is used for transport  
+**Option 2:** Add separate `displayUrl` field for UI, keep `url` for diagnostics  
+**Option 3:** Don't display the URL at all (it's an implementation detail)
+
+### Proposed Test Coverage
+
+**Unit test:** `DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport` — assert that `capturedRequestUri` uses backchannel but response `url` field uses public endpoint
+
+**Playwright contract test:** Validate displayed URL doesn't contain `:5163` or `localhost:`, and matches expected public URL pattern for environment
 
 ### Decision Recorded
 
-`📌 2026-05-03: Tangy — Health Checks Must Verify Tunnel Accessibility` (decisions.md, PROPOSED)
+`.squad/decisions/inbox/tangy-mockbiz-timeout-diagnosis.md` — full analysis and fix recommendations
 
-Recommendation: Enhanced health checks should verify both internal (localhost) and external (forwarded URL) surfaces. Uses `gh codespace ports` to discover and test forwarded URLs and visibility. Complements Brewster's pre-forwarding fix.
+### Learnings
+
+**Test coverage blind spot:** Server-side transport optimization (using HTTP backchannel for efficiency) can leak into client-facing responses. Tests that validate "backend calls the right endpoint" don't necessarily catch "frontend displays the wrong endpoint."
+
+**Browser-reachability as a contract:** In Codespaces (and any environment with port forwarding), URLs must be validated for browser accessibility, not just HTTP correctness. The dual HTTP/HTTPS listener pattern requires careful separation between transport URLs (internal) and display URLs (public-facing).
+
+## Orchestration Update (Scribe 2026-05-03)
+
+MockBusinessApp timeout diagnosis complete. Both agents identified architectural leak: internal backchannel URL leaks to browser-facing response.
+
+**Blathers:** Root cause is BUSINESSAPP_BACKCHANNEL_URL at AppHost line 142 being returned in DownstreamDemoController response
+**Tangy:** Contract gap identified — existing test accepts internal URL; new test contracts required for public URL validation
+
+Decisions captured in decisions.md. Orchestration logs: orchestration-log/2026-05-03T17:17:19Z-*.md
+Session log: log/2026-05-03T17:17:19Z-mockbiz-timeout-diagnosis.md
+
+Next: Implementation of URL transformation in controller.
 
 
 ---
 
-**2026-05-03T11:58:20Z:** Dispatched as Tangy-8 — Reproduce dashboard and debug evidence path (agent: Tangy). Concluded: localhost:5163 is expected internal hop; minimal UX-only improvement made to messaging for operators (indicate localhost is internal, prompt refresh + /debug/auth if 401 persists); targeted dashboard tests and full core tests passed; no regressions.
+## 2026-05-03: Browser URL Leak Fix — Test Coverage
 
----
-
-## Learnings
-
-### HTTP 401 + www-authenticate: tunnel = Codespaces Port Visibility Issue
-
-**Observed:** Dashboard URL returns HTTP 401 with `www-authenticate: tunnel` header on forwarded Codespaces URL.
-
-**Analysis:**
-- `www-authenticate: tunnel` is Codespaces infrastructure auth protocol (requires GitHub login)
-- Indicates port 15135 is not publicly visible to the Codespaces tunnel proxy layer
-- Application-level security (`DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true`) is correct
-- Issue is Codespaces-infrastructure-level port visibility, not app misconfiguration
-
-**Contract:** Dashboard URL must:
-1. Not return HTTP 401 with `www-authenticate` on the forwarded public URL
-2. Not redirect to GitHub login
-3. Serve dashboard immediately (telemetry + logs visible)
-4. Respond HTTP 200 or compatible success code
-
-**Fix verification:** Ensure port 15135 is explicitly public in `.devcontainer/devcontainer.json` ports declaration or manually toggled visible in VS Code Ports panel.
-
-
-## 2026-05-03 — Codespaces Dashboard Port Visibility Validation (Background)
-
-**Task:** Validate HTTP 401 + `www-authenticate: tunnel` diagnosis; define dashboard contract acceptance criteria.
-
-**Findings:**
-- Confirmed 401 is GitHub Codespaces tunnel layer authentication, not app configuration issue
-- Identified health check false positive: localhost checks pass but tunnel forwarding inaccessible
-- Drafted acceptance criteria for dashboard forwarded URL (HTTP 200, no auth header, immediate render)
-
-**Decision Record:** `.squad/decisions.md` entries 2026-05-03 (Tangy)
-
-**Files Created:**
-- `.squad/orchestration-log/2026-05-03T13-59-46Z-tangy.md` — orchestration report
-
----
-
-## 2026-05-03 — Codespaces Dashboard Port 17214 Contract Validation
-
-**Timestamp:** 2026-05-03T15:12:55.439+01:00  
+**Timestamp:** 2026-05-03T18:29:38.303+01:00  
 **Status:** ✅ Complete
 
 ### Task
 
-Add automated validation for the Codespaces dashboard contract: users must be directed to the forwarded HTTPS Aspire dashboard endpoint on port 17214, not the redirecting HTTP endpoint on port 15135.
+Add regression test coverage for the browser-facing backchannel URL leak issue. Work in parallel with Blathers on `squad/fix-browser-url-leak` branch to ensure browser-facing surfaces fail if internal localhost transport URLs leak to users again.
 
 ### Outcome
 
-- **Blathers had already fixed the code** — both `on-start.sh` and `server.js` now correctly advertise port 17214 for Codespaces users
-- Added two new tests to `DashboardLocalEndpointsValidationTests.cs`:
-  1. `CodespacesStartupScript_AdvertisesHttpsPort17214_NotHttpPort15135` — validates on-start.sh uses port 17214
-  2. `StatusServer_UsesPort17214ForCodespacesPublicUrl` — validates server.js uses port 17214
-- Both tests pass, confirming the contract is met
-- Ran full test suite for `DashboardLocalEndpointsValidationTests`: all 25 tests pass
+- **Unit test**: Already updated by Blathers in commit `6774c55` — `DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport` now validates that:
+  - Backend uses `http://localhost:5163` for transport efficiency
+  - Response to browser returns `https://codespace-7245.app.github.dev/api/backoffice/me` (public URL)
+- **Playwright test**: Added browser-level contract in `localhost-auth-session.spec.ts`:
+  - Updated `callBusinessAppApi()` to validate the displayed URL element `#api-url-label`
+  - Asserts URL does NOT contain `:5163` (internal backchannel port)
+  - Asserts URL DOES contain `https://localhost:7245` (public endpoint)
+  - This behavior-level test would have caught the original bug
+
+### Test Results
+
+- **Unit tests**: All 25 `DashboardLocalEndpointsValidationTests` pass
+- **Changes committed**: `2ebec5a` on `squad/fix-browser-url-leak` branch
+- **Coordination**: Clean commit history with Blathers' controller fix (`6774c55`) followed by my test addition (`2ebec5a`)
 
 ### Contract Enforced
 
-✅ **Codespaces users are directed to port 17214 (HTTPS Aspire dashboard)**  
-❌ Port 15135 (HTTP redirect endpoint) is no longer advertised
+✅ **Browser-facing API responses must not expose internal backchannel URLs**
+
+The Playwright test validates this at the user experience level — if the dashboard displays `localhost:5163` again, the test will fail immediately.
 
 ### Learnings
 
-**Test-as-contract pattern:** When a critical operational contract emerges (like port forwarding behavior), codify it as a test immediately. This prevents regression and documents the requirement for future contributors.
+**Test coverage layering**: Unit tests validate controller logic (URL transformation), Playwright tests validate browser experience (what users see). Both layers are needed — the unit test caught the implementation, the Playwright test ensures the full UX contract.
 
-## 2026-05-03 — Scribe: Dashboard Port Contract Decision Merged
+**Behavior-level assertions**: Prefer testing what the user sees over implementation details. The Playwright test doesn't care *how* the URL is transformed, only that the displayed URL is publicly accessible.
 
-Scribe merged tangy-dashboard-17214-contract.md decision documenting test coverage and port 17214 contract for Codespaces.
 
 ---
 
-## 2026-05-03 — Login Callback Port Mismatch After Codespace Restart
+## 2026-05-03: Manual Browser Diagnostic Playbook — API Timeout Investigation Guide
 
-**Timestamp:** 2026-05-03T17:57:10.282+01:00  
-**Status:** 🔍 Root-caused (no code changes yet)
+**Timestamp:** 2026-05-03T20:53:49.355+01:00  
+**Status:** ✅ Complete
+
+### Task
+
+Create a read-only diagnostic guide for manually inspecting API timeouts from the browser side. User is seeing 10-second timeout when clicking "Call Mock Business App API" and wants exact DevTools steps to isolate whether the problem is button flow, auth, network reachability, or CORS.
+
+### Outcome
+
+Created `.squad/skills/browser-devtools-api-diagnosis/SKILL.md` — comprehensive playbook covering:
+
+- **Phase 1:** Capture network request in DevTools
+- **Phase 2:** Inspect request headers (Authorization, Cookie, Content-Type)
+- **Phase 3:** Check response status & headers (200, 401, 403, 504, 0)
+- **Phase 4:** Inspect response body (success vs. timeout response structures)
+- **Phase 5:** Copy request as cURL/Fetch to isolate browser vs. network issues
+- **Phase 6:** Test direct endpoint access without auth
+- **Phase 7:** Compare authenticated vs. unauthenticated access patterns
+- **Phase 8:** Check browser console for CORS, network, or JS errors
+- **Decision tree:** Q&A diagnostic flow
+- **Quick reference:** Timeout-specific investigation steps
+- **3 worked examples:** Auth header missing, port unreachable, CORS blocked
+
+### Key Patterns Documented
+
+1. **Request vs. Response analysis:** How to distinguish between button flow failures (no request), auth failures (401), and endpoint failures (timeout/504)
+2. **cURL validation:** Copying request as cURL to confirm endpoint is network-accessible independent of browser
+3. **Backchannel URL signature:** How to spot internal port numbers (e.g., `:5163`) that indicate port reachability rather than auth issues
+4. **Environment-specific gotchas:** Localhost vs. Codespaces vs. CI/CD endpoint formats
+
+### Coverage
+
+The playbook directly addresses the three scenarios from the timeout history:
+
+- **URL transformation working but endpoint still timing out** — Phase 5 & 6 (cURL isolation)
+- **Hardcoded port vs. runtime assignment confusion** — Phase 6 (direct curl test shows 401 vs. timeout)
+- **Browser-reachable vs. internal backchannel URLs** — Phase 4 (response body inspection catches `:5163` in URL)
+
+### Related Skills Referenced
+
+- `aspire-dynamic-endpoint-backchannels` — Understanding backchannel URL patterns
+- `inline-api-failure-states` — How error responses should be structured
+- `dev-session-contract-probe` — App readiness validation
+
+### Learnings
+
+**Manual diagnosis is a skill:** The diagnostic playbook captures a repeatable pattern for isolating API issues. By separating concerns (button flow, auth, network), testers and developers can move quickly from "it times out" to "the specific failure mode."
+
+**DevTools + cURL combo:** Testing both in the browser (to catch browser-specific issues like CORS) and via cURL (to confirm endpoint health) gives two independent data points that narrow down the root cause.
+
+**Response structure matters:** A well-designed failure response (including `statusCode`, `statusText`, attempted URL) is diagnostic gold — it tells you which of the three hops (button → middleware → downstream endpoint) failed.
+
+---
+
+## 2026-05-03: Downstream API Timeout — Hardcoded Backchannel Port Issue
+
+**Timestamp:** 2026-05-03T19:40:50.786+01:00  
+**Status:** 🔍 Diagnosed (architectural gap identified, handed to Blathers)
 
 ### Problem
 
-User reports that after restarting Codespaces, TestSite login redirects Safari to `https://localhost:9250/signin-oidc?...` instead of the public Codespaces URL. Port 9250 is the internal HTTP listener and unreachable from the browser.
+User reports: After the URL transformation fix (showing public 7245 URL correctly), the browser call to "Call Mock Business App API" still times out after 10 seconds, even though the MockBusinessApp admin page is reachable.
 
-### Behavioral Contract Violated
+### Investigation
 
-**Contract**: After Codespace restart, the TestSite login flow must redirect to the public Codespaces forwarded URL for `/signin-oidc`, not an internal localhost URL.
+The URL transformation fix (commits `6774c55`, `2ebec5a`) **is working correctly** - it transforms the internal `http://localhost:5163` backchannel URL to the public Codespaces URL in browser-facing responses.
 
-**Expected**: `https://v7ldkc4c-44345.uks1.app.github.dev/signin-oidc?...`  
-**Actual**: `https://localhost:9250/signin-oidc?...` (unreachable)
+**But:** The actual server-to-server call from TestSite to MockBusinessApp is timing out because AppHost line 142 hardcodes:
 
-### Root Cause
+```csharp
+testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+```
 
-The OIDC middleware generates `redirect_uri` based on the incoming request's `Host` header. The TestSite has a Host override middleware (lines 44-54 in `Program.cs`) that replaces `Request.Host` with the public Codespaces hostname when `TESTSITE_PUBLIC_URL` is set.
+This assumes port 5163 is always correct, but Aspire may assign ephemeral ports in Codespaces. The correct pattern (already used for Keycloak at line 134) is:
 
-**The issue**: If `TESTSITE_PUBLIC_URL` is missing or stale after restart, the override doesn't activate. The OIDC handler then sees the internal host (`localhost:9250` HTTP or `localhost:44345`) instead of the public Codespaces URL, generating an unreachable redirect_uri.
+```csharp
+testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"));
+```
 
-**Why it's flaky**: The behavior is deterministic but *feels* flaky because:
+This gets the **actual runtime HTTP endpoint** that Aspire assigned.
 
-1. **Timing dependency**: AppHost must start before TestSite and set `TESTSITE_PUBLIC_URL` via the environment. On cold starts this works, but on Codespace resume, service startup order may differ or environment propagation may lag.
+### Behavioral Contract Violation
 
-2. **HTTP vs HTTPS port confusion**: TestSite listens on both `https://localhost:44345` and `http://localhost:9250`. If the Host override doesn't activate, the redirect_uri may use port 9250, which is never forwarded in Codespaces.
+**Contract:** Server-to-server API calls must complete within the configured timeout (10 seconds)
 
-3. **Silent failure mode**: There's no error logged when `TESTSITE_PUBLIC_URL` is missing — the middleware just doesn't override the Host, and everything *seems* fine until the user clicks "Sign in" and gets an unreachable localhost URL.
+**Current behavior:**
+- TestSite attempts to call hardcoded `http://localhost:5163/api/backoffice/me`
+- Port is unreachable or wrong
+- Request times out after 10 seconds
+- Controller returns "Timeout" response (statusCode 0)
+- Browser displays: "We could not reach the Mock Business App..."
 
-### Regression Gap
+**Expected behavior:**
+- TestSite calls MockBusinessApp's actual runtime HTTP endpoint
+- Request completes successfully (200 OK)
+- Browser displays: "Mock Business App responded successfully."
 
-**Existing tests**: `LocalhostGenericOidcRegressionTests.cs` validates scope and token behavior, but doesn't test:
+### Test Coverage Analysis
 
-1. That the `redirect_uri` uses the public host when `TESTSITE_PUBLIC_URL` is set
-2. That the Host override middleware works correctly for HTTPS requests
-3. That the behavior gracefully degrades or fails loudly when `TESTSITE_PUBLIC_URL` is missing in a Codespaces environment
+**Existing tests:**
+- ✅ `DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport` validates URL transformation with stub handler
+- ✅ Playwright `callBusinessAppApi()` validates the end-to-end flow including button click, status badge, response body
+- ❌ **Test gap:** The Playwright test runs against a live Aspire stack, so it SHOULD catch this bug
+- ❌ **BUT:** The test may be passing because it's running in a local dev environment where port 5163 IS correct, not in Codespaces where Aspire assigns ephemeral ports
 
-The tests are unit tests that mock OIDC configuration but don't exercise the actual Host header override middleware or the restart scenario.
+**Smallest regression test surface:**
 
-### Minimal Reproduction
+The existing Playwright test `callBusinessAppApi()` (localhost-auth-session.spec.ts, line 150-186) **should fail** if the backchannel is wrong:
 
-To prove the suspected root cause:
+```typescript
+await expect(statusBadge).toHaveText(/200 OK/, { timeout: 120_000 });
+```
 
-1. **Restart Codespace** and wait for AppHost to start
-2. **Before clicking "Sign in"**, check TestSite logs or add a probe endpoint to dump:
-   - `TESTSITE_PUBLIC_URL` env var
-   - `Request.Host` for an inbound HTTPS request
-   - The `redirect_uri` generated by the OIDC middleware
-3. **If port 9250 appears in the redirect_uri**, the Host override didn't activate
+If the timeout happens, this assertion should fail with:
+```
+Expected API call to succeed with 200 OK, but got:
+Status: Timeout
+```
 
-**Better approach**: Add logging to the Host override middleware in `Program.cs` to surface immediately if the env var is missing after restart.
+### Recommended Fix (Handed to Blathers)
 
-### Proposed Test Coverage
+**Change AppHost line 142:**
 
-Add a new test class `CodespacesOidcRedirectUriTests.cs` with:
+FROM:
+```csharp
+testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
+```
 
-1. Host override middleware sets `Request.Host` to public hostname when `TESTSITE_PUBLIC_URL` is set
-2. OIDC redirect_uri uses the public Codespaces URL, not localhost:9250
-3. System logs a warning if `CODESPACE_NAME` is set but `TESTSITE_PUBLIC_URL` is missing (fail-fast contract)
+TO:
+```csharp
+testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", businessApp.GetEndpoint("http"));
+```
 
-### Recommendation
+This ensures TestSite uses the actual runtime HTTP endpoint, matching the Keycloak pattern.
 
-**Option 1 (fail-fast)**: Make `TESTSITE_PUBLIC_URL` required in Codespaces — fail fast with a clear error message if missing  
-**Option 2 (fallback)**: Derive the public URL from inbound `X-Forwarded-*` headers if `TESTSITE_PUBLIC_URL` is missing  
-**Option 3 (test only)**: Add test coverage without changing runtime behavior
+**Also fix failing unit test `AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls` at line 302:**
 
-Option 1 (fail-fast) is the most honest and debuggable approach.
+The test looks for `.WithEnvironment(...)` but the actual code has `testsite.WithEnvironment(...)`. Update the assertion to:
 
-### Decision Recorded
+```csharp
+program.Should().Contain("BUSINESSAPP_BACKCHANNEL_URL");
+program.Should().Contain("businessApp.GetEndpoint(\"http\")");
+```
 
-`.squad/decisions/inbox/tangy-login-callback-flake.md` — full analysis and recommendations
+### Why I Stayed Read-Only
+
+This is an **AppHost configuration issue**, not a test-only fix. The architectural pattern (hardcoded port vs runtime endpoint) belongs to Blathers' domain. The test would pass if the configuration were correct.
+
+The fix is obvious (use `.GetEndpoint("http")`), but implementing it requires:
+1. Understanding Aspire endpoint semantics
+2. Verifying MockBusinessApp exposes HTTP endpoint correctly
+3. Validating behavior in Codespaces environment
+4. Potentially adjusting other backchannel-related config
+
+This is infrastructure work, not test surface work.
 
 ### Learnings
 
-**Restart-dependent failures feel flaky even when deterministic** because the preconditions change between cold start and resume. The user experience is: "it worked before, now it doesn't, I didn't change anything." From a test-contract perspective, this is a **silent partial boot** — the service starts successfully but is missing critical runtime configuration, leading to delayed failure during user interaction.
+**Hardcoded ports vs runtime endpoints:** When using Aspire, always prefer `.GetEndpoint("protocol")` over hardcoded `localhost:port` strings. Aspire may assign ephemeral ports, especially in containerized/Codespaces environments.
 
-**Test gap pattern**: Unit tests validated token/scope logic but missed the **environmental contract** — the dependency on `TESTSITE_PUBLIC_URL` being set by AppHost before TestSite starts. Integration tests or contract tests that validate environment variable propagation would have caught this.
+**Test coverage vs environment coverage:** A Playwright test running against localhost may pass even when Codespaces fails, if the localhost environment happens to match the hardcoded assumptions. Environment-specific failures require environment-specific test runs.
 
-## 2026-05-03: Codespaces Login Callback Flake Diagnosis
+**URL transformation ≠ endpoint reachability:** The URL transformation fix solved the **display** problem (showing public URLs to browsers), but didn't solve the **transport** problem (server reaching the backchannel). These are separate concerns that both need fixing.
 
-**Outcome**: Identified missing/stale `TESTSITE_PUBLIC_URL` as root cause of restart-sensitive contract gap.
+### Decision Recorded
 
-**Scope**: Diagnosed why TestSite login redirects to `localhost:9250` instead of public Codespaces URL after restart.
+`.squad/decisions/inbox/tangy-downstream-timeout.md` — full diagnosis and fix recommendation
 
-**Key Finding**: Host override middleware in Program.cs (lines 44-54) relies on `TESTSITE_PUBLIC_URL` environment variable. When missing or stale after restart, OIDC handler generates unreachable redirect_uri using internal port 9250.
-
-**Decision**: Merged to decisions.md as "2026-05-03: Tangy — Codespaces Login Callback Port Mismatch". Proposed fail-fast approach: require `TESTSITE_PUBLIC_URL` in Codespaces, log error immediately if missing.
 
 ---
+date: 2026-05-03T19:40:50Z
+status: complete
+area: testing, orchestration
+---
 
+# Session Coordination: Downstream Timeout Root Cause Diagnosis
+
+## Team Outcome
+
+Two-agent parallel investigation identified root cause of downstream API timeout:
+
+**Tangy (Diagnosis):**
+- ✅ Confirmed PR #48 URL transformation fix was correct
+- ✅ Isolated root cause: AppHost hardcoded backchannel port instead of using Aspire dynamic discovery
+- ✅ Test gap identified: Playwright test doesn't run in full Aspire + Codespaces environment
+
+**Blathers (Implementation):**
+- ✅ Implemented fix: Changed to `businessApp.GetEndpoint("http")` pattern
+- ✅ Updated regression test: `DashboardLocalEndpointsValidationTests.AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls`
+- ✅ PR #49 ready for merge and Aspire restart
+
+## Key Finding
+
+Aspire port assignment may differ from launchSettings.json in Codespaces. Dynamic endpoint discovery is the only reliable pattern for backchannel URLs.
+
+## Coordination
+
+- Decisions archived to `.squad/decisions.md`
+- Orchestration logs written to `.squad/orchestration-log/`
+- Session log: `.squad/log/2026-05-03T18:40:50Z-downstream-timeout-diagnosis.md`
+
+---
+## 2026-05-03: Codespaces Downstream Diagnostics Script — Operator Guardrails
+
+**Timestamp:** 2026-05-03T21:12:36.429+01:00  
+**Status:** ✅ Complete
+
+### Task
+
+Turn the manual downstream diagnosis into a runnable Codespaces helper script that distinguishes transport failures, tunnel/auth HTML responses, token-validation failures, and stale Keycloak backchannel wiring.
+
+### Outcome
+
+- Added `scripts/codespaces/diagnose-downstream.sh`
+- Script performs a safe unauthed pass first (`/debug/auth`, public API probe, Keycloak discovery)
+- Optional `PRISM_BEARER_TOKEN` input enables direct authenticated checks without printing the token
+- Failure output now includes concrete next-step commands (`refresh.sh`, `gh codespace ports`, `/debug/auth`, AppHost log tail)
+- Updated `CODESPACES.md` and `MANUAL_DIAGNOSIS_FLOW.md` so operators start with the script before falling back to the longer manual playbook
+
+### Reviewer Notes
+
+Blathers had produced a quick-reference text file, but it still left too much operator interpretation around stale runtime/backchannel state. The new script closes that gap by reading `/debug/auth` and comparing runtime Keycloak wiring with the repo's current Codespaces expectations.
+
+### Validation
+
+- `bash -n scripts/codespaces/diagnose-downstream.sh`
+- `bash scripts/codespaces/diagnose-downstream.sh`
+- `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --filter DashboardLocalEndpointsValidationTests --nologo`
+
+---
+## 2026-05-03: Codespaces Downstream Diagnostics Script
+
+**Spawn manifest outcome recorded.**
+- Reviewed and strengthened diagnostics flow with Blathers
+- Enhanced browser devtools diagnostic with runtime probe integration
+- Updated operator guidance for Codespaces troubleshooting
+- Validated targeted regression tests: DashboardLocalEndpointsValidationTests
+- Recorded decision: "Browser-Facing API Responses Must Not Expose Internal Backchannel URLs"
+
+**Learnings:**
+- Browser devtools integration provides superior visibility over static endpoint lists
+- Public URL transformation critical for user-facing API responses
+- Regression test coverage ensures reliability across environment configurations
