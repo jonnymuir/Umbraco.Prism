@@ -181,3 +181,39 @@ Detailed session histories (2026-04-30, 2026-05-01, and earlier) available in `h
 **Clean-up:** Deleted inbox file `mabel-timeout-diagnostics-landing.md`.
 
 **Team bookkeeping:** Complete. Product commits 17edf9c and 442c5e9 now linked to decision history.
+
+---
+
+## 2026-05-03: Business API Arrival Instrumentation — Product Commit to Main
+
+**Status:** ✅ Complete (product commit 8e1cd68 pushed to origin/main)
+
+**Work:** Landed arrival instrumentation for Business API with safe caller trace ID forwarding.
+
+**Scope Applied:**
+- Staged only three product files: MockBusinessApp/Program.cs, DownstreamDemoController.cs, DashboardLocalEndpointsValidationTests.cs
+- Left unrelated .squad/ bookkeeping changes unstaged
+- Created single, releasable product commit
+
+**Commit:** `8e1cd68` — feat(diagnostics): add Business API arrival instrumentation with safe caller trace ID forwarding
+- MockBusinessApp arrival middleware logs before authentication (method, path, trace ID, auth header, caller trace ID)
+- Handler entry point logs authentication status alongside request context
+- TestSite safely forwards caller trace ID header (X-Prism-Caller-TraceId) for cross-service correlation
+- Test validates contract: caller trace ID is captured from request and forwarded to Business App
+- Enables operators to correlate dashboard request traces with Business API arrival diagnostics
+
+**Push Result:** origin/main now points to 8e1cd68. Product changes live and ready for users.
+
+**Pattern:** Continues established product/bookkeeping separation workflow. Three-agent coordination (Blathers implementation, Tangy testing, Mabel landing) maintains clean git history.
+
+---
+
+## 2026-05-04T00:01:43.530+01:00: Business API Arrival Instrumentation — Bookkeeping Merge Complete
+
+**Status:** ✅ Documented
+
+**Decision Recorded:** "Business API Arrival Instrumentation Landing" (2026-05-03T23:46:52.875+01:00, IMPLEMENTED, commit 8e1cd68)
+
+**Summary:** Business API arrival instrumentation is live on main. Operators can correlate TestSite requests with Business App diagnostics through safe trace ID forwarding via `X-Prism-Caller-TraceId` header. Middleware logs at pre-auth and handler-entry points without exposing credentials or internal URLs.
+
+**Scope Achieved:** Clean separation of product deliverables (commit 8e1cd68) from bookkeeping (decisions.md consolidation).

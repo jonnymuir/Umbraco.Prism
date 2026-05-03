@@ -112,6 +112,14 @@ These three checks isolate:
 
 ## Learnings
 
+### 2026-05-03T23:46:52.875+01:00: Arrival Logging Needs Validation More Than Contract Tests
+
+**Context:** Blathers proposed arrival logging in `src/UmbracoPrism.MockBusinessApp/Program.cs` to prove whether downstream timeout requests reached MockBusinessApp before auth or `/api/backoffice/me` execution. The change is observability-only and does not alter the browser-visible contract already covered in `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`.
+
+**Pattern:** When a change adds server-side arrival logs without changing response payloads, prefer validating the existing build plus the focused downstream diagnostics test lane over brittle assertions on exact log strings or middleware implementation details. Only add automated tests if the logging introduces a stable operator-facing contract (for example a structured response field, documented event ID, or reusable diagnostics surface).
+
+**Key file paths:** `src/UmbracoPrism.MockBusinessApp/Program.cs`, `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`, `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`
+
 ### 2026-05-03T23:26:29.163+01:00: Timeout Diagnostics Need Structured Cause + Masked Transport Context
 
 **Context:** `DownstreamDemoController` now emits richer timeout diagnostics for `/api/prism/downstream-demo`, including a `timeout` payload, `summary`, `nextCheck`, and transport metadata for both public-tunnel and internal-backchannel paths.
@@ -189,3 +197,18 @@ All 680 tests pass. The new diagnostics provide enough signal for Codespaces ope
 **Coordination:** Blathers' arrival logging recommendation noted in orchestration log for potential follow-up work.
 
 **Team bookkeeping:** Complete. Product feature (commit 442c5e9) with full test coverage now linked to decision history.
+
+---
+
+## 2026-05-04T00:01:43.530+01:00: Business API Arrival Instrumentation — Test Contract Validation
+
+**Status:** ✅ Documented
+
+**Decision Recorded:** "Business API Arrival Logging Should Carry Safe Cross-Service Correlation" (2026-05-03T23:46:52.875+01:00, PROPOSED)
+
+**Validation:** Test contract in DashboardLocalEndpointsValidationTests.cs validates:
+- Trace ID capture in pre-auth and handler logs
+- `X-Prism-Caller-TraceId` header forwarding
+- Correlation matching without exposing tokens or internal URLs
+
+**Safety Model:** Read-only diagnostic headers, no auth/PII exposure. Follows existing pattern of safe operator instrumentation.

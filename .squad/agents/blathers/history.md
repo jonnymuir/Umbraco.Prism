@@ -8,6 +8,8 @@
 
 ## Learnings
 
+- **2026-05-04T00:01:43.530+01:00:** For MockBusinessApp bearer-auth timeouts in Codespaces, a `[PRISM AUTH FAILED] IDX20803/IDX20804` log that starts discovery at `KEYCLOAK_BACKCHANNEL_URL` but then hangs on `http://{public-codespaces-host}:{ephemeral-port}/.../protocol/openid-connect/certs` proves the request reached MockBusinessApp and stalled inside JWT bearer JWKS retrieval. The active runtime path is `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` → `ResolveSigningKeys(...)` → `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs`; the current rewriter matches only the exact public origin, so a hybrid JWKS URI emitted by Keycloak (public host + internal HTTP port) slips past and times out on the default 100s metadata HttpClient.
+- **2026-05-03T23:46:52.875+01:00:** For decisive downstream arrival proof in this repo, instrument `src/UmbracoPrism.MockBusinessApp/Program.cs` twice around `/api/backoffice/me`: once in middleware immediately before `app.UseAuthentication()` and once at handler entry. Keep the payload safe (`method`, `path`, `TraceIdentifier`, auth-header-present) and, when correlating with TestSite, forward `HttpContext.TraceIdentifier` from `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` via a dedicated header such as `X-Prism-Caller-TraceId`.
 - **2026-05-03T23:43:13.870+01:00:** A Downstream Demo timeout payload that reports `transport: internal-backchannel`, `backchannelPresent: true`, and `cancellationSource: request-timeout-window` proves TestSite chose the backchannel target and waited on its own 10s HttpClient window; it does not prove MockBusinessApp accepted the connection or that `/api/backoffice/me` executed. To prove arrival at MockBusinessApp itself, add a request log before `app.UseAuthentication()` in `src/UmbracoPrism.MockBusinessApp/Program.cs`, and add a second log inside the `/api/backoffice/me` handler if you need proof that endpoint code ran.
 - **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
 - **2026-05-03T21:32:41.296+01:00:** Codespaces helper scripts that embed Python should self-check a working stdlib runtime and launch it with `-I` plus `PYTHONHOME`/`PYTHONPATH` scrubbed; activated toolchains can otherwise break even basic imports like `json`.
@@ -108,3 +110,17 @@ Full history archived to `history-archive.md` (prior to 2026-05-03 learnings sec
 **Team coordination:** Tangy's test contracts and Mabel's landing decision logged. All booking complete.
 
 **Next steps:** Arrival logging implementation when team reopens timeout diagnostics work.
+
+---
+
+## 2026-05-04T00:01:43.530+01:00: JWKS Backchannel Root Cause — Orchestration Complete
+
+**Status:** ✅ Root Cause Identified & Recorded
+
+**Spawn Outcome:** Determined the request reaches MockBusinessApp and then hangs in JWT bearer auth while fetching signing keys. The backchannel/JWKS rewrite path in `PrismSigningKeyCache` causes JWKS fetch to escape to a malformed/public URL and sit on the metadata client's 100s timeout.
+
+**Decision Recorded:** "MockBusinessApp Downstream Timeout Root Cause Is Hybrid JWKS URI Escape" (2026-05-04T00:01:43.530+01:00, PROPOSED)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:01:43Z-blathers.md`
+
+**Next Action Owner:** Implementation in PrismSigningKeyCache.cs with regression tests in BackchannelRewriteTests.cs (ready for assignment).

@@ -1921,3 +1921,174 @@ New fields enable operators to immediately see:
 - Blathers (Backend Dev) — Implementation approved
 - Tangy (Tester) — Test coverage approved
 - Commit: 442c5e9
+
+---
+date: 2026-05-03T23:46:52.875+01:00
+author: Blathers
+status: PROPOSED
+area: diagnostics, backend, auth
+---
+
+# Business API Arrival Logging Should Carry Safe Cross-Service Correlation
+
+## Context
+
+When the dashboard's downstream demo times out, TestSite can prove which transport path it chose, but that alone does not prove MockBusinessApp accepted the request or entered `/api/backoffice/me`. Operators need a decisive signal from MockBusinessApp itself without logging bearer tokens or secrets.
+
+## Decision
+
+For `MockBusinessApp` arrival diagnostics on `/api/backoffice/me`:
+
+1. Log once in middleware immediately before `app.UseAuthentication()`
+2. Log again at the top of the `/api/backoffice/me` handler
+3. Keep fields safe: method, path, service trace identifier, auth-header-present, and a caller trace hint
+4. Forward TestSite's `HttpContext.TraceIdentifier` in a dedicated header (`X-Prism-Caller-TraceId`) so MockBusinessApp logs can be matched back to TestSite warning logs
+
+## Why
+
+- The pre-auth log proves the request reached MockBusinessApp before bearer validation ran
+- The handler-entry log proves endpoint execution began
+- A dedicated caller trace hint gives cross-service matching without exposing tokens, cookies, or internal secrets
+
+## Files
+
+- `src/UmbracoPrism.MockBusinessApp/Program.cs`
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`
+- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs`
+
+---
+date: 2026-05-04T00:01:43.530+01:00
+author: Blathers
+status: PROPOSED
+area: auth, keycloak, codespaces, backchannel
+---
+
+# MockBusinessApp Downstream Timeout Root Cause Is Hybrid JWKS URI Escape
+
+## Context
+
+Downstream Demo now proves TestSite is using the internal backchannel and that requests arrive at MockBusinessApp before auth. MockBusinessApp then logs:
+
+- `IDX20803: Unable to obtain configuration from 'http://localhost:{ephemeral}/realms/prism-dev/.well-known/openid-configuration'`
+- inner `IDX20804` against `http://{public-codespaces-host}:{same-ephemeral}/realms/prism-dev/protocol/openid-connect/certs`
+- `KEYCLOAK_BACKCHANNEL_URL` is present
+- `ASPNETCORE_ENVIRONMENT=Development`
+- `backchannel JWKS enabled : YES`
+
+## Decision
+
+Treat this as sufficient root-cause evidence and stop broader diagnosis.
+
+The failing runtime path is:
+
+1. `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`
+2. `ResolveSigningKeys(...)`
+3. `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs`
+4. `WarmAsync(cacheKey, metadataAddress, ...)`
+5. `ConfigurationManager<OpenIdConnectConfiguration>` + `BackchannelRewritingDocumentRetriever`
+
+The discovery request is redirected to `KEYCLOAK_BACKCHANNEL_URL`, but the returned discovery document emits a **hybrid** `jwks_uri` using the public Codespaces hostname with the internal HTTP port. The current rewriter only rewrites URLs whose prefix exactly matches the configured public origin (`https://{public-host}`), so the hybrid URI (`http://{public-host}:{ephemeral-port}`) is not rewritten and the metadata HttpClient waits on an unreachable public endpoint until its default 100-second timeout.
+
+## Implications
+
+- The downstream-demo 10-second timeout is now explained: TestSite gives up after 10 seconds while MockBusinessApp auth middleware is still blocked on its own 100-second metadata client.
+- This is not just "discovery rewritten but JWKS forgotten" by design; it is a narrower bug: the JWKS rewrite exists, but misses Keycloak's hybrid JWKS origin.
+
+## Required Fix
+
+Primary code change:
+
+- `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs`
+
+Validation coverage:
+
+- `src/UmbracoPrism.Core.Tests/BackchannelRewriteTests.cs`
+
+Optional follow-up diagnostics only if useful:
+
+- `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs`
+
+## Preferred Fix Shape
+
+Make generic OIDC bearer validation robust against hybrid Keycloak JWKS URIs by either:
+
+1. bypassing discovery in backchannel mode and fetching `.../protocol/openid-connect/certs` directly from the backchannel base, matching the existing direct-JWKS strategy in `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs`, or
+2. broadening the retriever rewrite so it rewrites any Keycloak realm URL whose host/path matches the configured authority, regardless of whether the discovery doc reports `https://public-host`, `http://public-host:{ephemeral-port}`, or another equivalent frontchannel form.
+
+Add a regression test for the exact observed hybrid case.
+
+---
+date: 2026-05-03T23:46:52.875+01:00
+author: Mabel
+status: IMPLEMENTED
+area: instrumentation, backend, testing
+---
+
+# Business API Arrival Instrumentation Landing
+
+**Decision:** Land Business API arrival instrumentation on `main` for production use.
+
+**Date:** 2026-05-03T23:46:52.875+01:00
+
+**Status:** IMPLEMENTED (commit 8e1cd68)
+
+---
+
+## What We're Shipping
+
+The Business API arrival instrumentation enables operators to correlate TestSite (dashboard) requests with Business API diagnostics through safe trace ID forwarding.
+
+**Components:**
+
+1. **Arrival Middleware (MockBusinessApp)**
+   - Logs before authentication: captures raw request context without access restrictions
+   - Logs after handler entry: includes authentication status
+   - Fields: method, path, trace ID, auth header presence, caller trace ID
+
+2. **Caller Trace ID Forwarding (TestSite)**
+   - Extracts HttpContext.TraceIdentifier from TestSite request
+   - Forwards via `X-Prism-Caller-TraceId` header to Business App
+   - Safe pattern: header is read-only diagnostic data, no auth/PII exposure
+
+3. **Test Contract (DashboardLocalEndpointsValidationTests)**
+   - Validates trace ID capture and forwarding
+   - Stub handler asserts header presence
+   - Confirms correlation hint matches
+
+---
+
+## Why This Matters
+
+**Operator pain point:** When downstream calls fail in Codespaces, operators had to manually trace logs across services. The trace ID link was missing.
+
+**Solution:** Safe, read-only correlation header enables immediate cross-service log search without exposing internal URLs or PII.
+
+---
+
+## Scope Discipline Applied
+
+- **Product files staged:** Only the three changed runtime/test files
+- **Bookkeeping deferred:** .squad/ agent histories and skill updates left unstaged for separate bookkeeping merge
+- **Release boundary:** Single, complete, production-ready commit (8e1cd68)
+
+---
+
+## Approval Chain
+
+- **Blathers (Backend Dev):** Implemented arrival middleware and handler logging
+- **Tangy (Tester):** Validated test contract and correlation forwarding
+- **Mabel (Release):** Staged clean commit, pushed to main
+
+---
+
+## User Outcome
+
+Users can now `git pull origin main` and run dashboard + Business App with arrival instrumentation active. Developers using Codespaces can correlate dashboard timeouts with Business API logs immediately — no manual tracing needed.
+
+---
+
+## Next Steps (Deferred Bookkeeping)
+
+- Merge agent history updates to .squad/agents/
+- Consolidate this decision into decisions.md
+- Extract any reusable patterns to team skills
