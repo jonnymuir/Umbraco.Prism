@@ -117,3 +117,51 @@ The fix ensures clear error messaging when port-forwarding pages appear. The und
 ---
 
 **📚 Older sessions archived to `history-archive.md` to keep active history under 15KB.**
+
+## 2026-05-03: Spawn Manifest — Codespaces URL Fix & Recovery Scripts
+
+**Timestamp:** 2026-05-03T11:07:19.866Z  
+**Status:** ✅ Implemented
+
+### Fix 1: Malformed Codespaces URL (tr -d '/' Regression)
+
+**Problem:** After "full-URL output on startup" change, users reported:
+- Browser download prompt on printed links
+- 404 errors when following links
+
+**Root Cause:** `get_codespace_url()` used `tr -d '/'` which deleted ALL slashes, including `://` in `https://`.
+- Input: `https://codespace-name-3000.app.github.dev/`
+- Output: `https:codespace-name-3000.app.github.dev` ← invalid
+
+Since `jq` was available, this branch always ran. Python fallback (correct `.rstrip('/')`) was never used.
+
+**Fix:** Replaced `tr -d '/'` with `sed 's|/*$||'` (strips only trailing slashes)
+
+**Impact:** Printed Codespaces URLs now valid and clickable
+
+### Fix 2: Codespaces Recovery Scripts
+
+Added three operator scripts under `scripts/codespaces/`:
+
+1. **`stop.sh`** — Graceful AppHost shutdown (force-kill fallback)
+2. **`refresh.sh`** — Fast cycle: stop → git pull → conditional npm install → restart
+   - Flags: `--rebuild` (opt-in), `--no-start`
+   - Time: ~90s for code-only changes
+3. **`health-check.sh`** — Probes 5 readiness endpoints, exits 0/1
+
+**Readiness Endpoints:**
+- Port 3000: Status server
+- Port 15135: Aspire Dashboard
+- Port 44345: TestSite
+- Port 8443: Keycloak
+- Port 7245: MockBusinessApp
+
+**Rationale:** Canonical operator path for Codespaces failures now documented and scripted.
+
+### Coordination
+
+- Tangy: Reproduced dashboard failure in live Codespaces
+- Blathers: Enhanced diagnostics + stale runtime pattern
+- Copper: Verified trust chain; recommended restart
+- User: Diagnostics over speculation; focus on actual failure runtime
+

@@ -143,3 +143,46 @@ This agent specializes in security engineering, threat modeling, and bedrock inv
 3. **OnAuthenticationFailed diagnostics are good but need to be surfaced** — User didn't provide console output; consider logging to structured sink or test harness
 4. **Manual fresh instance is a strong signal** — User started port 9245 comparison instance; suggests they're following the "stale runtime" skill pattern
 
+
+## 2026-05-03: Spawn Manifest — MockBusinessApp 401 Trust Chain Verification
+
+**Timestamp:** 2026-05-03T11:07:19.866Z  
+**Status:** ✅ Verified; 📋 Recommendation issued
+
+### Investigation Summary
+
+Reviewed HTTP 401 `invalid_token` from MockBusinessApp when called from live Codespaces dashboard.
+
+**Root Cause (HIGH CONFIDENCE): Stale Runtime**
+- MockBusinessApp running 2h+, predates recent auth code changes
+- TestSite recently restarted (code changes picked up)
+- Runtime mismatch: fresh TestSite + stale MockBusinessApp = validation failure
+- Pattern matches `.squad/skills/live-oidc-401-stale-runtime/`
+
+### Trust Chain Verification: ✅ VERIFIED
+
+All code-side authentication components correct:
+- OidcAuthority configured correctly
+- ClientId matches (prism-client)
+- Issuer/audience validators correctly implemented (PrismAuthExtensions.cs lines 115–163)
+- Backchannel JWKS fetch correctly scoped to Development + env var guard
+- No vulnerabilities or configuration errors detected
+
+### Recommendation
+
+**Primary Action:** Restart MockBusinessApp Aspire resource (port 7245)
+
+**If restart doesn't fix:**
+1. Capture `OnAuthenticationFailed` console diagnostics
+2. Compare actual token `iss`/`azp` claims vs configured values
+3. Verify token reaches MockBusinessApp (not stripped by middleware)
+4. Check for typo in ClientId or OidcAuthority
+
+**Optional Improvements:** Structured logging sink (Development-gated) for easier future debugging
+
+### Coordination
+
+- Blathers: Deployed enhanced diagnostics (token kid, environment, JWKS URL)
+- Brewster: Fixed Codespaces URL regression
+- User directive: Diagnose against actual failing runtime (live Codespaces), not assumptions
+

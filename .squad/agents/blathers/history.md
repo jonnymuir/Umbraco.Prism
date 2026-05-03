@@ -146,3 +146,41 @@ The user mentioned a "live Codespaces" failure at `https://organic-space-fortnig
 - Boolean computed fields (`backchannelJwksEnabled`) make dual-gate logic transparent in diagnostics
 - The `/debug/auth` endpoint is a first-class diagnostic tool; operators should `curl` it first when investigating 401s
 
+
+## 2026-05-03: Spawn Manifest — Enhanced 401 Diagnostics & Stale Runtime Pattern
+
+**Timestamp:** 2026-05-03T11:07:19.866Z  
+**Status:** ✅ Shipped diagnostics; 📋 Proposed operational pattern
+
+### Enhanced Diagnostics (SHIPPED)
+
+Deployed richer authentication error diagnostics to `PrismAuthExtensions.cs` and MockBusinessApp:
+
+**Changes:**
+- Token key ID (kid) extraction from JWT header
+- ASPNETCORE_ENVIRONMENT display (reveals Development-gated logic)
+- Computed backchannel JWKS enabled boolean
+- JWKS metadata URL logging (for SecurityTokenSignatureKeyNotFoundException)
+- Enhanced `/debug/auth` endpoint showing backchannel state
+
+**Test Coverage:** All 672 Core tests passing; no regressions.
+
+**Rationale:** "Do not guess; prefer logging that reveals the real problem." When the next 401 occurs in live Codespaces, operators will have actionable evidence without requiring shell access.
+
+### Stale Runtime Restart Pattern (PROPOSED GUIDANCE)
+
+Documented operational pattern: Always restart Aspire stack after pulling auth-related code changes.
+
+**Why:** Auth validation config is set at startup (JwtBearerOptions, validators). Running processes do not pick up code changes until they restart. Aspire container lifecycle already supports this via `refresh.sh`.
+
+**Alternatives Rejected:** Hot reload doesn't cover JwtBearerOptions; manual restart works but canonical path is `refresh.sh`.
+
+**Artifacts:** `.squad/skills/live-oidc-401-stale-runtime/SKILL.md` + `artifacts/codespaces-401-runbook.md`
+
+### Team Alignment
+
+- Tangy reproduced dashboard failure
+- Copper verified trust chain (no code-side issues)
+- Brewster fixed Codespaces URL printing
+- User directives: diagnose before fixing; use actual runtime failure, not assumptions
+
