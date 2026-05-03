@@ -124,15 +124,10 @@ app.MapPost("/api/workflow/{workflowKey}/current", async (
     var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
     var email = user.GetEmail();
 
-    if (tenant == null || string.IsNullOrEmpty(email))
-    {
-        // NOTE: Returns 401 rather than 500 (unlike /api/backoffice/me which returns
-        // Results.Problem). Both conditions mean the token was validated but the
-        // application-level identity resolution failed. A future improvement could align
-        // both endpoints to Results.Problem so that tenant/email failures are clearly
-        // distinguishable from JWT middleware 401s in the TestSite workflow client logs.
-        return Results.Unauthorized();
-    }
+    if (tenant == null)
+        return Results.Problem("Tenant not recognised by Business Application.");
+    if (string.IsNullOrEmpty(email))
+        return Results.Problem("User email claim not found.");
 
     // Read optional body parameters
     string? instanceId = null;
@@ -167,8 +162,10 @@ app.MapPost("/api/workflow/{workflowKey}/advance", (
     var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
     var email = user.GetEmail();
 
-    if (tenant == null || string.IsNullOrEmpty(email))
-        return Results.Unauthorized();
+    if (tenant == null)
+        return Results.Problem("Tenant not recognised by Business Application.");
+    if (string.IsNullOrEmpty(email))
+        return Results.Problem("User email claim not found.");
 
     logger.LogInformation(
         "Workflow advance: key={Key} instance={Instance} action={Action}",
@@ -190,8 +187,10 @@ app.MapGet("/api/workflow/instances", (
     var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
     var email = user.GetEmail();
 
-    if (tenant == null || string.IsNullOrEmpty(email))
-        return Results.Unauthorized();
+    if (tenant == null)
+        return Results.Problem("Tenant not recognised by Business Application.");
+    if (string.IsNullOrEmpty(email))
+        return Results.Problem("User email claim not found.");
 
     logger.LogInformation("Workflow instances: tenant={Tenant} user={User}", tenant.Code, email);
 

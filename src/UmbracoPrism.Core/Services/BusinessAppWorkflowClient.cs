@@ -177,7 +177,17 @@ public class BusinessAppWorkflowClient(
         var client = httpClientFactory.CreateClient("PrismBusinessApp");
         var authHeader = await prismContext.GetAuthorizationHeaderAsync(forceRefresh);
         if (authHeader != null)
+        {
             client.DefaultRequestHeaders.Authorization = authHeader;
+        }
+        else
+        {
+            logger.LogWarning(
+                "BusinessAppWorkflowClient: GetAuthorizationHeaderAsync returned null (forceRefresh={ForceRefresh}). " +
+                "No Authorization header will be sent — Business App will reject with 401. " +
+                "Check that PrismTenantMiddleware has resolved CurrentTenant before this call.",
+                forceRefresh);
+        }
         return client;
     }
 
