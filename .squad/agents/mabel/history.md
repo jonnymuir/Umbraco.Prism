@@ -116,3 +116,35 @@ Complete chronological history available in git. Recent summaries:
 ## 2026-05-03 — Scribe: Documentation Port 17214 Decision Merged
 
 Scribe merged mabel-dashboard-docs-17214.md decision documenting CODESPACES.md clarification work for Aspire Dashboard port guidance.
+
+---
+
+## Session: PR #49 Merge — AppHost Dynamic Backchannel Fix (2026-05-03)
+
+**Status:** ✅ Complete — Merged as commit `a8e2d86`
+
+**Task:** Finish PR #49 and merge to main with preserved commit history.
+
+### Actions
+
+1. **Verified PR readiness:** All CI checks green (core-tests, storybook-tests, auth-playwright, squad-ci)
+2. **Pushed local commit:** d6cfe4e (squad: merge downstream timeout diagnosis decisions) to origin
+3. **Merged with history preservation:** Selected "Create a merge commit" strategy (not squash) to maintain readable commit history
+4. **Cleaned branch:** Deleted local and remote feature branches
+5. **Synced main:** Local main already fast-forwarded to origin/main
+
+### Commit History
+
+- **a8e2d86** — Merge pull request #49 (preserve history)
+  - **d6cfe4e** — squad: merge downstream timeout diagnosis decisions
+  - **2a46494** — fix(codespaces): use dynamic endpoint discovery for BusinessApp backchannel
+
+### Product Impact
+
+The fix enables Codespaces developers to use the downstream demo API without timeouts. Dynamic endpoint discovery via `businessApp.GetEndpoint("http")` replaces the hardcoded localhost:5163 assumption, allowing Aspire to assign ports correctly in container environments.
+
+**Next step for users:** Restart the Aspire AppHost in Codespaces to pick up the new configuration.
+
+### Skill Documentation
+
+Extracted reusable pattern to `.squad/skills/aspire-dynamic-endpoint-backchannels/SKILL.md` for future backchannel URL configuration tasks.
