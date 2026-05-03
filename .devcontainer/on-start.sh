@@ -72,7 +72,11 @@ STATUS_SERVER_PID=$!
 # Brief pause to confirm the status server is up before Codespaces tries to open it.
 sleep 2
 if kill -0 "$STATUS_SERVER_PID" 2>/dev/null; then
-    echo "✅ Status page ready — open port 3000 in your browser to follow progress."
+    if [ -n "$CODESPACE_NAME" ]; then
+        echo "✅ Status page ready — $(get_codespace_url 3000)"
+    else
+        echo "✅ Status page ready — http://localhost:3000"
+    fi
 else
     echo "⚠️  Status server did not start (check $STATUS_SERVER_LOG)"
 fi

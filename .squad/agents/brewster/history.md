@@ -10,6 +10,21 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 
 ---
 
+## 2026-05-03: Status Page — Full URL on Startup
+
+**Status:** ✅ Complete.
+
+**Change:** Updated `.devcontainer/on-start.sh` so that when the startup status server comes up, it prints the full clickable URL rather than "open port 3000 in your browser".
+
+- In Codespaces: calls the existing `get_codespace_url 3000` helper (resolves via `gh codespace ports`, falls back to legacy pattern). Port 3000 is pre-declared in `devcontainer.json` so the URL is available before the server starts.
+- Locally: prints `http://localhost:3000`.
+- CODESPACES.md "Useful tips" updated.
+- Decision written to `.squad/decisions/inbox/brewster-startup-url-output.md`.
+
+**Learning:** `get_codespace_url()` can safely be called for any port declared in `devcontainer.json forwardPorts` — Codespaces registers those before any process starts, so the forwarded URL is in `CODESPACE_PORTS_JSON` from the first `gh codespace ports` call.
+
+---
+
 ## Session: Downstream Demo HTML Validation Fix (2026-05-02)
 
 **Status:** ✅ Complete — Commit `da7ddc9` on `main`
