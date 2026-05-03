@@ -235,6 +235,49 @@ Now all three sites follow identical dual-gating pattern.
 
 ---
 
+## 2026-05-03: Startup-Status URL Regression Suite
+
+**Status:** ✅ Complete — 24 new tests, all passing
+
+**Trigger:** User-visible regression: "do you want to allow downloads" browser prompt + repeated 404s when clicking links on Codespaces startup status page after `refresh.sh`.
+
+### Root Causes Identified
+
+| # | Bug | Location | Fix (prior commit) |
+|---|-----|----------|--------------------|
+| 1 | `tr -d '/'` strips ALL slashes — `https://` → `https:` | `on-start.sh` `get_codespace_url()` | `sed 's\|/*$\|\|'` (417a038) |
+| 2 | Node.js doesn't survive Codespace suspension; fast-path `pgrep` exited without checking port 3000 → proxy returns 404, Chrome shows download dialog | `on-start.sh` resume block | Probe `http://localhost:3000/api/status`, restart if dead (5f41b03) |
+
+Both bugs were already fixed in commits before this session. Session added permanent regression coverage.
+
+### Work Completed
+
+**Extracted `url-utils.js`** — Pure URL functions (`parseCodespacePorts`, `deriveCodespacesUrl`, `makePublicUrl`) from `server.js` into a testable module. Doc comment explains legacy-fallback risk on empty portUrls.
+
+**24 regression tests in `server.test.js`** (3 describe groups):
+- `parseCodespacePorts` — empty map, single port, multi-port, trailing slash strip (the `tr -d '/'` regression), non-numeric sourcePort
+- `deriveCodespacesUrl` — same port returns same URL, different port derives new URL, regional subdomain format, mismatched base URL
+- `makePublicUrl` — known port returns map URL, unknown port legacy fallback, empty portUrls fallback (post-stop.sh scenario), resume scenario (port 3000 derives correctly when other ports known)
+
+**Refactored `server.js`** — Imports from `url-utils.js`; `publicUrl` now factory result from `makePublicUrl(...)`; `ASPIRE_PUBLIC_URL` moved after `publicUrl` definition (no longer relies on function hoisting).
+
+### Key Learning
+
+**`tr -d` vs trailing-strip intent:** `tr -d 'x'` deletes all occurrences globally — never use it to strip trailing characters. Use `sed 's|x*$||'` or shell `${var%x}`. A quick unit test on `browseUrl` processing would have caught this instantly.
+
+**Node.js process lifetime in Codespaces:** Node.js processes are killed on Codespace suspension. Any `pgrep`-based fast-path that infers the status server is alive from another process being alive is incorrect. Always probe the actual port.
+
+### Residual Risk (Documented, Not Fixed)
+
+When `gh codespace ports` is called before any ports are open, `CODESPACE_PORT_URLS` is empty. `publicUrl()` falls back to `https://${CODESPACE_NAME}-${port}.${DOMAIN}` (legacy pattern). On new-scheme regional Codespaces, `CODESPACE_NAME` ≠ the opaque subdomain token → wrong URLs. Documented in test "regression: empty portUrls falls back to legacy CODESPACE_NAME pattern" and in `url-utils.js` doc comments.
+
+### Files
+- `scripts/startup-status/url-utils.js` — new
+- `scripts/startup-status/server.test.js` — new (24 tests)
+- `scripts/startup-status/server.js` — refactored
+
+---
+
 ## 2026-05-03: Downstream Diagnostics Coverage
 
 **Status:** ✅ Complete; merged to main with 618 tests passing (+17 new).

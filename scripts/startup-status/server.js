@@ -7,6 +7,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { parseCodespacePorts, makePublicUrl } = require('./url-utils.js');
 
 const PORT = Number(process.env.PORT || 3000);
 const CODESPACE_NAME = process.env.CODESPACE_NAME || '';
@@ -29,72 +30,9 @@ const KEYCLOAK_PROBE_URL = process.env.PRISM_STARTUP_KEYCLOAK_URL
 const KEYCLOAK_PUBLIC_PORT = Number(process.env.PRISM_STARTUP_KEYCLOAK_PUBLIC_PORT || 8443);
 const MOCBIZ_PROBE_URL = process.env.PRISM_STARTUP_MOCBIZ_URL || 'https://localhost:7245/debug/auth';
 const MOCBIZ_PUBLIC_PORT = Number(process.env.PRISM_STARTUP_MOCBIZ_PUBLIC_PORT || 7245);
+
+const publicUrl = makePublicUrl({ codespaceName: CODESPACE_NAME, domain: DOMAIN, portUrls: CODESPACE_PORT_URLS });
 const ASPIRE_PUBLIC_URL = publicUrl(CODESPACE_NAME ? ASPIRE_CODESPACES_PORT : ASPIRE_LOCAL_PORT);
-
-function parseCodespacePorts(json) {
-  if (!json) {
-    return new Map();
-  }
-
-  try {
-    const ports = JSON.parse(json);
-    return new Map(
-      ports
-        .filter((entry) => typeof entry?.sourcePort === 'number' && typeof entry?.browseUrl === 'string')
-        .map((entry) => [entry.sourcePort, entry.browseUrl.replace(/\/$/, '')]),
-    );
-  } catch {
-    return new Map();
-  }
-}
-
-function deriveCodespacesUrl(knownUrl, targetPort) {
-  try {
-    const uri = new URL(knownUrl);
-    const hostname = uri.hostname;
-    const firstDot = hostname.indexOf('.');
-    if (firstDot === -1) {
-      return null;
-    }
-
-    const lastDash = hostname.lastIndexOf('-', firstDot);
-    if (lastDash === -1) {
-      return null;
-    }
-
-    const currentPort = hostname.substring(lastDash + 1, firstDot);
-    if (!/^\d+$/.test(currentPort)) {
-      return null;
-    }
-
-    const prefix = hostname.substring(0, lastDash);
-    const suffix = hostname.substring(firstDot);
-    return `${uri.protocol}//${prefix}-${targetPort}${suffix}`;
-  } catch {
-    return null;
-  }
-}
-
-function publicUrl(port, { localScheme = 'https' } = {}) {
-  if (!CODESPACE_NAME) {
-    return `${localScheme}://localhost:${port}`;
-  }
-
-  const exact = CODESPACE_PORT_URLS.get(port);
-  if (exact) {
-    return exact;
-  }
-
-  const knownUrl = CODESPACE_PORT_URLS.values().next().value;
-  if (knownUrl) {
-    const derived = deriveCodespacesUrl(knownUrl, port);
-    if (derived) {
-      return derived;
-    }
-  }
-
-  return `https://${CODESPACE_NAME}-${port}.${DOMAIN}`;
-}
 
 function wantsHtml(req) {
   return (req.headers.accept || '').includes('text/html');
