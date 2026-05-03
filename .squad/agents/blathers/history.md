@@ -161,6 +161,7 @@ Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token 
 - **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
 - **2026-05-03T21:32:41.296+01:00:** Codespaces helper scripts that embed Python should self-check a working stdlib runtime and launch it with `-I` plus `PYTHONHOME`/`PYTHONPATH` scrubbed; activated toolchains can otherwise break even basic imports like `json`.
 - **2026-05-03T21:49:23.079+01:00:** For operator-facing Codespaces diagnostics, prefer shell-native `curl`/`gh` probes over embedded runtimes. A helper that only needs Bash plus the stock network tools is more reliable than trying to harden around a missing or broken Python install.
+- **2026-05-03T22:27:45.244+01:00:** When downstream API timeout isn't preceded by 401, check whether TestSite is using the backchannel URL or the public app.github.dev URL — if BUSINESSAPP_BACKCHANNEL_URL is actually set at runtime, the timeout is internal; if not, it's hitting the GitHub forwarding tunnel. Named HttpClients have default timeouts (100s); the custom timeout only applies when the named client is registered.
 
 ---
 ## 2026-05-03: Codespaces Downstream Diagnostics Script
@@ -219,3 +220,45 @@ Use curl to isolate each layer: HTTP internal → HTTPS public → Bearer token 
 
 ### Next Steps
 - Production validation by users and future Codespaces diagnostics maintenance follow established shell-first preference
+
+---
+
+## 2026-05-03T22:13:58.511+01:00: Session-contract downstream path analysis
+
+**Status:** ✅ Complete (read-only analysis)
+
+**Evidence reviewed:**
+- `session-contract` reported authenticated cookie state, access/refresh/ID token presence, `authorizationHeaderReady=true`, `scheme=Bearer`, resolved generic OIDC tenant, and ready seed data.
+- Current AppHost wiring uses dynamic `BUSINESSAPP_BACKCHANNEL_URL=businessApp.GetEndpoint("http")` and `KEYCLOAK_BACKCHANNEL_URL=keycloak.GetEndpoint("http")` in Codespaces.
+- Current MockBusinessApp auth wiring trusts the public OIDC authority, supports `aud` or `azp` binding for generic OIDC tokens, and exposes `/debug/auth` to confirm live JWKS/backchannel state.
+
+**What this rules out:**
+- Missing TestSite sign-in cookie or missing stored tokens
+- PrismContext being unable to mint a bearer header at probe time
+- Unresolved tenant/hostname mapping on the TestSite side
+- Browser-to-BusinessApp CORS/public-tunnel transport as the primary hop for the downstream demo request (the server-side call uses the internal backchannel)
+
+**Most likely remaining failure point:**
+- Live MockBusinessApp bearer-token validation/runtime wiring, especially stale AppHost/BusinessApp state where the running process does not actually have the expected Keycloak backchannel/JWKS configuration or is still serving older JWT-validation code.
+
+**Highest-signal follow-up checks:**
+1. Check live `https://localhost:7245/debug/auth` (or Codespaces equivalent) for `backchannelJwksEnabled=true`, correct `backchannelUrl`, and a successful `backchannelProbe`.
+2. Inspect the actual `/api/prism/downstream-demo` response body/diagnostic body for `401 invalid_token`, timeout, or non-JSON tunnel HTML to separate auth rejection from transport/tunnel failure.
+3. If it is a 401, compare the live BusinessApp process against a fresh restart (`bash scripts/codespaces/refresh.sh`) because current repo tests already cover the generic OIDC issuer + `azp` path and dynamic backchannel wiring.
+
+---
+## 2026-05-03T22:27:45Z: Spawn Manifest — Timeout Path Analysis
+
+**Status:** ✅ Complete (analysis)
+
+**Execution:** Analyzed downstream timeout path for live TestSite process.
+
+**Conclusion:** Highest-probability remaining issue is that live TestSite process is using the public forwarded BusinessApp URL instead of the internal backchannel URL. This explains why the browser request reaches the dashboard (via public 7245 URL) but the server-side API call times out.
+
+**Handoff to Tangy:** Operator flow reduced to three diagnostic checks:
+1. Run diagnostics script with real bearer token
+2. Compare public-vs-localhost cURL for copied request
+3. Only probe Keycloak JWKS if both still hang
+
+**Artifact:** `.squad/orchestration-log/2026-05-03T21-27-45Z-blathers.md`
+
