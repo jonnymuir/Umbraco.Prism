@@ -148,3 +148,43 @@ The fix enables Codespaces developers to use the downstream demo API without tim
 ### Skill Documentation
 
 Extracted reusable pattern to `.squad/skills/aspire-dynamic-endpoint-backchannels/SKILL.md` for future backchannel URL configuration tasks.
+
+---
+
+## Session: Post-Merge Branch Reconciliation (2026-05-03)
+
+**Status:** ✅ Complete
+
+**Task:** Reconcile residual branch state after PR #49 merge. Feature branch `squad/fix-backchannel-endpoint-discovery` had uncommitted changes in `.squad/agents/tom-nook/history.md` and a post-merge skill documentation commit.
+
+### Work
+
+1. **Evaluated skill merit:** `aspire-dynamic-endpoint-backchannels` — captured earned pattern with test contracts, diagnosis steps, and anti-patterns. **Decision: KEEP** — reusable across infrastructure diagnostics.
+
+2. **Staged Tom Nook's history:** Committed uncommitted `.squad/agents/tom-nook/history.md` entry documenting skill extraction as part of the branch cleanup process.
+
+3. **Rebased feature branch:** Cleaned branch divergence by rebasing feature branch onto local main (which had Mabel's post-merge history commit).
+
+4. **Merged cleanly:** Fast-forward merge landed skill + history updates onto main as two discrete commits:
+   - `9ee9a25` docs: add aspire-dynamic-endpoint-backchannels skill
+   - `ed2b5cd` docs: update tom-nook history — aspire-dynamic-endpoint-backchannels skill extraction
+
+### Outcome
+
+- ✅ Skill documentation landed on main
+- ✅ Tom Nook's history synchronized
+- ✅ Main and feature branch now synchronized at commit `ed2b5cd`
+- ✅ Working tree clean
+- ⚠️ Local main is 3 commits ahead of origin/main (Mabel's post-merge session + 2 skill commits); awaiting push authorization
+
+### Pattern
+
+Post-merge .squad-only work should be staged before branch closure, then merged using rebase-onto approach to maintain linear history when PR merge introduces divergence.
+
+---
+
+## Learnings
+
+- **Branch divergence recovery:** When PR merge creates a local divergence (post-merge bookkeeping vs feature branch work), rebase the feature branch onto the post-merge commit before merge, not the other way.
+- **Skill extraction timing:** Earning and extracting skills as part of PR closure discipline ensures patterns get captured and shared while diagnostic context is fresh.
+- **History precision:** Documenting skill extraction in agent history (Tom Nook's record) + skill itself (.squad/skills/) provides two-layer traceability: "what we learned" + "how to use it".
