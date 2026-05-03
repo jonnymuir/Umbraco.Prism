@@ -125,7 +125,14 @@ app.MapPost("/api/workflow/{workflowKey}/current", async (
     var email = user.GetEmail();
 
     if (tenant == null || string.IsNullOrEmpty(email))
+    {
+        // NOTE: Returns 401 rather than 500 (unlike /api/backoffice/me which returns
+        // Results.Problem). Both conditions mean the token was validated but the
+        // application-level identity resolution failed. A future improvement could align
+        // both endpoints to Results.Problem so that tenant/email failures are clearly
+        // distinguishable from JWT middleware 401s in the TestSite workflow client logs.
         return Results.Unauthorized();
+    }
 
     // Read optional body parameters
     string? instanceId = null;

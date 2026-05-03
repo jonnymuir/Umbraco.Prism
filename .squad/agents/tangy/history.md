@@ -224,3 +224,56 @@ All 680 tests pass. The new diagnostics provide enough signal for Codespaces ope
 **Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:20:46Z-tangy.md`
 
 **Scope:** Build test contracts for workflow-start auth path and validate coverage gaps vs direct API access patterns.
+
+---
+
+## 2026-05-04: Workflow 401 Regression Investigation
+
+**Timestamp:** 2026-05-04  
+**Status:** ✅ Complete — regression tests added
+
+### Context
+
+Commit 0904810 fixed `PrismSigningKeyCache.BackchannelRewritingDocumentRetriever` to use host-based URI matching (instead of origin `StartsWith`). This makes the Business App correctly fetch JWKS when Keycloak returns a `jwks_uri` using the public hostname with the backchannel port (e.g. `http://codespace-8443.app.github.dev:39517/...`). After the fix, the TestSite's "Call Mock Business App API" button works in Codespaces, but the workflow pages (e.g. "Start Payment Demo") still returned "Business App error (HTTP 401)".
+
+### Behavioral Gap Found
+
+Two layered failure modes produce the same "Business App error (HTTP 401)" surface in `BusinessAppWorkflowClient`:
+
+**Mode 1 — Null auth header silently dropped:**  
+`BusinessAppWorkflowClient.CreateClientAsync` only attaches the Authorization header when `GetAuthorizationHeaderAsync` returns non-null. If `PrismContext.GetAuthorizationHeaderAsync` returns null (e.g. `CurrentTenant` not resolved by `PrismTenantMiddleware`, tenant/principal mismatch), the request is sent unauthenticated. Business App JWT middleware rejects it with 401. On the retry (`forceRefresh: true`), `RefreshTokenAsync` also returns null because `CurrentTenant` is null. Second request also has no auth header → 401 → error envelope.
+
+**Mode 2 — Application-level `Results.Unauthorized()` in workflow handlers:**  
+`/api/workflow/{key}/current` and `/api/workflow/{key}/advance` return `Results.Unauthorized()` (HTTP 401) when `GetPrismTenant` returns null or email is empty. This is the *same HTTP 401* as JWT middleware rejection. `/api/backoffice/me` uses `Results.Problem()` (HTTP 500) for the same condition. From the TestSite client's perspective these two failure modes are indistinguishable: both surface as "Business App error (HTTP 401)" in `ReadEnvelopeAsync`.
+
+### Tests Added
+
+Added 3 regression tests to `BusinessAppWorkflowClientTests.cs`:
+
+1. **`GetCurrentAsync_SurfacesErrorEnvelope_WhenAuthHeaderIsNull`** — verifies that when `GetAuthorizationHeaderAsync` returns null, no Authorization header is sent on either the initial request or the retry, and the Business App 401 surfaces as a `BUSINESS_APP_ERROR` error envelope (not thrown).
+
+2. **`GetCurrentAsync_AttemptsTokenRefreshOnce_WhenBusinessAppReturns401`** — verifies that on Business App 401, `GetAuthorizationHeaderAsync(forceRefresh: true)` is called exactly once (no infinite retry loop).
+
+3. **`GetCurrentAsync_SurfacesErrorEnvelope_NotExceptionThrown_WhenBothRequestsReturn401`** — verifies exactly 2 HTTP attempts (initial + 1 retry), and that double-401 surfaces as error envelope, never thrown.
+
+Refactored `BuildClient` helper into `BuildClientWithContextMock` to allow Moq verification of `IPrismContext` interactions.
+
+### Comment Added
+
+Added a TODO comment to `MockBusinessApp/Program.cs` lines 127-134 documenting the `Results.Unauthorized()` vs `Results.Problem()` inconsistency across workflow vs backoffice endpoints, flagging it for Blathers to resolve.
+
+### Key Files
+
+- `src/UmbracoPrism.Core.Tests/BusinessAppWorkflowClientTests.cs` — 3 new regression tests
+- `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs` — null auth header silent drop (line 179)
+- `src/UmbracoPrism.MockBusinessApp/Program.cs` — `Results.Unauthorized()` in workflow handlers (line 127)
+- `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs` — `BackchannelRewritingDocumentRetriever` (fixed in 0904810)
+- `src/UmbracoPrism.Core/Middleware/PrismTenantMiddleware.cs` — sets `CurrentTenant` from request host
+
+### Learnings
+
+**Two distinct 401 sources look identical at the surface:** JWT middleware 401 (no valid token) and application-level `Results.Unauthorized()` (tenant/email resolution failed post-auth) both surface as "Business App error (HTTP 401)". The `[PRISM AUTH FAILED]` console log from `OnAuthenticationFailed` distinguishes them: if present, it's JWT validation. If absent, it's the application guard. Looking for this log is the fastest triage step.
+
+**Null auth header is silent and dangerous:** `CreateClientAsync` doesn't log or throw when auth is null — it simply omits the header. This means token-resolution failures in `PrismContext` produce unauthenticated requests silently. Tests now document this contract explicitly.
+
+**The JWKS fix (0904810) is correct but insufficient alone:** If `PrismTenantMiddleware` fails to resolve the tenant for the workflow page request (e.g. host not in tenant registry, or principal/tenant mismatch), the workflow path fails regardless of JWKS cache state.
