@@ -46,9 +46,22 @@ get_codespace_url() {
     fi
 }
 
-# If AppHost is already running (resumed Codespace), just print the URLs and exit.
+# If AppHost is already running (resumed Codespace), ensure the status server is up then exit.
 if pgrep -f "UmbracoPrism.AppHost" > /dev/null 2>&1; then
     echo "✅ Umbraco Prism stack is already running."
+
+    # The Node status server does not survive Codespace suspension — restart it if it died.
+    if ! curl -s --max-time 1 http://localhost:3000/api/status > /dev/null 2>&1; then
+        echo "⚠️  Status server not responding — restarting on port 3000..."
+        node scripts/startup-status/server.js > "$STATUS_SERVER_LOG" 2>&1 &
+        sleep 2
+        if [ -n "$CODESPACE_NAME" ]; then
+            echo "✅ Status page ready — $(get_codespace_url 3000)"
+        else
+            echo "✅ Status page ready — http://localhost:3000"
+        fi
+    fi
+
     if [ -n "$CODESPACE_NAME" ]; then
         echo ""
         echo "   Startup status    $(get_codespace_url 3000)"

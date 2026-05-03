@@ -10,6 +10,20 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 
 ---
 
+## 2026-05-03: Status Server Missing After Codespace Resume
+
+**Status:** ✅ Complete.
+
+**Change:** Fixed early-exit path in `.devcontainer/on-start.sh` to restart the Node status server if it died during Codespace suspension.
+
+**Root cause:** When a Codespace is resumed and `UmbracoPrism.AppHost` is still alive, `on-start.sh` exits early via `pgrep`. The Node.js process on port 3000 does not survive suspension, so port 3000 is left empty. The GitHub Codespaces tunnel returns `HTTP 404, content-length: 0, no Content-Type, x-content-type-options: nosniff` — which Chrome interprets as an unknown blob and triggers a "Save As" download prompt.
+
+**Fix:** Added a `curl -s --max-time 1 http://localhost:3000/api/status` probe inside the early-exit block. If the probe fails, the Node server is restarted before printing URLs and exiting.
+
+**Learning:** Node processes do not survive Codespace suspension. Any port forwarded via `devcontainer.json` that depends on a Node/shell process must be probed and restarted on every `postStartCommand` run, including the resumed fast-path.
+
+---
+
 ## 2026-05-03: Codespaces URL Regression Fix
 
 **Status:** ✅ Complete.
