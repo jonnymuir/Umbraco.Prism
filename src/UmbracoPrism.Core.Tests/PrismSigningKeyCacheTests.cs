@@ -1,4 +1,7 @@
+using System.Net;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -196,6 +199,63 @@ public class PrismSigningKeyCacheTests
         capturedRequireHttps.Should().BeTrue("HTTPS metadata URL should keep RequireHttps enabled");
     }
 
+    [Fact]
+    public async Task WarmAsync_RewritesTransitiveJwksFetch_WhenDiscoveryReturnsPublicHostWithBackchannelPort()
+    {
+        const string publicAuthority = "https://codespace-8443.app.github.dev/realms/prism-dev";
+        const string backchannelBase = "http://localhost:39517";
+        const string metadataAddress = "http://localhost:39517/realms/prism-dev/.well-known/openid-configuration";
+        const string malformedJwksAddress = "http://codespace-8443.app.github.dev:39517/realms/prism-dev/protocol/openid-connect/certs";
+        const string expectedBackchannelJwksAddress = "http://localhost:39517/realms/prism-dev/protocol/openid-connect/certs";
+
+        using var envDev = new TempEnvVar("ASPNETCORE_ENVIRONMENT", "Development");
+        using var envBc = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", backchannelBase);
+
+        var requestedUris = new List<string>();
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            requestedUris.Add(request.RequestUri!.AbsoluteUri);
+
+            if (string.Equals(request.RequestUri.AbsoluteUri, metadataAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                var discoveryJson = JsonSerializer.Serialize(new
+                {
+                    issuer = publicAuthority,
+                    jwks_uri = malformedJwksAddress
+                });
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(discoveryJson, Encoding.UTF8, "application/json")
+                };
+            }
+
+            if (string.Equals(request.RequestUri.AbsoluteUri, expectedBackchannelJwksAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(BuildJwksJson("kid-1"), Encoding.UTF8, "application/json")
+                };
+            }
+
+            throw new InvalidOperationException($"Unexpected metadata request: {request.RequestUri}");
+        });
+
+        var httpClientFactory = new Mock<IHttpClientFactory>();
+        httpClientFactory
+            .Setup(factory => factory.CreateClient("prism-oidc-metadata"))
+            .Returns(new HttpClient(handler));
+
+        var cache = new PrismSigningKeyCache(httpClientFactory.Object);
+
+        await cache.WarmAsync(publicAuthority, metadataAddress, forceRefresh: true, requiredKeyId: "kid-1");
+
+        requestedUris.Should().ContainInOrder(metadataAddress, expectedBackchannelJwksAddress);
+        requestedUris.Should().NotContain(malformedJwksAddress,
+            "the transitive jwks_uri fetch must be rewritten to the internal backchannel host");
+        cache.GetSnapshot(publicAuthority, "kid-1").ContainsRequestedKey.Should().BeTrue();
+    }
+
     private static OpenIdConnectConfiguration CreateConfiguration(string keyId)
     {
         var configuration = new OpenIdConnectConfiguration();
@@ -204,6 +264,27 @@ public class PrismSigningKeyCacheTests
             KeyId = keyId
         });
         return configuration;
+    }
+
+    private static string BuildJwksJson(string keyId)
+    {
+        using var rsa = RSA.Create(2048);
+        var parameters = rsa.ExportParameters(includePrivateParameters: false);
+
+        var jsonWebKey = new JsonWebKey
+        {
+            Kty = "RSA",
+            Kid = keyId,
+            Use = "sig",
+            Alg = SecurityAlgorithms.RsaSha256,
+            N = Base64UrlEncoder.Encode(parameters.Modulus),
+            E = Base64UrlEncoder.Encode(parameters.Exponent)
+        };
+
+        return JsonSerializer.Serialize(new
+        {
+            keys = new[] { jsonWebKey }
+        });
     }
 
     private sealed class StubConfigurationManager(OpenIdConnectConfiguration configuration) : IConfigurationManager<OpenIdConnectConfiguration>
@@ -233,5 +314,26 @@ public class PrismSigningKeyCacheTests
         public override DateTimeOffset GetUtcNow() => _utcNow;
 
         public void Advance(TimeSpan by) => _utcNow = _utcNow.Add(by);
+    }
+
+    private sealed class TempEnvVar : IDisposable
+    {
+        private readonly string _name;
+        private readonly string? _original;
+
+        public TempEnvVar(string name, string? value)
+        {
+            _name = name;
+            _original = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void Dispose() => Environment.SetEnvironmentVariable(_name, _original);
+    }
+
+    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> factory) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(factory(request));
     }
 }

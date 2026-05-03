@@ -167,12 +167,14 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
             IConfigurationManager<OpenIdConnectConfiguration> manager;
             if (isDevelopment && !string.IsNullOrEmpty(backchannelBase) &&
                 Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
+                Uri.TryCreate(backchannelBase, UriKind.Absolute, out var backchannelUri) &&
                 publicUri.Scheme == Uri.UriSchemeHttps)
             {
-                var publicOrigin = publicUri.GetLeftPart(UriPartial.Authority);
                 var innerRetriever = new HttpDocumentRetriever(http) { RequireHttps = requireHttps };
                 var rewritingRetriever = new BackchannelRewritingDocumentRetriever(
-                    publicOrigin, backchannelBase.TrimEnd('/'), innerRetriever);
+                    publicUri,
+                    backchannelUri,
+                    innerRetriever);
                 manager = new ConfigurationManager<OpenIdConnectConfiguration>(
                     metadataAddress,
                     new OpenIdConnectConfigurationRetriever(),
@@ -253,20 +255,40 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
     /// fetch made by <see cref="OpenIdConnectConfigurationRetriever"/>.
     /// </summary>
     private sealed class BackchannelRewritingDocumentRetriever(
-        string publicOrigin,
-        string backchannelBase,
+        Uri publicAuthorityUri,
+        Uri backchannelBaseUri,
         IDocumentRetriever inner) : IDocumentRetriever
     {
         public Task<string> GetDocumentAsync(string address, CancellationToken cancel)
         {
-            if (address.StartsWith(publicOrigin, StringComparison.OrdinalIgnoreCase))
+            if (TryRewriteAddress(address, out var rewritten))
             {
-                var rewritten = backchannelBase + address[publicOrigin.Length..];
                 Console.WriteLine($"[PRISM] BackchannelRewritingDocumentRetriever: rewriting {address} → {rewritten}");
                 address = rewritten;
             }
 
             return inner.GetDocumentAsync(address, cancel);
+        }
+
+        private bool TryRewriteAddress(string address, out string rewritten)
+        {
+            rewritten = address;
+
+            if (!Uri.TryCreate(address, UriKind.Absolute, out var candidateUri) ||
+                !string.Equals(candidateUri.Host, publicAuthorityUri.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var builder = new UriBuilder(candidateUri)
+            {
+                Scheme = backchannelBaseUri.Scheme,
+                Host = backchannelBaseUri.Host,
+                Port = backchannelBaseUri.IsDefaultPort ? -1 : backchannelBaseUri.Port
+            };
+
+            rewritten = builder.Uri.AbsoluteUri;
+            return !string.Equals(rewritten, address, StringComparison.OrdinalIgnoreCase);
         }
     }
 }
