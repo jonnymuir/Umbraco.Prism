@@ -144,6 +144,7 @@ bash scripts/codespaces/diagnose-downstream.sh
 ```
 
 Use this when the **Call Mock Business App API** flow is failing, timing out, or returning confusing Codespaces results.
+The script now self-checks its Python runtime and ignores broken `PYTHONHOME` / `PYTHONPATH` shell overrides, so the plain command above should work even if you previously activated another toolchain in the terminal. If it fails before printing the diagnostics banner, treat that as a broken active Python runtime and verify it in a fresh shell with `python3 -I -c 'import json'`.
 
 It:
 - checks local TestSite / MockBusinessApp / Keycloak endpoints from inside the Codespace

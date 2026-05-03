@@ -22,7 +22,41 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-python3 - "$@" <<'PY'
+python_supports_diagnostics() {
+    local candidate="$1"
+    env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__ \
+        "$candidate" -I -c 'import argparse, json, os, ssl, subprocess, sys, urllib.error, urllib.request' \
+        >/dev/null 2>&1
+}
+
+resolve_python_runtime() {
+    local candidate
+    for candidate in \
+        "$(command -v python3 2>/dev/null || true)" \
+        "/usr/bin/python3" \
+        "$(command -v python 2>/dev/null || true)"
+    do
+        [ -n "$candidate" ] || continue
+        [ -x "$candidate" ] || continue
+
+        if python_supports_diagnostics "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+if ! PYTHON_BIN="$(resolve_python_runtime)"; then
+    echo "diagnose-downstream.sh: no working Python runtime with the standard library was found." >&2
+    echo "Try clearing PYTHONHOME/PYTHONPATH or reopening the Codespaces shell, then rerun the script." >&2
+    echo "Preflight: python3 -I -c 'import json'" >&2
+    exit 1
+fi
+
+env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__ \
+    "$PYTHON_BIN" -I - "$@" <<'PY'
 import argparse
 import json
 import os

@@ -318,6 +318,23 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     }
 
     [Fact]
+    public void CodespacesDiagnosticsScript_IgnoresAmbientPythonShellOverrides()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepoRoot,
+            "scripts",
+            "codespaces",
+            "diagnose-downstream.sh"));
+
+        script.Should().Contain("env -u PYTHONHOME -u PYTHONPATH -u PYTHONSTARTUP -u __PYVENV_LAUNCHER__",
+            because: "Codespaces shells may inherit Python overrides from other toolchains that should not break stdlib imports");
+        script.Should().Contain("\"$PYTHON_BIN\" -I - \"$@\" <<'PY'",
+            because: "the embedded diagnostics helper should run in isolated mode");
+        script.Should().Contain("Preflight: python3 -I -c 'import json'",
+            because: "operators need an actionable runtime check if the active Python interpreter itself is broken");
+    }
+
+    [Fact]
     public void MockBusinessApp_LaunchSettings_AdvertiseLocalHttpBackchannelPort()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(
