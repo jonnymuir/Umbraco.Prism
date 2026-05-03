@@ -54,12 +54,15 @@ var needsKeycloakSveWorkaround =
     OperatingSystem.IsMacOS() &&
     RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
-// Add Keycloak as a container resource on HTTP 8080.
+// Add Keycloak as a container resource with an ephemeral HTTP port.
 // Data directory is bind-mounted to persist sessions/tokens across restarts.
 // HTTP health check probes the realm's OIDC discovery endpoint to ensure both
 // Keycloak startup and realm import have completed before dependent services start.
+// NOTE: port is null to let Aspire assign an ephemeral port in Codespaces and local dev.
+// The actual runtime port is retrieved via keycloak.GetEndpoint("http") and passed to
+// services that need backchannel access (TestSite, MockBusinessApp, KeycloakProxy).
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
-    .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
+    .WithHttpEndpoint(port: null, targetPort: 8080, name: "http")
     .WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")
     .WithEnvironment("KEYCLOAK_ADMIN", "admin")
     .WithEnvironment("KEYCLOAK_ADMIN_PASSWORD", "admin")
