@@ -54,3 +54,21 @@ PR #47 used `--merge` strategy to preserve separate commits for independent user
 
 **Team Impact:**
 Standardized merge strategy for multi-concern PRs going forward. Future similar PRs should follow same pattern: separate commits by user-facing issue, preserve via `--merge`.
+
+## 2026-05-03T18:24:57.531+01:00: Cleanup — Stray Tangy Diagnosis Artifact
+
+**Status:** ✅ Complete
+
+**Task:** Clean up untracked `.squad/agents/tangy/diagnosis-mockbiz-timeout.md` and leave worktree clean.
+
+**Finding:** The artifact was fully merged into `.squad/decisions.md` as of the previous session (dated 2026-05-03T18:12:37.055+01:00). The diagnosis entry in decisions.md references the file with: "Full diagnosis: `.squad/agents/tangy/diagnosis-mockbiz-timeout.md`", but all diagnostic content is already copied into the decision document.
+
+**Action Taken:**
+1. Deleted the stray file (already consolidated)
+2. Pushed origin/main (1 unpushed commit was already in the branch from prior session)
+
+**Result:**
+- Branch: `main`
+- Worktree: clean
+- Remote: up to date (pushed 1 commit)
+- No new commits needed for cleanup (the file deletion was untracked)
