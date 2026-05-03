@@ -124,3 +124,15 @@ Full history archived to `history-archive.md` (prior to 2026-05-03 learnings sec
 **Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:01:43Z-blathers.md`
 
 **Next Action Owner:** Implementation in PrismSigningKeyCache.cs with regression tests in BackchannelRewriteTests.cs (ready for assignment).
+
+---
+
+## 2026-05-03T23:20:46Z: Codespaces Workflow-Start HTTP 401 Investigation
+
+**Status:** 🔍 Spawned (background)
+
+**Outcome:** Investigating remaining HTTP 401 authentication errors in workflow-start endpoint following downstream API fixes.
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:20:46Z-blathers.md`
+
+**Scope:** Determine root cause of persistent 401 errors and any gaps in auth flow between endpoint types.

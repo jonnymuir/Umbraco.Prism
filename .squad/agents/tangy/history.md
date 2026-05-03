@@ -212,3 +212,15 @@ All 680 tests pass. The new diagnostics provide enough signal for Codespaces ope
 - Correlation matching without exposing tokens or internal URLs
 
 **Safety Model:** Read-only diagnostic headers, no auth/PII exposure. Follows existing pattern of safe operator instrumentation.
+
+---
+
+## 2026-05-03T23:20:46Z: Workflow-Start vs Direct API Auth Coverage
+
+**Status:** 🔍 Spawned (background)
+
+**Outcome:** Reproducing and covering authentication differential between workflow-start and direct API endpoints.
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:20:46Z-tangy.md`
+
+**Scope:** Build test contracts for workflow-start auth path and validate coverage gaps vs direct API access patterns.
