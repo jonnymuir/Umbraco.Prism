@@ -88,4 +88,48 @@ test.describe('Community enquiry walkthrough', () => {
     await page.getByRole('radio', { name: 'General enquiry' }).check();
     await expect(conditionalField).toBeHidden();
   });
+
+  test('validation: submitting without required fields shows error summary', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/get-in-touch');
+
+    await assertHealthyPage(page, { url: /\/get-in-touch/, heading: 'Tell us about your enquiry' });
+
+    // Submit without selecting role, enquiry type, or filling message (all required)
+    await page.getByRole('button', { name: 'Submit' }).click();
+
+    const errorSummary = page.locator('[role="alert"]').first();
+    await expect(errorSummary).toBeVisible();
+    await expect(errorSummary).toContainText('There is a problem');
+    await expect(page.locator('.govuk-error-message').first()).toBeVisible();
+
+    // URL should remain on the form page
+    await expect(page).toHaveURL(/\/get-in-touch/);
+  });
+
+  test('persistence: returning user sees under-review state after submission', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/get-in-touch');
+
+    await assertHealthyPage(page, { url: /\/get-in-touch/, heading: 'Tell us about your enquiry' });
+
+    // Fill minimum required fields and submit
+    await page.locator('select#your-role').selectOption('Developer');
+    await page.getByRole('radio', { name: 'General enquiry' }).check();
+    await page.getByLabel('Tell us more').fill('Testing state persistence after submission.');
+    await page.getByRole('button', { name: 'Submit' }).click();
+
+    // Verify submission success
+    await expect(page.getByRole('heading', { name: 'Your enquiry is with us' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('body')).toContainText("We've received your enquiry");
+
+    // Navigate away
+    await page.goto('/my-workflows');
+    await expect(page.getByRole('heading', { name: 'My Workflows' })).toBeVisible();
+
+    // Navigate back — instance policy 'single' means the under-review state persists
+    await page.goto('/get-in-touch');
+    await expect(page.getByRole('heading', { name: 'Your enquiry is with us' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('body')).not.toContainText('Tell us about your enquiry');
+  });
 });

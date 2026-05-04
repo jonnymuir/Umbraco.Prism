@@ -20,6 +20,18 @@ export interface PageHealthCheck {
   bodyMustNotContain?: RegExp;
   /** Skip the heading check (e.g. confirmation panels using govuk-panel--confirmation). */
   skipHeading?: boolean;
+  /**
+   * Capture full-page screenshot (scroll height) instead of the default viewport crop.
+   * Use sparingly — viewport captures are preferred for documentation because they show
+   * what the user actually sees. Only set true for summary/check-answers pages where the
+   * entire list must be visible in the screenshot.
+   *
+   * Hook contract for Isabelle (docs pipeline): when CAPTURE_SCREENSHOTS=1 a per-step
+   * fullPage flag is the intended control point. If the docs workflow needs a different
+   * default, add a SCREENSHOT_FULL_PAGE env var to the capture-screenshots.yml workflow
+   * and read it here alongside the per-step override.
+   */
+  fullPage?: boolean;
 }
 
 /**
@@ -65,7 +77,7 @@ export async function step(
     const dir = path.join(docsRoot, walkthroughKey);
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, filename);
-    await page.screenshot({ path: file, fullPage: true });
+    await page.screenshot({ path: file, fullPage: expected.fullPage ?? false });
     console.log(`Captured: ${file}`);
   }
 }
