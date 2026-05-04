@@ -156,6 +156,35 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     await expect(page.locator('.govuk-error-message')).toBeVisible();
   });
 
+  test('workflow admin definitions are collapsed by default and can be expanded', async ({ page }) => {
+    await page.goto('https://localhost:7245/admin/workflow');
+
+    const cards = page.locator('.def-card');
+    const firstCard = cards.first();
+    const firstHeader = firstCard.locator('.def-header');
+    const firstBody = firstCard.locator('.def-body');
+
+    await expect(cards).not.toHaveCount(0);
+    await expect(firstHeader).toHaveAttribute('aria-expanded', 'false');
+    await expect(firstBody).toBeHidden();
+
+    await firstHeader.click();
+    await expect(firstHeader).toHaveAttribute('aria-expanded', 'true');
+    await expect(firstBody).toBeVisible();
+
+    await firstHeader.click();
+    await expect(firstHeader).toHaveAttribute('aria-expanded', 'false');
+    await expect(firstBody).toBeHidden();
+
+    const totalCards = await cards.count();
+
+    await page.getByRole('button', { name: 'Expand All' }).click();
+    await expect(page.locator('.def-card.open')).toHaveCount(totalCards);
+
+    await page.getByRole('button', { name: 'Collapse All' }).click();
+    await expect(page.locator('.def-card.open')).toHaveCount(0);
+  });
+
   test('check-answers allows changing an answer via Change link', async ({ page }) => {
     await signIn(page);
     await page.goto('/apply-for-planning-permission');

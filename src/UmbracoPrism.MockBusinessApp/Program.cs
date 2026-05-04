@@ -435,7 +435,12 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
 
             return $"""
             <div class="def-card">
-              <div class="def-header" onclick="toggleCard(this)">
+              <div class="def-header"
+                   role="button"
+                   tabindex="0"
+                   aria-expanded="false"
+                   onclick="toggleCard(event, this)"
+                   onkeydown="handleCardHeaderKeydown(event, this)">
                 <div style="display:flex;align-items:center;gap:.5rem">
                   <span class="def-toggle">▶</span>
                   <div>
@@ -445,7 +450,7 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                 </div>
                 <div style="display:flex;gap:.5rem;align-items:center">
                   {policyBadge}
-                  <button class="btn btn-edit" onclick="openEditor('{Esc(def.DefinitionKey)}')">✎ Edit JSON</button>
+                  <button type="button" class="btn btn-edit" onclick="openEditor('{Esc(def.DefinitionKey)}')">✎ Edit JSON</button>
                 </div>
               </div>
               <div class="def-body">
@@ -522,8 +527,12 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             .toolbar { margin-bottom:.75rem; display:flex; gap:.5rem; align-items:center; }
             .count { color:#888; font-size:.85rem; }
             .def-card { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:1.25rem; overflow:hidden; }
-            .def-header { padding:.75rem 1rem; background:#f8f9fb; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; }
-            .def-body { padding:1rem; display:flex; flex-direction:column; gap:1rem; }
+            .def-header { padding:.75rem 1rem; background:#f8f9fb; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+            .def-header:focus-visible { outline:3px solid #2563eb; outline-offset:-3px; }
+            .def-toggle { display:inline-block; transition:transform .16s ease; }
+            .def-card.open .def-toggle { transform:rotate(90deg); }
+            .def-body { padding:1rem; display:none; flex-direction:column; gap:1rem; }
+            .def-card.open > .def-body { display:flex; }
             .def-tables { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
             .def-diagram .mermaid { background:#fafafa; border-radius:6px; padding:.75rem 1rem; overflow-x:auto; }
             .table-label { margin:0 0 .4rem; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:#888; font-weight:600; }
@@ -563,6 +572,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             </table>
 
             <h2>Workflow Definitions</h2>
+            <div class="toolbar">
+              <span class="count">{{defs.Count}} definition(s)</span>
+              <button type="button" class="btn btn-action" onclick="expandAllDefs()">Expand All</button>
+              <button type="button" class="btn btn-reset" onclick="collapseAllDefs()">Collapse All</button>
+            </div>
             {{defCards}}
           </main>
           
@@ -582,11 +596,24 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           </div>
           
           <script>
-            function toggleCard(hdr) {
-              // Clicks on child buttons are handled by those buttons — don't also toggle the card.
-              if (event.target.closest('button')) return;
-              hdr.closest('.def-card').classList.toggle('open');
-              renderCardDiagram(hdr.closest('.def-card'));
+            function setCardOpen(card, isOpen) {
+              if (!card) return;
+              card.classList.toggle('open', isOpen);
+              const header = card.querySelector('.def-header');
+              if (header) header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+              if (isOpen) renderCardDiagram(card);
+            }
+
+            function toggleCard(e, hdr) {
+              if (e.target instanceof Element && e.target.closest('button')) return;
+              const card = hdr.closest('.def-card');
+              setCardOpen(card, !card.classList.contains('open'));
+            }
+
+            function handleCardHeaderKeydown(e, hdr) {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              toggleCard(e, hdr);
             }
 
             function renderCardDiagram(card) {
@@ -596,16 +623,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             }
 
             function expandAllDefs() {
-              document.querySelectorAll('.def-card').forEach(c => {
-                if (!c.classList.contains('open')) {
-                  c.classList.add('open');
-                  renderCardDiagram(c);
-                }
-              });
+              document.querySelectorAll('.def-card').forEach(c => setCardOpen(c, true));
             }
 
             function collapseAllDefs() {
-              document.querySelectorAll('.def-card').forEach(c => c.classList.remove('open'));
+              document.querySelectorAll('.def-card').forEach(c => setCardOpen(c, false));
             }
 
             let aceEditor = null;
