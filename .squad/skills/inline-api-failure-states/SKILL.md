@@ -24,6 +24,18 @@ Use this when a Razor view or other lightweight server-rendered page calls an AP
 - Use the detailed response body as supporting evidence, not the primary explanation.
 - Map common failure modes to explicit copy: session expired, network error, timeout, server error.
 
+### Distinguish timeout windows from external cancellations
+
+- If the server applies its own timeout window, return structured timeout metadata so operators can tell whether the deadline fired or the request was cancelled for another reason.
+- Keep the top-level user-facing status concise (`Timeout`, `Cancelled`) but also expose machine-readable fields such as `timedOutByUs`, `cancellationSource`, and the timeout window length.
+- Pair that metadata with an actionable `nextCheck` string that points to the next operator step without requiring log access.
+
+### Keep transport diagnostics safe but useful
+
+- Include transport classification (`internal-backchannel`, `public-tunnel`, `public-url`) and the downstream path so operators can see *which route* failed.
+- Mask internal transport bases (`http://localhost:****`) rather than returning real localhost ports in browser-visible diagnostics.
+- When an internal backchannel times out, point users to the masked transport metadata or relevant env-var wiring (`BUSINESSAPP_BACKCHANNEL_URL`) instead of leaking raw port numbers.
+
 ### Keep the primary action stable
 
 - Do not remove or repurpose the main call-to-action when the request fails.
@@ -40,6 +52,7 @@ Use this when a Razor view or other lightweight server-rendered page calls an AP
 - `src/UmbracoPrism.TestSite/Views/MemberDashboard.cshtml` now normalizes `/api/prism/downstream-demo` responses before rendering the status badge.
 - The same view derives fallback values from the `fetch` response when the controller returns `401 { error: ... }` instead of the demo payload shape.
 - `#api-btn` stays visible, becomes disabled/busy during the request, and resets to its original label once the request completes.
+- `DownstreamDemoController` now separates `Timeout` from `Cancelled` responses with structured timeout metadata and masked transport diagnostics for `/api/prism/downstream-demo`.
 
 ## Anti-Patterns
 

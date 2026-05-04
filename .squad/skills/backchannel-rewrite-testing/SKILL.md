@@ -182,6 +182,24 @@ and `ASPNETCORE_ENVIRONMENT=Development` are present from nearby tests.
 **Rule:** only build callback/JWKS backchannel URLs for HTTPS public authorities. This preserves the
 Codespaces Keycloak rewrite while keeping isolated loopback providers pointed at their own test server.
 
+### Discovery docs can emit hybrid JWKS origins
+
+When discovery is fetched from an internal backchannel URL, Keycloak can emit a `jwks_uri` that mixes:
+
+- the **public Codespaces hostname**, and
+- the **internal HTTP port** from the backchannel request
+
+Example:
+
+```text
+metadataAddress = http://localhost:39517/realms/prism-dev/.well-known/openid-configuration
+jwks_uri        = http://public-codespaces-host:39517/realms/prism-dev/protocol/openid-connect/certs
+```
+
+An origin rewriter that only matches the configured public origin exactly (for example `https://public-codespaces-host`) will miss this hybrid URI, so the runtime silently falls back to the unreachable public host and hangs until the metadata HttpClient's default 100-second timeout.
+
+**Rule:** add a regression test for hybrid `jwks_uri` values, or bypass discovery entirely in backchannel mode and fetch `.../protocol/openid-connect/certs` directly from the known backchannel base.
+
 ---
 
 ## Security Checklist for Backchannel Rewrites
@@ -193,3 +211,4 @@ When reviewing a new backchannel transport rewrite, verify:
 - [ ] **Audience validation unchanged**: `ValidateAudience = true`.
 - [ ] **Fail-loud guard in production app**: `MockBusinessApp/Program.cs` (or equivalent) throws `InvalidOperationException` if env var is set outside Development.
 - [ ] **Tests cover all four cases**: rewrite active, env var absent, non-Development, and issuer rejection with rewrite active.
+- [ ] **Hybrid JWKS case covered**: discovery may return `http://{public-host}:{ephemeral-port}/.../certs`; tests must prove this still routes to the backchannel or that discovery is bypassed in backchannel mode.
