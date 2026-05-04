@@ -31,6 +31,8 @@ These walkthroughs are aimed at developers and operators building or administeri
 ### [Workflow Administration](workflow-administration.md)
 How to use the development-only workflow admin panel to inspect, edit, and manage workflow instances and definitions. Covers accessing the panel from the dashboard, viewing instances and state, editing definitions, manually advancing workflows, and resetting instances for testing.
 
+> **Note:** This walkthrough covers the **development harness** used to simulate the reviewer/operator role during testing. The admin panel is where you play the "reviewer" actor. For complete, end-to-end workflows showing how users submit and reviewers approve, see [Payment Demo](payment-demo.md), [Community Enquiry](community-enquiry.md), and [Information Request](information-request.md) — each demonstrates the full submission → review → outcome cycle from both user and operator perspectives. The Workflow Admin panel is the tool you use to complete those cycles in the local demo.
+
 ### [Authoring a Workflow](authoring-a-workflow.md)
 How to write a new workflow definition using the fluent builder API. Covers the polymorphic JSON model (`type` discriminator, `children[]`, `conditionalChildren`), loading seeds, hot reload, and client/server validation.
 

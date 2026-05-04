@@ -4,7 +4,9 @@
 <ul class="prism-instance-list" role="list">
     @foreach (var instance in Model)
     {
-        <li class="prism-instance-card">
+        <li class="prism-instance-card"
+            data-workflow-key="@instance.Summary.WorkflowKey"
+            data-current-state="@instance.Summary.CurrentStateKey">
             <div class="prism-instance-card__body">
                 <h3 class="prism-instance-card__title">@instance.Summary.WorkflowDisplayName</h3>
                 <p class="prism-instance-card__status">

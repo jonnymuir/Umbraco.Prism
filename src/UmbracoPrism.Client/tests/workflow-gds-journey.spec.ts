@@ -171,6 +171,7 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
     await firstHeader.click();
     await expect(firstHeader).toHaveAttribute('aria-expanded', 'true');
     await expect(firstBody).toBeVisible();
+    await expect(firstCard).toHaveAttribute('data-mermaid-render-state', 'ready');
 
     await firstHeader.click();
     await expect(firstHeader).toHaveAttribute('aria-expanded', 'false');

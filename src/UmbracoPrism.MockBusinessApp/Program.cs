@@ -358,7 +358,7 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                     """));
             var shortId = inst.InstanceId.Length > 12 ? inst.InstanceId[..8] + "…" : inst.InstanceId;
             return $"""
-            <tr>
+            <tr data-workflow-key="{Esc(inst.WorkflowKey)}" data-current-state="{Esc(inst.CurrentState)}">
               <td>{n + 1}</td>
               <td style="font-family:monospace;font-size:.8em"><span title="{Esc(inst.InstanceId)}">{Esc(shortId)}</span></td>
               <td>{Esc(inst.WorkflowKey)}</td>
@@ -434,7 +434,9 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             var fieldGroupsSection = "";
 
             return $"""
-            <div class="def-card">
+            <div class="def-card"
+                 data-definition-key="{Esc(def.DefinitionKey)}"
+                 data-mermaid-render-state="idle">
               <div class="def-header"
                    role="button"
                    tabindex="0"
@@ -492,6 +494,8 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
             mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
             window._mermaid = mermaid;
+            window._mermaidReady = true;
+            window.dispatchEvent(new CustomEvent('prism:mermaid-ready'));
           </script>
           <style>
             *, *::before, *::after { box-sizing: border-box; }
@@ -616,10 +620,33 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
               toggleCard(e, hdr);
             }
 
-            function renderCardDiagram(card) {
+            async function renderCardDiagram(card) {
               if (!window._mermaid) return;
               const nodes = Array.from(card.querySelectorAll('.mermaid:not([data-processed])'));
-              if (nodes.length) window._mermaid.run({ nodes });
+              if (!nodes.length) {
+                card.setAttribute('data-mermaid-render-state', 'ready');
+                return;
+              }
+
+              card.setAttribute('data-mermaid-render-state', 'rendering');
+
+              try {
+                await window._mermaid.run({ nodes });
+                card.setAttribute('data-mermaid-render-state', 'ready');
+              } catch (error) {
+                card.setAttribute('data-mermaid-render-state', 'error');
+                console.error('Mermaid rendering failed for workflow admin card.', error);
+              }
+            }
+
+            function renderOpenCardDiagrams() {
+              document.querySelectorAll('.def-card.open').forEach(card => renderCardDiagram(card));
+            }
+
+            if (window._mermaidReady) {
+              renderOpenCardDiagrams();
+            } else {
+              window.addEventListener('prism:mermaid-ready', renderOpenCardDiagrams, { once: true });
             }
 
             function expandAllDefs() {

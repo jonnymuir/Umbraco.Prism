@@ -93,6 +93,26 @@ export interface PageHealthCheck {
   bodyMustNotContain?: RegExp;
   /** Skip the heading check (e.g. confirmation panels). */
   skipHeading?: boolean;
+  /**
+   * Capture the entire scrollable page without height capping.
+   * The default capture already grows beyond the viewport to show the useful
+   * content being demonstrated, while still constraining extremely tall pages.
+   *
+   * Set to true when:
+   * - The step still extends beyond the content-aware height cap
+   * - You need to guarantee the full page is captured regardless of height
+   * - You're documenting a step where complete page context is critical
+   *
+   * Hook contract for Isabelle (docs pipeline): when CAPTURE_SCREENSHOTS=1 a per-step
+   * fullPage flag is the intended control point. If the docs workflow needs a different
+   * default, add a SCREENSHOT_FULL_PAGE env var to the capture-screenshots.yml workflow
+   * and read it here alongside the per-step override.
+   */
+  fullPage?: boolean;
+  /** Capture up to this selector's bottom edge from the current scroll position. */
+  screenshotSelector?: string;
+  /** Override the default content-aware height cap for unusually tall but still useful pages. */
+  screenshotMaxHeight?: number;
 }
 
 export async function assertHealthyPage(page: Page, expected: PageHealthCheck): Promise<void>;
@@ -106,6 +126,21 @@ export async function step(
 ```
 
 Specs use `step()`, never `page.screenshot()` directly.
+
+### Screenshot Heights
+
+- **Default:** content-aware capture — start from the current scroll position and grow the screenshot to include the useful content being demonstrated, up to a sensible max height
+- **When to use `fullPage: true`:**
+  - Check-answers / review pages where readers must see the full collected data
+  - Summary pages before final submission
+  - Rare cases where the full document is still readable and materially helps the walkthrough
+
+- **When to crop selectively:**
+  - Long pages such as the homepage or dashboard, where the whole document would be overwhelming
+  - Screens where a specific section/card/table row is the real subject of the shot
+  - Cases where a selector-based crop or height cap makes the walkthrough clearer without hiding needed functionality
+
+**Rule of thumb:** Show the whole useful screen by default. Only fall back to selector/viewport-style cropping when the page is genuinely huge and a taller image stops being useful.
 
 ## Adding a new walkthrough — checklist
 

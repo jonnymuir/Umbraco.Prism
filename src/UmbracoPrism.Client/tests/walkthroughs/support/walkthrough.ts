@@ -86,6 +86,7 @@ export async function step(
   if (process.env.CAPTURE_SCREENSHOTS === '1') {
     await enterScreenshotMode(page);
     await hideScreenshotOnlyUi(page);
+    await waitForMermaidReadiness(page, expected);
     const dir = path.join(docsRoot, walkthroughKey);
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, filename);
@@ -163,6 +164,56 @@ async function hideScreenshotOnlyUi(page: Page): Promise<void> {
   });
 }
 
+async function waitForMermaidReadiness(page: Page, expected: PageHealthCheck): Promise<void> {
+  const hasMermaid = await page.evaluate(selector => {
+    const root = selector ? document.querySelector(selector) ?? document : document;
+    return !!root.querySelector('.mermaid');
+  }, expected.screenshotSelector);
+
+  if (!hasMermaid) {
+    return;
+  }
+
+  await page.waitForFunction(
+    selector => {
+      const root = selector ? document.querySelector(selector) ?? document : document;
+      const diagrams = Array.from(root.querySelectorAll('.mermaid'));
+      if (diagrams.length === 0) {
+        return true;
+      }
+
+      return diagrams.every(diagram => {
+        if (!(diagram instanceof HTMLElement)) {
+          return false;
+        }
+
+        const directTextNodes = Array.from(diagram.childNodes).filter(
+          node => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim().length > 0
+        );
+        const card = diagram.closest('.def-card');
+        const cardReady =
+          !card ||
+          !card.hasAttribute('data-mermaid-render-state') ||
+          card.getAttribute('data-mermaid-render-state') === 'ready';
+
+        return (
+          cardReady &&
+          diagram.getAttribute('data-processed') === 'true' &&
+          diagram.querySelector('svg') instanceof SVGElement &&
+          directTextNodes.length === 0
+        );
+      });
+    },
+    expected.screenshotSelector,
+    { timeout: 30_000 }
+  );
+
+  await page.evaluate(async () => {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  });
+}
+
 async function captureScreenshot(page: Page, file: string, expected: PageHealthCheck): Promise<void> {
   const useFullPage = expected.fullPage ?? process.env.SCREENSHOT_FULL_PAGE === '1';
   if (useFullPage) {
@@ -223,10 +274,11 @@ async function getContentAwareScreenshotHeight(page: Page, expected: PageHealthC
 }
 
 /**
- * The workflow admin page loads Ace and Mermaid from public CDNs. For tests and
- * screenshot capture we do not need the full vendor bundles, only enough API
- * surface for the page's inline scripts to settle deterministically without
- * waiting on third-party network availability.
+ * The workflow admin page loads Ace and Mermaid from public CDNs. We always stub
+ * Ace because walkthroughs never need the full editor bundle. Mermaid is stubbed
+ * only outside screenshot capture so normal Playwright tests stay deterministic
+ * without third-party network dependencies, while screenshot runs still render
+ * the real diagram markup before capture.
  */
 export async function stubWorkflowAdminVendorAssets(page: Page): Promise<void> {
   await page.context().route(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/ace\/.*\/ace\.min\.js/, route =>
@@ -249,13 +301,15 @@ export async function stubWorkflowAdminVendorAssets(page: Page): Promise<void> {
     })
   );
 
-  await page.context().route(/https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@.*\/dist\/mermaid\.esm\.min\.mjs/, route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/javascript',
-      body: 'const mermaid = { initialize() {}, run() {} }; export default mermaid;'
-    })
-  );
+  if (process.env.CAPTURE_SCREENSHOTS !== '1') {
+    await page.context().route(/https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@.*\/dist\/mermaid\.esm\.min\.mjs/, route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/javascript',
+        body: 'const mermaid = { initialize() {}, run() {} }; export default mermaid;'
+      })
+    );
+  }
 }
 
 export async function waitForWorkflowAdmin(page: Page): Promise<void> {

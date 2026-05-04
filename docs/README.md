@@ -38,9 +38,9 @@ Push notification architecture: device registration, subscription management, co
 
 ---
 
-## Design Documents (Internal Reference)
+## Design Documents & Package Guides
 
-These documents describe internal architecture and implementation details for contributors and maintainers.
+These documents cover architecture and implementation details. Some are contributor-focused internal references; the workflow set is now organised as package-consumer implementation guidance.
 
 ### [Notifications Architecture](design/notifications-architecture.md)
 **Internal design:** System layers, FCM integration, tenant isolation, and notification delivery pipeline.
@@ -54,8 +54,8 @@ These documents describe internal architecture and implementation details for co
 ### [Notifications Umbraco Integration](design/notifications-umbraco-demo.md)
 **Internal design:** Umbraco content hooks, notification handlers, and Vinyl Vault demo site architecture.
 
-### [Workflow Forms Engine Demo Proposal](design/workflow-forms-engine-demo.md)
-**Internal design:** Workflow-as-source-of-truth forms architecture, emulator integration plan, field-group versioning, and phased implementation.
+### [Workflow package design docs](design/README.md)
+**Package guide:** Start here for the current workflow architecture, implementation story, backend contracts, Umbraco integration, validation, security, and advanced authoring patterns.
 
 ---
 
