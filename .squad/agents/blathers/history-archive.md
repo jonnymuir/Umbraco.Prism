@@ -1,336 +1,195 @@
+# Blathers — History (Summary)
+
+**Agent:** Backend specialist shipping Codespaces URL derivation fixes, backchannel rewrites for JWKS/token-refresh, and security analysis for auth isolation.
+
+**Recent focus:** Aspire dashboard Codespaces access, authentication diagnostics, runtime stale-code diagnosis, backchannel OIDC validation, dynamic endpoint discovery, transport diagnostics.
+
+---
 
 ## Learnings
 
-### 2026-05-03: MockBusinessApp 401 — Codespaces Port Mismatch
+- **2026-05-04T00:26:42.240+01:00:** Two layered workflow 401 failure modes were resolved: (1) `BusinessAppWorkflowClient.CreateClientAsync` now emits a Warning log when `GetAuthorizationHeaderAsync` returns null, making silent auth-header omission immediately visible in logs; (2) MockBusinessApp workflow handlers (`/current`, `/advance`, `/instances`) now return `Results.Problem(...)` for app-level tenant/email resolution failures instead of `Results.Unauthorized()`, aligning them with `/api/backoffice/me` and making JWT middleware 401s unambiguously distinguishable from Business App configuration failures.
 
-Diagnosed Codespaces downstream API 401 where MockBusinessApp couldn't validate bearer tokens from the browser-facing TestSite session. Root cause: `KEYCLOAK_BACKCHANNEL_URL` environment variable was set to hardcoded `http://localhost:8080` (expected static port), but Aspire generates **ephemeral localhost ports** that change between runs (e.g., `http://localhost:57123`). The backchannel OIDC metadata fetch tried to reach `localhost:8080` but Keycloak was listening on a different port, causing "connection refused" and falling back to the public Codespaces URL (which is blocked by GitHub's port-forwarding proxy for unauthenticated server requests).
-
-**Key insights:**
-- Aspire's `.GetEndpoint("http")` returns the **full runtime URL** including ephemeral ports — not a static port like :8080
-- AppHost already sets `KEYCLOAK_BACKCHANNEL_URL` correctly at line 145 using `keycloak.GetEndpoint("http")`
-- The issue arises when shell profiles, `.env` files, or launch configs override Aspire's environment with a hardcoded value
-- The malformed error URL (`http://codespace-url:8080/...`) is a red herring from exception formatting, not the actual fetch attempt
-
-**Action:** Remove any hardcoded `KEYCLOAK_BACKCHANNEL_URL=http://localhost:8080` from environment configs. Let Aspire set it dynamically.
-
-**Skill match:** This aligns with "keycloak-localhost-https" and "backchannel-rewrite-testing" patterns — backchannel rewrites must not weaken issuer validation, and transport-layer URL derivation must respect runtime discovery (Aspire endpoints, not hardcoded ports).
-
-**Decision artifact:** `.squad/decisions/inbox/blathers-mockbiz-401-diagnosis.md` — full technical analysis and recommended fix strategy.
-
-### 2026-05-03: Codespaces Dashboard and Auth Fixes — Commit Separation
-
-**Branch:** `squad/codespaces-dashboard-and-auth-fixes`
-
-Separated two distinct Codespaces fixes into clean, release-note-friendly commits:
-
-**Commit 1: Dashboard port 17214 fix** (`fa7881c`)
-- Changed all Codespaces dashboard references from HTTP port 15135 to HTTPS port 17214
-- Updated `.devcontainer`, scripts, tests, and documentation
-- Root cause: HTTP endpoint redirects to ephemeral HTTPS port, not the advertised 17214
-- Test results: 24/24 JS tests + 23/23 C# DashboardLocalEndpointsValidationTests passed
-
-**Commit 2: MockBusinessApp JWKS fetch via backchannel** (`455e0d5`)
-- Set `KEYCLOAK_BACKCHANNEL_URL` env var for MockBusinessApp in AppHost (line 148)
-- Uses ephemeral port allocation for Keycloak (`port: null` on line 65)
-- Enables MockBusinessApp to fetch signing keys via internal HTTP endpoint, bypassing GitHub Codespaces proxy
-- Backchannel rewrite is dual-gated (env var + Development) — issuer validation unchanged
-
-**Key learning:**
-When implementing multi-concern fixes, separate commits by user-facing issue for clean release notes. The dashboard fix addresses "port 17214 doesn't work" and the auth fix addresses "MockBusinessApp returns 401 in Codespaces". Mixing them would obscure which commit fixed which symptom.
-
-**Build/test status:** Solution builds clean (5 pre-existing warnings), all affected tests pass.
-
-
-## 2026-05-03 — Scribe: Codespaces Dashboard & Auth Fix Decisions Merged
-
-Scribe merged 5 decision inbox files from Blathers session:
-- Dashboard port 17214 HTTPS decision
-- Commit separation practice
-- MockBusinessApp backchannel diagnosis
-Also added decisions from Mabel, Tangy, and Copper re: this work.
-
-### 2026-05-03: PR #47 Merged — Codespaces Dashboard and Auth Fixes
-
-**Status:** ✅ Complete
-
-Successfully created and merged PR #47 (`squad/codespaces-dashboard-and-auth-fixes` → `main`).
-
-**PR Contents:**
-- Commit `fa7881c`: Dashboard port 17214 fix (10 files changed)
-- Commit `455e0d5`: MockBusinessApp backchannel auth fix (1 file changed)
-- Commit `c2b5a2b`: Squad decisions merge (5 `.squad/` files)
-
-**CI Results:**
-- ✅ test (9 seconds)
-- ✅ core-tests (55 seconds)
-- ✅ storybook-tests (111 seconds)
-- ✅ localhost-auth-playwright (959 seconds / ~16 minutes)
-
-**Key Learning:**
-Playwright integration tests with full Aspire + Keycloak stack legitimately take 15-16 minutes to complete. Don't assume a long-running check is stuck — integration tests with container orchestration, OIDC flows, and browser automation require patience.
-
-**Merge Strategy:**
-Used `--merge` (not squash) to preserve the two separate product commits for clean release notes. Each commit addresses a distinct user-facing issue, making it easier to track fixes in changelogs and git bisect operations.
-
-**Local State:**
-Local `main` branch synced to `origin/main` at commit `cfe90fc` (merge commit for PR #47).
-
+- **2026-05-04T00:19:33.157+01:00:** Workflow start 401 in Codespaces was caused by `BusinessAppWorkflowClient.BaseUrl` only reading `PrismBusinessApp:WorkflowApiBaseUrl` (the public HTTPS URL). In Codespaces that URL routes through GitHub's forwarded-port proxy which blocks unauthenticated server-side calls. The fix mirrors `DownstreamDemoController.ResolveBusinessAppTransportBaseUrl()`: check `BUSINESSAPP_BACKCHANNEL_URL` first, fall back to config. Both `GetCurrentAsync` and `AdvanceAsync` are now covered by regression tests.
+- **2026-05-04T00:01:43.530+01:00:** For MockBusinessApp bearer-auth timeouts in Codespaces, a `[PRISM AUTH FAILED] IDX20803/IDX20804` log that starts discovery at `KEYCLOAK_BACKCHANNEL_URL` but then hangs on `http://{public-codespaces-host}:{ephemeral-port}/.../protocol/openid-connect/certs` proves the request reached MockBusinessApp and stalled inside JWT bearer JWKS retrieval. The active runtime path is `src/UmbracoPrism.Shared/Extensions/PrismAuthExtensions.cs` → `ResolveSigningKeys(...)` → `src/UmbracoPrism.Shared/Services/PrismSigningKeyCache.cs`; the current rewriter matches only the exact public origin, so a hybrid JWKS URI emitted by Keycloak (public host + internal HTTP port) slips past and times out on the default 100s metadata HttpClient.
+- **2026-05-03T23:46:52.875+01:00:** For decisive downstream arrival proof in this repo, instrument `src/UmbracoPrism.MockBusinessApp/Program.cs` twice around `/api/backoffice/me`: once in middleware immediately before `app.UseAuthentication()` and once at handler entry. Keep the payload safe (`method`, `path`, `TraceIdentifier`, auth-header-present) and, when correlating with TestSite, forward `HttpContext.TraceIdentifier` from `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` via a dedicated header such as `X-Prism-Caller-TraceId`.
+- **2026-05-03T23:43:13.870+01:00:** A Downstream Demo timeout payload that reports `transport: internal-backchannel`, `backchannelPresent: true`, and `cancellationSource: request-timeout-window` proves TestSite chose the backchannel target and waited on its own 10s HttpClient window; it does not prove MockBusinessApp accepted the connection or that `/api/backoffice/me` executed. To prove arrival at MockBusinessApp itself, add a request log before `app.UseAuthentication()` in `src/UmbracoPrism.MockBusinessApp/Program.cs`, and add a second log inside the `/api/backoffice/me` handler if you need proof that endpoint code ran.
+- **2026-05-03T21:12:36.429+01:00:** For Codespaces terminal diagnostics, prefer live runtime probes (`gh codespace ports`, `MockBusinessApp /debug/auth`, `TestSite /session-contract`) over guessed localhost ports. Public `app.github.dev` probes should report redirects or HTML tunnel pages as proxy/auth evidence, not false application success.
+- **2026-05-03T21:32:41.296+01:00:** Codespaces helper scripts that embed Python should self-check a working stdlib runtime and launch it with `-I` plus `PYTHONHOME`/`PYTHONPATH` scrubbed; activated toolchains can otherwise break even basic imports like `json`.
+- **2026-05-03T21:49:23.079+01:00:** For operator-facing Codespaces diagnostics, prefer shell-native `curl`/`gh` probes over embedded runtimes. A helper that only needs Bash plus the stock network tools is more reliable than trying to harden around a missing or broken Python install.
+- **2026-05-03T22:27:45.244+01:00:** When downstream API timeout isn't preceded by 401, check whether TestSite is using the backchannel URL or the public app.github.dev URL — if BUSINESSAPP_BACKCHANNEL_URL is actually set at runtime, the timeout is internal; if not, it's hitting the GitHub forwarding tunnel. Named HttpClients have default timeouts (100s); the custom timeout only applies when the named client is registered.
+- **2026-05-03T22:49:38.255+01:00:** Named HttpClients used in controllers must be registered via AddHttpClient() even when timeout is managed via CancellationToken, because unregistered clients lack proper handler configuration for connection pooling, localhost resolution, and certificate validation in containerized environments. The "prism-downstream-demo" client was unregistered, causing reliable timeouts despite the backchannel URL being correct.
+- **2026-05-03T23:00:12.742+01:00:** Downstream demo diagnostics should surface transport path metadata (internal backchannel vs public tunnel, whether BUSINESSAPP_BACKCHANNEL_URL was present) and timeout cause (timeout CancellationToken vs external cancellation) directly in the response JSON and logs without exposing actual backchannel port numbers or raw tokens. Mask localhost ports as `http://localhost:****` in diagnostics; show full public URLs since they're browser-visible anyway.
+- **2026-05-03T23:26:29.163+01:00:** For downstream timeout payloads in `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs`, keep `transportBaseUrl` masked as `http://localhost:****` for internal backchannels, but add safe operator-facing detail such as `usingBackchannel`, `targetPath`, `timeout.timedOutByUs`, `timeout.cancellationSource`, and a short `nextCheck` hint. `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs` is the contract test file for these browser-visible diagnostics.
 
 ---
 
-## 2026-05-03: PR #47 Merge Completion
+## 2026-05-03T23:00:12.742+01:00: Downstream Demo Transport Diagnostics Implementation
 
-**Status:** ✅ Merged to main
+**Status:** ✅ Complete
 
-**Merge Details:**
-- Used `--merge` strategy (preserved separate commits)
-- PR created from squad/codespaces-dashboard-and-auth-fixes
-- All CI checks passed within expected timeframe
-- Merge commit: cfe90fc
-- Local main synced to origin/main
-
-**Decision Rationale Recorded:**
-Separate commits preserved because:
-1. Dashboard port 17214 fix (fa7881c) is independent user-facing issue
-2. MockBusinessApp backchannel auth fix (455e0d5) is separate concern
-3. Release notes need to track fixes independently
-4. Git bisect operations benefit from granular history
-
-This strategy standardized for future PRs with multiple concerns.
-
-**Team Impact:**
-Two significant product fixes shipped:
-- Codespaces users get correct HTTPS dashboard URL
-- MockBusinessApp auth backchannel works correctly
-- Foundation set for multi-concern PR merge strategy
-
-### 2026-05-03: Codespaces Login Callback Localhost:9250 Regression Diagnosis
-
-**Context:** After restarting Codespaces, Safari opens OIDC callback URL `https://localhost:9250/signin-oidc?...` instead of the public forwarded URL, causing "cannot connect to server localhost" error.
-
-**Root Cause — Port 44345 Discovery Race:**
-
-AppHost Program.cs line 21 calls `TryDiscoverCodespaceUrls()` which queries `gh codespace ports` for the authoritative browseUrl of port 44345. If port 44345 is **not yet forwarded** when AppHost starts (common after Codespaces resume), `gh codespace ports` returns no entry for 44345, and `testSitePublicUrl` is set to **null** (line 203-204 in AppHost).
-
-When `testSitePublicUrl` is null, AppHost line 127-128 **does not call** `.WithEnvironment("TESTSITE_PUBLIC_URL", ...)` on the testsite resource. TestSite then launches **without** the environment variable.
-
-TestSite Program.cs line 44 reads `TESTSITE_PUBLIC_URL`. If absent, the middleware at lines 48-52 is **never registered**, so `context.Request.Host` is never overridden. The OIDC middleware at PrismOidcConfiguration.cs line 320 builds `redirect_uri` using the raw inbound `context.Request.Host`, which Codespaces forwards as `localhost:44345` or `localhost:9250` (depending on which port the browser hit).
-
-**Why `https://localhost:9250` specifically:**
-
-Aspire's launch profile advertises both `https://localhost:44345` and `http://localhost:9250` (launchSettings.json line 24). When TestSite starts before port 44345 is forwarded, the browser may hit the HTTP endpoint first (port 9250), then get redirected or rewritten by Codespaces proxy to HTTPS. The OIDC middleware captures the **mixed state** — HTTPS scheme with the HTTP port's host value — yielding `https://localhost:9250/signin-oidc`.
-
-**Why flaky across restarts:**
-
-GitHub Codespaces port forwarding is **asynchronous**. On fresh start or resume, port 44345 may not appear in `gh codespace ports` output for 5-30 seconds. If AppHost queries `gh codespace ports` **before** port 44345 is registered, `testSitePublicUrl` is null and TestSite launches without the override middleware. If AppHost queries **after** port registration, the middleware is correctly wired and login works.
-
-**Immediate diagnostic:**
-
-Check AppHost startup logs in `artifacts/startup-status/prism-apphost.log` for the line:
-```
-[PRISM] Discovered Codespaces URLs — Keycloak: ... TestSite: (port 44345 not yet forwarded) ...
-```
-
-If present, confirms port 44345 was not forwarded when AppHost started.
-
-**Safe fix (minimal):**
-
-AppHost line 212 already has fallback logic to **derive** the TestSite URL from the discovered Keycloak URL when port 44345 is absent:
-```csharp
-businessAppUrl ??= DeriveCodespaceUrl(keycloakUrl, 7245);
-```
-
-Add the same pattern for TestSite:
-```csharp
-testSitePublicUrl ??= DeriveCodespaceUrl(keycloakUrl, 44345);
-```
-
-This ensures `TESTSITE_PUBLIC_URL` is always set in Codespaces, even if port 44345 is not yet forwarded when AppHost starts.
-
-**Recommended next step:**
-
-Add the one-line fix to AppHost Program.cs line 212 (right after `businessAppUrl ??= ...`), then test a cold Codespace restart to confirm the derived URL is correct.
-
-
-## 2026-05-03: Codespaces Login Callback Startup Sequence Diagnosis
-
-**Outcome**: Traced runtime/config source of wrong callback and startup sequence dependency after restart.
-
-**Scope**: Investigated why AppHost startup lag causes TESTSITE_PUBLIC_URL propagation failure on Codespaces resume.
-
-**Key Finding**: Codespaces tunnel rewrites inbound `Host` header to `localhost:44345` before forwarding to Kestrel. TestSite has Host override middleware that corrects this—but only when `TESTSITE_PUBLIC_URL` env var is set. On restart, AppHost must set the var before TestSite starts; timing drift on resume causes OIDC fallback to internal HTTP port 9250.
-
-**Decision**: Contributed to decisions.md entry. Three fix options documented: fail-fast (recommended), fallback detection, test coverage.
-
-## 2026-05-03: MockBusinessApp API Demo Timeout — `localhost:5163` in Browser
-
-**Status:** ✅ Diagnosis complete
-
-**Context:** Sign-in now works, but the "Call Mock Business App API" action in the member dashboard times out. The UI shows the browser calling `http://localhost:5163/api/backoffice/me`, timing out after 10 seconds.
-
-**Root Cause:**
-
-The `DownstreamDemoController` is *server-side code* that's supposed to call MockBusinessApp on behalf of the browser using the member's Bearer token. However, line 142 in `AppHost/Program.cs` sets:
-```csharp
-testsite.WithEnvironment("BUSINESSAPP_BACKCHANNEL_URL", "http://localhost:5163");
-```
-
-This is intended for **server-to-server** calls from TestSite to MockBusinessApp's internal HTTP endpoint, bypassing GitHub Codespaces port forwarding.
-
-But the `DownstreamDemoController` at line 301 reads this environment variable and uses it to build the target URL that gets **returned to the browser** in the response JSON (line 103, 130, 147, 165). The browser-side JavaScript at `memberDashboard.cshtml` line 178-369 then displays this URL in the UI (line 159, 272, 299).
-
-The problem is architectural: `BUSINESSAPP_BACKCHANNEL_URL` is being used for *two different purposes*:
-1. Server-side internal HTTP calls (intended use, works correctly)
-2. Display URL shown to the user in diagnostic output (unintended leak, shows internal localhost port)
-
-**Why localhost:5163 specifically:**
-
-MockBusinessApp's launchSettings.json advertises both `https://localhost:7245` (HTTPS, for browser) and `http://localhost:5163` (HTTP, for internal calls). In Codespaces, AppHost sets `BUSINESSAPP_BACKCHANNEL_URL=http://localhost:5163` so TestSite's server-side code can reach MockBusinessApp's HTTP endpoint without hitting the GitHub port-forwarding proxy.
-
-But the browser **cannot** reach `localhost:5163` — that's a TestSite-internal address. The browser needs the public Codespaces URL like `https://{token}-7245.{region}.app.github.dev`.
-
-**Why this is a bug:**
-
-1. The DownstreamDemoController is *already running server-side* in TestSite. When it calls `SendDownstreamRequestAsync(targetUrl, authHeader)` at line 75, the HTTP request goes from TestSite's process to MockBusinessApp's process using `localhost:5163` — this works fine.
-
-2. BUT the controller then returns `targetUrl` in the JSON response (line 103, 130, 147, 165), which the browser-side JavaScript displays in the UI (line 272). The browser sees `http://localhost:5163/api/backoffice/me` and thinks the *browser* should call that URL — which fails because the browser can't reach TestSite's internal network.
-
-3. The timeout is a red herring: the controller call *already succeeded* server-side, but the response JSON contains the wrong URL for display purposes. The browser-side JavaScript is trying to navigate to or fetch from that URL (which it can't), leading to confusion.
-
-**Key Insight:**
-
-`BUSINESSAPP_BACKCHANNEL_URL` is a *transport layer* config for server-to-server calls, NOT a *display URL* for browser-facing surfaces. The controller response should use `PrismBusinessApp:WorkflowApiBaseUrl` (the public/browser URL) for display purposes, not the backchannel URL.
-
-**Diagnostic validation:**
-
-Check the DownstreamDemoController response JSON in browser DevTools Network tab. If `url` field is `http://localhost:5163/...`, confirms the backchannel URL leaked into the browser-facing response.
-
-**Safest Fix:**
-
-1. Change `ResolveBusinessAppTransportBaseUrl()` at line 299-310 to *only* use `BUSINESSAPP_BACKCHANNEL_URL` for the *actual HTTP call*, not for the URL returned in the response.
-
-2. Add a separate method `ResolveBusinessAppDisplayUrl()` that returns `PrismBusinessApp:WorkflowApiBaseUrl` (the public browser URL) for use in response JSON.
-
-3. Update lines 103, 130, 147, 165 to use the display URL instead of the transport URL.
-
-**Alternative (simpler) Fix:**
-
-If the DownstreamDemoController response JSON `url` field is only for diagnostics (not used by the browser for navigation), the fix is minimal: just document that the `url` field shows the *server-side transport URL*, not the browser-facing URL. The actual API call will succeed server-side regardless of what URL is displayed.
-
-**Next Step:**
-
-Inspect the actual runtime behavior in Codespaces to confirm whether the server-side call is succeeding but the response JSON misleads the user, or if there's a separate runtime issue causing the timeout.
-
-## Orchestration Update (Scribe 2026-05-03)
-
-MockBusinessApp timeout diagnosis complete. Both agents identified architectural leak: internal backchannel URL leaks to browser-facing response.
-
-**Blathers:** Root cause is BUSINESSAPP_BACKCHANNEL_URL at AppHost line 142 being returned in DownstreamDemoController response
-**Tangy:** Contract gap identified — existing test accepts internal URL; new test contracts required for public URL validation
-
-Decisions captured in decisions.md. Orchestration logs: orchestration-log/2026-05-03T17:17:19Z-*.md
-Session log: log/2026-05-03T17:17:19Z-mockbiz-timeout-diagnosis.md
-
-Next: Implementation of URL transformation in controller.
-
-
-## 2026-05-03: MockBusinessApp Browser URL Leak Fix
-
-**Status:** ✅ Complete — PR #48 created
-
-**Context:** After fixing the 401 diagnosis, users could sign in but the "Call Mock Business App API" action showed `http://localhost:5163` in the dashboard UI, which was unreachable from the browser.
-
-**Root Cause:**
-The DownstreamDemoController was using `BUSINESSAPP_BACKCHANNEL_URL` for two conflicting purposes:
-1. Server-to-server HTTP transport (correct, for efficiency)
-2. Display URL returned in JSON response to the browser (incorrect, leaks internal address)
-
-The backchannel URL `http://localhost:5163` is only accessible from TestSite's server process. In Codespaces, the browser needs the public forwarded URL on port 7245.
+**Problem:**
+When downstream API calls fail (timeout, network error, non-JSON response), operators need immediate visibility into which transport path was used (internal backchannel vs public Codespaces tunnel), whether BUSINESSAPP_BACKCHANNEL_URL was configured, and whether timeouts were triggered by the 10s timeout vs external cancellation. Without this context, diagnosing stale AppHost wiring vs downstream auth failures requires manual inspection of environment variables and logs.
 
 **Solution:**
-- Added `ResolveBusinessAppDisplayBaseUrl()` to always return the public URL from `PrismBusinessApp:WorkflowApiBaseUrl`
-- Added `TransformToDisplayUrl()` to rewrite backchannel URLs to public URLs before returning in responses
-- Updated all four response returns (success, invalid response, timeout, network error) to use `TransformToDisplayUrl()`
-- Updated test from `DownstreamDemo_PrefersBusinessAppBackchannelUrl_WhenConfigured` to `DownstreamDemo_ReturnsPublicUrl_WhenBackchannelUrlIsUsedForTransport`
+Added `BuildTransportDiagnostics()` method to DownstreamDemoController that returns structured transport metadata:
+- `transport`: "internal-backchannel", "public-tunnel", or "public-url"
+- `backchannelPresent`: boolean flag for BUSINESSAPP_BACKCHANNEL_URL
+- `transportBaseUrl`: masked for internal URLs (`http://localhost:****`), full for public URLs
+- `targetUrlScheme`: http/https indicator
 
-**Key Design Principle:**
-**Transport URLs ≠ Display URLs**
+This metadata is:
+1. Included in all response payloads (success, timeout, network error, non-JSON)
+2. Logged via structured logging for searchable diagnostics
+3. Used to generate contextual hints (e.g., "Try `refresh.sh`" for backchannel timeouts)
 
-When a backchannel URL is configured:
-- Use it for the actual HTTP call (server-to-server efficiency)
-- Transform it to the public URL before returning in the response (browser accessibility)
+**Security:**
+- Internal backchannel ports are masked as `http://localhost:****` to avoid exposing ephemeral port assignments
+- Public URLs shown in full since they're browser-visible anyway
+- No tokens, cookies, or client secrets exposed
+- Follows existing dev-only guard (IsDevelopment or Prism:EnableDownstreamDemo)
 
-This separation is critical in Codespaces where:
-- Internal ports (5163) are server-process-only
-- Forwarded ports (7245) are browser-accessible
+**Implementation:**
+- Updated `/api/prism/downstream-demo` endpoint to include `transport` field in all responses
+- Enhanced structured logging with transport metadata
+- Contextual hints based on transport type (backchannel vs tunnel)
+- Timeout diagnostics distinguish CancellationToken timeout from external cancellation
 
-**Test Coverage:**
-The updated test validates the contract:
-```csharp
-// Backend uses backchannel for transport efficiency
-capturedRequestUri.Should().Be(new Uri("http://localhost:5163/api/backoffice/me"));
-
-// But response to browser uses public URL
-root.GetProperty("url").GetString().Should().Be(
-    "https://codespace-7245.app.github.dev/api/backoffice/me",
-    because: "browser-facing URLs must be publicly accessible");
-```
-
-**Branch:** `squad/fix-browser-url-leak`
-**Commit:** `6774c55`
-**PR:** #48
-**Test Results:** ✅ All 674 tests pass
+**Test Results:**
+- All 680 Core tests pass
+- Build succeeds with no new warnings
 
 **Files Changed:**
-- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` — Added URL transformation methods and applied to all response returns
-- `src/UmbracoPrism.Core.Tests/DashboardLocalEndpointsValidationTests.cs` — Updated test to validate transport-vs-display separation
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` — Added transport diagnostics
 
-**Decision Alignment:**
-This fix implements the decision documented in `.squad/decisions.md`:
-> Browser-facing API responses must return publicly accessible URLs, not internal server-to-server backchannel URLs.
-
-
-**Update:** Added browser-level Playwright test (commit `2ebec5a`) to validate the URL displayed in the dashboard does not expose the internal backchannel port :5163. This complements the unit test and ensures the full browser experience prevents regression.
-
-**Test Strategy:**
-- Unit test: Validates controller logic (transport uses backchannel, response uses public URL)
-- Playwright test: Validates browser UI (displayed URL does not contain :5163, does contain https://localhost:7245)
-
-### 2026-05-03: PR #48 Merged — Browser URL Leak Fix
-
-**Status:** ✅ Complete
-
-Successfully monitored and merged PR #48 (`squad/fix-browser-url-leak` → `main`).
-
-**PR Contents:**
-- Commit `6774c55`: Transform internal backchannel URLs to public URLs in browser-facing responses
-- Commit `2ebec5a`: Add browser-level contract for backchannel URL visibility (Playwright test)
-
-**CI Results:**
-- ✅ test (9 seconds)
-- ✅ core-tests (53 seconds)
-- ✅ storybook-tests (1m53s)
-- ✅ localhost-auth-playwright (15m32s)
-
-**Key Learning:**
-Long-running Playwright tests with full Aspire stack + Keycloak + browser automation legitimately take 15+ minutes. The localhost-auth-playwright job ran for over 15 minutes before successfully completing. This is normal for integration tests with container orchestration, OIDC flows, and end-to-end browser automation — not a sign of a stuck or failing test.
-
-**Merge Strategy:**
-Used `--merge` (not squash) to preserve the two separate commits for clean release notes:
-1. Fix commit addresses the core bug (backchannel URL transformation)
-2. Test commit adds browser-level contract validation
-
-Each commit addresses a distinct concern, making it easier to track fixes in changelogs and git bisect operations.
-
-**Local State:**
-Local `main` branch synced to `origin/main` at commit `0f79c12` (merge commit for PR #48). The `.squad/` history files have local modifications from this session, which were not mixed into the product PR.
-
+**Key Insight:**
+Response-visible diagnostics beat verbose logs for operator troubleshooting. When the next Codespaces failure happens, the JSON response will immediately show whether the request used the internal backchannel or hit the GitHub forwarding proxy, eliminating the first round of "what path did it actually use?" investigation.
 
 ---
 
-## Archive Checkpoint: 2026-05-03T23:08:07Z Scribe Summarization
+## Earlier Sessions
 
-Sessions archived from history.md to maintain <15KB threshold. Consolidated learnings preserved in main history.md.
+Full history archived to `history-archive.md` (prior to 2026-05-03 learnings section).
 
-All entries from 2026-05-03 business day preserved with full context for future reference.
+---
 
+---
+
+## Cross-Agent Update: 2026-05-03T23:08:07Z Scribe Coordination
+
+**Spawn manifest consolidated:** Blathers implemented transport diagnostics; Tangy added 5 contract tests. All tests passing.
+
+**Orchestration records logged:**
+- `.squad/orchestration-log/2026-05-03T22:08:07Z-blathers.md`
+- `.squad/orchestration-log/2026-05-03T22:08:07Z-tangy.md`
+
+**Decisions merged to main registry:**
+- Downstream Demo Transport Diagnostics Should Be Response-Visible
+- Downstream API Timeout Diagnosis: Unregistered HttpClient Root Cause
+- Safe Transport Diagnostics Must Not Expose Internal Ports or Secrets
+
+**Team coordination complete.** Ready for PR review and merge.
+
+
+## 2026-05-03 · Transport Diagnostics Validation Spawn
+
+**Spawn outcome:** Diagnosed internal backchannel timeout as root cause (not instrumentation defect). Recommended refresh.sh as operational fix.
+
+**Session:** transport-diagnostics-landing | Coordinator spawned to validate transport diagnostics feature post-landing (commit 17edf9c).
+
+**Coordination:** Tangy (Tester) in parallel spawn identified next proof step: fresh token authentication test.
+
+## Cross-Agent Update: 2026-05-03T22:46:14Z Scribe Consolidation
+
+**Spawn outcome merged:** Determined timeout payload does not prove MockBusinessApp request-handling code ran. Recommended arrival logging before auth middleware and at `/api/backoffice/me` handler as smallest decisive proof.
+
+**Orchestration record logged:**
+- `.squad/orchestration-log/2026-05-03T22-46-14Z-blathers.md`
+
+**Decisions merged to main registry:**
+- Deeper Downstream Timeout Diagnostics Landing (commit 442c5e9)
+- Browser-Facing API Responses Must Return Public URLs, Not Internal Backchannel URLs
+
+**Team coordination:** Tangy's test contracts and Mabel's landing decision logged. All booking complete.
+
+**Next steps:** Arrival logging implementation when team reopens timeout diagnostics work.
+
+---
+
+## 2026-05-04T00:01:43.530+01:00: JWKS Backchannel Root Cause — Orchestration Complete
+
+**Status:** ✅ Root Cause Identified & Recorded
+
+**Spawn Outcome:** Determined the request reaches MockBusinessApp and then hangs in JWT bearer auth while fetching signing keys. The backchannel/JWKS rewrite path in `PrismSigningKeyCache` causes JWKS fetch to escape to a malformed/public URL and sit on the metadata client's 100s timeout.
+
+**Decision Recorded:** "MockBusinessApp Downstream Timeout Root Cause Is Hybrid JWKS URI Escape" (2026-05-04T00:01:43.530+01:00, PROPOSED)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:01:43Z-blathers.md`
+
+**Next Action Owner:** Implementation in PrismSigningKeyCache.cs with regression tests in BackchannelRewriteTests.cs (ready for assignment).
+
+---
+
+## 2026-05-03T23:20:46Z: Codespaces Workflow-Start HTTP 401 Investigation
+
+**Status:** 🔍 Spawned (background)
+
+**Outcome:** Investigating remaining HTTP 401 authentication errors in workflow-start endpoint following downstream API fixes.
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:20:46Z-blathers.md`
+
+**Scope:** Determine root cause of persistent 401 errors and any gaps in auth flow between endpoint types.
+
+---
+
+## 2026-05-04T00:19:33Z: Workflow API Backchannel URL Resolution — Codespaces Fix
+
+**Status:** ✅ Implemented (commit caaf551)
+
+**Decision Recorded:** "Workflow API Calls Must Use Internal Backchannel in Codespaces" (2026-05-04T00:19:33.157+01:00, ACCEPTED)
+
+**Fix Applied:**
+- `BusinessAppWorkflowClient.BaseUrl` now checks `BUSINESSAPP_BACKCHANNEL_URL` first
+- Falls back to `PrismBusinessApp:WorkflowApiBaseUrl` for production
+- Matches existing pattern in `DownstreamDemoController`
+
+**Root Cause:** GitHub's forwarded-port proxy rejects unauthenticated server-side HTTP calls to the public URL with 401. Workflow start and advance calls were using the public URL instead of the internal backchannel.
+
+**Test Coverage:** All existing workflow tests pass (regression coverage via `BusinessAppWorkflowClientTests`).
+
+**Next:** Tangy proposed null-auth logging and `Results.Problem()` alignment for consistency. Blathers to integrate in parallel spawn.
+
+---
+
+## 2026-05-04T00:37:42Z: Workflow Auth Spawn — Folding Tangy's Findings and Final Push
+
+**Status:** 🔄 In Progress (background)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-04T23-26-42Z-blathers.md`
+
+**Task:**
+1. Integrate Tangy's workflow 401 null-auth contract decision
+2. Implement logging for null auth header in `CreateClientAsync`
+3. Align workflow handlers to `Results.Problem()` for consistency
+4. Run full test suite (green)
+5. Push to main if all tests pass
+
+**Expected Outcome:** Workflow auth fixes complete with full coverage and diagnostics logging.
+
+---
+
+## 2026-05-04: PrismContextTests CI Flake — Race Condition Fix
+
+**Status:** ✅ Fixed (commit 860c5d3)
+
+**Problem:**
+4 `PrismContextTests` intermittently failed in CI with `NullReferenceException` at `PrismContext.cs:212` (`result.Success` on a null `TokenRefreshResult`). Tests passed 100% of the time locally. The failure was introduced by commit beef21c which added `BusinessAppWorkflowClientTests` to `EnvVarSensitiveTestCollection`, widening the execution window of that collection.
+
+**Root Cause:**
+`BackchannelRewriteTests` (in `EnvVarSensitiveTestCollection`) sets `ASPNETCORE_ENVIRONMENT=Development` and `KEYCLOAK_BACKCHANNEL_URL`. `PrismContextTests` was NOT in the collection, so it ran in parallel. When `PrismContext.RefreshTokenAsync` read those env vars mid-test, it rewrote the token endpoint to an `http://localhost` URL. The Moq mock was set up for the `https://localhost:8443` URL — mismatch caused Moq to return `Task.FromResult(null)` and null dereference.
+
+**Fix:**
+Added `[Collection(EnvVarSensitiveTestCollection.Name)]` to `PrismContextTests` and implemented `IDisposable` with save/restore of `KEYCLOAK_BACKCHANNEL_URL` and `ASPNETCORE_ENVIRONMENT`, matching the `LocalhostGenericOidcRegressionTests` pattern.
+
+**Learning:**
+Any test class that exercises code paths which read `KEYCLOAK_BACKCHANNEL_URL` or `ASPNETCORE_ENVIRONMENT` must be in `EnvVarSensitiveTestCollection` — even if it does not mutate those variables itself. Parallelism is the hazard.
