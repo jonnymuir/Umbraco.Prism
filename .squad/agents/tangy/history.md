@@ -25,6 +25,20 @@
 - JWKS fix (0904810) necessary but insufficient if `PrismTenantMiddleware` fails tenant resolution
 - Safe transport diagnostics pattern: classify failure modes without exposing ports/secrets
 
+## Dispatch: CI Test-Fragility Fix (2026-05-04T08:22:01Z)
+
+**Outcome:** Land the approved CI test-fragility fix and push to main.
+
+**Background:** Two root causes from CI run 25294216756 (commit `beef21c`):
+1. `PrismContextTests` reads env vars but was not in `EnvVarSensitiveTestCollection` → race condition
+2. Moq setup used concrete `CancellationToken` matcher on Linux → lazy init mismatch
+
+**Fixes delivered:** 
+- Commit 860c5d3: Added `PrismContextTests` to `EnvVarSensitiveTestCollection`
+- Commit 1601415: Replaced concrete `httpContext.RequestAborted` with `It.IsAny<CancellationToken>()` in 4 test methods
+
+**Status:** Dispatched for final verification and merge to main.
+
 ---
 
 ## Learnings (2026-05-04) — CI Failure Analysis: PrismContextTests
