@@ -9,8 +9,32 @@ using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests;
 
-public class PrismContextTests
+/// <summary>
+/// Tests for <see cref="PrismContext"/>. Must be in <see cref="EnvVarSensitiveTestCollection"/>
+/// because <see cref="PrismContext.RefreshTokenAsync"/> reads ASPNETCORE_ENVIRONMENT and
+/// KEYCLOAK_BACKCHANNEL_URL at runtime to decide whether to rewrite the token endpoint.
+/// Running in parallel with tests that mutate those variables (e.g. BackchannelRewriteTests)
+/// can cause the token endpoint URL to differ from the mock setup, yielding a null result and
+/// a NullReferenceException.
+/// </summary>
+[Collection(EnvVarSensitiveTestCollection.Name)]
+public class PrismContextTests : IDisposable
 {
+    private readonly string? _savedBackchannelUrl;
+    private readonly string? _savedAspNetCoreEnv;
+
+    public PrismContextTests()
+    {
+        _savedBackchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+        _savedAspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+    }
+
     [Fact]
     public async Task GetAuthorizationHeaderAsync_ReturnsNull_WhenHttpContextMissing()
     {
