@@ -217,3 +217,46 @@ Detailed session histories (2026-04-30, 2026-05-01, and earlier) available in `h
 **Summary:** Business API arrival instrumentation is live on main. Operators can correlate TestSite requests with Business App diagnostics through safe trace ID forwarding via `X-Prism-Caller-TraceId` header. Middleware logs at pre-auth and handler-entry points without exposing credentials or internal URLs.
 
 **Scope Achieved:** Clean separation of product deliverables (commit 8e1cd68) from bookkeeping (decisions.md consolidation).
+
+---
+
+## 2026-05-04T10:45:47.516+01:00: v1.9.0 Release — Ready for Ship
+
+**Status:** ✅ Release prepared and pushed to origin/main
+
+**Version Bump:** 1.8.0 → 1.9.0 (minor version: significant new features)
+
+**Release Commit:** `c78d719` — chore(release): bump version to 1.9.0 and update changelog
+
+**Release Contents:**
+- **Major Features:** Workflow v2.0 atomic schema, Business API arrival instrumentation, enhanced downstream timeout diagnostics, information-request demo page
+- **Reliability Fixes:** CancellationToken fragility in CI, dynamic BusinessApp endpoint discovery, Keycloak backchannel URL handling
+- **Security Improvements:** Workflow state authorization (SEC-001), HTML content sanitization (SEC-003), structured logging injection protection (SEC-009), aria attribute encoding (SEC-011), proxy-aware rate limiting (SEC-007)
+- **Infrastructure:** Codespaces recovery tooling, port forwarding config, CI route warmup and timeout tuning
+
+**Work Flow:**
+1. Reviewed squad history and team decisions
+2. Committed pending squad artifacts (backchannel-rewrite-testing skill, inline-api-failure-states skill, memberDashboard UI update, browser-devtools-api-diagnosis skill, cleanup classification rules)
+3. Analyzed commits since v1.8.0 tag (20+ significant features and fixes)
+4. Bumped version in package.json: 1.8.0 → 1.9.0
+5. Created comprehensive CHANGELOG.md entry with Added/Changed/Fixed/Security sections
+6. Validated version consistency (squad-release.yml validation passed)
+7. Committed release changes with detailed release notes
+8. Pushed to origin/main (automatic tag creation by squad-release.yml workflow)
+
+**Validation Result:** ✅ Version consistency validated. squad-release.yml workflow will automatically create git tag v1.9.0 and GitHub release on workflow trigger.
+
+**Release Boundary:** All squad bookkeeping consolidated. Product commit c78d719 represents one releasable unit with clean, comprehensive changelog. Ready for users to pull.
+
+**Next Step:** Monitor squad-release.yml workflow execution to confirm v1.9.0 tag and GitHub release creation.
+
+---
+
+## Learnings
+
+- Release cadence pattern: Squad state consolidation → version bump → comprehensive changelog → single release commit → push to main (workflow handles tag/release automation)
+- Changelog entry structure: Group changes by Added/Changed/Fixed/Security with feature descriptions and security IDs. Include context about diagnostics improvements and backchannel fixes for operator clarity.
+- Version selection criteria: Semantic versioning — v1.9.0 (minor bump) for new features (workflow v2.0, Business API instrumentation, demo pages) + significant fixes + security improvements
+- Team handoff hygiene: When releasing, ensure all squad artifacts (agent histories, skill docs, decisions) are consolidated in final bookkeeping commit before release commit
+- Workflow v2.0 impact: This release represents major architectural shift in workflow field definitions. Clear changelog entry explaining polymorphic component hierarchy and backwards compatibility assumptions is critical for users
+
