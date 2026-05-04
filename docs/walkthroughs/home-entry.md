@@ -8,7 +8,8 @@ The home entry journey (`home-entry`) documents the authenticated and unauthenti
 
 - **Unauthenticated hero** – The landing page a new visitor sees before signing in
 - **Personalised hero** – The signed-in view with a welcome message and direct dashboard link
-- **Homepage → Dashboard → Workflow hub** – The full entry path to starting a workflow
+- **Homepage → Dashboard → Workflow demo card** – The primary "jump straight in" route for a signed-in member
+- **Homepage → Dashboard → Workflow hub** – The route into existing and in-progress workflow instances
 
 ## Unauthenticated Homepage
 
@@ -32,11 +33,19 @@ After signing in via Keycloak, the hero updates to show a personalised welcome m
 The `/dashboard` route (protected by `[Authorize]`) shows the member dashboard with two primary workflow entry points:
 
 1. **View Workflows** (`/my-workflows`) – lists all active and completed workflow instances for the signed-in member
-2. **Start Workflow** – navigates directly to the first seeded workflow entry point (`/get-in-touch`)
+2. **Workflow Demos** – a grid of seeded demo cards, each with its own **Start** button
+
+The same page also advertises the development-only **Workflow Admin** card for local operators and testers, but the end-user entry journey keeps its focus on the member-facing routes first.
+
+## Workflow Demo Entry Point
+
+![Dashboard workflow demo card — direct navigation into the seeded "Get in Touch" workflow](../images/walkthroughs/home-entry/04-start-workflow.png)
+
+Clicking **Start** on the **Get in Touch** demo card takes the signed-in member straight to the seeded community enquiry workflow at `/get-in-touch`. This is the quickest way to move from the homepage hero into a real product journey without first visiting the workflow hub.
 
 ## Workflow Hub
 
-![My Workflows page — workflow instance list](../images/walkthroughs/home-entry/04-workflow-hub.png)
+![My Workflows page — workflow instance list](../images/walkthroughs/home-entry/05-workflow-hub.png)
 
 The workflow hub at `/my-workflows` shows all workflow instances owned by the signed-in member. On a freshly seeded environment the list is empty; after starting a workflow an **In Progress** entry appears.
 

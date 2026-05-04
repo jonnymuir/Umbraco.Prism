@@ -1,15 +1,15 @@
 # Payment Demo Workflow
 
-A two-step workflow demonstrating payment integration, currency formatting, and the check-answers pattern.
+A compact payment journey demonstrating decimal money input, a processing/waiting state, and operator-assisted completion in the local demo.
 
 ## Overview
 
-The payment demo workflow (`payment-demo`) showcases a typical e-commerce checkout flow with:
+The payment demo workflow (`payment-demo`) showcases a realistic "submit then wait" pattern with:
 
-- **Multi-step progression** (enter-details → confirm-payment)
-- **Number inputs** with currency formatting
-- **Check-answers pattern** for review before payment
-- **Payment provider integration** (Stripe)
+- **Decimal currency input** using pence-level precision
+- **Immediate transition into a waiting state** after submit
+- **Deferred completion** via a reviewer/operator action in the development harness
+- **Return-safe processing page** that the member can revisit later
 
 ## Initial Form
 
@@ -17,11 +17,11 @@ The payment demo workflow (`payment-demo`) showcases a typical e-commerce checko
 
 The first step collects payment details:
 
-1. **Amount to pay** – Currency-formatted number input
-2. **Payment reference** – Optional reference for the transaction
-3. **Card details** – Integrated Stripe payment element
+1. **Cardholder name** – Plain text input for the payer name
+2. **Amount (£)** – Decimal currency input with pence precision
+3. **Submit action** – Transitions the workflow into its waiting state
 
-This demonstrates the `number` component with `step: 0.01` for currency precision.
+This demonstrates the `decimal` component with `step: 0.01` for currency precision.
 
 ### Filled Form
 
@@ -33,26 +33,27 @@ Enter the cardholder name and amount to proceed. The amount field accepts decima
 
 ![Processing state — "Processing Your Payment" heading displayed](../images/walkthroughs/payment-demo/03-processing.png)
 
-After submission the workflow transitions to a processing state while the Stripe integration completes the charge. The user sees a holding screen until the payment result is returned.
+After submission the workflow transitions to a processing state while the payment is handled asynchronously. The user sees a holding screen with a defer message explaining that they can safely leave and come back later.
+
+### Workflow Admin handoff (development only)
+
+In the local demo, the processing state is intentionally paired with the [Workflow Administration](workflow-administration.md) panel. A tester can open **Workflow Admin** from the dashboard and use the reviewer-only completion transition to move the instance from `processing-payment` to `payment-complete`, which is useful for exercising the full flow without waiting on a real payment provider.
 
 ## V2.0 Schema Example
 
-The payment amount field uses the polymorphic `number` component:
+The payment amount field uses the polymorphic `decimal` component:
 
 ```json
 {
-  "type": "number",
+  "type": "decimal",
   "fieldKey": "amount",
-  "label": "Amount to pay",
-  "hint": "Enter an amount between £5 and £500",
+  "label": "Amount (£)",
+  "hint": "Enter the amount to pay (e.g. 10.50)",
   "required": true,
-  "min": 5,
-  "max": 500,
+  "min": 0.01,
   "step": 0.01
 }
 ```
-
-The check-answers state uses a `summary-list` component to display collected data before payment.
 
 ## Workflow Seed JSON
 
@@ -60,14 +61,14 @@ The check-answers state uses a `summary-list` component to display collected dat
 
 **Definition key:** `payment-demo`  
 **Display name:** Payment Demo  
-**States:** `enter-details` → `confirm-payment` → `payment-complete`
+**States:** `enter-details` → `processing-payment` → `payment-complete`
 
 ## Key Takeaways
 
-✅ **Multi-step workflows** – State transitions with progressive disclosure  
+✅ **Waiting-state workflows** – Submit now, finish later  
 ✅ **Number inputs** – Precision control with `min`, `max`, `step`  
-✅ **Check-answers pattern** – Summary list before final submission  
-✅ **Payment integration** – Stripe component for card collection
+✅ **Deferred completion** – Reviewer/operator can complete the flow in the local harness  
+✅ **Return-safe UX** – Members can leave the processing page and revisit it later
 
 ---
 

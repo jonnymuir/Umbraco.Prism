@@ -12,6 +12,8 @@ const docsRoot = path.resolve(process.cwd(), '../../docs/images/walkthroughs');
 export const businessAppOrigin = 'https://localhost:7245';
 
 export const demoCredentials = { username: 'demo@prism.local', password: 'password' };
+const defaultScreenshotMaxHeight = 3_600;
+const defaultScreenshotPadding = 48;
 
 export interface PageHealthCheck {
   url: RegExp;
@@ -21,10 +23,14 @@ export interface PageHealthCheck {
   /** Skip the heading check (e.g. confirmation panels using govuk-panel--confirmation). */
   skipHeading?: boolean;
   /**
-   * Capture full-page screenshot (scroll height) instead of the default viewport crop.
-   * Use sparingly — viewport captures are preferred for documentation because they show
-   * what the user actually sees. Only set true for summary/check-answers pages where the
-   * entire list must be visible in the screenshot.
+   * Capture the entire scrollable page without any height constraints.
+   * The default capture strategy already expands beyond the viewport to show the
+   * useful content being demonstrated, while still capping unusually tall pages.
+   *
+   * Use fullPage: true when:
+   * - The step demonstrates content that still extends beyond the content-aware cap
+   * - You need to guarantee all relevant page content appears in one screenshot
+   * - The narrative requires the reader to see the full page context
    *
    * Hook contract for Isabelle (docs pipeline): when CAPTURE_SCREENSHOTS=1 a per-step
    * fullPage flag is the intended control point. If the docs workflow needs a different
@@ -32,6 +38,10 @@ export interface PageHealthCheck {
    * and read it here alongside the per-step override.
    */
   fullPage?: boolean;
+  /** Capture up to this selector's bottom edge from the current scroll position. */
+  screenshotSelector?: string;
+  /** Override the content-aware screenshot height cap for unusually tall steps. */
+  screenshotMaxHeight?: number;
 }
 
 /**
@@ -74,10 +84,12 @@ export async function step(
 ): Promise<void> {
   await assertHealthyPage(page, expected);
   if (process.env.CAPTURE_SCREENSHOTS === '1') {
+    await enterScreenshotMode(page);
+    await hideScreenshotOnlyUi(page);
     const dir = path.join(docsRoot, walkthroughKey);
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, filename);
-    await page.screenshot({ path: file, fullPage: expected.fullPage ?? false });
+    await captureScreenshot(page, file, expected);
     console.log(`Captured: ${file}`);
   }
 }
@@ -100,6 +112,14 @@ export async function signIn(page: Page): Promise<void> {
   ]);
   await page.goto('/');
   await page.getByRole('link', { name: 'Go to Dashboard' }).waitFor({ timeout: 30_000 });
+}
+
+export async function openDashboard(page: Page): Promise<void> {
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('link', { name: 'Go to Dashboard' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/?$/, { timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible({ timeout: 30_000 });
 }
 
 export async function resetWorkflows(request: APIRequestContext): Promise<void> {
@@ -130,4 +150,137 @@ export async function enterScreenshotMode(page: Page): Promise<void> {
       secure: false,
     },
   ]);
+}
+
+async function hideScreenshotOnlyUi(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `
+      .prism-mobile-ua-demo {
+        display: none !important;
+        visibility: hidden !important;
+      }
+    `
+  });
+}
+
+async function captureScreenshot(page: Page, file: string, expected: PageHealthCheck): Promise<void> {
+  const useFullPage = expected.fullPage ?? process.env.SCREENSHOT_FULL_PAGE === '1';
+  if (useFullPage) {
+    await page.screenshot({ path: file, fullPage: true });
+    return;
+  }
+
+  const originalViewport = page.viewportSize();
+  const targetHeight = await getContentAwareScreenshotHeight(page, expected);
+
+  if (!originalViewport || targetHeight <= originalViewport.height) {
+    await page.screenshot({ path: file });
+    return;
+  }
+
+  await page.setViewportSize({ width: originalViewport.width, height: targetHeight });
+  try {
+    await page.screenshot({ path: file });
+  } finally {
+    await page.setViewportSize(originalViewport);
+  }
+}
+
+async function getContentAwareScreenshotHeight(page: Page, expected: PageHealthCheck): Promise<number> {
+  const viewport = page.viewportSize();
+  if (!viewport) {
+    return defaultScreenshotMaxHeight;
+  }
+
+  const maxHeight = Math.max(viewport.height, expected.screenshotMaxHeight ?? defaultScreenshotMaxHeight);
+
+  const measuredHeight = await page.evaluate(
+    ({ selector, padding, maxHeight: captureMaxHeight, minHeight }) => {
+      const target =
+        (selector ? document.querySelector(selector) : null) ??
+        document.querySelector('main#main-content') ??
+        document.querySelector('main') ??
+        document.querySelector('[role="main"]') ??
+        document.body;
+
+      if (!(target instanceof HTMLElement)) {
+        return minHeight;
+      }
+
+      const targetBottom = target.getBoundingClientRect().bottom + window.scrollY;
+      const candidateHeight = Math.ceil(targetBottom + padding);
+      return Math.min(captureMaxHeight, Math.max(minHeight, candidateHeight));
+    },
+    {
+      selector: expected.screenshotSelector,
+      padding: defaultScreenshotPadding,
+      maxHeight,
+      minHeight: viewport.height
+    }
+  );
+
+  return Math.max(viewport.height, Math.ceil(measuredHeight));
+}
+
+/**
+ * The workflow admin page loads Ace and Mermaid from public CDNs. For tests and
+ * screenshot capture we do not need the full vendor bundles, only enough API
+ * surface for the page's inline scripts to settle deterministically without
+ * waiting on third-party network availability.
+ */
+export async function stubWorkflowAdminVendorAssets(page: Page): Promise<void> {
+  await page.context().route(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/ace\/.*\/ace\.min\.js/, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `
+        window.ace = {
+          edit() {
+            return {
+              setTheme() {},
+              setOptions() {},
+              setValue() {},
+              getValue() { return '{}'; },
+              session: { setMode() {} }
+            };
+          }
+        };
+      `
+    })
+  );
+
+  await page.context().route(/https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@.*\/dist\/mermaid\.esm\.min\.mjs/, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: 'const mermaid = { initialize() {}, run() {} }; export default mermaid;'
+    })
+  );
+}
+
+export async function waitForWorkflowAdmin(page: Page): Promise<void> {
+  await assertHealthyPage(page, {
+    url: /https:\/\/localhost:7245\/admin\/workflow\/?$/,
+    heading: /workflow admin/i
+  });
+  await expect(page.getByRole('heading', { name: 'Workflow Instances' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Workflow Definitions' })).toBeVisible({ timeout: 30_000 });
+}
+
+export async function openWorkflowAdminFromDashboard(page: Page): Promise<Page> {
+  await stubWorkflowAdminVendorAssets(page);
+
+  const adminLink = page.getByRole('link', { name: 'Open Admin' });
+  await expect(adminLink).toBeVisible({ timeout: 30_000 });
+  await expect(adminLink).toHaveAttribute('href', `${businessAppOrigin}/admin/workflow`);
+
+  const [adminPage] = await Promise.all([
+    page.context().waitForEvent('page'),
+    adminLink.click()
+  ]);
+
+  await adminPage.waitForLoadState('domcontentloaded');
+  await waitForWorkflowAdmin(adminPage);
+
+  return adminPage;
 }

@@ -72,6 +72,10 @@ A completed form shows the enquiry type selection, the free-text "Tell us more" 
 
 Successful submission transitions the instance to its terminal state and displays a confirmation panel. Subsequent visits to `/get-in-touch` show this same confirmation — the `single` instance policy means no new instance can be started until the current one is reset or resolved.
 
+### Workflow Admin handoff (development only)
+
+In the local demo, this is also the point where a tester or operator can pick up the story in the [Workflow Administration walkthrough](workflow-administration.md). The development-only admin panel exposes **Request Changes** and **Approve** actions for the `under-review` state, letting you exercise the "member submits → reviewer responds" handoff against the real UI without adding operator controls to the public form.
+
 ## Workflow Seed JSON
 
 **Location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`

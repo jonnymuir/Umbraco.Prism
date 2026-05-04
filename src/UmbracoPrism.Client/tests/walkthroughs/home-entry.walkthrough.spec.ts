@@ -22,7 +22,8 @@ test.describe('Home entry walkthrough', () => {
 
     await step(page, '01-signed-out-hero.png', {
       url: /localhost:44345\/?$/,
-      heading: /Your account, your way/i
+      heading: /Your account, your way/i,
+      screenshotSelector: '.hero'
     }, 'home-entry');
 
     await expect(page.getByRole('link', { name: 'Sign In' })).toBeVisible();
@@ -36,7 +37,8 @@ test.describe('Home entry walkthrough', () => {
     await step(page, '02-signed-in-hero.png', {
       url: /localhost:44345\/?$/,
       heading: /Your account, your way/i,
-      skipHeading: true // heading may vary; assert personalised content directly below
+      skipHeading: true, // heading may vary; assert personalised content directly below
+      screenshotSelector: '.hero'
     }, 'home-entry');
 
     await expect(page.getByText('Welcome back, Demo User')).toBeVisible();
@@ -64,19 +66,36 @@ test.describe('Home entry walkthrough', () => {
     await step(page, '03-dashboard.png', {
       url: /\/dashboard\/?$/,
       heading: /dashboard/i,
-      skipHeading: true // dashboard heading varies; assert affordances directly
+      skipHeading: true, // dashboard heading varies; assert affordances directly
+      screenshotSelector: '.dash-section'
     }, 'home-entry');
 
     await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Start Workflow' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible();
+    await expect(workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' })).toBeVisible();
 
-    // Navigate to workflow hub via View Workflows
+    // Navigate to the seeded workflow demo entry point first.
+    await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
+    await page.waitForURL(/\/get-in-touch\/?$/, { timeout: 30_000 });
+
+    await step(page, '04-start-workflow.png', {
+      url: /\/get-in-touch\/?$/,
+      heading: 'Tell us about your enquiry'
+    }, 'home-entry');
+
+    // Return to dashboard and navigate to workflow hub via View Workflows.
+    await page.goto('/dashboard');
+    await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
     await page.getByRole('link', { name: 'View Workflows' }).click();
     await page.waitForURL(/\/my-workflows\/?$/, { timeout: 30_000 });
 
-    await step(page, '04-workflow-hub.png', {
+    await step(page, '05-workflow-hub.png', {
       url: /\/my-workflows\/?$/,
       heading: 'My Workflows'
     }, 'home-entry');
   });
 });
+
+function workflowDemoCard(page: import('@playwright/test').Page, title: string) {
+  return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
+}

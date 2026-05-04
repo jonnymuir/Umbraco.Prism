@@ -1,7 +1,15 @@
 // Executable counterpart of docs/walkthroughs/workflow-administration.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { assertHealthyPage, step, signIn, resetWorkflows } from './support/walkthrough';
+import {
+  assertHealthyPage,
+  businessAppOrigin,
+  openDashboard,
+  openWorkflowAdminFromDashboard,
+  resetWorkflows,
+  signIn,
+  step
+} from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -21,119 +29,123 @@ test.describe('Workflow administration walkthrough', () => {
     await resetWorkflows(request);
   });
 
-  test('authenticated user sees workflow admin link on dashboard', async ({ page }) => {
+  test('authenticated member sees the workflow admin entry point beside core dashboard actions', async ({ page }) => {
     await signIn(page);
-    await page.goto('/dashboard');
+    await openDashboard(page);
 
     await step(page, '01-dashboard-admin-link.png', {
       url: /\/dashboard\/?$/,
       heading: /dashboard/i,
-      skipHeading: true
+      skipHeading: true,
+      screenshotSelector: '.dash-section:has(a[href*="/admin/workflow"])'
     }, 'workflow-administration');
 
-    // Verify the admin link is present
-    await expect(page.getByRole('link', { name: /open admin|workflow admin/i })).toBeVisible();
-  });
+    await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible();
+    await expect(workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' })).toBeVisible();
 
-  test('navigates to admin panel and sees workflow instance list', async ({ page }) => {
-    await signIn(page);
-    
-    // Start a workflow to have an instance in the admin panel
-    await page.goto('/get-in-touch');
-    await page.getByLabel(/name/i).fill('Test User');
-    await page.getByLabel(/email/i).fill('test@example.com');
-    await page.getByLabel(/organisation/i).fill('Test Org');
-    await page.getByLabel(/enquiry/).fill('Test enquiry');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForTimeout(2000);
-
-    // Navigate to dashboard and then to admin panel
-    await page.goto('/dashboard');
-    
-    const adminLink = page.getByRole('link', { name: /open admin|workflow admin/i });
+    const adminLink = page.getByRole('link', { name: 'Open Admin' });
     await expect(adminLink).toBeVisible();
-    
-    // Get the href and navigate directly (can't follow target="_blank")
-    const adminUrl = await adminLink.getAttribute('href');
-    if (adminUrl) {
-      await page.goto(adminUrl);
-    } else {
-      throw new Error('Admin URL not found');
-    }
-
-    await step(page, '02-admin-instance-list.png', {
-      url: /\/admin\/workflow\/?$/,
-      heading: /workflow/i,
-      skipHeading: true
-    }, 'workflow-administration');
-
-    // Verify workflow instances are visible
-    await expect(page.locator('body')).toContainText('community-enquiry', { timeout: 10_000 });
+    await expect(adminLink).toHaveAttribute('href', `${businessAppOrigin}/admin/workflow`);
   });
 
-  test('admin panel displays workflow definition editor', async ({ page }) => {
+  test('workflow admin shows under-review instances and reviewer actions', async ({ page }) => {
     await signIn(page);
-    
-    // Navigate to admin panel
-    await page.goto('/dashboard');
-    const adminLink = page.getByRole('link', { name: /open admin|workflow admin/i });
-    const adminUrl = await adminLink.getAttribute('href');
-    if (adminUrl) {
-      await page.goto(adminUrl);
-    } else {
-      throw new Error('Admin URL not found');
-    }
+    await submitCommunityEnquiry(page, 'Operator-adjacent workflow coverage for the walkthrough suite.');
+    await openDashboard(page);
+    const adminPage = await openWorkflowAdminFromDashboard(page);
 
-    // Wait for admin panel to load
-    await page.waitForTimeout(2000);
+    const row = workflowInstanceRow(adminPage, 'community-enquiry');
+    await expect(row).toContainText('Your enquiry is with us');
+    await expect(row.getByRole('button', { name: 'Approve' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Request Changes' })).toBeVisible();
 
-    await step(page, '03-admin-definition-editor.png', {
-      url: /\/admin\/workflow\/?$/,
-      heading: /workflow/i,
-      skipHeading: true
+    await step(adminPage, '02-admin-instance-list.png', {
+      url: /https:\/\/localhost:7245\/admin\/workflow\/?$/,
+      heading: /workflow admin/i,
+      screenshotSelector: 'tbody tr[data-workflow-key="community-enquiry"]'
     }, 'workflow-administration');
-
-    // Verify workflow definitions are visible (look for workflow keys)
-    const definitionsPresent = await Promise.any([
-      page.locator('body').getByText(/payment-demo|community-enquiry|planning-notification/i).isVisible(),
-      page.locator('body').getByText(/workflow/i).isVisible()
-    ]).catch(() => false);
-    
-    expect(definitionsPresent).toBeTruthy();
   });
 
-  test('admin can view and potentially manage workflow instances', async ({ page }) => {
+  test('workflow admin definitions can be expanded and edited in-place', async ({ page }) => {
     await signIn(page);
-    
-    // Start a workflow
+    await openDashboard(page);
+    const adminPage = await openWorkflowAdminFromDashboard(page);
+
+    const definitionCard = adminPage.locator('.def-card').filter({ hasText: 'Get in Touch' }).first();
+    await expect(definitionCard).toBeVisible();
+
+    const header = definitionCard.locator('.def-header');
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+    await header.click();
+    await expect(header).toHaveAttribute('aria-expanded', 'true');
+    await expect(definitionCard.getByText('States (')).toBeVisible();
+    await expect(definitionCard.getByText('Transitions (')).toBeVisible();
+
+    await step(adminPage, '03-admin-definition-editor.png', {
+      url: /https:\/\/localhost:7245\/admin\/workflow\/?$/,
+      heading: /workflow admin/i,
+      screenshotSelector: '.def-card.open'
+    }, 'workflow-administration');
+
+    await definitionCard.locator('button.btn-edit').click();
+    await expect(adminPage.locator('#json-modal')).toBeVisible();
+    await expect(adminPage.getByRole('button', { name: 'Apply Changes' })).toBeVisible();
+    await adminPage.getByRole('button', { name: 'Cancel' }).click();
+    await expect(adminPage.locator('#json-modal')).toBeHidden();
+  });
+
+  test('reviewer actions can request changes and then approve a resubmitted enquiry', async ({ page }) => {
+    const originalMessage = 'Please review this submission, then send it back for changes.';
+    const updatedMessage = 'This enquiry has now been updated after reviewer feedback.';
+
+    await signIn(page);
+    await submitCommunityEnquiry(page, originalMessage);
+    await openDashboard(page);
+    const adminPage = await openWorkflowAdminFromDashboard(page);
+
+    await workflowInstanceRow(adminPage, 'community-enquiry').getByRole('button', { name: 'Request Changes' }).click();
+    await adminPage.waitForURL(/https:\/\/localhost:7245\/admin\/workflow\/?$/, { timeout: 30_000 });
+    await expect(workflowInstanceRow(adminPage, 'community-enquiry')).toContainText('Tell us about your enquiry');
+
     await page.goto('/get-in-touch');
-    await page.getByLabel(/name/i).fill('Admin Test');
-    await page.getByLabel(/email/i).fill('admin@test.com');
-    await page.getByLabel(/organisation/i).fill('Admin Test Org');
-    await page.getByLabel(/enquiry/).fill('Testing admin panel');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForTimeout(2000);
+    await assertHealthyPage(page, { url: /\/get-in-touch/, heading: 'Tell us about your enquiry' });
+    await expect(page.getByLabel('Tell us more')).toHaveValue(originalMessage);
+    await page.getByLabel('Tell us more').fill(updatedMessage);
+    await page.getByRole('button', { name: 'Submit' }).click();
+    await expect(page.getByRole('heading', { name: 'Your enquiry is with us' })).toBeVisible();
 
-    // Navigate to admin panel
-    await page.goto('/dashboard');
-    const adminLink = page.getByRole('link', { name: /open admin|workflow admin/i });
-    const adminUrl = await adminLink.getAttribute('href');
-    if (adminUrl) {
-      await page.goto(adminUrl);
-    } else {
-      throw new Error('Admin URL not found');
-    }
+    await openDashboard(page);
+    const approvalAdminPage = await openWorkflowAdminFromDashboard(page);
+    await workflowInstanceRow(approvalAdminPage, 'community-enquiry').getByRole('button', { name: 'Approve' }).click();
+    await approvalAdminPage.waitForURL(/https:\/\/localhost:7245\/admin\/workflow\/?$/, { timeout: 30_000 });
+    await expect(workflowInstanceRow(approvalAdminPage, 'community-enquiry')).toContainText("We're in touch!");
 
-    await page.waitForTimeout(2000);
-
-    // Verify admin interface loads without errors
-    await assertHealthyPage(page, {
-      url: /\/admin\/workflow\/?$/,
-      heading: /workflow/i,
-      skipHeading: true
-    });
-
-    // Admin panel should be present and functional
-    await expect(page.locator('body')).toBeTruthy();
+    await page.goto('/get-in-touch');
+    await expect(page.getByText('Enquiry received')).toBeVisible();
+    await expect(page.getByText("We've sent you a confirmation email.")).toBeVisible();
   });
 });
+
+async function submitCommunityEnquiry(page: Page, message: string): Promise<void> {
+  await page.goto('/get-in-touch');
+  await assertHealthyPage(page, { url: /\/get-in-touch/, heading: 'Tell us about your enquiry' });
+
+  await expect(page.getByLabel('Full name')).toHaveValue('Demo User');
+  await expect(page.getByLabel('Email address')).toHaveValue('demo@prism.local');
+
+  await page.locator('select#your-role').selectOption('Developer');
+  await page.getByRole('radio', { name: 'General enquiry' }).check();
+  await page.getByLabel('Tell us more').fill(message);
+  await page.getByRole('button', { name: 'Submit' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Your enquiry is with us' })).toBeVisible({ timeout: 30_000 });
+}
+
+function workflowInstanceRow(page: Page, workflowKey: string) {
+  return page.locator(`tbody tr[data-workflow-key="${workflowKey}"]`).first();
+}
+
+function workflowDemoCard(page: Page, title: string) {
+  return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
+}

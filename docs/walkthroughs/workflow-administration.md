@@ -2,7 +2,9 @@
 
 A guide to using the MockBusinessApp workflow administration panel — a development-only tool for inspecting, editing, and managing workflow instances and definitions during testing and debugging.
 
-> **Important:** This walkthrough describes features of the **MockBusinessApp**, a development-only component. The workflow admin panel is **not available in production** and should never be deployed. See [Deployment Security Guide](../DEPLOYMENT_SECURITY.md) for details.
+> **Important:** This walkthrough describes features of the **development harness**. The workflow admin panel is your tool for **playing the "reviewer" role** during local testing and is **not available in production**. See [Deployment Security Guide](../DEPLOYMENT_SECURITY.md) for details.
+> 
+> **For complete workflows:** See [Payment Demo](payment-demo.md), [Community Enquiry](community-enquiry.md), and [Information Request](information-request.md) for full end-to-end stories showing user submission + reviewer approval cycles. This admin panel is how you complete those cycles in the local demo.
 
 > **Prerequisites:** Spin up the stack via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Start at least one workflow instance (e.g., via the [Payment Demo](payment-demo.md) or [Community Enquiry](community-enquiry.md) walkthrough) so you have instances to inspect.
 
@@ -41,7 +43,9 @@ On the member dashboard, scroll to the **Admin** section at the bottom. You see 
 
 > "Administrative views for inspecting workflow state during development."
 
-![Member dashboard with Workflow Admin card visible](../images/walkthroughs/workflow-administration/01-dashboard-admin-link.png)
+![Member dashboard — the Workflow Admin card in the Admin section](../images/walkthroughs/workflow-administration/01-dashboard-admin-link.png)
+
+<!-- The screenshot shows the full dashboard with the Admin section visible. -->
 
 💡 **What's happening:** The admin link is only shown when:
 - The Umbraco backoffice has configured `PrismBusinessApp:WorkflowApiBaseUrl` in the TestSite's `Program.cs`.
@@ -72,6 +76,7 @@ Each instance entry shows:
 - **Tenant ID** — which tenant the instance belongs to
 - **Current state** — the workflow step the user is on (e.g., `initial`, `under-review`, `confirmation`)
 - **Created at** — when the instance was started
+- **Reviewer actions** — development-only **Approve** / **Request Changes** buttons for transitions that require the mock reviewer role
 
 ### Step 2: Understand the Instance State
 
@@ -163,6 +168,32 @@ Clicking an instance in the list shows its details and management options. You c
 
 This allows you to test state transitions and UI rendering for edge cases without writing special test code.
 
+### Step 2b: Complete Approval Workflows
+
+For walkthroughs such as **Community Enquiry**, **Information Request**, and **Payment Demo**, the admin panel is the easiest way to keep the story going after the user reaches a waiting or under-review state:
+
+#### Walking Through the Full Handoff
+
+1. **In TestSite:** Submit the workflow as the demo member (e.g., `demo@prism.local`)
+2. **In TestSite:** See the confirmation message showing the workflow is waiting for review
+3. **Open Workflow Admin** from the dashboard (visible in the **Admin** section)
+4. **Find your instance:** Locate the matching workflow instance in the list (search by workflow key or user)
+5. **Review the state:** Confirm the instance is in `under-review` or similar waiting state
+6. **View the workflow definition:** Click on the workflow name to see which transitions are available
+7. **Choose your action:**
+   - **Approve** – advances the instance to its terminal completion state; user sees confirmation
+   - **Request Changes** – sends the instance back to `collecting-details` or similar; user can revise and resubmit
+8. **Return to TestSite:** Refresh or navigate back to see the outcome from the user's perspective
+
+This demonstrates the complete "operator-adjacent review flow" — a realistic handoff where the public user interface shows clear waiting states, and the review/approval happens in a separate admin interface (not exposed to users).
+
+#### Key Points
+
+- The workflow definition shows which transitions require `requiresRole: "reviewer"`, enforcing authorization
+- The admin panel is the "reviewer" role in this demo — in production, a real operator portal would replace it
+- Instance data (form answers, urgency flags, uploaded files) is visible to the reviewer, enabling informed decisions
+- After approval/changes, users see their outcome on next page load or poll
+
 ### Step 3: Reset All Instances
 
 At the bottom of the admin panel, you find a **Reset All** button. Click it to delete all workflow instances in memory, returning the system to a clean state.
@@ -221,7 +252,7 @@ The admin panel shows both:
 
 ### Editing Limitations
 
-Currently, the admin panel JSON editor is **read-only for display**, with **optional editing** (depending on the implementation). If editing is enabled:
+The admin panel definition cards expand in-place, and the **Edit JSON** action opens a modal editor for the live in-memory definition. If editing is enabled:
 
 - Changes apply immediately in memory
 - No validation is performed (you can break the JSON)
