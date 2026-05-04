@@ -2339,3 +2339,26 @@ Applied in commit `1601415` to four `PrismContextTests` methods.
 
 The fix is entirely in test harness code. `PrismContext.cs` and `IPrismTokenRefreshService` are correct and do not require changes. Blathers does not need to act on this. The CI should pass once this commit is pushed.
 
+# Decision: Approved CI Fix — CancellationToken Moq Matcher Pattern
+
+**Author:** Tangy  
+**Date:** 2026-05-04T09:22:01.025+01:00  
+**Status:** DECIDED  
+
+## Decision
+
+When a Moq mock setup or verify involves a `CancellationToken` sourced from `HttpContext.RequestAborted` (or `DefaultHttpContext.RequestAborted`), always use `It.IsAny<CancellationToken>()` as the matcher — never the concrete token value.
+
+## Rationale
+
+On Linux (CI/Ubuntu), `DefaultHttpContext.RequestAborted` lazy-initialises its `CancellationTokenSource` via `IHttpRequestLifetimeFeature`. If the ASP.NET Core authentication stack activates the feature between setup-time and call-time, the captured token at setup no longer equals the token passed in the real call. Moq's loose behaviour returns `default` for the unmatched setup, causing a `NullReferenceException` on the next line. On macOS arm64 the lazy path is stable, masking the fragility entirely.
+
+## Consequence
+
+- Commit `1601415` applies this fix to 4 `PrismContextTests` methods and is now on `main` as of `d9fb7f7`.
+- The tests verify endpoint routing, secret resolution, and returned bearer token — not the CancellationToken passthrough — so `It.IsAny<CancellationToken>()` is semantically correct.
+- Blathers' superseded workaround (`860c5d3`, `EnvVarSensitiveTestCollection`) remains in history but is not the authoritative fix for this fragility.
+
+## Scope
+
+Applies to all tests in this project that mock `async` methods accepting `CancellationToken` where the token is obtained from an ASP.NET Core `HttpContext`.

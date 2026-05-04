@@ -239,3 +239,25 @@ Orchestration log written to 2026-05-02T13:14:45Z-tom-nook.md.
 - `2078604` docs: add aspire-dynamic-endpoint-backchannels skill
 
 **Key Finding:** Skill extraction as part of PR closure is a discipline pattern. The skill emerged from real work diagnosing Codespaces backchannel timeouts and is reusable for future infrastructure issues.
+
+---
+
+## Learnings
+
+### 2026-05-04 — Local Worktree Cleanup Classification
+
+**Session artifact pattern:** `.playwright-cli/` directories containing timestamped `console-*.log` and `page-*.yml` files are generated session residue from the playwright-cli skill — safe to delete without review.
+
+**Skill files in untracked directories** (e.g. `.squad/skills/browser-devtools-api-diagnosis/SKILL.md`) are earned team knowledge, not session residue. Owner, date, and cross-references to real work make these unambiguously worth keeping even if not yet committed.
+
+**Agent personal files** (e.g. `.squad/agents/blathers/QUICK_DIAGNOSIS_REFERENCE.txt`) in `.txt` format are ambiguous — they look generated but may be hand-curated. Apply charter rule: if in doubt, leave it in place and report it as remaining.
+
+---
+
+### 2026-05-04 09:35:24 — Scribe Cleanup Task Spawned
+
+**Event:** Background agent spawn for local file cleanup.
+
+**Scope:** Audit and clean safe local leftover files while preserving user edits.
+
+**Status:** Initiated by Coordinator via Scribe orchestration.
