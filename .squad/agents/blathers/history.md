@@ -175,3 +175,21 @@ Full history archived to `history-archive.md` (prior to 2026-05-03 learnings sec
 5. Push to main if all tests pass
 
 **Expected Outcome:** Workflow auth fixes complete with full coverage and diagnostics logging.
+
+---
+
+## 2026-05-04: PrismContextTests CI Flake — Race Condition Fix
+
+**Status:** ✅ Fixed (commit 860c5d3)
+
+**Problem:**
+4 `PrismContextTests` intermittently failed in CI with `NullReferenceException` at `PrismContext.cs:212` (`result.Success` on a null `TokenRefreshResult`). Tests passed 100% of the time locally. The failure was introduced by commit beef21c which added `BusinessAppWorkflowClientTests` to `EnvVarSensitiveTestCollection`, widening the execution window of that collection.
+
+**Root Cause:**
+`BackchannelRewriteTests` (in `EnvVarSensitiveTestCollection`) sets `ASPNETCORE_ENVIRONMENT=Development` and `KEYCLOAK_BACKCHANNEL_URL`. `PrismContextTests` was NOT in the collection, so it ran in parallel. When `PrismContext.RefreshTokenAsync` read those env vars mid-test, it rewrote the token endpoint to an `http://localhost` URL. The Moq mock was set up for the `https://localhost:8443` URL — mismatch caused Moq to return `Task.FromResult(null)` and null dereference.
+
+**Fix:**
+Added `[Collection(EnvVarSensitiveTestCollection.Name)]` to `PrismContextTests` and implemented `IDisposable` with save/restore of `KEYCLOAK_BACKCHANNEL_URL` and `ASPNETCORE_ENVIRONMENT`, matching the `LocalhostGenericOidcRegressionTests` pattern.
+
+**Learning:**
+Any test class that exercises code paths which read `KEYCLOAK_BACKCHANNEL_URL` or `ASPNETCORE_ENVIRONMENT` must be in `EnvVarSensitiveTestCollection` — even if it does not mutate those variables itself. Parallelism is the hazard.
