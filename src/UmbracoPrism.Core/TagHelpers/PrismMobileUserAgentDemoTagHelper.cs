@@ -1,11 +1,31 @@
 using System.Text;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace UmbracoPrism.Core.TagHelpers;
 
+/// <summary>
+/// Cookie name that Playwright (or any automation tool) can set to suppress the
+/// mobile helper toggle widget for a whole session.  The UA bootstrap script is
+/// still emitted so mobile-UA behaviour continues to work in tests that need it.
+/// Set the cookie value to "1" to enter screenshot mode; omit or set to "0" to
+/// leave it unset (manual usage is unaffected).
+/// </summary>
+public static class PrismScreenshotMode
+{
+    public const string CookieName = "prism-screenshot-mode";
+}
+
 [HtmlTargetElement("prism-mobile-user-agent-demo")]
 public class PrismMobileUserAgentDemoTagHelper : TagHelper
 {
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public PrismMobileUserAgentDemoTagHelper(IHttpContextAccessor httpContextAccessor)
+    {
+        _httpContextAccessor = httpContextAccessor;
+    }
+
     public string Marker { get; set; } = "PrismMobile";
 
     public string StorageKey { get; set; } = "prism.demo.mobileUa";
@@ -20,9 +40,16 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
 
     public bool Compact { get; set; }
 
+    private bool IsScreenshotMode =>
+        _httpContextAccessor.HttpContext?.Request.Cookies[PrismScreenshotMode.CookieName] == "1";
+
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = null;
+
+        // Screenshot mode overrides ShowToggle so automation gets clean images
+        // while the UA bootstrap (below) continues to run for any test that needs it.
+        var effectiveShowToggle = ShowToggle && !IsScreenshotMode;
 
         var markerJs = EscapeJsString(Marker);
         var storageKeyJs = EscapeJsString(StorageKey);
@@ -39,7 +66,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
         var sb = new StringBuilder();
         sb.Append(bootstrapHtml);
 
-        if (ShowToggle)
+        if (effectiveShowToggle)
         {
             var classes = "prism-mobile-ua-demo";
             if (Inline)

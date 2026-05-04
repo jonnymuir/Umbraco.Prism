@@ -356,10 +356,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                       <button class="btn {ActionBtnClass(t.Action)}">{ActionDisplay(t.Action)}</button>
                     </form>
                     """));
+            var shortId = inst.InstanceId.Length > 12 ? inst.InstanceId[..8] + "…" : inst.InstanceId;
             return $"""
             <tr>
               <td>{n + 1}</td>
-              <td style="font-family:monospace;font-size:.8em">{Esc(inst.InstanceId)}</td>
+              <td style="font-family:monospace;font-size:.8em"><span title="{Esc(inst.InstanceId)}">{Esc(shortId)}</span></td>
               <td>{Esc(inst.WorkflowKey)}</td>
               <td>
                 <span class="badge">{Esc(stateDisplay)}</span>
@@ -434,10 +435,13 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
 
             return $"""
             <div class="def-card">
-              <div class="def-header">
-                <div>
-                  <strong>{Esc(def.DisplayName)}</strong>
-                  <span style="color:#888;font-size:.82rem;margin-left:.5rem">({Esc(def.DefinitionKey)} v{def.Version})</span>
+              <div class="def-header" onclick="toggleCard(this)">
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <span class="def-toggle">▶</span>
+                  <div>
+                    <strong>{Esc(def.DisplayName)}</strong>
+                    <span style="color:#888;font-size:.82rem;margin-left:.5rem">({Esc(def.DefinitionKey)} v{def.Version})</span>
+                  </div>
                 </div>
                 <div style="display:flex;gap:.5rem;align-items:center">
                   {policyBadge}
@@ -481,7 +485,8 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"></script>
           <script type="module">
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-            mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+            mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+            window._mermaid = mermaid;
           </script>
           <style>
             *, *::before, *::after { box-sizing: border-box; }
@@ -577,6 +582,32 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           </div>
           
           <script>
+            function toggleCard(hdr) {
+              // Clicks on child buttons are handled by those buttons — don't also toggle the card.
+              if (event.target.closest('button')) return;
+              hdr.closest('.def-card').classList.toggle('open');
+              renderCardDiagram(hdr.closest('.def-card'));
+            }
+
+            function renderCardDiagram(card) {
+              if (!window._mermaid) return;
+              const nodes = Array.from(card.querySelectorAll('.mermaid:not([data-processed])'));
+              if (nodes.length) window._mermaid.run({ nodes });
+            }
+
+            function expandAllDefs() {
+              document.querySelectorAll('.def-card').forEach(c => {
+                if (!c.classList.contains('open')) {
+                  c.classList.add('open');
+                  renderCardDiagram(c);
+                }
+              });
+            }
+
+            function collapseAllDefs() {
+              document.querySelectorAll('.def-card').forEach(c => c.classList.remove('open'));
+            }
+
             let aceEditor = null;
             let currentEditorKey = null;
             let currentEditorType = null;

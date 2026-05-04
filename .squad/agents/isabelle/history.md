@@ -141,13 +141,50 @@ Previous history (pre-2026-04-22) archived to `.squad/agents/isabelle/archive/hi
 
 ---
 
-**2026-05-01 — Prism Reflection Review (Rams 10 Principles)**
+**2026-05-04 — Screenshot-Mode Control**
 
-Delivered design system token architecture review applying Rams principles. Five design system findings recorded:
-1. --prism-button-hover must be derived from --prism-primary (not hardcoded)
-2. CSS cascade layers should be declared at HTML head entry point
-3. All branding tokens must carry --prism- prefix
-4. --prism-focus is accessibility token, not brand token
-5. Storybook must cover GDS components and PrismField partials
+**Role:** Frontend lead; add session-safe mechanism to suppress mobile helper widget during walkthrough screenshot capture.
 
-No code changes — review-only. Decisions merged to decisions.md by Scribe. Orchestration log written to 2026-05-01T07:57:29Z-isabelle.md.
+**Scope:** `PrismMobileUserAgentDemoTagHelper.cs`, `walkthrough.ts`
+
+**Deliverables:**
+- `PrismMobileUserAgentDemoTagHelper`: injected `IHttpContextAccessor`; reads `prism-screenshot-mode=1` cookie → forces `ShowToggle = false` (UA bootstrap script still emitted)
+- Added `PrismScreenshotMode.CookieName` constant as the authoritative cookie name for cross-team reference
+- `walkthrough.ts`: exported `enterScreenshotMode(page)` helper; `signIn()` calls it automatically when `CAPTURE_SCREENSHOTS=1`
+- Decision: `.squad/decisions/inbox/isabelle-screenshot-mode.md`
+
+**Status:** ✅ Complete; build green, pre-existing test failures confirmed unrelated.
+
+---
+
+**2026-05-04 — Walkthrough UI Navigation Audit**
+
+**Role:** Frontend lead; audit of demo/walkthrough discoverability and screenshot-friendliness.
+
+**Scope:** Navigation surfaces, workflow routes, mobile helper widget, homepage role.
+
+**Key Findings:**
+- **3 workflows are URL-only:** Planning Notification, Information Request (not linked from anywhere); Payment Demo (dashboard-only)
+- **Workflow admin not discoverable:** Referenced in AppHost but no UI link
+- **Mobile helper:** `prism-mobile-user-agent-demo` renders on every page (bottom-right widget); blocks screenshots
+- **Homepage role:** Design system token showcase (580 lines); not a demo launcher; dashboard is better positioned
+- **Header nav:** 3 items (Home, Get in Touch, My Workflows) is clean; demos belong on targeted pages
+- **Current dashboard:** Shows 3 workflow cards + downstream API demo + profile
+
+**Recommendations (Minimal, Coherent):**
+1. Add "Demo Workflows" section to home page (4 cards below features, before design tokens) — no removal
+2. Add "Workflow Admin" card to dashboard (admin-only, role-based) — makes `/admin/workflow` discoverable
+3. Add `show-toggle=false` attribute to tag helper (hides mobile widget UI; keeps UA bootstrap) — fixes all screenshots
+4. Dashboard/homepage height: No change needed; scrolling is natural
+
+**What to Keep:**
+- Design system tokens section (useful for operators)
+- Mobile nav configuration
+- Header nav at 3 items
+- Workflow form rendering
+
+**No UI implementation yet.** Decision doc created at `.squad/decisions/inbox/isabelle-walkthrough-ui-audit.md`.
+
+**Status:** ✅ Audit complete; ready for decision review.
+
+---

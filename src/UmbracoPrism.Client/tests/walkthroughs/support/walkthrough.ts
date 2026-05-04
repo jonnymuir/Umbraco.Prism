@@ -71,6 +71,9 @@ export async function step(
 }
 
 export async function signIn(page: Page): Promise<void> {
+  if (process.env.CAPTURE_SCREENSHOTS === '1') {
+    await enterScreenshotMode(page);
+  }
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign In' }).click();
   await page.locator('#username').waitFor({ timeout: 120_000 });
@@ -89,4 +92,30 @@ export async function signIn(page: Page): Promise<void> {
 
 export async function resetWorkflows(request: APIRequestContext): Promise<void> {
   await request.delete(`${businessAppOrigin}/api/test/reset`, { ignoreHTTPSErrors: true });
+}
+
+/**
+ * Set the `prism-screenshot-mode` cookie so the server suppresses the mobile
+ * helper toggle widget for every subsequent page load in this browser context.
+ * The UA bootstrap script is still emitted — mobile-UA behaviour in tests that
+ * need it is unaffected.
+ *
+ * Call once per browser context before any navigation.  `signIn()` calls this
+ * automatically when `CAPTURE_SCREENSHOTS=1`; call it directly in any spec that
+ * needs screenshot-clean pages outside of the signIn flow.
+ *
+ * Contract: the server reads cookie `prism-screenshot-mode=1` (see
+ * `PrismScreenshotMode.CookieName` in UmbracoPrism.Core).
+ */
+export async function enterScreenshotMode(page: Page): Promise<void> {
+  await page.context().addCookies([
+    {
+      name: 'prism-screenshot-mode',
+      value: '1',
+      domain: 'localhost',
+      path: '/',
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
 }
