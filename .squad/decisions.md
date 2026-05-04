@@ -2362,3 +2362,35 @@ On Linux (CI/Ubuntu), `DefaultHttpContext.RequestAborted` lazy-initialises its `
 ## Scope
 
 Applies to all tests in this project that mock `async` methods accepting `CancellationToken` where the token is obtained from an ASP.NET Core `HttpContext`.
+# Decision: Local Worktree Cleanup Classification Rules
+
+**Date:** 2026-05-04T10:35:24.394+01:00  
+**Author:** Tom Nook  
+**Trigger:** Local cleanup pass requested by Jonny Muir
+
+---
+
+## What Was Cleaned
+
+| Item | Action | Reason |
+|------|--------|--------|
+| `.playwright-cli/` | **Deleted** | Generated session residue — timestamped console logs and page YAML snapshots from the playwright-cli skill. No user-authored content. |
+
+## What Was Left In Place
+
+| Item | Status | Reason |
+|------|--------|--------|
+| `.squad/skills/backchannel-rewrite-testing/SKILL.md` | Modified tracked file | Real skill, user work |
+| `.squad/skills/inline-api-failure-states/SKILL.md` | Modified tracked file | Real skill, user work |
+| `src/UmbracoPrism.TestSite/Views/memberDashboard.cshtml` | Modified tracked file | Source code, user work |
+| `.squad/agents/blathers/QUICK_DIAGNOSIS_REFERENCE.txt` | Untracked, ambiguous | Looks hand-curated; .txt format in agent dir is unusual but content is meaningful — left in place per charter |
+| `.squad/skills/browser-devtools-api-diagnosis/` | Untracked skill dir | Earned team knowledge with named owner (Tangy), date, and cross-references. Keep and commit. |
+
+---
+
+## Classification Rules (for future reference)
+
+1. **Timestamped log/snapshot files** in `.playwright-cli/` or similar tool-output directories → **delete without review**.
+2. **Untracked SKILL.md files** with named author, date, and cross-references to real work → **keep; commit as earned knowledge**.
+3. **Agent personal `.txt` files** with no commit history → **ambiguous; leave in place and report**.
+4. **Modified tracked source/squad files** → **never touch**; these are always user work.

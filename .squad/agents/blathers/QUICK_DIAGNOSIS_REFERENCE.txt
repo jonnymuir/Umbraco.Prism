@@ -1,0 +1,70 @@
+QUICK DIAGNOSIS REFERENCE — MockBusinessApp Timeout
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SYMPTOMS
+├─ UI times out after 10 seconds clicking "API Demo" button
+├─ Endpoint: https://{codespace}-7245.app.github.dev/api/backoffice/me
+├─ MockBusinessApp admin page (http://localhost:5163/admin) loads fine
+└─ Problem: Server-side call from TestSite to BusinessApp is timing out
+
+TEST ORDER (fastest to most thorough):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. INTERNAL BACKCHANNEL (30 seconds) — No auth
+   curl -v http://localhost:5163/api/backoffice/me
+   ✓ 401 = API reachable
+   ✗ Connection refused = Port wrong (find actual port)
+   ✗ Timeout = Port correct but service hung
+
+2. PUBLIC ENDPOINT (30 seconds) — No auth
+   curl -v https://{codespace}-7245.app.github.dev/api/backoffice/me
+   ✓ 401 or HTML = API responding
+   ✗ Timeout = Port forwarding issue
+   ✗ Connection refused = Not forwarded
+
+3. GET BEARER TOKEN (1 minute) — Browser only
+   - Sign in to TestSite
+   - Open browser console (F12)
+   - Paste:
+     (async () => {
+       const r = await fetch('/api/prism/downstream-demo/session-contract');
+       const d = await r.json();
+       console.log('Token ready:', d.cookie.hasAccessToken, 'Expires:', d.cookie.expiresAt);
+     })()
+   ✓ hasAccessToken: true = Session valid
+   ✗ hasAccessToken: false = Re-sign-in
+
+4. TEST WITH BEARER TOKEN (1 minute)
+   curl -H "Authorization: Bearer {TOKEN}" http://localhost:5163/api/backoffice/me
+   ✓ 200 OK = Full stack works; check TestSite logs
+   ✓ 401 Unauthorized = Token/Keycloak issue
+   ✗ Connection refused = Port reassigned
+   ✗ Timeout = Still hung
+
+5. KEYCLOAK BACKCHANNEL (30 seconds) — If 401 above
+   curl -v http://localhost:8080/realms/prism-dev/.well-known/openid-configuration
+   ✓ 200 OK + JSON = Keycloak reachable
+   ✗ Connection refused = Container not running or port wrong
+   ✗ Timeout = Firewall/network issue
+
+DECISION TREE — WHERE IS THE FAILURE?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+UI timeout (10 seconds)
+ ├─ Test 1: Connection refused?
+ │  └─ Aspire port reassignment → gh codespace ports
+ │
+ ├─ Test 1: Timeout?
+ │  └─ Service hung → Check AppHost logs
+ │
+ ├─ Test 1: 401 Unauthorized + Test 2: HTML?
+ │  └─ GitHub tunnel (normal) → Use Bearer token
+ │
+ ├─ Test 3+4: 401 Unauthorized?
+ │  └─ Token/Keycloak issue → Test Keycloak backchannel
+ │
+ ├─ Test 4: 200 OK?
+ │  └─ Code working → Check TestSite logs
+ │
+ └─ Test 4: Timeout?
+    └─ Port/network issue → Verify with correct port
