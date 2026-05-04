@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
@@ -20,7 +21,8 @@ public class MemberDashboardController(
     ILogger<MemberDashboardController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    IPrismContext prismContext)
+    IPrismContext prismContext,
+    IConfiguration configuration)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     /// <summary>
@@ -51,6 +53,13 @@ public class MemberDashboardController(
                           ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
                           ?? "";
         ViewBag.Tenant = prismContext.CurrentTenant;
+
+        // Derive the MockBusinessApp workflow admin URL from the configured public base URL.
+        // In Codespaces this resolves to the forwarded port URL; locally it is https://localhost:7245.
+        var workflowApiBase = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        ViewBag.WorkflowAdminUrl = string.IsNullOrWhiteSpace(workflowApiBase)
+            ? null
+            : $"{workflowApiBase}/admin/workflow";
 
         // Render the authored dashboard view directly. On the first authenticated
         // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle

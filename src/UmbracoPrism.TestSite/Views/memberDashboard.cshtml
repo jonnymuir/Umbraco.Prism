@@ -6,6 +6,7 @@
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
+    var workflowAdminUrl = ViewBag.WorkflowAdminUrl as string;
     var rootContent = Umbraco.ContentAtRoot().ToList();
     var workflowHubUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.WorkflowHubAlias),
@@ -16,6 +17,12 @@
     var paymentDemoUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.PaymentDemoWorkflowKey),
         TestSiteSeedContract.PaymentDemoPageUrl);
+    var planningUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.PlanningWorkflowKey),
+        TestSiteSeedContract.PlanningWorkflowPageUrl);
+    var informationRequestUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.InformationRequestWorkflowKey),
+        TestSiteSeedContract.InformationRequestPageUrl);
 }
 
 <main class="dash-page">
@@ -25,6 +32,7 @@
         </div>
 
         <!-- Account overview cards -->
+        <!-- Overview cards -->
         <div class="dash-grid">
             <div class="dash-card">
                 <div class="dash-card__icon dash-card__icon--account">👤</div>
@@ -47,17 +55,37 @@
                 <p>View all your active and completed workflow submissions in one place.</p>
                 <a href="@workflowHubUrl" class="btn btn-primary" style="margin-top: 12px;">View Workflows</a>
             </div>
-            <div class="dash-card dash-card--cta">
-                <div class="dash-card__icon dash-card__icon--workflow">💳</div>
-                <h3>Payment Demo</h3>
-                <p>Try the payment workflow demo with a waiting state that simulates payment processing.</p>
-                <a href="@paymentDemoUrl" class="btn btn-primary" style="margin-top: 12px;">Start Payment Demo</a>
-            </div>
-            <div class="dash-card dash-card--cta">
-                <div class="dash-card__icon dash-card__icon--workflow">📝</div>
-                <h3>Get in Touch</h3>
-                <p>Submit an inquiry or request using our workflow system with pre-filled details.</p>
-                <a href="@workflowPageUrl" class="btn btn-primary" style="margin-top: 12px;">Start Workflow</a>
+        </div>
+
+        <!-- Workflow demos — all types discoverable from one place -->
+        <div class="dash-section">
+            <h2>Workflow Demos</h2>
+            <p>Start any of the available workflow types. Each demo exercises a different Prism capability.</p>
+            <div class="dash-grid" style="margin-top: 16px;">
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--workflow">📝</div>
+                    <h3>Get in Touch</h3>
+                    <p>Multi-step community enquiry with pre-filled member details and question components.</p>
+                    <a href="@workflowPageUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                </div>
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--workflow">🏗️</div>
+                    <h3>Apply for Planning Permission</h3>
+                    <p>Planning notification workflow demonstrating document-upload and review steps.</p>
+                    <a href="@planningUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                </div>
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--workflow">💳</div>
+                    <h3>Payment Demo</h3>
+                    <p>Waiting-state workflow that simulates an asynchronous payment processing step.</p>
+                    <a href="@paymentDemoUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                </div>
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--workflow">ℹ️</div>
+                    <h3>Request Information</h3>
+                    <p>Information request workflow with conditional field display and summary review.</p>
+                    <a href="@informationRequestUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                </div>
             </div>
         </div>
 
@@ -367,6 +395,23 @@
                 elements.body.textContent = '';
             }
         </script>
+
+        @if (!string.IsNullOrWhiteSpace(workflowAdminUrl))
+        {
+            <!-- Developer tools — workflow admin screen on MockBusinessApp -->
+            <div class="dash-section">
+                <h2>Developer Tools</h2>
+                <p>Administrative views for inspecting workflow state during development.</p>
+                <div class="dash-grid" style="margin-top: 16px;">
+                    <div class="dash-card dash-card--cta">
+                        <div class="dash-card__icon dash-card__icon--workflow">⚙️</div>
+                        <h3>Workflow Admin</h3>
+                        <p>Inspect and manage workflow instances from the MockBusinessApp admin screen.</p>
+                        <a href="@workflowAdminUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Admin</a>
+                    </div>
+                </div>
+            </div>
+        }
 
         <div style="margin-top: 24px;">
             <form method="post" action="/auth/logout">
