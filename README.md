@@ -39,19 +39,22 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 
 ---
 
-## 🚀 Interactive Walkthrough — "Apply for Planning Permission"
+## 🚀 Interactive Walkthrough — "Payment Processing Workflow"
 
-Once your stack is running, follow the step-by-step guide to complete the demo workflow — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
+Once your stack is running, follow the step-by-step guide to see the demo workflow in action — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
 
-→ **[Full walkthrough: docs/walkthroughs/planning-notification.md](docs/walkthroughs/planning-notification.md)**
+→ **[Full walkthrough: docs/walkthroughs/payment-demo.md](docs/walkthroughs/payment-demo.md)**
 
 The walkthrough covers:
-- Logging in via Keycloak SSO and what the token exchange looks like
-- Walking through each GDS form step (project details, work type, timeline & cost, affected parties)
-- The check-answers review screen and how field values are aggregated
-- Submitting and seeing the confirmation
-- Behind the scenes: workflow definition files, polymorphic workflow components, the workflow engine, and how Umbraco renders them
-- Exploring further: editing definitions, watching engine logs in Aspire, testing with multiple browsers
+- Logging in via Keycloak SSO and submitting a payment form
+- **Waiting states** — the form pauses and persists while a reviewer processes it (Prism's core pattern)
+- Watching the workflow hub show real-time status updates
+- Switching to the reviewer role and advancing the workflow from the admin panel
+- The member page **auto-updates without a refresh** when the reviewer completes their action
+- Behind the scenes: workflow definitions, state machines, the Prism workflow engine, and how persistence and real-time updates work
+- Exploring further: editing workflow definitions, monitoring engine logs in Aspire, testing async patterns
+
+**Alternative:** [Planning permission walkthrough](docs/walkthroughs/planning-notification.md) for multi-step complex forms with conditional field logic.
 
 ---
 
@@ -239,7 +242,8 @@ In backoffice:
 
 | Guide | Description |
 |---|---|
-| [Workflow Walkthrough](docs/walkthroughs/planning-notification.md) | Step-by-step demo of the planning permission workflow — what you see and what's happening behind the scenes |
+| [Workflow Walkthrough — Payment Demo](docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment workflow — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer workflows |
+| [Alternative Walkthrough — Planning Permission](docs/walkthroughs/planning-notification.md) | Multi-step form with conditional fields, document upload, and review screens — demonstrates complex form branching |
 | [Secret Management](docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
 | [Biometric Setup](docs/biometric-setup.md) | Generate signing/encryption keys for mobile biometric auth |
