@@ -28,6 +28,9 @@ Data request form with date picker, textarea, and conditional urgency options.
 
 These walkthroughs are aimed at developers and operators building or administering a Prism deployment.
 
+### [Workflow Administration](workflow-administration.md)
+How to use the development-only workflow admin panel to inspect, edit, and manage workflow instances and definitions. Covers accessing the panel from the dashboard, viewing instances and state, editing definitions, manually advancing workflows, and resetting instances for testing.
+
 ### [Authoring a Workflow](authoring-a-workflow.md)
 How to write a new workflow definition using the fluent builder API. Covers the polymorphic JSON model (`type` discriminator, `children[]`, `conditionalChildren`), loading seeds, hot reload, and client/server validation.
 

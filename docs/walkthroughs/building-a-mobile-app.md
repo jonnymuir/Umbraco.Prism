@@ -116,8 +116,7 @@ The biometric system requires two cryptographic keys configured under `Prism:Bio
 
 For key generation steps and configuration (local dev via user secrets, production via Key Vault), see **[docs/biometric-setup.md](../biometric-setup.md)** — that document is the authoritative configuration guide.
 
-<!-- TODO: capture 01-biometric-enroll.png via mobile device: biometric enrollment prompt (manual — cannot be scripted) -->
-<!-- pending capture -->
+<!-- manual capture: Biometric enrollment prompt requires physical device or simulator native UI interaction -->
 
 ### Configuring Biometric Auth in the Backoffice
 
@@ -128,8 +127,7 @@ For key generation steps and configuration (local dev via user secrets, producti
 
 When the mobile app next connects, it checks this tenant setting and offers biometric enrollment after successful OIDC login.
 
-<!-- TODO: capture 02-backoffice-biometric-setting.png via backoffice → Prism Dashboard → Biometric Auth toggle -->
-<!-- pending capture -->
+<!-- manual capture: Prism Dashboard biometric toggle requires Umbraco backoffice authentication -->
 
 💡 **What's happening:** The `prism-biometric-settings` web component (in `src/UmbracoPrism.Client/src/backoffice/prism-biometric-settings.ts`) reads the tenant's `biometricEnabled` flag from `GET /umbraco/api/prism/tenants/{id}` and saves it via `PATCH /umbraco/api/prism/tenants/{id}`. The mobile app reads the same flag on startup to decide whether to show the enrollment prompt.
 
@@ -198,8 +196,7 @@ The `prism-mobile-nav` web component (`src/UmbracoPrism.Client/src/mobile/prism-
 ></prism-mobile-nav>
 ```
 
-<!-- TODO: capture 03-mobile-nav.png via mobile device or Storybook: Prism Mobile Nav story -->
-<!-- pending capture -->
+<!-- manual capture: Prism Mobile Nav requires physical device, simulator, or Storybook component story -->
 
 ---
 
@@ -228,8 +225,7 @@ Xcode opens with the generated project. Before building:
 2. Press **⌘R** to build and run.
 3. The app launches with the Prism TestSite loaded in a full-screen WebView.
 
-<!-- TODO: capture 04-ios-app-running.png via physical iOS device or simulator (manual) -->
-<!-- pending capture -->
+<!-- manual capture: iOS app screenshot requires physical iOS device or Xcode simulator -->
 
 💡 **What's happening:** The native Xcode project (`ios/App/`) embeds your compiled web assets in a `WKWebView`. Capacitor bridges JavaScript calls from the web layer to native Swift/Obj-C plugin implementations — this is how `@aparajita/capacitor-biometric-auth` calls Face ID/Touch ID, and how `@capacitor/push-notifications` registers with APNs.
 
@@ -263,8 +259,7 @@ npx cap open android
 
 Android Studio opens. Select a device or emulator and click **Run** (▶).
 
-<!-- TODO: capture 05-android-app-running.png via Android emulator or physical device (manual) -->
-<!-- pending capture -->
+<!-- manual capture: Android app screenshot requires Android Studio emulator or physical device -->
 
 💡 **What's happening:** The Android project (`android/`) embeds your compiled web assets in a `WebView` backed by Capacitor's Android bridge. Plugin calls (biometric, push, secure storage) are dispatched to their corresponding Kotlin implementations via the Capacitor plugin registry.
 

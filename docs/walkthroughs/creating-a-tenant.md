@@ -21,8 +21,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 1. Open `https://localhost:44345/umbraco` in your browser.
    - In Codespaces: your forwarded URL + `/umbraco`.
 
-<!-- TODO: capture 01-backoffice-login.png via backoffice login screen -->
-<!-- pending capture -->
+<!-- manual capture: Umbraco backoffice login requires manual interaction; cannot be automated in Playwright without additional BFF authentication integration -->
 
 2. Enter the admin credentials:
    - **Username:** `admin@prism.local`
@@ -44,8 +43,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 2. Under the Settings section, find and click **Prism Dashboard**.
 
-<!-- TODO: capture 02-prism-dashboard.png via Settings → Prism Dashboard -->
-<!-- pending capture -->
+<!-- manual capture: Prism Dashboard backoffice section requires manual Umbraco BFF authentication and navigation -->
 
    You see a list of currently configured tenants. The demo stack has one: `localhost`.
 
@@ -61,8 +59,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
    A modal dialog opens with the tenant creation form.
 
-<!-- TODO: capture 03-new-tenant-modal.png via Prism Dashboard → Add tenant modal -->
-<!-- pending capture -->
+<!-- manual capture: Prism Dashboard modal requires manual Umbraco backoffice interaction -->
 
 2. ✅ **What you're about to fill in:**
    - **Tenant name** — a human-readable label (internal only, not shown to end users).
@@ -116,8 +113,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 3. For now, accept the defaults and click **Save tenant**.
 
-<!-- TODO: capture 04-branding-tab.png via New Tenant modal → Branding tab -->
-<!-- pending capture -->
+<!-- manual capture: Branding tab requires manual Umbraco backoffice interaction with modal form -->
 
 4. 💡 **What's happening:** The branding editor reads CSS variable metadata from `GET /umbraco/api/prism/branding/metadata` — the same endpoint described in [Branding Design System](../branding-design-system.md). Each variable annotated with `/* @prism section: ... | label: ... */` appears as a typed form field. Changes are saved per-tenant and served as a tenant-specific CSS override on the frontend.
 
@@ -164,8 +160,7 @@ If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is e
 
 3. You should see the homepage rendered with the **Tenant 2** branding (default branding if you accepted the defaults).
 
-<!-- TODO: capture 05-tenant2-homepage.png via browser at tenant2.localhost -->
-<!-- pending capture -->
+<!-- manual capture: Tenant2 homepage verification requires manual browser navigation after subdomain setup -->
 
 4. ✅ **What you can verify:**
 
