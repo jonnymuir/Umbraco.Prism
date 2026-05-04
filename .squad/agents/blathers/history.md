@@ -139,3 +139,39 @@ Full history archived to `history-archive.md` (prior to 2026-05-03 learnings sec
 **Orchestration Log:** `.squad/orchestration-log/2026-05-03T23:20:46Z-blathers.md`
 
 **Scope:** Determine root cause of persistent 401 errors and any gaps in auth flow between endpoint types.
+
+---
+
+## 2026-05-04T00:19:33Z: Workflow API Backchannel URL Resolution — Codespaces Fix
+
+**Status:** ✅ Implemented (commit caaf551)
+
+**Decision Recorded:** "Workflow API Calls Must Use Internal Backchannel in Codespaces" (2026-05-04T00:19:33.157+01:00, ACCEPTED)
+
+**Fix Applied:**
+- `BusinessAppWorkflowClient.BaseUrl` now checks `BUSINESSAPP_BACKCHANNEL_URL` first
+- Falls back to `PrismBusinessApp:WorkflowApiBaseUrl` for production
+- Matches existing pattern in `DownstreamDemoController`
+
+**Root Cause:** GitHub's forwarded-port proxy rejects unauthenticated server-side HTTP calls to the public URL with 401. Workflow start and advance calls were using the public URL instead of the internal backchannel.
+
+**Test Coverage:** All existing workflow tests pass (regression coverage via `BusinessAppWorkflowClientTests`).
+
+**Next:** Tangy proposed null-auth logging and `Results.Problem()` alignment for consistency. Blathers to integrate in parallel spawn.
+
+---
+
+## 2026-05-04T00:37:42Z: Workflow Auth Spawn — Folding Tangy's Findings and Final Push
+
+**Status:** 🔄 In Progress (background)
+
+**Orchestration Log:** `.squad/orchestration-log/2026-05-04T23-26-42Z-blathers.md`
+
+**Task:**
+1. Integrate Tangy's workflow 401 null-auth contract decision
+2. Implement logging for null auth header in `CreateClientAsync`
+3. Align workflow handlers to `Results.Problem()` for consistency
+4. Run full test suite (green)
+5. Push to main if all tests pass
+
+**Expected Outcome:** Workflow auth fixes complete with full coverage and diagnostics logging.

@@ -2092,3 +2092,134 @@ Users can now `git pull origin main` and run dashboard + Business App with arriv
 - Merge agent history updates to .squad/agents/
 - Consolidate this decision into decisions.md
 - Extract any reusable patterns to team skills
+# Decision: Workflow API Calls Must Use Internal Backchannel in Codespaces
+
+**Date:** 2026-05-04T00:19:33.157+01:00  
+**Author:** Blathers (Backend Dev)  
+**Status:** ACCEPTED
+
+## Context
+
+In Codespaces, Aspire AppHost injects two environment variables for the Business App:
+
+- `PrismBusinessApp__WorkflowApiBaseUrl` — the public HTTPS forwarded-port URL (browser-facing)
+- `BUSINESSAPP_BACKCHANNEL_URL` — the internal `http://localhost:{port}` endpoint (server-to-server)
+
+GitHub's forwarded-port proxy intercepts unauthenticated server-side HTTP calls to the public URL and returns 401. Any server-side code that reads `WorkflowApiBaseUrl` and uses it for HTTP requests will fail with 401 in Codespaces.
+
+## Decision
+
+All server-side HTTP clients that call the Business App **must** check `BUSINESSAPP_BACKCHANNEL_URL` first and fall back to `PrismBusinessApp:WorkflowApiBaseUrl`. The public `WorkflowApiBaseUrl` is for browser-facing links only.
+
+## Rationale
+
+`DownstreamDemoController` already had the correct pattern (`ResolveBusinessAppTransportBaseUrl()`). `BusinessAppWorkflowClient.BaseUrl` was missing it, causing every workflow start and advance to fail in Codespaces with HTTP 401.
+
+## Implementation Pattern
+
+```csharp
+private string BaseUrl
+{
+    get
+    {
+        var backchannelUrl = Environment.GetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL")?.TrimEnd('/');
+        if (!string.IsNullOrWhiteSpace(backchannelUrl))
+            return backchannelUrl;
+
+        var url = configuration["PrismBusinessApp:WorkflowApiBaseUrl"];
+        if (string.IsNullOrWhiteSpace(url))
+            throw new InvalidOperationException("...");
+        return url.TrimEnd('/');
+    }
+}
+```
+
+## Scope
+
+- `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs` — fixed
+- `src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs` — already correct
+- Any future Business App HTTP clients must follow the same pattern
+
+## Commit
+
+`caaf551` — fix(workflow): use BUSINESSAPP_BACKCHANNEL_URL for workflow API calls in Codespaces
+# Decision: Workflow 401 Null-Auth Contract and Diagnostic Distinction
+
+**Proposed by:** Tangy (Tester)  
+**Date:** 2026-05-04  
+**Status:** Proposed — for Scribe to merge into decisions registry
+
+---
+
+## Decision
+
+**`BusinessAppWorkflowClient` must log when `GetAuthorizationHeaderAsync` returns null, and workflow endpoint handlers in MockBusinessApp must return `Results.Problem()` (not `Results.Unauthorized()`) for application-level identity failures.**
+
+---
+
+## Context
+
+Investigating why workflow pages return "Business App error (HTTP 401)" in Codespaces even after commit 0904810 fixed JWKS backchannel URL rewriting. Two indistinguishable 401 sources exist:
+
+1. **JWT middleware 401** — token signature validation failed (no valid signing keys). Logged as `[PRISM AUTH FAILED]` in Business App console.
+2. **Application-level 401** — `Results.Unauthorized()` returned when `GetPrismTenant` or `GetEmail` fails after successful JWT validation.
+
+Additionally, when `PrismContext.GetAuthorizationHeaderAsync` returns null (e.g. `CurrentTenant` not resolved), `BusinessAppWorkflowClient.CreateClientAsync` silently omits the Authorization header with no log entry. The Business App JWT middleware then returns 401, which is indistinguishable from the cases above.
+
+---
+
+## Rationale
+
+- Operators have no way to distinguish the three failure modes without access to Business App console logs.
+- `/api/backoffice/me` returns `Results.Problem()` for null tenant/email; workflow endpoints return `Results.Unauthorized()`. This inconsistency means the same root cause (misconfigured tenant config) surfaces differently depending on which endpoint is called first.
+- Silent null auth in `CreateClientAsync` (line 179 of `BusinessAppWorkflowClient.cs`) makes `PrismContext` failures invisible in TestSite logs.
+
+---
+
+## Proposed Changes
+
+### 1. `BusinessAppWorkflowClient.CreateClientAsync` — log when auth header is null
+
+```csharp
+var authHeader = await prismContext.GetAuthorizationHeaderAsync(forceRefresh);
+if (authHeader == null)
+{
+    logger.LogWarning(
+        "BusinessAppWorkflowClient: GetAuthorizationHeaderAsync returned null (reason: {Reason}). " +
+        "Request will be sent without an Authorization header.",
+        prismContext.LastAuthorizationFailureReason ?? "unknown");
+}
+if (authHeader != null)
+    client.DefaultRequestHeaders.Authorization = authHeader;
+```
+
+### 2. `MockBusinessApp/Program.cs` — align workflow handlers to `Results.Problem()`
+
+Replace `Results.Unauthorized()` in `/api/workflow/{key}/current`, `/api/workflow/{key}/advance`, and `/api/workflow/instances` handlers with:
+
+```csharp
+if (tenant == null)
+    return Results.Problem("Tenant not recognised by Business Application.");
+if (string.IsNullOrEmpty(email))
+    return Results.Problem("User email claim not found.");
+```
+
+This produces HTTP 500 (same as `/api/backoffice/me`) for application-level identity failures, making them distinguishable from JWT-level 401s in `ReadEnvelopeAsync` output ("Business App error (HTTP 500)" vs "Business App error (HTTP 401)").
+
+---
+
+## Affected Files
+
+- `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs`
+- `src/UmbracoPrism.MockBusinessApp/Program.cs`
+
+---
+
+## Test Coverage
+
+Regression tests added in `BusinessAppWorkflowClientTests.cs` document the current null-auth contract:
+- `GetCurrentAsync_SurfacesErrorEnvelope_WhenAuthHeaderIsNull`
+- `GetCurrentAsync_AttemptsTokenRefreshOnce_WhenBusinessAppReturns401`
+- `GetCurrentAsync_SurfacesErrorEnvelope_NotExceptionThrown_WhenBothRequestsReturn401`
+
+These tests will need updating if the null-auth logging proposal is implemented (the contract changes from silent to logged).
