@@ -144,3 +144,20 @@ See `.squad/agents/tangy/history-archive.md` for detailed session logs from 2026
 
 Discovery phase completed. Findings documented in decisions.md.
 Awaiting implementation phase dispatch.
+
+## 2026-05-04 | Walkthrough Coverage Hardening
+
+**Status:** PROPOSED
+
+Completed walkthrough coverage audit hardening across five gaps:
+
+**D1:** Viewport-first screenshots (fullPage: false default), per-step opt-in
+**D2:** Persistence tests verify instance-policy contract (state persists post-submit)
+**D3:** home-entry is a first-class walkthrough (signed-out → dashboard → hub path)
+**D4:** skipHeading for variable-heading pages (home, dashboard) with explicit assertions
+**Coverage gaps closed:** Back/edit flows, validation tests, success assertions
+
+Files modified: walkthrough.ts, community-enquiry spec, information-request spec, payment-demo spec
+Files created: home-entry.walkthrough.spec.ts, home-entry.md walkthrough doc
+
+Decision recorded: "Walkthrough Coverage Hardening — Test Gaps and Screenshot Behaviour"

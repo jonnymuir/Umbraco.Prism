@@ -43,3 +43,10 @@ See `history-archive.md` for complete session-by-session work logs prior to 2026
 
 Discovery phase completed. Findings documented in decisions.md.
 Awaiting implementation phase dispatch.
+
+## 2026-05-04 | Workflow Admin UI Cleanup
+
+**Status:** In Progress
+
+Implemented workflow admin UI cleanup for walkthrough and manual documentation use.
+Coordinating with Brewster (dashboard navigation) and Tangy (screenshot integration).

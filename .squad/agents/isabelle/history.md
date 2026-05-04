@@ -193,3 +193,15 @@ Previous history (pre-2026-04-22) archived to `.squad/agents/isabelle/archive/hi
 
 Discovery phase completed. Findings documented in decisions.md.
 Awaiting implementation phase dispatch.
+
+## 2026-05-04 | Screenshot-Mode Mobile-Helper Suppression
+
+**Status:** IMPLEMENTED
+
+Defined and implemented screenshot-mode mobile-helper suppression contract:
+- `fullPage` flag on `PageHealthCheck` interface is the control point
+- Mobile-helper elements suppressed during captures
+- Hook mechanism established for Tangy's screenshot pipeline integration
+- Two-phase implementation documented (Phase 1 current, Phase 2 deferred for env var)
+
+Decision recorded: "Walkthrough Coverage Hardening — Test Gaps and Screenshot Behaviour" (Tangy lead)

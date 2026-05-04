@@ -3362,3 +3362,170 @@ page.setViewportSize({ width: 1280, height: 800 });
 
 **End of discovery report.**
 
+
+---
+date: 2026-05-04T11:46:55.877+01:00
+author: Brewster
+status: IMPLEMENTED
+area: testsite, walkthroughs, discoverability
+---
+
+# Walkthrough Discoverability — All Workflow Types Reachable from Dashboard
+
+## Context
+
+Audit findings showed that some workflow demos (planning-notification, information-request)
+were only reachable via direct URL knowledge. The member dashboard linked to just three
+workflow types out of four, and there was no route from the Prism dashboard to the
+MockBusinessApp workflow admin screen.
+
+Two TestSite stub views (`workflowHub.cshtml`, `workflowPage.cshtml`) contained
+`Layout = null` and no content, silently overriding the Core library's fully implemented
+embedded views and rendering blank pages.
+
+## Decisions Made
+
+### 1. Delete TestSite stub views — use Core embedded views
+
+`src/UmbracoPrism.TestSite/Views/workflowHub.cshtml` and `workflowPage.cshtml` were
+stub files with `Layout = null` that blocked the `PrismEmbeddedViewsStartupFilter`
+embedded views from being served. Deleting the stubs lets the Core's implementations
+(with `Layout = "~/Views/Shared/Master.cshtml"` and full rendering logic) take over.
+
+**Rule:** The TestSite should not ship stub overrides for Core-embedded views unless
+there is a deliberate TestSite-specific customisation. A file that only contains
+`Layout = null` is a broken placeholder and must be removed.
+
+### 2. Restructure member dashboard card grid
+
+The existing 6-card flat grid was split into two coherent groups:
+
+- **Overview** (4 cards): My Account, Documents, Support, My Workflows hub
+- **Workflow Demos** (4 cards, in a labelled `dash-section`): Get in Touch,
+  Apply for Planning Permission, Payment Demo, Request Information
+
+All four seeded workflow types are now directly reachable from one section with
+content-tree resolved URLs, not hardcoded route guesses.
+
+### 3. Expose workflow admin URL from `MemberDashboardController`
+
+`IConfiguration` was injected into `MemberDashboardController` to derive
+`{PrismBusinessApp:WorkflowApiBaseUrl}/admin/workflow`. This is the same URL pattern
+the AppHost annotates as a `Workflow Admin` resource URL. It is passed to the view as
+`ViewBag.WorkflowAdminUrl`.
+
+A **Developer Tools** `dash-section` renders conditionally (only when the URL is set),
+showing a single card linking to the admin screen in a new tab.
+
+### 4. Environment-aware without extra config
+
+No new configuration keys are introduced. The existing `PrismBusinessApp:WorkflowApiBaseUrl`
+already resolves correctly in Codespaces (via AppHost forwarded URL detection) and
+locally (`https://localhost:7245`). The admin URL is simply appended as `/admin/workflow`.
+
+## Verification
+
+- `dotnet build` — 0 errors, 2 pre-existing warnings (unrelated)
+- `dotnet test` — 690 passed, 0 failed
+
+---
+date: 2026-05-04
+author: Tangy
+status: PROPOSED
+area: testing, walkthroughs, screenshots, documentation
+---
+
+# Walkthrough Coverage Hardening — Test Gaps and Screenshot Behaviour
+
+## Context
+
+Walkthrough coverage audit (2026-05-04) found five gaps in the executable specs:
+
+1. Back/edit flows absent for `community-enquiry`, `payment-demo`, and `information-request`
+2. Form validation tests absent for `community-enquiry` and `information-request`
+3. `information-request` happy path lacked an explicit body-content assertion for the under-review success state
+4. No home-page entry walkthrough (homepage hero → dashboard → workflow hub path)
+5. Screenshot capture used `fullPage: true` unconditionally, producing oversized images for long pages (homepage hero, etc.)
+
+## Decisions
+
+### D1 — Viewport-first screenshots; fullPage is opt-in per step
+
+**Decision:** The `step()` helper in `tests/walkthroughs/support/walkthrough.ts` now defaults to
+`fullPage: false` (viewport-sized capture). Individual steps that genuinely need the full scrolled
+page (e.g. a check-answers summary list that would be cut off) can pass `fullPage: true` via the
+`PageHealthCheck` interface.
+
+**Rationale:** Viewport captures show exactly what the user sees without scrolling, which is the
+right documentation-first default. Full-page captures are appropriate for summary/check-answers
+pages only.
+
+**Isabelle hook contract:** The `fullPage` flag on `PageHealthCheck` is the per-step control point
+intended for the docs pipeline. If the `capture-screenshots.yml` workflow needs a global override
+(e.g. always full-page for a particular walkthrough), the recommended mechanism is:
+
+```yaml
+# In .github/workflows/capture-screenshots.yml
+env:
+  CAPTURE_SCREENSHOTS: '1'
+  SCREENSHOT_FULL_PAGE: '1'   # <-- add this to request full-page globally
+```
+
+Then read `process.env.SCREENSHOT_FULL_PAGE === '1'` in `walkthrough.ts` as the fallback when
+`expected.fullPage` is undefined:
+
+```ts
+const useFullPage = expected.fullPage ?? process.env.SCREENSHOT_FULL_PAGE === '1' ?? false;
+await page.screenshot({ path: file, fullPage: useFullPage });
+```
+
+This change is NOT included in the current commit; it is queued for Isabelle to implement when
+the docs pipeline requires it. The existing `fullPage?: boolean` field on `PageHealthCheck` is
+the stable hook.
+
+### D2 — Persistence tests verify instance-policy contract, not just submit success
+
+**Decision:** For single-page workflows (`community-enquiry`, `information-request`,
+`payment-demo`) that have no check-answers step, the "back/edit" behavioral contract is:
+*after submission, returning to the workflow URL shows the current state (under-review /
+processing), not a fresh form.*
+
+These "persistence" tests are now in the respective walkthrough specs. They navigate away after
+submit and navigate back to verify the instance-policy guarantee.
+
+### D3 — `home-entry` is a first-class walkthrough
+
+**Decision:** `home-entry.walkthrough.spec.ts` is a new walkthrough spec covering the full
+homepage entry path: signed-out hero → signed-in hero → dashboard → workflow hub. It uses the
+same `LiveAppHost` + `step()` pattern as all other walkthrough specs.
+
+The `docs/walkthroughs/home-entry.md` document is the human narrative counterpart; it embeds the
+four screenshots generated by the spec.
+
+### D4 — `assertHealthyPage` skipHeading usage for variable-heading pages
+
+**Decision:** The home page's signed-in state and the dashboard may not present their hero text
+as a `<h1>` role heading. Where the primary visual identity is a welcome message or layout element
+rather than a semantic heading, `skipHeading: true` is used and the test adds an explicit
+`expect(...).toBeVisible()` assertion for the relevant content.
+
+This maintains R3 (assert before shoot) without coupling the test to implementation-specific
+heading hierarchy.
+
+## Scope not changed
+
+- Admin/backoffice walkthroughs (`authoring-a-workflow`, `creating-a-tenant`, `design-system`)
+  remain manual-only per the existing policy. No backoffice automation was added.
+- Mobile viewport tests were identified as a gap in the audit but are out of scope for this
+  hardening pass (deferred to a future Tangy task).
+
+## Files changed
+
+- `tests/walkthroughs/support/walkthrough.ts` — fullPage default + Isabelle hook comment
+- `tests/walkthroughs/community-enquiry.walkthrough.spec.ts` — validation + persistence tests
+- `tests/walkthroughs/information-request.walkthrough.spec.ts` — validation + persistence + explicit success assertion
+- `tests/walkthroughs/payment-demo.walkthrough.spec.ts` — defer/persistence test
+- `tests/walkthroughs/home-entry.walkthrough.spec.ts` — new spec (3 tests)
+- `docs/walkthroughs/home-entry.md` — new walkthrough document
+- `docs/images/walkthroughs/home-entry/` — new images directory (.gitkeep placeholder)
+
