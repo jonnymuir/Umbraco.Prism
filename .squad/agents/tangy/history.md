@@ -53,6 +53,24 @@
 
 ---
 
+## Learnings (2026-05-04) — CI Fix Landing: Approved Revision to main
+
+### Task: Land Approved PrismContextTests Fix on main
+- **CI run fixed:** 25294216756 (`beef21c`), which failed `core-tests` with 4 `NullReferenceException` in `PrismContextTests`.
+- **Superseded commit:** `860c5d3` (Blathers) — added `EnvVarSensitiveTestCollection` to `PrismContextTests`; reduced but did not eliminate fragility; still resulted in CI failure in subsequent run `25309298569`.
+- **Approved revision landed:** `1601415` (Tangy) — replaced concrete `httpContext.RequestAborted` Moq matchers with `It.IsAny<CancellationToken>()` in 4 `PrismContextTests` methods.
+- **Pushed to origin/main** as part of commit chain ending at `d9fb7f7` (Scribe's decision merge, which included Tangy's decision entry). Substantive fix commit is `1601415`.
+
+### Diagnostics pattern: gitignored stub views causing local-only test failures
+- `TestSiteViewModelBindingTests` appeared to fail locally (4 failures) but pass in CI. Root cause: `workflowHub.cshtml` and `workflowPage.cshtml` are gitignored stubs (`.gitignore` lines 510-511) generated locally by ModelsBuilder; they do not exist in CI checkout, so the test correctly returns without failing there.
+- **Pattern:** Local-only test failures caused by gitignored generated files are not CI regressions. Verify with `git check-ignore -v` before concluding a failure is CI-relevant.
+
+### Verification method
+- CI job `core-tests` in failed run showed: Failed: 4, Passed: 686, Total: 690 — all 4 failures were PrismContextTests NullReferenceException.
+- Post-fix local run (after `dotnet build`): Failed: 4 (TestSiteViewModelBindingTests, local-only), Passed: 686 — PrismContextTests all green; CI-relevant pass count matches expected 690.
+
+---
+
 ## Decision Archive
 
 See `.squad/agents/tangy/history-archive.md` for detailed session logs from 2026-05-03 including:
