@@ -27,6 +27,18 @@
 
 ---
 
+## Learnings (2026-05-04) — CI Failure Analysis: PrismContextTests
+
+### Root Cause: Fragile CancellationToken Moq Matcher
+- **CI run 25294216756** (commit `beef21c`) failed with `NullReferenceException` at `PrismContext.cs:212` in 4 `PrismContextTests` methods.
+- **Not a regression in PrismContext.cs** — the production code was correct throughout. The bug was in the tests.
+- **Root cause:** Mock setups used `httpContext.RequestAborted` as a concrete value matcher for the `CancellationToken` parameter on `IPrismTokenRefreshService.RefreshAsync`. On Linux (CI/Ubuntu), `DefaultHttpContext.RequestAborted` lazy-initialises its `CancellationTokenSource` via `IHttpRequestLifetimeFeature`; if the feature is activated between setup-time and call-time (during ASP.NET Core's authentication stack), the captured token no longer equals the one used in the real call. Moq returns `default(TokenRefreshResult) = null`, causing `result.Success` to throw.
+- **Platform masking:** On macOS arm64 the lazy init path produces stable results, hiding the fragility completely.
+- **Fix:** Replace `httpContext.RequestAborted` matchers with `It.IsAny<CancellationToken>()` in Setup and Verify for the 4 affected tests. The tests verify endpoint routing and bearer token return — not the exact CancellationToken instance.
+- **Pattern to watch:** Never use a concrete `CancellationToken` value as a Moq matcher when that value comes from a lazily-initialised ASP.NET Core feature (`DefaultHttpContext.RequestAborted`, `HttpContext.RequestAborted`). Always use `It.IsAny<CancellationToken>()`.
+
+---
+
 ## Decision Archive
 
 See `.squad/agents/tangy/history-archive.md` for detailed session logs from 2026-05-03 including:
