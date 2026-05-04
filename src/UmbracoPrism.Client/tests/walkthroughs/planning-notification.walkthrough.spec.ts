@@ -86,7 +86,8 @@ test.describe('Planning notification walkthrough', () => {
 
     await step(page, '08-check-answers.png', {
       url: /\/apply-for-planning-permission/,
-      heading: 'Check your answers'
+      heading: 'Check your answers',
+      fullPage: true
     }, 'planning-notification');
 
     await page.getByRole('button', { name: 'Submit' }).click();

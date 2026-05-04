@@ -343,8 +343,7 @@ After seeding the workflow, create a Umbraco content page that links to it:
 6. Click **Save and Publish**.
 7. Navigate to `https://localhost:44345/leave-request` — you'll see your workflow.
 
-<!-- TODO: capture 01-backoffice-workflow-key.png via backoffice login → Content → new page → Workflow Key field -->
-<!-- pending capture -->
+<!-- manual capture: Umbraco backoffice content editing requires manual authentication and navigation to the Workflow Key property -->
 
 💡 **What's happening:** The Umbraco `WorkflowPageController` reads the **Workflow Key** property from the content node and passes it to `BusinessAppWorkflowClient.GetCurrentAsync()`. The client calls the MockBusinessApp at `https://localhost:7245/api/workflow/leave-request/current` using the current user's bearer token.
 

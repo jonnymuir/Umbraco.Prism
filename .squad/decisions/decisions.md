@@ -1201,3 +1201,165 @@ The existing `PrismFieldTagHelper` handled all form input rendering. There was n
 - The existing `govuk-form-group` wrapper is bypassed via early-return before the outer `<div>` is added.
 - `details` uses `Label` as the summary text (fallback: "More information"). `notification-banner` uses `Label` as the title (fallback: "Important").
 
+
+---
+
+## Decision: Screenshot Policy — Content-Aware Default
+
+**Date:** 2026-05-04  
+**Agents:** Isabelle (Screenshot & Visual Fidelity), Mabel (Documentation Specialist)  
+**Status:** Implemented
+
+### Summary
+
+Walkthrough screenshot policy corrected to default to **showing the whole useful screen**, with selective cropping only for exceptionally tall pages (>2200px). This ensures documentation shows complete functionality context rather than truncated viewport-sized captures.
+
+### Problem Solved
+
+Earlier policy had drifted toward viewport-first default (`fullPage: false`), which made fresh captures too cropped to show full functionality. Team feedback clarified the intended rule: default to complete screen context.
+
+### Decision
+
+**Default behavior:** Full page (all scrollable content visible)
+- Shows complete functionality of the screen
+- Applies to form pages, check-answers pages, summary pages
+- Readers see everything available on the page
+
+**Constrain only when:**
+- Page is exceptionally tall (>2200px)
+- Full-page height creates visual clutter without adding documentation value
+- Smaller crop makes guidance clearer without hiding necessary content
+
+### Implementation
+
+- **Control point:** `tests/walkthroughs/support/walkthrough.ts` (single policy location)
+- **Per-step override:** `screenshotSelector` for location-based crops; `screenshotMaxHeight` for height caps
+- **Workflow override:** `SCREENSHOT_FULL_PAGE=1` for forced full-page captures
+
+### Files Updated
+
+- `tests/walkthroughs/support/walkthrough.ts` — JSDoc comments and content-aware logic
+- `.squad/skills/walkthroughs-as-executable-specs/SKILL.md` — "Screenshot Heights" section
+- Screenshot capture layer — helper suppression timing and frame validation
+
+### Impact
+
+- **Walkthrough authors:** Use full-page default; only explicitly set `fullPage` when narrative requires it
+- **Next captures:** Follow new default policy
+- **Team clarity:** Policy now consistent across skill documentation and code comments
+
+---
+
+## Decision: Approval Workflow Narratives in Walkthroughs
+
+**Date:** 2026-05-04  
+**Author:** Mabel (Documentation Specialist)  
+**Status:** Implemented
+
+### Summary
+
+Updated four walkthrough documents to provide complete, step-by-step guided demonstration of the approval/reviewer handoff pattern. Moved from brief explanations of "approval is needed" to full narratives showing user submission → waiting state → operator review → user outcomes.
+
+### Problem Solved
+
+Workflows are correctly defined with `requiresRole: "reviewer"` transitions, but documentation didn't explain them where readers need to understand them — in service walkthroughs. Readers finishing walkthroughs didn't understand:
+- How workflows continue after user submission
+- Why intermediate states exist
+- What role/permission is needed to advance them
+- Why forms/transitions behave the way they do
+
+### Narratives Implemented
+
+**Pattern:** Four-part walkthrough structure for workflows with approval steps
+
+1. **Part 1:** End-user submission (form → waiting/processing state)
+2. **Part 2:** Operator review (admin panel → viewing definition → performing approval/rejection)
+3. **Part 3:** Return-to-user confirmation (what user sees after approval)
+4. **Part 4:** Production patterns (webhook vs manual approval vs operator interface)
+
+### Workflows Updated
+
+#### Payment Demo
+- Explicit step-by-step guide for accessing admin panel from dashboard
+- Workflow definition JSON showing `requiresRole: "reviewer"`
+- Explanation of why `waiting` component + `single` instance policy work together
+- Three production patterns (Stripe webhook, operator interface, system role)
+
+#### Community Enquiry
+- `under-review` explained as non-terminal, waiting state
+- State machine showing both `approve` and `request-changes` transitions
+- Cycle loops: `collecting-details` ↔ `under-review` ↔ `collecting-details`
+- What "request changes" means for user (form returns with answers)
+
+#### Information Request
+- Urgency field tied to reviewer workflow (triage queue, SLAs)
+- State machine showing transitions gated by `requiresRole: "reviewer"`
+- SLA examples: Standard (7 days), Urgent (2 days), Critical (same day)
+
+#### README & Workflow Administration
+- README.md: Updated note positioning admin panel as "reviewer role simulator" in local demo
+- Workflow Administration.md: Expanded Part 2b with full step-by-step walkthrough of handoff
+
+### Files Changed
+
+- `docs/walkthroughs/payment-demo.md`
+- `docs/walkthroughs/community-enquiry.md`
+- `docs/walkthroughs/information-request.md`
+- `docs/walkthroughs/README.md`
+- `docs/walkthroughs/workflow-administration.md`
+
+### Documentation Principles Applied
+
+- **Executable specs alignment** — Narratives coordinate with workflow definitions and test specs
+- **Guided demonstration** — Each reads as step-by-step walkthrough someone could follow in running app
+- **Conceptual coherence** — Admin panel positioned as "reviewer actor" in service flow
+- **Production grounding** — "Production Patterns" section shows why architecture matters in real systems
+- **User-centric outcomes** — Always shows what changes for original user after approval/feedback
+
+### Why This Matters
+
+1. **Onboarding clarity** — Developers understand not just "what approval is" but "how it flows end-to-end"
+2. **Test authoring** — Specs have clear narratives; easier to write related edge case tests
+3. **Design grounding** — Product team sees exactly where approval/review points are and why they exist
+4. **Production mapping** — Each section labeled "Production Patterns" makes clear how demo harness maps to real operator workflows
+
+---
+
+## Decision: Waiting-State Walkthroughs Prove Original Page Advances
+
+**Date:** 2026-05-04  
+**Agent:** Tangy (Tester)  
+**Status:** Implemented
+
+### Summary
+
+Executable specs for walkthroughs that pause in waiting or under-review state now keep the original member-facing page open while a second page follows the reviewer route. This proves the waiting page moves on automatically after approval without needing manual refresh.
+
+### Pattern
+
+1. Complete member journey until waiting page is visible
+2. Open second page/tab for supporting checks:
+   - Inspect **My Workflows** if needed
+   - Follow discoverable dashboard route to **Workflow Admin**
+3. Perform reviewer action there
+4. Return to or foreground original waiting page
+5. Assert that it advances without manual refresh step in spec
+
+### Why
+
+- Teaches the whole mechanism, not just the operator half
+- Keeps service walkthroughs honest about what member actually experiences
+- Provides stronger regression coverage for waiting-step polling/reload behaviour
+
+### Implementation
+
+- `payment-demo.walkthrough.spec.ts` — Full approval flow with user page staying open and auto-advancing
+- Multi-page pattern — simultaneous browser tabs for user and admin routes
+- Auto-advance validation — confirms page updates without explicit refresh trigger
+
+### Impact
+
+- Walkthrough tests now demonstrate complete member experience
+- Regression suite covers polling/reload behaviour
+- Documentation aligned with actual end-to-end workflow behavior
+

@@ -60,7 +60,7 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await expect(page).toHaveURL(/\/my-workflows$/);
 
     await openDashboard(page);
-    await page.getByRole('link', { name: 'Start Workflow' }).click();
+    await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
     await expect(page).toHaveURL(/\/get-in-touch$/);
     await expect(page.getByRole('heading', { name: 'Tell us about your enquiry' })).toBeVisible();
   });
@@ -202,6 +202,11 @@ async function openDashboard(page: Page): Promise<void> {
 
   await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible();
+}
+
+function workflowDemoCard(page: Page, title: string): Locator {
+  return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }
 
 async function expectAnyVisible(...locators: Locator[]): Promise<void> {

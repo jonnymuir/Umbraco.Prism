@@ -50,7 +50,7 @@ The walkthrough covers:
 - Walking through each GDS form step (project details, work type, timeline & cost, affected parties)
 - The check-answers review screen and how field values are aggregated
 - Submitting and seeing the confirmation
-- Behind the scenes: workflow definition files, field groups, the workflow engine, and how Umbraco renders it all
+- Behind the scenes: workflow definition files, polymorphic workflow components, the workflow engine, and how Umbraco renders them
 - Exploring further: editing definitions, watching engine logs in Aspire, testing with multiple browsers
 
 ---
@@ -122,7 +122,7 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
   
   → [Branding Design System →](docs/branding-design-system.md)
 
-- Per-tenant OIDC — Entra ID integration, zero local Members
+- Per-tenant OIDC — any OIDC-compliant provider (Entra ID, Keycloak, etc.), zero local Members
 - Downstream auth — propagate tenant identity to internal APIs
 - Tenant isolation — authorization policies enforce data boundaries
 
@@ -189,8 +189,7 @@ Prism auto-creates document types (`homePage`, `memberDashboard`) on first start
 In backoffice:
 1. **Settings → Prism Dashboard**
 2. Add tenant (hostname, identity settings, branding)
-   - **Entra tenants:** enter the vault secret name in `SecretKeyName`
-   - **Generic OIDC tenants:** enter OIDC authority and client ID, then provide the Key Vault secret name as the `OidcClientSecretReference` with provider `azure-key-vault`; the localhost Keycloak demo is the only inline-secret exception
+   - **OIDC tenants (Entra ID, Keycloak, etc.):** enter OIDC authority and client ID, then provide the Key Vault secret name as the `OidcClientSecretReference` with provider `azure-key-vault`; the localhost Keycloak demo is the only inline-secret exception
 3. Visit the hostname — see branded portal
 
 → [Full Setup Guide](docs/umbraco-setup.md)
@@ -201,7 +200,7 @@ In backoffice:
 
 **Multi-tenancy at runtime:** Middleware resolves hostname to tenant. One content tree serves hundreds of portals.
 
-**Stateless auth:** No local Members. Identity deferred to OIDC providers (Entra ID or generic OIDC). Confidential client secrets resolve through Key Vault or the repo-owned localhost demo exception.
+**Stateless auth:** No local Members. Identity deferred to OIDC providers (any OIDC-compliant system: Entra ID, Keycloak, etc.). Confidential client secrets resolve through Key Vault or the repo-owned localhost demo exception.
 
 **Secure-by-default secrets:** Production tenants use vault-backed secret references, never raw values in management responses. The localhost Keycloak demo is the only inline-secret path, and runtime rejects inline generic OIDC secrets anywhere else.
 
@@ -216,7 +215,7 @@ In backoffice:
 **Multi-tenant web:**
 - Domain-based tenant resolution
 - Live CSS variable branding
-- Per-tenant Entra ID (OIDC)
+- Per-tenant OIDC (any provider: Entra ID, Keycloak, etc.)
 - Tenant isolation policies
 - Downstream API auth
 
@@ -285,7 +284,7 @@ In backoffice:
 - **Node.js 20+** ([Download](https://nodejs.org/))
 - **Docker Desktop** — for local demo with Aspire ([Download](https://www.docker.com/products/docker-desktop/))
 - **Azure Key Vault** (production) or local dev without vault (see setup guide)
-- **Entra ID** (for authentication)
+- **OIDC Provider** — any OIDC-compliant system (Keycloak included for local dev; Entra ID or others for production)
 
 > **Client dependencies:** Run before first build:
 > ```bash
@@ -298,7 +297,7 @@ In backoffice:
 
 ### Local Dev Tunnel (Mobile Testing)
 
-For testing Entra sign-in on mobile devices, use `scripts/dev/start-trycloudflare.sh`:
+For testing OIDC sign-in on mobile devices with an external OIDC provider, use `scripts/dev/start-trycloudflare.sh`:
 
 ```bash
 bash scripts/dev/start-trycloudflare.sh
@@ -306,11 +305,11 @@ bash scripts/dev/start-trycloudflare.sh
 
 Automates:
 - Cloudflare tunnel for `https://localhost:<port>`
-- Entra redirect URI update
+- OIDC redirect URI update (for your provider)
 - Prism tenant hostname sync
 - Cleanup on exit
 
-**Security:** Dev use only. Mutates Entra app and local database.
+**Security:** Dev use only. Mutates your OIDC provider app config and local database.
 
 → [Full tunnel docs in README section below](#quick-start-phone-auth-via-cloudflare-tunnel-no-lan-ip-dependency)
 
@@ -432,15 +431,21 @@ export const MyStory = {
 
 ### Local Authentication Walkthrough
 
-#### 1. Azure Setup
+#### 1. Choose Your OIDC Provider
 
-**Entra ID:** Create App Registration. Redirect URI: `https://localhost:[PORT]/signin-oidc`.
+**Option A: Quick Start with Keycloak (Included)**
+- No setup needed; the local Keycloak is already running on `https://localhost:8443` with the seeded demo realm
+- Use for immediate testing without external OIDC provider configuration
+- User: `demo@prism.local` / password: `password`
 
-**Key Vault:** Add secret (e.g., `tenant-a-secret`) with Client Secret.
+**Option B: Production-Style Setup (Entra ID, Generic OIDC, etc.)**
+- Create App Registration in your OIDC provider
+- Redirect URI: `https://localhost:[PORT]/signin-oidc`
+- Note the **Client ID** and **Authority URL** from your provider
 
-**Permissions:** Grant **Key Vault Secrets User** to your identity.
+#### 2. Local Auth (Azure Key Vault)
 
-#### 2. Local Auth
+If using an external OIDC provider and storing secrets in Key Vault:
 
 ```bash
 az login --allow-no-subscriptions
@@ -448,15 +453,28 @@ az login --allow-no-subscriptions
 
 Allows `SecretVaultService` to access Key Vault in local dev.
 
+**Key Vault Setup:**
+- Add secret (e.g., `tenant-a-secret`) with your OIDC Client Secret
+- Grant **Key Vault Secrets User** to your identity
+
 #### 3. Tenant Setup
 
 In **Prism Dashboard** (backoffice):
-- **Hostname:** `localhost:[PORT]`
-- **Entra Tenant ID:** Directory ID
-- **Entra Client ID:** App Registration ID
-- **Secret Key Name:** `tenant-a-secret`
 
-For **generic OIDC production tenants**, enter the provider authority/client ID plus the Key Vault secret name that should be resolved at runtime. The dashboard does not round-trip raw OIDC client secrets through edit responses; production updates are reference-based, and only the seeded localhost Keycloak demo exposes an inline replace field.
+**For Keycloak (local dev):**
+- **Hostname:** `localhost:[PORT]`
+- **OIDC Authority:** `https://localhost:8443/realms/prism-dev`
+- **OIDC Client ID:** `prism-client`
+- **Secret Provider:** `inline` (only for demo; leave as is)
+
+**For External OIDC Provider (Entra ID, generic OIDC, etc.):**
+- **Hostname:** `localhost:[PORT]` (or your domain)
+- **OIDC Authority:** Authority URL from your provider
+- **OIDC Client ID:** Client ID from your provider
+- **Secret Provider:** `azure-key-vault`
+- **Secret Reference:** `tenant-a-secret` (or your vault secret name)
+
+The dashboard does not round-trip raw OIDC client secrets through edit responses; production updates are reference-based, and only the seeded localhost Keycloak demo exposes an inline replace field.
 
 #### 4. Downstream API Auth
 
@@ -524,14 +542,14 @@ public async Task<string> GetMemberDataAsync()
 
 * **Umbraco:** v17.0+
 * **.NET:** 10.0
-* **Auth:** Stateless OIDC (Entra), Azure Key Vault, Managed Identity
+* **Auth:** Stateless OIDC (any OIDC-compliant provider), Azure Key Vault, Managed Identity
 * **Mobile:** Capacitor, TypeScript, Storybook
 
 ---
 
 ## Phone Auth via Cloudflare Tunnel
 
-For Entra sign-in on mobile, use HTTPS tunnel (Entra requires `https://` or `http://localhost` only).
+For OIDC sign-in on mobile devices with an external provider, use HTTPS tunnel (most OIDC providers require `https://` or `http://localhost` only).
 
 ### No Domain (Temporary URL)
 
@@ -546,7 +564,7 @@ Or use helper:
 bash scripts/dev/start-trycloudflare.sh
 ```
 
-Add redirect URI in Entra:
+Add redirect URI in your OIDC provider:
 ```
 https://<random>.trycloudflare.com/signin-oidc
 ```

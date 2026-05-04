@@ -184,3 +184,22 @@ Added three operator scripts under `scripts/codespaces/`:
 - Copper: Verified trust chain; recommended restart
 - User: Diagnostics over speculation; focus on actual failure runtime
 
+
+## 2026-05-04 | Walkthrough Discovery Completion
+
+Discovery phase completed. Findings documented in decisions.md.
+Awaiting implementation phase dispatch.
+
+## 2026-05-04 | Walkthrough Discoverability Implementation
+
+**Status:** IMPLEMENTED
+
+Completed walkthrough discoverability hardening:
+- Removed TestSite stub views blocking Core embedded views
+- Restructured member dashboard into Overview and Workflow Demos sections
+- Exposed workflow admin URL from MemberDashboardController via IConfiguration
+- Added Developer Tools dash-section (conditional rendering)
+
+Verification: `dotnet build` (0 errors, 2 pre-existing warnings); `dotnet test` (690 passed)
+
+Decision recorded: "Walkthrough Discoverability — All Workflow Types Reachable from Dashboard"

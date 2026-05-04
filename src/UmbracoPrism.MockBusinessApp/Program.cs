@@ -356,10 +356,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                       <button class="btn {ActionBtnClass(t.Action)}">{ActionDisplay(t.Action)}</button>
                     </form>
                     """));
+            var shortId = inst.InstanceId.Length > 12 ? inst.InstanceId[..8] + "…" : inst.InstanceId;
             return $"""
-            <tr>
+            <tr data-workflow-key="{Esc(inst.WorkflowKey)}" data-current-state="{Esc(inst.CurrentState)}">
               <td>{n + 1}</td>
-              <td style="font-family:monospace;font-size:.8em">{Esc(inst.InstanceId)}</td>
+              <td style="font-family:monospace;font-size:.8em"><span title="{Esc(inst.InstanceId)}">{Esc(shortId)}</span></td>
               <td>{Esc(inst.WorkflowKey)}</td>
               <td>
                 <span class="badge">{Esc(stateDisplay)}</span>
@@ -433,15 +434,25 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             var fieldGroupsSection = "";
 
             return $"""
-            <div class="def-card">
-              <div class="def-header">
-                <div>
-                  <strong>{Esc(def.DisplayName)}</strong>
-                  <span style="color:#888;font-size:.82rem;margin-left:.5rem">({Esc(def.DefinitionKey)} v{def.Version})</span>
+            <div class="def-card"
+                 data-definition-key="{Esc(def.DefinitionKey)}"
+                 data-mermaid-render-state="idle">
+              <div class="def-header"
+                   role="button"
+                   tabindex="0"
+                   aria-expanded="false"
+                   onclick="toggleCard(event, this)"
+                   onkeydown="handleCardHeaderKeydown(event, this)">
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <span class="def-toggle">▶</span>
+                  <div>
+                    <strong>{Esc(def.DisplayName)}</strong>
+                    <span style="color:#888;font-size:.82rem;margin-left:.5rem">({Esc(def.DefinitionKey)} v{def.Version})</span>
+                  </div>
                 </div>
                 <div style="display:flex;gap:.5rem;align-items:center">
                   {policyBadge}
-                  <button class="btn btn-edit" onclick="openEditor('{Esc(def.DefinitionKey)}')">✎ Edit JSON</button>
+                  <button type="button" class="btn btn-edit" onclick="openEditor('{Esc(def.DefinitionKey)}')">✎ Edit JSON</button>
                 </div>
               </div>
               <div class="def-body">
@@ -481,7 +492,10 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"></script>
           <script type="module">
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-            mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+            mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+            window._mermaid = mermaid;
+            window._mermaidReady = true;
+            window.dispatchEvent(new CustomEvent('prism:mermaid-ready'));
           </script>
           <style>
             *, *::before, *::after { box-sizing: border-box; }
@@ -517,8 +531,12 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             .toolbar { margin-bottom:.75rem; display:flex; gap:.5rem; align-items:center; }
             .count { color:#888; font-size:.85rem; }
             .def-card { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:1.25rem; overflow:hidden; }
-            .def-header { padding:.75rem 1rem; background:#f8f9fb; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; }
-            .def-body { padding:1rem; display:flex; flex-direction:column; gap:1rem; }
+            .def-header { padding:.75rem 1rem; background:#f8f9fb; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+            .def-header:focus-visible { outline:3px solid #2563eb; outline-offset:-3px; }
+            .def-toggle { display:inline-block; transition:transform .16s ease; }
+            .def-card.open .def-toggle { transform:rotate(90deg); }
+            .def-body { padding:1rem; display:none; flex-direction:column; gap:1rem; }
+            .def-card.open > .def-body { display:flex; }
             .def-tables { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
             .def-diagram .mermaid { background:#fafafa; border-radius:6px; padding:.75rem 1rem; overflow-x:auto; }
             .table-label { margin:0 0 .4rem; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:#888; font-weight:600; }
@@ -558,6 +576,11 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             </table>
 
             <h2>Workflow Definitions</h2>
+            <div class="toolbar">
+              <span class="count">{{defs.Count}} definition(s)</span>
+              <button type="button" class="btn btn-action" onclick="expandAllDefs()">Expand All</button>
+              <button type="button" class="btn btn-reset" onclick="collapseAllDefs()">Collapse All</button>
+            </div>
             {{defCards}}
           </main>
           
@@ -577,6 +600,63 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
           </div>
           
           <script>
+            function setCardOpen(card, isOpen) {
+              if (!card) return;
+              card.classList.toggle('open', isOpen);
+              const header = card.querySelector('.def-header');
+              if (header) header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+              if (isOpen) renderCardDiagram(card);
+            }
+
+            function toggleCard(e, hdr) {
+              if (e.target instanceof Element && e.target.closest('button')) return;
+              const card = hdr.closest('.def-card');
+              setCardOpen(card, !card.classList.contains('open'));
+            }
+
+            function handleCardHeaderKeydown(e, hdr) {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              toggleCard(e, hdr);
+            }
+
+            async function renderCardDiagram(card) {
+              if (!window._mermaid) return;
+              const nodes = Array.from(card.querySelectorAll('.mermaid:not([data-processed])'));
+              if (!nodes.length) {
+                card.setAttribute('data-mermaid-render-state', 'ready');
+                return;
+              }
+
+              card.setAttribute('data-mermaid-render-state', 'rendering');
+
+              try {
+                await window._mermaid.run({ nodes });
+                card.setAttribute('data-mermaid-render-state', 'ready');
+              } catch (error) {
+                card.setAttribute('data-mermaid-render-state', 'error');
+                console.error('Mermaid rendering failed for workflow admin card.', error);
+              }
+            }
+
+            function renderOpenCardDiagrams() {
+              document.querySelectorAll('.def-card.open').forEach(card => renderCardDiagram(card));
+            }
+
+            if (window._mermaidReady) {
+              renderOpenCardDiagrams();
+            } else {
+              window.addEventListener('prism:mermaid-ready', renderOpenCardDiagrams, { once: true });
+            }
+
+            function expandAllDefs() {
+              document.querySelectorAll('.def-card').forEach(c => setCardOpen(c, true));
+            }
+
+            function collapseAllDefs() {
+              document.querySelectorAll('.def-card').forEach(c => setCardOpen(c, false));
+            }
+
             let aceEditor = null;
             let currentEditorKey = null;
             let currentEditorType = null;
