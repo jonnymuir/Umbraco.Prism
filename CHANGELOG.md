@@ -2,6 +2,54 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.9.0] — 2026-05-04
+
+### Added
+
+- **Workflow v2.0 atomic schema replacement:** Complete rewrite of workflow field definitions to first-class component hierarchy. All workflow fields now inherit from `PrismComponent` with polymorphic type resolution, enabling better composition and runtime extensibility.
+- **Workflow information-request demo page:** New comprehensive workflow demo page showcasing information-request patterns with full Playwright coverage and seeded sample data.
+- **Business API arrival instrumentation:** Added diagnostic middleware to log Business API request arrival (method, path, trace ID, auth status) before authentication. Safe caller trace ID forwarding via `X-Prism-Caller-TraceId` header enables cross-service request correlation.
+- **Enhanced downstream timeout diagnostics:** Expanded diagnostics surface with explicit backchannel usage indicators, target path details, timeout window metadata, and cancellation source context. Helps operators disambiguate public-tunnel vs. backchannel wiring issues.
+- **Transport and backchannel diagnostics in downstream demo:** Exposed transport type, backchannel presence, base URL, and scheme diagnostics to all downstream demo responses for better operator visibility.
+- **Full-URL status page on Codespaces startup:** Codespaces now prints the complete status page URL on application startup for direct access to diagnostics dashboard.
+- **Keycloak JWKS backchannel discovery:** JWKS endpoint discovery now bypasses `jwks_uri` in Keycloak discovery document and uses HTTP probe for TestSite, allowing safe retrieval via backchannel URLs in Codespaces.
+- **Polymer field type in workflows:** Added decimal field type validation with planning confirmation reference number support for finance workflow use cases.
+- **Conditional fields documentation refresh:** Updated architecture docs for v2.0 schema with conditional field patterns and component composition examples.
+- **Keycloak security documentation:** Comprehensive documentation for OIDC/Keycloak security setup with CI loopback certificate trust patterns.
+
+### Changed
+
+- **Codespaces recovery tooling:** Added robust recovery utilities and enhanced diagnostics script for Codespaces environments (shell-only, no Python dependency).
+- **Keycloak JWKS backchannel URLs handling:** Escaped URLs are now properly rewritten in auth flows to work with backchannel requests. `X-Forwarded` headers are injected on backchannel refresh to fix `invalid_grant` errors.
+- **Workflow seed migration:** Migrated all stale workflow seed JSONs to polymorphic v2.0 schema with roundtrip guard tests to prevent schema drift.
+- **MockBusinessApp diagnostics:** Arrival middleware now logs authentication status (success/failure) alongside request context without exposing credentials or internal URLs.
+- **Codespaces port forwarding:** Added `forwardPorts` array to `.devcontainer` for automatic port configuration in GitHub Codespaces.
+- **Dynamic BusinessApp endpoint discovery:** Codespaces now uses dynamic endpoint discovery (port 7245) for BusinessApp backchannel instead of hardcoded URL.
+- **TestSite InMemoryAuto models builder:** Switched to `InMemoryAuto` for ModelsBuilder to prevent view conflicts in local development.
+
+### Fixed
+
+- **Workflow backchannel auth:** Fixed workflow API calls in Codespaces to use `BUSINESSAPP_BACKCHANNEL_URL` instead of public endpoint. Added 401 regression tests for null auth header scenarios. Aligned workflow handlers to `Results.Problem` for consistent error responses.
+- **CancellationToken fragility in tests:** Replaced fragile `CancellationToken` matchers with `It.IsAny<CancellationToken>()` to fix environment-variable race conditions in CI and local test collection ordering.
+- **Dashboard backchannel 401 diagnostics:** Enhanced 401 error diagnostics to clarify backchannel connection issues with actionable guidance.
+- **Downstream demo JSON validation:** Added strict JSON response validation with HTML rejection to prevent error pages being returned as application data.
+- **Keycloak data directory permissions:** Pre-created Keycloak data directory with world-writable permissions to fix CI initialization failures.
+- **CI route warmup:** Added pre-creation of all authored routes in localhost-auth readiness gate to ensure first-render Razor compile timeout is sufficient.
+- **CI first-render timeout:** Raised `expect` timeout to 30s for first-render Razor compile to handle CI warmup overhead.
+- **BusinessApp localhost backchannel:** Restored proper BusinessApp localhost backchannel configuration after Codespaces URL changes.
+- **npm vulnerability patches:** Applied `npm audit fix` to patch critical handlebars CVE and 10 high-severity vulnerabilities in npm dependency tree.
+- **CookieSecurePolicy enforcement:** Hardened `PrismMemberCookie` to use `CookieSecurePolicy.Always` for all environments.
+
+### Security
+
+- **Workflow state authorization:** Added authorization to `WorkflowPollController` to prevent unauthenticated access to workflow state (SEC-001).
+- **HTML injection in workflow components:** Introduced `IWorkflowContentSanitizer` with GDS-aligned allowlist to sanitize dynamic HTML in workflow display components, closing XSS attack surface (SEC-003).
+- **Structured logging injection protection:** Replaced string interpolation with structured logging in `PrismTenantMiddleware` to prevent log injection attacks (SEC-009).
+- **Unsafe aria attributes encoding:** Added HTML encoding to `aria-describedby` attributes to prevent attribute injection attacks (SEC-011).
+- **Proxy-aware rate limiting:** Added `ForwardedHeadersMiddleware` to respect `X-Forwarded-For` headers for accurate biometric rate limiting behind reverse proxies (SEC-007).
+
+---
+
 ## [v1.8.0] — 2026-04-30
 
 ### Added
