@@ -59,3 +59,6 @@ EOF
 
 Discovery phase completed. Findings documented in decisions.md.
 Awaiting implementation phase dispatch.
+
+
+**2026-05-08T05:26:48.026Z — Squad Sync:** User directive for Marketplace nudge recorded in decisions.

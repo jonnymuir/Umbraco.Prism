@@ -1,3 +1,1172 @@
+# Decision: Strengthen Approval Workflow Narratives in Walkthroughs
+
+**Date:** 2026-05-04  
+**Author:** Mabel (Copilot Documentation Specialist)  
+**Status:** Implemented  
+
+## Summary
+
+Updated four walkthrough documents to provide a complete, step-by-step guided demonstration of the approval/reviewer handoff pattern. Moved from brief explanations of "approval is needed" to full narratives showing user submission → waiting state → operator review → user outcomes.
+
+## Changes Made
+
+### 1. **Payment Demo** (`docs/walkthroughs/payment-demo.md`)
+- **Restructured** from 2-part (form + waiting) to 4-part narrative:
+  - Part 1: End-user submission (form → processing state)
+  - Part 2: Operator approval (admin panel → viewing definition → performing approval)
+  - Part 3: Return-to-user confirmation (what the user sees after approval)
+  - Part 4: Production patterns (webhook vs manual approval vs operator interface)
+- **New content:**
+  - Explicit step-by-step guide for accessing admin panel from dashboard
+  - Workflow definition JSON showing `requiresRole: "reviewer"` on the complete transition
+  - Explanation of why the `waiting` component + `single` instance policy work together
+  - Three production patterns (Stripe webhook, operator interface, system role) showing the approval step is never purely manual
+- **Narrative focus:** "Submit now, reviewer completes later" → user can safely defer
+
+### 2. **Community Enquiry** (`docs/walkthroughs/community-enquiry.md`)
+- **Restructured** from 2-part to 4-part narrative:
+  - Part 1: End-user submission (form → under-review state)
+  - Part 2: Operator review (admin panel → viewing definition → two scenarios: approve or request changes)
+  - Part 3: User receives feedback (if approved → completion; if changes requested → form with answers pre-filled)
+  - Part 4: Production patterns (operator portal SLA/routing, why role-based approval matters)
+- **New content:**
+  - Explanation of `under-review` as non-terminal, waiting state
+  - State machine JSON showing both `approve` and `request-changes` transitions with `requiresRole: "reviewer"`
+  - Cycle loops: `collecting-details` ↔ `under-review` ↔ `collecting-details` (iterative refinement)
+  - What "request changes" means for the user (form returns with answers, opportunity to revise)
+- **Narrative focus:** "One-way submission" → "Iterative review cycle"
+
+### 3. **Information Request** (`docs/walkthroughs/information-request.md`)
+- **Restructured** from 2-part to 4-part narrative (same shape as Community Enquiry)
+  - Part 1: End-user request (form with urgency field → waiting state)
+  - Part 2: Operator review (admin panel → urgency-driven routing/SLAs)
+  - Part 3: User receives outcome (approval or changes requested)
+  - Part 4: Production patterns (DPO portal, compliance SLAs, why urgency triage)
+- **New content:**
+  - Urgency field now explicitly tied to reviewer workflow (triage queue, SLA assignment, team routing)
+  - State machine showing transitions gated by `requiresRole: "reviewer"`
+  - Explanation of how urgency data flows into operator decision-making
+  - SLA examples: Standard (7 days), Urgent (2 days), Critical (same day)
+- **Narrative focus:** "Submit with urgency flag" → "Urgency drives operator triage and SLAs"
+
+### 4. **README & Workflow Administration**
+- **README.md:** Updated note to position admin panel as the "reviewer role simulator" in the local demo, cross-linking to all three approval workflows
+- **Workflow Administration.md:** 
+  - Expanded opening note to explain it's the "harness" for testing reviewer decisions
+  - Enhanced Part 2b ("Complete Approval Workflows") with a full step-by-step walkthrough of the handoff (submit → wait → admin action → user sees outcome)
+  - Added "Key Points" explaining role-based enforcement, data visibility, and outcome visibility
+
+## Documentation Principles Applied
+
+- **Executable specs alignment** – Each walkthrough narrative coordinates with workflow definitions in `workflow-seeds/` and test specs in `tests/walkthroughs/`
+- **Guided demonstration** – Each reads as a step-by-step walkthrough someone could follow in the running app
+- **Conceptual coherence** – Admin panel is positioned as the "reviewer actor" in the service flow, not an isolated debugging tool
+- **Production grounding** – Each includes a "Production Patterns" section showing why this architecture matters in real systems (webhooks, operator portals, SLAs, role enforcement)
+- **User-centric outcomes** – Always shows what changes for the original user after approval/feedback
+
+## Why This Matters
+
+1. **Onboarding clarity** – New developers understand not just "what approval is" but "how it flows end-to-end"
+2. **Test authoring** – Specs now have clear narratives they can reference; easier to write related edge case tests
+3. **Design grounding** – Product team can see exactly where approval/review points are and why they exist
+4. **Production mapping** – Each section labeled "Production Patterns" makes clear how the demo harness maps to real operator workflows
+
+## Files Changed
+
+- `docs/walkthroughs/payment-demo.md` – Full rewrite, 4-part structure
+- `docs/walkthroughs/community-enquiry.md` – Full rewrite, 4-part structure
+- `docs/walkthroughs/information-request.md` – Full rewrite, 4-part structure
+- `docs/walkthroughs/README.md` – Updated cross-linking note
+- `docs/walkthroughs/workflow-administration.md` – Expanded opening note and Part 2b
+
+## Next Steps
+
+- Verify screenshot ordering in the specs matches the new narrative structure (NN-slug.png naming)
+- If Tangy is working on executable specs, align test step naming with the new "Part" structure
+- Consider recording video walkthroughs following the new 4-part narrative for async team review
+### 2026-05-04T13:17:22.267+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Don't just call out that reviewer approval/rejection is needed; show it happening end-to-end in Playwright by navigating via the Aspire/dashboard workflow admin path, showing the workflow definition/state, approving it, and demonstrating that the original waiting user is moved on automatically.
+**Why:** User request — captured for team memory
+### 2026-05-04T13:20:30.000+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Make the walkthrough understandable step by step so someone can follow the whole workflow lifecycle and really understand what is happening at each stage.
+**Why:** User request — captured for team memory
+### 2026-05-04T13:24:41.480+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Additional walkthrough steps should be complemented appropriately with screenshots.
+**Why:** User request — captured for team memory
+### 2026-05-04T13:37:58.618+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Hide the demo Prism user-agent hover in screenshots, but do not crop screenshots so aggressively that the demonstrated content is cut off; limit vertical cropping primarily for genuinely long pages such as the home page.
+**Why:** User request — captured for team memory
+### 2026-05-04T13:44:50.590+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Screenshot policy should prefer showing the whole functionality of the screen, using cropped or viewport-sized captures only when a page is unusually huge and a full capture stops being useful.
+**Why:** User request — captured for team memory
+### 2026-05-04T16:09:36.911+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Refresh `docs/design` workflow docs thoroughly: keep them current, avoid pasting whole model files unless a snippet teaches something useful, and make them read like strong package documentation that is coherent, concise, discoverable, well indexed, and tells a clear story about implementing your own workflow.
+**Why:** User request — captured for team memory
+### 2026-05-08T05:58:15.779+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Keep the GitHub README unchanged, but add an automatic way to produce a Marketplace-friendly description that removes/adjusts unsupported HTML and rewrites relative links so they resolve correctly outside GitHub.
+**Why:** User request — captured for team memory
+### 2026-05-08T06:26:48.026+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Make sure the Umbraco Marketplace sync/nudge is triggered again after the latest publish so Marketplace picks up the update more quickly.
+**Why:** User request — captured for team memory
+# Mermaid walkthrough screenshots wait for rendered SVG, not page load alone
+
+## Context
+
+Workflow admin walkthrough screenshots include Mermaid state diagrams inside
+expandable definition cards. The page can finish loading before Mermaid has
+replaced the raw diagram text with SVG, so a capture taken immediately after
+opening a card can freeze the pre-rendered source text into the walkthrough.
+
+## Decision
+
+Walkthrough screenshot capture now treats Mermaid as an explicit readiness
+dependency:
+
+- Screenshot runs must use the real Mermaid bundle instead of the no-op test
+  stub
+- The screenshot helper waits until each in-scope `.mermaid` block is marked
+  `data-processed="true"`, contains an `svg`, and no longer has direct raw text
+  nodes
+- Workflow admin cards expose `data-mermaid-render-state` so the harness can
+  wait on app-owned render state rather than arbitrary sleeps
+
+## Why
+
+This keeps normal Playwright tests deterministic while making screenshot capture
+trust the rendered diagram, not just DOMContentLoaded or a guessed timeout.
+# Screenshot policy correction — content-aware by default
+
+## Context
+
+The earlier walkthrough screenshot policy drifted toward a viewport-first reading
+(`fullPage: false` by default), which made several fresh captures too cropped to
+show the full functionality of the screen. Jonny clarified the intended rule:
+default to showing the whole useful screen/content, and only crop when the page
+is genuinely so tall that a full-height image stops being helpful.
+
+## Decision
+
+Walkthrough screenshot capture should be **content-aware by default**:
+
+- Grow beyond the viewport to include the useful content being demonstrated
+- Keep helper/hover UI hidden during capture
+- Use selector-based crops or height caps for very tall pages (homepage,
+  dashboard, similar long surfaces)
+- Use `fullPage: true` selectively for steps where the entire document is still
+  the useful thing to show (for example check-answers pages)
+
+## Implementation notes
+
+- `tests/walkthroughs/support/walkthrough.ts` remains the single control point
+  for screenshot policy
+- `screenshotSelector` is the preferred per-step crop control for long pages
+- `screenshotMaxHeight` is available when a step needs a taller-but-still-capped
+  image
+- `SCREENSHOT_FULL_PAGE=1` remains a workflow-level override for forced full-page
+  captures
+# Decision: Waiting-State Walkthroughs Must Prove the Original Page Advances
+
+**Date:** 2026-05-04  
+**Author:** Tangy / @copilot  
+**Status:** Implemented
+
+## Summary
+
+For walkthroughs that pause in a waiting or under-review state, the executable spec should keep the original member-facing page open while a second page follows the reviewer route. That lets the test prove the waiting page moves on automatically after approval, instead of only asserting state through admin-only screens.
+
+## Pattern
+
+1. Complete the member journey until the waiting page is visible.
+2. Open a second page/tab for supporting checks:
+   - inspect **My Workflows** if needed
+   - follow the discoverable dashboard route to **Workflow Admin**
+3. Perform the reviewer action there.
+4. Return to or foreground the original waiting page and assert that it advances without a manual refresh step in the spec.
+
+## Why
+
+- It teaches the whole mechanism, not just the operator half.
+- It keeps service walkthroughs honest about what the member actually experiences.
+- It gives stronger regression coverage for waiting-step polling / reload behaviour.
+# Workflow Approval Semantics — Narrative Pattern
+
+**Context:** Walkthroughs across community-enquiry, information-request, and payment-demo all demonstrate workflows with role-gated `reviewer` transitions. These are not developer-only concerns; they are **core business process semantics** that should be visible in the walkthrough story.
+
+**Decision:** Workflow approval patterns are taught as **named handoff points** where user action (form submission) yields to operator action (approval/rejection). This handoff must be explained **in each service walkthrough**, not delegated entirely to the development-only Workflow Administration guide.
+
+## Pattern Definition
+
+Three workflows currently implement role-gated approval transitions:
+
+| Workflow | Submission → Waiting State | Operator Action | Result |
+|---|---|---|---|
+| **community-enquiry** | collecting-details → under-review | approve / request-changes | complete / collecting-details |
+| **information-request** | collecting-info → under-review | approve / request-changes | complete / collecting-info |
+| **payment-demo** | enter-details → processing-payment | complete | payment-complete |
+
+These are **semantic breakpoints** in the workflow, not bugs or incomplete flows. Each represents a business rule: a human or system must verify, process, or authorize the member's input before the workflow can proceed.
+
+## Narrative Requirements
+
+Every workflow with `requiresRole: "reviewer"` transitions must include:
+
+1. **Explicit naming of the waiting state** — "This is **not** a terminal state; it's a waiting state."
+2. **Statement of who acts next** — "A reviewer with the `reviewer` role can now…"
+3. **Enumeration of next actions** — List each role-gated transition (approve, request-changes, etc.)
+4. **Production vs. dev distinction** — Briefly note that in dev we use the Workflow Admin panel, but production uses a dedicated operator interface.
+5. **Authorization statement** — "The workflow definition enforces that only users with the `reviewer` role can advance these transitions."
+
+See community-enquiry.md and payment-demo.md sections titled "What Happens Next" for reference implementation.
+
+## Future Guidance
+
+- When adding new workflows with `requiresRole` transitions, include this narrative in the same service walkthrough.
+- When building the production operator UI (not yet planned), reference this decision to ensure the operator interface aligns with the role hierarchy already defined in workflow seeds.
+- Workflow Administration walkthrough remains a **developer tool reference**, but service walkthroughs own the **business narrative** of approval workflows.
+
+---
+
+**Related:** SKILL.md rule [R6](../../skills/walkthroughs-as-executable-specs/SKILL.md) ("Negative paths live with the walkthrough") — approval/rejection paths are conditional flows within the workflow and belong in the same spec.
+# Decision: workflow docs are maintained as package implementation guides
+
+- **Date:** 2026-05-04
+- **Decision maker:** Copilot acting as Mabel
+
+## Decision
+
+The workflow documents under `docs/design/` are now organised and maintained as package-consumer implementation guides, not as proposal logs. `docs/design/README.md` is the landing page, and each workflow document now owns one topic with minimal duplication:
+
+- overview
+- end-to-end implementation story
+- backend contracts
+- Umbraco integration
+- client rendering
+- validation
+- security
+- advanced patterns
+
+## Why
+
+The previous workflow docs mixed historical proposals, stale contracts, and large code dumps. That made it hard to discover the current package story and easy to copy obsolete examples.
+
+## Consequences
+
+Future workflow documentation changes should update the topic guide that owns the concept rather than re-describing the same contract in multiple places. Seed files and implementation source stay the canonical detailed examples; docs should link to them and only quote short snippets when they teach something useful.
+# Workflow docs should tell a package story, not dump implementation
+
+## Context
+
+Reviewing `docs/design/workflow*.md` from a package-documentation perspective showed a recurring problem: the workflow design set is rich in engineering detail but weak as a discoverable, trustworthy implementation guide for package consumers.
+
+## Guidance
+
+1. **Split narrative guide from internal design reference.**
+   - Keep one clear "build your own workflow" path aimed at consumers.
+   - Keep ADR/security/reference material separate and explicitly labeled as contributor/internal reference.
+
+2. **Prefer compact examples over whole-file code dumps.**
+   - Show the minimum JSON/C# needed to explain a concept.
+   - Link to the real source file or builder type for full reference instead of embedding hundreds of lines.
+
+3. **Make the docs follow the implemented contract, not the superseded proposal.**
+   - Treat `WorkflowDefinitionFile`, `WorkflowDefinitionBuilder`, `StepContent.StepType`, and current walkthrough examples as the canonical source.
+   - Mark historical/proposal content clearly or archive it.
+
+4. **Organize workflow docs around the consumer journey.**
+   - Recommended order: concepts → definition anatomy → create a workflow → validation/conditional logic → run/debug/admin → extension/reference.
+
+5. **Every doc in the set should answer one question.**
+   - If a page tries to be architecture, API reference, schema dump, and tutorial at once, split it.
+
+## Implication for rewrites
+
+Mabel's rewrite should optimise for: concise entry points, strong cross-linking, current examples, and a single coherent implementation story for someone building their own workflow with Prism.
+# Marketplace listing content is generated from the GitHub README
+
+## Context
+
+The GitHub `README.md` is the canonical public package story, but Umbraco Marketplace renders some GitHub-flavoured HTML and relative links poorly. Keeping a second hand-edited `MARKETPLACE.md` had already started to drift from the README.
+
+## Decision
+
+1. Keep `README.md` unchanged as the source of truth.
+2. Generate `MARKETPLACE.md` automatically from `README.md` using `scripts/generate-marketplace-readme.mjs`.
+3. During generation, convert known Marketplace-hostile content into Marketplace-safe Markdown:
+   - centered HTML image blocks become plain Markdown images/headings
+   - relative document links become absolute GitHub `blob`/`tree` URLs
+   - relative image paths become absolute `raw.githubusercontent.com` URLs
+4. Treat `MARKETPLACE.md` as a generated artifact and verify it in CI/release workflows with `npm run check:marketplace`.
+
+## Implication
+
+Marketplace copy now stays aligned with the GitHub README without manually maintaining two narratives. Any README change that should appear on Marketplace must be followed by `npm run generate:marketplace`, and CI will fail if the generated file is stale.
+# Mabel — Marketplace listing refresh requires a package release
+
+**Date:** 2026-05-08  
+**Status:** Complete — v1.9.1 released with marketplace-generated README
+**Author:** Mabel (Technical Writer / Release Manager)  
+**Impact:** Marketplace publishing, NuGet package metadata, release process
+
+## Summary
+
+The Umbraco Marketplace package page renders `readMeContent` from the published NuGet package, not the `DocumentationUrl` target from `umbraco-marketplace.json`.
+
+## Decision
+
+1. Keep `README.md` as the source of truth for GitHub.
+2. Keep generating `MARKETPLACE.md` from `README.md` for Marketplace-safe formatting.
+3. Ship `MARKETPLACE.md` inside the NuGet package and set `<PackageReadmeFile>MARKETPLACE.md</PackageReadmeFile>`.
+4. Treat Marketplace copy refreshes that need the rendered package page to change as a patch release, because the rendered content is tied to the package artifact.
+5. Continue using `DocumentationUrl` to point at the raw GitHub `MARKETPLACE.md`, but treat that as a supporting docs link rather than the primary rendered listing body.
+
+## Rationale
+
+- The public Marketplace frontend renders `package.readMeContent` on the package page.
+- `documentationUrl` appears in the sidebar links, so syncing metadata alone does not replace the main rendered listing content.
+- A patch release lets us push the marketplace-friendly generated markdown without forking or manually editing the GitHub README.
+
+## Operational consequence
+
+To refresh the Marketplace page body after this change:
+
+1. release a new package version
+2. push the tag so the package is published
+3. trigger the Marketplace sync for `UmbracoPrism`
+
+Metadata-only edits that affect title, tags, screenshots, or the docs link can still use a sync-only path when the package readme itself does not need to change.
+
+## Implementation Complete (v1.9.1)
+
+- ✓ Commit 8b78831: Added MARKETPLACE.md generation script and configured NuGet package
+- ✓ Tag v1.9.1 created and pushed to origin
+- ✓ GitHub Actions workflow triggered automatically on tag push
+- ✓ UmbracoPrism.1.9.1.nupkg built and published to NuGet.org
+- ✓ GitHub Release v1.9.1 created with package asset
+- ✓ Marketplace sync endpoint triggered
+- ✓ Release notes documented in CHANGELOG.md
+
+Note: NuGet.org package search API may take 1–2 hours to index the new package version. The .nupkg is immediately available via direct package references.
+# Documentation Decision: OIDC Provider Language
+
+**Decided by:** Mabel (Documentation Specialist)  
+**Date:** 2026-05-04  
+**Status:** Ready for review  
+
+## Issue
+The README.md repeatedly implied that Entra ID was mandatory or the primary OIDC authentication method, when in fact:
+- Any OIDC-compliant provider is supported (Entra ID, Keycloak, generic OIDC, etc.)
+- Keycloak is included for local dev flows
+- Entra ID is one option among many for production use
+
+This created confusion for new users and misrepresented the project's architecture.
+
+## Changes Made
+
+**10 targeted README.md edits to clarify OIDC provider flexibility:**
+
+1. **Line 125** - Features bullet: Changed "Entra ID integration" → "any OIDC-compliant provider (Entra ID, Keycloak, etc.)"
+2. **Line 192** - Quick Start guide: Unified tenant setup instructions to generically reference "OIDC tenants (Entra ID, Keycloak, etc.)" instead of separate "Entra tenants" vs "Generic OIDC tenants" sections
+3. **Line 203** - Architecture: Changed "OIDC providers (Entra ID or generic OIDC)" → "any OIDC-compliant system: Entra ID, Keycloak, etc."
+4. **Line 218** - Features: Changed "Per-tenant Entra ID (OIDC)" → "Per-tenant OIDC (any provider: Entra ID, Keycloak, etc.)"
+5. **Line 284** - Prerequisites: Changed "Entra ID (for authentication)" → "OIDC Provider — any OIDC-compliant system (Keycloak included for local dev; Entra ID or others for production)"
+6. **Line 301** - Local Dev Tunnel: Changed "For testing Entra sign-in" → "For testing OIDC sign-in on mobile devices with an external OIDC provider"
+7. **Line 313** - Local Dev Tunnel: Changed "Mutates Entra app" → "Mutates your OIDC provider app config"
+8. **Lines 432-458** - Local Authentication Walkthrough: **Major restructuring**
+   - Added "Option A: Quick Start with Keycloak (Included)" as first path
+   - Moved external providers (Entra, generic OIDC) to "Option B"
+   - Split tenant setup into two clear paths (Keycloak vs External OIDC)
+9. **Line 527** - Stack: Changed "Auth: Stateless OIDC (Entra)" → "Auth: Stateless OIDC (any OIDC-compliant provider)"
+10. **Line 550** - Phone Auth section: Changed "For Entra sign-in on mobile" → "For OIDC sign-in on mobile devices with an external provider"
+
+## Key Message
+README now leads with **Keycloak for local dev** (simplest path, no setup needed) before showing **external OIDC provider options** (Entra, etc.) for production. This matches the actual architecture where Keycloak is bundled and ready-to-use, while production typically adds their own OIDC provider.
+
+## Alignment with Docs
+Confirmed against:
+- `docs/secret-management.md` — which discusses all three secret paths (Entra, generic OIDC, inline Keycloak)
+- `docs/umbraco-setup.md` — which is OIDC-provider agnostic
+- Actual app configuration in `keycloak/` directory
+
+## Impact
+- **New contributors** now understand they can start locally with Keycloak without Azure setup
+- **Production integrators** still see their Entra/generic OIDC path clearly
+- **Documentation consistency** — README now correctly reflects "any OIDC provider" architecture without implying Entra is mandatory
+# Mabel — Payment Demo as Primary Interactive Walkthrough
+
+**Date:** 2026-05-04  
+**Status:** Proposed  
+**Author:** Mabel (Technical Writer)  
+**Impact:** README, documentation discovery, first-time user experience
+
+## Summary
+
+Moved the **Payment Processing Workflow** demo to the primary position in README's "Interactive Walkthrough" section, replacing the Planning Permission workflow.
+
+## Rationale
+
+### Payment Demo advantages
+
+- **Showcases Prism's core differentiator:** Demonstrates the "submit now, finish later" async workflow pattern with waiting states, persistence, and real-time updates — the feature that justifies Prism's existence
+- **More universally relevant:** Payment processing is needed in every business app; planning permissions are a niche government use case
+- **Clearer visual progression:** Form submission → Processing state → Completion. The waiting state ("Processing Your Payment") is a teaching moment that shows how Prism handles asynchronous work
+- **Reviewer workflow visibility:** Demonstrates the dual-actor pattern (member + reviewer) that real async workflows need, exposing admin panel and real-time updates
+- **Cleaner screenshots:** No UI debugging artifacts (unlike some planning screenshots)
+
+### Planning Permission walkthrough remains available
+
+The planning permission walkthrough is kept as an **Alternative** for developers who want to see multi-step complex forms with conditional field logic. It's valuable but not the "hook" for a first-time GitHub visitor.
+
+## What Changed
+
+- **README § 42–57:** Updated section title, description, and bullet points to emphasize waiting states and async patterns
+- **README § 243–246:** Updated documentation table to list Payment Demo as primary, Planning as alternative
+- Both walkthroughs remain fully available in `/docs/walkthroughs/`
+
+## User Impact
+
+- **First-time reader:** Sees the async workflow pattern immediately — Prism's key differentiator
+- **Onboarding:** Follows a cleaner mental model: submit → wait → review → complete
+- **Developer education:** Learns about persistence, waiting states, and real-time updates in the first 5 minutes
+- **GitHub first impression:** Payment is more recognizable and business-relevant than planning permission
+
+## Decision Made By
+
+This is a **documentation positioning decision**, owned by Mabel as Technical Writer, aligned with README clarity and consumer-facing packaging.
+# Documentation PR Readiness — 2026-05-04
+
+**Reporter:** Mabel (Documentation Specialist)  
+**Branch:** `feat/walkthrough-e2e-hardening`  
+**Status:** ✅ Documentation side READY for PR (pending Isabelle's screenshot verification)
+
+---
+
+## Summary
+
+The documentation has been reviewed and updated for PR readiness. All narrative walkthroughs now correctly reference the current executable specs, and all image paths are consistent. The branch is ready from the documentation side pending final screenshot verification by Isabelle.
+
+---
+
+## What Changed in Documentation
+
+### 1. **README.md** — Authentication & Setup Generalization
+- **Changed:** All references to "Entra ID" now read "any OIDC-compliant provider"
+- **Why:** Reflects system support for Keycloak (local dev) and any generic OIDC provider
+- **Scope:** 10 edits across setup instructions and authentication sections
+- **Impact:** Users now understand Keycloak is the quick-start option without external setup
+
+### 2. **docs/walkthroughs/payment-demo.md** — Completely Rewritten ⭐
+- **Changed:** 80 lines → 270+ lines; 3-step narrative → 9-step complete handoff
+- **Why:** Executable spec was expanded to show full member→waiting→reviewer→completion flow
+- **Was:** Compact form-only walkthrough
+- **Now:** End-to-end demonstration covering:
+  - Dashboard entry point (01-dashboard-payment-demo-start.png)
+  - Form flow (02-initial, 03-form-filled)
+  - Waiting state (04-processing, 05-workflow-hub-processing)
+  - Reviewer flow in Workflow Admin (06-dashboard-admin-link, 07-admin-processing-instance, 08-admin-payment-definition)
+  - Automatic member page update on completion (09-payment-complete)
+- **Impact:** Readers now understand the "submit now, finish later" pattern end-to-end, not just the member's first step
+
+### 3. **docs/walkthroughs/README.md** — Workflow Admin Context
+- **Added:** Clarifying note that Workflow Admin is a development-only testing harness
+- **Added:** Cross-reference to Payment Demo, Community Enquiry, Information Request for production-adjacent workflows
+- **Why:** Readers need to know the admin panel is not a production feature; real workflows are demonstrated in the payment/community/information walkthroughs
+- **Impact:** Reduced confusion about what Workflow Admin represents
+
+---
+
+## Screenshot Status
+
+### **All Image References Are Valid**
+
+| Walkthrough | Images | Status | Expected Files |
+|---|---|---|---|
+| **payment-demo** | 9 | ✅ All exist (untracked) | 01-09 ✓ |
+| **home-entry** | 5 | ✅ All exist (untracked) | 01-05 ✓ |
+| **workflow-administration** | 3 | ✅ All exist (untracked) | 01-03 ✓ |
+| **community-enquiry** | 4 | ✅ All exist (tracked) | 01-04 ✓ |
+| **information-request** | 3 | ✅ All exist (tracked) | 01-03 ✓ |
+
+### **Old Screenshots Deleted (intentional)**
+- `docs/images/walkthroughs/payment-demo/{01-03}.png` — deleted (staged for removal)
+- These are replaced by the new 9-step sequence
+
+### **New Screenshots (Untracked, Isabelle's Work)**
+These are Isabelle's screenshot captures — they're present as untracked files and will be staged by her after verification:
+- `docs/images/walkthroughs/payment-demo/{01-09}.png` ✓
+- `docs/images/walkthroughs/home-entry/{01-05}.png` ✓
+- `docs/images/walkthroughs/workflow-administration/{01-03}.png` ✓
+
+---
+
+## Documentation Readiness Checklist
+
+✅ All markdown walkthroughs updated and cross-reference checked  
+✅ All image paths in markdown match actual file names  
+✅ All 17 expected screenshot files exist (9+5+3)  
+✅ README clarifications for OIDC providers applied  
+✅ Walkthrough Admin docs clarified as development-only  
+✅ No broken internal links or markdown syntax errors  
+✅ Executable spec footer notes correct (SKILL.md reference, capture workflow)
+
+---
+
+## What Isabelle Needs to Do (Screenshot Verification)
+
+1. **Verify the 17 captured screenshots** are correct:
+   - Payment Demo (9): Dashboard entry → form → processing → admin inspection → completion
+   - Home Entry (5): Unauthenticated → authenticated → dashboard → demo entry → hub
+   - Workflow Admin (3): Dashboard admin link → instance list → definition editor
+
+2. **If screenshots are stale or incorrect**, regenerate via:
+   ```bash
+   CAPTURE_SCREENSHOTS=1 npm run test:walkthroughs
+   ```
+   Or use the `Capture Walkthrough Screenshots` GitHub workflow for CI
+
+3. **Stage the verified screenshot files** once confirmed:
+   ```bash
+   git add docs/images/walkthroughs/
+   ```
+
+---
+
+## Residual Follow-Up (If Isabelle Finds Issues)
+
+**If Isabelle regenerates screenshots and they differ from the current captures:**
+- The markdown is ready to accept any screenshot set as long as they match the filenames (01-09 for payment, etc.)
+- No markdown edits needed — just the screenshot files will update
+- The narrative remains valid for any correct implementation of the 9-step flow
+
+**If Isabelle finds the flow itself is broken** (e.g., a step doesn't execute):
+- Mark the issue in a comment on the PR
+- The test spec will need fixing, not the docs
+- Docs narrative is spec-aligned and correct
+
+---
+
+## Next Steps for PR Opening
+
+1. ✅ Documentation side: READY
+2. ⏳ Screenshots: Awaiting Isabelle's verification
+3. → Once Isabelle stages the screenshot files, PR is ready to open
+4. → PR should reference this check-in and note: "Screenshots verified by Isabelle (#name)"
+
+---
+
+**Decision:** Documentation is PR-ready. All narratives align with executable specs. All image references are resolved. The branch can proceed to PR once Isabelle verifies the captured screenshots are correct.
+# Walkthrough Screenshots & Documentation Audit
+**Date:** 2026-05-04T13:37:58.618+01:00  
+**Auditor:** Mabel (Documentation Specialist)  
+**Requested by:** Jonny Muir
+
+---
+
+## Executive Summary
+
+Reviewed current walkthrough screenshots against user expectations:
+- ✅ Demo PrismMobile UserAgent toggle: Correctly hidden by `prism-screenshot-mode` cookie (server-side works)
+- ✅ Screenshots DO include what they demonstrate in most cases
+- 🟡 **FINDING:** workflow-administration/01 screenshot cuts off the "Workflow Admin" card it's supposed to show
+- 🟡 **FINDING:** community-enquiry screenshots using full-page (2500+ px) when viewport-only (720px) would be adequate
+- 🟡 **FINDING:** Viewport height (720px) sometimes insufficient for form pages to show all content + call-to-action
+
+---
+
+## Problem Areas Found
+
+### 1. Workflow Administration Step 1: Admin Card Cut Off
+**File:** `docs/walkthroughs/workflow-administration.md` (line 46)  
+**Screenshot:** `docs/images/walkthroughs/workflow-administration/01-dashboard-admin-link.png` (1280×720px)  
+**Issue:** Screenshot is viewport-only (720px) but the markdown claims to show the Workflow Admin card. The dashboard content extends beyond 720px, so the admin card link is likely below the visible area.
+
+**Evidence:**
+- Spec at line 36-40: Takes viewport screenshot after `openDashboard(page)`
+- Then asserts admin link is visible (line 46-48), but screenshot doesn't show it
+- Narrative at line 46 says "![...Workflow Admin card visible...]" — but it's cut off
+
+**Impact:** Readers can't see the thing being demonstrated. Documentation and screenshot are misaligned.
+
+**Safe Fix:**  
+Add note to markdown clarifying that "the Open Admin button appears below the dashboard cards" or adjust spec to scroll/ensure card is visible. This is a documentation issue, not a product issue.
+
+---
+
+### 2. Community Enquiry: Forms Using Full-Page Screenshots Unnecessarily
+**Files:**  
+- `docs/images/walkthroughs/community-enquiry/01-initial.png` (1280×2537px)  
+- `docs/images/walkthroughs/community-enquiry/02-conditional-reveal.png` (1280×2672px)  
+- `docs/images/walkthroughs/community-enquiry/03-form-filled.png` (1280×2537px)
+
+**Issue:** These are form pages showing the entire scrollable content (2500+ px tall). User feedback: "screenshots are cut off too abruptly vertically" and "previous instruction should only constrain very long pages like the homepage."
+
+**Analysis:** The forms don't need full-page captures. The viewport crop at 720px would show:
+- Form heading
+- First few fields
+- Enough to understand what the user is doing
+
+Full-page captures are visually overwhelming for documentation.
+
+**Safe Fix:**  
+Update specs to NOT use `fullPage: true` for form pages (revert to default viewport). Only use `fullPage: true` for:
+- Confirmation/summary pages (check-answers style)
+- Exceptionally long pages like the actual homepage (currently 9447px)
+
+---
+
+### 3. Payment Demo & Information Request: Inconsistent Heights
+**Observations:**
+- `payment-demo/01-initial.png`: 1280×809px (viewport with some scroll room)
+- `payment-demo/03-processing.png`: 1280×720px (viewport only)
+- `information-request/01-initial.png`: 1280×1664px (full-page)
+- `information-request/03-under-review.png`: 1280×720px (viewport only)
+
+**Pattern:** Mixed strategies. Some use fullPage, some don't.
+
+**Safe Fix:**  
+Standardize: all form/workflow pages use viewport-only (720px default), EXCEPT:
+- Check-answers/summary pages: use viewport-only or minimal fullPage if needed
+- Confirmation pages: viewport-only (they're terminal states, user shouldn't scroll)
+
+---
+
+### 4. Home Entry Screenshots: Correct Height
+**Screenshots:**  
+- `home-entry/01-signed-out-hero.png`: 1280×720px  
+- `home-entry/02-signed-in-hero.png`: 1280×720px  
+- `home-entry/03-dashboard.png`: 1280×720px  
+- `home-entry/04-start-workflow.png`: 1280×720px  
+- `home-entry/05-workflow-hub.png`: 1280×720px
+
+**Status:** ✅ All viewport-only, consistent, shows what's needed.
+
+---
+
+### 5. Shared Homepage: Still Too Tall
+**File:** `docs/images/walkthroughs/shared/01-homepage.png` (1280×9447px)  
+**Status:** This is a full-page screenshot and intentionally so — it shows the entire hero section and branding, which is necessary.
+
+However, 9447px is excessive. Should be cropped to ~1280×2200-2400px to show:
+- Header/nav
+- Hero heading + CTA
+- Key supporting content (security/scale messaging)
+
+**Note:** This is a known issue from prior audit. Keeping for reference.
+
+---
+
+## Mobile User Agent Toggle: Status
+
+**Finding:** ✅ **NOT AN ISSUE**
+
+The toggle is correctly hidden in screenshot mode. Evidence:
+- `PrismMobileUserAgentDemoTagHelper.cs` line 52: `var effectiveShowToggle = ShowToggle && !IsScreenshotMode;`
+- Cookie `prism-screenshot-mode=1` correctly suppresses the toggle
+- `enterScreenshotMode()` in walkthrough.ts correctly sets the cookie
+
+**Why some screenshots show it:**  The earlier screenshot I viewed (community-enquiry/01-initial.png) showed the toggle because:
+- That image was captured before the fix was deployed, OR
+- The image file predates the current screenshot-mode implementation
+
+Re-capture will fix this.
+
+---
+
+## Recommendations for Safe Documentation Updates
+
+### Immediate (No Spec Changes Required)
+
+1. **workflow-administration.md:** Add clarifying caption
+   - Change line 46 caption from:  
+     `![Member dashboard with Workflow Admin card visible](...)`  
+   - To:  
+     `![Member dashboard — scroll to find the Workflow Admin card](...)<!-- Added Sept 2024: the admin card appears below the initial dashboard view -->`
+
+2. **Document assumption about viewport heights**  
+   Add to `.squad/skills/walkthroughs-as-executable-specs/SKILL.md`:  
+   ```markdown
+   ## Screenshot Heights
+   
+   - Default: viewport crop (1280×720px) — shows what user sees without scrolling
+   - Exception: check-answers / summary pages may use `fullPage: true` to show all collected data
+   - Exception: pages that are intentionally scrollable (rare) use `fullPage: true` with explicit note
+   
+   Forms should always use viewport-only; confirmation screens use viewport-only.
+   ```
+
+### Follow-Up (For Isabelle or Capture Workflow)
+
+3. **Community Enquiry Specs:** Revert fullPage usage
+   - Remove `fullPage: true` from form page steps (if any)
+   - Ensure all steps use default viewport
+
+4. **Home Entry & Payment Demo:** Ensure consistency  
+   - All form pages: viewport-only  
+   - Confirmation pages: viewport-only
+
+5. **Shared Homepage:** Schedule optional crop to ~2400px max (not urgent, enhancement only)
+
+---
+
+## Decision Matrix
+
+| Item | Safe to Fix Now? | Responsibility | Effort |
+|------|:---:|---|---|
+| workflow-admin caption | ✅ Yes | Mabel (docs) | 2 min |
+| Add skill guidance | ✅ Yes | Mabel (docs) | 5 min |
+| fullPage reversion | 🟡 Partial | Isabelle (specs) | 15 min |
+| Mobile toggle hiding | ✅ Already fixed | (none needed) | – |
+| Homepage crop | 🟡 Optional | Isabelle (tooling) | 20 min |
+
+---
+
+## Files to Update (Mabel Owns These)
+
+- `docs/walkthroughs/workflow-administration.md` — caption clarification
+- `.squad/skills/walkthroughs-as-executable-specs/SKILL.md` — add screenshot height guidance
+
+---
+
+## Verification Checklist
+
+After updates:
+- [ ] workflow-administration.md caption clarified
+- [ ] Skill.md documents viewport vs. fullPage rules
+- [ ] Community enquiry specs reviewed for fullPage usage (Isabelle)
+- [ ] All form screenshots are viewport-only in next capture
+- [ ] Confirmation screenshots verified as viewport-only
+# Screenshot Default Policy Clarification
+
+**Date:** 2026-05-04  
+**Author:** Mabel (Documentation Specialist)  
+**Decision Type:** Team documentation rule clarification
+
+---
+
+## Summary
+
+Corrected the screenshot guidance in walkthrough documentation to align with the **principle: show the whole useful screen by default; crop selectively only for very tall pages**.
+
+**Previous guidance (incorrect):** Viewport crop (1280×720px) as the default  
+**Corrected guidance:** Full page as the default, constrain only when necessary
+
+---
+
+## Problem
+
+Recent audit documentation had introduced guidance suggesting viewport-sized screenshots (1280×720px) should be the default. This contradicted the principle that walkthrough documentation should show readers the **complete functionality** available on a page.
+
+Feedback from Jonny Muir clarified the intent: show complete screen context by default, constraining only when pages are exceptionally tall (>2200px) and full-page captures would obscure rather than clarify the documentation.
+
+---
+
+## Decision
+
+**Effective immediately:** Screenshot default policy is reversed to prioritize completeness.
+
+### Updated Guidance
+
+**Default:** Full page (all scrollable content visible)  
+- Shows the complete functionality of the screen so readers see everything available
+- Applies to form pages, check-answers pages, summary pages, and any page where complete visibility aids the walkthrough narrative
+
+**Constrain to viewport only when:**
+- A page is exceptionally tall (>2200px)
+- Full-page height creates visual clutter without adding documentation value
+- A smaller crop makes the guidance clearer without hiding necessary content
+
+**Rule of thumb:** Show the whole useful screen by default. Crop selectively only for unusually large pages where full-page screenshots would obscure rather than clarify the documentation.
+
+---
+
+## Files Updated
+
+1. **`.squad/skills/walkthroughs-as-executable-specs/SKILL.md`**
+   - Section: "Screenshot Heights" (lines 122–136)
+   - Updated default from viewport-crop to full-page-by-default
+   - Clarified when to constrain (rare, not the norm)
+
+2. **`src/UmbracoPrism.Client/tests/walkthroughs/support/walkthrough.ts`**
+   - Lines 25–34: Updated JSDoc comment for `fullPage` parameter
+   - Clarified that default behavior now expands to show all content
+   - Documented when to use fullPage explicitly
+
+---
+
+## Impact
+
+- **Walkthrough authors:** Use the full-page default; only set `fullPage: true` when narrative absolutely requires it
+- **Next screenshot capture:** Follow the new default when re-capturing
+- **Existing screenshots:** No immediate action required; will be refreshed during normal capture cycles
+- **Team clarity:** Policy is now consistent across skill documentation and code comments
+
+---
+
+## Related Issues
+
+- Audit note: `mabel-screenshot-audit-2026-05-04.md` (captured viewport vs. full-page confusion)
+- User feedback: Jonny Muir clarified policy on 2026-05-04
+
+---
+
+## Verification Checklist
+
+- [x] SKILL.md updated
+- [x] walkthrough.ts JSDoc updated
+- [x] Decision note filed
+- [ ] Communicate to team (Isabelle for next capture cycle)
+- [ ] Review next batch of captured screenshots against new policy
+# Walkthrough Audit: Workflow Administration Steps Placement
+
+**Date:** 2026-05-04  
+**Auditor:** Mabel (Documentation Specialist)  
+**Concern:** Do workflow administration steps appear in service walkthroughs where they need to appear?
+
+---
+
+## Executive Summary
+
+**Verdict: PARTIALLY**
+
+Workflow progression and reviewer/admin roles **are defined in the workflow seeds** but **are not documented in the walkthroughs where they matter**. Readers cannot understand how workflows complete after user submission or why certain intermediate states exist.
+
+---
+
+## Key Findings
+
+### 1. Reviewer Roles Built Into Workflows
+
+The following workflows have **`requiresRole: "reviewer"` transitions** hardcoded into their state machines:
+
+| Workflow | Transition | Requires | Status |
+|----------|-----------|----------|--------|
+| **payment-demo** | `processing-payment` → `payment-complete` | `reviewer` role | ❌ Not documented |
+| **community-enquiry** | `under-review` → `complete` | `reviewer` role | ❌ Not documented |
+| **community-enquiry** | `under-review` → `collecting-details` (reject) | `reviewer` role | ❌ Not documented |
+| **information-request** | Approval transitions | `reviewer` role | ❌ Not documented |
+| **planning-notification** | (No reviewer roles) | N/A | ✅ Consistent |
+
+### 2. Walkthrough Coverage
+
+#### ✅ Well-Placed (Consistent & Complete)
+
+- **Workflow Administration** (`workflow-administration.md` + spec)
+  - Correctly positioned as a **development-only tool** walkthrough
+  - Explains instance inspection and manual state advancement
+  - Located in "Authoring & Operations" section of README
+  - BUT: Scope is limited to development debugging, not production operator workflows
+
+- **Authoring a Workflow** (`authoring-a-workflow.md`)
+  - Shows state machine concepts and transitions
+  - Explains role-based transitions briefly in seed JSON example
+  - BUT: Not connected to user-facing workflows
+
+#### ❌ Missing or Misplaced (Incomplete)
+
+- **Payment Demo** (`payment-demo.md` + spec)
+  - Shows user enters payment details → sees "Processing Your Payment" screen
+  - Stops there; **does NOT explain:**
+    - That a `reviewer` role must advance the workflow
+    - How/when the "payment-complete" state is reached
+    - Why a processing state exists
+    - What service/operator steps follow submission
+  - **Spec:** Only tests user submission; doesn't test reviewer transition
+
+- **Community Enquiry** (`community-enquiry.md` + spec)
+  - Shows form submission → "Your enquiry is with us" confirmation
+  - **Does NOT explain:**
+    - That the workflow is now in `under-review` state pending reviewer action
+    - That a reviewer can `approve` (move to `complete`) or `request-changes` (send back)
+    - How enquiry approval/rejection works
+    - Why transitions require the `reviewer` role
+  - **Spec:** Only tests user submission; doesn't test reviewer actions
+
+- **Information Request** (`information-request.md`)
+  - No mention of reviewer workflow
+  - Seed file shows reviewer transitions exist but docs don't explain them
+
+- **Planning Notification** (`planning-notification.md`)
+  - Doesn't need reviewer role (all transitions user-driven)
+  - Documentation is consistent with definition
+
+---
+
+## File-by-File Placement Analysis
+
+### docs/walkthroughs/
+
+| File | Status | Issue |
+|------|--------|-------|
+| `payment-demo.md` | ❌ Missing admin context | Stops after user submits; doesn't explain reviewer progression or why "processing" state exists |
+| `community-enquiry.md` | ❌ Missing admin context | Ends at "under-review"; doesn't document reviewer approval/rejection flow |
+| `information-request.md` | ❌ Missing admin context | Doesn't mention reviewer transitions exist in the seed |
+| `planning-notification.md` | ✅ Consistent | No reviewer roles, docs match definition |
+| `workflow-administration.md` | ✅ Correct scope | Development-only tool, clearly marked as such; appropriate for authoring section |
+| `authoring-a-workflow.md` | ✅ Partial credit | Shows role concept in code/JSON examples but doesn't connect to real user workflows |
+| `README.md` | ⚠️ Minor issue | Good structure; "Authoring & Operations" section exists but lacks a walkthrough for **production** workflow operator tasks |
+
+### src/UmbracoPrism.Client/tests/walkthroughs/
+
+| File | Status | Issue |
+|------|--------|-------|
+| `payment-demo.walkthrough.spec.ts` | ❌ Incomplete | Only tests user flow; missing test cases for reviewer transition to `payment-complete` |
+| `community-enquiry.walkthrough.spec.ts` | ❌ Incomplete | Only tests user flow; missing test cases for reviewer `approve` and `request-changes` actions |
+| `information-request.walkthrough.spec.ts` | ❌ Incomplete | Only tests user flow; missing reviewer tests |
+| `workflow-administration.walkthrough.spec.ts` | ✅ Correct scope | Tests development admin panel; appropriate for its purpose |
+
+### docs/images/walkthroughs/
+
+No missing images identified (images are generated by specs as they stand).
+
+---
+
+## Specific Recommendations
+
+### High Priority: Close the Documentation Gap
+
+**1. Extend `payment-demo.md` with reviewer workflow**
+- Add "Part 2: What Happens Next (Reviewer Approval)"
+- Document that a reviewer role must move workflow from `processing-payment` to `payment-complete`
+- Add note explaining why the `waiting` component exists
+- Include screenshot showing the approval transition (once spec is updated)
+
+**2. Extend `community-enquiry.md` with reviewer workflow**
+- Add section explaining the `under-review` state is not terminal
+- Document reviewer actions: `approve` (move to `complete`) vs `request-changes` (return to collection)
+- Explain why these transitions require the `reviewer` role
+- Show what form data is available to reviewers
+
+**3. Add brief mention to `information-request.md`**
+- Note that this workflow also has reviewer transitions (in specs/seeds)
+- Link to payment-demo or community-enquiry for the approval pattern explanation
+
+### Medium Priority: Test Coverage
+
+**4. Extend walkthrough specs to cover reviewer transitions**
+- Add test case in `payment-demo.spec.ts` that simulates reviewer calling the completion action
+- Add test case in `community-enquiry.spec.ts` for both `approve` and `request-changes` paths
+- Use the admin panel API (`/admin/workflow/{instanceId}/action/{action}`) to trigger reviewer actions
+
+### Low Priority: README Navigation
+
+**5. Update `README.md` Walkthroughs section**
+- Add note under "Authoring & Operations" that explains:
+  - `workflow-administration.md` = development debugging
+  - Payment Demo & Community Enquiry = examples of reviewer workflow patterns
+- Consider a future "Workflow Operators" walkthrough section if production operator workflow is added
+
+---
+
+## Explanatory Context Required
+
+Readers need to understand:
+
+1. **Why these states exist:**
+   - `processing-payment` / `under-review` = system processing or waiting for human decision
+   - User can't self-advance; requires external approval
+
+2. **How it works in practice:**
+   - What UI/API does a reviewer use to approve/reject?
+   - What happens to the user's form data while under review?
+   - What triggers completion? Manual action? Timeout? Async job?
+
+3. **Role-based permissions:**
+   - Transitions with `requiresRole: "reviewer"` can only be triggered by users with that role
+   - How is the "reviewer" role assigned/validated?
+
+4. **State machine semantics:**
+   - Terminal vs. non-terminal states
+   - Whether a user can self-retry after rejection
+
+---
+
+## What Should Be Changed
+
+### Minimal Safe Edits (Ready to Make Now)
+
+1. **payment-demo.md:**
+   - Add explanatory paragraph after the "Processing" screenshot explaining:
+     > "The workflow now waits in the `processing-payment` state. In a production system, a backend service or human reviewer with the `reviewer` role would then advance this workflow to `payment-complete` based on payment confirmation from Stripe."
+     
+2. **community-enquiry.md:**
+   - Add note after the "Your enquiry is with us" screenshot:
+     > "Your enquiry has entered the `under-review` state. A reviewer with the `reviewer` role can now view your submission and either approve it (moving to `complete`) or request changes (returning the form to you for edits)."
+
+3. **README.md:**
+   - Add one bullet under "Authoring & Operations" explaining that Workflow Administration is development-only, with a note that payment-demo and community-enquiry walkthroughs show reviewer patterns
+
+### Larger Improvements (Scope for Future Work)
+
+- Create example reviewer workflow screenshots showing the approval UI
+- Add production-safe operator guide (separate from development admin panel)
+- Test coverage for reviewer transitions in specs
+
+---
+
+## Decision
+
+**Walkthroughs are PARTIALLY addressing the concern.**
+
+The workflows are correctly defined with reviewer roles, but the documentation **doesn't explain them where readers need to understand them** — in the service walkthroughs (payment-demo, community-enquiry). A reader finishing those walkthroughs would not understand:
+
+- How workflows continue after the user's submission
+- Why intermediate states exist
+- What role/permission is needed to advance them
+- Why the forms/transitions behave the way they do
+
+**Recommended action:** Make the three minimal safe edits above to provide explanatory context in the walkthroughs. These are low-risk, additive changes that clarify existing behavior without rewriting walkthroughs.
+# Tangy — Full Walkthrough Pass
+
+- **Date:** 2026-05-04
+- **Status:** Proposed
+
+## Decision
+
+Treat the MockBusinessApp workflow admin page as an executable, development-only continuation of member walkthroughs, and stub its CDN-loaded Ace/Mermaid vendor assets inside Playwright so screenshots and CI do not depend on third-party network availability.
+
+## Why
+
+- The dashboard now routes members into seeded workflow demos via per-workflow **Start** cards rather than a single **Start Workflow** CTA, so walkthrough coverage should assert those real navigation entry points.
+- Reviewer-only workflow transitions (`Approve`, `Request Changes`) are exposed in the local workflow admin surface and are the right place to exercise operator-adjacent flows without pretending those controls exist in the public member UI.
+- The admin page pulls editor/diagram assets from public CDNs; without test-side stubs, screenshot capture and CI stability are needlessly coupled to external network health.
+
+## Implications
+
+- Walkthrough docs can now show the member journey handing off cleanly to the local admin tooling for under-review / waiting states.
+- Future workflow-admin tests should reuse the support hook rather than hitting the live CDNs.
+---
+decision_id: tom-nook-walkthrough-story-review-2026-05-04
+title: Walkthrough Story Review — Post-Implementation Clarity Assessment
+author: Tom Nook
+created_at: 2026-05-04T12:57:00.000Z
+tags: [walkthroughs, documentation, clarity, narrative]
+affects: [tangy, mabel, isabelle]
+---
+
+# Walkthrough Story Review — Final Assessment
+
+**Status:** Post-implementation audit of `feat/walkthrough-e2e-hardening` branch.
+
+**Verdict:** Walkthrough story is **strong and ready**. The recent work by Tangy and Mabel has materially improved narrative clarity and demo value. Punch list below focuses only on unfinished artifacts, not narrative gaps.
+
+---
+
+## What's Working Well ✅
+
+### 1. **Executable Specs Policy is Fully Enforced**
+- All 11 walkthroughs have both markdown and Playwright spec counterparts.
+- R1–R6 SKILL.md rules are implemented correctly:
+  - Every spec has an `assertHealthyPage()` pre-flight check (R3).
+  - Screenshot filenames are deterministic `NN-slug.png` (R4).
+  - Every markdown footer references its spec with correct path (R5).
+  - 5 manual-only walkthroughs are explicitly skipped with SKILL.md R6 rationale (acceptable per policy).
+
+### 2. **Discovery and Navigation Have Improved**
+- **Workflow Administration walkthrough is now first-class** — added to README, discoverable from dashboard (`/admin/workflow` link now present).
+- **Home entry walkthrough is new** — documents complete onboarding path (signed-out hero → signed-in → dashboard → workflow hub).
+- **README hierarchy is clear** — end-user flows, authoring, ops, mobile sections present all 11 walkthroughs with one-line intent.
+
+### 3. **Screenshot Defaults Are More Readable**
+- Changed from `fullPage: true` (2500–9400px) to viewport crop (typical 800–1200px).
+- Improves doc readability without losing context.
+- `fullPage` opt-in is available per-step when needed (e.g., check-answers pages).
+
+### 4. **Test Coverage is Hardened**
+- 4 workflow demos now include validation and persistence tests (not just happy path).
+- Prevents regressions on error handling and workflow state management.
+- Covers the scenarios evaluators and implementers most care about.
+
+---
+
+## Punch List — Unfinished Artifacts ⚠️
+
+### P1: Capture Home-Entry Screenshots (High Priority — Unblocks New Narrative)
+
+**Current state:** Spec exists (`home-entry.walkthrough.spec.ts`), all tests pass, markdown written (`home-entry.md`) — but screenshot directory has only `.gitkeep`.
+
+**Action:** Screenshots must be captured before PR merge. Tests already pass; workflow is `01-signed-out-hero.png`, `02-signed-in-hero.png`, `03-dashboard.png`, `04-workflow-hub.png`.
+
+**Why:** Home entry is new and foundational to understanding Prism's entry journey. Missing screenshots leave the walkthrough unfinished in the docs.
+
+---
+
+### P2: Capture Workflow-Administration Screenshots (High Priority — Unblocks Ops Path)
+
+**Current state:** Spec is complete (`workflow-administration.walkthrough.spec.ts`), all tests pass, markdown written — screenshot directory is empty.
+
+**Expected captures:** `01-dashboard-admin-link.png`, `02-admin-instance-list.png`, `03-admin-definition-list.png`, `04-edit-definition.png`, `05-manual-state-transition.png` (or subset based on test coverage).
+
+**Why:** This was a major gap in the discovery audit — ops workflows are now documented, but without screenshots the walkthrough is incomplete.
+
+---
+
+### P3: Clarify Design-System Walkthrough Screenshot Status (Medium Priority — Narrative Clarity)
+
+**Current state:** 11 TODO comments for pending Storybook captures (`01-storybook-home.png` through `05-branding-updated-frontend.png`). Spec is skipped per R6 (manual-only).
+
+**Issue:** Readers don't know if screenshots are coming or intentionally deferred. TODOs are hanging without resolution date or rationale.
+
+**Action:** Choose one:
+1. **If manual captures are planned:** Update TODOs with estimated timeline and owner.
+2. **If intentionally manual:** Add a note to `design-system.md` clarifying that Storybook/CSS captures are manual-only (per R6), and provide clear step-by-step instructions (already present in markdown) that readers can follow without screenshots.
+
+**Recommendation:** Go with option 2 — the markdown is thorough, and manual Storybook navigation is straightforward. Remove TODOs and replace with a single intro note: "Screenshots are manual-only per R6; follow the steps below."
+
+---
+
+### P4: Same Clarity Issue for Building-Mobile-App (Medium Priority — Narrative Consistency)
+
+**Current state:** 5 TODO comments for pending device captures (iOS biometric, native nav, device screenshots). Spec is skipped per R6.
+
+**Action:** Same as P3 — clarify either as planned or as intentionally manual with clear step-by-step instructions.
+
+**Recommendation:** Mark as intentionally manual. The walkthrough already covers Capacitor shell structure, native prerequisites, and build steps. Missing device screenshots don't block understanding — Xcode/Android Studio interface is well-known.
+
+---
+
+## Quality Observations 📋
+
+### Strengths
+- **Walkthrough flow is coherent:** End-user workflows (4) → authoring (1) → operations (1) → mobile/notifications (2) + design system (1) + tenancy (1).
+- **Executable specs provide real protection:** Changes to workflow UI or navigation immediately surface as test failures. This is not theoretical documentation — it's a gated contract.
+- **New home-entry walkthrough addresses a real gap:** Without it, new evaluators have no documented entry point.
+
+### Minor Observations (Not Action Items)
+- **Push-notifications walkthrough is philosophically challenging:** OS notification toasts cannot be scripted, but the narrative is thorough. Current state (manual-only per R6) is correct.
+- **Authoring and creating-tenant walkthroughs are intentionally back-office heavy:** They document source code and backoffice UI interaction, not pure browser flows. Correct to skip per R6.
+- **Community Enquiry serves as a model:** It has validation tests, persistence tests, screenshot coverage, and clear conditional-reveals narrative. Replicate this for new walkthroughs.
+
+---
+
+## Recommendations for Team
+
+### Immediate (This Branch)
+1. ✅ Capture home-entry and workflow-administration screenshots before merge — no code changes needed.
+2. ✅ Optionally clean up P3/P4 TODO comments (replace with R6 rationale) — improves reader confidence.
+
+### Future (Out of Scope)
+- Consider a "Walkthrough Maintenance" checklist in the CI pipeline: flag specs where screenshot directory has only `.gitkeep` or has fewer files than expected.
+- When Isabelle completes the docs pipeline, document the `CAPTURE_SCREENSHOTS=1` workflow dispatch in README so team members know how to regenerate.
+
+---
+
+## Executive Summary
+
+The walkthrough package is **coherent, well-structured, and demo-ready**. Tangy and Mabel's recent work has significantly improved clarity:
+- Home entry and workflow administration walkthroughs provide missing narrative paths.
+- Test coverage hardening (validation + persistence) strengthens confidence.
+- Viewport crop default makes screenshots more readable.
+
+**Remaining work is tactical, not strategic.** Two unfinished screenshot captures (home-entry, workflow-administration) are the only blockers; capturing them is low-effort. Optional: clarify manual-only rationale for two complex walkthroughs (design-system, building-mobile-app) to improve reader confidence.
+
+**Ready for merge after screenshot captures are complete.**
 ---
 date: 2026-05-03T18:12:37.055+01:00
 author: Tangy
