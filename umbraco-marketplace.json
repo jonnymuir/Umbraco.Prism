@@ -1,6 +1,6 @@
 {
   "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "Title": "Umbraco Prism",
   "Description": "Multi-tenancy platform for Umbraco (v17+) enabling a single CMS instance to serve hundreds of distinct client portals with dynamic branding, stateless OIDC identity, and native mobile app generation. Prism resolves branding, identity, and content context at runtime based on the incoming domain.",
   "Category": "Developer Tools",

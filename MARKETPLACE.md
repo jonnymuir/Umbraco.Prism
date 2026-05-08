@@ -1,12 +1,17 @@
+<!-- Generated from README.md by scripts/generate-marketplace-readme.mjs. Do not edit manually. -->
+
+![Umbraco Prism Logo](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/assets/logo-horizontal-lockup.svg)
+### One source. A spectrum of brands.
+
 # Umbraco Prism
-
-**One Umbraco instance. Multiple branded portals. Native mobile app included.**
-
-Multi-tenant website branding and identity at runtime. Add a mobile app with one click.
 
 ```bash
 dotnet add package UmbracoPrism
 ```
+
+One Umbraco instance. Multiple branded portals. Native mobile app included.
+
+Multi-tenant website branding and identity at runtime. Add a mobile app with one click.
 
 ---
 
@@ -34,19 +39,22 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 
 ---
 
-## 🚀 Interactive Walkthrough — "Apply for Planning Permission"
+## 🚀 Interactive Walkthrough — "Payment Processing Workflow"
 
-Once your stack is running, follow the step-by-step guide to complete the demo workflow — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
+Once your stack is running, follow the step-by-step guide to see the demo workflow in action — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
 
-→ **[Full walkthrough: docs/walkthroughs/planning-notification.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-notification.md)**
+→ **[Full walkthrough: docs/walkthroughs/payment-demo.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md)**
 
 The walkthrough covers:
-- Logging in via Keycloak SSO and what the token exchange looks like
-- Walking through each GDS form step (project details, work type, timeline & cost, affected parties)
-- The check-answers review screen and how field values are aggregated
-- Submitting and seeing the confirmation
-- Behind the scenes: workflow definition files, field groups, the workflow engine, and how Umbraco renders it all
-- Exploring further: editing definitions, watching engine logs in Aspire, testing with multiple browsers
+- Logging in via Keycloak SSO and submitting a payment form
+- **Waiting states** — the form pauses and persists while a reviewer processes it (Prism's core pattern)
+- Watching the workflow hub show real-time status updates
+- Switching to the reviewer role and advancing the workflow from the admin panel
+- The member page **auto-updates without a refresh** when the reviewer completes their action
+- Behind the scenes: workflow definitions, state machines, the Prism workflow engine, and how persistence and real-time updates work
+- Exploring further: editing workflow definitions, monitoring engine logs in Aspire, testing async patterns
+
+**Alternative:** [Planning permission walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-notification.md) for multi-step complex forms with conditional field logic.
 
 ---
 
@@ -60,6 +68,8 @@ Get from clone to running in five minutes. No Azure account needed.
 - Docker Desktop running ([Download](https://www.docker.com/products/docker-desktop/))
 - `Node.js 20+` ([Download](https://nodejs.org/))
 - Frontend dependencies: `cd src/UmbracoPrism.Client && npm install`
+
+> VS Code tip: the **C#: Aspire (Full Stack)** launch now validates the .NET 10 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need `dotnet workload install aspire`.
 
 **Start the full stack:**
 ```bash
@@ -80,7 +90,7 @@ Then:
 - MockBusinessApp trusts the browser-facing Keycloak authority (`https://localhost:8443`), so the workflow dashboard validates bearer tokens against the public issuer, not the internal container URL (`http://localhost:8080`).
 - Aspire runtime state lives under `artifacts/aspire/testsite-runtime/` — the demo and Playwright suite never mutate the standalone TestSite database at `src/UmbracoPrism.TestSite/umbraco/Data/`.
 
-→ For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/ASPIRE_DEV.md).
+> For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/ASPIRE_DEV.md).
 
 ---
 
@@ -90,13 +100,30 @@ Then:
 
 Serve distinct branded portals from one Umbraco instance. Runtime branding, domain resolution, tenant isolation.
 
-**Screenshots:** [See on GitHub](https://github.com/jonnymuir/Umbraco.Prism#what-you-get)
+![Branded portal example](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/testsite.png)
+![Backoffice branding editor](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/backoffice2.png)
 
 **Web features:**
 - Domain-based tenant resolution — each client gets their own hostname
 - Live branding editor — CSS variables update without deploy
 - **Branding as a Design System** — annotated CSS variables become labeled form fields, grouped into sections (Colors, Typography, Components), with type-aware editors (color pickers, sliders, text inputs)
-- Per-tenant OIDC — Entra ID integration, zero local Members
+  
+  ```css
+  @property --prism-primary {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #4f46e5;
+  }
+  
+  :root {
+    /* @prism section: Brand Colours | label: Primary Brand Colour | description: Main brand colour used for buttons and links */
+    --prism-primary: #4f46e5;
+  }
+  ```
+  
+  → [Branding Design System →](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/branding-design-system.md)
+
+- Per-tenant OIDC — any OIDC-compliant provider (Entra ID, Keycloak, etc.), zero local Members
 - Downstream auth — propagate tenant identity to internal APIs
 - Tenant isolation — authorization policies enforce data boundaries
 
@@ -105,6 +132,8 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
 ### Produce Mobile — Generate Apps from Backoffice
 
 Turn tenant settings into iOS/Android apps. No complex native coding, just click **Produce Mobile**.
+
+![iOS app with tenant branding](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/example-IOS.png)
 
 **Mobile features:**
 - Biometric login (Face ID, fingerprint) — skip OIDC on return
@@ -144,7 +173,7 @@ Add to `appsettings.json`:
 }
 ```
 
-For local dev without Azure Key Vault, see [Local Authentication Walkthrough](#local-authentication-walkthrough).
+For local dev without Azure Key Vault, see [Local Authentication Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md#local-authentication-walkthrough).
 
 ### 3. Run
 
@@ -159,8 +188,7 @@ Prism auto-creates document types (`homePage`, `memberDashboard`) on first start
 In backoffice:
 1. **Settings → Prism Dashboard**
 2. Add tenant (hostname, identity settings, branding)
-   - **Entra tenants:** enter the vault secret name in `SecretKeyName`
-   - **Generic OIDC tenants:** enter OIDC authority and client ID, then provide the Key Vault secret name as the `OidcClientSecretReference` with provider `azure-key-vault`; the localhost Keycloak demo is the only inline-secret exception
+   - **OIDC tenants (Entra ID, Keycloak, etc.):** enter OIDC authority and client ID, then provide the Key Vault secret name as the `OidcClientSecretReference` with provider `azure-key-vault`; the localhost Keycloak demo is the only inline-secret exception
 3. Visit the hostname — see branded portal
 
 → [Full Setup Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md)
@@ -171,7 +199,7 @@ In backoffice:
 
 **Multi-tenancy at runtime:** Middleware resolves hostname to tenant. One content tree serves hundreds of portals.
 
-**Stateless auth:** No local Members. Identity deferred to OIDC providers (Entra ID or generic OIDC). Confidential client secrets resolve through Key Vault or the repo-owned localhost demo exception.
+**Stateless auth:** No local Members. Identity deferred to OIDC providers (any OIDC-compliant system: Entra ID, Keycloak, etc.). Confidential client secrets resolve through Key Vault or the repo-owned localhost demo exception.
 
 **Secure-by-default secrets:** Production tenants use vault-backed secret references, never raw values in management responses. The localhost Keycloak demo is the only inline-secret path, and runtime rejects inline generic OIDC secrets anywhere else.
 
@@ -186,7 +214,7 @@ In backoffice:
 **Multi-tenant web:**
 - Domain-based tenant resolution
 - Live CSS variable branding
-- Per-tenant Entra ID (OIDC)
+- Per-tenant OIDC (any provider: Entra ID, Keycloak, etc.)
 - Tenant isolation policies
 - Downstream API auth
 
@@ -210,7 +238,8 @@ In backoffice:
 
 | Guide | Description |
 |---|---|
-| [Workflow Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-notification.md) | Step-by-step demo of the planning permission workflow — what you see and what's happening behind the scenes |
+| [Workflow Walkthrough — Payment Demo](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment workflow — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer workflows |
+| [Alternative Walkthrough — Planning Permission](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-notification.md) | Multi-step form with conditional fields, document upload, and review screens — demonstrates complex form branching |
 | [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
 | [Biometric Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/biometric-setup.md) | Generate signing/encryption keys for mobile biometric auth |
@@ -255,7 +284,7 @@ In backoffice:
 - **Node.js 20+** ([Download](https://nodejs.org/))
 - **Docker Desktop** — for local demo with Aspire ([Download](https://www.docker.com/products/docker-desktop/))
 - **Azure Key Vault** (production) or local dev without vault (see setup guide)
-- **Entra ID** (for authentication)
+- **OIDC Provider** — any OIDC-compliant system (Keycloak included for local dev; Entra ID or others for production)
 
 > **Client dependencies:** Run before first build:
 > ```bash
@@ -264,17 +293,314 @@ In backoffice:
 
 ---
 
+## Setup & Development
+
+### Local Dev Tunnel (Mobile Testing)
+
+For testing OIDC sign-in on mobile devices with an external OIDC provider, use `scripts/dev/start-trycloudflare.sh`:
+
+```bash
+bash scripts/dev/start-trycloudflare.sh
+```
+
+Automates:
+- Cloudflare tunnel for `https://localhost:<port>`
+- OIDC redirect URI update (for your provider)
+- Prism tenant hostname sync
+- Cleanup on exit
+
+**Security:** Dev use only. Mutates your OIDC provider app config and local database.
+
+→ [Full tunnel docs in README section below](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md#quick-start-phone-auth-via-cloudflare-tunnel-no-lan-ip-dependency)
+
+### Storybook Tests (UmbracoPrism.Client)
+
+Storybook is used for component-driven tests with the Storybook test runner + Playwright.
+
+**Local usage:**
+
+```bash
+cd src/UmbracoPrism.Client
+npm install
+npm run storybook
+```
+
+In a second terminal:
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test-storybook
+```
+
+**VS Code (Optional):**
+
+Optionally, install the **Playwright Test extension** for a convenient Testing view UI to run Playwright tests. Tests are in [src/UmbracoPrism.Client/tests](https://github.com/jonnymuir/Umbraco.Prism/blob/main/src/UmbracoPrism.Client/tests). You can also run `npm run test:playwright:ui` for the interactive runner without the extension.
+
+**Headless multi-browser + WCAG checks (recommended):**
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test-storybook:all
+```
+
+**CI usage (GitHub Actions):**
+
+The workflow in [.github/workflows/ci-tests.yml](https://github.com/jonnymuir/Umbraco.Prism/blob/main/.github/workflows/ci-tests.yml) runs the following:
+
+```bash
+cd src/UmbracoPrism.Client
+npm ci
+npx playwright install --with-deps
+npm run test-storybook:ci:all
+```
+
+### Localhost auth/session Playwright regressions
+
+These behavioural-contract tests run against the real Aspire stack rather than Storybook. The suite validates Aspire prerequisites, boots its own `UmbracoPrism.AppHost` session, waits for the dashboard plus seeded app resources to be ready, then signs into the seeded Keycloak demo user and restarts the whole localhost stack mid-run to verify session continuity.
+
+**Before running:**
+
+- Docker Desktop must be running
+- `dotnet dev-certs https --trust` must already be done
+- The default Aspire ports (`17214`, `44345`, `7245`, `8443`) must be free because the suite owns the stack lifecycle and will not attach to an existing or partial stack
+
+```bash
+cd src/UmbracoPrism.Client
+npm run test:playwright:localhost-auth
+```
+
+The suite uses the seeded demo identity from `keycloak/realm-export.json`: `demo@prism.local` / `password`.
+
+**Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/workflow flows use — `Home` (`/`), `Dashboard` (`/dashboard`), `Get in Touch` (`/get-in-touch`, workflow key `community-enquiry`), `My Workflows` (`/my-workflows`), plus the `Settings` node mobile nav entries for Home/Dashboard/My Workflows. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
+
+### Core Tests (UmbracoPrism.Core)
+
+```bash
+dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+```
+
+### Dependency Vulnerability Check
+
+Run a transitive package vulnerability scan for the Core project:
+
+```bash
+dotnet list src/UmbracoPrism.Core/UmbracoPrism.Core.csproj package --vulnerable --include-transitive
+```
+
+If vulnerabilities are reported, prefer upgrading the direct package first. For transitive-only issues, add a top-level package reference in the relevant `.csproj` to force a patched version.
+
+**VS Code (Optional):**
+
+Optionally, install the **.NET Test Explorer extension** for a convenient Testing view UI to run the Core tests. Tests can also be run from the command line using `dotnet test`.
+
+### Packaging & Marketplace
+
+**Build the backoffice assets:**
+
+```bash
+cd src/UmbracoPrism.Client
+npm install
+npm run build
+```
+
+**Pack the NuGet package:**
+
+```bash
+dotnet pack src/UmbracoPrism.Core/UmbracoPrism.Core.csproj -c Release -o artifacts
+```
+
+**Marketplace metadata:**
+
+See [umbraco-marketplace.json](https://github.com/jonnymuir/Umbraco.Prism/blob/main/umbraco-marketplace.json) for the listing metadata (icon, screenshots, tags, description).
+
+**Accessibility (WCAG) checks:**
+
+Storybook test runner runs axe checks (WCAG 2.0/2.1 A/AA) via
+[src/UmbracoPrism.Client/.storybook/test-runner.ts](https://github.com/jonnymuir/Umbraco.Prism/blob/main/src/UmbracoPrism.Client/.storybook/test-runner.ts).
+
+To opt out for a specific story, set `parameters: { a11y: { disable: true } }` in your `.stories.ts` file:
+
+```typescript
+export const MyStory = {
+  render: (args) => <MyComponent {...args} />,
+  parameters: {
+    a11y: { disable: true }  // Disables WCAG checks for this story
+  }
+};
+```
+
+### Local Authentication Walkthrough
+
+#### 1. Choose Your OIDC Provider
+
+**Option A: Quick Start with Keycloak (Included)**
+- No setup needed; the local Keycloak is already running on `https://localhost:8443` with the seeded demo realm
+- Use for immediate testing without external OIDC provider configuration
+- User: `demo@prism.local` / password: `password`
+
+**Option B: Production-Style Setup (Entra ID, Generic OIDC, etc.)**
+- Create App Registration in your OIDC provider
+- Redirect URI: `https://localhost:[PORT]/signin-oidc`
+- Note the **Client ID** and **Authority URL** from your provider
+
+#### 2. Local Auth (Azure Key Vault)
+
+If using an external OIDC provider and storing secrets in Key Vault:
+
+```bash
+az login --allow-no-subscriptions
+```
+
+Allows `SecretVaultService` to access Key Vault in local dev.
+
+**Key Vault Setup:**
+- Add secret (e.g., `tenant-a-secret`) with your OIDC Client Secret
+- Grant **Key Vault Secrets User** to your identity
+
+#### 3. Tenant Setup
+
+In **Prism Dashboard** (backoffice):
+
+**For Keycloak (local dev):**
+- **Hostname:** `localhost:[PORT]`
+- **OIDC Authority:** `https://localhost:8443/realms/prism-dev`
+- **OIDC Client ID:** `prism-client`
+- **Secret Provider:** `inline` (only for demo; leave as is)
+
+**For External OIDC Provider (Entra ID, generic OIDC, etc.):**
+- **Hostname:** `localhost:[PORT]` (or your domain)
+- **OIDC Authority:** Authority URL from your provider
+- **OIDC Client ID:** Client ID from your provider
+- **Secret Provider:** `azure-key-vault`
+- **Secret Reference:** `tenant-a-secret` (or your vault secret name)
+
+The dashboard does not round-trip raw OIDC client secrets through edit responses; production updates are reference-based, and only the seeded localhost Keycloak demo exposes an inline replace field.
+
+#### 4. Downstream API Auth
+
+If your Prism frontend needs to call a secure backend (e.g., a "Member Dashboard" API), Prism can flow the current tenant’s identity and access token to that downstream system.
+
+#### 1. Backend API: Enabling Prism Auth
+
+In your downstream ASP.NET Core API, register the Prism authentication handler. This allows the API to accept multi-tenant tokens from any CIAM tenant registered in your system.
+
+```csharp
+// In your API's Program.cs
+builder.Services.AddPrismAuthentication(builder.Configuration);
+
+```
+
+#### 2. Backend API: Resolving the Tenant
+
+Use the Prism identity extensions to resolve which brand the user belongs to. This ensures data isolation at the API level.
+
+```csharp
+app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user) =>
+{
+    // Resolves the tenant from config (default) or a custom resolver
+    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
+
+    if (tenant == null) return Results.Unauthorized();
+
+    return Results.Ok(new { 
+        Brand = tenant.DisplayName,
+        Code = tenant.Code 
+    });
+}).RequireAuthorization();
+
+```
+
+#### 3. Frontend: Calling the API
+
+From your Umbraco site, use `IPrismContext` to automatically generate the correct Authorization header containing the user's `access_token`.
+
+```csharp
+public async Task<string> GetMemberDataAsync()
+{
+    using var client = new HttpClient();
+    // Automatically handles token extraction and refresh logic
+    client.DefaultRequestHeaders.Authorization = await PrismContext.GetAuthorizationHeaderAsync();
+
+    return await client.GetStringAsync("https://your-api.com/api/backoffice/me");
+}
+
+```
+
+---
+
+### Sample Projects
+
+**`UmbracoPrism.TestSite`** — Reference Umbraco v17 site. Shows OIDC setup, tenant branding, downstream API calls. Pre-configured tenant definitions for local auth.
+
+**`UmbracoPrism.MockBackOffice`** — Minimal API. Shows `AddPrismAuthentication` and multi-tenant data isolation.
+
+→ See [Local Authentication Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md#local-authentication-walkthrough)
+
+---
+
 ## Stack
 
 * **Umbraco:** v17.0+
 * **.NET:** 10.0
-* **Auth:** Stateless OIDC (Entra), Azure Key Vault, Managed Identity
+* **Auth:** Stateless OIDC (any OIDC-compliant provider), Azure Key Vault, Managed Identity
 * **Mobile:** Capacitor, TypeScript, Storybook
 
 ---
 
-## Learn More
+## Phone Auth via Cloudflare Tunnel
 
-**Full documentation and setup guides:** [github.com/jonnymuir/Umbraco.Prism](https://github.com/jonnymuir/Umbraco.Prism)
+For OIDC sign-in on mobile devices with an external provider, use HTTPS tunnel (most OIDC providers require `https://` or `http://localhost` only).
 
-This marketplace listing uses a plain-text-friendly version of the full README. Screenshots, videos, and advanced configuration are available in the complete GitHub documentation.
+### No Domain (Temporary URL)
+
+```bash
+brew install cloudflared
+cloudflared tunnel --url https://localhost:44345
+```
+
+Or use helper:
+
+```bash
+bash scripts/dev/start-trycloudflare.sh
+```
+
+Add redirect URI in your OIDC provider:
+```
+https://<random>.trycloudflare.com/signin-oidc
+```
+
+Helper script auto-rotates stale trycloudflare URIs.
+
+### Stable Hostname (Custom Domain)
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create prism-dev
+cloudflared tunnel route dns prism-dev prism-dev.<your-domain>
+```
+
+Create `~/.cloudflared/config.yml`:
+
+```yml
+tunnel: <tunnel-id>
+credentials-file: /Users/<you>/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: prism-dev.<your-domain>
+    service: https://localhost:44345
+    originRequest:
+      noTLSVerify: true
+      httpHostHeader: localhost:44345
+  - service: http_status:404
+```
+
+Run:
+
+```bash
+cloudflared tunnel run prism-dev
+```
+
+Redirect URI:
+```
+https://prism-dev.<your-domain>/signin-oidc
+```

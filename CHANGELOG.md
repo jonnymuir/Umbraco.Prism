@@ -2,6 +2,15 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.9.1] — 2026-05-08
+
+### Changed
+
+- **Marketplace package readme:** NuGet packages now ship the generated `MARKETPLACE.md` as the package readme so the Umbraco Marketplace listing can render the marketplace-friendly copy instead of the GitHub-oriented README.
+- **Marketplace sync guardrails:** Added repo scripts and CI/release checks to keep `MARKETPLACE.md` generated from `README.md` and stop releases if the marketplace copy is out of date.
+
+---
+
 ## [v1.9.0] — 2026-05-04
 
 ### Added

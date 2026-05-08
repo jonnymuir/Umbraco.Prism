@@ -23,6 +23,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
 
+      - name: Verify marketplace description
+        run: npm run check:marketplace
+
       - name: Install client dependencies
         run: npm ci
         working-directory: src/UmbracoPrism.Client

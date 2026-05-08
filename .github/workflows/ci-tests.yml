@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'README.md'
+      - 'MARKETPLACE.md'
+      - 'umbraco-marketplace.json'
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/UmbracoPrism.Client/**'
       - 'src/UmbracoPrism.AppHost/**'
       - 'src/UmbracoPrism.Core/**'
@@ -14,12 +19,18 @@ on:
       - 'src/UmbracoPrism.Shared/**'
       - 'src/UmbracoPrism.TestSite/**'
       - 'keycloak/**'
+      - 'scripts/generate-marketplace-readme.mjs'
       - 'scripts/validate-aspire-prereqs.mjs'
       - 'ASPIRE_DEV.md'
       - '.github/workflows/ci-tests.yml'
   push:
     branches: [ main ]
     paths:
+      - 'README.md'
+      - 'MARKETPLACE.md'
+      - 'umbraco-marketplace.json'
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/UmbracoPrism.Client/**'
       - 'src/UmbracoPrism.AppHost/**'
       - 'src/UmbracoPrism.Core/**'
@@ -30,11 +41,25 @@ on:
       - 'src/UmbracoPrism.Shared/**'
       - 'src/UmbracoPrism.TestSite/**'
       - 'keycloak/**'
+      - 'scripts/generate-marketplace-readme.mjs'
       - 'scripts/validate-aspire-prereqs.mjs'
       - 'ASPIRE_DEV.md'
       - '.github/workflows/ci-tests.yml'
 
 jobs:
+  marketplace-description:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.1
+
+      - name: Verify marketplace description is current
+        run: npm run check:marketplace
+
   storybook-tests:
     runs-on: ubuntu-latest
     defaults:
