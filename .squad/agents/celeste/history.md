@@ -111,3 +111,53 @@
 
 Discovery phase completed. Findings documented in decisions.md.
 Awaiting implementation phase dispatch.
+
+---
+
+## 2026-05-15 | PASA Death Process Design Scaffold
+
+**Objective:** Create a design document for a PASA (lifecycle termination) death-process workflow example, structured to absorb input from architecture, security, backend, frontend, and testing disciplines.
+
+**Approach:**
+1. Analyzed existing design docs (workflow-forms-engine.md, walkthroughs) to infer structure and tone
+2. Created scaffold with explicit decision slots rather than speculative implementation details
+3. Organized by discipline (Tom Nook, Copper, Blathers, Isabelle, Tangy) with role-specific guidance
+4. Linked to Prism patterns (state machines, component mapping, security boundaries)
+
+**Artifacts Created:**
+- `docs/design/pasa-death-process.md` — Main design scaffold (13.5 KB)
+  - State machine with proposed flow: request-confirmation → waiting-for-approval → executing → completed
+  - Component mapping: `fieldset`, `summary-list`, `waiting`, `panel`
+  - End-to-end narrative placeholder (Parts 1–4: initiate, approve, execute, complete)
+  - Backend contract template: JSON workflow definition + `/advance` response schema
+  - Security considerations: threat model, audit trail, tenant isolation
+  - Testing strategy: executable specs + unit tests (placeholders)
+  - Decision timeline: 4 phases (design → approval → implementation → documentation)
+  
+- `.squad/decisions/inbox/celeste-pasa-death-process.md` — Decision record documenting rationale and next steps
+
+**Key Design Decisions:**
+- **Scaffold over speculation:** Used explicit decision slots and open questions to flag unknowns rather than guess implementation details
+- **Discipline-focused:** Organized questions for Tom Nook (architecture), Copper (security), Blathers (backend), Tangy (testing) so each can focus on their domain
+- **Pattern reusability:** Structure (decision slots + narrative + backend contract + specs link) can be extracted as a template for future workflows
+
+**Security Considerations Captured:**
+- Role-based gates on approval transitions
+- Nonce validation for destructive POST operations
+- Audit trail requirements (who, when, outcome)
+- Tenant isolation boundaries
+- Threat model placeholder (unauthorized deletion, replay attacks, concurrent approvals, data exposure during cleanup)
+
+**Validation:**
+- Document follows Prism conventions (state machines, components, narrative structure)
+- Links to existing design docs and walkthroughs for consistency
+- Appendix includes role-specific guidance to guide team input
+
+**Result:** ✅ Design scaffold ready for parallel team input. Awaiting Tom Nook (architecture), Copper (security), Blathers (backend), and Tangy (test strategy) to fill open questions. Target sync: 2026-05-16.
+
+**Learning:** This scaffold approach — explicit decision slots + discipline-specific guidance — is reusable for future complex workflows. Candidate for extraction as `.squad/templates/design-doc-scaffold.md`.
+
+## 2026-05-15: PASA Death Process Design Scaffold
+
+Authored comprehensive design document scaffold at `/docs/design/pasa-death-process.md`. Integrated decision slots for all disciplines (architecture, security, backend, frontend, testing). Structured for parallel input. Scaffold includes open questions, proposed workflow, backend contracts, security considerations, testing strategy, documentation artifacts, decision timeline. Decision merged to shared registry.
+

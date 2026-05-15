@@ -54,3 +54,16 @@ Awaiting implementation phase dispatch.
 
 
 **2026-05-08T05:26:48.026Z — Squad Sync:** Post-publish verification and tag correction recorded.
+
+## Learnings
+
+### 2026-05-15T06:35:47.013+01:00 | PASA death-process design
+
+- PASA's public guidance is strongest on **risk-based identity management** and the need for a clear member identity view across life events, but it does not prescribe a detailed digital bereavement journey. The notifier UX, optional-account posture, and assisted-digital shape therefore need to come from broader UK bereavement and service-design practice.
+- The most reusable Prism pattern for third-party initiated casework is to separate the **workflow actor** from the **linked subject**. For bereavement reporting, the notifier is the actor and the deceased member is matched server-side as the subject.
+- Save/resume for sensitive one-off reporting works best when the service verifies a contact channel early, creates a case shell immediately after, and combines passwordless resume with case-reference recovery instead of forcing permanent registration.
+
+## 2026-05-15: PASA Death Process Baseline Decision
+
+Produced foundational decision on case-scoped notifier model for death-process example. Confirmed notifier as authenticated workflow actor, deceased member as linked subject, no mandatory registration up front. Hybrid save/resume via verified-session + case-reference. Decision merged to shared registry.
+

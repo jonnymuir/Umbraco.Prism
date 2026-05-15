@@ -50,3 +50,16 @@ Awaiting implementation phase dispatch.
 
 Implemented workflow admin UI cleanup for walkthrough and manual documentation use.
 Coordinating with Brewster (dashboard navigation) and Tangy (screenshot integration).
+
+## Learnings
+
+### 2026-05-15T06:35:47.013+01:00 | PASA death-process design
+
+- A third-party initiated workflow should authenticate the notifier as the actor and link the deceased member as a server-side subject, not as the signed-in user.
+- Save/resume for sensitive one-off cases works better with verified case access (magic link or OTP) plus a separate case aggregate than with mandatory permanent registration.
+- Prism remains the workflow shell; case tracking, member matching, evidence manifests, and reviewer notes belong in business-app domain persistence.
+
+## 2026-05-15: PASA Death Process Backend Decision
+
+Produced backend decision on notifier workflow mechanics. Specified lightweight verified contact (magic link/SMS OTP), case-scoped identity, Prism-hosted workflow for notifier, case persistence in business app. Defined need for NotifierIdentity/NotifierSession model alongside DeathCase. Merged to shared registry.
+

@@ -4698,3 +4698,172 @@ heading hierarchy.
 - `docs/walkthroughs/home-entry.md` — new walkthrough document
 - `docs/images/walkthroughs/home-entry/` — new images directory (.gitkeep placeholder)
 
+
+# Decision: PASA death-process should use verified case access, not mandatory registration
+
+**Date:** 2026-05-15T06:35:47.013+01:00  
+**Author:** Blathers  
+**Status:** Proposed  
+
+## Summary
+
+For a PASA-style death-notification workflow, the notifier should not be forced through permanent registration before they can report a death, save progress, or resume later.
+
+Instead, the product should use a lightweight verified contact mechanism such as email magic link or SMS OTP to establish a case-scoped notifier identity. Prism then hosts the workflow for that notifier identity, while the business app owns member matching, case persistence, evidence tracking, and reviewer decisions.
+
+## Why
+
+- Bereavement reporting is often a one-off task carried out by someone who is not the member.
+- The current Prism workflow model already supports resumable, reviewer-backed journeys once an authenticated actor exists.
+- A case-scoped identity gives enough proof to save and resume safely without over-designing account creation.
+
+## Team impact
+
+- Backend and auth work should plan for a notifier-facing session model alongside member-facing auth.
+- Workflow design should treat the notifier as the actor and the deceased member as the linked subject.
+- Case-management persistence should stay outside Prism workflow field state.
+
+
+# Decision: PASA Death Process Design Scaffold
+
+**Date:** 2026-05-15T06:35:47.013+01:00  
+**Author:** Celeste (Documentation Engineer)  
+**Status:** 🚧 Design Phase — Input Requested
+
+## Summary
+
+Authored a comprehensive design document scaffold for a PASA (lifecycle termination) death-process workflow example. The scaffold is intentionally open-ended with explicit decision slots for each discipline (Architecture, Security, Backend, Frontend, Testing) to absorb input from Tom Nook, Copper, Blathers, Isabelle, and Tangy.
+
+## Rationale
+
+**Why a scaffold instead of a complete spec?**
+
+1. **Clarity on unknowns** — Rather than guess at implementation details, the scaffold explicitly flags design decisions that *must* be made upstream (e.g., "Is this single-instance or multi-instance? Who can approve?")
+2. **Parallel input** — Each team member can focus on their domain without waiting for others; inputs can be merged later.
+3. **Reusable pattern** — The structure itself (decision slots, open questions, narrative sections) can be applied to future workflow designs.
+4. **Documentation discipline** — By linking design → backend contract → walkthrough → security audit → specs, the document ensures all artifacts stay in sync.
+
+## Document Structure
+
+The design document includes:
+
+- **Overview & Goals** — Why we're documenting this workflow
+- **Open Questions by Discipline** — Explicit slots for Tom Nook (architecture), Copper (security), Blathers (backend), Isabelle (frontend), Tangy (testing)
+- **Proposed Workflow Structure** — Tentative state machine with component mapping
+- **End-to-End Narrative** — Placeholder walkthrough describing user, admin, and system actions
+- **Backend Contracts (Tentative)** — Sample JSON workflow definition + `/advance` response schema
+- **Security Considerations** — Threat model & tenant isolation questions
+- **Testing Strategy** — Placeholder for executable specs and unit tests
+- **Documentation Artifacts** — Links to design → backend spec → walkthrough → security guide → executable specs
+- **Decision Timeline** — Four phases from design → implementation → documentation
+- **Appendix for Reviewers** — Role-specific guidance for each team member
+
+## Location
+
+Created at: `/docs/design/pasa-death-process.md`
+
+Follows existing design doc conventions:
+- Named after the workflow (like `workflow-forms-engine.md`)
+- Linked from `docs/design/README.md` (to be added)
+- Uses markdown with mermaid flowcharts for clarity
+- Includes state machines, contracts, and narratives
+
+## Next Action
+
+Team should review and fill in open questions:
+
+1. **Tom Nook:** Confirm scope, instance policy, state sequence
+2. **Copper:** Refine threat model, define audit trail requirements
+3. **Blathers:** Finalize backend contract, cleanup orchestration
+4. **Tangy:** Define test scenarios and performance SLAs
+5. **Celeste:** Merge inputs and advance to walkthrough/implementation phases
+
+## Key Learning
+
+This approach — **design scaffold with explicit decision slots** — is reusable for future complex workflows. Consider extracting as a `.squad/templates/design-doc-scaffold.md` for future use.
+
+
+
+# Decision: PASA death-process should use staged assurance and case-scoped access
+
+**Date:** 2026-05-15T06:35:47.013+01:00  
+**Author:** Copper (Security Engineer)  
+**Status:** Proposed  
+
+## Summary
+
+For the PASA death-notification example, the notifier should not create a permanent member-style account just to report a death, save progress, or return later.
+
+Instead, the design should use:
+
+1. a **public start** with minimum data capture,
+2. **verified contact-channel access** via magic link as the primary mechanism, with OTP as a fallback,
+3. a **case-scoped notifier identity** plus case reference for save/resume,
+4. **reviewer-backed step-up assurance** before any meaningful member-data disclosure or downstream benefit action.
+
+## Security posture
+
+- Treat the **notifier** as the authenticated actor and the **deceased member** as the linked subject.
+- Separate **channel proof** from **authority/member-match proof**.
+- Keep member matching, reviewer notes, anti-fraud signals, and entitlement decisions in server-side case-domain tables, not in browser-owned workflow payloads.
+- Fail closed on data disclosure: before verification, show only generic statuses such as `received`, `under review`, or `more information needed`.
+
+## Save/resume decision
+
+The preferred save/resume pattern is:
+
+- issue a case reference as soon as contact verification succeeds,
+- re-establish access through a fresh verified session,
+- use a workflow hub to list that notifier's active/completed death cases,
+- never treat a raw case URL, `instanceId`, or reference number as sufficient authentication.
+
+## Why this beats the alternatives
+
+- **Full registration** is disproportionate for a one-off bereavement task and increases friction.
+- **Magic link alone** is acceptable for bootstrap and low-risk resume, but not for sensitive disclosure without reviewer-backed progression.
+- **Case reference + KBA alone** is too weak for online assurance.
+- **Delegated representative portals** are a valid future extension, but should come after the simpler case-scoped model.
+
+## Team impact
+
+- Backend design should add `NotifierIdentity` / `NotifierSession` and keep `DeathCase` separate from `WorkflowInstance`.
+- Frontend/workflow design should show only generic progress until reviewer-backed verification is complete.
+- Documentation and walkthroughs should make the staff-review boundary explicit so the example does not imply that a notifier can self-serve beneficiary or payment outcomes.
+
+
+# Tom Nook decision — PASA death-process baseline
+
+**Date:** 2026-05-15T06:35:47.013+01:00
+**Requested by:** Jonny Muir
+
+## Decision
+
+Use a **case-scoped notifier model** for the PASA death-process example:
+
+1. the notifier is the authenticated workflow actor,
+2. the deceased member is the linked subject,
+3. the service does **not** require mandatory registration up front,
+4. save/resume uses a **hybrid** of passwordless verified-session access plus case-reference recovery,
+5. stronger identity checks happen only when the case moves into sensitive disclosure or payment-affecting work.
+
+## Rationale
+
+- PASA public guidance supports **risk-based** identity verification and a frictionless experience where proportionate.
+- Broader UK bereavement services show that **no-account or optional-account initiation** is the better front-door pattern for death notification.
+- This keeps Prism aligned with existing save/resume and reviewer-loop patterns without pretending the deceased member is the signed-in workflow user.
+
+## Consequences
+
+- The example should add a small pre-workflow bootstrap for notifier contact verification.
+- Member matching, duplicate detection, and evidence review stay in the business-app domain layer.
+- Progress visibility should stay high level until the case has passed the required proofing threshold.
+
+## Needs sign-off from
+
+- Product owner
+- Tom Nook
+- Copper
+- Blathers
+- Celeste
+
+
