@@ -135,12 +135,12 @@ export class PrismConversationPaneElement extends LitElement {
         class="conversation-root"
         data-prism-component="conversation-pane"
       >
-        <header class="pane-header">
+        <div class="pane-header">
           <h2 class="pane-title">
             <span aria-hidden="true">💬</span>
             <span>Conversation</span>
           </h2>
-        </header>
+        </div>
 
         <!-- Scrollable message list — ARIA live region -->
         <div
@@ -150,6 +150,7 @@ export class PrismConversationPaneElement extends LitElement {
           aria-live="polite"
           aria-atomic="false"
           aria-relevant="additions"
+          tabindex="0"
         >
           ${this._messages.length === 0 ? html`
             <p class="empty-conversation">
@@ -273,7 +274,7 @@ export class PrismConversationPaneElement extends LitElement {
     .empty-conversation {
       margin: auto;
       text-align: center;
-      color: #6b7280;
+      color: #4b5563;
       font-size: 0.875rem;
       padding: 1.5rem;
     }
@@ -296,7 +297,7 @@ export class PrismConversationPaneElement extends LitElement {
     .message-role {
       font-size: 0.6875rem;
       font-weight: 700;
-      color: #6b7280;
+      color: #4b5563;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -332,7 +333,7 @@ export class PrismConversationPaneElement extends LitElement {
       border-radius: 6px;
       font-size: 1.25rem;
       letter-spacing: 0.25em;
-      color: #6b7280;
+      color: #4b5563;
     }
 
     /* Proposal area */
@@ -373,12 +374,12 @@ export class PrismConversationPaneElement extends LitElement {
 
     .conversation-input:disabled {
       background: #f3f4f6;
-      color: #6b7280;
+      color: #4b5563;
       cursor: not-allowed;
     }
 
     .conversation-input::placeholder {
-      color: #9ca3af;
+      color: #595959;
     }
 
     .submit-btn {

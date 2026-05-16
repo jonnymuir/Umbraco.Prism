@@ -47,10 +47,10 @@ export class PrismStepInspectorElement extends LitElement {
         data-prism-stage-detail="${stage.stageKey}"
         aria-labelledby="inspector-stage-title"
       >
-        <header class="inspector-header">
+        <div class="inspector-header">
           <h2 id="inspector-stage-title" class="stage-title">${stage.displayName}</h2>
           <span class="stage-kind-badge">${stage.kind}</span>
-        </header>
+        </div>
 
         <!-- Fields subsection -->
         <section class="inspector-section" aria-labelledby="section-fields-${stage.stageKey}">
@@ -144,6 +144,7 @@ export class PrismStepInspectorElement extends LitElement {
       <div
         class="step-inspector-root"
         data-prism-component="step-inspector"
+        tabindex="0"
       >
         ${stage ? this._renderStage(stage) : this._renderEmpty()}
       </div>
@@ -171,7 +172,7 @@ export class PrismStepInspectorElement extends LitElement {
       height: 100%;
       min-height: 120px;
       padding: 2rem;
-      color: #6b7280;
+      color: #4b5563;
       font-size: 0.875rem;
       text-align: center;
     }
@@ -236,7 +237,7 @@ export class PrismStepInspectorElement extends LitElement {
     .section-empty {
       margin: 0;
       font-size: 0.875rem;
-      color: #9ca3af;
+      color: #595959;
       font-style: italic;
     }
 
@@ -268,7 +269,7 @@ export class PrismStepInspectorElement extends LitElement {
 
     .field-meta {
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #4b5563;
       white-space: nowrap;
     }
 
@@ -315,7 +316,7 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     .exit-arrow {
-      color: #9ca3af;
+      color: #595959;
     }
 
     .exit-target {
@@ -326,7 +327,7 @@ export class PrismStepInspectorElement extends LitElement {
 
     .exit-role {
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #4b5563;
       font-style: italic;
     }
 

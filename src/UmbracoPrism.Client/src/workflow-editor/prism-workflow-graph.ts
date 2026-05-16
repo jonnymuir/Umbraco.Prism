@@ -98,6 +98,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       <div
         class="graph-canvas"
         role="application"
+        tabindex="0"
         aria-label="Workflow graph canvas — ${this.workflow?.displayName ?? 'workflow'}"
         aria-roledescription="Visual workflow graph. Activate a node to select a stage."
       >
@@ -139,7 +140,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private _renderLinear(stages: AuthoredStage[]) {
     return html`
-      <section aria-label="Workflow stages — linear list">
+      <section aria-label="Workflow stages — linear list" tabindex="0">
         ${stages.length === 0
           ? html`<p class="empty-state">No stages to display.</p>`
           : html`
@@ -196,6 +197,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           <button
             class="mode-toggle"
             aria-pressed="${isLinear}"
+            style="${isLinear ? 'background-color:#1e3a8a;color:#ffffff;border-color:#1e3a8a;' : ''}"
             @click=${this._toggleMode}
             title="${isLinear ? 'Switch to graph view' : 'Switch to linear list view'}"
           >
@@ -281,9 +283,9 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .mode-toggle[aria-pressed="true"] {
-      background: #1d4ed8;
+      background: #1e3a8a;
       color: #ffffff;
-      border-color: #1d4ed8;
+      border-color: #1e3a8a;
     }
 
     /* ── Graph mode ─────────────────────────────────── */
@@ -316,7 +318,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .stage-node:hover {
-      border-color: #6b7280;
+      border-color: #4b5563;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
 
@@ -347,7 +349,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .stage-node.stage-kind-backstage {
       background: #f9fafb;
-      border-color: #9ca3af;
+      border-color: #767676;
     }
 
     .node-label {
@@ -359,7 +361,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .node-kind {
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #4b5563;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -394,7 +396,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .stage-card:hover {
-      border-color: #6b7280;
+      border-color: #4b5563;
     }
 
     .stage-card:focus-visible {
@@ -451,7 +453,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .empty-state {
-      color: #6b7280;
+      color: #4b5563;
       font-size: 0.875rem;
       text-align: center;
       padding: 2rem;

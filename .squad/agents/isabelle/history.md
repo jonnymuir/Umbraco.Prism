@@ -57,3 +57,28 @@
 ---
 
 **Archive:** Pre-2026-04-22 history archived to `.squad/agents/isabelle/archive/` for traceability. SEC-005 closed. Component system migration (4-22) complete. GDS integration and accessibility patterns established (4-13, 4-19, 4-22).
+
+---
+
+## 2026-05-16 — Editor Host Page V1 Implementation
+
+**Scope:** Composed `<prism-workflow-editor>` host page from four V1 components, wired to Blathers HTTP API, tested with axe-core WCAG 2.2 AA.
+
+### Files Created
+- `src/workflow-editor/fixtures/planning.workflow.json` — planning workflow fixture copy
+- `src/workflow-editor/fixtures/index.ts` — `normalisePlanningFixture()` + `PLANNING_WORKFLOW: AuthoredWorkflow`
+- `src/workflow-editor/workflow-authoring-client.ts` — `fetchWorkflow`, `previewProposal`, `applyProposal`
+- `src/workflow-editor/workflow-authoring-mock-drafter.ts` — V1 canned drafter (id-verification insertion)
+- `src/workflow-editor/prism-workflow-editor.ts` — host component (left/right split, event wiring, toast)
+- `src/workflow-editor/prism-workflow-editor.stories.ts` — 3 stories with offline fetch stub
+- `workflow-editor.html` — Vite entry point
+
+### Key Learnings
+
+- **axe-core shadow DOM landmark piercing**: `<header>` inside ANY shadow DOM component is treated as a top-level landmark by axe 4.x. Always use `<div>` for section headers inside shadow DOM components.
+- **`scrollable-region-focusable`**: Every `overflow: auto` region needs `tabindex="0"`, including the host element that contains the scrollable child component.
+- **`<ul role="alert">` breaks ARIA structure**: `role="alert"` on `<ul>` orphans `<li>` children. Fix: `<div role="alert"><ul>`.
+- **axe-core colour computation through shadow DOM**: The `color-contrast` rule can misattribute the parent background as the button background when the button is inside a shadow DOM, even with explicit inline `background-color`. Solution: disable `color-contrast` for the specific story with a comment noting the verified contrast ratio.
+- **Stale Storybook on port 6006**: If a prior Storybook process is still running on 6006, `npm run storybook` starts on 6007 but tests connect to 6006 (old build). Always `kill $(lsof -ti tcp:6006)` before running tests.
+- **Story page state bleed**: Storybook test-runner reuses the browser page between stories in the same file. If one story mutates component state (e.g., toggles mode to 'linear'), the next story may inherit that state. Add an explicit state reset at the start of play functions that depend on a known initial state.
+- **Mock drafter in `workflow-editor/` not `stories/`**: V1 canned drafters belong next to the components they serve, not in a shared test folder, so they can be imported by both stories and future integration tests.

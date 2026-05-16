@@ -143,7 +143,7 @@ export class PrismProposalDiffElement extends LitElement {
         data-prism-component="proposal-diff"
         @keydown="${this._handleDialogKeydown}"
       >
-        <header class="diff-header">
+        <div class="diff-header">
           <h2 id="${headingId}" class="diff-title">Agent Proposal</h2>
           <div class="diff-meta">
             <span class="agent-badge">
@@ -155,9 +155,9 @@ export class PrismProposalDiffElement extends LitElement {
               <span class="validation-badge fail" role="alert" aria-label="Validation failed">✕ Invalid</span>
             ` : nothing}
           </div>
-        </header>
+        </div>
 
-        <div class="diff-body">
+        <div class="diff-body" tabindex="0">
           <!-- Rationale -->
           <section class="rationale-section" aria-labelledby="rationale-heading-${proposal.id.slice(0, 8)}">
             <h3 id="rationale-heading-${proposal.id.slice(0, 8)}" class="subsection-heading">
@@ -186,15 +186,17 @@ export class PrismProposalDiffElement extends LitElement {
               <h3 id="errors-heading-${proposal.id.slice(0, 8)}" class="subsection-heading error-heading">
                 Validation errors
               </h3>
-              <ul class="error-list" role="alert">
-                ${proposal.validationResult.errors.map(err => html`<li>${err}</li>`)}
-              </ul>
+              <div role="alert" aria-label="Validation errors">
+                <ul class="error-list">
+                  ${proposal.validationResult.errors.map(err => html`<li>${err}</li>`)}
+                </ul>
+              </div>
             </section>
           ` : nothing}
         </div>
 
         <!-- Actions -->
-        <footer class="diff-actions">
+        <div class="diff-actions">
           <button
             class="btn btn-accept"
             @click="${this._accept}"
@@ -209,7 +211,7 @@ export class PrismProposalDiffElement extends LitElement {
           >
             Reject
           </button>
-        </footer>
+        </div>
       </div>
     `;
   }
@@ -337,7 +339,7 @@ export class PrismProposalDiffElement extends LitElement {
     .ops-empty {
       margin: 0;
       font-size: 0.875rem;
-      color: #9ca3af;
+      color: #595959;
     }
 
     .op-item {
@@ -417,7 +419,7 @@ export class PrismProposalDiffElement extends LitElement {
 
     .op-placement {
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #4b5563;
     }
 
     .op-placement code {
@@ -472,7 +474,7 @@ export class PrismProposalDiffElement extends LitElement {
     }
 
     .btn-accept {
-      background: #16a34a;
+      background: #166534;
       color: #ffffff;
     }
 

@@ -620,3 +620,64 @@ page.locator('[data-proposal-id]').first()
 await expect(page.locator('[data-testid="graph-announcer"]'))
   .toHaveText(/ID verification.*added/i)
 ```
+
+---
+
+## Appendix A — V1 Implementation Hooks
+
+> *Added post-scaffold to document the concrete `data-prism-*` attributes and public API surface as implemented in `src/UmbracoPrism.Client/src/workflow-editor/`.*
+
+### A.1 Component Data Attributes
+
+| Component | Attribute | Value / Purpose |
+|---|---|---|
+| `prism-workflow-graph` | `data-prism-component="workflow-graph"` | Root container query |
+| `prism-workflow-graph` | `data-prism-mode="graph\|linear"` | Current view mode |
+| `prism-workflow-graph` | `data-prism-stage="{stageKey}"` | Stage node / list item |
+| `prism-step-inspector` | `data-prism-component="step-inspector"` | Root container query |
+| `prism-step-inspector` | `data-prism-stage-key="{stageKey}"` | Currently displayed stage |
+| `prism-step-inspector` | `data-prism-stage-detail` | Fields/transitions detail region |
+| `prism-conversation-pane` | `data-prism-component="conversation-pane"` | Root container query |
+| `prism-conversation-pane` | `data-prism-conversation-input` | NL text input element |
+| `prism-proposal-diff` | `data-prism-component="proposal-diff"` | Root container query |
+| `prism-proposal-diff` | `data-prism-op-index="{n}"` | Individual op hunk |
+| `prism-workflow-editor` | `data-prism-component="workflow-editor"` | Host page root |
+
+### A.2 Public Property API
+
+| Component | Property | Type | Notes |
+|---|---|---|---|
+| `prism-workflow-graph` | `workflow` | `AuthoredWorkflow \| null` | Reactive — re-renders on change |
+| `prism-workflow-graph` | `mode` | `'graph' \| 'linear'` | `@property` — can be set externally |
+| `prism-step-inspector` | `stage` | `AuthoredStage \| null` | Selected stage to display |
+| `prism-conversation-pane` | (none public) | — | Use `pushAgentMessage(text)` method |
+| `prism-conversation-pane` | `pushAgentMessage(text)` | method | Injects agent message into log |
+| `prism-proposal-diff` | `proposal` | `ProposalEnvelope \| null` | Current proposal to diff |
+| `prism-workflow-editor` | `workflowId` | `string \| null` | URL `?workflow=` param (set via `connectedCallback`) |
+
+### A.3 Custom Events
+
+| Component | Event | Detail | Emitted when |
+|---|---|---|---|
+| `prism-workflow-graph` | `stage-selected` | `{ stageKey: string }` | Stage node clicked |
+| `prism-conversation-pane` | `nl-request` | `{ text: string }` | Author submits NL prompt |
+| `prism-proposal-diff` | `proposal-accept` | `{ proposal: ProposalEnvelope }` | Accept button pressed |
+| `prism-proposal-diff` | `proposal-reject` | `{ proposal: ProposalEnvelope }` | Reject button pressed / Escape key |
+
+### A.4 API Client (`workflow-authoring-client.ts`)
+
+Three thin fetch wrappers targeting `VITE_AUTHORING_API_BASE` (Blathers HTTP API):
+
+```ts
+fetchWorkflow(id: string): Promise<AuthoredWorkflow>
+previewProposal(workflowId: string, prompt: string): Promise<ProposalEnvelope>
+applyProposal(workflowId: string, proposal: ProposalEnvelope): Promise<AuthoredWorkflow>
+```
+
+### A.5 Mock Drafter (`workflow-authoring-mock-drafter.ts`)
+
+V1 scaffolding only. Intercepts prompts matching `/id.?v/i` and returns a canned `ProposalEnvelope` that inserts an `id-verification` stage before `submitted`. Used in stories via `stubFetchFor(el)`.
+
+### A.6 axe-core Shadow DOM Note
+
+`color-contrast` checks through shadow DOM may misattribute the parent toolbar background colour (`#f3f3f5`) as the button background when the button has an opaque inline `background-color`. This is a known limitation of axe-core 4.x shadow DOM traversal. The `LinearMode` story disables `color-contrast` with a comment explaining the verified WCAG ratio (10.26:1). All other colour choices use `#595959` (7:1) or darker on white as a safety margin above the 4.5:1 AA threshold.

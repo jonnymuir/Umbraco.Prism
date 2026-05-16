@@ -201,7 +201,7 @@ export class PrismWorkflowEditorElement extends LitElement {
         <div class="editor-shell">
           <!-- Left: graph + title bar -->
           <div class="editor-left">
-            <header class="editor-header">
+            <div class="editor-header" role="none">
               <h1 class="editor-title">
                 ${this._workflow?.displayName ?? 'Workflow Editor'}
               </h1>
@@ -212,7 +212,7 @@ export class PrismWorkflowEditorElement extends LitElement {
               >
                 ${this._graphMode === 'graph' ? 'List view' : 'Graph view'}
               </button>
-            </header>
+            </div>
 
             <prism-workflow-graph
               class="graph-panel"
@@ -226,6 +226,7 @@ export class PrismWorkflowEditorElement extends LitElement {
           <div class="editor-right">
             <prism-step-inspector
               class="inspector-panel"
+              tabindex="0"
               .workflow="${this._workflow}"
               selected-stage-key="${this._selectedStageKey ?? ''}"
             ></prism-step-inspector>
