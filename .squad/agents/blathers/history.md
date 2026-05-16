@@ -111,3 +111,28 @@ Coordinating with Brewster (dashboard navigation) and Tangy (screenshot integrat
 ## 2026-05-15: PASA Death Process Backend Decision
 
 Produced backend decision on notifier workflow mechanics. Specified lightweight verified contact (magic link/SMS OTP), case-scoped identity, Prism-hosted workflow for notifier, case persistence in business app. Defined need for NotifierIdentity/NotifierSession model alongside DeathCase. Merged to shared registry.
+
+## Learnings: V1 Agent Loop Services + HTTP API (2026-05-17)
+
+**WorkflowPatchService:** Applies `ProposalEnvelope` ops immutably using C# record `with` expressions and `ToList()` copies. Five op kinds: `insert-stage`, `remove-stage`, `update-stage`, `insert-handoff`, `update-transition`. Errors are diagnostic-only — service never throws. Version increments only after all ops succeed. Output validated via `IWorkflowProjector.Project()`. Path resolution: `/stages/{key}` (non-integer key) or `/stages/{index}` (integer index) or value.StageKey fallback.
+
+**WorkflowPreviewService:** Pure function computing semantic diff between original and patched `AuthoredWorkflow`. Returns `PreviewResult` with `Diff []DiffEntry` (polymorphic) and `JourneyTrace string[]`. Trace is deterministic: starts from `InitialStageKey`, follows transitions sorted by `Action` (ordinal), halts at terminal stages or cycle detection via `visited` HashSet.
+
+**SemanticDiff:** `[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]` with six `[JsonDerivedType]` subtypes — `StageAdded`, `StageRemoved`, `StageUpdated`, `HandoffAdded`, `HandoffRemoved`, `TransitionUpdated`. Discriminator field `"type"` is Tangy-compatible for client-side parsing.
+
+**HTTP surface:** Six endpoints under `/api/workflow-authoring`:
+- `GET /workflows` → list all stored authored workflows
+- `GET /workflows/{key}` → load single by key
+- `POST /workflows/{key}/validate` → validate authoring-time rules, return `ProjectionResult` (with `hasErrors`)
+- `POST /workflows/{key}/project` → full projection, return `ProjectionResult` with checksum + file
+- `POST /workflows/{key}/preview` → apply envelope, compute diff + journey trace
+- `POST /workflows/{key}/apply` → apply + save + write provenance record
+
+All responses use `WorkflowProjector.CanonicalOptions`. CORS dev policy via `RequireCors("WorkflowAuthoringDevCors")` gated on `IsDevelopment()`.
+
+**WAF integration tests:** Two `Program` classes conflict (MockBusinessApp + TestSite both referenced). Resolved with `Aliases="global,MockBusinessApp"` on the `ProjectReference` and `extern alias MockBusinessApp;` + type alias in the test file. `ConfigureWebHost` sets `UseEnvironment("Development")`, injects minimal tenant config via `AddInMemoryCollection`, and overrides `IAuthoredWorkflowStore` to point at fixture directory.
+
+**FluentAssertions v6 + expression trees:** `ContainSingle(e => e is T derived && derived.Prop == X)` fails at compile time (`CS8122`). Use `.OfType<T>().Should().ContainSingle(t => t.Prop == X)` instead. `BeOneOf` with `because:` as a named positional arg also fails — use the `BeOneOf(IEnumerable, string because)` overload.
+
+**Commit:** `dfa26ec` — `feat(core): patch + preview services and authoring HTTP API for V1 agent loop`
+

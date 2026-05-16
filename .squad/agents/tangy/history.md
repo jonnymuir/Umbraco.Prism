@@ -45,6 +45,66 @@
 
 ---
 
+### 2026-05-17 — Planning Workflow Editor Walkthrough (Wave 1 Headline)
+
+**Scope:** Delivered the walkthrough spec, markdown narrative, keyboard test activation, and seam-test skip-reason updates for the planning workflow editor.
+
+**Key findings from codebase exploration:**
+
+**Shadow DOM and Playwright selectors:**
+- Playwright's `getByRole()` (and all ARIA role locators) **pierce shadow DOM automatically** in Playwright ≥ 1.38. Use them for all component-internal elements.
+- CSS attribute selectors (`page.locator('[data-testid="..."]')`) do **not** pierce shadow DOM. Never use them to reach inside Lit/web-components shadow roots.
+- `toBeFocused()` works on shadow-DOM elements — Playwright checks `element.matches(':focus')` which resolves correctly inside shadow roots.
+- `toHaveCount(0)` is the correct assertion when an element is **removed** from the DOM (e.g. graph canvas when switching to linear mode). `toBeHidden()` fails because the element is absent, not just hidden.
+
+**Actual hooks vs design doc:**
+- `docs/design/workflow-editor-v1/01-authoring-ux.md §10` documents `data-testid="workflow-graph"`, `data-testid="linear-list"`, `data-testid="toolbar-list-view"` etc. These hooks were **not implemented** by Isabelle's components.
+- Actual hooks shipped: `data-prism-component="workflow-graph"`, `data-prism-mode="graph|linear"`, `data-prism-stage="{stageKey}"`, `data-prism-stage-detail="{stageKey}"`, `data-prism-component="conversation-pane"`, `data-prism-conversation-input`, `data-prism-component="step-inspector"`, `data-prism-op-index`.
+- **Role-based selectors are preferred over attribute hooks** — they are shadow-DOM-piercing and encode the WCAG contract simultaneously.
+
+**Storybook story IDs (verified against .stories.ts files):**
+- `workflow-editor-workflow-graph--populated-workflow` → STUB_WORKFLOW loaded, graph mode, no play() mode change
+- `workflow-editor-workflow-graph--linear-mode` → renders already in linear mode (play() switches)
+- `workflow-editor-workflow-graph--empty` → empty graph
+- `workflow-editor-workflow-graph--stage-selected` → stage pre-selected
+- `workflow-editor-conversation-pane--empty`, `--with-proposal` (NOT `--with-mocked-proposal`)
+- `workflow-editor-proposal-diff--no-proposal`, `--with-proposal` (NOT `--with-failing-proposal`)
+- Previous skipped tests referenced wrong story IDs (`--default`, `--with-mocked-proposal`, `--with-failing-proposal`).
+
+**Keyboard test activation (workflow-graph-keyboard.spec.ts):**
+- Both tests un-skipped. Changed to `--populated-workflow` story (starts in graph mode, no play() side effects).
+- `data-testid="linear-list"` → `page.getByRole('listbox')` (pierces shadow DOM)
+- `data-testid="workflow-graph"` → `page.getByRole('application')` (graph canvas in shadow DOM)
+- `data-testid="toolbar-list-view"` → `page.getByRole('button', { name: 'List view' })` (label switches to "Graph view" when active)
+- In linear mode, items have `role="option"` (not `role="row"`) — `getByRole('option')` finds them.
+- After toggling to linear mode, graph canvas is **removed** from shadow DOM → `toHaveCount(0)` assertion.
+
+**Walkthrough skip pattern:**
+- `test.skip(true, reason)` placed in describe scope immediately before `test(...)` skips that specific test.
+- When ALL tests in a describe block are skipped this way, Playwright skips `beforeAll`/`afterAll` hooks too — so `LiveAppHost.start()` is NOT invoked for skipped walkthroughs. This is why skipped walkthroughs pass in the default Playwright config (Storybook) without starting Aspire.
+
+**Screenshot capture command:**
+```bash
+cd src/UmbracoPrism.Client
+CAPTURE_SCREENSHOTS=1 npx playwright test \
+  --config=playwright.localhost-auth.config.ts \
+  --grep "Planning Workflow Editor walkthrough" \
+  --reporter=line
+```
+
+**STUB_WORKFLOW stages** (types.ts): `applicant-details`, `check-answers`, `waiting-for-review`, `reviewer-assessment`, `confirmation` — these are the actual stage keys in the test stub. The design doc references `declaration`, `application-form`, `submitted` which are the future planning-specific stages Blathers will deliver.
+
+**Deliverables:**
+- CREATED: `src/UmbracoPrism.Client/tests/walkthroughs/planning-workflow-editor.walkthrough.spec.ts`
+- CREATED: `docs/walkthroughs/planning-workflow-editor.md`
+- CREATED: `docs/images/walkthroughs/planning-workflow-editor/.gitkeep`
+- MODIFIED: `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts` (un-skipped; corrected story IDs and selectors)
+- MODIFIED: `src/UmbracoPrism.Client/tests/agent-loop/planning-workflow-agent-loop.spec.ts` (skip reasons clarified)
+- MODIFIED: `src/UmbracoPrism.Core.Tests/Workflow/Authoring/PlanningWorkflowFixtureTests.cs` (skip reasons updated)
+- MODIFIED: `docs/walkthroughs/README.md` (linked new walkthrough)
+
+---
+
 ### 2026-05-16T13:20:33.659+01:00 — Agentic Surfaces & Test Seam (V1 Design)
 
 **Agentic Operating Model:**
