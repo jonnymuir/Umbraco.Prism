@@ -16,4 +16,10 @@ public interface IAuthoredWorkflowStore
     /// Returns the definition keys of all authored workflows in the store.
     /// </summary>
     Task<IReadOnlyList<string>> ListKeysAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Persists <paramref name="workflow"/> to the store, overwriting any existing file for the same key.
+    /// Returns the path where the file was written (store-implementation-specific).
+    /// </summary>
+    Task<string> SaveAsync(AuthoredWorkflow workflow, CancellationToken ct = default);
 }

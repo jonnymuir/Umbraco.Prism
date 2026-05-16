@@ -17,6 +17,7 @@ These documents explain how to build, integrate, and operate Prism workflows fro
 5. [Client rendering](./workflow-forms-engine-client.md) — shells, render payloads, and how the Razor layer turns envelopes into GOV.UK UI.
 6. [Validation](./workflow-validation.md) and [security](./workflow-forms-engine-security.md) — the guard rails that make the package safe to use.
 7. [Workflow hub and conditional fields](./workflow-hub-and-conditional-fields.md) — advanced authoring patterns.
+8. [PASA death-process workflow design](./pasa-death-process.md) — a product-shaped example for third-party initiated, reviewer-backed case handling.
 
 ## Document map
 
@@ -30,6 +31,7 @@ These documents explain how to build, integrate, and operate Prism workflows fro
 | [workflow-validation.md](./workflow-validation.md) | Form authors and reviewers | Browser hints, nonce checks, server validation, domain validation |
 | [workflow-forms-engine-security.md](./workflow-forms-engine-security.md) | Security reviews and production hardening | Tenant isolation, token forwarding, sanitization, concurrency |
 | [workflow-hub-and-conditional-fields.md](./workflow-hub-and-conditional-fields.md) | Advanced workflow authors | Prompt policy, hub UX, conditional reveals, waiting/task patterns |
+| [pasa-death-process.md](./pasa-death-process.md) | Product and backend design work | Third-party notifier proofing, member linking, case persistence, save/resume |
 
 ## Current implementation notes
 

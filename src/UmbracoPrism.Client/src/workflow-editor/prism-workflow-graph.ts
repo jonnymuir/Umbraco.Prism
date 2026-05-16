@@ -19,8 +19,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   @property({ attribute: false })
   workflow: AuthoredWorkflow | null = null;
 
-  @state()
-  private _mode: GraphMode = 'graph';
+  /** Controls the active view mode. Can be set externally (e.g. by the editor host title bar). */
+  @property({ type: String })
+  mode: GraphMode = 'graph';
 
   @state()
   private _selectedStageKey: string | null = null;
@@ -29,7 +30,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _focusedIndex = 0;
 
   private _toggleMode() {
-    this._mode = this._mode === 'graph' ? 'linear' : 'graph';
+    this.mode = this.mode === 'graph' ? 'linear' : 'graph';
     this._focusedIndex = 0;
   }
 
@@ -182,13 +183,13 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   render() {
     const stages = this.workflow?.stages ?? [];
-    const isLinear = this._mode === 'linear';
+    const isLinear = this.mode === 'linear';
 
     return html`
       <div
         class="workflow-graph-root"
         data-prism-component="workflow-graph"
-        data-prism-mode="${this._mode}"
+        data-prism-mode="${this.mode}"
       >
         <div class="toolbar">
           <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>

@@ -250,3 +250,23 @@ Decision recorded: "Walkthrough Discoverability — All Workflow Types Reachable
 - The planning-application example fits best as a content-authored workflow family: a public explainer/landing page, a protected member `workflowPage` entry, the existing `workflowHub` for resume/history, and the MockBusinessApp admin as the reviewer/business-user surface.
 - For future editor work, prefer a mixed model: authored workflow-entry and status pages in `src/UmbracoPrism.TestSite/`, workflow definitions and operator tooling in `src/UmbracoPrism.MockBusinessApp/`, and an Umbraco backoffice extension only for editorial convenience/embedding, not as the primary workflow engine UI.
 - Key paths reviewed for this decision: `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`, `src/UmbracoPrism.Core/Controllers/PrismWorkflowPageController.cs`, `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs`, `src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs`, `src/UmbracoPrism.TestSite/WorkflowPageSeeder.cs`, `src/UmbracoPrism.TestSite/TestSiteSeedContract.cs`, `src/UmbracoPrism.TestSite/Views/memberDashboard.cshtml`, `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`.
+
+## Learnings
+
+### 2026-05-16T23:17:22+01:00 | V1 Workflow Editor — Backoffice Section Scaffold
+
+**Exact paths shipped:**
+- `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/umbraco-package.json` — package manifest (location chosen: TestSite App_Plugins, auto-discovered by Umbraco, no composition registration needed)
+- `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/web-components/prism-workflow-editor-host.js` — Lit element (plain ESM, no build step)
+- `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/README.md` — dev setup guide
+- `src/UmbracoPrism.Core.Tests/WorkflowEditorManifestTests.cs` — 4 file-shape assertions
+
+**Manifest shape (v17):** Five extensions declared inline in `umbraco-package.json`: `section` (alias `Umb.Section.PrismWorkflowEditor`), `sectionSidebarApp` (kind: menu), `menu`, `menuItem` ("Planning Application"), `dashboard` (elementName: `prism-workflow-editor-host`). All scoped via `Umb.Condition.SectionAlias` condition.
+
+**Dev base-URL handling:** Lit element reads `window.PrismWorkflowEditorConfig?.authoringBaseUrl` (runtime override) falling back to `https://localhost:7245` (Blathers' MockBusinessApp). A 4-second `fetch` probe (`mode: no-cors`) checks reachability on `connectedCallback`; shows friendly fallback if server is unreachable.
+
+**No build step:** Umbraco v17 resolves `@umbraco-cms/backoffice/*` bare specifiers via its import map at runtime. Plain `.js` ESM files in App_Plugins load directly. Add Vite only when TypeScript compilation or bundling is needed.
+
+**Section permissions:** Managed via Umbraco user-group configuration (Settings → Users → User Groups → Administrators → Allowed Sections). No manifest condition needed for visible-to-all V1 behaviour.
+
+**ModelsBuilder stub view housekeeping:** workflowPage.cshtml and workflowHub.cshtml continue to regenerate from ModelsBuilder (gitignored). Must be physically deleted before each test run that includes `TestSiteViewModelBindingTests`. This is a recurring P1 housekeeping step — not a one-off.

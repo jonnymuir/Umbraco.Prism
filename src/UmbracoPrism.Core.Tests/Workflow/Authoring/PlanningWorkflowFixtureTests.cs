@@ -35,7 +35,10 @@ public class PlanningWorkflowFixtureTests
     // Guard: skip cleanly when Blathers' fixture hasn't landed yet.
     // ---------------------------------------------------------------------------
 
-    [Fact(Skip = "Awaiting fixture from Blathers' V1 foundation slice")]
+    [Fact(Skip =
+        "Awaiting Blathers' planning.workflow.json fixture (Wave 1 foundation). " +
+        "Expected path: src/UmbracoPrism.Core.Tests/Fixtures/planning.workflow.json. " +
+        "Remove this Skip when Blathers' Wave 1 PR merges.")]
     public void Fixture_ExistsOnDisk()
     {
         // Remove the Skip attribute when planning.workflow.json is committed.
@@ -56,7 +59,9 @@ public class PlanningWorkflowFixtureTests
             $"planning.workflow.json should exist at {FixturePath} — Blathers creates this in the V1 foundation slice");
     }
 
-    [Fact(Skip = "Awaiting fixture from Blathers' V1 foundation slice")]
+    [Fact(Skip =
+        "Awaiting Blathers' planning.workflow.json fixture (Wave 1 foundation). " +
+        "Remove this Skip when Blathers' Wave 1 PR merges.")]
     public void Fixture_ParsesWithoutError()
     {
         var json = File.ReadAllText(FixturePath);
@@ -67,7 +72,9 @@ public class PlanningWorkflowFixtureTests
         act.Should().NotThrow("planning.workflow.json must be valid JSON");
     }
 
-    [Fact(Skip = "Awaiting fixture from Blathers' V1 foundation slice")]
+    [Fact(Skip =
+        "Awaiting Blathers' planning.workflow.json fixture (Wave 1 foundation). " +
+        "Remove this Skip when Blathers' Wave 1 PR merges.")]
     public void Fixture_HasRequiredStagedDeclarations()
     {
         // The planning workflow must declare these four stages so that the Playwright
@@ -102,7 +109,9 @@ public class PlanningWorkflowFixtureTests
         }
     }
 
-    [Fact(Skip = "Awaiting fixture from Blathers' V1 foundation slice")]
+    [Fact(Skip =
+        "Awaiting Blathers' planning.workflow.json fixture (Wave 1 foundation). " +
+        "Remove this Skip when Blathers' Wave 1 PR merges.")]
     public void Fixture_RoundTrips_SerializeDeserialize_ByteIdentical()
     {
         // Regression guard: the fixture must survive a serialize→deserialize cycle

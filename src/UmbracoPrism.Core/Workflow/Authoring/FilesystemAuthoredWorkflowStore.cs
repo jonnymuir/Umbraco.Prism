@@ -49,4 +49,22 @@ public sealed class FilesystemAuthoredWorkflowStore : IAuthoredWorkflowStore
 
         return Task.FromResult<IReadOnlyList<string>>(keys);
     }
+
+    /// <inheritdoc/>
+    public async Task<string> SaveAsync(AuthoredWorkflow workflow, CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(_basePath);
+
+        var path = Path.Combine(_basePath, $"{workflow.DefinitionKey}.workflow.json");
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
+
+        await using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        await JsonSerializer.SerializeAsync(stream, workflow, options, ct);
+
+        return path;
+    }
 }

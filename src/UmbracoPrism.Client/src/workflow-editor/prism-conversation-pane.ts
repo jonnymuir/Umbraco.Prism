@@ -33,6 +33,24 @@ export class PrismConversationPaneElement extends LitElement {
   @state()
   private _busy = false;
 
+  /**
+   * Push an agent message into the conversation log from outside the component.
+   * Also clears the busy state so the input is re-enabled.
+   * Used by the editor host to surface API results and friendly error messages.
+   */
+  pushAgentMessage(text: string): void {
+    this._busy = false;
+    this._messages = [
+      ...this._messages,
+      {
+        id: `msg-agent-${Date.now()}`,
+        role: 'agent',
+        text,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+  }
+
   private _handleInput(e: Event) {
     this._inputValue = (e.target as HTMLTextAreaElement).value;
   }

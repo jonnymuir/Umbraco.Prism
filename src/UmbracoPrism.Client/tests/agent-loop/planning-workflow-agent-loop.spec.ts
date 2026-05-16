@@ -35,25 +35,27 @@ test.describe('Agent-loop: NL request → proposal diff', () => {
   test(
     'Author can request a workflow change in natural language and see a proposal diff before applying',
     async ({ page }) => {
-      // TODO: Replace story ID once Isabelle publishes the conversation-pane story.
-      // Expected story: 'workflow-editor-conversation-pane--with-mocked-proposal'
-      // The story must:
-      //   1. Render <prism-conversation-pane> with data-testid="conversation-pane"
-      //   2. Expose data-testid="conversation-input" (textarea/input)
-      //   3. Expose data-testid="conversation-send" (button)
-      //   4. On submit, fire an 'nl-request' CustomEvent and mount a mocked
-      //      <prism-proposal-diff data-proposal-id="mock-proposal-1"> inline.
+      // The closest shipped story is 'workflow-editor-conversation-pane--with-proposal'
+      // (src/UmbracoPrism.Client/src/workflow-editor/prism-conversation-pane.stories.ts).
+      // However, that story pre-populates the proposal in its play() function — it does not
+      // test the NL input → agent call → proposal render pipeline end-to-end.
       //
-      // Until the story exists this test will fail at the navigation step.
-      // When the story lands, remove this comment block and the skip below.
-
-      // TODO: unskip when Isabelle's conversation-pane story is available
+      // What is needed before this test can be un-skipped:
+      //   1. A Storybook story (or a MockBusinessApp page) that starts with an empty
+      //      conversation and responds to a submitted nl-request event with a mocked
+      //      proposal envelope, simulating Blathers' /api/workflow-authoring endpoint.
+      //   2. Stable data-prism-conversation-input and data-prism-component="proposal-diff"
+      //      hooks (or role-based equivalents) for the NL send and diff display surfaces.
+      //
+      // This is a Wave 1 integration concern. The component-level contract is already
+      // exercised by the planning-workflow-editor.walkthrough.spec.ts via LiveAppHost.
       test.skip(
         true,
-        'TODO: Awaiting Isabelle\'s conversation-pane Storybook story (workflow-editor-conversation-pane--with-mocked-proposal)'
+        "Awaiting an NL-input→proposal Storybook story: the shipped '--with-proposal' story pre-populates the proposal " +
+        'and does not exercise the NL submission pipeline (Wave 1 foundation)'
       );
 
-      await page.goto(storyUrl('workflow-editor-conversation-pane--with-mocked-proposal'));
+      await page.goto(storyUrl('workflow-editor-conversation-pane--with-proposal'));
 
       const conversationPane = page.locator('[data-testid="conversation-pane"]');
       await expect(conversationPane).toBeVisible();
@@ -89,15 +91,19 @@ test.describe('Agent-loop: NL request → proposal diff', () => {
   test(
     'Author cannot apply a proposal whose validation status is fail',
     async ({ page }) => {
-      // TODO: Replace story ID once Isabelle publishes the failing-proposal story.
-      // Expected story: 'workflow-editor-conversation-pane--with-failing-proposal'
-      // The story must render a <prism-proposal-diff> with validation.status = "fail"
-      // and data-testid="proposal-accept-all" must be rendered but disabled.
-
-      // TODO: unskip when Isabelle's failing-proposal story is available
+      // The 'workflow-editor-conversation-pane--with-failing-proposal' story does not
+      // exist in the current Storybook (prism-conversation-pane.stories.ts ships
+      // 'empty' and 'with-proposal' only). The 'with-proposal' story uses STUB_PROPOSAL
+      // which has validation.status = 'pass', not 'fail'.
+      //
+      // What is needed before this test can be un-skipped:
+      //   A new Storybook story that renders a <prism-proposal-diff> with a proposal
+      //   whose validationResult.status is "fail", causing the Accept all button to
+      //   be rendered in a disabled state. Isabelle owns this story.
       test.skip(
         true,
-        'TODO: Awaiting Isabelle\'s conversation-pane Storybook story (workflow-editor-conversation-pane--with-failing-proposal)'
+        "Awaiting a 'with-failing-proposal' Storybook story: the shipped stories only cover 'empty' and 'with-proposal' " +
+        "(validation status 'pass'); a story with status 'fail' is required to assert the disabled Accept all state (Wave 1 foundation)"
       );
 
       await page.goto(storyUrl('workflow-editor-conversation-pane--with-failing-proposal'));
