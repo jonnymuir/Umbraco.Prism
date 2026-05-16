@@ -40,6 +40,20 @@
 - Response-visible diagnostics beat verbose logs for operator troubleshooting
 - Safe transport diagnostics must mask internal ports but show public URLs (browser-visible anyway)
 
+## Learnings: Authored Workflow V1 Foundation (2026-05-16)
+
+**Authored types location:** `src/UmbracoPrism.Core/Workflow/Authoring/`. Namespace `UmbracoPrism.Core.Workflow.Authoring`. All types are records (immutable), JSON-serializable via STJ with `[JsonConverter(typeof(JsonStringEnumConverter))]` on `StageKind` and `FieldType`.
+
+**Determinism enforcement:** `WorkflowProjector.CanonicalOptions` — `JsonNamingPolicy.CamelCase`, `WriteIndented = false`, `DefaultIgnoreCondition = Never`, `UnsafeRelaxedJsonEscaping`. Stages sorted by `StageKey` (ordinal), transitions by `(FromStage, ToStage, Action)`, fields by `Key`. SHA-256 of canonical UTF-8 bytes (no BOM) gives the `ProjectionResult.Checksum`. Locked by `WorkflowProjectorDeterminismTests`.
+
+**Shell inference sharing:** `WorkflowProjector` emits components (FieldsetComponent, SummaryListComponent, PanelComponent, TaskListComponent, WaitingComponent) whose presence causes `PrismComponentExtensions.InferStepType()` (in `UmbracoPrism.Shared`) to return the correct step type. No duplication of inference logic — the projector drives inference via component choice, the runtime infers as normal.
+
+**Planning fixture:** `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json` — 4 stages (declaration → application-form → check-answers → submitted). Tangy's planning-workflow tests consume this fixture as source of truth.
+
+**Store:** `FilesystemAuthoredWorkflowStore(basePath)` — reads `*.workflow.json` from any directory. Not wired to live host in V1. Pass fixture path in tests.
+
+**Commit:** `24374f2` — `feat(core): introduce authored workflow model and deterministic V1 projection slice`
+
 ### Implementation Patterns
 - Use `BUSINESSAPP_BACKCHANNEL_URL` fallback for internal Codespaces calls, then `PrismBusinessApp:WorkflowApiBaseUrl` for production
 - Instrument critical paths with safe metadata (transport type, backchannel presence, timeout cause) for diagnostics
