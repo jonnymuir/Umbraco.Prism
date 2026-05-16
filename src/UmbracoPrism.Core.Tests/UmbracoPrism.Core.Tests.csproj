@@ -33,4 +33,8 @@
     <ProjectReference Include="../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Workflow\Authoring\Fixtures\*.workflow.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
