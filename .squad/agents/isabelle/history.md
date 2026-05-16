@@ -41,6 +41,19 @@
 - **Walkthrough Coverage Audit:** Identified gaps (back/edit flows, validation tests, mobile viewports); closure path documented.
 - **Walkthrough Discovery:** All findings merged to decisions.md; implementation phase ready.
 
+### 2026-05-16 — V1 Workflow Editor Component Scaffold
+
+- **Directory:** all four components live in `src/UmbracoPrism.Client/src/workflow-editor/`.
+- **Types first:** central `types.ts` exports all interfaces (`AuthoredWorkflow`, `AuthoredStage`, `AuthoredTransition`, `AuthoredRole`, `AuthoredField`, `ProposalEnvelope`, `ProposalOp`, `ProposalPlacement`, `ValidationResult`) plus `STUB_WORKFLOW` and `STUB_PROPOSAL` for stories.
+- **Import convention:** cross-component imports use `.js` extension (TypeScript ESM, same as rest of project).
+- **Dual-mode graph:** `role="application"` for graph mode, `role="listbox"` / `role="option"` for linear mode — arrow-key nav managed via `_focusedIndex` + manual `focus()`.
+- **ARIA live regions:** `role="status"` + `aria-live="polite"` for graph announcements; `role="log"` + `aria-live="polite"` + `aria-relevant="additions"` for conversation pane message list. Double-write pattern (`''` then value) on `requestAnimationFrame` resets live region to re-announce.
+- **Focus trap pattern:** `prism-proposal-diff` queries `button:not([disabled]), [tabindex="0"]:not([disabled])` within `shadowRoot` to cycle Tab/Shift+Tab; Escape emits `proposal-reject`.
+- **Data test hooks established:** `data-prism-component` on root, `data-prism-stage-id`, `data-prism-stage-detail`, `data-prism-conversation-input`, `data-prism-op-index`.
+- **Storybook a11y config:** applied per 01-authoring-ux.md §4.6 — `color-contrast: true`, `aria-required-children: true`, `aria-dialog-name: true` per story set.
+- **Unused imports cause build failure:** tsc strict mode (`noUnusedLocals`) is on — remove any import not referenced in the file body.
+- **`@state()` unused var:** decorators don't suppress TS6133; remove unused `@state()` fields entirely rather than leaving them as stubs.
+
 ---
 
 **Archive:** Pre-2026-04-22 history archived to `.squad/agents/isabelle/archive/` for traceability. SEC-005 closed. Component system migration (4-22) complete. GDS integration and accessibility patterns established (4-13, 4-19, 4-22).

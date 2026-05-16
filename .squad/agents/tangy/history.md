@@ -18,6 +18,33 @@
 
 ## Learnings (Summarized)
 
+### 2026-05-16T17:47:42.605+01:00 — V1 Test Seam Scaffolding
+
+**Test seam layout:**
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/PlanningWorkflowFixtureTests.cs` — C# fixture contract; 4 skipped tests awaiting Blathers' `planning.workflow.json`. Skip message documents expected fixture shape (stages, transitions, roles, fields). Round-trip uses `JsonSerializerOptions { CamelCase, WriteIndented }` matching projection pipeline.
+- `src/UmbracoPrism.Client/tests/agent-loop/planning-workflow-agent-loop.spec.ts` — 3 agent-loop stubs: NL→diff (skip), validation-fail→accept-disabled (skip), ID&V waiting state (`test.fixme()`). Storybook base URL `http://127.0.0.1:6006` via `playwright.config.ts`.
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts` — 2 keyboard contract stubs: arrow-key navigation in linear mode (skip), mode toggle aria-pressed (skip). Both await Isabelle's Storybook stories.
+
+**Behavioural naming conventions used:**
+- Test names are complete sentences describing observable author/applicant behaviour, not implementation details.
+- Pattern: `"{Actor} {can/cannot} {verb} {object} when {condition}"` — e.g. `"Author cannot apply a proposal whose validation status is fail"`.
+- `test.fixme()` used when the dependency is a later wave (full projection pipeline). `test.skip(true, reason)` used when the dependency is a parallel-wave Storybook story (Isabelle).
+
+**Hooks consumed (Isabelle's contracts from 01-authoring-ux.md §10):**
+- `data-testid="conversation-pane"` — `<prism-conversation-pane>` root
+- `data-testid="conversation-input"` / `data-testid="conversation-send"` — NL chat input/send
+- `data-proposal-id="{id}"` — `<prism-proposal-diff>` root
+- `data-testid="proposal-accept-all"` / `data-testid="proposal-reject"` — bulk accept/reject
+- `data-hunk-id="{n}"` — individual diff hunk
+- `data-testid="workflow-graph"` — `<prism-workflow-graph>` root
+- `data-testid="linear-list"` — `<prism-linear-list>` root
+- `data-testid="toolbar-list-view"` — mode toggle button (`aria-pressed`)
+- `data-testid="graph-announcer"` — live region for screen-reader announcements
+
+**Result:** dotnet test 690 passed + 4 skipped (0 failures); Playwright 4 passed + 10 skipped (0 failures). Commit: `916045e`.
+
+---
+
 ### 2026-05-16T13:20:33.659+01:00 — Agentic Surfaces & Test Seam (V1 Design)
 
 **Agentic Operating Model:**

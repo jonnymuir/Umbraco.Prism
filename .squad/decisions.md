@@ -1829,3 +1829,60 @@ Versioning / lifecycle / rollback; in-flight instance migration; multi-tenant au
 - Tangy: own `04-agentic-surfaces.md` within the §6.3 proposal contract.
 
 Any change that crosses a plane boundary comes back to the spine.
+
+## 2026-05-16
+
+### Authored Workflow V1 Foundation — Namespace, Fixture Format, and Projection Contract
+
+- **Date:** 2026-05-16T17:47:42.605+01:00
+- **Author:** Blathers
+- **Status:** IMPLEMENTED
+- **Commit:** `24374f2`
+
+#### Context
+
+Implementing the V1 authored workflow model and deterministic projection slice as scoped in the `feat(core)` task. Several team-relevant decisions were made during implementation.
+
+#### Decisions
+
+##### 1. Namespace and Directory Layout
+
+Authored types live in `src/UmbracoPrism.Core/Workflow/Authoring/` under namespace `UmbracoPrism.Core.Workflow.Authoring`. This isolates the authoring plane from the runtime types in `UmbracoPrism.Shared.Models.Workflow` — no cross-contamination.
+
+The store reads from a configurable `basePath`, defaulting to `workflow-authored/*.workflow.json` (as per the decisions.md spine). Tests use the test-project fixture path directly.
+
+##### 2. StageKind Enum Values
+
+`StageKind` uses PascalCase values (`Question`, `CheckAnswers`, `Confirmation`, `TaskList`, `Waiting`, `StatusTimeline`) serialized as strings via `[JsonConverter(typeof(JsonStringEnumConverter))]`. JSON authored files use PascalCase (e.g. `"kind": "Question"`). This keeps C# idiomatic without a custom naming policy.
+
+`StatusTimeline` is an explicit alias for `Waiting` — both emit a `WaitingComponent` and both infer "status-timeline" via `InferStepType`. Agents can use either; the projector normalises both to the same output.
+
+##### 3. FieldType Enum
+
+`FieldType` covers: `Text`, `Number`, `Decimal`, `Email`, `Date`, `Textarea`, `Boolean`, `Select`, `Radios`, `Checkboxes`. Each maps to a concrete `InputComponent` subtype. Unknown types fall back to `TextInputComponent`.
+
+##### 4. Canonical JSON Options (Lock)
+
+`WorkflowProjector.CanonicalOptions` is a public static `JsonSerializerOptions`:
+- `PropertyNamingPolicy = JsonNamingPolicy.CamelCase`
+- `WriteIndented = false`
+- `DefaultIgnoreCondition = JsonIgnoreCondition.Never` (nulls explicit, no ambiguity)
+- `Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping`
+
+Checksum = SHA-256 of these bytes, hex-encoded lowercase.
+
+This is intentionally different from the round-trip read options (which use `PropertyNameCaseInsensitive = true`). Canonical = write side only.
+
+##### 5. Check-Answers Component Population
+
+When projecting a `CheckAnswers` stage, the `SummaryListComponent.Children` are populated from all `Question`-kind stages in the workflow, sorted by `StageKey` then `FieldKey` (both ordinal). This is V1 behaviour. V2 should allow explicit field refs per check-answers stage.
+
+##### 6. Fixture Format (Source of Truth for Tangy)
+
+`src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json` is the canonical planning workflow fixture. Four stages: `declaration`, `application-form`, `check-answers`, `submitted`. Copied to output via `<None CopyToOutputDirectory="PreserveNewest" />` in the test project `.csproj`. Tangy's tests consume this file from `AppContext.BaseDirectory/Workflow/Authoring/Fixtures/planning.workflow.json`.
+
+#### Impact
+
+- CI can now project and verify `planning.workflow.json` and any future `*.workflow.json` authored files.
+- `IAuthoredWorkflowStore` is the extension point for multi-tenant or database-backed stores in future waves.
+- Patch service, Preview service, HTTP API, and Umbraco wiring are explicitly out of scope for this slice.
