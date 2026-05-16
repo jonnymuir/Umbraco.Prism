@@ -1832,6 +1832,71 @@ Any change that crosses a plane boundary comes back to the spine.
 
 ## 2026-05-16
 
+### Planning Workflow Editor Walkthrough — Blockers (Tangy diagnostic)
+
+- **Date:** 2026-05-16
+- **Author:** Tangy
+- **Status:** BLOCKED — do not remove `test.skip` until all items below are resolved
+- **PR:** #52 (`squad/planning-workflow-editor-walkthrough`)
+
+#### Summary
+
+`planning-workflow-editor.walkthrough.spec.ts` cannot be activated. The `test.skip(true, ...)` remains. The following five blockers must be resolved before Tangy can land the spec.
+
+#### Blocker 1 — `workflow-editor.html` not served by MockBusinessApp
+
+The spec navigates to `https://localhost:7245/workflow-editor.html`. `MockBusinessApp/Program.cs` has no `UseStaticFiles()` call and no `MapGet("/workflow-editor.html", ...)` route. The Vite build output lives at `src/UmbracoPrism.Core/wwwroot/dist/workflow-editor.html` but is never mounted.
+
+**Owner: Isabelle or Blathers.** Add `app.UseStaticFiles(...)` to `MockBusinessApp/Program.cs` with a `PhysicalFileProvider` pointing at `UmbracoPrism.Core/wwwroot/dist/`, or add an explicit `MapGet` endpoint.
+
+#### Blocker 2 — TypeScript schema ≠ C# schema (crash-level)
+
+`prism-workflow-graph.ts:128` — `stage.exits.length > 0`  
+`prism-step-inspector.ts:36` — `stage.views.some(...)`
+
+Both accesses are unguarded. The C# `AuthoredStage` model has no `exits` and no `views` properties. When the GET endpoint returns C# JSON, the components throw during render.
+
+**Owner: Isabelle.** Add `?.` guards (or `?? []` fallbacks) on every `stage.exits` and `stage.views` access in both components, OR define the GET endpoint to return TypeScript-schema JSON.
+
+#### Blocker 3 — Mock drafter emits C#-incompatible stage shape
+
+`workflow-authoring-mock-drafter.ts` creates the new `id-verification` stage with `kind: 'Capture'` and `views`/`exits` in TypeScript format. The C# `JsonStringEnumConverter` throws on `"Capture"` (not in `StageKind` enum: `Question|CheckAnswers|Confirmation|TaskList|Waiting|StatusTimeline`). `PatchService.ApplyInsertStage` returns diagnostic `PATCH002` and no save occurs. The stage never appears in the graph.
+
+**Owner: Tangy + Isabelle joint.** Align mock drafter output to C# schema: use `kind: 'Question'`, remove `views`/`exits`, use `fromStage`/`toStage` in transition ops. Also fix the `_applyProposalLocally` guard — currently requires `op.before` to be truthy but mock drafter sets it `undefined` when no `submitted` stage exists.
+
+#### Blocker 4 — `applyProposal` client sends wrong body format
+
+`workflow-authoring-client.ts` sends `JSON.stringify(proposal)` (raw `ProposalEnvelope`). The C# `/apply` endpoint expects `ApplyWorkflowRequest { Envelope: ProposalEnvelope, Approver: string }`. The server receives a body where `Envelope` is null → HTTP 400 → component falls back to local apply → re-fetches → reverts.
+
+**Owner: Tangy** (clear client bug, unblocked now).  
+Fix: `body: JSON.stringify({ envelope: proposal, approver: 'walkthrough' })`.
+
+#### Blocker 5 — No planning workflow seed in the authoring store
+
+`MockBusinessApp/workflow-authored/` does not exist. `GET /api/workflow-authoring/workflows/planning` returns 404. The component renders an error banner; heading shows "Workflow Editor", not "Planning Permission" → spec health check fails.
+
+**Owner: Blathers.** Create `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json` with `displayName: "Planning Permission Application"` (satisfies `/planning permission/i`) and a stage `applicant-details` (satisfies `[data-prism-stage="applicant-details"]`). Use C# `AuthoredWorkflow` JSON format.
+
+#### Changes Tangy will make once blockers 1–5 are resolved
+
+1. Remove `test.skip(true, ...)`
+2. Fix `waitForRequest` for proposals: `POST .../workflows/planning/preview` (not `.../proposals`)
+3. Fix `waitForRequest` for accept: `POST .../workflows/planning/apply` (not `PATCH .../planning-permission`)
+4. Fix stage key assertion: `[data-prism-stage="id-verification"]` (not `identity-verification`)
+5. Fix `applyProposal` body (Blocker 4 above)
+
+#### Resolution order
+
+| Step | Owner | Action |
+|------|-------|--------|
+| 1 | Blathers or Isabelle | `UseStaticFiles` in MockBusinessApp |
+| 2 | Blathers | `workflow-authored/planning.workflow.json` seed |
+| 3 | Isabelle | `?.` guards on `stage.exits` / `stage.views` |
+| 4 | Isabelle / Tangy | Align mock drafter to C# schema |
+| 5 | Tangy | Fix client body, fix spec assertions, remove skip |
+
+---
+
 ### Authored Workflow V1 Foundation — Namespace, Fixture Format, and Projection Contract
 
 - **Date:** 2026-05-16T17:47:42.605+01:00
