@@ -310,3 +310,52 @@ The following TestSite and MockBusinessApp changes constitute V1 deliverables, i
 ---
 
 *This document is scoped to the Umbraco integration layer. The projection plane contract, editor domain model, and agent API are covered in sibling sections of this design.*
+
+---
+
+## Appendix A — V1 Implementation Status (2026-05-16)
+
+### Shipped files
+
+| File | Purpose |
+|---|---|
+| `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/umbraco-package.json` | Umbraco v17 package manifest — declares all five extensions (section, sidebarApp, menu, menuItem, dashboard) |
+| `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/web-components/prism-workflow-editor-host.js` | Lit element (`<prism-workflow-editor-host>`) — thin iframe wrapper for `workflow-editor.html?workflow=planning` |
+| `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/README.md` | Developer guide: enabling the section, configuring `authoringBaseUrl`, no-build-step explanation |
+| `src/UmbracoPrism.Core.Tests/WorkflowEditorManifestTests.cs` | File-shape assertions: manifest exists, parses as JSON, contains section alias and dashboard element name |
+
+### Extensions declared
+
+| Extension type | Alias | Purpose |
+|---|---|---|
+| `section` | `Umb.Section.PrismWorkflowEditor` | Adds "Workflow Editor" tab to the backoffice nav bar |
+| `sectionSidebarApp` (kind: menu) | `Umb.SidebarApp.PrismWorkflowEditor` | Sidebar scoped to the section |
+| `menu` | `Umb.Menu.PrismWorkflowEditor` | Menu container |
+| `menuItem` | `Umb.MenuItem.PrismWorkflowEditor.PlanningApplication` | "Planning Application" — V1's single workflow entry point |
+| `dashboard` | `Umb.Dashboard.PrismWorkflowEditor` | Renders `<prism-workflow-editor-host>` in the main content pane |
+
+### Enabling the section in a fresh install
+
+1. Log in to the Umbraco backoffice.
+2. Go to **Settings → Users → User Groups → Administrators**.
+3. Under **Allowed Sections**, enable **"Workflow Editor"**.
+4. Save. The section appears in the nav bar on the next page load.
+
+### Authoring base URL (dev)
+
+The Lit element defaults to `https://localhost:7245` (Blathers' MockBusinessApp dev server). To override at runtime without a rebuild:
+
+```js
+// Browser console or injected script block:
+window.PrismWorkflowEditorConfig = { authoringBaseUrl: 'https://localhost:7245' };
+```
+
+If the authoring server is unreachable, the dashboard shows a friendly "Editor not yet built" message rather than a browser error.
+
+### Build approach
+
+No separate build step is required. Umbraco v17 resolves `@umbraco-cms/backoffice/*` bare specifiers via its built-in import map. The Lit element is plain ESM JS loaded directly from `App_Plugins/`.
+
+### Acceptance hook status (§11 reference)
+
+Priority 6 (backoffice extension manifest) from §11 is **complete** via `App_Plugins/PrismWorkflowEditor/`. The location was changed from the spec'd `src/UmbracoPrism.Core/wwwroot/backoffice/…` to `src/UmbracoPrism.TestSite/App_Plugins/…` — the TestSite location is loaded automatically by Umbraco without explicit composition registration, which is simpler and conventional for App_Plugins. Priority 7 (manual composition registration) is therefore **not required**.
