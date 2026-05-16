@@ -1,3 +1,21 @@
+## 2026-05-16: Workflow Editor V1 Design Cycle
+
+**Scope:** Five-agent orchestration for workflow editor design iteration  
+**Outcome:** Complete V1 design with cross-cutting architecture, UX, runtime, integration, and agentic surfaces  
+**Peers:** tom-nook, isabelle, blathers, brewster, tangy  
+**Files:** docs/design/workflow-editor-v1/* (5 docs, ~145KB)  
+**Decisions:** Merged to .squad/decisions.md  
+
+### Contributions
+
+- **Architecture** (tom-nook): Three-plane spine, cross-cutting contracts, planning-app reference
+- **Authoring UX** (isabelle): 4 editor surfaces, WCAG 2.2 AA dual-mode, 10-component inventory
+- **Runtime Projection** (blathers): AuthoredWorkflow model, 5-stage pipeline, JSON-Pointer patches
+- **Umbraco Integration** (brewster): Hybrid editor hosting, v17 backoffice embedding, TestSite removal P1
+- **Agentic Surfaces** (tangy): Proposal envelope, MCP+CLI, 4-level test seam, planning workflow spec
+
+---
+
 # Brewster — History
 
 ## Core Context
@@ -203,3 +221,23 @@ Completed walkthrough discoverability hardening:
 Verification: `dotnet build` (0 errors, 2 pre-existing warnings); `dotnet test` (690 passed)
 
 Decision recorded: "Walkthrough Discoverability — All Workflow Types Reachable from Dashboard"
+
+## Learnings
+
+### 2026-05-16T13:20:33.659+01:00 | Workflow Editor V1 — Umbraco Integration design
+
+- **Editor hosting:** Chose hybrid option (c): a v17 backoffice section (`prism-workflow-editor`) wrapping a Lit/Web Component that embeds the standalone editor/projection app. This keeps the projection tooling host-agnostic for CLI/agent use while making it discoverable through the Umbraco backoffice. No AngularJS; no Surface Controllers; manifest declared per v17 package API.
+- **Surface mapping:** Three surfaces confirmed — (1) Public: unauthenticated Umbraco content shells (`workflowLanding`); (2) Member: `PrismMemberCookie`-protected `workflowPage` + `workflowHub` (both existing, unchanged); (3) Back-stage: MockBusinessApp reviewer surface consuming the same projected `WorkflowDefinitionFile`.
+- **DocType strategy:** `workflowPage` and `workflowHub` are stable Core-owned seeded types. V1 adds `workflowLanding` (public explainer shell) and optionally `workflowRegistry` (singleton node for workflow-key picker). No new DocTypes represent the editor itself.
+- **Test contract:** `TestSiteViewModelBindingTests` guards against TestSite stub views for `workflowPage` and `workflowHub`. Those stub files currently exist and violate the contract — removing them is the priority-1 acceptance hook before any other TestSite editor work ships.
+- **Auth boundary:** Umbraco backoffice auth gates the editor surface; `PrismMemberCookie` gates the member surface; MockBusinessApp role gates the reviewer surface. None cross-contaminate. The `workflow-publisher` capability check must live in the projection API layer, not only in the Lit component.
+- **Key file authored:** `docs/design/workflow-editor-v1/03-umbraco-integration.md`
+
+### 2026-05-16T10:59:37.438+01:00 | Workflow editor topology for Prism + Umbraco
+
+- Treat the public site, member portal, and business-app operator surface as three distinct authored/owned experiences: public and member journeys stay in the Umbraco content tree, while business-user workflow operations stay owned by the Business App.
+- Keep `workflowPage` and `workflowHub` as the canonical member-facing shells. They surface workflow instances by `workflowKey` and `instanceId`, but the Business App remains authoritative for workflow state, roles, and progression.
+- Do not use `workflowDemoPage` as the reference architecture for authored citizen/member journeys; it is a placeholder shell and should not define the package story.
+- The planning-application example fits best as a content-authored workflow family: a public explainer/landing page, a protected member `workflowPage` entry, the existing `workflowHub` for resume/history, and the MockBusinessApp admin as the reviewer/business-user surface.
+- For future editor work, prefer a mixed model: authored workflow-entry and status pages in `src/UmbracoPrism.TestSite/`, workflow definitions and operator tooling in `src/UmbracoPrism.MockBusinessApp/`, and an Umbraco backoffice extension only for editorial convenience/embedding, not as the primary workflow engine UI.
+- Key paths reviewed for this decision: `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`, `src/UmbracoPrism.Core/Controllers/PrismWorkflowPageController.cs`, `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs`, `src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs`, `src/UmbracoPrism.TestSite/WorkflowPageSeeder.cs`, `src/UmbracoPrism.TestSite/TestSiteSeedContract.cs`, `src/UmbracoPrism.TestSite/Views/memberDashboard.cshtml`, `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`.
