@@ -17,6 +17,31 @@
 ---
 
 
+## 2026-05-17T18:30:56.987+01:00 — CI Fix Verification Pass
+
+**Task:** Verify both diagnosed fixes are landed and green on `feat/workflow-editor-library-extraction`.
+
+**Findings:**
+- Both fixes were already committed and pushed before this session:
+  - `47a50cf` — removed re-leaked `HMACSecretKey` from `appsettings.json`
+  - `125f166` — increased smoke readiness timeout 5 min → 8 min; job cap 10 min → 15 min
+- HEAD confirmed at `125f166`, matching `origin/feat/workflow-editor-library-extraction`
+- CI runs `25997011837` and `25997011833` on that commit: **all 5 jobs green**
+  - `core-tests` ✅, `planning-workflow-editor-smoke` ✅, `localhost-auth-playwright` ✅, `storybook-tests` ✅, `marketplace-description` ✅
+- `appsettings.json` (tracked) confirmed clean — no HMAC key present
+- `readinessTimeoutMs` confirmed at `480_000` in `live-app-host.ts`
+
+**Outcome:** No new failures, no new code changes needed. Branch is green and ready for merge review.
+
+**Decision:** `.squad/decisions/inbox/tangy-ci-fix-pass.md`
+
+**Learnings:**
+- Before doing any fix work, always check the latest CI run first — fixes may already be landed.
+- Checking `git log` against `origin/` head and comparing run SHA to HEAD is the fastest verification path.
+- The secret guard test is a permanent CI asset: it caught a real re-leak and will catch future ones.
+
+---
+
 ## Learnings (Summarized)
 
 ### 2026-05-17T13:59:00+01:00 — Smoke Test Failure: Missing Build Step in CI
