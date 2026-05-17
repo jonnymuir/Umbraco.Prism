@@ -71,6 +71,14 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // planning-permission workflow definition and calls GET /api/workflow-authoring/planning-permission.
     await page.goto(`${businessAppOrigin}/workflow-editor.html?workflow=planning`);
 
+    // Wait for the workflow data to load before asserting page health. The custom element
+    // sets data-prism-workflow-loaded="{key}" after the API fetch completes. On slower CI
+    // hardware, the page.goto() 'load' event fires before the JS module executes and the
+    // async workflow fetch finishes, causing the heading check to race and timeout.
+    await page.waitForSelector('[data-prism-workflow-loaded]:not([data-prism-workflow-loaded=""])', {
+      timeout: 30_000,
+    });
+
     await step(page, '01-workflow-editor-loaded.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="workflow-graph"]',
     }), WALKTHROUGH_KEY);
