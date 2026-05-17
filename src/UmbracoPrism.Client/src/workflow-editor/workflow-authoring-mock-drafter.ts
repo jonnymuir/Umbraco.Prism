@@ -41,16 +41,17 @@ export function draftProposal(
   const idvStage: AuthoredStage = {
     stageKey: 'id-verification',
     displayName: 'Identity Verification',
-    kind: 'Capture',
-    views: [
+    kind: 'Question',
+    fields: [
       {
-        viewKey: 'applicant',
-        audience: 'Public',
-        fields: [{ fieldKey: 'id-document-uploaded' }],
+        fieldKey: 'id-document-uploaded',
+        label: 'Identity document',
+        kind: 'FileUpload',
+        required: true,
+        options: [],
       },
     ],
     roleGates: [],
-    exits: insertBeforeKey ? [{ action: 'continue', toStageKey: insertBeforeKey }] : [],
     editorComment: 'V1 canned ID&V stage — verify applicant identity before submission.',
   };
 
@@ -76,11 +77,22 @@ export function draftProposal(
         value: idvStage,
       },
       {
+        // Upsert the transition from the preceding stage into id-verification.
         op: 'update-transition',
         path: `/transitions/${workflow.transitions.length}`,
         value: {
-          fromStageKey: insertAfterKey ?? 'check-answers',
-          toStageKey: 'id-verification',
+          fromStage: insertAfterKey ?? 'check-answers',
+          toStage: 'id-verification',
+          action: 'continue',
+        },
+      },
+      {
+        // Upsert the transition from id-verification into the next stage.
+        op: 'update-transition',
+        path: `/transitions/${workflow.transitions.length + 1}`,
+        value: {
+          fromStage: 'id-verification',
+          toStage: insertBeforeKey ?? 'submitted',
           action: 'continue',
         },
       },

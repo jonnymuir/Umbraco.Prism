@@ -137,14 +137,19 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   private _applyProposalLocally(proposal: ProposalEnvelope) {
     if (!this._workflow) return;
-    // V1: find insert-stage ops and splice them into the local workflow
+    // V1: find insert-stage ops and splice them into the local workflow.
+    // op.before may be undefined if the target stage doesn't exist yet — fall back to append.
     let stages = [...this._workflow.stages];
     for (const op of proposal.ops) {
-      if (op.op === 'insert-stage' && op.value && op.before) {
-        const idx = stages.findIndex(s => s.stageKey === op.before);
+      if (op.op === 'insert-stage' && op.value) {
         const stage = op.value as typeof stages[number];
-        if (idx >= 0) {
-          stages = [...stages.slice(0, idx), stage, ...stages.slice(idx)];
+        if (op.before) {
+          const idx = stages.findIndex(s => s.stageKey === op.before);
+          if (idx >= 0) {
+            stages = [...stages.slice(0, idx), stage, ...stages.slice(idx)];
+          } else {
+            stages = [...stages, stage];
+          }
         } else {
           stages = [...stages, stage];
         }
