@@ -1,0 +1,92 @@
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "definitionKey": "planning",
+  "displayName": "Planning Permission Application",
+  "version": 1,
+  "description": "Householder planning permission application workflow.",
+  "schemaVersion": "1.0",
+  "initialStageKey": "applicant-details",
+  "instancePolicy": "single",
+  "stages": [
+    {
+      "stageKey": "applicant-details",
+      "displayName": "Applicant Details",
+      "kind": "Question",
+      "actor": "applicant",
+      "fields": [
+        {
+          "key": "full-name",
+          "label": "Full name",
+          "type": "Text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email address",
+          "type": "Email",
+          "required": true
+        }
+      ],
+      "roleGates": []
+    },
+    {
+      "stageKey": "property-details",
+      "displayName": "Property Details",
+      "kind": "Question",
+      "actor": "applicant",
+      "fields": [
+        {
+          "key": "property-address",
+          "label": "Property address",
+          "type": "Text",
+          "required": true
+        },
+        {
+          "key": "description-of-works",
+          "label": "Description of works",
+          "type": "Textarea",
+          "required": true
+        }
+      ],
+      "roleGates": []
+    },
+    {
+      "stageKey": "submitted",
+      "displayName": "Check Your Answers",
+      "kind": "CheckAnswers",
+      "actor": "applicant",
+      "fields": [],
+      "roleGates": []
+    },
+    {
+      "stageKey": "decision",
+      "displayName": "Application Decision",
+      "kind": "Confirmation",
+      "actor": "caseworker",
+      "fields": [],
+      "roleGates": ["caseworker"]
+    }
+  ],
+  "transitions": [
+    {
+      "fromStage": "applicant-details",
+      "toStage": "property-details",
+      "action": "continue"
+    },
+    {
+      "fromStage": "property-details",
+      "toStage": "submitted",
+      "action": "review"
+    },
+    {
+      "fromStage": "submitted",
+      "toStage": "decision",
+      "action": "submit"
+    }
+  ],
+  "handoffs": [],
+  "metadata": {
+    "serviceArea": "planning",
+    "owner": "planning-team"
+  }
+}
