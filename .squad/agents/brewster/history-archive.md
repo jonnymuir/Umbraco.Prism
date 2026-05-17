@@ -1,100 +1,46 @@
-# Brewster — History Archive
+# Brewster — Archived History
 
-Archived entries older than 2026-05-02 to keep active history file under 15KB.
+## Pre-2026-05-10 Sessions
 
----
+### 2026-05-02: Downstream Demo HTML Validation Fix
+- Fixed false-positive where DownstreamDemoController treated HTML responses as success
+- Added Content-Type validation for JSON only
+- Tangy found Codespaces port-forwarding pages broke dashboard UI
+- Commit: da7ddc9
 
-## Session: PR #38 CI Green Root Causes — Round 3 Seeding Fix + Auth Flag Bug (2026-04-30)
+### 2026-05-03: Startup Health-Check Issues (3 fixes)
+1. **Pre-Forward Critical Ports** — Added forwardPorts array to devcontainer.json (3000, 15135, 44345, 7245, 8443)
+2. **Status Server Recovery** — Fixed Node process not surviving Codespace suspension
+3. **URL Regression** — Changed `tr -d '/'` to `sed 's|/*$||'` to preserve https://
 
-**Status:** ✅ Complete — Commits `42b85e5`, `ffa1034` on `fix/ci-green` (merged as `dc316fb` on main)
+### 2026-05-03: Codespaces Recovery Scripts
+- `scripts/codespaces/stop.sh` — Graceful AppHost shutdown
+- `scripts/codespaces/refresh.sh` — Fast recovery cycle (~90s)
+- `scripts/codespaces/health-check.sh` — Readiness probes
+- Updated CODESPACES.md with full recovery section
 
-**Scope:** Investigate and resolve CI green failures in `localhost-auth-playwright` lane. Identified two independent root causes.
+### 2026-05-04: Walkthrough Discoverability Implementation
+- Removed TestSite stub views
+- Restructured member dashboard
+- Exposed workflow admin URL from MemberDashboardController
+- Decision: "Walkthrough Discoverability — All Workflow Types Reachable from Dashboard"
 
-### Root Cause 1: Notification Handler Registration Order (Commit `ffa1034`)
+### 2026-05-16: P1 Prereq — TestSite Workflow Stub Views Removal
+- workflowPage.cshtml and workflowHub.cshtml already gitignored
+- Physical deletion was correct action (no git rm needed)
+- TestSiteViewModelBindingTests: 4/4 passed
+- Core suite: 690/690 passed
 
-**Finding:** Umbraco's `INotificationAsyncHandler` dispatch is sequential (not concurrent, as Blathers assumed in round 2). Assembly load order meant `TestSiteComposer` ran before `PrismComposer`, registering `WorkflowPageSeeder` before `PrismContentTypeSeeder`. On fresh CI, seeder ran first → found no types → skipped seeding.
+### 2026-05-16: Workflow Editor V1 — Umbraco Integration Design
+- Hybrid hosting approach (v17 backoffice section + Lit Web Component)
+- Public/Member/Back-stage surfaces mapped
+- workflowPage and workflowHub stable Core-owned types
+- Auth boundary: Umbraco backoffice gates editor, PrismMemberCookie gates member
+- Doc: `docs/design/workflow-editor-v1/03-umbraco-integration.md`
 
-Blathers' round 2 polling fix made it worse: async `Task.Delay` loop held the dispatch chain for 90 seconds, preventing type-creating seeder from running — deadlock.
-
-**Fix:** Add `[ComposeAfter(typeof(PrismComposer))]` to `TestSiteComposer` for explicit composer ordering. Now `PrismContentTypeSeeder` runs first (creates types), `WorkflowPageSeeder` runs second (seeds content).
-
-**Impact:** All 5 workflow pages publish on fresh CI; home and dashboard routes work; `/my-workflows`, `/apply-for-planning-permission` routes unblocked.
-
-### Root Cause 2: Auth Scheme Defaults Gated on VaultUri (Commit `42b85e5`)
-
-**Finding:** `PrismComposer` used presence of `Prism:VaultUri` as a feature flag: `isAuthEnabled = !string.IsNullOrEmpty(vaultUri)`. Security commit `b6336fd` removed `VaultUri` from `appsettings.json` (it's a secret). This silently set `isAuthEnabled = false`, so `DefaultAuthenticateScheme`, `DefaultSignInScheme`, `DefaultChallengeScheme` were never registered.
-
-Route-hijacking controllers with explicit scheme worked (`[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`), but home page using default scheme always showed signed-out (Umbraco's fallback scheme didn't decrypt `PrismMemberCookie`).
-
-**Fix:** Auth scheme defaults are unconditional. Removed `isAuthEnabled` gate; always register:
-```csharp
-options.DefaultAuthenticateScheme = "PrismMemberCookie";
-options.DefaultSignInScheme = "PrismMemberCookie";
-options.DefaultChallengeScheme = "PrismEntraID";
-```
-
-**Impact:** Home page correctly reflects authenticated state; all routes work consistently.
-
-**Architectural Lesson:** Optional config values (especially secrets/URIs) must never gate foundational subsystems. Decoupling was the fix, not feature-flagging.
-
-### Test Results
-
-- 601 Core unit tests pass
-- All Playwright specs green
-- Seed contract validation passes (home, dashboard, all 5 workflow pages)
-
----
-
-## 📌 2026-04-30: Cross-Agent Note — Umbraco Route Review Pending
-
-**Note:** No new work on Brewster's roadmap as of 2026-04-30, but architectural debt flagged in prior work (2026-04-14 review):
-- Missing `[ModelType("alias")]` on route-hijack controllers
-- Unfinished `workflowDemoPage` surface area (placeholder bundle)
-- Custom `Prism.Section` unused in backoffice (conditioned into `Umb.Section.Content`)
-
-**Status:** Documented for future sprint review; no blocking issues on v2.0 rollout.
-
----
-
-## Prior Work Summary (2026-04-14 — Umbraco v17 Solution Review)
-
-**Architecture Validation:**
-
-✅ **Route Hijacking Pattern:** Prism strongest when Umbraco owns authored route + page shell; business app owns workflow state. Current `workflowPage`/`workflowHub` pattern is close to idiomatic v17.
-
-✅ **Route Contract:** `/dashboard`, `/get-in-touch`, `/my-workflows` are valid published routes with correct auth challenge behavior.
-
-⚠️ **Document Type Design:** `PrismContentTypeSeeder` minimal (no richer page fields, thin editor affordances). `workflowPage` seeded as root (should be under Home).
-
-⚠️ **Umbraco-Specific Risks:**
-- Missing `[ModelType("alias")]` on hijacked controllers
-- `MemberDashboardController` hardcodes `/dashboard`, bypasses `CurrentTemplate()`
-- `HomePage.cshtml` untyped, reads non-existent model properties
-
-⚠️ **Backoffice Dashboard:** v17-native extension stack (Lit/UUI) but custom `Prism.Section` unused; dashboard conditioned into `Umb.Section.Content`.
-
-⚠️ **Unfinished Surfaces:** `workflowDemoPage` points at placeholder bundle (doesn't exist); instance-picker UI in Razor but never activated.
-
-**Auth Flow Validation:**
-
-✅ **Auth Cookie Behavior:** Fixed restart-recovery by detecting IssuedUtc < ProcessStartedUtc; force token refresh on runtime restart.
-
-✅ **OIDC Scope Strategy:** Localhost demo requests offline_access for restart tolerance; generic OIDC tenants default to "openid profile" only.
-
-✅ **Keycloak Refresh:** Refresh calls omit scope parameter when using offline_access-issued tokens.
-
-✅ **Route-Readiness Strategy:** Tests should wait for seed-contract-ready (`GET /api/prism/downstream-demo/seed-contract-ready`), not cold-start transient `/` fallbacks.
-
-**Cold-Boot Convergence Insight:**
-
-Seeded routes briefly resolving to `/` on first boot is a cold-start artifact of this app's runtime pattern (reset DB → install → publish demo tree → eager route consumption). Warm, settled Umbraco shouldn't persist this.
-
----
-
-## Key Learnings Preserved
-
-1. **Umbraco owns routes; Prism owns plumbing** — clear separation keeps architecture clean
-2. **Cold-start readiness probes > page copy checks** — route contract is authoritative signal
-3. **Composer ordering matters** — `[ComposeAfter]` explicit ordering prevents race conditions
-4. **Auth schemes are structural** — never gate foundational subsystems on optional config
-5. **OIDC scope strategy varies** — localhost demos use offline_access; production tenants use standard OIDC scopes
+### 2026-05-16: V1 Workflow Editor Backoffice Section Scaffold
+- Files: umbraco-package.json, web-components/prism-workflow-editor-host.js, README.md
+- Manifest shape: 5 extensions (section, sectionSidebarApp, menu, menuItem, dashboard)
+- Lit element reads PrismWorkflowEditorConfig.authoringBaseUrl
+- 4-second fetch probe for reachability
+- Tests: WorkflowEditorManifestTests (4 assertions)

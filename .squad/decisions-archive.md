@@ -9119,3 +9119,816 @@ status: PROPOSED
 area: testing, walkthroughs, screenshots, documentation
 ---
 
+# Decision: Testing Standards Going Forward
+
+### What Changes
+1. **All new walkthroughs** must include:
+   - Happy path test ✓ (already required)
+   - At least one edge case test (validation, conditional reveal, or back/edit)
+   - Mobile viewport variant (desktop + iPhone 12 or tablet size)
+   - Success state assertion (submission confirmation, error message, etc.)
+
+2. **Existing walkthrough gaps** to be closed:
+   - Information Request: Add success state assertion (5 min)
+   - Community Enquiry: Add validation test (15 min)
+   - Community Enquiry: Add back/edit test (15 min)
+   - Payment Demo: Add back/edit test (15 min)
+   - Information Request: Add back/edit test (15 min)
+   - Information Request: Add validation test (15 min)
+   - All 4 walkthroughs: Add mobile viewport variant (45 min)
+
+### What Stays the Same
+- Manual-only walkthroughs (authoring, tenant creation, design system, mobile build, push notifications) remain acceptable per R6
+- Helper patterns (`assertHealthyPage`, `step()`) enforce good practices
+- Component tests continue in Storybook (no change)
+- Backoffice automation not required (manual captures sufficient)
+
+## Success Metrics
+
+After implementing Priority 1 & 2 recommendations:
+- ✓ 100% of walkthrough workflows covered for back/edit flow
+- ✓ 100% of walkthrough workflows have validation test
+- ✓ 100% of walkthrough tests run on mobile viewport
+- ✓ 100% of workflows assert submission success state
+- ✓ Home page entry point tested
+- → Total: 26+ tests (up from 20)
+- → Zero regression risk; improved edge case coverage
+
+## Out of Scope (Not Changing)
+
+The following are acceptable as manual-only or out-of-scope:
+- Full backoffice OIDC/tenant creation automation
+- Workflow authoring via backoffice (manual captures sufficient)
+- Mobile app Xcode/Android Studio builds
+- Service worker + push notification full lifecycle (partial automation only)
+- Accessibility full audit (basic assertions can start now; full audit separate initiative)
+
+# Walkthrough & Testing Architecture — Discovery & Recommendations
+
+**Scope:** End-to-end verification of walkthrough/test infrastructure against user request constraints. No code changes in this pass — architecture and sequencing only.
+
+---
+
+## Executive Summary
+
+Walkthroughs are architecturally sound (executable specs ✓, tests gate PRs ✓, spec-markdown lockstep enforced ✓). **Six concrete gaps** block the user's vision:
+
+1. **Navigation hierarchy is incomplete.** Dashboard doesn't list all 4 workflow types; discovery requires visiting TestSite sources.
+2. **Workflow types are underexposed.** Only 2 of 4 seeded workflows linked from dashboard; 2 others invisible to end users.
+3. **Admin screen is unreachable.** `/admin/workflow` (where operators manage instances, move states, edit definitions) has no link from the dashboard or any user journey. Walkthroughs can't document the ops path.
+4. **Screenshot heights are excessive.** `fullPage: true` produces 2500–9400px PNG files. Homepage screenshot is 9447px tall — unreadable in docs.
+5. **Mobile nav leaks into workflow screenshots.** `prism-mobile-nav` component renders in walkthrough capture, adding visual clutter to form-focused screenshots.
+6. **Workflow movement is undocumented.** No walkthrough shows how operators use admin panel to transition workflow instances between states.
+
+Additionally:
+- **Push notifications walkthrough is orphaned** — markdown written, spec exists but skipped, image directory empty.
+- **4 workflow seeds exist; 9 walkthroughs reference them.** Mismatch suggests incomplete coverage or intentional deferral.
+
+---
+
+## What Exists Today
+
+### Walkthrough Infrastructure ✓
+
+**Three-artifact lockstep (per SKILL.md):**
+- `docs/walkthroughs/{key}.md` — narrative
+- `src/UmbracoPrism.Client/tests/walkthroughs/{key}.walkthrough.spec.ts` — executable
+- `docs/images/walkthroughs/{key}/*.png` — generated
+
+**9 walkthrough suites defined:**
+1. community-enquiry (seeded ✓, spec ✓, images ✓)
+2. information-request (seeded ✓, spec ✓, images ✓)
+3. payment-demo (seeded ✓, spec ✓, images ✓)
+4. planning-notification (seeded ✓, spec ✓, images ✓)
+5. authoring-a-workflow (spec manual ✓, images N/A, no seed needed)
+6. creating-a-tenant (spec manual ✓, images N/A, backoffice only)
+7. design-system (spec exists, narrative exists)
+8. building-a-mobile-app (spec manual, images N/A, device biometrics)
+9. push-notifications (spec skipped, markdown written, **images empty ✗**)
+
+**Test integration:**
+- All 9 specs in `src/UmbracoPrism.Client/tests/walkthroughs/`
+- All matched to `.github/workflows/capture-screenshots.yml` (manual `workflow_dispatch`)
+- All gated by `localhost-auth-playwright` job in CI
+
+**Screenshot infrastructure:**
+- Helper in `tests/walkthroughs/support/walkthrough.ts` exports `step()` and `assertHealthyPage()`
+- `step()` calls `page.screenshot({ fullPage: true })`
+- `CAPTURE_SCREENSHOTS=1` env var controls write; assertions always run
+
+---
+
+### Navigation & Discoverability ✗
+
+**What's exposed from dashboard (`/dashboard`):**
+- Card: "My Workflows" → `/my-workflows` (WorkflowHub)
+- Card: "Payment Demo" → `/payment-demo` (payment-demo workflow)
+- Card: "Get in Touch" → `/get-in-touch` (community-enquiry workflow)
+- No card or link for: information-request, planning-notification
+
+**What's in the content tree (implicit, not dashboard-driven):**
+- Home `/`
+- Dashboard `/dashboard`
+- WorkflowHub `/my-workflows`
+- 4 workflow pages (`/get-in-touch`, `/payment-demo`, `/apply-for-planning-permission`, `/request-information`)
+
+**What's hidden from typical user navigation:**
+- `/admin/workflow` — ops panel with workflow instances, state transitions, JSON editor
+  - Exists in `MockBusinessApp/Program.cs` (lines 276–745)
+  - Hardcoded to Development environment only (defence-in-depth at line 49)
+  - No link from dashboard, no mention in TestSite views
+  - Accessible only if user knows the URL
+
+---
+
+### Workflow Definitions & Seeds
+
+**4 seed files in `MockBusinessApp/workflow-seeds/`:**
+1. `community-enquiry.json` — 4 states, form-based, conditional reveals
+2. `information-request.json` — 3 states, file upload, address lookup
+3. `payment-demo.json` — 3 states, Stripe integration, waiting state
+4. `planning-notification.json` — 5 states, complex multi-page, waiting + review
+
+**Workflow types inferred from state component trees:**
+- `"question"` — user entry form states
+- `"check-answers"` — summary-list component (GDS pattern)
+- `"waiting"` — status timeline, no user actions
+- `"confirmation"` — final state, congratulations panel
+- `"task-list"` — (inferred from future v2 schema, may not be in current seeds)
+
+No `StepType` enum in current code (deprecated from v1). Types are inferred post-render via `stepType()` utility in `BusinessAppWorkflowEngine`.
+
+---
+
+### Screenshots & Visual Capture
+
+**Current state:**
+- `step()` uses `page.screenshot({ fullPage: true })`
+- Captures entire viewport height, no scroll clipping
+- No exclusion for header, nav, or footer
+
+**Real dimensions observed:**
+| Walkthrough | File | Dimensions | Size (KB) |
+|---|---|---|---|
+| community-enquiry/01-initial | 1280×2537 | 185 |
+| community-enquiry/02-conditional | 1280×2672 | 200 |
+| information-request/01-initial | 1280×2088 | 114 |
+| payment-demo/01-initial | 1280×1244 | 59 |
+| planning-notification/01-initial | 1280×1957 | 80 |
+| **shared/01-homepage** | **1280×9447** | **800** |
+
+The shared homepage screenshot is **9447 pixels tall** — ~13 inch document when viewed at 72dpi. Visual noise in markdown.
+
+**Mobile nav behavior:**
+- `prism-mobile-nav` web component rendered in `_MobileShellNav.cshtml`
+- Included in Master layout (applies to all views)
+- Appears in all walkthrough screenshots (unless hidden via CSS or excluded via viewport)
+- Adds ~60–80px visual clutter at top of form-focused screenshots
+
+---
+
+## Gaps & Blockers
+
+### 1. Navigation Hierarchy Not Fully Exposed
+
+**Problem:** A new user arriving at the dashboard sees 3 workflow cards (My Workflows, Payment Demo, Get in Touch). They have no way to discover that `information-request` and `planning-notification` workflows exist without:
+- Browsing TestSite source code
+- Asking the developer
+- Reading the walkthrough index (not reachable from app UI)
+
+**Impact on Walkthroughs:**
+- "Information Request" walkthrough can be read, but user cannot reach the workflow unless they know `/request-information`
+- "Planning Notification" walkthrough similarly blocked
+- Ops cannot verify these workflows are fully functional via normal navigation
+
+**What's needed:**
+- Dashboard should list **all 4 workflow types** (or link to a discoverable registry)
+- WorkflowHub (`/my-workflows`) could be expanded to show "all available workflows" section
+- OR: Create a "Workflows" or "Templates" gallery on the dashboard
+
+---
+
+### 2. Admin Screen Unreachable from Normal Navigation
+
+**Problem:** The `/admin/workflow` screen is the canonical ops interface for:
+- Viewing all workflow instances across all users
+- Transitioning instances between states (approve, reject, request-changes)
+- Editing JSON definitions (hot-reload)
+- Inspecting state diagrams and transitions
+
+It exists in development but is completely hidden. No walkthrough can document the ops workflow.
+
+**Current access:**
+- Only via direct URL (if you know the path)
+- Not linked from any view
+- Not mentioned in README or docs (except this discovery)
+
+**Impact on Walkthroughs:**
+- Cannot document "Move a workflow instance from Review → Approved" steps
+- Cannot show the state diagram or definition editor
+- Operators have no UI path to the tool they need
+
+**What's needed:**
+- Link on dashboard (dashboard role: admin-only, or dev-environment-only display)
+- OR: Document the URL in a "For Operators" section with prerequisite disclosure
+- OR: Route it through the Umbraco backoffice instead (higher friction, but more secure)
+
+---
+
+### 3. Screenshot Heights Excessive; Mobile Nav Leaks In
+
+**Problem 1: Height**
+- `fullPage: true` captures the entire scrollable document
+- Forms with lots of fields or long explanatory text produce 2500–9400px files
+- User has to scroll endlessly in markdown; visual fatigue
+- 800KB for a single screenshot is disproportionate
+
+**Problem 2: Mobile Nav**
+- `prism-mobile-nav` component adds ~60–80px at the top of every screenshot
+- In a form-focused walkthrough (e.g., "Community Enquiry"), this is visual noise
+- It's useful for mobile context docs, but clutter for desktop workflows
+
+**What's needed:**
+- Clip screenshots to viewport height or content bounds (viewport: 1280×800 or similar)
+- Either hide `prism-mobile-nav` before capture (e.g., `await page.locator('prism-mobile-nav').hide()`) or exclude it via viewport
+- Document the screenshot dimensions in SKILL.md
+
+**Implementation hint:**
+```typescript
+await page.locator('prism-mobile-nav').evaluate(el => el.style.display = 'none');
+// OR use a narrower viewport
+page.setViewportSize({ width: 1280, height: 800 });
+```
+
+---
+
+### 4. Push Notifications Walkthrough Is Orphaned
+
+**State:**
+- Markdown: ✓ (comprehensive, links to architecture docs)
+- Spec: ✓ (exists, but `.skip(true, ...)`)
+- Images: ✗ (directory is empty, only `.gitkeep`)
+
+**Why skipped:**
+- Spec comment says "Manual capture only" — web push subscription UI requires manual browser prompts
+- Spec covers automation up to the subscription prompt, then defers to manual capture
+
+**What's needed:**
+- Decide: Is this a manual-only walkthrough (accept the `.skip` and document manual capture procedure in .md)?
+- OR: Automate the browser's granted push subscription (mock it, or use headless browser grant automation)?
+- Either way: Capture the images (manually or via automation) so the markdown has visual support
+
+---
+
+### 5. Workflow Type Discovery in Admin Screen
+
+**Problem:** The `/admin/workflow` HTML shows workflow definitions with state icons and state diagrams, but there's no visual "gallery" of workflow types. It's an instance table + definition cards, not a "workflow template browser."
+
+**What's needed (if exposing admin on dashboard):**
+- Consider rearranging the admin HTML so the definition cards are visually prominent and easy to screenshot
+- Group by workflow type or category
+- Make each card screenshot-friendly (not overly wide, not a dense code dump)
+
+---
+
+### 6. Authoring & Tenant Creation Walkthroughs Are Manual-Only
+
+**State:**
+- Both marked `.skip(true, ...)` in specs
+- Both require backoffice interaction (Umbraco admin UI)
+- Both have TODO comments for manual captures
+
+**What's needed:**
+- Clarify scope: Are these walkthroughs expected to be auto-captured, or documented as manual?
+- If manual: Document the capture procedure in the markdown (see SKILL.md R1 for example)
+- If auto: Implement backoffice auth and content tree navigation in the spec
+
+**Low priority** — these are developer/operator workflows, not end-user. But they should be complete enough that someone can follow them without surprises.
+
+---
+
+## Proposed Implementation Slice
+
+**Goal:** Deliver a coherent end-to-end journey from end-user workflows through admin management, with complete discoverability, properly-sized screenshots, and no hidden paths.
+
+### Phase 1: Dashboard Navigation (Isabelle + Blathers — 1–2 days)
+
+**Objective:** Expose all 4 workflow types from dashboard; link to admin screen (dev-only or admin-only).
+
+**Deliverables:**
+- [ ] Add "Request Information" and "Planning Notification" cards to dashboard (or expand to a gallery/list view)
+- [ ] Add "Manage Workflows" card that links to `/admin/workflow` (only visible if dev or has admin role)
+- [ ] Verify WorkflowHub lists all 4 workflow types (or add a section)
+- [ ] Update `memberDashboard.cshtml` and related controllers
+
+**Test Requirement:** Existing dashboard tests still pass; new cards link to correct URLs (no 404s).
+
+**Who owns:** Isabelle (frontend) + Blathers (controller routing/auth checks)
+
+**Dependencies:** None — purely additive to dashboard view.
+
+---
+
+### Phase 2: Screenshot Optimization (Tangy — 2–3 days)
+
+**Objective:** Reduce screenshot heights; remove mobile nav clutter; establish viewport standard.
+
+**Deliverables:**
+- [ ] Update `walkthrough.ts` `step()` function:
+  - Set viewport to fixed dimensions (e.g., 1280×1024)
+  - Hide `prism-mobile-nav` before capture (or exclude via viewport width)
+  - Document the standard in SKILL.md
+- [ ] Re-capture all walkthrough images via `workflow_dispatch` (automated batch)
+- [ ] Verify community-enquiry/01-initial goes from 2537px → ~1024px (or similar)
+- [ ] Update all markdown if image filenames or sizes change significantly
+
+**Test Requirement:** All walkthrough specs still pass; images are cleaner and shorter; markdown renders without excessive scrolling.
+
+**Who owns:** Tangy (testing), with Mabel (documentation review)
+
+**Dependencies:** Phase 1 complete (new dashboard cards should be in screenshots)
+
+**File-level changes:**
+- `src/UmbracoPrism.Client/tests/walkthroughs/support/walkthrough.ts` — `step()` function
+- `.squad/skills/walkthroughs-as-executable-specs/SKILL.md` — document viewport standard
+- All `docs/images/walkthroughs/**/*.png` — regenerated
+
+---
+
+### Phase 3: Admin Walkthrough & State Movement (Blathers — 2–3 days)
+
+**Objective:** Document the admin screen; show operators how to move workflow instances between states.
+
+**Deliverables:**
+- [ ] Create `docs/walkthroughs/workflow-administration.md`
+- [ ] Create `src/UmbracoPrism.Client/tests/walkthroughs/workflow-administration.walkthrough.spec.ts`
+- [ ] Spec covers:
+  - Navigate to `/admin/workflow`
+  - View workflow instances table
+  - View workflow definitions (state diagrams)
+  - Execute an action (e.g., "Approve" a pending instance) via the form
+  - See instance state change reflected in table
+- [ ] Capture screenshots for each step
+
+**Test Requirement:** Spec gates on all PRs; no CI red flags.
+
+**Who owns:** Blathers (backend), with Tangy (test structure)
+
+**Dependencies:** Phase 1 (dashboard link exists), Phase 2 (screenshot config finalized)
+
+**File-level changes:**
+- New: `docs/walkthroughs/workflow-administration.md`
+- New: `src/UmbracoPrism.Client/tests/walkthroughs/workflow-administration.walkthrough.spec.ts`
+- New: `docs/images/walkthroughs/workflow-administration/*.png`
+- Update: `docs/walkthroughs/README.md` to include new walkthrough
+
+---
+
+### Phase 4: Push Notifications & Manual Capture Walkthroughs (Mabel + Tangy — 2 days)
+
+**Objective:** Complete push-notifications walkthrough; decide on authoring/tenant-creation manual captures.
+
+**Deliverables (Push Notifications):**
+- [ ] Clarify: Is this end-to-end automatable, or manual from subscription prompt onward?
+- [ ] If automatable: Implement browser grant automation in spec
+- [ ] If manual: Document the manual capture procedure in the markdown (see SKILL.md for format)
+- [ ] Capture screenshots for all steps
+- [ ] Remove `.skip()` or clearly document why it remains skipped
+
+**Deliverables (Authoring & Tenant):**
+- [ ] Decide: Full automation, or manual with documented capture procedure?
+- [ ] If manual: Add `<!-- manual capture: reason -->` comments in markdown per SKILL.md R1
+- [ ] If full automation: Implement backoffice login + navigation in spec
+
+**Test Requirement:** All specs are not skipped OR have documented reasons + manual procedures.
+
+**Who owns:** Mabel (docs clarity) + Tangy (spec implementation)
+
+**Dependencies:** Phases 1–3 complete
+
+---
+
+### Phase 5: Navigation Hierarchy & Discoverability Refinement (Tom Nook — 1 day)
+
+**Objective:** Review final navigation hierarchy; ensure Prism content tree matches documentation; update SKILL.md.
+
+**Deliverables:**
+- [ ] Verify all 4 workflow types are navigable from dashboard or hub
+- [ ] Verify `/admin/workflow` is accessible via dashboard link or documented URL
+- [ ] Update `umbraco-workflow-page-ownership` SKILL.md with final guidance
+- [ ] Review all walkthrough READMEs and links for consistency
+- [ ] Final check: No broken links, all URLs resolve, navigation feels natural
+
+**Who owns:** Tom Nook (architecture review)
+
+**Dependencies:** All prior phases complete
+
+---
+
+## Sequencing & Team Coordination
+
+**Recommended order:**
+1. **Phase 1** (Dashboard) — unblocks Phases 2–3. Start immediately.
+2. **Phase 2** (Screenshots) — can run in parallel with Phase 1; unblocks final polish.
+3. **Phase 3** (Admin Walkthrough) — depends on Phase 1 link; depends on Phase 2 for screenshot config.
+4. **Phase 4** (Push/Manual) — independent; can run in parallel with Phases 2–3.
+5. **Phase 5** (Final Review) — only after all prior phases complete.
+
+**Cross-File Dependencies:**
+
+| File | Phase | Owner | Impact | Notes |
+|---|---|---|---|---|
+| `memberDashboard.cshtml` | 1 | Isabelle | Dashboard cards | Adds links to new workflows + admin |
+| `MemberDashboardController.cs` | 1 | Blathers | Controller logic | Auth checks, URL resolution |
+| `TestSiteSeedContract.cs` | 1 | Blathers | Routes | Add constants for new workflow URLs if needed |
+| `walkthroughs/support/walkthrough.ts` | 2 | Tangy | Screenshot helper | Viewport + mobile-nav-hiding logic |
+| `.squad/skills/walkthroughs-as-executable-specs/SKILL.md` | 2 | Tangy | Skill doc | Document viewport standard + height rules |
+| `/admin/workflow` (Program.cs) | 1 | Blathers | Ops panel | No code change, but linked from dashboard |
+| `docs/images/walkthroughs/**/*.png` | 2 | automated | Screenshots | Regenerated by `workflow_dispatch` |
+| `docs/walkthroughs/*.md` | 3–4 | Tangy/Mabel | Narratives | New walkthroughs + updates to existing |
+
+**Potential bottlenecks:**
+- **Phase 1 → Phase 2:** Tangy may need Isabelle's final dashboard design before capturing. Sequence so dashboard merge → screenshot capture immediately.
+- **Phase 2 → Phase 3:** Screenshot config finalized before starting admin-walkthrough spec.
+- **Pull request merges:** No feature branches per 2026-04-26 directive. Each phase commits directly to `main`; recommend squashing logical units into 1–2 commits per phase.
+
+---
+
+## Files to Touch (Summary)
+
+### View/Controller (Phase 1)
+- `src/UmbracoPrism.TestSite/Views/memberDashboard.cshtml`
+- `src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs` (if auth check needed for admin link)
+- `src/UmbracoPrism.TestSite/TestSiteSeedContract.cs` (if new URLs added)
+
+### Test Infrastructure (Phase 2)
+- `src/UmbracoPrism.Client/tests/walkthroughs/support/walkthrough.ts`
+
+### Walkthrough Specs (Phase 3–4)
+- `src/UmbracoPrism.Client/tests/walkthroughs/workflow-administration.walkthrough.spec.ts` (NEW)
+- `src/UmbracoPrism.Client/tests/walkthroughs/push-notifications.walkthrough.spec.ts` (update)
+- `src/UmbracoPrism.Client/tests/walkthroughs/authoring-a-workflow.walkthrough.spec.ts` (decide on manual)
+- `src/UmbracoPrism.Client/tests/walkthroughs/creating-a-tenant.walkthrough.spec.ts` (decide on manual)
+
+### Walkthrough Narratives (Phase 3–4)
+- `docs/walkthroughs/workflow-administration.md` (NEW)
+- `docs/walkthroughs/push-notifications.md` (update/complete)
+- `docs/walkthroughs/authoring-a-workflow.md` (update with manual capture procedure)
+- `docs/walkthroughs/creating-a-tenant.md` (update with manual capture procedure)
+- `docs/walkthroughs/README.md` (index all 9+1 walkthroughs)
+
+### Documentation & Skills (Phase 2–5)
+- `.squad/skills/walkthroughs-as-executable-specs/SKILL.md` (document viewport standard)
+- `.squad/skills/umbraco-workflow-page-ownership/SKILL.md` (refine if needed)
+
+### Generated Assets (Phase 2, 3–4)
+- `docs/images/walkthroughs/**/*.png` (all regenerated; new workflow-administration dir)
+
+---
+
+## Risks & Mitigations
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| Admin screen assumes dev-only access; adding dashboard link exposes it to end users | Medium | Add role-based or env-var gate on the view; display only in Development or if user has admin role. Document this in SKILL.md. |
+| Screenshot re-capture changes image dimensions; old docs may reference old sizes | Low | Run capture in CI on a single branch; verify all markdown images load before merging. |
+| Push-notifications walkthrough remains manual/incomplete; scope creep on spec automation | Low | Decide early (manual vs. auto); document decision and stick to it. Accept manual for this phase if crypto/browser-grant complexity is high. |
+| Workflow types (community, payment, planning, info-request) hardcoded in views; adding a 5th requires code change | Low | Consider data-driven dashboard card list (loop over workflow definition keys returned from Business App API); out of scope for this pass, but note for v2.1. |
+| Navigation changes break existing links in external docs or bookmarks | Low | Verify URLs are stable (only *adding* new routes, not moving existing ones). Test `/get-in-touch`, `/payment-demo`, `/my-workflows` remain unchanged. |
+
+---
+
+## Non-Goals & Deferral
+
+**Out of scope for this pass:**
+- Rebuilding the admin screen HTML (it's functional; we're just linking to it)
+- Automating browser grant prompts (push-notifications spec remains manual-to-capture if infeasible)
+- Changing the workflow definition storage (JSON seeds are fine; no schema migration)
+- Mobile app screenshots (building-a-mobile-app walkthrough remains manual; device biometrics are not UI-automatable)
+- Consolidating duplicate walkthrough docs (doc-walkthrough-consolidation SKILL.md deferred to Mabel's batch)
+
+---
+
+## Acceptance Criteria
+
+- [ ] **Phase 1:** All 4 workflow types are discoverable from dashboard or WorkflowHub; `/admin/workflow` is linked (dev-only or admin-only).
+- [ ] **Phase 2:** All walkthrough screenshots are ≤1200px tall; `prism-mobile-nav` is hidden or excluded.
+- [ ] **Phase 3:** New `workflow-administration.md` walkthrough documents state transitions via admin screen; spec gates on PR.
+- [ ] **Phase 4:** `push-notifications` walkthrough is complete (auto or manual) with images; `authoring-a-workflow` and `creating-a-tenant` have documented manual procedures.
+- [ ] **Phase 5:** Navigation hierarchy is documented in SKILL.md; no broken links in any walkthrough; team review sign-off.
+
+---
+
+## Next Steps
+
+1. **Immediate:** Share this document with Isabelle, Blathers, Tangy, Mabel for review.
+2. **Day 1:** Isabelle + Blathers start Phase 1 (dashboard cards).
+3. **Day 2–3:** Tangy works Phase 2 in parallel (screenshot config) once Phase 1 is visible.
+4. **Day 3–5:** Blathers + Tangy start Phase 3 (admin walkthrough); Mabel starts Phase 4 (push/manual).
+5. **Day 6:** Tom Nook final architecture review (Phase 5); ready for merge.
+
+**Expected outcome:** End-to-end walkthrough journey is complete, discoverable, visually clean, and documented with executable specs that gate every PR. Operators have a canonical path to the admin screen. All workflow types are reachable from normal navigation.
+
+---
+
+**End of discovery report.**
+
+
+# Walkthrough Coverage Hardening — Test Gaps and Screenshot Behaviour
+
+## Context
+
+Walkthrough coverage audit (2026-05-04) found five gaps in the executable specs:
+
+1. Back/edit flows absent for `community-enquiry`, `payment-demo`, and `information-request`
+2. Form validation tests absent for `community-enquiry` and `information-request`
+3. `information-request` happy path lacked an explicit body-content assertion for the under-review success state
+4. No home-page entry walkthrough (homepage hero → dashboard → workflow hub path)
+5. Screenshot capture used `fullPage: true` unconditionally, producing oversized images for long pages (homepage hero, etc.)
+
+## Decisions
+
+### D1 — Viewport-first screenshots; fullPage is opt-in per step
+
+**Decision:** The `step()` helper in `tests/walkthroughs/support/walkthrough.ts` now defaults to
+`fullPage: false` (viewport-sized capture). Individual steps that genuinely need the full scrolled
+page (e.g. a check-answers summary list that would be cut off) can pass `fullPage: true` via the
+`PageHealthCheck` interface.
+
+**Rationale:** Viewport captures show exactly what the user sees without scrolling, which is the
+right documentation-first default. Full-page captures are appropriate for summary/check-answers
+pages only.
+
+**Isabelle hook contract:** The `fullPage` flag on `PageHealthCheck` is the per-step control point
+intended for the docs pipeline. If the `capture-screenshots.yml` workflow needs a global override
+(e.g. always full-page for a particular walkthrough), the recommended mechanism is:
+
+```yaml
+# In .github/workflows/capture-screenshots.yml
+env:
+  CAPTURE_SCREENSHOTS: '1'
+  SCREENSHOT_FULL_PAGE: '1'   # <-- add this to request full-page globally
+```
+
+Then read `process.env.SCREENSHOT_FULL_PAGE === '1'` in `walkthrough.ts` as the fallback when
+`expected.fullPage` is undefined:
+
+```ts
+const useFullPage = expected.fullPage ?? process.env.SCREENSHOT_FULL_PAGE === '1' ?? false;
+await page.screenshot({ path: file, fullPage: useFullPage });
+```
+
+This change is NOT included in the current commit; it is queued for Isabelle to implement when
+the docs pipeline requires it. The existing `fullPage?: boolean` field on `PageHealthCheck` is
+the stable hook.
+
+### D2 — Persistence tests verify instance-policy contract, not just submit success
+
+**Decision:** For single-page workflows (`community-enquiry`, `information-request`,
+`payment-demo`) that have no check-answers step, the "back/edit" behavioral contract is:
+*after submission, returning to the workflow URL shows the current state (under-review /
+processing), not a fresh form.*
+
+These "persistence" tests are now in the respective walkthrough specs. They navigate away after
+submit and navigate back to verify the instance-policy guarantee.
+
+### D3 — `home-entry` is a first-class walkthrough
+
+**Decision:** `home-entry.walkthrough.spec.ts` is a new walkthrough spec covering the full
+homepage entry path: signed-out hero → signed-in hero → dashboard → workflow hub. It uses the
+same `LiveAppHost` + `step()` pattern as all other walkthrough specs.
+
+The `docs/walkthroughs/home-entry.md` document is the human narrative counterpart; it embeds the
+four screenshots generated by the spec.
+
+### D4 — `assertHealthyPage` skipHeading usage for variable-heading pages
+
+**Decision:** The home page's signed-in state and the dashboard may not present their hero text
+as a `<h1>` role heading. Where the primary visual identity is a welcome message or layout element
+rather than a semantic heading, `skipHeading: true` is used and the test adds an explicit
+`expect(...).toBeVisible()` assertion for the relevant content.
+
+This maintains R3 (assert before shoot) without coupling the test to implementation-specific
+heading hierarchy.
+
+## Scope not changed
+
+- Admin/backoffice walkthroughs (`authoring-a-workflow`, `creating-a-tenant`, `design-system`)
+  remain manual-only per the existing policy. No backoffice automation was added.
+- Mobile viewport tests were identified as a gap in the audit but are out of scope for this
+  hardening pass (deferred to a future Tangy task).
+
+## Files changed
+
+- `tests/walkthroughs/support/walkthrough.ts` — fullPage default + Isabelle hook comment
+- `tests/walkthroughs/community-enquiry.walkthrough.spec.ts` — validation + persistence tests
+- `tests/walkthroughs/information-request.walkthrough.spec.ts` — validation + persistence + explicit success assertion
+- `tests/walkthroughs/payment-demo.walkthrough.spec.ts` — defer/persistence test
+- `tests/walkthroughs/home-entry.walkthrough.spec.ts` — new spec (3 tests)
+- `docs/walkthroughs/home-entry.md` — new walkthrough document
+- `docs/images/walkthroughs/home-entry/` — new images directory (.gitkeep placeholder)
+
+
+
+# Decision: Screenshot-mode cookie contract
+
+## Context
+
+The `prism-mobile-user-agent-demo` toggle widget renders on every TestSite page
+(bottom-right fixed widget).  It clutters automated walkthrough screenshots
+without adding documentary value.
+
+## Decision
+
+A single well-known cookie suppresses the widget for a whole browser session.
+
+**Cookie name:** `prism-screenshot-mode`  
+**Value:** `"1"` to suppress; absent/`"0"` to leave the widget visible.  
+**Scope:** `Path=/; SameSite=Lax; Secure=false` (localhost only).
+
+### Server-side (C#)
+
+`PrismMobileUserAgentDemoTagHelper` reads the cookie via `IHttpContextAccessor`.
+If the cookie equals `"1"`, `ShowToggle` is forced to `false` — only the UA
+bootstrap `<script>` is emitted, not the widget HTML.  The constant
+`PrismScreenshotMode.CookieName` in `UmbracoPrism.Core.TagHelpers` is the
+authoritative source for the cookie name.
+
+### Client-side (Playwright)
+
+`enterScreenshotMode(page)` in
+`src/UmbracoPrism.Client/tests/walkthroughs/support/walkthrough.ts` adds the
+cookie to the browser context before any navigation.  `signIn()` calls it
+automatically when `CAPTURE_SCREENSHOTS=1` so every walkthrough spec picks it up
+without per-spec wiring.
+
+## Tangy hook
+
+Tangy (or any test author) who needs screenshot-clean pages outside the
+`signIn()` flow can call `enterScreenshotMode(page)` directly.  No other hook
+is required.  The cookie must be set before the first page load that should
+suppress the widget.
+
+## What is NOT changed
+
+- Manual browser usage: cookie not set → widget renders as before.
+- The UA bootstrap script: always emitted regardless of screenshot mode, so
+  tests that drive mobile-UA behaviour (`prismMobile` cookie/localStorage) are
+  unaffected.
+- `show-toggle="false"` on the tag helper still works and takes precedence in
+  any template that needs to permanently hide the widget.
+---
+decision_id: walkthrough-ui-audit-2026-05-04
+author: Isabelle
+created_at: 2026-05-04T11:46:55.877+01:00
+subject: Audit findings — walkthrough/demo discoverability and screenshot-friendliness
+status: draft-for-review
+---
+
+# Walkthrough UI Navigation Audit — Decision
+
+## Problem Statement
+
+The walkthrough system includes 4 demo workflows + admin UI, but **manual discoverability is fragmented**:
+- 3 workflows (Payment Demo, Planning Notification, Information Request) are unreachable without direct URL knowledge
+- Workflow admin UI (`/admin/workflow`) is not linked from any UI surface
+- Mobile helper widget (`prism-mobile-user-agent-demo`) appears in all screenshots, blocking viewport and cluttering walkthrough images
+- Homepage focuses on design tokens, not demo workflows — misses opportunity to showcase core features
+
+## Current State
+
+### Routes (All Content-Based in Umbraco)
+| Route | Discoverable Via |
+|-------|------------------|
+| `/get-in-touch` | Header nav + Dashboard card |
+| `/payment-demo` | Dashboard card only ⚠️ |
+| `/apply-for-planning-permission` | URL-only ❌ |
+| `/request-information` | URL-only ❌ |
+| `/my-workflows` | Header nav + Dashboard card |
+| `/admin/workflow` | AppHost reference only ❌ |
+
+### Navigation Surfaces
+- **Header:** 3 items (Home, Get in Touch, My Workflows)
+- **Dashboard:** 3 workflow cards + downstream API demo
+- **Homepage:** Design system token showcase (580 lines); unauthenticated hero with Sign In/Register
+
+### Mobile Helper Widget
+- Renders on every page via `prism-mobile-user-agent-demo` tag helper
+- Fixed position bottom-right corner
+- Shows checkbox + status text + close button
+- Persists state in localStorage/sessionStorage
+- **Screenshot impact:** Visible in all walkthrough images; blocks content on mobile-width views
+
+## Recommended Changes (Minimal & Coherent)
+
+### 1. Add Demo Workflows Section to Home Page ✅
+**What:** Insert "Demo Workflows" section below hero/features, before design tokens  
+**Where:** `homePage.cshtml` after `.features` section  
+**Content:** 4 card grid showing:
+- Community Enquiry (currently linked)
+- Payment Demo (currently dashboard-only)
+- Planning Notification (currently URL-only)
+- Information Request (currently URL-only)
+
+**Why:** Home becomes a natural entry point for trying workflows; design tokens section remains for operators; no removal of existing content.
+
+**Impact:** ~120 lines of HTML; adds ~300px height to authenticated home (acceptable; user goal-driven)
+
+### 2. Add Workflow Admin Link to Dashboard ✅
+**What:** Add "Workflow Admin" card/link to dashboard  
+**Where:** `memberDashboard.cshtml` in the dash-grid  
+**Guard:** Role-based visibility (admin-only; check against `Context.User.IsInRole("admin")` or similar)  
+**Link:** Points to `/admin/workflow`
+
+**Why:** Makes admin UI discoverable without URL knowledge; leverages dashboard's existing card pattern.
+
+**Impact:** 1 new card; fits naturally in existing layout.
+
+### 3. Hide Mobile Helper Widget UI (Keep UA Mock) ✅
+**What:** Add `show-toggle="false"` attribute option to tag helper  
+**Where:** `PrismMobileUserAgentDemoTagHelper.cs`  
+**Behavior:**
+- Still runs bootstrap script (UA mock remains active)
+- **Does not render** the toggle UI widget (no checkbox, status, close button)
+- Walkthrough screenshots capture clean page content
+- Developers can still test via query param (e.g., `?prismShowMobileToggle=1` to override)
+
+**Alternative (not recommended):** Playwright-native dismissal (click close button before screenshot in each test) — less reusable, requires per-test updates.
+
+**Why:** Decouples mobile testing from screenshot concerns; one tag helper change fixes all walkthrough specs.
+
+**Impact:** Tag helper only; no view changes needed.
+
+### 4. Leave Homepage Height & Design Tokens Unchanged ✅
+**Decision:** No removal of design system tokens section.  
+**Rationale:** Tokens section is valuable for branding operators; scrolling is natural UX; adding demos above doesn't harm tokens visibility.
+
+---
+
+## What NOT to Change
+
+| Item | Reason |
+|------|--------|
+| Header nav (3 items) | Clean; demos belong on targeted pages |
+| Mobile nav config | Site-wide; not demo-specific |
+| Workflow form rendering | Working well; no accessibility/UX issues |
+| Dashboard size | Scrolling is natural; no change needed |
+
+---
+
+## Implementation Checklist (No Implementation Yet)
+
+- [ ] **Home page:** Add demo workflows section (4 cards)
+- [ ] **Dashboard:** Add admin card with role guard
+- [ ] **Tag helper:** Add `show-toggle=false` attribute + query param override
+- [ ] **Tests:** Verify no regressions in walkthrough specs
+- [ ] **Accessibility:** Ensure demo cards meet WCAG 2.2 AA (focus, labels, contrast)
+
+---
+
+## Decision Rationale
+
+**Why these three changes together?**
+1. **Discoverability (1 + 2):** All workflows + admin UI are now reachable without URL knowledge
+2. **Screenshot cleanliness (3):** Mobile widget no longer clutters walkthrough images
+3. **Coherence:** Each change is independent; can be reviewed separately
+4. **Minimal scope:** No removal of existing content; only additions + tag helper tweak
+
+**Why not more aggressive changes?**
+- Dashboard already works well (3 cards is clean; 4-5 is acceptable)
+- Homepage tokens section has value (for operators)
+- Header nav at 3 items is intentional (clarity over clutter)
+- Mobile nav stays site-wide (not demo-specific)
+
+---
+
+## Risk Assessment
+
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| Home page longer on scroll | Low | Document natural scrolling; test at typical viewports |
+| Admin card visible to non-admins | Medium | Implement role guard; test with non-admin user |
+| UA mock affects other tests | Low | Keep bootstrap active; only hide UI; test mobile-specific features still work |
+| Tag helper query param conflicts | Low | Use unique param name; document in code comment |
+
+---
+
+## Next Steps
+
+1. **Review:** Scribe/team review of this audit
+2. **Implementation:** If approved, no changes needed for this session (audit-only)
+3. **Separate PR:** Recommend addressing each change in focused PR (home → dashboard → tag helper)
+4. **Testing:** Update walkthrough specs to verify no mobile widget appears
+
+---
+
+## Related Artifacts
+
+- **Audit document:** /Users/jonnymuir/Documents/Projects/Umbraco.Prism/.squad/agents/isabelle/history.md (2026-05-04 entry)
+- **Routes defined in:** `/src/UmbracoPrism.TestSite/TestSiteSeedContract.cs`
+- **Tag helper:** `/src/UmbracoPrism.Core/TagHelpers/PrismMobileUserAgentDemoTagHelper.cs`
+- **Views:**
+  - `/src/UmbracoPrism.TestSite/Views/homePage.cshtml`
+  - `/src/UmbracoPrism.TestSite/Views/memberDashboard.cshtml`
+  - `/src/UmbracoPrism.TestSite/Views/Shared/Master.cshtml`
+- **Walkthroughs:** `docs/walkthroughs/*.md` + `src/UmbracoPrism.Client/tests/walkthroughs/*.walkthrough.spec.ts`
