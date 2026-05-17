@@ -99,6 +99,56 @@ Evaluated overall architecture for conversational workflow/service design using 
 
 ---
 
+## 2026-05-17T22:39:44.751+01:00 | Workflow Editor V1 GitHub issues creation
+
+**User directive:** Scope correction — editor in reference app only, Umbraco for runtime only.
+
+Created comprehensive GitHub issue set for Workflow Editor V1 delivery:
+
+- **Umbrella issue #54:** Workflow Editor V1 Initiative (19 child issues)
+- **Phase 1: Contracts & Foundation** (#55–#57)
+  - #55: Workflow shape & data model
+  - #56: Action catalog & parameter system
+  - #57: Deterministic publish pipeline
+- **Phase 2: Core Workspace** (#58–#62)
+  - #58: Graph workspace (visual editor)
+  - #59: List workspace (accessible editor)
+  - #60: Stage editor
+  - #61: Transition editor
+  - #62: Action editor & forms-backed actions
+- **Phase 3: Editor Affordances** (#63–#66)
+  - #63: Undo/redo
+  - #64: Copy/paste
+  - #65: Validation system
+  - #66: Help & keyboard shortcuts
+- **Phase 4: Confidence Tools** (#67–#68)
+  - #67: Preview panel
+  - #68: Simulation/walkthrough
+- **Phase 5: Hosting & Runtime** (#69–#71)
+  - #69: Reference app hosting (editor runs here)
+  - #70: Runtime action-handler registry (Umbraco)
+  - #71: Workflow engine surfaces (Umbraco public/member)
+- **Phase 6: QA & AI** (#72–#73)
+  - #72: End-to-end tests & planning walkthrough
+  - #73: AI-assisted editing (V1+, later)
+
+**Key scope correction implemented:**
+- Editor is standalone in reference app (MockBusinessApp host), not embedded in Umbraco
+- Umbraco is runtime hosting only (public/member surfaces)
+- All child issues use plain English (no jargon: "authoring surface" not "authoring plane", "reference app hosting" not "shell integration")
+- Each issue includes explicit acceptance criteria and dependency tracking
+- Squads assigned per charter: isabelle (UI/frontend), blathers (backend/infrastructure), brewster (Umbraco platform), tangy (QA/testing)
+
+**Architecture & pattern decisions embedded:**
+- Action model split: design-time catalog vs runtime handlers (issue #56, #70)
+- Dual-surface model for accessibility: graph + list workspace (issues #58–#59)
+- Deterministic projection: authored workflow → runtime format (issue #57)
+- Editor-first workflow with validation, preview, simulation, undo/redo before publish (issues #57, #65, #67–#68, #63)
+
+**Next steps:** Assign baseline issues to Isabelle and Blathers; evaluate V1+ AI work (#73) timing after baseline ships.
+
+---
+
 ## 2026-05-17 | Backlog Sequencing: Workflow Editor V1 Execution Plan
 
 **Status:** Completed  
@@ -113,4 +163,27 @@ Transformed workflow-editor design into dependency-ordered execution backlog:
 
 **Artifact:** Decision merged to decisions.md: "Workflow Editor V1 — Execution backlog sequencing"  
 **Handoff:** To Mabel for GitHub issue structure mapping; to squad for execution assignment per routing rules.
+
+
+### 2026-05-17T22:34:01.015+01:00 | Plain-English workflow backlog framing
+
+- Previous backlog wording was too abstract for delivery tracking. Terms like "projection foundation", "authoring contracts", and "backoffice shell" hid the actual user-facing work.
+- Better backlog pattern for Workflow Editor V1: name epics and issues in product language first, then keep runtime, AI, and hosting as supporting work behind those labels.
+- Must-have editor features need to be named explicitly in the backlog, not implied: copy/paste, undo/redo, stage editing, transition linking, action editing, validation, help, preview, and simulation.
+- Key paths used for this reframe: `docs/design/workflow-editor-v1/README.md`, `docs/design/workflow-editor-v1/01-authoring-ux.md`, `docs/design/workflow-editor-v1/02-runtime-projection.md`, `.squad/decisions.md`.
+
+### 2026-05-17T22:34:01.015+01:00 | Plain-English workflow backlog reframe
+
+- Reframed Workflow Editor V1 backlog with plain product language (not architecture jargon).
+- Renamed epics to user-facing concepts: "Ship Workflow Editor V1" → "Define what a workflow can contain" → "Save editor changes as a runnable workflow" → etc.
+- Placed everyday features explicitly: copy/paste and undo/redo in affordances epic; linking transitions and stage editing in workspace epic.
+
+### 2026-05-17T22:39:44.751+01:00 | Workflow Editor V1 GitHub Issue Set creation
+
+- Created 20 GitHub issues (#54–#73) to move from design-doc planning to executable work units.
+- Applied user scope correction: workflow editor stays in reference app (MockBusinessApp), Umbraco is runtime hosting only.
+- Issue set structure: umbrella (#54) + 19 child issues across 6 phases (foundation, workspace, affordances, confidence, hosting, QA+AI).
+- Squad routing: Isabelle (UI), Blathers (foundation), Brewster (Umbraco), Tangy (QA), Copilot (foundation contracts).
+- All issues use plain-English product language; dependencies explicit ("Depends on" links); dual-surface accessibility built into acceptance criteria.
+- GitHub issues now the execution spine; design docs remain architecture source of truth.
 

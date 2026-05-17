@@ -2528,3 +2528,190 @@ The design set is now rich enough that implementation should move into traceable
 ## Impact
 
 Coordinators can now create execution issues directly from the Workflow Editor V1 docs with clear prerequisites and parallel lanes. This should reduce ambiguity about whether AI/Copilot work starts first; it should not.
+
+---
+
+# Decision: User directive – plain-English backlog and features
+
+**Date:** 2026-05-17T22:34:01.015+01:00  
+**By:** Jonny Muir (via Copilot)  
+**Status:** Captured  
+
+Keep backlog and design language plain and product-focused; avoid fancy architecture jargon, and explicitly include concrete workflow editor capabilities such as copy/paste, undo/redo, and linking transitions in the issue plan.
+
+---
+
+# Decision: Plain-English Workflow Backlog Reframe
+
+**Date:** 2026-05-17T22:34:01.015+01:00  
+**Author:** Tom Nook  
+**Status:** Proposed  
+
+Reframe the Workflow Editor V1 backlog in plain product language. Use issue names that describe what a person is building in the editor, not internal architecture seams.
+
+## Why
+
+The previous backlog sequence was directionally correct on dependencies, but the wording was too abstract. It obscured must-have editor features and made support work like Umbraco hosting sound larger than it is.
+
+## Approved naming direction
+
+- **Initiative:** Ship Workflow Editor V1
+- **Epic 1:** Define what a workflow can contain
+- **Epic 2:** Save editor changes as a runnable workflow
+- **Epic 3:** Build the workflow editor workspace
+- **Epic 4:** Add everyday editing tools and safety checks
+- **Epic 5:** Add preview and simulation
+- **Epic 6:** Hook the editor into Umbraco and the reference app
+- **Epic 7:** Add guided AI help after the editor basics work
+- **Epic 8:** Prove the planning workflow works end to end
+
+## Feature placement
+
+- Copy/paste and undo/redo belong in **Add everyday editing tools and safety checks**.
+- Linking transitions, stage editing, and action editing belong in **Build the workflow editor workspace**.
+- Validation belongs in **Add everyday editing tools and safety checks**.
+- Help belongs in **Add everyday editing tools and safety checks**.
+- Preview and simulation belong in **Add preview and simulation**.
+- Umbraco work belongs in **Hook the editor into Umbraco and the reference app**, and should stay a thin integration task rather than a headline architecture theme.
+
+## Impact
+
+Future Workflow Editor issues should be easy to read without design-doc context. Support seams can stay in issue bodies and acceptance criteria, but titles should stay user-facing and workflow-facing.
+
+---
+
+# Decision: User directive – editor scope
+
+**Date:** 2026-05-17T22:39:44.751+01:00  
+**By:** Jonny Muir (via Copilot)  
+**Status:** Captured  
+
+Keep the workflow editor scoped to the reference app only; Umbraco is for workflow runtime, not editor hosting.
+
+---
+
+# Decision: Workflow Editor V1 GitHub Issue Set
+
+**Date:** 2026-05-17T22:39:44.751+01:00  
+**Author:** Tom Nook (Lead)  
+**Status:** Proposed  
+**Related Issues:** #54–#73 (GitHub)  
+
+## What Changed
+
+Created a comprehensive GitHub issue set (20 issues total) for Workflow Editor V1 delivery. This replaces design-doc-only planning with executable work items tied to specific acceptance criteria, team routing, and dependency sequencing.
+
+## Scope Correction (User Request)
+
+**Before:** Design docs implied the workflow editor might be embedded in Umbraco.  
+**After:** Clear scope separation:
+
+- **Workflow Editor** = standalone authoring tool in reference app (MockBusinessApp or isolated host)
+- **Workflow Engine** = runtime in Umbraco (public/member surfaces via WorkflowPageController)
+- **Umbraco Role** = runtime hosting only, not editor hosting
+
+This keeps editor development independent from Umbraco integration complexity.
+
+## Issue Set Structure
+
+### Umbrella (#54)
+- Single parent: "Workflow Editor V1 — Initiative & Umbrella"
+- Links to 19 child issues
+- Plain-language acceptance criteria and success statement
+- Scope guardrails and architecture summary
+
+### Dependency-Ordered Child Issues
+
+**Phase 1: Contracts & Foundation** (must complete first)
+- #55: Workflow shape & data model (schema, types)
+- #56: Action catalog & parameter system
+- #57: Deterministic publish pipeline (→ runtime format)
+
+**Phase 2: Core Workspace** (can start after #57)
+- #58: Graph workspace (visual editor)
+- #59: List workspace (accessible alternative)
+- #60: Stage editor
+- #61: Transition editor
+- #62: Action editor & forms-backed actions
+
+**Phase 3: Editor Affordances** (parallel with Phase 2)
+- #63: Undo/redo
+- #64: Copy/paste
+- #65: Validation system
+- #66: Help & keyboard shortcuts
+
+**Phase 4: Confidence Tools** (parallel)
+- #67: Preview panel
+- #68: Simulation/walkthrough
+
+**Phase 5: Hosting & Runtime** (parallel)
+- #69: Reference app hosting (editor app infrastructure)
+- #70: Runtime action-handler registry (MockBusinessApp/Umbraco)
+- #71: Workflow engine surfaces (Umbraco public/member)
+
+**Phase 6: QA & AI** (after all baseline)
+- #72: End-to-end tests & planning walkthrough
+- #73: AI-assisted editing (V1+, not baseline)
+
+## Plain English Throughout
+
+All issues use product language, not technical jargon:
+
+| Avoid | Use Instead |
+|-------|-------------|
+| "projection foundation" | "deterministic publish pipeline" |
+| "authoring contracts" | "workflow shape & data model" |
+| "shell integration" | "reference app hosting" |
+| "backoffice shell" | "Umbraco workflow engine surfaces" |
+
+## Each Issue Includes
+
+- **What to build:** bullet list of concrete deliverables
+- **Acceptance criteria:** testable requirements (checkboxes)
+- **Dependencies:** explicit "Depends on" links to prior issues
+- **Squad routing:** labels like `squad:isabelle`, `squad:blathers`, `squad:brewster`, `squad:tangy`
+- **Relationship:** "Relates to #54 (Initiative)"
+
+## Key Architectural Decisions Embedded
+
+1. **Action model split (#56, #70):** Design-time catalog (what authors can pick) vs runtime handlers (how actions execute). Keeps editor honest about what's available now while allowing forward-compatible workflows.
+
+2. **Dual-surface accessibility (#58–#59):** Graph view for visual editing + list view for keyboard-first/screen-reader users. Both edit the same model; neither is a fallback.
+
+3. **Deterministic projection (#57):** Authored workflow deterministically projects to runtime WorkflowDefinitionFile. Keeps authored model flexible while preserving runtime contracts.
+
+4. **Editor-first workflow (#57, #65, #67–#68, #63):** Validation, preview, simulation, undo/redo all available before publish. No hidden AI apply; no JSON-first path.
+
+5. **Reference app hosts the editor (#69):** Editor is a standalone component that publishes workflows. Umbraco consumes the output at runtime, not vice versa.
+
+## Squad Routing
+
+- **Isabelle (Frontend Dev):** #58–#68 (all UI surfaces, affordances, confidence tools)
+- **Blathers (Backend Dev):** #55–#57, #69 (foundation, schema, projection, hosting infrastructure)
+- **Brewster (Umbraco Specialist):** #70–#71 (Umbraco-specific runtime integration)
+- **Tangy (Tester):** #72 (end-to-end tests, walkthrough)
+
+Copilot can start on #55–#57 (foundation contracts) once Lead reviews routing.
+
+## Why This Structure
+
+1. **Executable:** Each issue has concrete acceptance criteria, not vague goals.
+2. **Dependency-clear:** "Depends on" links prevent out-of-order work.
+3. **Parallelizable:** Phases 2–5 can run in parallel once Phase 1 contracts lock.
+4. **Scoped:** Editor baseline (#55–#72) is V1; AI work (#73) is clearly V1+.
+5. **Accessible:** Dual-surface model, keyboard support, plain-language validation built into baseline.
+6. **Testable:** E2E test (#72) uses planning application reference flow to validate everything end-to-end.
+
+## Consequences
+
+- GitHub issues become the coordination spine for Workflow Editor V1, not design docs alone.
+- Design docs remain source of truth for rationale and architecture; issues are execution layer.
+- Squad members know exactly what to build and in what order.
+- Baseline V1 can ship with ~70 issues completed; V1+ AI work deferred to separate planning.
+
+## No Longer Valid
+
+- "Workflow editor might be embedded in Umbraco backoffice" — editor is standalone in reference app.
+- "Unclear what V1 baseline vs V1+ means" — baseline is #55–#72; V1+ is #73 and future.
+- "Editor is one phase among many" — editor is the focus; runtime hosting and AI are supporting.
+
