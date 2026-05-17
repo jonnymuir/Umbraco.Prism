@@ -83,3 +83,41 @@ Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox 
 - Committed (`7d7f7b9`) and ready to push
 
 **Next:** Push to trigger CI and validate smoke lane runs before broader suite.
+
+## 2026-05-17T14:40:00+01:00 — Workflow Editor Library Extraction Test Validation
+
+**Task:** Validate workflow editor library extraction slice in dedicated worktree; ensure tests pass and document outcomes.
+
+**Context:**
+- Extraction work done by Blathers (commits `9ab9ba4` through `538e843`)
+- Worktree at `/Users/jonnymuir/Documents/Projects/Umbraco.Prism-workflow-editor-extraction` on branch `feat/workflow-editor-library-extraction`
+- Scope: backend authoring code moved from Core → WorkflowEditor library with new two-line consumer API
+
+**Deliverables:**
+1. ✅ Resolved static web asset conflict (both Core and WorkflowEditor had dist/ assets)
+2. ✅ Planning smoke test passes (1.1m) after clean rebuild
+3. ✅ Verified zero walkthrough spec changes
+4. ✅ Verified PhysicalFileProvider serving works for dev (ProjectReference consumption)
+5. ✅ Pushed 5 commits to remote (extraction + test validation)
+6. ✅ Wrote decision document: `.squad/decisions/inbox/tangy-workflow-editor-extraction-validation.md`
+
+**Key Issue Resolved:**
+- **Static web asset collision:** Core/wwwroot/dist and WorkflowEditor/wwwroot/dist both had vite.svg
+- **Root cause:** Vite config updated but old Core dist/ not cleaned up
+- **Fix:** Removed Core/wwwroot/dist; clean rebuild resolved all conflicts
+- **Lesson:** When moving embedded static assets, delete old output directory before building
+
+**Test Validation:**
+- Planning workflow editor loads correctly at `/workflow-editor.html?workflow=planning`
+- JavaScript module (`workflow-editor.js`) loads and custom element initializes
+- All Aspire services (Aspire, TestSite, MockBusinessApp, Keycloak) start successfully
+- No 404s, no build errors (except pre-existing deprecation warnings)
+
+**Recommendations:**
+1. Open PR now — all 5 commits ready for review
+2. Add CI publish-path test (consume WorkflowEditor as NuGet, not ProjectReference) — top risk per design doc
+3. After merge: cleanup Core/Workflow/Authoring empty directory in follow-up PR
+
+**Outcome:** Extraction slice validated and ready for PR. Test coverage preserved with zero spec changes. Decision written to inbox for Scribe to merge.
+
+**Next:** Await PR creation and merge. Monitor CI on PR to ensure full localhost-auth suite passes (not just smoke).
