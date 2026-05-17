@@ -62,10 +62,6 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   // See SKILL.md R6 for the screenshot capture workflow.
   // ---------------------------------------------------------------------------
 
-  test.skip(
-    true,
-    "Awaiting Isabelle's workflow-editor.html and Blathers' /api/workflow-authoring/... endpoints (Wave 1 foundation)"
-  );
   test('happy path: authoring a planning permission workflow with natural language', async ({ page }) => {
     await signIn(page);
 
@@ -120,7 +116,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // The mode-toggle button ("List view", aria-pressed="false") switches the graph
     // canvas (role="application") to a linear list (role="listbox") of stage cards.
     // This mirrors the keyboard-accessible contract tested in workflow-graph-keyboard.spec.ts.
-    const toggleBtn = page.getByRole('button', { name: 'List view' });
+    const toggleBtn = page.locator('prism-workflow-graph').getByRole('button', { name: 'List view' });
     await expect(toggleBtn).toBeVisible({ timeout: 5_000 });
     await toggleBtn.click();
 
@@ -132,7 +128,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     }), WALKTHROUGH_KEY);
 
     // Switch back to graph view so the conversation pane step is clearer
-    await page.getByRole('button', { name: 'Graph view' }).click();
+    await page.locator('prism-workflow-graph').getByRole('button', { name: 'Graph view' }).click();
     await expect(graphCanvas).toBeVisible({ timeout: 5_000 });
 
     // ─── Step 6: Type a natural language change request ────────────────────────
@@ -155,7 +151,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // prism-proposal-diff renders inside the conversation thread.
     const nlRequestInflight = page.waitForRequest(
       req =>
-        req.url().includes('/api/workflow-authoring/planning-permission/proposals') &&
+        req.url().includes('/api/workflow-authoring/workflows/planning/preview') &&
         req.method() === 'POST'
     );
 
@@ -178,8 +174,8 @@ test.describe('Planning Workflow Editor walkthrough', () => {
 
     const applyRequest = page.waitForRequest(
       req =>
-        req.url().includes('/api/workflow-authoring/planning-permission') &&
-        req.method() === 'PATCH'
+        req.url().includes('/api/workflow-authoring/workflows/planning/apply') &&
+        req.method() === 'POST'
     );
 
     await acceptBtn.click();
@@ -188,7 +184,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Step 9: Workflow graph reflects the applied change ────────────────────
     // After apply, prism-workflow-graph re-renders with the updated definition.
     // The ID&V stage (injected by the agent) must now appear as a node.
-    await expect(page.locator('[data-prism-stage="identity-verification"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-prism-stage="id-verification"]')).toBeVisible({ timeout: 10_000 });
 
     await step(page, '09-proposal-applied.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="workflow-graph"]',
