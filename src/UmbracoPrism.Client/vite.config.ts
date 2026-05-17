@@ -2,8 +2,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
-    // This sends compiled JS directly to the WorkflowEditor package static web assets
-    outDir: '../UmbracoPrism.WorkflowEditor/wwwroot/dist',
+    // This sends compiled JS directly to the Core package static web assets
+    outDir: '../UmbracoPrism.Core/wwwroot/dist',
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
