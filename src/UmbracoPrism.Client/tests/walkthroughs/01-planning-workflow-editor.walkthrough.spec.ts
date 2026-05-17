@@ -1,4 +1,6 @@
 // Executable counterpart of docs/walkthroughs/planning-workflow-editor.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { test, expect } from '../support/shared-app-host-fixture';
 import {
   step,
@@ -9,6 +11,9 @@ import {
 } from './support/walkthrough';
 
 const WALKTHROUGH_KEY = 'planning-workflow-editor';
+const authoredWorkflowRoot = path.resolve(process.cwd(), '../UmbracoPrism.MockBusinessApp/workflow-authored');
+const planningWorkflowPath = path.join(authoredWorkflowRoot, 'planning.workflow.json');
+const provenancePath = path.join(authoredWorkflowRoot, '.provenance');
 
 // URL pattern for the workflow editor SPA — stays constant across all steps.
 // `workflow-editor.html` is served by MockBusinessApp (Isabelle's Wave 1 foundation deliverable).
@@ -28,8 +33,25 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
 
+  let originalPlanningWorkflow = '';
+  let originalProvenanceFiles: string[] = [];
+
   test.beforeEach(async ({ request }) => {
     await resetWorkflows(request);
+    originalPlanningWorkflow = await readFile(planningWorkflowPath, 'utf8');
+    originalProvenanceFiles = await readdir(provenancePath).catch(() => []);
+  });
+
+  test.afterEach(async () => {
+    await writeFile(planningWorkflowPath, originalPlanningWorkflow, 'utf8');
+
+    const currentProvenanceFiles = await readdir(provenancePath).catch(() => []);
+    const originalFiles = new Set(originalProvenanceFiles);
+    await Promise.all(
+      currentProvenanceFiles
+        .filter(file => !originalFiles.has(file))
+        .map(file => rm(path.join(provenancePath, file), { force: true }))
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -55,11 +77,18 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   test('happy path: authoring a planning permission workflow with natural language', async ({ page, appHost }) => {
     await signIn(page);
 
-    // ─── Step 1: Load the workflow editor ──────────────────────────────────────
-    // The editor is served at /workflow-editor.html?workflow=planning.
-    // MockBusinessApp (Isabelle's deliverable) resolves "planning" → the seeded
-    // planning-permission workflow definition and calls GET /api/workflow-authoring/planning-permission.
-    await page.goto(`${businessAppOrigin}/workflow-editor.html?workflow=planning`);
+    // ─── Step 1: Load the reference shell from the business app ────────────────
+    // The shell redirects /workflow-editor → /workflow-editor.html?workflow=planning
+    // and demonstrates the minimal downstream integration surface.
+    await page.goto(`${businessAppOrigin}/workflow-editor`);
+    await expect(page).toHaveURL(/\/workflow-editor\.html\?workflow=planning(?:&|$)/);
+    await expect(page.getByRole('heading', { name: /compose the editor into your app/i })).toBeVisible();
+    await expect(page.getByText(/this shell stays focused on authoring/i)).toBeVisible();
+    await expect(page.getByText(/let your business app own runtime workflows and domain actions/i)).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Workflow definition' })).toHaveValue('planning');
+    await expect(page.getByRole('textbox', { name: 'Authoring API base' })).toHaveValue(businessAppOrigin);
+    await expect(page.getByText(/<prism-workflow-editor/i)).toBeVisible();
+    await expect(page.getByText(`authoring-api-base="${businessAppOrigin}"`)).toBeVisible();
 
     // Wait for the workflow data to load before asserting page health. The custom element
     // sets data-prism-workflow-loaded="{key}" after the API fetch completes. On slower CI
@@ -102,7 +131,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     }
 
     await step(page, '01-workflow-editor-loaded.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-component="workflow-graph"]',
+      screenshotSelector: '[data-prism-component="workflow-editor-shell"]',
     }), WALKTHROUGH_KEY);
 
     // ─── Step 2: Graph view shows the planning permission stages ───────────────
@@ -163,11 +192,10 @@ test.describe('Planning Workflow Editor walkthrough', () => {
 
     // ─── Step 6: Type a natural language change request ────────────────────────
     // prism-conversation-pane exposes data-prism-conversation-input for the textarea.
-    // Getters pierce shadow DOM; getByRole('textbox') finds the textarea inside shadow DOM.
     const conversationPane = page.locator('[data-prism-component="conversation-pane"]');
     await expect(conversationPane).toBeVisible({ timeout: 10_000 });
 
-    const nlInput = page.getByRole('textbox');
+    const nlInput = conversationPane.locator('[data-prism-conversation-input]');
     await expect(nlInput).toBeVisible({ timeout: 5_000 });
     await nlInput.fill('Add an identity verification step before the reviewer assessment stage');
 
@@ -192,7 +220,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     await expect(proposalDiff).toBeVisible({ timeout: 15_000 });
 
     await step(page, '07-proposal-diff.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-component="conversation-pane"]',
+      screenshotSelector: '[data-prism-component="proposal-diff"]',
     }), WALKTHROUGH_KEY);
 
     // ─── Step 8: Accept the proposal ──────────────────────────────────────────
@@ -214,6 +242,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Step 9: Workflow graph reflects the applied change ────────────────────
     // After apply, prism-workflow-graph re-renders with the updated definition.
     // The ID&V stage (injected by the agent) must now appear as a node.
+    await expect(page.locator('[data-prism-toast]')).toContainText(/workflow updated successfully/i);
     await expect(page.locator('[data-prism-stage="id-verification"]')).toBeVisible({ timeout: 10_000 });
 
     await step(page, '09-proposal-applied.png', editorHealthCheck({

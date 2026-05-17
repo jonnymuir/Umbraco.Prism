@@ -47,8 +47,7 @@ public static class TestSiteSeedContract
         => EnumerateContentTree(contentService)
                .FirstOrDefault(content =>
                    content.ContentType.Alias == WorkflowPageAlias
-                   && string.Equals(content.GetValue<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase))
-           ?? FindContentByAlias(contentService, WorkflowPageAlias);
+                   && string.Equals(content.GetValue<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase));
 
     public static IPublishedContent? FindPublishedByAlias(IEnumerable<IPublishedContent> roots, string alias)
         => roots
@@ -60,8 +59,7 @@ public static class TestSiteSeedContract
                .SelectMany(root => root.DescendantsOrSelf())
                .FirstOrDefault(content =>
                     content.ContentType.Alias == WorkflowPageAlias
-                    && string.Equals(content.Value<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase))
-            ?? FindPublishedByAlias(roots, WorkflowPageAlias);
+                    && string.Equals(content.Value<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase));
 
     public static string ResolveUrl(IPublishedContent? content, string fallback)
         => ResolveUrl(content?.Url(), fallback);

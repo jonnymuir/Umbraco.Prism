@@ -17,6 +17,31 @@
 ---
 
 
+## 2026-05-17T18:30:56.987+01:00 — CI Fix Verification Pass
+
+**Task:** Verify both diagnosed fixes are landed and green on `feat/workflow-editor-library-extraction`.
+
+**Findings:**
+- Both fixes were already committed and pushed before this session:
+  - `47a50cf` — removed re-leaked `HMACSecretKey` from `appsettings.json`
+  - `125f166` — increased smoke readiness timeout 5 min → 8 min; job cap 10 min → 15 min
+- HEAD confirmed at `125f166`, matching `origin/feat/workflow-editor-library-extraction`
+- CI runs `25997011837` and `25997011833` on that commit: **all 5 jobs green**
+  - `core-tests` ✅, `planning-workflow-editor-smoke` ✅, `localhost-auth-playwright` ✅, `storybook-tests` ✅, `marketplace-description` ✅
+- `appsettings.json` (tracked) confirmed clean — no HMAC key present
+- `readinessTimeoutMs` confirmed at `480_000` in `live-app-host.ts`
+
+**Outcome:** No new failures, no new code changes needed. Branch is green and ready for merge review.
+
+**Decision:** `.squad/decisions/inbox/tangy-ci-fix-pass.md`
+
+**Learnings:**
+- Before doing any fix work, always check the latest CI run first — fixes may already be landed.
+- Checking `git log` against `origin/` head and comparing run SHA to HEAD is the fastest verification path.
+- The secret guard test is a permanent CI asset: it caught a real re-leak and will catch future ones.
+
+---
+
 ## Learnings (Summarized)
 
 ### 2026-05-17T13:59:00+01:00 — Smoke Test Failure: Missing Build Step in CI
@@ -83,3 +108,38 @@ Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox 
 - Committed (`7d7f7b9`) and ready to push
 
 **Next:** Push to trigger CI and validate smoke lane runs before broader suite.
+
+### 2026-05-17T17:09:07.957+01:00 — Reference shell smoke coverage
+
+**Task:** Adapt workflow-editor validation for the new reference split so the business app shell proves the downstream integration story, not just the editor internals.
+
+**What changed:**
+- Updated the planning workflow walkthrough to start at `/workflow-editor`, assert the thin-shell guidance copy, workflow picker, authoring API base, and integration snippet.
+- Scoped the NL input assertion to `data-prism-conversation-input` so the new shell config textbox does not cause strict-mode collisions.
+- Added test-side restoration of `workflow-authored/planning.workflow.json` and `.provenance/` so proposal-apply validation stays side-effect free for repeated runs.
+
+**Validation:**
+- `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj -c Release` ✅
+- `npm run test:playwright:planning-smoke` ✅
+- `npm run test:playwright:localhost-auth -- --grep 'Planning Workflow Editor walkthrough' --max-failures=1` ✅
+
+### 2026-05-17T17:33:13.797+01:00 — Walkthrough doc + screenshot regeneration
+
+**Task:** Determine whether reference-split walkthrough screenshots had been regenerated for the new shell flow; if not, update and regenerate.
+
+**Findings:**
+- Screenshots in `docs/images/walkthroughs/planning-workflow-editor/` were captured at `b9f0977` against the OLD direct-URL flow before the reference shell was introduced.
+- The walkthrough doc had only `<!-- Screenshot: ... -->` placeholder text — real `![](...)` embeds were never added.
+- All reference-split code changes (shell component, runtime library, MockBusinessApp wiring, spec updates) were uncommitted in the worktree despite being recorded as complete in history.
+
+**Actions taken:**
+1. Updated `docs/walkthroughs/planning-workflow-editor.md`:
+   - Replaced all screenshot placeholders with `![](../images/walkthroughs/planning-workflow-editor/XX.png)` embeds.
+   - Rewrote Step 1 narrative to describe the `/workflow-editor` redirect, thin-shell hero copy, workflow picker, API base field, and integration snippet.
+   - Corrected API path references in Step 7 to `/api/workflow-authoring/workflows/planning/preview` and `.../apply`.
+   - Updated R5 spec back-reference to `01-planning-workflow-editor.walkthrough.spec.ts`.
+2. Committed all reference-split changes in `47a50cf` on `feat/workflow-editor-library-extraction`.
+3. Pushed branch; triggered `capture-screenshots.yml` workflow_dispatch (run 25996681743) to regenerate the 8 PNGs from the new shell flow.
+4. Wrote decision to `.squad/decisions/inbox/tangy-walkthrough-screenshots.md`.
+
+**Lesson:** When the spec is updated to test a new flow, screenshots must be explicitly regenerated via the capture workflow — the old PNGs don't self-update. Track this as a post-spec-change step: trigger capture-screenshots immediately after any spec navigation change.

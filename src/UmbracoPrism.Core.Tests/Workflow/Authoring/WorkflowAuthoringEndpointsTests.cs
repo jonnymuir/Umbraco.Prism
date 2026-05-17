@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using UmbracoPrism.Core.Workflow.Authoring;
+using UmbracoPrism.WorkflowEditor.Authoring;
 using MockProgram = MockBusinessApp::Program;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;

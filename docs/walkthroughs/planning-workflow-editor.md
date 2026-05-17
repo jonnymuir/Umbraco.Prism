@@ -3,8 +3,6 @@
 A developer-facing guide to using the natural-language workflow editor to inspect and modify a planning permission workflow definition in Umbraco.Prism.
 
 > **Prerequisites:** Stack running via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Familiarity with the [Planning Notification](planning-notification.md) walkthrough is recommended so you understand the citizen-facing journey you are modifying.
->
-> **Wave 1 status:** The workflow editor page (`workflow-editor.html`) and its backing API (`/api/workflow-authoring/...`) are Wave 1 foundation deliverables. Screenshots will appear here once Isabelle's editor page and Blathers' API endpoints have shipped. The executable spec below (`planning-workflow-editor.walkthrough.spec.ts`) is ready and will populate this directory automatically when run with `CAPTURE_SCREENSHOTS=1`.
 
 ---
 
@@ -18,22 +16,29 @@ The Prism workflow editor gives developers and operators a browser-based surface
 | Operator / caseworker architect | Adjust stage order, add validation steps, or tune role assignments |
 | QA engineer | Inspect the current live definition before writing a journey test |
 
-The editor is a single-page application composed of three Lit web components:
+The editor shell is a reference integration hosted in MockBusinessApp. It is composed of:
 
 | Component | Role |
 |---|---|
+| `<prism-workflow-editor-shell>` | Thin reference host: workflow picker, API base config, integration snippet |
+| `<prism-workflow-editor>` | Assembled editor: graph view, conversation pane, step inspector |
 | `<prism-workflow-graph>` | Visualises the workflow as a graph (default) or a navigable stage list |
 | `<prism-conversation-pane>` | Natural-language input thread with proposal diff inline |
 | `<prism-step-inspector>` | Sidebar showing the selected stage's fields and component tree |
 
 ---
 
-## Step 1 — Load the workflow editor
+## Step 1 — Load the reference shell
 
-Navigate to `/workflow-editor.html?workflow=planning`. MockBusinessApp resolves the `planning` key to the planning-permission workflow seed and calls `GET /api/workflow-authoring/planning-permission` to hydrate the editor.
+Navigate to `/workflow-editor`. MockBusinessApp redirects this to `/workflow-editor.html?workflow=planning`, serving the thin reference shell (`<prism-workflow-editor-shell>`).
 
-<!-- Screenshot: 01-workflow-editor-loaded.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Workflow editor reference shell loaded](../images/walkthroughs/planning-workflow-editor/01-workflow-editor-loaded.png)
+
+The shell hero displays:
+- **Heading:** "Compose the editor into your app with one element and one API base."
+- **Intro:** The shell stays focused on authoring — workflow selection, editor mounting, and API wiring. Runtime cases, approvals, and business processing remain in the downstream business app.
+- **Launch card:** A workflow picker (pre-selected to `planning`) and an authoring API base URL field pointing at MockBusinessApp's origin.
+- **Integration snippet:** The minimal `<prism-workflow-editor>` element and `authoring-api-base` attribute needed to embed the editor in any downstream app.
 
 The editor loads with the workflow graph visible in visual (graph) mode. The `<prism-workflow-graph>` canvas has `role="application"` and is keyboard-accessible.
 
@@ -43,8 +48,7 @@ The editor loads with the workflow graph visible in visual (graph) mode. The `<p
 
 `<prism-workflow-graph>` renders the workflow definition as a directed graph. Each stage is a node in the canvas; each permitted transition is an edge.
 
-<!-- Screenshot: 02-graph-view-stages.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Graph view — planning permission stages](../images/walkthroughs/planning-workflow-editor/02-graph-view-stages.png)
 
 For the planning-permission workflow the stages are (from the planning seed):
 
@@ -64,8 +68,7 @@ Each node carries `data-prism-stage="{stageKey}"` in shadow DOM — the same sel
 
 Clicking any stage node dispatches a `stage-selected` CustomEvent. `<prism-step-inspector>` renders in the right-hand sidebar.
 
-<!-- Screenshot: 03-step-inspector-open.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Step inspector open — applicant-details stage](../images/walkthroughs/planning-workflow-editor/03-step-inspector-open.png)
 
 The inspector shows the stage's display name, kind, and any role constraints. The sidebar root carries `data-prism-component="step-inspector"` and `data-prism-stage-detail="{stageKey}"`.
 
@@ -77,8 +80,7 @@ The inspector shows the stage's display name, kind, and any role constraints. Th
 
 The inspector lists the polymorphic component tree for the selected stage — sections, fieldsets, form fields, and conditional children. This mirrors the JSON structure in the workflow seed file.
 
-<!-- Screenshot: 04-step-inspector-properties.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Step inspector properties — applicant-details](../images/walkthroughs/planning-workflow-editor/04-step-inspector-properties.png)
 
 Each operation (field or component in the tree) carries `data-prism-op-index="{n}"`. The tree is read-only in Wave 1; editing individual components is a Wave 2 milestone.
 
@@ -90,8 +92,7 @@ Each operation (field or component in the tree) carries `data-prism-op-index="{n
 
 The mode-toggle button ("List view") is always visible in the toolbar. Clicking it switches `<prism-workflow-graph>` from graph mode (`role="application"` canvas) to linear mode (`role="listbox"` list of stage cards).
 
-<!-- Screenshot: 05-stage-list-view.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Stage list view](../images/walkthroughs/planning-workflow-editor/05-stage-list-view.png)
 
 In linear mode:
 - Each stage card has `role="option"` and is keyboard-focusable.
@@ -108,8 +109,7 @@ The full keyboard contract is exercised by [`workflow-graph-keyboard.spec.ts`](.
 
 `<prism-conversation-pane>` is the authoring input surface. The author types a change request in plain English and submits it via the Send button.
 
-<!-- Screenshot: 06-nl-request-typed.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Natural language change request typed](../images/walkthroughs/planning-workflow-editor/06-nl-request-typed.png)
 
 > **Example request used in this walkthrough:**
 > _"Add an identity verification step before the reviewer assessment stage."_
@@ -122,10 +122,9 @@ The conversation pane carries `data-prism-component="conversation-pane"`. The te
 
 ## Step 7 — Submit and receive a proposal diff
 
-Clicking Send issues a `POST /api/workflow-authoring/planning-permission/proposals` with the NL request body. Blathers' endpoint invokes the AI agent, which produces an `AuthoringProposal` envelope describing the proposed change as a set of atomic operations.
+Clicking Send issues a `POST /api/workflow-authoring/workflows/planning/preview` with the NL request body. Blathers' endpoint invokes the AI agent, which produces an `AuthoringProposal` envelope describing the proposed change as a set of atomic operations.
 
-<!-- Screenshot: 07-proposal-diff.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Proposal diff rendered in conversation thread](../images/walkthroughs/planning-workflow-editor/07-proposal-diff.png)
 
 The proposal diff (`<prism-proposal-diff>`, `data-prism-component="proposal-diff"`) renders inline in the conversation thread. It shows:
 - The proposed change in a structured diff format (inserted/modified/deleted operations).
@@ -138,7 +137,7 @@ The proposal diff (`<prism-proposal-diff>`, `data-prism-component="proposal-diff
 
 ## Step 8 — Accept the proposal
 
-When validation status is `pass`, the "Accept all" button is enabled. Clicking it issues a `PATCH /api/workflow-authoring/planning-permission` with the updated workflow definition.
+When validation status is `pass`, the "Accept all" button is enabled. Clicking it issues a `POST /api/workflow-authoring/workflows/planning/apply` with the updated workflow definition.
 
 The Accept all button is accessible via `getByRole('button', { name: /accept all/i })` — Playwright's role query pierces shadow DOM.
 
@@ -148,10 +147,9 @@ The Accept all button is accessible via `getByRole('button', { name: /accept all
 
 ## Step 9 — Workflow graph reflects the applied change
 
-After the PATCH request completes, `<prism-workflow-graph>` re-renders with the updated definition returned by the API. The new identity-verification stage appears as a node in the graph, positioned between `check-answers` and `reviewer-assessment`.
+After the apply request completes, `<prism-workflow-graph>` re-renders with the updated definition returned by the API. The new identity-verification stage appears as a node in the graph, positioned between `check-answers` and `reviewer-assessment`.
 
-<!-- Screenshot: 09-proposal-applied.png -->
-> _Screenshot placeholder — will be populated when `CAPTURE_SCREENSHOTS=1` is run against the Wave 1 stack._
+![Workflow graph with identity-verification stage applied](../images/walkthroughs/planning-workflow-editor/09-proposal-applied.png)
 
 The graph reflects the canonical definition as persisted by Blathers' endpoint — not a local optimistic update. If the PATCH fails (e.g. a concurrent edit conflict), the graph stays unchanged and an error message appears in the conversation thread.
 
@@ -159,23 +157,24 @@ The graph reflects the canonical definition as persisted by Blathers' endpoint �
 
 ## Running the screenshots
 
-Once both Wave 1 PRs have merged (Isabelle's editor page + Blathers' API), regenerate the screenshots with:
+Regenerate screenshots with:
 
 ```bash
 cd src/UmbracoPrism.Client
 CAPTURE_SCREENSHOTS=1 npx playwright test \
   --config=playwright.localhost-auth.config.ts \
-  --grep "Planning Workflow Editor walkthrough" \
+  tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts \
   --reporter=line
 ```
 
-The spec runs against the full Aspire stack (LiveAppHost) and writes PNGs to `docs/images/walkthroughs/planning-workflow-editor/`. Commit the images alongside the spec.
+The spec runs against the full Aspire stack (LiveAppHost) and writes PNGs to `docs/images/walkthroughs/planning-workflow-editor/`. Alternatively, trigger the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) GitHub Actions workflow (manual dispatch) to regenerate all walkthrough screenshots on the branch automatically.
 
 ---
 
 ## Related
 
-- **Executable spec:** [`planning-workflow-editor.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/planning-workflow-editor.walkthrough.spec.ts)
+- **Executable spec:** This walkthrough is executed on every PR by [`01-planning-workflow-editor.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch).
+- **Shell component:** [`prism-workflow-editor-shell.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor-shell.ts)
 - **Keyboard contract tests:** [`workflow-graph-keyboard.spec.ts`](../../src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts)
 - **Agent-loop seam tests:** [`planning-workflow-agent-loop.spec.ts`](../../src/UmbracoPrism.Client/tests/agent-loop/planning-workflow-agent-loop.spec.ts)
 - **Fixture contract tests:** [`PlanningWorkflowFixtureTests.cs`](../../src/UmbracoPrism.Core.Tests/Workflow/Authoring/PlanningWorkflowFixtureTests.cs)

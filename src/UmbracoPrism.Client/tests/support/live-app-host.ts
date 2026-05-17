@@ -6,7 +6,7 @@ import path from 'node:path';
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const appHostProject = path.join(repoRoot, 'src/UmbracoPrism.AppHost');
 const isolatedTestSiteRuntimeRoot = path.join(repoRoot, 'artifacts', 'aspire', 'testsite-runtime');
-const readinessTimeoutMs = 300_000;
+const readinessTimeoutMs = 480_000; // 8 minutes — CI runners vary; 5min was too tight on slow runners
 const readinessPollIntervalMs = 10_000;
 const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;

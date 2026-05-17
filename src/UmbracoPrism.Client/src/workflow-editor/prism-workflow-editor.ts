@@ -1,7 +1,12 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { AuthoredWorkflow, ProposalEnvelope } from './types.js';
-import { fetchWorkflow, previewProposal, applyProposal } from './workflow-authoring-client.js';
+import {
+  defaultAuthoringApiBase,
+  fetchWorkflow,
+  previewProposal,
+  applyProposal,
+} from './workflow-authoring-client.js';
 import { draftProposal, V1_UNRECOGNISED_MESSAGE } from './workflow-authoring-mock-drafter.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
@@ -30,6 +35,14 @@ export class PrismWorkflowEditorElement extends LitElement {
   /** Workflow key — read from ?workflow= URL param or set directly. */
   @property({ type: String, attribute: 'workflow-key' })
   workflowKey = 'planning';
+
+  /** Optional override for the workflow authoring API origin. */
+  @property({ type: String, attribute: 'authoring-api-base' })
+  authoringApiBase = '';
+
+  /** Name written into apply provenance for the host shell / approver. */
+  @property({ type: String, attribute: 'approver-name' })
+  approverName = 'reference-shell';
 
   /**
    * If set, the component uses this workflow directly instead of fetching from
@@ -68,7 +81,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._loading = true;
     this._error = null;
     try {
-      this._workflow = await fetchWorkflow(this.workflowKey);
+      this._workflow = await fetchWorkflow(this.workflowKey, this._resolvedAuthoringApiBase);
     } catch (err) {
       this._error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -101,7 +114,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     // The preview response is a PreviewResult (projectedFile, diff, etc.) — not a ProposalEnvelope.
     // Always keep localProposal as the envelope to apply; preview is a validation/display step only.
     try {
-      await previewProposal(this.workflowKey, localProposal);
+      await previewProposal(this.workflowKey, localProposal, this._resolvedAuthoringApiBase);
     } catch {
       // Preview API not yet available — use locally drafted proposal for walkthrough
     }
@@ -116,7 +129,12 @@ export class PrismWorkflowEditorElement extends LitElement {
   private async _handleProposalAccept() {
     if (!this._proposal) return;
     try {
-      await applyProposal(this.workflowKey, this._proposal);
+      await applyProposal(
+        this.workflowKey,
+        this._proposal,
+        this._resolvedAuthoringApiBase,
+        this.approverName
+      );
     } catch {
       // Apply endpoint may not be live in V1 walkthrough — apply locally
       this._applyProposalLocally(this._proposal);
@@ -189,6 +207,10 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._graphMode = this._graphMode === 'graph' ? 'linear' : 'graph';
   }
 
+  private get _resolvedAuthoringApiBase(): string {
+    return this.authoringApiBase || defaultAuthoringApiBase();
+  }
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -208,7 +230,7 @@ export class PrismWorkflowEditorElement extends LitElement {
           <!-- Left: graph + title bar -->
           <div class="editor-left">
             <div class="editor-header" role="none">
-              <h1 class="editor-title">
+              <h1 id="workflow-editor-title" class="editor-title">
                 ${this._workflow?.displayName ?? 'Workflow Editor'}
               </h1>
               <button

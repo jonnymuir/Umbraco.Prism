@@ -1,0 +1,38 @@
+﻿@using UmbracoPrism.Core.Models
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<WorkflowHubViewModel>
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+    var pageTitle = string.IsNullOrWhiteSpace(Model.Name) ? "My Workflows" : Model.Name;
+}
+
+<div class="prism-workflow-hub">
+    <header class="prism-workflow-hub__header">
+        <h1 class="prism-workflow-hub__title">@pageTitle</h1>
+        <p class="prism-workflow-hub__subtitle">
+            Umbraco owns the member journey here; your business app stays responsible for workflow state and progression.
+        </p>
+    </header>
+
+    @if (Model.ActiveInstances.Any())
+    {
+        <section class="prism-workflow-hub__section" aria-labelledby="active-heading">
+            <h2 id="active-heading" class="prism-workflow-hub__section-title">In Progress</h2>
+            @await Html.PartialAsync("_WorkflowHub-InstanceList", Model.ActiveInstances)
+        </section>
+    }
+
+    @if (Model.CompletedInstances.Any())
+    {
+        <section class="prism-workflow-hub__section" aria-labelledby="completed-heading">
+            <h2 id="completed-heading" class="prism-workflow-hub__section-title">Completed</h2>
+            @await Html.PartialAsync("_WorkflowHub-InstanceList", Model.CompletedInstances)
+        </section>
+    }
+
+    @if (!Model.ActiveInstances.Any() && !Model.CompletedInstances.Any())
+    {
+        <div class="prism-workflow-hub__empty" role="status">
+            <p class="govuk-body">You don't have any active workflows yet.</p>
+        </div>
+    }
+</div>

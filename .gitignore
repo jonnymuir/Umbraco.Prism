@@ -488,10 +488,9 @@ umbraco-package-schema.json
 
 # Media files
 /wwwroot/media/
-# Squad: ignore runtime state (logs, inbox, sessions)
+# Squad: ignore runtime state (logs and sessions)
 .squad/orchestration-log/
 .squad/log/
-.squad/decisions/inbox/
 .squad/sessions/
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
@@ -506,9 +505,7 @@ umbraco-package-schema.json
 /artifacts/logs/trycloudflared/
 artifacts/aspire/keycloak-data/
 .agents/
-# Auto-generated Umbraco views that conflict with Core embedded views
-src/UmbracoPrism.TestSite/Views/workflowPage.cshtml
-src/UmbracoPrism.TestSite/Views/workflowHub.cshtml
+# Workflow reference views are tracked in TestSite.
 
 # Local secrets override for TestSite — never commit.
 # Contains Prism:VaultUri and any other local secrets.

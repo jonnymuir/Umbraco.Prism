@@ -99,7 +99,7 @@ jobs:
 
   planning-workflow-editor-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client

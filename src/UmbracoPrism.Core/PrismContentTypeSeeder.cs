@@ -93,6 +93,13 @@ public class PrismContentTypeSeeder(
             contentTypeService.Save(contentType);
 #pragma warning restore CS0618
         }
+        else if (contentType.AllowedAsRoot)
+        {
+            contentType.AllowedAsRoot = false;
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
 
         await EnsureWorkflowKeyPropertyAsync(contentType);
         await EnsureTemplateAsync(contentType, name);
@@ -114,6 +121,13 @@ public class PrismContentTypeSeeder(
                 AllowedAsRoot = true,
                 Icon = "icon-dashboard"
             };
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
+        else if (contentType.AllowedAsRoot)
+        {
+            contentType.AllowedAsRoot = false;
 #pragma warning disable CS0618
             contentTypeService.Save(contentType);
 #pragma warning restore CS0618

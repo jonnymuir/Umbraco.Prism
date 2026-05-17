@@ -106,126 +106,89 @@ public class WorkflowPageSeeder(
 
     private void EnsureCommunityEnquiryPage()
     {
-        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
-        if (contentType == null)
-        {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping (run again after seeder)");
-            return;
-        }
-
-        var existing = TestSiteSeedContract.FindWorkflowContent(contentService, TestSiteSeedContract.WorkflowKey);
-
-        if (existing != null)
-        {
-            SaveAndPublishIfNeeded(
-                existing,
-                TestSiteSeedContract.WorkflowPageName,
-                page => page.SetValue("workflowKey", TestSiteSeedContract.WorkflowKey),
-                "seeded workflow page");
-            return;
-        }
-
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded workflow page");
-
-        var page = contentService.Create(TestSiteSeedContract.WorkflowPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
-        page.SetValue("workflowKey", TestSiteSeedContract.WorkflowKey);
-        SaveAndPublishIfNeeded(page, TestSiteSeedContract.WorkflowPageName, null, "seeded workflow page");
+        EnsureWorkflowPageUnderHome(
+            TestSiteSeedContract.WorkflowKey,
+            TestSiteSeedContract.WorkflowPageName,
+            "seeded workflow page");
     }
 
     private void EnsurePlanningWorkflowPage()
     {
-        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
-        if (contentType == null)
-        {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping planning workflow page");
-            return;
-        }
-
-        // Use exact-key-only search — no alias fallback. FindWorkflowContent's fallback would
-        // corrupt an existing community-enquiry page on a fresh DB because it returns the first
-        // workflowPage found when no key match exists.
-        var existing = EnumerateContentTree()
-            .FirstOrDefault(content =>
-                content.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
-                && string.Equals(content.GetValue<string>("workflowKey"), TestSiteSeedContract.PlanningWorkflowKey, StringComparison.OrdinalIgnoreCase));
-
-        if (existing != null)
-        {
-            SaveAndPublishIfNeeded(
-                existing,
-                TestSiteSeedContract.PlanningWorkflowPageName,
-                page => page.SetValue("workflowKey", TestSiteSeedContract.PlanningWorkflowKey),
-                "seeded planning workflow page");
-            return;
-        }
-
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded planning workflow page");
-
-        var page = contentService.Create(TestSiteSeedContract.PlanningWorkflowPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
-        page.SetValue("workflowKey", TestSiteSeedContract.PlanningWorkflowKey);
-        SaveAndPublishIfNeeded(page, TestSiteSeedContract.PlanningWorkflowPageName, null, "seeded planning workflow page");
+        EnsureWorkflowPageUnderHome(
+            TestSiteSeedContract.PlanningWorkflowKey,
+            TestSiteSeedContract.PlanningWorkflowPageName,
+            "seeded planning workflow page");
     }
 
     private void EnsurePaymentDemoPage()
     {
-        var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
-        if (contentType == null)
-        {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping payment demo page");
-            return;
-        }
-
-        var existing = EnumerateContentTree()
-            .FirstOrDefault(content =>
-                content.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
-                && string.Equals(content.GetValue<string>("workflowKey"), TestSiteSeedContract.PaymentDemoWorkflowKey, StringComparison.OrdinalIgnoreCase));
-
-        if (existing != null)
-        {
-            SaveAndPublishIfNeeded(
-                existing,
-                TestSiteSeedContract.PaymentDemoPageName,
-                page => page.SetValue("workflowKey", TestSiteSeedContract.PaymentDemoWorkflowKey),
-                "seeded payment demo page");
-            return;
-        }
-
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded payment demo page");
-
-        var page = contentService.Create(TestSiteSeedContract.PaymentDemoPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
-        page.SetValue("workflowKey", TestSiteSeedContract.PaymentDemoWorkflowKey);
-        SaveAndPublishIfNeeded(page, TestSiteSeedContract.PaymentDemoPageName, null, "seeded payment demo page");
+        EnsureWorkflowPageUnderHome(
+            TestSiteSeedContract.PaymentDemoWorkflowKey,
+            TestSiteSeedContract.PaymentDemoPageName,
+            "seeded payment demo page");
     }
 
     private void EnsureInformationRequestPage()
     {
+        EnsureWorkflowPageUnderHome(
+            TestSiteSeedContract.InformationRequestWorkflowKey,
+            TestSiteSeedContract.InformationRequestPageName,
+            "seeded information request page");
+    }
+
+    private void EnsureWorkflowPageUnderHome(string workflowKey, string pageName, string label)
+    {
+        var homePage = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.HomePageAlias);
+        if (homePage == null)
+        {
+            logger.LogDebug("WORKFLOW PAGE SEEDER: homePage not found; skipping {Label}", label);
+            return;
+        }
+
         var contentType = contentTypeService.Get(TestSiteSeedContract.WorkflowPageAlias);
         if (contentType == null)
         {
-            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping information request page");
+            logger.LogDebug("WORKFLOW PAGE SEEDER: workflowPage doc type not found; skipping {Label}", label);
             return;
         }
 
         var existing = EnumerateContentTree()
             .FirstOrDefault(content =>
                 content.ContentType.Alias == TestSiteSeedContract.WorkflowPageAlias
-                && string.Equals(content.GetValue<string>("workflowKey"), TestSiteSeedContract.InformationRequestWorkflowKey, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(content.GetValue<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null && existing.ParentId != homePage.Id)
+        {
+            logger.LogInformation(
+                "WORKFLOW PAGE SEEDER: Replacing workflow page {WorkflowKey} at parent {ParentId} so the seeded route stays under Home",
+                workflowKey,
+                existing.ParentId);
+
+            var deleteResult = contentService.Delete(existing);
+            if (!deleteResult.Success)
+            {
+                logger.LogWarning("WORKFLOW PAGE SEEDER: Delete failed — {Reason}", deleteResult.Result);
+                return;
+            }
+
+            existing = null;
+        }
 
         if (existing != null)
         {
             SaveAndPublishIfNeeded(
                 existing,
-                TestSiteSeedContract.InformationRequestPageName,
-                page => page.SetValue("workflowKey", TestSiteSeedContract.InformationRequestWorkflowKey),
-                "seeded information request page");
+                pageName,
+                page => page.SetValue("workflowKey", workflowKey),
+                label);
             return;
         }
 
-        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating seeded information request page");
+        logger.LogInformation("WORKFLOW PAGE SEEDER: Creating {Label}", label);
 
-        var page = contentService.Create(TestSiteSeedContract.InformationRequestPageName, Constants.System.Root, TestSiteSeedContract.WorkflowPageAlias);
-        page.SetValue("workflowKey", TestSiteSeedContract.InformationRequestWorkflowKey);
-        SaveAndPublishIfNeeded(page, TestSiteSeedContract.InformationRequestPageName, null, "seeded information request page");
+        var page = contentService.Create(pageName, homePage.Id, TestSiteSeedContract.WorkflowPageAlias);
+        page.SetValue("workflowKey", workflowKey);
+        SaveAndPublishIfNeeded(page, pageName, null, label);
     }
 
     private void EnsureWorkflowHubPage()

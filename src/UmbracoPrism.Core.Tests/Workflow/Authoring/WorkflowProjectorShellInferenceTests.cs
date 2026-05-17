@@ -1,5 +1,5 @@
 using FluentAssertions;
-using UmbracoPrism.Core.Workflow.Authoring;
+using UmbracoPrism.WorkflowEditor.Authoring;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow.Components;
 

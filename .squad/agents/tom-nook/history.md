@@ -75,6 +75,12 @@ Awaiting implementation phase dispatch.
 
 ## Learnings
 
+### 2026-05-17T17:09:07.957+01:00 | Reference split review
+
+- The extraction branch is architecturally sound as a **partial** split: `UmbracoPrism.WorkflowEditor` now owns the authoring domain, but MockBusinessApp still owns too much host/runtime composition to claim the boundary is finished.
+- The right V1 demonstration shape is **reference app, not hidden owner**: MockBusinessApp should stay as the sample that shows how to compose the pieces, while reusable editor/runtime logic moves into dedicated libraries.
+- “Right tool for the right job” needs to stay explicit in the architecture: Copilot CLI handles natural-language drafting/orchestration, workflow-aware MCP/tool surfaces handle semantic operations, and the runtime never becomes the place where AI writes directly.
+
 ### 2026-05-15T06:35:47.013+01:00 | PASA death-process design
 
 - PASA's public guidance is strongest on **risk-based identity management** and the need for a clear member identity view across life events, but it does not prescribe a detailed digital bereavement journey. The notifier UX, optional-account posture, and assisted-digital shape therefore need to come from broader UK bereavement and service-design practice.
@@ -123,3 +129,15 @@ Produced foundational decision on case-scoped notifier model for death-process e
 ## 2026-05-17T12:32:29.455640Z
 
 Reviewed overall CI and E2E architecture; provided architectural recommendations for faster CI
+
+### 2026-05-17T16:56:41.297+01:00 | Workflow separation review
+
+- The extraction branch has achieved a **partial** split: authoring contracts/services now live in `UmbracoPrism.WorkflowEditor`, and Umbraco's backoffice host is a thin iframe wrapper, but the editor is still operationally hosted by `UmbracoPrism.MockBusinessApp`.
+- The clearest remaining coupling is host/composition coupling, not model coupling: `src/UmbracoPrism.MockBusinessApp/Program.cs` still serves `workflow-editor.html` via `PhysicalFileProvider` and maps `/api/workflow-authoring/*`, so the "edit anywhere" story is not yet proven by a separate shell host.
+- Runtime/backstage abstraction is the next architectural gap after host extraction. `BusinessAppWorkflowEngine` is still app-local, and the runtime response contracts are physically in `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs` but still namespaced as `UmbracoPrism.Core.Models.Workflow`, which is a coupling smell to remove before claiming a clean three-way split.
+
+### 2026-05-17T17:33:13.797+01:00 | Merge-readiness review for reference split
+
+- PR #53 is **not merge-ready yet**. GitHub still shows `core-tests` failing on the pushed branch, even though the current worktree contains a local fix (removing the committed `Umbraco:CMS:Imaging:HMACSecretKey` from `src/UmbracoPrism.TestSite/appsettings.json`) and local `dotnet test UmbracoPrism.sln --no-restore -v minimal` is green.
+- The branch also has substantial uncommitted worktree changes, so the state I validated locally is not yet the state GitHub is testing. Until those changes are committed, pushed, and re-run through CI, merge-to-main stays blocked.
+- The end-to-end workflow-editor walkthrough is only **partially** documented: screenshot PNGs are present, but `docs/walkthroughs/planning-workflow-editor.md` still reads like a Wave 1 placeholder and does not actually embed the images or reflect the `/workflow-editor` reference-shell flow now exercised by Tangy's spec.
