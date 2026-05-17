@@ -143,3 +143,12 @@ Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox 
 4. Wrote decision to `.squad/decisions/inbox/tangy-walkthrough-screenshots.md`.
 
 **Lesson:** When the spec is updated to test a new flow, screenshots must be explicitly regenerated via the capture workflow — the old PNGs don't self-update. Track this as a post-spec-change step: trigger capture-screenshots immediately after any spec navigation change.
+
+### 2026-05-17T22:05:30.472+01:00 | Design rewrite batch + CI verification
+
+- Verified CI fixes for PR #53 (feat/workflow-editor-library-extraction): core-tests green (HMAC secret removal in 47a50cf), smoke tests green (readiness timeout 8 min in 125f166). All five CI jobs passing.
+- Identified screenshot regeneration requirement: library extraction introduced new reference shell; old screenshots capture pre-extraction flow. Decision documented to trigger `capture-screenshots.yml`.
+- Produced two decisions merged to `.squad/decisions.md`:
+  1. **tangy-ci-fix-pass.md** — CI verification green; branch ready for merge review.
+  2. **tangy-walkthrough-screenshots.md** — Screenshot regeneration strategy (capture-screenshots workflow commits updated images back to branch automatically).
+- PR #53 branch is in fully green state pending screenshot workflow completion.

@@ -1,3 +1,274 @@
+# Decision: Workflow editor doc reframe
+
+**Date:** 2026-05-17T22:05:30.472+01:00  
+**Author:** Tom Nook  
+**Status:** Proposed  
+
+Rewrite the top-level workflow-editor design set so it opens with only three product concepts:
+
+1. **Workflow editor**
+2. **Workflow engine**
+3. **Forms engine**
+
+The workflow editor is the V1 focus. Deterministic publishing, Umbraco hosting, validation layers, and Copilot or MCP support remain in scope, but they are supporting seams behind the editor rather than peer products in the headline narrative.
+
+## Consequences
+
+- `docs/design/workflow-editor-v1/README.md` now leads with editor responsibilities, the action-model split, and the editor review and publish loop.
+- `docs/design/workflow-editor-v1/03-umbraco-integration.md` describes Umbraco as the hosting topology around the editor and workflow engine, not as part of a plane-based story.
+- `docs/design/workflow-editor-v1/04-agentic-surfaces.md` keeps proposal-first Copilot and MCP work available, but clearly positions it as optional support for the editor-first workflow.
+
+## Scope guardrails
+
+- Do not reintroduce extra top-level architectural nouns into the opening narrative.
+- Keep runtime and forms detail only where they clarify editor decisions.
+- Keep Copilot and MCP work behind the same review, validation, and publish loop as human edits.
+
+
+# Decision: Workflow editor simplification
+
+**Date:** 2026-05-17T22:05:30.472+01:00  
+**Author:** Tom Nook  
+**Status:** Proposed  
+
+Reframe the next workflow design iteration around only three primary concepts:
+
+1. **Workflow editor** — the authoring product.
+2. **Workflow engine** — the runtime state and transition executor.
+3. **Forms engine** — the field/component system used by workflow actions and stages.
+
+Projection, agent tooling, and backoffice hosting remain valid design concerns, but they should be described as implementation seams inside those three concepts rather than as separate top-level planes in the main narrative.
+
+## What the workflow editor owns
+
+The workflow editor should own every design-time concern required to fully describe the authored workflow JSON:
+
+- workflow metadata, stage creation/naming/ordering, transition graph authoring, action attachment
+- action parameter editing and validation
+- forms-backed action configuration using existing GDS-aligned forms components
+- generic configuration for actions not yet implemented at runtime
+- validation, preview, diff/history, help, undo/redo, and copy/paste
+
+The editor should not own runtime execution logic. It defines intent; the workflow engine interprets it.
+
+## Action boundary
+
+Use a simple split:
+
+- **Design-time action catalog:** lists available action types, labels, descriptions, parameter schema, editor widgets, defaults, validation hints, and whether the action is currently runtime-capable.
+- **Runtime action execution:** resolves an authored action `type` to a runtime handler implementation and executes it with the authored parameters plus runtime context.
+
+This keeps the editor honest about what can be authored today while still allowing forward-compatible workflow files that reference actions whose handlers are not yet implemented.
+
+## Runtime abstraction
+
+For the reference business app, prefer a **named handler registry** over ad-hoc callback or lambda wiring:
+
+- authored workflow stores `action.type` plus `parameters`
+- app startup registers `IWorkflowActionHandler` implementations by action type
+- workflow engine resolves the handler and invokes it with a typed execution context
+
+
+# Decision: Workflow editor state audit
+
+**Date:** 2026-05-17T20:02:23.686+01:00  
+**Author:** Tom Nook  
+**Status:** Proposed  
+
+Treat the current main-branch workflow editor as a **foundation/reference slice**, not as the delivered V1 workflow editor. Future communication, reviews, and planning should describe it that way until the real agent plane and publish path exist.
+
+## Why
+
+The code on main already proves several valuable seams:
+- editor-native authored workflow contracts
+- deterministic projection and preview/apply HTTP endpoints
+- a browser reference shell and thin Umbraco iframe host
+- walkthrough/test coverage
+
+But key promised V1 capabilities are not yet present:
+- no workflow MCP server
+- no GitHub Copilot wiring beyond schema comments
+- no real natural-language drafting service
+- no publish loop from authored workflow back into runtime
+- no full workspace UX from the design docs
+
+## Consequence
+
+Sequence the next work as:
+
+1. **Real agent plane first** — ship workflow MCP/CLI surfaces
+2. **Copilot integration second** — wire GitHub Copilot
+3. **Runtime publish path third** — apply must persist projected seeds
+4. **UX completion fourth** — deepen the editor to the fuller workspace promised
+
+
+# Decision: Regenerate walkthrough screenshots after reference shell extraction
+
+**Date:** 2026-05-17T17:33:13.797+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+The library extraction refactor introduced a new reference shell and a `/workflow-editor` redirect in MockBusinessApp. The planning workflow editor walkthrough spec was updated to test the new shell flow, but the screenshots were captured against the old direct-URL flow before the reference split.
+
+## Decision
+
+1. Commit all reference-split changes in a single commit on `feat/workflow-editor-library-extraction`
+2. Update the walkthrough doc to embed real screenshot references and update narrative/API path references
+3. Trigger `capture-screenshots.yml` to regenerate the PNGs from the new shell flow
+
+The old screenshots showed the raw editor page without the reference shell UI. The new screenshots must show the thin shell with hero copy, workflow picker, and integration snippet.
+
+
+# Decision: CI Fix Verification — Both Fixes Confirmed Green
+
+**Date:** 2026-05-17T18:30:56.987+01:00  
+**Author:** Tangy  
+**Status:** ✅ Confirmed Green  
+
+PR #53 had two concurrent CI failures, both now fixed:
+
+1. **`core-tests` failure** — `TestSiteAppsettingsSecretGuardTests` caught a re-leaked `Umbraco:CMS:Imaging:HMACSecretKey`. Fix: commit `47a50cf` removed the key.
+2. **`planning-workflow-editor-smoke` failure** — Transient timeout; cold-start exceeded 5-minute window. Fix: commit `125f166` increased readiness timeout to 8 min and job cap from 10 → 15 min.
+
+All five CI jobs are now green on HEAD. The branch `feat/workflow-editor-library-extraction` is ready for merge review.
+
+
+# Decision: Design Documentation & Execution Artifact Structure Recommendation
+
+**Date:** 2026-05-17T21:48:11.537+01:00  
+**Author:** Mabel  
+**Status:** Proposed  
+
+Use both docs and issues in a complementary pattern:
+
+1. **Docs (`/docs/design/`) → source of truth for design logic.** Holds narrative, contracts, decision rationale, and cross-cutting constraints.
+2. **Issues → traceable execution units.** Backed by decisions.md for discoverability, linked to docs sections for context. Task-scoped (typically 2–5 day tasks).
+3. **decisions.md → bridge layer.** Captures decision summaries and cross-links execution back to docs.
+
+This structure scales across the portfolio (workflow editor, notifications, PASA death-process, biometric auth) without collision or bottleneck.
+
+## Key Recommendations
+
+- **Docs stay as narrative source of truth** (`/docs/design/`). Follow Workflow Editor V1 spine as canonical pattern (README.md with specialist sections).
+- **Issues are execution units** — one per 2–5 day task; cluster at squad-member level; link back to doc sections.
+- **Lightweight cross-linking** (5 min per issue, 2 min per doc update) keeps them in sync without becoming a maintenance tax.
+- **decisions.md acts as the bridge** — keeps durable log of decisions with links outward to docs, issues, and PRs.
+
+Three hygiene rules keep them in sync:
+1. Issue body must reference the doc (copy snippet from doc, fill template)
+2. Doc updates must bump the decisions file (single-line summary for surgical changes)
+3. decisions.md acts as the bridge layer with pattern: decision summary + rationale + artifacts + impact
+
+
+# Decision: Workflow Editor V1 Documentation Terminology Polish
+
+**Date:** 2026-05-17  
+**Author:** Mabel  
+**Status:** Implemented  
+
+Reviewed workflow editor v1 design docs for terminology consistency and clarity. Made targeted wording corrections to align all five documents with mental model: "There is a workflow editor. There is a workflow engine. And there is a forms engine."
+
+## Changes Made
+
+### Stage vs. State Clarification (Section 01)
+- Line 36: `"nodes = states"` → `"nodes = authored stages"` with parenthetical
+- All conflations of authored stages with runtime states replaced
+
+### Projection Plane Distinction (Section 02)
+- Added opening paragraph clarifying: Authored Model uses **stages** (what humans design), runtime uses **states** (what engine executes)
+
+### README — Three Operational Products Named Explicitly
+- TL;DR rewritten to name workflow editor, workflow engine, and forms engine explicitly
+- Repo mapping table added with runtime counterpart column
+
+### Section 03 (Umbraco Integration) — Clarified Engine Roles
+- Added note distinguishing Forms Engine (Prism rendering layer) from Workflow Engine (runtime)
+
+All changes are terminology and clarity only; no substantive architecture decisions modified. All five documents now use consistent terminology and are internally coherent.
+
+
+# Decision: Workflow editor V1 should be a structured authoring workspace, not a JSON-first tool
+
+**Date:** 2026-05-17T22:05:30.472+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+V1 should ship as a **single structured workspace** with four core surfaces:
+
+1. **Graph/List workspace** for orienting and selecting stages and transitions
+2. **Inspector** for editing the selected stage, transition, action, and parameter details
+3. **Conversation/proposal pane** for safe AI-assisted drafting and reviewed diffs
+4. **Preview/simulation pane** for understanding how authored changes feel in runtime terms
+
+Within that workspace, the primary editing model is **workflow-native**:
+- authors edit stages, transitions, actions, action parameters, roles, and form fields
+- authors do not need raw JSON for normal work
+- AI changes remain proposal-first
+- undo/redo, keyboard support, and help/discoverability are first-class V1 requirements
+
+## Rationale
+
+- Raw-JSON-first experience feels powerful to experts but weak for everyone else; hides workflow intent
+- Graph-only experience is visually strong but inaccessible for detailed editing; list/inspector pairing is required
+- Action parameters, especially form-related ones, need guided configuration with defaults/validation
+- Copy/paste, undo/redo, and shortcut help are baseline expectations for any editor aiming to replace hand-editing JSON
+
+## Impact
+
+- Frontend work should prioritise reusable editor primitives
+- Backend/authoring APIs should expose workflow-native operations rather than leaking raw schema concerns
+- QA should treat keyboard parity, discoverability, and proposal review as acceptance criteria
+
+
+# Decision: explain workflow actions as catalog plus handler registry
+
+**Date:** 2026-05-17T22:05:30.472+01:00  
+**Author:** Blathers  
+**Status:** Proposed  
+
+Describe the workflow system with four simple concepts:
+
+1. workflow definition
+2. action catalog
+3. workflow engine
+4. action handlers
+
+Use the following split:
+
+- Workflow JSON describes stages, transitions, and typed actions
+- The action catalog tells the editor which action types exist and what parameters they need
+- The reference business app resolves typed actions through a handler registry
+- Forms-backed actions and future actions such as email use the same typed-action contract
+
+This keeps the editor contract declarative and keeps runtime behaviour in the business app. It also gives the design docs a simpler mental model while preserving projection as the compatibility seam to the existing Prism runtime.
+
+
+# Decision: use a handler registry for workflow runtime actions
+
+**Date:** 2026-05-17T22:05:30.472+01:00  
+**Author:** Blathers  
+**Status:** Proposed  
+
+Adopt a **declarative action reference + handler registry** model.
+
+- Workflow JSON should reference actions by a stable `type` key plus a serialisable `params` object
+- User-facing transition verbs remain part of the workflow graph and should stay distinct from executable runtime handlers
+- Runtime actions may hang off stage entry and/or transition exit, but they remain declarative data in JSON — never inline callbacks
+- The reference business app should register action handlers in DI. The same registry is the source for both editor discovery metadata and runtime dispatch
+- Each handler should expose a descriptor: display name, summary, applicability, defaults, and parameter schema
+
+This keeps authored workflows portable, reviewable, and safe. It avoids baking C# implementation details into workflow JSON, while still giving the editor enough structure to offer guided configuration. It matches the existing Prism split: Prism renders and validates workflow surfaces, while the business app decides what happens next.
+
+A pure callback/lambda pattern is attractive for a small demo, but only as registration sugar inside the app. It breaks down at the authoring contract because anonymous code cannot be serialised, discovered, validated, diffed, or safely surfaced to the editor. A registry of named handlers gives the simplicity of callbacks in code with the stability of declarative design-time contracts.
+
+## Impact
+
+- **Forms-engine-backed actions** fit as built-in handler types
+- **Future actions like email** fit the same path: add a new handler, publish its descriptor/schema
+- **Minimum editor metadata** should be: type key, display name, description, applicability, schema, defaults/examples, outcome shape
+- The runtime engine stays generic: resolve current stage/transition, load action refs, invoke handlers, merge outputs, and return through the existing envelope model
+
+
 # Decision: PASA death-process should use verified case access, not mandatory registration
 
 **Date:** 2026-05-15T06:35:47.013+01:00  

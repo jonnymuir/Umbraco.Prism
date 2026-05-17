@@ -48,6 +48,21 @@ Created `vite.workflow-editor.config.ts` for the workflow-editor build target. U
 
 ## Learnings (Summarized)
 
+### 2026-05-17T22:05:30.472+01:00 — Workflow editor UX requirements refinement
+
+- **Minimum great V1 editor experience = structural authoring, not raw JSON editing:** the baseline needs graph/list duality for orientation, a focused inspector for detail editing, a persistent conversation/proposal surface, a preview/simulation surface, and explicit save with undo/redo.
+- **Editing affordances must be workflow-native:** stages, transitions, actions, and form/action parameters should be created and edited through named workflow concepts (`stageKey`, action, actor, role gate, insertion point) with inline validation phrased in workflow language.
+- **Forms-related actions should feel like a form builder inside a workflow editor:** choose an action, get a friendly parameter form with defaults, summaries, and validation, then see the effect in stage context rather than editing opaque JSON blobs.
+- **Discoverability is a product requirement:** shortcut help, empty-state guidance, visible affordances, provenance, and proposal-first AI review are part of the editor contract, not polish.
+- **Key file paths for this UX slice:** `docs/design/workflow-editor-v1/01-authoring-ux.md`, `docs/design/workflow-editor-v1/04-agentic-surfaces.md`, `docs/walkthroughs/planning-workflow-editor.md`, `src/UmbracoPrism.Client/src/workflow-editor/types.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`.
+
+### 2026-05-17T20:02:23.686+01:00 — Workflow editor shipped surface audit
+
+- **Current browser surface is a reference host plus read-only V1 components:** `workflow-editor.html`, `prism-workflow-editor-shell.ts`, and `prism-workflow-editor.ts` assemble workflow picking, API-base wiring, graph/list viewing, stage inspection, and proposal review, but not full stage/transition editing.
+- **Natural-language drafting is still mocked in the client:** `workflow-authoring-mock-drafter.ts` recognises only ID&V/identity prompts and generates one canned proposal locally; there is no shipped MCP server or Copilot drafting implementation under `src/UmbracoPrism.MockBusinessApp/workflow-agent/`.
+- **Docs and walkthrough overstate the live AI surface:** the walkthrough describes inline proposal review and agent-backed NL drafting, but the assembled editor opens a modal diff and only POSTs already-structured proposal envelopes to `/api/workflow-authoring/workflows/{key}/preview` and `/apply`.
+- **Coverage today proves component rendering and keyboard/list interaction more than true agent integration:** `tests/workflow-editor/workflow-graph-keyboard.spec.ts` validates the graph/list keyboard contract; `01-planning-workflow-editor.walkthrough.spec.ts` proves the reference shell flow at request/DOM level, but not real Copilot/MCP orchestration or robust server-side apply semantics.
+
 ### 2026-05-17T17:09:07.957+01:00 — Reference editor shell hosting
 
 - **Keep the host shell thin:** workflow selection, API-base wiring, and editor mounting belong in the shell; runtime case handling and business logic do not.
@@ -118,3 +133,11 @@ Created `vite.workflow-editor.config.ts` for the workflow-editor build target. U
 - **Stale Storybook on port 6006**: If a prior Storybook process is still running on 6006, `npm run storybook` starts on 6007 but tests connect to 6006 (old build). Always `kill $(lsof -ti tcp:6006)` before running tests.
 - **Story page state bleed**: Storybook test-runner reuses the browser page between stories in the same file. If one story mutates component state (e.g., toggles mode to 'linear'), the next story may inherit that state. Add an explicit state reset at the start of play functions that depend on a known initial state.
 - **Mock drafter in `workflow-editor/` not `stories/`**: V1 canned drafters belong next to the components they serve, not in a shared test folder, so they can be imported by both stories and future integration tests.
+
+### 2026-05-17T22:05:30.472+01:00 | Design rewrite batch — Authoring UX refinement
+
+- Rewrote `docs/design/workflow-editor-v1/01-authoring-ux.md` to establish **structured authoring workspace** as the V1 editing model (not JSON-first).
+- Produced one decision merged to `.squad/decisions.md`:
+  - **isabelle-workflow-editor-ux-principles.md** — Defined four core surfaces (graph/list, inspector, conversation/proposal, preview/simulation) and workflow-native editing model (stages, transitions, actions, form fields without raw JSON).
+- Rationale: Raw-JSON-first hides workflow intent; graph-only is brittle; action parameters need guided configuration; copy/paste/undo/redo are baseline expectations.
+- Impact: Frontend primitives (selection, duplication, reorder, validate, preview) and backend authoring APIs (workflow-native operations, not schema leaks) are now acceptance criteria.
