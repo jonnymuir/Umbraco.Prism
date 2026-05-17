@@ -1,3 +1,33 @@
+## 2026-05-17: Workflow Editor Asset Extraction
+
+**Scope:** Frontend asset wiring for workflow editor library extraction  
+**Outcome:** Split Vite build to route workflow-editor assets to new library while preserving Core dependencies  
+**Commits:** `9ab9ba4` (backend, Blathers), `0553af5` (asset split fix, Isabelle)  
+
+### Implementation
+
+Corrected the asset build output paths to properly split concerns:
+- **Core assets** (dashboard, mobile-nav) → `Core/wwwroot/dist` (preserves TestSite dependency)
+- **WorkflowEditor assets** → `WorkflowEditor/wwwroot/dist` (new library)
+
+Created `vite.workflow-editor.config.ts` for the workflow-editor build target. Updated package.json build script to run both configs sequentially: `tsc && vite build && vite build --config vite.workflow-editor.config.ts`.
+
+### Key Learning
+
+**Split build is safer than monolithic outDir change:** The initial backend commit set all assets to output to WorkflowEditor, which would have broken TestSite's dependency on `prism-mobile-nav.js` served from Core's `/App_Plugins/UmbracoPrism/dist/`. Splitting the build preserves backward compatibility.
+
+**Dual Vite configs scale well:** The overhead is minimal (~95ms for the second pass). Each library owns its own asset manifest. No duplication or post-build scripting required.
+
+**Accessibility validation gates asset refactors:** Ran full Storybook suite (30 test suites, 282 tests, 3 browsers) to confirm no regressions from the build config changes. All WCAG 2.2 AA checks passed.
+
+### Files Changed
+
+- `src/UmbracoPrism.Client/vite.config.ts` — Reverted outDir to Core, removed workflow-editor entry
+- `src/UmbracoPrism.Client/vite.workflow-editor.config.ts` — New config for workflow-editor build
+- `src/UmbracoPrism.Client/package.json` — Updated build script to run both configs
+
+---
+
 ## 2026-05-16: Workflow Editor V1 Design Cycle
 
 **Scope:** Five-agent orchestration for workflow editor design iteration  
