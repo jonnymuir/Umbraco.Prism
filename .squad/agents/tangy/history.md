@@ -19,6 +19,26 @@
 
 ## Learnings (Summarized)
 
+### 2026-05-17T13:59:00+01:00 — Smoke Test Failure: Missing Build Step in CI
+
+**Task:** Diagnose failing `planning-workflow-editor-smoke` CI job on PR #52 without guessing.
+
+**Diagnosis Method:**
+1. Downloaded CI artifacts (trace.zip, screenshots) from failed run 25991274355
+2. Screenshot showed blank page; test timed out waiting for `[data-prism-workflow-loaded]`
+3. Ran test locally → passed (1.1m)
+4. Deleted local dist/ directory to simulate CI → would fail same way
+5. Compared CI workflow: missing `npm run build` between `npm ci` and test execution
+
+**Root Cause:** MockBusinessApp serves workflow-editor.html from `src/UmbracoPrism.Core/wwwroot/dist/`, which is populated by Vite build. CI never ran the build, so dist/ was empty, resulting in blank page (404/empty response).
+
+**Fix:** Added `npm run build` step to both `planning-workflow-editor-smoke` and `localhost-auth-playwright` jobs in `.github/workflows/ci-tests.yml`. Verified locally: cleaned dist/, rebuilt, test passed.
+
+**Lesson:** CI jobs must include full build chain. Don't rely on pre-existing artifacts. Test "clean checkout → build → test" path locally before pushing CI changes.
+
+**Committed:** `10522f6` — fix(ci): add missing Vite build step to Playwright test jobs  
+**Decision:** `.squad/decisions/inbox/tangy-smoke-failure-diagnosis.md`
+
 ### 2026-05-17T12:45:42.676+01:00 — Fast-Fail CI Strategy for Flaky Tests
 
 ### 2026-05-17 — Recent Session Summary
