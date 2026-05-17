@@ -64,6 +64,29 @@ Reviewed overall CI and E2E architecture; provided architectural recommendations
 - **Action split**: design-time action descriptors vs runtime action handlers. Editor asks catalog what exists; engine resolves named handler at runtime. Reference app uses DI-registered handler registry (not lambdas) for testability and portability.
 - **V1 demonstration shape**: MockBusinessApp stays as reference showing how to compose pieces; reusable logic moves to dedicated libraries. "Right tool for right job" remains explicit: Copilot CLI for NL drafting/orchestration, workflow-specific MCP tools for semantic ops, runtime never writes AI directly.
 
+### 2026-05-17T22:21:16.980+01:00 | Conversational service-design architecture review
+
+- **Recommended split**: Copilot is the conversational front door and orchestration shell; workflow-aware MCP tools own semantic draft/diff/validate/preview/apply operations; the workflow editor remains the human review and approval surface.
+- **Trust model**: service-design-friendly AI requires proposal-first changes, semantic diffs, shared validation messages, preview/simulation before apply, and no hidden runtime mutations.
+- **North-star UX**: one workflow-native workspace with graph/list + inspector + conversation/proposal pane + preview/simulation pane; no separate AI mode and no raw-JSON-first path for normal work.
+- **Build order**: first ship the workflow-native editor and semantic MCP verbs; then wire Copilot/skills on top; then deepen replay/history and richer orchestration.
+- **Key paths**: `docs/design/workflow-editor-v1/README.md`, `docs/design/workflow-editor-v1/04-agentic-surfaces.md`, `.squad/decisions.md`, `.squad/skills/workflow-editor-human-ai-coauthoring/SKILL.md`.
+
 ---
 
 See history-archive.md for pre-2026-05-16 history.
+
+### 2026-05-17T21:24:00Z | AI integration architecture evaluation
+
+**Batch:** AI integration design  
+**Decision published:** "Copilot + MCP should be the conversational service-design layer"
+
+Evaluated overall architecture for conversational workflow/service design using Copilot + MCP + skills. Established north-star interaction model: one conversation inside the workflow editor workspace with proposal-first, reviewable, and auditable AI changes.
+
+**Key outcomes:**
+- Confirmed Copilot + MCP approach over bespoke AI stack for reusability and workflow intelligence in deterministic domain tools
+- Defined build order: workflow-native editor surfaces → workflow MCP verbs → Copilot/skills integration
+- Preserved editor-first trust model with no AI path bypassing editor review
+
+**Peers:** blathers (tool surface design), scribe (orchestration)
+

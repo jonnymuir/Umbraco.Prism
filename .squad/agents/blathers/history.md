@@ -115,3 +115,27 @@ Completed first extraction slice: moved all backend authoring code from Core int
 ---
 
 See history-archive.md for pre-2026-05-16 history.
+
+
+### Copilot-facing workflow integration surface (2026-05-17T22:21:16.980+01:00)
+
+- Prefer a thin proposal-first MCP surface: draft/propose, validate, preview/diff, and apply/publish remain separate operations with human approval before mutation.
+- Copilot should learn orchestration via skills; domain truth should come from runtime-advertised tool metadata (workflow schema version, stage kinds, action catalog, actor/service-zone rules, ambiguity candidates, validation classes).
+- First backend tool slice should expose authored-workflow summary/read, draft-proposal, validate, preview, diff, and apply; publish can remain coupled to apply in V1 if runtime seed regeneration is synchronous.
+- Keep NL prompting guidance and conversation choreography in Copilot skills, not in the MCP tools themselves; keep graph semantics, insertion-point resolution, projection, and validation in workflow-aware backend services.
+- Relevant paths: `docs/design/workflow-editor-v1/02-runtime-projection.md`, `docs/design/workflow-editor-v1/04-agentic-surfaces.md`, `src/UmbracoPrism.WorkflowEditor/Authoring/Http/WorkflowAuthoringEndpoints.cs`, `.squad/skills/workflow-action-handler-registry/SKILL.md`, `.squad/skills/workflow-editor-simple-system-frame/SKILL.md`.
+
+### 2026-05-17T21:24:00Z | Copilot-facing workflow integration surface design
+
+**Batch:** AI integration design  
+**Decision published:** "Copilot-facing workflow integration surface"
+
+Defined concrete Copilot-facing tool surface and thinnest viable first implementation for conversational workflow/service design. Specified thin MCP surface anchored on workflow-aware semantics (`draft-proposal`, `validate`, `preview`, `diff`, `apply`) with human approval required before apply.
+
+**Key outcomes:**
+- Established responsibility split: Copilot handles natural-language orchestration; backend tools handle workflow semantics
+- Designed proposal-first integration preserving editor-first product model
+- Described first implementation shape using existing authoring HTTP/backend seams with thin adapter
+
+**Peers:** tom-nook (architecture evaluation), scribe (orchestration)
+

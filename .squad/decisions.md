@@ -2386,3 +2386,104 @@ Created `planning-workflow-editor-smoke` CI job that runs before the broader loc
 - PR #52 (`squad/planning-workflow-editor-walkthrough`)
 - `.squad/decisions.md` — "E2E Testing Strategy: Fix 30-Minute Feedback Loop"
 - `.squad/decisions.md` — "Fast-Fail CI Diagnostics Pattern"
+
+---
+
+# Decision: Copilot + MCP should be the conversational service-design layer
+
+**Date:** 2026-05-17T22:21:16.980+01:00  
+**Author:** Tom Nook  
+**Status:** Proposed  
+
+## Decision
+
+For workflow/service design, prefer a **Copilot + workflow-specific MCP + skills** architecture over building a bespoke AI stack inside the workflow editor.
+
+Use the split below:
+
+1. **Copilot** handles natural-language conversation, prompt framing, capability discovery, and orchestration.
+2. **Workflow MCP tools** handle workflow-aware semantics such as draft proposal generation, insertion-point resolution, semantic diff, validation, preview/simulation, and controlled apply.
+3. **The workflow editor** remains the source-of-truth workspace and human approval surface for authored workflow changes.
+
+## Why
+
+- This reuses strong general-purpose conversational tooling instead of recreating chat, prompting, and tool invocation infrastructure inside the editor.
+- It keeps workflow intelligence in deterministic, testable domain tools rather than in prompt-only behaviour.
+- It preserves the editor-first trust model: all AI changes stay proposal-first, reviewable, previewable, and auditable.
+
+## Guardrails
+
+- No AI path may write directly to a live runtime workflow or bypass editor review.
+- Skills should shape prompting and advertise capabilities, but should not own durable workflow state or domain validation rules.
+- Workflow-aware operations must anchor on named workflow concepts (`stageKey`, actor, handoff, action, route), not vague UI positions.
+- The same validation and preview pipeline must be used for both human and AI-authored changes.
+
+## North-star interaction model
+
+The desired experience is **one conversation inside the workflow editor workspace**:
+
+- the author asks in service-design language
+- Copilot drafts a structured proposal through workflow MCP tools
+- the editor shows semantic diff, validation, and preview
+- the author accepts, rejects, or partially applies changes
+- publish remains an explicit editor-controlled step
+
+## Build order
+
+1. Workflow-native editor surfaces and authored-model contract
+2. Workflow MCP verbs (`draft-proposal`, `diff`, `validate`, `preview`, `apply`)
+3. Copilot/skills integration on top of those verbs
+4. Richer history, replay, templates, and more ambitious orchestration later
+
+---
+
+# Decision: Copilot-facing workflow integration surface
+
+**Date:** 2026-05-17T22:21:16.980+01:00  
+**Author:** Blathers  
+**Status:** Proposed  
+
+Adopt a **proposal-first Copilot integration** for workflow/service design.
+
+## Decision
+
+1. Expose a thin MCP tool surface focused on workflow-aware operations:
+   - `workflow.get-context` (or equivalent read/summary)
+   - `workflow.draft-proposal`
+   - `workflow.validate`
+   - `workflow.preview`
+   - `workflow.diff`
+   - `workflow.apply`
+2. Keep proposal, validation, preview, and apply as separate steps. Human approval remains required before apply.
+3. Let Copilot skills teach conversation choreography, prompt framing, and when to call each tool.
+4. Let the backend tools advertise domain truth needed for service-design conversations: authored schema version, action catalog, actor/service-zone legality, insertion candidates, validation classes, and runtime capability status.
+5. Keep editor-only concerns (canvas UX, drag/drop, undo/redo, rich visual authoring) and runtime-only concerns (live instance mutation/execution internals) out of the MCP surface.
+
+## Why
+
+This preserves the editor-first product model while making Copilot useful for service design. Copilot stays responsible for language understanding and orchestration; workflow-aware backend services stay responsible for graph semantics, placement, projection, and validation.
+
+## First implementation shape
+
+Start with the existing authoring HTTP/backend seams and add a thin adapter that can:
+- load authored workflow context
+- generate proposal envelopes from NL requests plus placement resolution
+- validate and preview proposals without persistence
+- apply approved proposals and regenerate the projected runtime file/provenance
+
+## Consequences
+
+- Skills become the place to encode "how to have the conversation well".
+- MCP becomes the place to encode "what the system can do safely right now".
+- The first usable Copilot loop can ship before a full NL drafting engine or rich workspace UI exists.
+
+---
+
+# Decision: User directive – AI integration for workflow editor
+
+**Date:** 2026-05-17T22:21:16.980+01:00  
+**By:** Jonny Muir (via Copilot)  
+**Status:** Captured  
+
+Reuse existing AI tools like GitHub Copilot via MCP and skills so the workflow editor can participate in a conversational service-design workflow, rather than reinventing a bespoke AI stack.
+
