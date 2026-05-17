@@ -18,6 +18,39 @@
 
 ## Learnings (Summarized)
 
+### 2026-05-17T12:45:42.676+01:00 — Fast-Fail CI Strategy for Flaky Tests
+
+**Context:** PR #52 planning workflow editor walkthrough was failing in CI but passing locally. Feedback loop was 20+ minutes per iteration due to alphabetical test execution order and insufficient diagnostics on timeout.
+
+**Strategy implemented:**
+
+1. **Test execution order:** Renamed test to `01-planning-workflow-editor.walkthrough.spec.ts` to run FIRST in the localhost-auth lane. Reduces feedback latency from 20+ mins to <5 mins on failure.
+
+2. **Decisive readiness diagnostics:** Wrapped the workflow editor readiness wait in try/catch with:
+   - Custom element registration check (`customElements.get('prism-workflow-editor')`)
+   - Module script loading status (all `script[type="module"]` src attributes)
+   - `data-prism-workflow-loaded` attribute value (empty = still loading, workflow key = ready)
+   - Body content snippet (first 500 chars)
+   - Full-page screenshot saved to `test-results/planning-editor-readiness-failure.png`
+   - Structured JSON logged to console and thrown in error message
+
+**Result:** Next CI failure will pinpoint the exact hydration/fetch/module issue without guesswork or manual trace inspection. No blanket retries or timeout inflation.
+
+**Pattern for reuse:** For any async readiness wait (custom elements, API fetches, service workers) in CI-flaky tests:
+- Wrap in try/catch
+- Capture semantic state indicators (attributes, flags, registration checks)
+- Screenshot to `test-results/` (uploaded by CI artifact step)
+- Structured JSON to console
+- Prefix test filename with `01-`, `02-` if under active development (remove when stable)
+
+**Files modified:**
+- `tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts` (renamed + diagnostics)
+- `.squad/decisions/inbox/tangy-fast-fail-diagnostics.md` (pattern decision)
+
+**Commit:** `c27c8fd` (test: fast-fail CI strategy for planning workflow editor walkthrough)
+
+---
+
 ### 2026-05-16T17:47:42.605+01:00 — V1 Test Seam Scaffolding
 
 **Test seam layout:**
