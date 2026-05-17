@@ -51,6 +51,11 @@
     <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
     <None Include="../../LICENSE" Pack="true" PackagePath="/" />
     <Content Update="wwwroot/**" Pack="true" PackagePath="/" />
+    <!-- Exclude workflow editor authoring concerns from package -->
+    <Content Update="wwwroot/dist/workflow-editor.*" Pack="false" CopyToPublishDirectory="Never" />
+    <StaticWebAsset Remove="wwwroot/dist/workflow-editor.html" />
+    <StaticWebAsset Remove="wwwroot/dist/workflow-editor.js" />
+    <StaticWebAsset Remove="wwwroot/dist/workflow-editor.js.map" />
   </ItemGroup>
 
   <ItemGroup>
