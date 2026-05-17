@@ -136,3 +136,63 @@ All responses use `WorkflowProjector.CanonicalOptions`. CORS dev policy via `Req
 
 **Commit:** `dfa26ec` — `feat(core): patch + preview services and authoring HTTP API for V1 agent loop`
 
+
+## 2026-05-17 | Workflow Editor Backend Extraction — First Slice
+
+**Status:** ✅ Complete  
+**Commit:** 9ab9ba4  
+**Branch:** feat/workflow-editor-library-extraction (worktree)
+
+Completed first extraction slice of workflow editor architecture: moved all backend authoring code from `UmbracoPrism.Core/Workflow/Authoring/` into new dedicated `UmbracoPrism.WorkflowEditor` library with clean consumer API surface.
+
+### Implementation
+
+- Scaffolded `UmbracoPrism.WorkflowEditor` Razor Class Library project (net10.0, Web SDK)
+- Moved 23 C# files: domain models, projector, patch/preview services, HTTP endpoints
+- Updated all namespaces: `UmbracoPrism.Core.Workflow.Authoring` → `UmbracoPrism.WorkflowEditor.Authoring`
+- Added new consumer API: `AddPrismWorkflowEditor()` / `MapPrismWorkflowEditor()` in Extensions namespace
+- Migrated MockBusinessApp Program.cs to use new API surface
+- Updated 7 test files with new namespace imports
+- Removed static asset conflicts (`EnableDefaultContentItems=false`, deleted template wwwroot)
+
+### Validation
+
+- ✅ Full solution build succeeds (4 pre-existing warnings only)
+- ✅ All 51 workflow authoring tests pass (47 passed, 4 skipped by design)
+- ✅ Backward-compat maintained via Http subdirectory (old API still compiles)
+
+### API Migration
+
+**Old:**
+```csharp
+using UmbracoPrism.Core.Workflow.Authoring.Http;
+builder.Services.AddWorkflowAuthoring(path);
+app.MapWorkflowAuthoringEndpoints();
+```
+
+**New:**
+```csharp
+using UmbracoPrism.WorkflowEditor.Extensions;
+builder.Services.AddPrismWorkflowEditor(path);
+app.MapPrismWorkflowEditor();
+```
+
+### Key Learnings
+
+- **SDK choice matters**: Used `Microsoft.NET.Sdk.Web` (not `Razor`) to avoid Blazor deps we don't need. Backend-only library doesn't need component runtime.
+- **Static asset isolation**: Template-generated wwwroot caused path conflicts with Core's static assets. Explicit `EnableDefaultContentItems=false` prevents automatic discovery.
+- **Git rename detection**: Moving 23 files as-is (then updating namespaces) triggers Git rename detection, preserving history cleanly.
+- **Test namespace updates**: Bulk sed for using statements worked well for 7 test files; manual verification caught one interface that sed missed.
+
+### Next Slice Boundary
+
+This slice focused on backend domain extraction only. Remaining work for full workflow editor isolation:
+
+1. **Frontend extraction**: Move Vite-built UI assets from Core wwwroot/dist into WorkflowEditor library
+2. **Authoring fixture relocation**: workflow-authored/*.json currently lives in MockBusinessApp; consider library-embedded defaults
+3. **Deprecation path**: Add `[Obsolete]` to old `AddWorkflowAuthoring()` in V2, remove in V3
+
+### Decision
+
+Wrote `.squad/decisions/inbox/blathers-workflow-editor-extraction-slice.md` documenting the extraction strategy, API migration, validation results, and next-slice handoff.
+
