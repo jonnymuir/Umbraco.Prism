@@ -45,6 +45,25 @@
 
 ---
 
+### 2026-05-17T11:30:59+01:00 — TestSite Readiness Probe Hardening
+
+**Context:** PR #52 (`squad/planning-workflow-editor-walkthrough`) failed the `localhost-auth-playwright` CI lane (run 25987849590) due to a race condition: Umbraco's HTTP listener started responding with the default "No Published Content" page before seeding completed, and the probe abandoned.
+
+**Root cause:** The probe checks `https://localhost:44345/` for `data-prism-home-ready="true"` (emitted by `Views/homePage.cshtml` only when seeded content is published). When Umbraco boots but hasn't seeded yet, it returns HTTP 200 with the unseeded splash page. The probe treated this body-mismatch as any other failure and eventually timed out.
+
+**Fix applied (commit 17657db):**
+- Added `umbracoUnseededPageMarkers` constant with known unseeded-page patterns: `<title>Umbraco: No Published Content</title>`, `Welcome to your Umbraco installation`, etc.
+- Modified body-check logic to detect unseeded splash and classify as "still seeding" (not a hard failure). The probe now distinguishes "Umbraco booting" (timeout/ECONNREFUSED) from "Umbraco up but unseeded" (200 + splash body) from "Umbraco fully ready" (200 + `data-prism-home-ready`).
+- Added inline comments referencing PR #52 and CI run ID for traceability.
+
+**File modified:** `src/UmbracoPrism.Client/tests/support/live-app-host.ts` (lines 9-23, 321-337).
+
+**Trade-offs:** Did NOT implement a dedicated `/__prism/seed-status` endpoint (would require Blathers' backend work). The pattern-matching approach is cheaper and sufficient. Documented the endpoint recommendation in a decision file for future consideration.
+
+**Validation:** TypeScript pre-existing errors unrelated to this change. Pushed to PR branch; CI will validate the fix.
+
+---
+
 ### 2026-05-17 — Planning Workflow Editor Walkthrough (Wave 1 Headline)
 
 **Scope:** Delivered the walkthrough spec, markdown narrative, keyboard test activation, and seam-test skip-reason updates for the planning workflow editor.
