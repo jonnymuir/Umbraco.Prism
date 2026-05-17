@@ -83,3 +83,17 @@ Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox 
 - Committed (`7d7f7b9`) and ready to push
 
 **Next:** Push to trigger CI and validate smoke lane runs before broader suite.
+
+### 2026-05-17T17:09:07.957+01:00 — Reference shell smoke coverage
+
+**Task:** Adapt workflow-editor validation for the new reference split so the business app shell proves the downstream integration story, not just the editor internals.
+
+**What changed:**
+- Updated the planning workflow walkthrough to start at `/workflow-editor`, assert the thin-shell guidance copy, workflow picker, authoring API base, and integration snippet.
+- Scoped the NL input assertion to `data-prism-conversation-input` so the new shell config textbox does not cause strict-mode collisions.
+- Added test-side restoration of `workflow-authored/planning.workflow.json` and `.provenance/` so proposal-apply validation stays side-effect free for repeated runs.
+
+**Validation:**
+- `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj -c Release` ✅
+- `npm run test:playwright:planning-smoke` ✅
+- `npm run test:playwright:localhost-auth -- --grep 'Planning Workflow Editor walkthrough' --max-failures=1` ✅

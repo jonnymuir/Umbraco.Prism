@@ -48,6 +48,12 @@ Created `vite.workflow-editor.config.ts` for the workflow-editor build target. U
 
 ## Learnings (Summarized)
 
+### 2026-05-17T17:09:07.957+01:00 — Reference editor shell hosting
+
+- **Keep the host shell thin:** workflow selection, API-base wiring, and editor mounting belong in the shell; runtime case handling and business logic do not.
+- **Property-based API wiring beats env-only wiring:** letting `<prism-workflow-editor>` accept `authoring-api-base` keeps the component portable across Storybook, MockBusinessApp, and future standalone hosts.
+- **Reference hosts should show the integration seam in the UI:** an inline snippet plus live workflow picker makes the “drop this into your app” story clearer than a bare fullscreen editor.
+
 ### 2026-05-16T13:20:33.659+01:00 — Workflow Editor V1: Authoring UX & Accessibility
 
 - **Dual-mode graph navigation** (visual graph + linear list, toggled by `L`) is the correct accessibility pattern for graph canvases — gives AT users full operability while preserving visual-first design intent.

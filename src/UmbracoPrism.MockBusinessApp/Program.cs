@@ -5,12 +5,12 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
-using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Extensions;
+using UmbracoPrism.WorkflowRuntime.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,7 +41,8 @@ builder.Services.AddCors(options =>
 });
 
 // Business App workflow engine — singleton so in-memory instance state survives across requests
-builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
+builder.Services.AddPrismWorkflowRuntime<BusinessAppWorkflowEngine>(
+    Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds"));
 builder.Services.AddHostedService<WorkflowTuiService>();
 
 var app = builder.Build();
@@ -60,6 +61,8 @@ if (Directory.Exists(distPath))
         RequestPath = ""
     });
 }
+
+app.MapGet("/workflow-editor", () => Results.Redirect("/workflow-editor.html?workflow=planning"));
 
 // SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
 // TLS certificate validation for OIDC metadata fetches, which is only acceptable

@@ -50,3 +50,9 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 ---
 
 **📚 Older sessions (pre-2026-05-10) archived to `history-archive.md` to keep active history under 15KB.**
+
+## Learnings
+
+- The strongest Umbraco reference pattern here is a **thin typed Razor wrapper** in TestSite that selects Core workflow shells and partials, while leaving nonce handling, field validation, and workflow progression in Core/Business App boundaries.
+- Seeded workflow/member journeys read more like a real Umbraco site when `workflowPage` and `workflowHub` live under `Home` instead of as root nodes; route ownership stays content-driven without changing the public URLs.
+- Exact workflow-key lookup is safer than alias fallback once multiple workflow pages exist; missing content should fall back to the expected route contract, not to whichever workflow page happens to be first in the tree.

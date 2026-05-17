@@ -43,3 +43,11 @@ Real values go in a **gitignored local override** (`appsettings.Local.json`).
 ## Pattern
 
 This mirrors the secrets management pattern used by `UmbracoPrism.TestSite` (see `src/UmbracoPrism.TestSite/README.md`). `appsettings.Local.json` is the canonical mechanism for local dev overrides across this solution.
+
+## Reference workflow editor host
+
+The business app now exposes a thin reference editor shell at `/workflow-editor` (redirects to `/workflow-editor.html?workflow=planning`).
+
+- It hosts authoring-only concerns: picking a workflow, pointing at the authoring API, and mounting `<prism-workflow-editor>`.
+- It does **not** own runtime workflow execution or business case logic — those stay in the business app domain.
+- Use it as the reference integration slice for downstream apps that want to embed the workflow editor with minimal wiring.

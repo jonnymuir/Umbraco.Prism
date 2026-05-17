@@ -2,9 +2,8 @@
 <html lang="en" class="govuk-template">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Workflow Editor — Planning Application</title>
+    <title>Workflow Editor Reference Host</title>
     <style>
       *,
       *::before,
@@ -16,25 +15,19 @@
       body {
         margin: 0;
         padding: 0;
-        height: 100%;
-        overflow: hidden;
+        min-height: 100%;
         font-family: "GDS Transport", arial, sans-serif;
         background: #f3f2f1;
       }
 
-      prism-workflow-editor {
+      prism-workflow-editor-shell {
         display: block;
-        height: 100vh;
+        min-height: 100vh;
       }
     </style>
-    <script type="module" src="/src/workflow-editor/prism-workflow-editor.ts"></script>
+    <script type="module" src="/src/workflow-editor/prism-workflow-editor-shell.ts"></script>
   </head>
   <body>
-    <!--
-      workflow-key is read from ?workflow= URL param at runtime.
-      Default: "planning-application" (matches the planning fixture).
-      Brewster's backoffice iframe targets: /workflow-editor.html?workflow=<key>
-    -->
-    <prism-workflow-editor workflow-key="planning-application"></prism-workflow-editor>
+    <prism-workflow-editor-shell workflow-key="planning"></prism-workflow-editor-shell>
   </body>
 </html>

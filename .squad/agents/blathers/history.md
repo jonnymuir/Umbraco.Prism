@@ -85,6 +85,29 @@ Coordinating with Brewster (dashboard navigation) and Tangy (screenshot integrat
 
 ## Learnings
 
+### 2026-05-17T16:56:41.297+01:00 | Runtime Boundary Audit — Separation Assessment
+
+**Context:** Jonny asked whether the architecture has clean separation after the first extraction slice.
+
+**Findings:**
+- `UmbracoPrism.WorkflowEditor` — authoring plane is cleanly extracted ✅
+- `UmbracoPrism.Core` (Umbraco) — correctly minimal: only antiforgery, nonce, PRG, HTTP client interface; knows nothing about definitions, instances, or transitions ✅
+- `UmbracoPrism.MockBusinessApp` — mixed concerns: `BuildEnvelope()`/`BuildComponents()`/`BuildFields()` (~300 lines of generic runtime rendering pipeline) belongs in a library, not the example consumer
+- `IBusinessAppWorkflowClient` in Core is the correct interface boundary — Umbraco only sees `WorkflowResponseEnvelope`
+
+**Key gaps identified:**
+1. No `UmbracoPrism.WorkflowRuntime` library — generic state machine and render pipeline are embedded in MockBusinessApp
+2. No dedicated authoring shell host — editor UI is served via a `PhysicalFileProvider` hack pointing to a relative path in `Program.cs:52-62`
+3. MockBusinessApp references `UmbracoPrism.Core` (Umbraco package) for `AddPrismAuthentication()`; stale `using UmbracoPrism.Core.Models.Workflow` imports in both `BusinessAppWorkflowEngine.cs:4` and `Program.cs:8`
+4. `workflow-authored/` and `workflow-seeds/` both live in MockBusinessApp content root — these should move to the shell host when it is created
+
+**Next slices:**
+1. Extract `UmbracoPrism.WorkflowRuntime` (IWorkflowRuntimeEngine + BuildComponents pipeline + FilesystemDefinitionLoader)
+2. Create `UmbracoPrism.WorkflowEditorHost` shell app (shows off zero-coupling embedding)
+3. Move auth helpers out of Core → Shared to break MockBusinessApp → Core coupling
+
+**Decision written:** `.squad/decisions/inbox/blathers-runtime-boundary.md`
+
 ### 2026-05-16T13:20:33.659+01:00 | Workflow Editor V1 — Authored Model, Projection, Validation
 
 - **Authored Model shape:** `AuthoredWorkflow` with `AuthoredStage[]`, `AuthoredTransition[]`, `AuthoredRole[]`, `AuthoredField[]`. Stages carry `StageKind` (Capture/Review/Decision/TaskList/Waiting/Confirmation/Backstage/Complete), audience-specific `AuthoredView[]`, `AuthoredExit[]`, and authored-only concerns (EditorComment, CanvasPosition, ProvenanceTags). The model is never loaded by the Prism runtime directly.
@@ -196,3 +219,8 @@ This slice focused on backend domain extraction only. Remaining work for full wo
 
 Wrote `.squad/decisions/inbox/blathers-workflow-editor-extraction-slice.md` documenting the extraction strategy, API migration, validation results, and next-slice handoff.
 
+### 2026-05-17T17:09:07.957+01:00 | WorkflowRuntime extraction slice
+
+- `UmbracoPrism.WorkflowRuntime` is a safe first extraction target: move the reusable engine, instance state, definition-store abstraction, and DI extension first; leave endpoint mapping and host-specific auth concerns for a later slice.
+- Keeping `BusinessAppWorkflowEngine` as a thin adapter over `WorkflowRuntimeEngine` preserves MockBusinessApp's reviewer/dev hooks while making the reference app show a clean consumer story (`AddPrismWorkflowRuntime(...)`).
+- A constructor-level fallback to `FilesystemWorkflowDefinitionStore(Path.Combine(env.ContentRootPath, "workflow-seeds"))` lets old direct test construction keep working while DI-based hosts can supply `IWorkflowDefinitionStore` explicitly.
