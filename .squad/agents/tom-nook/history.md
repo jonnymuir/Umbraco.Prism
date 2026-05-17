@@ -57,6 +57,13 @@ Reviewed overall CI and E2E architecture; provided architectural recommendations
 
 ## Learnings
 
+### 2026-05-17T22:28:34.036+01:00 | Workflow backlog sequencing
+
+- **GitHub issues are the right execution layer** for Workflow Editor V1 delivery: keep `docs/design/workflow-editor-v1/` as source-of-truth design, use one initiative plus epic issues as coordination spine, and create 2–5 day child issues from the specialist sections.
+- **Backlog shape should follow dependency seams**, not org chart alone: foundation contracts first (authored schema, action catalog, publish/apply contract), then runtime publish + validation, then editor workspace completion, then Umbraco hosting, then Copilot/MCP layering.
+- **Parallelism starts after contracts lock**: UX workspace, runtime handler registry, preview/simulation, and backoffice shell can run in parallel once the authored model and publish boundary are stable.
+- **Best immediate starters** are the contract-setting issues that unblock multiple lanes: authored schema freeze, action catalog/handler registry contract, and deterministic apply/publish path into runtime seeds.
+
 ### 2026-05-17T22:05:30.472+01:00 | Design rewrite learnings
 
 - **Three-product frame is clearer** than plane-heavy story. Lead with workflow editor, workflow engine, forms engine; tuck implementation seams behind.
@@ -89,4 +96,21 @@ Evaluated overall architecture for conversational workflow/service design using 
 - Preserved editor-first trust model with no AI path bypassing editor review
 
 **Peers:** blathers (tool surface design), scribe (orchestration)
+
+---
+
+## 2026-05-17 | Backlog Sequencing: Workflow Editor V1 Execution Plan
+
+**Status:** Completed  
+**Timestamp:** 2026-05-17T22:28:34+01:00  
+
+Transformed workflow-editor design into dependency-ordered execution backlog:
+
+- **Initiative:** Workflow Editor V1 delivery
+- **6 Epics:** Authoring contracts, runtime execution, editor workspace, Umbraco integration, AI/MCP support, QA hardening
+- **Sequencing rule:** Lock authored schema + action catalog + publish/apply contracts first; then parallel runtime/workspace/backoffice lanes; Copilot/skills after MCP/CLI foundation; finish with QA
+- **Immediate starters:** Freeze authored workflow schema, define action catalog contract, complete deterministic apply/publish path
+
+**Artifact:** Decision merged to decisions.md: "Workflow Editor V1 — Execution backlog sequencing"  
+**Handoff:** To Mabel for GitHub issue structure mapping; to squad for execution assignment per routing rules.
 

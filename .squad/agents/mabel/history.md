@@ -61,3 +61,17 @@ Awaiting implementation phase dispatch.
   1. **mabel-workflow-editor-doc-polish.md** — Terminology corrections (authored stages ≠ runtime states; explicit naming: workflow editor, workflow engine, forms engine).
   2. **mabel-design-artifact-structure.md** — Defined docs/issues/decisions coordination pattern: docs are source of truth (non-time-bound narrative), issues are execution units (2–5 day tasks), decisions.md bridges them. Lightweight cross-linking rules (5 min per issue, 2 min per doc update) and hygiene rules documented.
 - All five design docs now internally coherent with consistent terminology. Structure pattern documented for future teams (see `.squad/skills/docs-issues-structure/SKILL.md` recommendation).
+
+---
+
+## 2026-05-17 | GitHub Issue Structure & Milestone Mapping: Workflow Editor V1 Backlog
+
+**Status:** In Progress  
+**Timestamp:** 2026-05-17T22:28:34+01:00  
+
+Defined practical GitHub issue structure, naming conventions, labels, milestones, and routing rules aligned to Tom Nook's 6-epic sequencing and dependency constraints.
+
+**Inputs:** Tom Nook's backlog sequencing decision  
+**Deliverables:** Issue templates, label taxonomy, milestone structure, reviewer routing  
+**Next:** Create GitHub issues and sequence per dependency requirements
+

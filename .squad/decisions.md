@@ -2487,3 +2487,44 @@ Start with the existing authoring HTTP/backend seams and add a thin adapter that
 
 Reuse existing AI tools like GitHub Copilot via MCP and skills so the workflow editor can participate in a conversational service-design workflow, rather than reinventing a bespoke AI stack.
 
+
+---
+
+# Decision: Workflow Editor V1 — Execution backlog sequencing
+
+**Date:** 2026-05-17T22:28:34.036+01:00  
+**Author:** Tom Nook  
+**Status:** Captured  
+
+Use GitHub issues as the execution layer for Workflow Editor V1, with the design docs remaining the architecture source of truth. Structure delivery as one initiative issue, a small set of capability epics, and concrete 2–5 day child issues sequenced by contract dependencies.
+
+## Rationale
+
+The design set is now rich enough that implementation should move into traceable execution units, not more prose. GitHub issues give routing, dependency visibility, reviewer assignment, and clean handoff into feature branches/PRs without turning `docs/design/` into a task tracker.
+
+## Proposed hierarchy
+
+- **Initiative:** Workflow Editor V1 delivery
+- **Epic 1:** Authoring contracts and projection foundation
+- **Epic 2:** Runtime action execution and publish path
+- **Epic 3:** Workflow-native editor workspace
+- **Epic 4:** Umbraco backoffice hosting and runtime integration
+- **Epic 5:** Proposal-first AI/MCP support
+- **Epic 6:** Planning workflow hardening, walkthroughs, and QA
+
+## Sequencing rule
+
+1. Lock authored schema, action catalog contract, and publish/apply contract first.
+2. Then run runtime publish, workspace UX completion, preview/simulation, and backoffice shell in parallel where they consume those contracts.
+3. Layer Copilot/skills after the workflow MCP/CLI verbs exist.
+4. Finish with planning-flow hardening, acceptance tests, and end-to-end review.
+
+## Immediate starters
+
+- Freeze authored workflow schema + validation contract.
+- Define action catalog + handler registry contract.
+- Complete deterministic apply/publish path from authored workflow into runtime seeds.
+
+## Impact
+
+Coordinators can now create execution issues directly from the Workflow Editor V1 docs with clear prerequisites and parallel lanes. This should reduce ambiguity about whether AI/Copilot work starts first; it should not.
