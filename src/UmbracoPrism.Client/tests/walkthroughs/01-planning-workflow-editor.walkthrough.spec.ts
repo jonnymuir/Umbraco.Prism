@@ -75,9 +75,41 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // sets data-prism-workflow-loaded="{key}" after the API fetch completes. On slower CI
     // hardware, the page.goto() 'load' event fires before the JS module executes and the
     // async workflow fetch finishes, causing the heading check to race and timeout.
-    await page.waitForSelector('[data-prism-workflow-loaded]:not([data-prism-workflow-loaded=""])', {
-      timeout: 30_000,
-    });
+    //
+    // Enhanced diagnostics on failure: captures page state, screenshots, and trace to pinpoint
+    // the exact readiness failure mode (module not loaded, fetch not started, fetch failed, etc.).
+    try {
+      await page.waitForSelector('[data-prism-workflow-loaded]:not([data-prism-workflow-loaded=""])', {
+        timeout: 30_000,
+      });
+    } catch (e) {
+      // Diagnostic: capture the exact state when readiness fails.
+      const diagnostics = await page.evaluate(() => {
+        const editorElement = document.querySelector('prism-workflow-editor');
+        const loadedAttr = editorElement?.getAttribute('data-prism-workflow-loaded') ?? 'element-not-found';
+        const bodySnippet = document.body.innerText.substring(0, 500);
+        const customElementDefined = !!customElements.get('prism-workflow-editor');
+        const moduleScripts = Array.from(document.querySelectorAll('script[type="module"]'))
+          .map(s => (s as HTMLScriptElement).src || '(inline)')
+          .join(', ');
+        return {
+          loadedAttr,
+          bodySnippet,
+          customElementDefined,
+          moduleScripts,
+          url: window.location.href,
+        };
+      });
+      
+      // Capture a screenshot of the failed state for visual inspection.
+      await page.screenshot({ 
+        path: 'test-results/planning-editor-readiness-failure.png',
+        fullPage: true 
+      });
+      
+      console.error('❌ Workflow editor readiness timeout. Diagnostics:', JSON.stringify(diagnostics, null, 2));
+      throw new Error(`Workflow editor failed to load within 30s. State: ${JSON.stringify(diagnostics)}`);
+    }
 
     await step(page, '01-workflow-editor-loaded.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="workflow-graph"]',
