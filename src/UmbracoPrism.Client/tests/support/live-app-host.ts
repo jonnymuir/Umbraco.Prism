@@ -10,6 +10,18 @@ const readinessTimeoutMs = 300_000;
 const readinessPollIntervalMs = 10_000;
 const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;
+
+// Known patterns in Umbraco's default "unseeded" splash page — when we see these,
+// classify as "still seeding" (not a hard failure). CI hardware timing can push
+// the seed task past the probe's initial retry window, so the probe must distinguish
+// "Umbraco booting" from "Umbraco up but unseeded" from "Umbraco fully ready".
+// See: PR #52 (squad/planning-workflow-editor-walkthrough), CI run 25987849590.
+const umbracoUnseededPageMarkers = [
+  '<title>Umbraco: No Published Content</title>',
+  'Welcome to your Umbraco installation',
+  'This page is intentionally left ugly',
+  'You have <strong>no content'
+] as const;
 const responsePreviewLength = 2000;
 const notableHeaders = ['location', 'content-type', 'server', 'x-powered-by'] as const;
 const resourceLogTerms = ['keycloak', 'keycloak-proxy', 'testsite', 'businessapp', 'aspire-dashboard'] as const;
@@ -308,7 +320,20 @@ export class LiveAppHost {
 
         for (const text of check.bodyIncludes ?? []) {
           if (!response.body.includes(text)) {
-            failures.push(`body missing ${JSON.stringify(text)}`);
+            // Special case: if this is the TestSite home marker check and we got Umbraco's
+            // default unseeded splash page, classify this as "still seeding" by checking
+            // for known unseeded-page markers. This prevents the probe from giving up when
+            // Umbraco's HTTP listener starts responding before content seeding completes.
+            const isHomeMarker = check.name === 'TestSite home marker';
+            const isUnseededSplash = umbracoUnseededPageMarkers.some(marker => 
+              response.body.includes(marker)
+            );
+            
+            if (isHomeMarker && isUnseededSplash) {
+              failures.push(`body missing ${JSON.stringify(text)} (Umbraco unseeded splash page detected; still seeding)`);
+            } else {
+              failures.push(`body missing ${JSON.stringify(text)}`);
+            }
           }
         }
 
