@@ -1,6 +1,5 @@
 // Executable counterpart of docs/walkthroughs/planning-workflow-editor.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
-import { test, expect } from '@playwright/test';
-import { LiveAppHost } from '../support/live-app-host';
+import { test, expect } from '../support/shared-app-host-fixture';
 import {
   step,
   signIn,
@@ -9,7 +8,6 @@ import {
   type PageHealthCheck,
 } from './support/walkthrough';
 
-const appHost = new LiveAppHost();
 const WALKTHROUGH_KEY = 'planning-workflow-editor';
 
 // URL pattern for the workflow editor SPA — stays constant across all steps.
@@ -29,14 +27,6 @@ function editorHealthCheck(override: Partial<PageHealthCheck> = {}): PageHealthC
 test.describe('Planning Workflow Editor walkthrough', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
-
-  test.beforeAll(async () => {
-    await appHost.start();
-  });
-
-  test.afterAll(async () => {
-    await appHost.stop();
-  });
 
   test.beforeEach(async ({ request }) => {
     await resetWorkflows(request);
@@ -62,7 +52,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   // See SKILL.md R6 for the screenshot capture workflow.
   // ---------------------------------------------------------------------------
 
-  test('happy path: authoring a planning permission workflow with natural language', async ({ page }) => {
+  test('happy path: authoring a planning permission workflow with natural language', async ({ page, appHost }) => {
     await signIn(page);
 
     // ─── Step 1: Load the workflow editor ──────────────────────────────────────

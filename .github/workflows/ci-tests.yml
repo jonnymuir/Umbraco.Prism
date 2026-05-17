@@ -97,6 +97,65 @@ jobs:
       - name: Run core tests
         run: dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
 
+  planning-workflow-editor-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/UmbracoPrism.Client
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.1
+          cache: 'npm'
+          cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Configure Linux certificate trust
+        run: echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/etc/ssl/certs:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
+
+      - name: Pre-pull Keycloak container image
+        run: docker pull quay.io/keycloak/keycloak:26.0.0
+
+      - name: Create Keycloak data directory
+        run: |
+          mkdir -p ../../artifacts/aspire/keycloak-data
+          chmod 777 ../../artifacts/aspire/keycloak-data
+
+      - name: Trust .NET development certificate
+        run: |
+          dotnet dev-certs https
+          dotnet dev-certs https --trust
+
+      - name: Validate Aspire prerequisites
+        run: node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite
+
+      - name: Run planning workflow editor smoke test
+        run: npm run test:playwright:planning-smoke
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-planning-smoke-failure-artifacts
+          path: |
+            src/UmbracoPrism.Client/test-results/
+            src/UmbracoPrism.Client/playwright-report/
+          retention-days: 7
+
   localhost-auth-playwright:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -144,7 +203,7 @@ jobs:
         run: node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite
 
       - name: Run localhost auth/session Playwright lane
-        run: npm run test:playwright:localhost-auth
+        run: npm run test:playwright:localhost-auth -- --max-failures=1
 
       - name: Upload Playwright artifacts on failure
         if: failure()

@@ -158,6 +158,10 @@ export class LiveAppHost {
     }
   }
 
+  isRunning(): boolean {
+    return this.child !== undefined && this.child.exitCode === null;
+  }
+
   async restart(): Promise<void> {
     await this.stop();
     await this.start();
