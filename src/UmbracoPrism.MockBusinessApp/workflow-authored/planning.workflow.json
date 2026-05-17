@@ -2,7 +2,7 @@
   "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "definitionKey": "planning",
   "displayName": "Planning Permission Application",
-  "version": 1,
+  "version": 2,
   "description": "Householder planning permission application workflow.",
   "schemaVersion": "1.0",
   "initialStageKey": "applicant-details",
@@ -18,16 +18,24 @@
           "key": "full-name",
           "label": "Full name",
           "type": "Text",
-          "required": true
+          "required": true,
+          "hint": null,
+          "validationPattern": null,
+          "options": []
         },
         {
           "key": "email",
           "label": "Email address",
           "type": "Email",
-          "required": true
+          "required": true,
+          "hint": null,
+          "validationPattern": null,
+          "options": []
         }
       ],
-      "roleGates": []
+      "roleGates": [],
+      "waiting": null,
+      "editorComment": null
     },
     {
       "stageKey": "property-details",
@@ -39,16 +47,44 @@
           "key": "property-address",
           "label": "Property address",
           "type": "Text",
-          "required": true
+          "required": true,
+          "hint": null,
+          "validationPattern": null,
+          "options": []
         },
         {
           "key": "description-of-works",
           "label": "Description of works",
           "type": "Textarea",
-          "required": true
+          "required": true,
+          "hint": null,
+          "validationPattern": null,
+          "options": []
         }
       ],
-      "roleGates": []
+      "roleGates": [],
+      "waiting": null,
+      "editorComment": null
+    },
+    {
+      "stageKey": "id-verification",
+      "displayName": "Identity Verification",
+      "kind": "Question",
+      "actor": null,
+      "fields": [
+        {
+          "key": "id-document-uploaded",
+          "label": "Identity document",
+          "type": "Text",
+          "required": true,
+          "hint": null,
+          "validationPattern": null,
+          "options": []
+        }
+      ],
+      "roleGates": [],
+      "waiting": null,
+      "editorComment": "V1 canned ID\u0026V stage \u2014 verify applicant identity before submission."
     },
     {
       "stageKey": "submitted",
@@ -56,7 +92,9 @@
       "kind": "CheckAnswers",
       "actor": "applicant",
       "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "waiting": null,
+      "editorComment": null
     },
     {
       "stageKey": "decision",
@@ -64,29 +102,54 @@
       "kind": "Confirmation",
       "actor": "caseworker",
       "fields": [],
-      "roleGates": ["caseworker"]
+      "roleGates": [
+        "caseworker"
+      ],
+      "waiting": null,
+      "editorComment": null
     }
   ],
   "transitions": [
     {
       "fromStage": "applicant-details",
       "toStage": "property-details",
-      "action": "continue"
+      "action": "continue",
+      "condition": null,
+      "requiresRole": null
     },
     {
       "fromStage": "property-details",
       "toStage": "submitted",
-      "action": "review"
+      "action": "review",
+      "condition": null,
+      "requiresRole": null
     },
     {
       "fromStage": "submitted",
       "toStage": "decision",
-      "action": "submit"
+      "action": "submit",
+      "condition": null,
+      "requiresRole": null
+    },
+    {
+      "fromStage": "property-details",
+      "toStage": "id-verification",
+      "action": "continue",
+      "condition": null,
+      "requiresRole": null
+    },
+    {
+      "fromStage": "id-verification",
+      "toStage": "submitted",
+      "action": "continue",
+      "condition": null,
+      "requiresRole": null
     }
   ],
   "handoffs": [],
   "metadata": {
     "serviceArea": "planning",
     "owner": "planning-team"
-  }
+  },
+  "authorNote": null
 }
