@@ -1,6 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
-using UmbracoPrism.Core.Workflow.Authoring;
+using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 

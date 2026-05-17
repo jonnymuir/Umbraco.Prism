@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Compiles an <see cref="AuthoredWorkflow"/> into a runtime <see cref="UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionFile"/>.

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>Base type for all semantic diff entries produced by <see cref="IWorkflowPreviewService"/>.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Intent hint used by the projector to determine the component shell for a stage.

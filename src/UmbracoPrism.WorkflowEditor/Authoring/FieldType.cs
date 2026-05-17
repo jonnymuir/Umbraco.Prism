@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// The input type of an authored field. Maps to a concrete

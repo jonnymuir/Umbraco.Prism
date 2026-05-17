@@ -2,8 +2,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
-    // This sends compiled JS directly to the Core package static web assets
-    outDir: '../UmbracoPrism.Core/wwwroot/dist',
+    // This sends compiled JS directly to the WorkflowEditor package static web assets
+    outDir: '../UmbracoPrism.WorkflowEditor/wwwroot/dist',
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
@@ -13,8 +13,6 @@ export default defineConfig({
         // Standalone frontend web component — no Umbraco dependencies,
         // safe to load in the public-facing test site shell
         'prism-mobile-nav': 'src/mobile/prism-mobile-nav.ts',
-        // Standalone workflow editor host page (V1 planning walkthrough)
-        'workflow-editor': 'workflow-editor.html',
   
       },
       output: {

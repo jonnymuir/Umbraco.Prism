@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Loads <see cref="AuthoredWorkflow"/> documents from a backing store.

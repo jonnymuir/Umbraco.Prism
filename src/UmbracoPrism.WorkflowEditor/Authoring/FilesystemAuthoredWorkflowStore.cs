@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// File-backed implementation of <see cref="IAuthoredWorkflowStore"/>.

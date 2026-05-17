@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>The agent or human actor that submitted this proposal.</summary>
 public record PatchAgent

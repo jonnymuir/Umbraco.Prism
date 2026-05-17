@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// A reusable field definition within the authored workflow.

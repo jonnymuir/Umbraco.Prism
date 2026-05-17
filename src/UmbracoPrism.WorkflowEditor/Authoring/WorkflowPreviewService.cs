@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Produces a <see cref="PreviewResult"/> by projecting the patched workflow and computing

@@ -42,6 +42,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.WorkflowEditor\UmbracoPrism.WorkflowEditor.csproj" />
   </ItemGroup>
 
   <ItemGroup>

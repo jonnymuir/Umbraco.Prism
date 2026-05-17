@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>Severity level of a projection diagnostic message.</summary>
 public enum DiagnosticSeverity

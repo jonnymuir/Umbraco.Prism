@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Authored metadata for a <see cref="StageKind.Waiting"/> or <see cref="StageKind.StatusTimeline"/> stage.

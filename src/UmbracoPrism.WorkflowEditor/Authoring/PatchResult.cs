@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Result of applying a <see cref="ProposalEnvelope"/> to an <see cref="AuthoredWorkflow"/>.

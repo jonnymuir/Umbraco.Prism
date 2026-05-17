@@ -6,11 +6,11 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models.Workflow;
-using UmbracoPrism.Core.Workflow.Authoring.Http;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
+using UmbracoPrism.WorkflowEditor.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +30,7 @@ builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>()
 
 // Workflow authoring services (patch, preview, projector, filesystem store).
 var authoredWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-authored");
-builder.Services.AddWorkflowAuthoring(authoredWorkflowPath);
+builder.Services.AddPrismWorkflowEditor(authoredWorkflowPath);
 
 // Development CORS — allows the editor host page (Isabelle) running on a different origin to call
 // the authoring API. Never enabled outside Development.
@@ -48,10 +48,10 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Serve the Vite-built workflow-editor.html (and its JS/CSS assets) from the Core wwwroot/dist
+// Serve the Vite-built workflow-editor.html (and its JS/CSS assets) from the WorkflowEditor wwwroot/dist
 // output directory. This lets the walkthrough spec navigate to /workflow-editor.html on this host.
 var distPath = Path.GetFullPath(
-    Path.Combine(builder.Environment.ContentRootPath, "..", "UmbracoPrism.Core", "wwwroot", "dist"));
+    Path.Combine(builder.Environment.ContentRootPath, "..", "UmbracoPrism.WorkflowEditor", "wwwroot", "dist"));
 if (Directory.Exists(distPath))
 {
     app.UseStaticFiles(new StaticFileOptions
@@ -104,7 +104,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Workflow authoring API (V1 agent loop — no auth required, Development CORS applied by endpoint group).
-app.MapWorkflowAuthoringEndpoints();
+app.MapPrismWorkflowEditor();
 
 
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, ILogger<Program> logger) =>

@@ -1,19 +1,20 @@
 using Microsoft.Extensions.DependencyInjection;
-using UmbracoPrism.Core.Workflow.Authoring;
+using UmbracoPrism.WorkflowEditor.Authoring;
 
-namespace UmbracoPrism.Core.Workflow.Authoring.Http;
+namespace UmbracoPrism.WorkflowEditor.Extensions;
 
 /// <summary>
-/// DI registration extension for the workflow authoring services.
+/// DI registration extension for Prism Workflow Editor services.
 /// </summary>
-public static class WorkflowAuthoringServiceExtensions
+public static class WorkflowEditorServiceExtensions
 {
     /// <summary>
-    /// Registers <see cref="IWorkflowProjector"/>, <see cref="IWorkflowPatchService"/>,
+    /// Registers the Prism Workflow Editor backend services:
+    /// <see cref="IWorkflowProjector"/>, <see cref="IWorkflowPatchService"/>,
     /// <see cref="IWorkflowPreviewService"/>, and a filesystem-backed <see cref="IAuthoredWorkflowStore"/>
     /// pointing at <paramref name="authoredWorkflowBasePath"/>.
     /// </summary>
-    public static IServiceCollection AddWorkflowAuthoring(
+    public static IServiceCollection AddPrismWorkflowEditor(
         this IServiceCollection services,
         string authoredWorkflowBasePath)
     {

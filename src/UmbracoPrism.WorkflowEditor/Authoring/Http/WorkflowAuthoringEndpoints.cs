@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace UmbracoPrism.Core.Workflow.Authoring.Http;
+namespace UmbracoPrism.WorkflowEditor.Authoring.Http;
 
 /// <summary>
 /// Registers the workflow authoring HTTP API surface onto an <see cref="IEndpointRouteBuilder"/>.

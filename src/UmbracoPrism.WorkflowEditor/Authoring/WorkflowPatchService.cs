@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Applies a <see cref="ProposalEnvelope"/> to an <see cref="AuthoredWorkflow"/> immutably.

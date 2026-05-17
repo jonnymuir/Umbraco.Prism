@@ -1,6 +1,6 @@
 using UmbracoPrism.Shared.Models.Workflow;
 
-namespace UmbracoPrism.Core.Workflow.Authoring;
+namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// The output of <see cref="IWorkflowPreviewService.Preview"/>, combining the projected
