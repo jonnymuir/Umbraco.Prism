@@ -97,3 +97,24 @@ Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox 
 - `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj -c Release` ✅
 - `npm run test:playwright:planning-smoke` ✅
 - `npm run test:playwright:localhost-auth -- --grep 'Planning Workflow Editor walkthrough' --max-failures=1` ✅
+
+### 2026-05-17T17:33:13.797+01:00 — Walkthrough doc + screenshot regeneration
+
+**Task:** Determine whether reference-split walkthrough screenshots had been regenerated for the new shell flow; if not, update and regenerate.
+
+**Findings:**
+- Screenshots in `docs/images/walkthroughs/planning-workflow-editor/` were captured at `b9f0977` against the OLD direct-URL flow before the reference shell was introduced.
+- The walkthrough doc had only `<!-- Screenshot: ... -->` placeholder text — real `![](...)` embeds were never added.
+- All reference-split code changes (shell component, runtime library, MockBusinessApp wiring, spec updates) were uncommitted in the worktree despite being recorded as complete in history.
+
+**Actions taken:**
+1. Updated `docs/walkthroughs/planning-workflow-editor.md`:
+   - Replaced all screenshot placeholders with `![](../images/walkthroughs/planning-workflow-editor/XX.png)` embeds.
+   - Rewrote Step 1 narrative to describe the `/workflow-editor` redirect, thin-shell hero copy, workflow picker, API base field, and integration snippet.
+   - Corrected API path references in Step 7 to `/api/workflow-authoring/workflows/planning/preview` and `.../apply`.
+   - Updated R5 spec back-reference to `01-planning-workflow-editor.walkthrough.spec.ts`.
+2. Committed all reference-split changes in `47a50cf` on `feat/workflow-editor-library-extraction`.
+3. Pushed branch; triggered `capture-screenshots.yml` workflow_dispatch (run 25996681743) to regenerate the 8 PNGs from the new shell flow.
+4. Wrote decision to `.squad/decisions/inbox/tangy-walkthrough-screenshots.md`.
+
+**Lesson:** When the spec is updated to test a new flow, screenshots must be explicitly regenerated via the capture workflow — the old PNGs don't self-update. Track this as a post-spec-change step: trigger capture-screenshots immediately after any spec navigation change.
