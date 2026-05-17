@@ -45,6 +45,47 @@
 
 ---
 
+### 2026-05-17T12:30:00+01:00 — Planning Workflow Editor CI Flake Fix (Web Component Hydration Race)
+
+**Context:** PR #52 failed CI at run 25988472206. First pass (commits 17657db, 07f0070) hardened the readiness probe against unseeded splash pages. That fixed the probe, but the test still failed at line 74 inside the spec. Test passed locally in 1.1m but timed out on CI waiting for heading `/planning permission/i`.
+
+**Root cause:** Web component hydration race. The workflow editor is a Lit custom element that:
+1. Loads as ES module (`<script type="module" src="/workflow-editor.js">`)
+2. Registers via `@customElement('prism-workflow-editor')`
+3. Fetches workflow data from `/api/workflow-authoring/workflows/{key}` in `connectedCallback()`
+4. Renders heading in shadow DOM AFTER fetch completes
+
+On CI, `page.goto()` completes on `load` event before the module executes and the async fetch finishes. The page snapshot (from CI trace) showed empty `<body>` with no custom element content yet.
+
+**Diagnosis method:** Downloaded CI trace artifacts via `gh run download 25988472206`. Inspected:
+- `0-trace.trace` (JSON event log): showed `goto` completed successfully, then heading expect timed out after 30s
+- Page snapshots: revealed empty body after navigation
+- Network log: confirmed no API fetch visible at failure point
+
+**Fix applied (commit ffea002):** Added explicit wait for the workflow data load signal BEFORE the `step()` call:
+```typescript
+await page.waitForSelector('[data-prism-workflow-loaded]:not([data-prism-workflow-loaded=""])', {
+  timeout: 30_000,
+});
+```
+
+The `data-prism-workflow-loaded` attribute is set by the component (line 200 of `prism-workflow-editor.ts`) to the workflow key once `_workflow` is populated. Empty string means still loading.
+
+**Why not other approaches:**
+- Bumping heading timeout → masks the race, doesn't wait for right signal
+- Waiting for network idle → too broad, not semantic
+- Waiting for graph canvas → happens AFTER heading check in `assertHealthyPage()`
+
+**Key learning:** When testing pages with ES modules + web components + async fetches, **identify the semantic ready signal** and wait for it explicitly. Don't rely on `page.goto()` load event alone — modules and custom elements hydrate AFTER load, especially on slower CI hardware.
+
+**Trace artifact workflow:** CI already uploads traces on failure (ci-tests.yml lines 149-157). This was essential for diagnosis. Without the trace, the "passes locally, fails on CI" gap would be unsolvable.
+
+**Files modified:** `src/UmbracoPrism.Client/tests/walkthroughs/planning-workflow-editor.walkthrough.spec.ts` (8-line addition)
+
+**Validation:** Test still passes locally in 1.1m. Pushed to PR branch; awaiting CI confirmation.
+
+---
+
 ### 2026-05-17T11:30:59+01:00 — TestSite Readiness Probe Hardening
 
 **Context:** PR #52 (`squad/planning-workflow-editor-walkthrough`) failed the `localhost-auth-playwright` CI lane (run 25987849590) due to a race condition: Umbraco's HTTP listener started responding with the default "No Published Content" page before seeding completed, and the probe abandoned.
