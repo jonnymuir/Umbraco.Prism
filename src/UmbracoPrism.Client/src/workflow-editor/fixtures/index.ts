@@ -3,8 +3,9 @@
  * The raw JSON is byte-aligned with:
  *   src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json
  *
- * `normalisePlanningFixture` converts the simplified fixture schema to the
- * client's AuthoredWorkflow type (views/exits/fieldKey conventions).
+ * `normalisePlanningFixture` maps the raw fixture field names to the
+ * TypeScript AuthoredWorkflow types (camelCase, FieldKind mapping).
+ * Stages carry their fields directly; transitions live at the workflow level.
  */
 
 import type {
@@ -14,7 +15,6 @@ import type {
   AuthoredTransition,
   StageKind,
   FieldKind,
-  ViewAudience,
 } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -152,78 +152,54 @@ const RAW: RawPlanningWorkflow = {
 
 function mapKind(raw: string): StageKind {
   switch (raw) {
-    case 'Question': return 'Capture';
-    case 'CheckAnswers': return 'Review';
-    case 'Confirmation': return 'Confirmation';
-    case 'TaskList': return 'TaskList';
-    case 'Waiting': return 'Waiting';
-    case 'Decision': return 'Decision';
-    default: return 'Backstage';
+    case 'Question':       return 'Question';
+    case 'CheckAnswers':   return 'CheckAnswers';
+    case 'Confirmation':   return 'Confirmation';
+    case 'TaskList':       return 'TaskList';
+    case 'Waiting':        return 'Waiting';
+    case 'StatusTimeline': return 'StatusTimeline';
+    default:               return 'Question';
   }
 }
 
 function mapFieldKind(raw: string): FieldKind {
   switch (raw) {
-    case 'Text': return 'TextInput';
-    case 'Textarea': return 'Textarea';
-    case 'Select': return 'Select';
-    case 'Radios': return 'Radios';
-    case 'Checkboxes': return 'Checkboxes';
-    case 'Date': return 'DateInput';
-    case 'FileUpload': return 'FileUpload';
-    case 'Hidden': return 'Hidden';
-    default: return 'TextInput';
-  }
-}
-
-function mapActor(actor?: string): ViewAudience {
-  switch (actor) {
-    case 'caseworker':
-    case 'reviewer':
-      return 'BusinessApp';
-    case 'operator': return 'Operator';
-    default: return 'Public';
+    case 'Text':        return 'TextInput';
+    case 'Textarea':    return 'Textarea';
+    case 'Select':      return 'Select';
+    case 'Radios':      return 'Radios';
+    case 'Checkboxes':  return 'Checkboxes';
+    case 'Date':        return 'DateInput';
+    case 'FileUpload':  return 'FileUpload';
+    case 'Hidden':      return 'Hidden';
+    default:            return 'TextInput';
   }
 }
 
 function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
-  // Collect all fields across stages into top-level fields array
-  const allFields: AuthoredField[] = raw.stages.flatMap(s =>
-    s.fields.map(f => ({
+  const transitions: AuthoredTransition[] = raw.transitions.map(t => ({
+    fromStage: t.fromStage,
+    toStage: t.toStage,
+    action: t.action,
+  }));
+
+  const stages: AuthoredStage[] = raw.stages.map(s => {
+    const fields: AuthoredField[] = s.fields.map(f => ({
       fieldKey: f.key,
       label: f.label,
       kind: mapFieldKind(f.type),
       required: f.required,
       hintText: f.hint,
       options: f.options,
-    }))
-  );
-
-  const transitions: AuthoredTransition[] = raw.transitions.map(t => ({
-    fromStageKey: t.fromStage,
-    toStageKey: t.toStage,
-    action: t.action,
-  }));
-
-  const stages: AuthoredStage[] = raw.stages.map(s => {
-    const audience = mapActor(s.actor);
-    const exits = raw.transitions
-      .filter(t => t.fromStage === s.stageKey)
-      .map(t => ({ action: t.action, toStageKey: t.toStage }));
+    }));
 
     return {
       stageKey: s.stageKey,
       displayName: s.displayName,
       kind: mapKind(s.kind),
-      views: [
-        {
-          viewKey: s.actor ?? 'public',
-          audience,
-          fields: s.fields.map(f => ({ fieldKey: f.key })),
-        },
-      ],
+      actor: s.actor,
+      fields,
       roleGates: s.roleGates,
-      exits,
       editorComment: s.editorComment,
     };
   });
@@ -233,12 +209,10 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     displayName: raw.displayName,
     version: raw.version,
     schemaVersion: raw.schemaVersion,
-    instancePolicy: 'Single',
+    instancePolicy: raw.instancePolicy,
     initialStageKey: raw.initialStageKey,
     stages,
     transitions,
-    roles: [],
-    fields: allFields,
   };
 }
 

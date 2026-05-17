@@ -1,7 +1,13 @@
 /**
  * TypeScript interfaces mirroring Blathers' C# AuthoredWorkflow model.
- * Field names match the camelCase JSON emitted by the projection API.
- * See docs/design/workflow-editor-v1/02-runtime-projection.md for the canonical C# shapes.
+ * Field names match the camelCase JSON emitted by the projection API
+ * (WorkflowProjector.CanonicalOptions: PropertyNamingPolicy = CamelCase).
+ *
+ * Key schema decisions (decisions.md 2026-05-16):
+ *  - Stages carry their fields directly (no `views` wrapper) — matches C# AuthoredStage.Fields
+ *  - Transitions live at the workflow level only — no `exits` on stages
+ *  - StageKind values are PascalCase per JsonStringEnumConverter on the C# enum
+ *  - AuthoredTransition uses fromStage/toStage (not fromStageKey/toStageKey)
  */
 
 // ---------------------------------------------------------------------------
@@ -13,16 +19,14 @@ export interface AuthoredWorkflow {
   displayName: string;
   version: number;
   schemaVersion: string;
-  instancePolicy: InstancePolicy;
+  instancePolicy: string;
   initialStageKey: string;
   stages: AuthoredStage[];
   transitions: AuthoredTransition[];
-  roles: AuthoredRole[];
-  fields: AuthoredField[];
+  /** Client-side convenience — not present in C# AuthoredWorkflow; guard all accesses. */
+  roles?: AuthoredRole[];
   authorNote?: string;
 }
-
-export type InstancePolicy = 'Single' | 'Multiple' | 'Prompt';
 
 // ---------------------------------------------------------------------------
 // Authored Stage
@@ -32,43 +36,26 @@ export interface AuthoredStage {
   stageKey: string;
   displayName: string;
   kind: StageKind;
-  views: AuthoredView[];
+  /** Actor/persona for this stage (informational). */
+  actor?: string;
+  /** Fields collected at this stage — matches C# AuthoredStage.Fields. */
+  fields?: AuthoredField[];
   roleGates: string[];
-  exits: AuthoredExit[];
   waiting?: WaitingMetadata;
   editorComment?: string;
 }
 
+/**
+ * Shell intent enum — mirrors C# StageKind with JsonStringEnumConverter (PascalCase).
+ * Valid values: Question | CheckAnswers | Confirmation | TaskList | Waiting | StatusTimeline
+ */
 export type StageKind =
-  | 'Capture'
-  | 'Review'
-  | 'Decision'
+  | 'Question'
+  | 'CheckAnswers'
+  | 'Confirmation'
   | 'TaskList'
   | 'Waiting'
-  | 'Confirmation'
-  | 'Backstage'
-  | 'Complete';
-
-export interface AuthoredView {
-  viewKey: string;
-  audience: ViewAudience;
-  fields: AuthoredFieldRef[];
-}
-
-export type ViewAudience = 'Public' | 'Member' | 'BusinessApp' | 'Operator';
-
-export interface AuthoredFieldRef {
-  fieldKey: string;
-  labelOverride?: string;
-  requiredOverride?: boolean;
-}
-
-export interface AuthoredExit {
-  action: string;
-  toStageKey: string;
-  condition?: string;
-  requiresRole?: string;
-}
+  | 'StatusTimeline';
 
 export interface WaitingMetadata {
   content?: string;
@@ -82,9 +69,14 @@ export interface WaitingMetadata {
 // Authored Transition
 // ---------------------------------------------------------------------------
 
+/**
+ * Directed edge in the workflow graph.
+ * Field names match C# AuthoredTransition serialised with camelCase naming policy:
+ *   fromStage / toStage (NOT fromStageKey / toStageKey).
+ */
 export interface AuthoredTransition {
-  fromStageKey: string;
-  toStageKey: string;
+  fromStage: string;
+  toStage: string;
   action: string;
   requiresRole?: string;
   condition?: string;
@@ -174,32 +166,29 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
   displayName: 'Planning Permission Application',
   version: 1,
   schemaVersion: '1.0',
-  instancePolicy: 'Single',
+  instancePolicy: 'single',
   initialStageKey: 'applicant-details',
   stages: [
     {
       stageKey: 'applicant-details',
       displayName: 'Applicant Details',
-      kind: 'Capture',
-      views: [{ viewKey: 'public', audience: 'Public', fields: [] }],
+      kind: 'Question',
+      fields: [],
       roleGates: [],
-      exits: [{ action: 'submit', toStageKey: 'check-answers' }],
     },
     {
       stageKey: 'check-answers',
       displayName: 'Check Your Answers',
-      kind: 'Review',
-      views: [{ viewKey: 'public', audience: 'Public', fields: [] }],
+      kind: 'CheckAnswers',
+      fields: [],
       roleGates: [],
-      exits: [{ action: 'submit', toStageKey: 'waiting-for-review' }],
     },
     {
       stageKey: 'waiting-for-review',
       displayName: 'Waiting for Review',
       kind: 'Waiting',
-      views: [],
+      fields: [],
       roleGates: [],
-      exits: [],
       waiting: {
         allowDefer: true,
         content: 'Your application is under review by a planning officer.',
@@ -209,26 +198,26 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
     {
       stageKey: 'reviewer-assessment',
       displayName: 'Reviewer Assessment',
-      kind: 'Decision',
-      views: [{ viewKey: 'reviewer', audience: 'BusinessApp', fields: [] }],
+      kind: 'Question',
+      fields: [],
       roleGates: ['reviewer'],
-      exits: [
-        { action: 'approve', toStageKey: 'confirmation', requiresRole: 'reviewer' },
-        { action: 'reject', toStageKey: 'applicant-details', requiresRole: 'reviewer' },
-      ],
     },
     {
       stageKey: 'confirmation',
       displayName: 'Application Submitted',
       kind: 'Confirmation',
-      views: [{ viewKey: 'public', audience: 'Public', fields: [] }],
+      fields: [],
       roleGates: [],
-      exits: [],
     },
   ],
-  transitions: [],
+  transitions: [
+    { fromStage: 'applicant-details', toStage: 'check-answers', action: 'submit' },
+    { fromStage: 'check-answers', toStage: 'waiting-for-review', action: 'submit' },
+    { fromStage: 'reviewer-assessment', toStage: 'confirmation', action: 'approve', requiresRole: 'reviewer' },
+    { fromStage: 'reviewer-assessment', toStage: 'applicant-details', action: 'reject', requiresRole: 'reviewer' },
+  ],
+  /** roles is a client-side convenience — not in the C# schema */
   roles: [{ roleKey: 'reviewer', displayName: 'Planning Officer' }],
-  fields: [],
 };
 
 export const STUB_PROPOSAL: ProposalEnvelope = {

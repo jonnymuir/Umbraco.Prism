@@ -109,6 +109,9 @@ export class PrismWorkflowGraphElement extends LitElement {
                 ${stages.map((stage, i) => {
                   const labelId = `node-label-${stage.stageKey}`;
                   const descId = `node-desc-${stage.stageKey}`;
+                  const outgoing = (this.workflow?.transitions ?? []).filter(
+                    t => t.fromStage === stage.stageKey
+                  );
                   return html`
                     <div
                       class="stage-node stage-kind-${stage.kind.toLowerCase()} ${this._selectedStageKey === stage.stageKey ? 'selected' : ''}"
@@ -125,8 +128,8 @@ export class PrismWorkflowGraphElement extends LitElement {
                       <span class="node-kind">${stage.kind}</span>
                       <span id="${descId}" class="sr-only">
                         ${stage.kind} stage.
-                        ${stage.exits.length > 0
-                          ? `Transitions: ${stage.exits.map(e => e.action).join(', ')}.`
+                        ${outgoing.length > 0
+                          ? `Transitions: ${outgoing.map(t => t.action).join(', ')}.`
                           : 'No outgoing transitions.'}
                       </span>
                     </div>
@@ -150,32 +153,37 @@ export class PrismWorkflowGraphElement extends LitElement {
                 aria-label="Workflow stages for ${this.workflow?.displayName ?? 'workflow'}"
                 aria-multiselectable="false"
               >
-                ${stages.map((stage, i) => html`
-                  <li
-                    class="stage-card ${this._selectedStageKey === stage.stageKey ? 'selected' : ''}"
-                    role="option"
-                    tabindex="${i === this._focusedIndex ? '0' : '-1'}"
-                    aria-selected="${this._selectedStageKey === stage.stageKey}"
-                    data-prism-stage="${stage.stageKey}"
-                    @click=${() => { this._focusedIndex = i; this._selectStage(stage.stageKey); }}
-                    @keydown=${(e: KeyboardEvent) => this._handleListKeydown(e, i)}
-                  >
-                    <div class="card-header">
-                      <span class="card-name">${stage.displayName}</span>
-                      <span class="card-kind badge">${stage.kind}</span>
-                    </div>
-                    ${stage.exits.length > 0 ? html`
-                      <div class="card-exits" aria-label="Transitions from this stage">
-                        ${stage.exits.map(exit => html`
-                          <span class="exit-tag">
-                            <span aria-hidden="true">→</span>
-                            <span>${exit.action}</span>
-                          </span>
-                        `)}
+                ${stages.map((stage, i) => {
+                  const outgoing = (this.workflow?.transitions ?? []).filter(
+                    t => t.fromStage === stage.stageKey
+                  );
+                  return html`
+                    <li
+                      class="stage-card ${this._selectedStageKey === stage.stageKey ? 'selected' : ''}"
+                      role="option"
+                      tabindex="${i === this._focusedIndex ? '0' : '-1'}"
+                      aria-selected="${this._selectedStageKey === stage.stageKey}"
+                      data-prism-stage="${stage.stageKey}"
+                      @click=${() => { this._focusedIndex = i; this._selectStage(stage.stageKey); }}
+                      @keydown=${(e: KeyboardEvent) => this._handleListKeydown(e, i)}
+                    >
+                      <div class="card-header">
+                        <span class="card-name">${stage.displayName}</span>
+                        <span class="card-kind badge">${stage.kind}</span>
                       </div>
-                    ` : nothing}
-                  </li>
-                `)}
+                      ${outgoing.length > 0 ? html`
+                        <div class="card-exits" aria-label="Transitions from this stage">
+                          ${outgoing.map(t => html`
+                            <span class="exit-tag">
+                              <span aria-hidden="true">→</span>
+                              <span>${t.action}</span>
+                            </span>
+                          `)}
+                        </div>
+                      ` : nothing}
+                    </li>
+                  `;
+                })}
               </ol>
             `}
       </section>

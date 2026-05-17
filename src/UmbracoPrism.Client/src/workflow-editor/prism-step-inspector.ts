@@ -32,12 +32,15 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _renderStage(stage: AuthoredStage) {
-    const fields = this.workflow?.fields.filter(f =>
-      stage.views.some(v => v.fields.some(fRef => fRef.fieldKey === f.fieldKey))
-    ) ?? [];
+    // Fields are carried directly on the stage in the C# schema.
+    const fields = stage.fields ?? [];
 
-    const roleLabels = stage.roleGates.map(key => {
-      const role = this.workflow?.roles.find(r => r.roleKey === key);
+    const outgoing = (this.workflow?.transitions ?? []).filter(
+      t => t.fromStage === stage.stageKey
+    );
+
+    const roleLabels = (stage.roleGates ?? []).map(key => {
+      const role = this.workflow?.roles?.find(r => r.roleKey === key);
       return role?.displayName ?? key;
     });
 
@@ -90,17 +93,17 @@ export class PrismStepInspectorElement extends LitElement {
           <h3 id="section-exits-${stage.stageKey}" class="section-heading">
             Transitions (outgoing)
           </h3>
-          ${stage.exits.length === 0
+          ${outgoing.length === 0
             ? html`<p class="section-empty">No outgoing transitions. This is a terminal stage.</p>`
             : html`
                 <ul class="exit-list">
-                  ${stage.exits.map(exit => html`
+                  ${outgoing.map(t => html`
                     <li class="exit-item">
-                      <span class="exit-action">${exit.action}</span>
+                      <span class="exit-action">${t.action}</span>
                       <span aria-hidden="true" class="exit-arrow">→</span>
-                      <span class="exit-target">${exit.toStageKey}</span>
-                      ${exit.requiresRole
-                        ? html`<span class="exit-role" title="Required role">(${exit.requiresRole})</span>`
+                      <span class="exit-target">${t.toStage}</span>
+                      ${t.requiresRole
+                        ? html`<span class="exit-role" title="Required role">(${t.requiresRole})</span>`
                         : nothing}
                     </li>
                   `)}
