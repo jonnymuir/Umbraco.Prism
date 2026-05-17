@@ -9054,3 +9054,68 @@ author: Brewster
 status: IMPLEMENTED
 area: testsite, walkthroughs, discoverability
 ---
+# Walkthrough Discoverability — All Workflow Types Reachable from Dashboard
+
+## Context
+
+Audit findings showed that some workflow demos (planning-notification, information-request)
+were only reachable via direct URL knowledge. The member dashboard linked to just three
+workflow types out of four, and there was no route from the Prism dashboard to the
+MockBusinessApp workflow admin screen.
+
+Two TestSite stub views (`workflowHub.cshtml`, `workflowPage.cshtml`) contained
+`Layout = null` and no content, silently overriding the Core library's fully implemented
+embedded views and rendering blank pages.
+
+## Decisions Made
+
+### 1. Delete TestSite stub views — use Core embedded views
+
+`src/UmbracoPrism.TestSite/Views/workflowHub.cshtml` and `workflowPage.cshtml` were
+stub files with `Layout = null` that blocked the `PrismEmbeddedViewsStartupFilter`
+embedded views from being served. Deleting the stubs lets the Core's implementations
+(with `Layout = "~/Views/Shared/Master.cshtml"` and full rendering logic) take over.
+
+**Rule:** The TestSite should not ship stub overrides for Core-embedded views unless
+there is a deliberate TestSite-specific customisation. A file that only contains
+`Layout = null` is a broken placeholder and must be removed.
+
+### 2. Restructure member dashboard card grid
+
+The existing 6-card flat grid was split into two coherent groups:
+
+- **Overview** (4 cards): My Account, Documents, Support, My Workflows hub
+- **Workflow Demos** (4 cards, in a labelled `dash-section`): Get in Touch,
+  Apply for Planning Permission, Payment Demo, Request Information
+
+All four seeded workflow types are now directly reachable from one section with
+content-tree resolved URLs, not hardcoded route guesses.
+
+### 3. Expose workflow admin URL from `MemberDashboardController`
+
+`IConfiguration` was injected into `MemberDashboardController` to derive
+`{PrismBusinessApp:WorkflowApiBaseUrl}/admin/workflow`. This is the same URL pattern
+the AppHost annotates as a `Workflow Admin` resource URL. It is passed to the view as
+`ViewBag.WorkflowAdminUrl`.
+
+A **Developer Tools** `dash-section` renders conditionally (only when the URL is set),
+showing a single card linking to the admin screen in a new tab.
+
+### 4. Environment-aware without extra config
+
+No new configuration keys are introduced. The existing `PrismBusinessApp:WorkflowApiBaseUrl`
+already resolves correctly in Codespaces (via AppHost forwarded URL detection) and
+locally (`https://localhost:7245`). The admin URL is simply appended as `/admin/workflow`.
+
+## Verification
+
+- `dotnet build` — 0 errors, 2 pre-existing warnings (unrelated)
+- `dotnet test` — 690 passed, 0 failed
+
+---
+date: 2026-05-04
+author: Tangy
+status: PROPOSED
+area: testing, walkthroughs, screenshots, documentation
+---
+
