@@ -119,3 +119,7 @@ Produced foundational decision on case-scoped notifier model for death-process e
 - *Where does authoring live?* Resolved per Brewster — Business App owns workflow authoring; Umbraco backoffice gets a thin link/embed extension, not a re-implementation.
 - *NL generation vs safety.* Resolved by routing all NL changes through the same proposal/validate/preview/approve loop human edits use — same review surface, same guardrails.
 - *Conversational refinement.* Resolved as layered proposals, not hidden mutations — each refinement is its own artifact with its own provenance.
+
+## 2026-05-17T12:32:29.455640Z
+
+Reviewed overall CI and E2E architecture; provided architectural recommendations for faster CI

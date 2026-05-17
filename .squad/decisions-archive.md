@@ -9016,3 +9016,41 @@ Audit of all Playwright tests and walkthrough specs across the Umbraco.Prism pro
    - Minimal automation; validates middleware behavior
 
 #
+---
+date: 2026-05-03T23:26:29.163+01:00
+author: Tangy
+status: decision
+area: testing, diagnostics, downstream-demo
+---
+
+---
+date: 2026-05-03T23:38:00.000+01:00
+author: Mabel
+status: IMPLEMENTED
+area: diagnostics, backend, testing
+---
+
+---
+date: 2026-05-04T09:22:01.025+01:00
+author: Tangy
+status: ACCEPTED
+area: testing, ci, moq
+---
+
+---
+
+**Next step:** Prioritize Tier 1 improvements (back/edit + validation tests) for closure by sprint end.
+---
+date: 2026-05-04T11:46:55.877+01:00
+author: Tom Nook (Discovery & Architecture)
+status: proposal
+priority: high
+category: walkthroughs, documentation, user-experience
+---
+
+---
+date: 2026-05-04T11:46:55.877+01:00
+author: Brewster
+status: IMPLEMENTED
+area: testsite, walkthroughs, discoverability
+---
