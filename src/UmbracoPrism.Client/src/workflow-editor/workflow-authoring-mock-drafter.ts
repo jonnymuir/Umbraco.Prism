@@ -13,7 +13,7 @@
  *   • Anything else → null (caller should show the friendly message below).
  */
 
-import type { AuthoredWorkflow, AuthoredStage, ProposalEnvelope } from './types.js';
+import type { AuthoredWorkflow, ProposalEnvelope } from './types.js';
 
 export const V1_UNRECOGNISED_MESSAGE =
   "V1 only recognises one canned change — try 'insert ID&V before submission'.";
@@ -38,27 +38,29 @@ export function draftProposal(
   const insertAfterKey =
     submittedIndex > 0 ? workflow.stages[submittedIndex - 1].stageKey : null;
 
-  const idvStage: AuthoredStage = {
+  // Use C# AuthoredStage/AuthoredField wire format — this value is sent to the PatchService
+  // which deserializes against the C# record types (camelCase, PropertyNameCaseInsensitive).
+  const idvStageValue = {
     stageKey: 'id-verification',
     displayName: 'Identity Verification',
     kind: 'Question',
     fields: [
       {
-        fieldKey: 'id-document-uploaded',
+        key: 'id-document-uploaded',   // C# AuthoredField.Key
         label: 'Identity document',
-        kind: 'FileUpload',
+        type: 'Text',              // C# AuthoredField.Type (FieldType enum)
         required: true,
-        options: [],
+        options: [] as string[],
       },
     ],
-    roleGates: [],
+    roleGates: [] as string[],
     editorComment: 'V1 canned ID&V stage — verify applicant identity before submission.',
   };
 
   const now = new Date().toISOString();
 
   const proposal: ProposalEnvelope = {
-    id: `v1-canned-idv-${Date.now()}`,
+    id: crypto.randomUUID(),
     createdAt: now,
     agent: {
       kind: 'human-assisted',
@@ -74,7 +76,7 @@ export function draftProposal(
         op: 'insert-stage',
         path: insertPath,
         before: insertBeforeKey ?? undefined,
-        value: idvStage,
+        value: idvStageValue,
       },
       {
         // Upsert the transition from the preceding stage into id-verification.

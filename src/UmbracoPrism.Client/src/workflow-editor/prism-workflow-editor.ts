@@ -97,18 +97,19 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    // Send to Blathers' preview endpoint; fall back to local proposal if API unavailable
-    let proposal = localProposal;
+    // Send to Blathers' preview endpoint for server-side validation.
+    // The preview response is a PreviewResult (projectedFile, diff, etc.) — not a ProposalEnvelope.
+    // Always keep localProposal as the envelope to apply; preview is a validation/display step only.
     try {
-      proposal = await previewProposal(this.workflowKey, localProposal);
+      await previewProposal(this.workflowKey, localProposal);
     } catch {
       // Preview API not yet available — use locally drafted proposal for walkthrough
     }
 
-    this._proposal = proposal;
+    this._proposal = localProposal;
     this._modalOpen = true;
     pane?.pushAgentMessage(
-      `Proposal ready: "${proposal.rationale}" — review the diff to accept or reject.`
+      `Proposal ready: "${localProposal.rationale}" — review the diff to accept or reject.`
     );
   }
 

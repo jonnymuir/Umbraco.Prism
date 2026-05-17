@@ -51,7 +51,7 @@ export async function applyProposal(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(proposal),
+      body: JSON.stringify({ envelope: proposal, approver: 'walkthrough' }),
     }
   );
   if (!res.ok)
