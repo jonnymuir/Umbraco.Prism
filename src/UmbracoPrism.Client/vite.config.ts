@@ -13,6 +13,8 @@ export default defineConfig({
         // Standalone frontend web component — no Umbraco dependencies,
         // safe to load in the public-facing test site shell
         'prism-mobile-nav': 'src/mobile/prism-mobile-nav.ts',
+        // Standalone workflow editor host page (V1 planning walkthrough)
+        'workflow-editor': 'workflow-editor.html',
   
       },
       output: {

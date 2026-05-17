@@ -36,6 +36,9 @@ How to use the development-only workflow admin panel to inspect, edit, and manag
 ### [Authoring a Workflow](authoring-a-workflow.md)
 How to write a new workflow definition using the fluent builder API. Covers the polymorphic JSON model (`type` discriminator, `children[]`, `conditionalChildren`), loading seeds, hot reload, and client/server validation.
 
+### [Planning Workflow Editor](planning-workflow-editor.md)
+How to use the natural-language workflow editor to inspect and modify a planning permission workflow definition. Covers the dual-mode graph/list view, stage inspector, NL change requests, proposal diffs, and the authoring API contract. *(Wave 1 — screenshots pending.)*
+
 ### [Creating a Tenant](creating-a-tenant.md)
 How to add a new tenant in the Umbraco backoffice — host binding, OIDC authority, branding — and how `PrismTenantMiddleware` picks it up without a restart.
 

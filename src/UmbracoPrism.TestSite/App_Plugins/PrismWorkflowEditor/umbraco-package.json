@@ -1,0 +1,66 @@
+{
+  "$schema": "../../umbraco-package-schema.json",
+  "name": "PrismWorkflowEditor",
+  "version": "1.0.0",
+  "allowPublicAccess": false,
+  "extensions": [
+    {
+      "type": "section",
+      "alias": "Umb.Section.PrismWorkflowEditor",
+      "name": "Workflow Editor",
+      "weight": 900,
+      "meta": {
+        "label": "Workflow Editor",
+        "pathname": "prism-workflow-editor"
+      }
+    },
+    {
+      "type": "sectionSidebarApp",
+      "kind": "menu",
+      "alias": "Umb.SidebarApp.PrismWorkflowEditor",
+      "name": "Workflow Editor Sidebar",
+      "conditions": [
+        {
+          "alias": "Umb.Condition.SectionAlias",
+          "match": "Umb.Section.PrismWorkflowEditor"
+        }
+      ],
+      "meta": {
+        "label": "Workflow Editor",
+        "menu": "Umb.Menu.PrismWorkflowEditor"
+      }
+    },
+    {
+      "type": "menu",
+      "alias": "Umb.Menu.PrismWorkflowEditor",
+      "name": "Workflow Editor Menu"
+    },
+    {
+      "type": "menuItem",
+      "alias": "Umb.MenuItem.PrismWorkflowEditor.PlanningApplication",
+      "name": "Planning Application",
+      "meta": {
+        "label": "Planning Application",
+        "icon": "icon-document",
+        "menus": ["Umb.Menu.PrismWorkflowEditor"]
+      }
+    },
+    {
+      "type": "dashboard",
+      "alias": "Umb.Dashboard.PrismWorkflowEditor",
+      "name": "Workflow Editor Dashboard",
+      "element": "/App_Plugins/PrismWorkflowEditor/web-components/prism-workflow-editor-host.js",
+      "elementName": "prism-workflow-editor-host",
+      "meta": {
+        "label": "Workflow Editor",
+        "pathname": "prism-workflow-editor"
+      },
+      "conditions": [
+        {
+          "alias": "Umb.Condition.SectionAlias",
+          "match": "Umb.Section.PrismWorkflowEditor"
+        }
+      ]
+    }
+  ]
+}

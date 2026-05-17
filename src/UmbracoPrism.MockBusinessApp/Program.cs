@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Core.Workflow.Authoring.Http;
 using UmbracoPrism.MockBusinessApp.Services;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
@@ -26,11 +28,38 @@ builder.Services.AddHttpClient();
 // The real GDS allowlist sanitizer (WorkflowContentSanitizer) is wired up in TestSite via Core.
 builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>();
 
+// Workflow authoring services (patch, preview, projector, filesystem store).
+var authoredWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-authored");
+builder.Services.AddWorkflowAuthoring(authoredWorkflowPath);
+
+// Development CORS — allows the editor host page (Isabelle) running on a different origin to call
+// the authoring API. Never enabled outside Development.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("WorkflowAuthoringDevCors", policy =>
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+});
+
 // Business App workflow engine — singleton so in-memory instance state survives across requests
 builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
 builder.Services.AddHostedService<WorkflowTuiService>();
 
 var app = builder.Build();
+
+app.UseCors();
+
+// Serve the Vite-built workflow-editor.html (and its JS/CSS assets) from the Core wwwroot/dist
+// output directory. This lets the walkthrough spec navigate to /workflow-editor.html on this host.
+var distPath = Path.GetFullPath(
+    Path.Combine(builder.Environment.ContentRootPath, "..", "UmbracoPrism.Core", "wwwroot", "dist"));
+if (Directory.Exists(distPath))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(distPath),
+        RequestPath = ""
+    });
+}
 
 // SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
 // TLS certificate validation for OIDC metadata fetches, which is only acceptable
@@ -73,6 +102,9 @@ app.Use(async (ctx, next) =>
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Workflow authoring API (V1 agent loop — no auth required, Development CORS applied by endpoint group).
+app.MapWorkflowAuthoringEndpoints();
 
 
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, ILogger<Program> logger) =>

@@ -1,163 +1,85 @@
-# Tangy — History (Summary)
+## 2026-05-16: Workflow Editor V1 Design Cycle
 
-**Agent:** Tester specializing in browser contracts, diagnostics, and API validation for Codespaces environments.
+**Scope:** Five-agent orchestration for workflow editor design iteration  
+**Outcome:** Complete V1 design with cross-cutting architecture, UX, runtime, integration, and agentic surfaces  
+**Peers:** tom-nook, isabelle, blathers, brewster, tangy  
+**Files:** docs/design/workflow-editor-v1/* (5 docs, ~145KB)  
+**Decisions:** Merged to .squad/decisions.md  
 
-**Recent focus (2026-05-04):** Walkthrough/test coverage audit, test inventory analysis, missing operator/admin flow identification.
+### Contributions
 
----
-
-## Current Work (2026-05-04 onwards)
-
-### Walkthrough Coverage Audit (2026-05-04)
-- **Scope:** Audit all Playwright tests and walkthrough specs for comprehensive coverage analysis
-- **Deliverable:** Coverage audit report identifying gaps in operator/admin flows, mobile testing, and edge cases
-
----
-
-## Previous Work (2026-05-04)
-
-### Workflow 401 Root Cause Analysis
-- **Finding:** Two distinct 401 sources produce identical surface error in `BusinessAppWorkflowClient`
-  1. Null auth header silently dropped (JWT middleware 401)
-  2. Application-level `Results.Unauthorized()` vs `Results.Problem()` inconsistency
-- **Regression Tests Added:** 3 new tests in `BusinessAppWorkflowClientTests.cs` document exact contract
-- **Diagnostics:** `[PRISM AUTH FAILED]` console log distinguishes JWT validation from application guard
-
-### Workflow 401 Null-Auth Contract Decision
-- **Proposed:** Logging when `GetAuthorizationHeaderAsync` returns null
-- **Proposed:** Align workflow handlers to `Results.Problem()` for consistency with `/api/backoffice/me`
-- **Status:** Merged to decisions.md (PROPOSED, Tangy, 2026-05-04)
-
-### Key Learnings
-- Null auth header in `CreateClientAsync` is silent danger—omits header without logging/throwing
-- JWKS fix (0904810) necessary but insufficient if `PrismTenantMiddleware` fails tenant resolution
-- Safe transport diagnostics pattern: classify failure modes without exposing ports/secrets
-
-## Dispatch: CI Test-Fragility Fix (2026-05-04T08:22:01Z)
-
-**Outcome:** Land the approved CI test-fragility fix and push to main.
-
-**Background:** Two root causes from CI run 25294216756 (commit `beef21c`):
-1. `PrismContextTests` reads env vars but was not in `EnvVarSensitiveTestCollection` → race condition
-2. Moq setup used concrete `CancellationToken` matcher on Linux → lazy init mismatch
-
-**Fixes delivered:** 
-- Commit 860c5d3: Added `PrismContextTests` to `EnvVarSensitiveTestCollection`
-- Commit 1601415: Replaced concrete `httpContext.RequestAborted` with `It.IsAny<CancellationToken>()` in 4 test methods
-
-**Status:** Dispatched for final verification and merge to main.
+- **Architecture** (tom-nook): Three-plane spine, cross-cutting contracts, planning-app reference
+- **Authoring UX** (isabelle): 4 editor surfaces, WCAG 2.2 AA dual-mode, 10-component inventory
+- **Runtime Projection** (blathers): AuthoredWorkflow model, 5-stage pipeline, JSON-Pointer patches
+- **Umbraco Integration** (brewster): Hybrid editor hosting, v17 backoffice embedding, TestSite removal P1
+- **Agentic Surfaces** (tangy): Proposal envelope, MCP+CLI, 4-level test seam, planning workflow spec
 
 ---
 
-## Learnings (2026-05-04) — Walkthrough Coverage Audit Findings
 
-### Test Inventory Summary
-- **Active Automated Tests:** 20 tests across 6 spec files
-  - `localhost-auth-session.spec.ts`: 8 tests (auth/session/API contracts)
-  - `workflow-gds-journey.spec.ts`: 5 tests (planning workflow journeys + edge cases)
-  - 4 walkthrough specs with automated tests (community-enquiry, payment-demo, planning-notification, information-request)
-- **Manual-Only Walkthroughs:** 5 specs with `test.skip(true)` (authoring, building-mobile-app, creating-tenant, design-system, push-notifications)
+## Learnings (Summarized)
 
-### Coverage Strengths
-- ✅ All 4 end-user workflow happy paths have executable tests
-- ✅ Conditional reveals tested (community-enquiry, planning-notification)
-- ✅ Check-answers edit flow tested (workflow-gds-journey)
-- ✅ Form validation tested for payment-demo and planning-notification
-- ✅ Auth/session contracts comprehensive (8 tests including restart)
-- ✅ Helper pattern (`assertHealthyPage`, `step()`) enforces "assert before screenshot" rule
+### 2026-05-17T13:59:00+01:00 — Smoke Test Failure: Missing Build Step in CI
 
-### Coverage Gaps
-1. **Operator/Admin Workflows:** Completely absent in automated tests
-   - Backoffice login, tenant creation, workflow authoring, design system config
-   - All relegated to manual-only walkthroughs (acceptable per R6)
-2. **Back/Edit Flows:** Only planning-notification tests check-answers → change pattern
-   - Missing: community-enquiry, payment-demo, information-request back flows
-3. **Form Validation:** Only 2 of 4 workflows have validation tests
-   - Missing: community-enquiry, information-request field validation
-4. **Success States:** Information request doesn't assert "under-review" submission state
-5. **Mobile Rendering:** No mobile viewport tests (all desktop-only)
-   - Home page, workflows, and forms untested on mobile
-6. **Home Page Navigation:** No dedicated walkthrough for hero/homepage → workflow entry
+**Task:** Diagnose failing `planning-workflow-editor-smoke` CI job on PR #52 without guessing.
 
-### Operator Flow Classification
-- **Creating/Managing Tenants:** Manual-only (backoffice UI, OIDC setup — reasonable to keep manual)
-- **Authoring Workflows:** Manual-only (requires C# fluent API knowledge — reasonable)
-- **Design System Configuration:** Manual-only (Umbraco backoffice task — reasonable)
-- **Mobile App Building:** Manual-only (Xcode/Android Studio — not browser-testable)
-- **Push Notifications:** Manual-only (service worker, browser permissions — partially automatable but lower priority)
+**Diagnosis Method:**
+1. Downloaded CI artifacts (trace.zip, screenshots) from failed run 25991274355
+2. Screenshot showed blank page; test timed out waiting for `[data-prism-workflow-loaded]`
+3. Ran test locally → passed (1.1m)
+4. Deleted local dist/ directory to simulate CI → would fail same way
+5. Compared CI workflow: missing `npm run build` between `npm ci` and test execution
 
-### Test Quality Observations
-- All tests use `assertHealthyPage()` with URL + heading validation (good practice)
-- `step()` helper ensures screenshot preconditions are verified
-- Error handling uses standard `.govuk-error-summary` pattern
-- No accessibility assertions (a11y) in any tests
-- No timeout/long-operation assertions beyond default expect timeout
+**Root Cause:** MockBusinessApp serves workflow-editor.html from `src/UmbracoPrism.Core/wwwroot/dist/`, which is populated by Vite build. CI never ran the build, so dist/ was empty, resulting in blank page (404/empty response).
 
-### Recommended Next Actions (by impact)
-1. **Add back/edit flow tests** to 3 workflows (community-enquiry, payment-demo, information-request)
-2. **Add field validation tests** to 2 workflows (community-enquiry, information-request)
-3. **Add mobile viewport tests** to all 4 active walkthroughs
-4. **Add success state assertion** to information-request (submission confirmation)
-5. **Create home page hero walkthrough** (new shared/home-hero.walkthrough.spec.ts)
+**Fix:** Added `npm run build` step to both `planning-workflow-editor-smoke` and `localhost-auth-playwright` jobs in `.github/workflows/ci-tests.yml`. Verified locally: cleaned dist/, rebuilt, test passed.
 
----
+**Lesson:** CI jobs must include full build chain. Don't rely on pre-existing artifacts. Test "clean checkout → build → test" path locally before pushing CI changes.
 
-## Learnings (2026-05-04) — CI Failure Analysis: PrismContextTests
+**Committed:** `10522f6` — fix(ci): add missing Vite build step to Playwright test jobs  
+**Decision:** `.squad/decisions/inbox/tangy-smoke-failure-diagnosis.md`
 
-### Root Cause: Fragile CancellationToken Moq Matcher
-- **CI run 25294216756** (commit `beef21c`) failed with `NullReferenceException` at `PrismContext.cs:212` in 4 `PrismContextTests` methods.
-- **Not a regression in PrismContext.cs** — the production code was correct throughout. The bug was in the tests.
-- **Root cause:** Mock setups used `httpContext.RequestAborted` as a concrete value matcher for the `CancellationToken` parameter on `IPrismTokenRefreshService.RefreshAsync`. On Linux (CI/Ubuntu), `DefaultHttpContext.RequestAborted` lazy-initialises its `CancellationTokenSource` via `IHttpRequestLifetimeFeature`; if the feature is activated between setup-time and call-time (during ASP.NET Core's authentication stack), the captured token no longer equals the one used in the real call. Moq returns `default(TokenRefreshResult) = null`, causing `result.Success` to throw.
-- **Platform masking:** On macOS arm64 the lazy init path produces stable results, hiding the fragility completely.
-- **Fix:** Replace `httpContext.RequestAborted` matchers with `It.IsAny<CancellationToken>()` in Setup and Verify for the 4 affected tests. The tests verify endpoint routing and bearer token return — not the exact CancellationToken instance.
-- **Pattern to watch:** Never use a concrete `CancellationToken` value as a Moq matcher when that value comes from a lazily-initialised ASP.NET Core feature (`DefaultHttpContext.RequestAborted`, `HttpContext.RequestAborted`). Always use `It.IsAny<CancellationToken>()`.
+### 2026-05-17T12:45:42.676+01:00 — Fast-Fail CI Strategy for Flaky Tests
 
----
+### 2026-05-17 — Recent Session Summary
 
-## Learnings (2026-05-04) — CI Fix Landing: Approved Revision to main
+- Analyzed CI timing and localhost-auth Playwright strategy
+- Documented E2E CI architecture recommendations
+- Coordinated with Tom Nook on faster-fail strategy
+- Decision entries merged to shared decisions.md
 
-### Task: Land Approved PrismContextTests Fix on main
-- **CI run fixed:** 25294216756 (`beef21c`), which failed `core-tests` with 4 `NullReferenceException` in `PrismContextTests`.
-- **Superseded commit:** `860c5d3` (Blathers) — added `EnvVarSensitiveTestCollection` to `PrismContextTests`; reduced but did not eliminate fragility; still resulted in CI failure in subsequent run `25309298569`.
-- **Approved revision landed:** `1601415` (Tangy) — replaced concrete `httpContext.RequestAborted` Moq matchers with `It.IsAny<CancellationToken>()` in 4 `PrismContextTests` methods.
-- **Pushed to origin/main** as part of commit chain ending at `d9fb7f7` (Scribe's decision merge, which included Tangy's decision entry). Substantive fix commit is `1601415`.
+## 2026-05-17T12:32:29.455640Z
 
-### Diagnostics pattern: gitignored stub views causing local-only test failures
-- `TestSiteViewModelBindingTests` appeared to fail locally (4 failures) but pass in CI. Root cause: `workflowHub.cshtml` and `workflowPage.cshtml` are gitignored stubs (`.gitignore` lines 510-511) generated locally by ModelsBuilder; they do not exist in CI checkout, so the test correctly returns without failing there.
-- **Pattern:** Local-only test failures caused by gitignored generated files are not CI regressions. Verify with `git check-ignore -v` before concluding a failure is CI-relevant.
+Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox entry for E2E strategy
 
-### Verification method
-- CI job `core-tests` in failed run showed: Failed: 4, Passed: 686, Total: 690 — all 4 failures were PrismContextTests NullReferenceException.
-- Post-fix local run (after `dotnet build`): Failed: 4 (TestSiteViewModelBindingTests, local-only), Passed: 686 — PrismContextTests all green; CI-relevant pass count matches expected 690.
+## 2026-05-17T13:36:14.940+01:00 — E2E Strategy Implementation
 
----
+**Task:** Implement complete fast-fail + shared-environment strategy for localhost-auth tests.
 
-## Decision Archive
+**Delivered:**
+1. CI fast-fail with `--max-failures=1` on localhost-auth lane
+2. Dedicated `planning-workflow-editor-smoke` CI job for early signal
+3. Playwright worker fixture (`shared-app-host-fixture.ts`) for shared AppHost across specs
+4. Planning walkthrough migrated to use worker fixture (removed per-spec lifecycle)
+5. Preserved all diagnostics and isolation guarantees
 
-See `.squad/agents/tangy/history-archive.md` for detailed session logs from 2026-05-03 including:
-- Downstream timeout diagnosis and operator flow reduction
-- Transport diagnostics validation (5 behavioral contract tests, 680 tests passing)
-- Business API arrival instrumentation trace ID forwarding
-- Environment variable configuration diagnostics patterns
+**Key Learnings:**
+- **Worker fixtures need `auto: true`** if tests don't explicitly reference them in signatures
+- **globalSetup doesn't share state** with worker processes; worker-scoped fixtures are the correct pattern for shared infrastructure
+- **Explicit > implicit for isolation:** resetWorkflows() in beforeEach is the right contract for workflow state, not just relying on runtime reset
+- **AppHost.start() is already idempotent** (checks `if (this.child) return`), making it safe for multiple specs to call
+- **Test passed in 1.1min** (33s startup + execution) vs previous ~3min+ per-spec cost
 
-## 2026-05-04 | Walkthrough Discovery Completion
+**Performance Impact:**
+- Before: 12 walkthroughs × ~1min startup = ~12min baseline
+- After: 1 startup (~33s) for entire batch
+- **Expected CI improvement: ~25-28min → ~10-12min for full suite**
 
-Discovery phase completed. Findings documented in decisions.md.
-Awaiting implementation phase dispatch.
+**Validation:**
+- Local planning smoke run: **1 passed (1.1m)**
+- Worker fixture logs confirm clean startup/teardown lifecycle
+- Isolation verified: fresh browser context + resetWorkflows() beforeEach
+- Decision written to inbox, history updated
+- Committed (`7d7f7b9`) and ready to push
 
-## 2026-05-04 | Walkthrough Coverage Hardening
-
-**Status:** PROPOSED
-
-Completed walkthrough coverage audit hardening across five gaps:
-
-**D1:** Viewport-first screenshots (fullPage: false default), per-step opt-in
-**D2:** Persistence tests verify instance-policy contract (state persists post-submit)
-**D3:** home-entry is a first-class walkthrough (signed-out → dashboard → hub path)
-**D4:** skipHeading for variable-heading pages (home, dashboard) with explicit assertions
-**Coverage gaps closed:** Back/edit flows, validation tests, success assertions
-
-Files modified: walkthrough.ts, community-enquiry spec, information-request spec, payment-demo spec
-Files created: home-entry.walkthrough.spec.ts, home-entry.md walkthrough doc
-
-Decision recorded: "Walkthrough Coverage Hardening — Test Gaps and Screenshot Behaviour"
+**Next:** Push to trigger CI and validate smoke lane runs before broader suite.

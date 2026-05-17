@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" class="govuk-template">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workflow Editor — Planning Application</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: "GDS Transport", arial, sans-serif;
+        background: #f3f2f1;
+      }
+
+      prism-workflow-editor {
+        display: block;
+        height: 100vh;
+      }
+    </style>
+    <script type="module" src="/src/workflow-editor/prism-workflow-editor.ts"></script>
+  </head>
+  <body>
+    <!--
+      workflow-key is read from ?workflow= URL param at runtime.
+      Default: "planning-application" (matches the planning fixture).
+      Brewster's backoffice iframe targets: /workflow-editor.html?workflow=<key>
+    -->
+    <prism-workflow-editor workflow-key="planning-application"></prism-workflow-editor>
+  </body>
+</html>

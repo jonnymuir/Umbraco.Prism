@@ -15,6 +15,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="FluentAssertions" Version="6.12.1" />
     <PackageReference Include="MailKit" Version="4.16.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Moq" Version="4.20.70" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
@@ -30,7 +31,11 @@
     <ProjectReference Include="../UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
     <ProjectReference Include="../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj" />
-    <ProjectReference Include="../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" />
+    <ProjectReference Include="../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" Aliases="global,MockBusinessApp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Workflow\Authoring\Fixtures\*.workflow.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

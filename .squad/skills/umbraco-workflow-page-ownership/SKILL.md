@@ -17,6 +17,8 @@ Use this skill when reviewing or building Prism workflow pages, member dashboard
 - Add `[ModelType("alias")]` to route-hijacking controllers in v17 so the document-type intent stays explicit even when naming convention discovery already works.
 - Keep controller-owned routes (`/auth/login`, `/auth/logout`) hardcoded only for auth endpoints; content-owned destinations such as dashboard, workflow hub, and workflow pages should resolve from published content.
 - Use Prism pages as **workflow shells**, not workflow brains: let the Business App stay authoritative for state, field semantics, and progression, while Prism adds tenant/auth context, nonce validation, and safe rendering.
+- Model actor surfaces explicitly: public discovery pages and authenticated member journeys belong in Umbraco; operator/reviewer workflow administration belongs in the downstream Business App unless there is a strong editorial reason to embed it.
+- When introducing a richer workflow editor, prefer a mixed model: Umbraco owns content structure, entry points, and narrative pages; the Business App owns workflow definition storage, instance operations, and staff tooling; a v17 backoffice extension may sit on top as a convenience layer.
 - For views that need extra runtime data, prefer a composite model that still preserves the generated Published Model rather than falling back to untyped `UmbracoViewPage` + raw alias strings.
 - Avoid bypassing `CurrentTemplate()` or direct view-path rendering unless there is a documented platform bug/workaround; if you must do it, treat it as temporary debt because it weakens Umbraco template ownership.
 - Keep client-side workflow scripts progressive only (visibility toggles, focus, polish). Do not let browser code or seeded route fallbacks become the authoritative source for workflow decisions or authored navigation.
@@ -34,10 +36,12 @@ Use this skill when reviewing or building Prism workflow pages, member dashboard
 - `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml`
 - `src/UmbracoPrism.TestSite/Views/WorkflowDemoPage.cshtml`
 - `src/UmbracoPrism.Core/wwwroot/umbraco-package.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`
 
 ## Anti-Patterns
 
 - Minimal document types that technically route but do not model the authored site structure.
 - Hardcoding `/dashboard`, `/my-workflows`, or `/get-in-touch` inside member/page controllers when those pages are Umbraco content.
+- Treating business-user workflow operations as if they should run on the same authored member pages that citizens use.
 - Untyped Razor templates reading raw property aliases that have already drifted from generated models.
 - Shipping placeholder workflow shells as if they were the preferred Prism-on-Umbraco pattern.

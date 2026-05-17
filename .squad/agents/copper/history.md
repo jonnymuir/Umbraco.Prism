@@ -200,3 +200,16 @@ Scribe recorded codespaces-dashboard-and-auth-fixes work in decisions.md. Copper
 
 Discovery phase completed. Findings documented in decisions.md.
 Awaiting implementation phase dispatch.
+
+## Learnings
+
+### 2026-05-15T06:35:47.013+01:00
+
+- PASA-style bereavement journeys should separate **channel proof** (magic link/OTP) from **authority proof** (relationship, evidence, reviewer judgement).
+- For one-off third-party pension notifications, a **case-scoped verified session** is a better default than forcing permanent account registration.
+- Pre-verification notifier journeys should expose only **generic case states** and never confirm pension membership or benefits until the reviewer-backed threshold is met.
+
+## 2026-05-15: PASA Death Process Security Decision
+
+Produced security decision on staged assurance and case-scoped access. Defined verified contact-channel (magic link/OTP), case-scoped identity, reviewer-backed step-up. Established fail-closed data visibility until verification. Decision emphasizes separation of channel proof from authority/member-match. Merged to shared registry.
+
