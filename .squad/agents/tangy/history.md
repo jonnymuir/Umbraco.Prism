@@ -33,6 +33,12 @@ Identified missing acceptance items, stabilized flaky stage-create test, confirm
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #67 quality gate
+
+- Minimum honest keep-green coverage for the preview-edited-stage slice is six seams: workflow authoring .NET tests, client build, Storybook CI across browsers with axe, the existing workflow graph/stage-selection Playwright contract, a dedicated workflow preview Playwright contract, and the live planning workflow smoke.
+- The surrounding editor seams are green on the current branch: workflow authoring tests passed 75/75, the client build passed, Storybook CI passed across browsers with axe, the graph keyboard contract passed 4/4, and the live planning workflow smoke passed.
+- Do not call #67 green yet: `prism-workflow-editor` still renders graph, inspector, conversation, and validation surfaces only; there is no preview panel, no public/member/back-stage selector, no preview loading state, no read-only stage runtime surface, and no dedicated behavioural contract covering planning workflow stage preview.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #66 recheck
 
 - Re-ran the full #66 help/discoverability gate: client build, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, the dedicated workflow-editor help Playwright contract, and the live planning workflow smoke all completed green.
@@ -111,3 +117,13 @@ Key acceptance items verified:
 No slice-specific blocker remaining. All six gates passed.
 
 **Status:** Issue #66 confirmed green and acceptance-complete. Ready for production.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #67 recheck
+
+- Re-ran the full #67 quality gate: workflow authoring .NET tests, client build, Storybook CI across browsers with axe, workflow graph keyboard Playwright, dedicated workflow stage-preview Playwright, and the live planning workflow smoke all completed green.
+- The previously missing acceptance seams are now present together in the shipped editor: the selected stage renders in a bottom read-only runtime preview, the preview is refreshed from the `/project` projection path as edits land, the surface selector switches between public/member/back-stage when relevant, loading feedback appears while preview refreshes, and the dedicated `prism-stage-preview` component plus planning-stage behavioural contract both exist.
+- The only noise in the gate remains unrelated repository warnings from existing .NET restore/build output; they do not contradict the #67 evidence. Issue #67 is now honest green and acceptance-complete with no slice-specific blocker remaining.
+
+### 2026-05-18T12:17:12Z — Issue #67 quality gate complete
+
+Validated stage preview contract against six acceptance seams: authoring .NET tests, client build, Storybook CI, graph keyboard Playwright, dedicated stage-preview contract, planning smoke. All passed. Preview panel confirmed rendering runtime surfaces, auto-updating on edits, supporting view switching, read-only, with loading feedback. Acceptance-verified and production-ready.

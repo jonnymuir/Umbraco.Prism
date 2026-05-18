@@ -3471,3 +3471,51 @@ Do not call issue #65 green until all of the following are true:
 
 The current branch already proves pieces of #65 in isolation, but the end-to-end authoring contract is still incomplete. A utility-only validator, graph-only routing warnings, or inspector-only field errors are not enough unless the host editor binds them together and save blocking is proven in a focused test.
 
+
+## Preview/runtime boundary for stage preview (2026-05-18)
+
+### Decision
+
+For the workflow editor preview panel, the runtime slice should come from the authoring `project` pipeline, not from editor-local heuristics. The client may keep a lightweight local projector only as an offline/Storybook fallback, but the live app path must ask the server for the projected runtime file and then render that result read-only.
+
+### Why
+
+- It keeps preview aligned with the deterministic publish projection instead of creating a second runtime interpretation in the browser.
+- It lets authors see runtime shell changes immediately when stage kind, fields, or actor edits affect projection.
+- It keeps accessibility predictable: the preview is informative chrome, not a second interactive form competing with the inspector.
+
+### Consequences
+
+- `prism-workflow-editor` owns debounced preview refresh and surface-tab availability.
+- `prism-stage-preview` stays presentation-only and never mutates workflow state.
+- Public/member/back-stage tabs describe runtime shell framing; only surfaces that fit the current stage stay enabled.
+
+---
+
+## Issue #67 quality gate boundary (2026-05-18)
+
+### Decision
+
+Issue #67 should not be called green from surrounding editor health alone. The slice needs its own behavioural contract because the acceptance criteria are about what an author sees in the preview pane, not about graph editing or proposal preview.
+
+### Quality Gate
+
+Minimum honest validation for the preview-edited-stage slice:
+
+1. `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`
+2. `cd src/UmbracoPrism.Client && npm run build`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-preview.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+### Acceptance Guardrail
+
+Do not mark #67 complete until the dedicated preview contract proves all of the following against planning workflow stages:
+
+- the selected stage appears in the preview panel
+- the panel renders the projected runtime/form surface rather than inspector-only data
+- edits update the preview automatically
+- authors can switch between relevant public/member/back-stage views
+- the preview is read-only
+- a loading state appears when preview work is slow

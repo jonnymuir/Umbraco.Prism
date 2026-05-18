@@ -47,6 +47,14 @@ Delivered complete copy/paste functionality with:
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #67 runtime stage preview slice
+
+- **Preview source of truth:** drive stage preview from the authoring `/project` endpoint so the editor shows the same deterministic runtime projection that publish uses, with a local projector fallback only for Storybook/offline shells.
+- **Accessibility pattern:** keep the preview panel visibly separate from authoring, expose public/member/back-stage surface buttons even when some are disabled, announce loading politely, and render every control as disabled or static text so the preview never steals keyboard focus from editing.
+- **Preview update seam:** debounce projection requests from `prism-workflow-editor`, preserve the last successful preview while a new one is loading, and let actor/surface edits re-evaluate which surface tab is available before re-rendering.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-stage-preview.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` passed after the runtime preview changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-stage-preview.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-runtime-projection.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-stage-preview.spec.ts`.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #65 workflow validation and error reporting slice
 
 - **Validation boundary:** treat orphaned and unreachable stages as blocking editor errors; keep dead ends and action-parameter gaps as workflow-friendly warnings so save stays available while authors finish detailed configuration.
@@ -85,3 +93,9 @@ Delivered help and shortcut discoverability as host-editor responsibility:
 - Comprehensive Playwright coverage ensures keyboard paths and empty-state recovery work end-to-end
 
 **Status:** Acceptance-complete per Tangy's six-seam gate. Production-ready.
+
+### 2026-05-18T12:17:12Z — Issue #67 stage preview completed
+
+Delivered read-only runtime preview pane driven from authoring project pipeline with public/member/back-stage switching, auto-update on edits, loading feedback, dedicated `prism-stage-preview` component, and planning workflow coverage.
+
+**Quality gate:** All six acceptance seams green. Production-ready.
