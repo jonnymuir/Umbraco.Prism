@@ -3099,3 +3099,54 @@ Keep the issue #60 stage creation and editing slice green with a six-part gate:
 
 - The baseline is green today, but the new stage-editor behavioural contract does not exist yet.
 - Acceptance should stay red until the slice adds dialog-driven creation, editable inspector fields including description, action catalog wiring, delete confirmation with affected transitions, and focused tests for those flows.
+
+
+# Decision: Transition editing interaction boundary for issue #61
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+## Decision
+
+Keep **transition creation** in the workspace that owns structure:
+
+- graph drag-to-connect opens a labelled transition dialog after drop
+- graph transition handles provide the keyboard-equivalent entry point
+- list mode exposes an explicit **Add transition** row action
+
+Keep **transition editing** in the inspector:
+
+- source stays read-only context
+- target, label/action, condition, and role guard edit in one inspector form
+- delete is allowed from the inspector once the transition is selected
+
+## Accessibility notes
+
+- Structural transition creation uses the same labelled modal pattern as stage creation: seeded focus, Escape close, Tab trapping, and focus restore to the invoking control.
+- Keyboard users can create transitions without drag by activating the graph transition handle or list row action.
+- Validation warnings for unreachable stages and dead-end stages stay visible in the workspace so routing problems are discoverable before the inspector is opened.
+
+# Decision: Issue #61 transition editor quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Treat the minimum honest gate for issue #61 as six seams:
+
+1. `cd src/UmbracoPrism.Client && npm run build`
+2. `cd /Users/jonnymuir/Documents/Projects/Umbraco.Prism && dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-transition-editor.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why
+
+Transition editing crosses authored-model serialization, graph/list workspace behaviour, inspector editing, validation diagnostics, and the live shell. The current generic graph keyboard contract is useful but does not prove transition creation, retargeting, guard editing, or graph connectivity after edits, so a dedicated transition contract is required before the slice can honestly be called green.
+
+## Current review outcome
+
+- Build, workflow authoring tests, Storybook CI, the existing graph keyboard spec, and the planning smoke are all green on the current worktree.
+- Acceptance is still open because transition creation/editing behaviour is incomplete: no label prompt on create, no list-view create affordance, no editable transition inspector, no unreachable-stage warning, and no dedicated post-edit connectivity test.

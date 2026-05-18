@@ -64,6 +64,14 @@ Frontend Dev specializing in workflow editor UX and component system.
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #61 transition creation and editing slice
+
+- **Interaction boundary:** transition creation stays in the graph/list workspace (drag prompt, graph handle, list row action), while the inspector owns retargeting, label/action edits, simple conditions, role guards, and delete after selection.
+- **Accessibility pattern:** transition creation reuses the project modal contract with seeded focus, Escape close, Tab trapping, and focus restore; graph transition handles plus list buttons provide the non-drag keyboard path.
+- **Validation pattern:** keep unreachable-stage and dead-end warnings visible in the workspace so routing problems are discoverable before opening the inspector.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-transition-editor.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the transition editing changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-transition-editing.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-validation.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-transition-editor.spec.ts`.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #60 stage creation and editing slice
 
 - **Interaction boundary:** graph/list keep structural stage operations (create, insert, reorder, delete confirmation), while the inspector owns stage property edits and catalog-backed stage actions.
@@ -104,6 +112,45 @@ Turned list mode into a real accessible table workspace for the workflow editor:
 
 ---
 
+
+## Issue #61: Transition creation, editing, and deletion
+
+**Date:** 2026-05-18T12:17:12Z  
+**Outcome:** ✅ Completed and acceptance-gated
+
+Implemented transition editor slice with accessible creation dialogs, editable inspector, and transition connectivity validation:
+
+### Deliverables
+
+- **Transition Creation:** Labelled modal from graph drag-to-connect, graph transition handle, and list row action
+- **Create Dialog:** Seeded focus, Escape close, Tab trapping, initial label prompt
+- **Inspector:** Editable target, label/action, condition, and role guard fields
+- **Delete:** Clean removal from inspector once transition selected
+- **Validation:** Workspace warnings for unreachable stages and dead-end routing paths
+- **Storybook:** Interaction stories for create/edit/delete flows plus connectivity scenarios
+- **Playwright:** Dedicated transition-editor contract covering creation, retargeting, label edits, delete, and post-edit graph integrity
+- **Accessibility:** Keyboard parity with graph handles and list affordances; modal focus/escape contract
+
+### Key Decisions
+
+- Transition creation stays in graph/list workspace (owns structure); inspector owns retargeting and property edits
+- Create dialogs use project modal pattern (seeded focus, Escape, Tab trapping, focus restore)
+- Validation warnings surface in workspace so routing issues discoverable before opening inspector
+- Transition deletion allowed from inspector; confirmed at model level
+
+### Quality Gate
+
+All six gates pass:
+1. ✅ Authoring-focused .NET workflow tests
+2. ✅ Client build
+3. ✅ Storybook CI across browsers with axe
+4. ✅ Existing workflow graph/list keyboard contract
+5. ✅ Dedicated Playwright transition-editor behavioural contract
+6. ✅ Live planning workflow smoke
+
+**Status:** Green and acceptance-complete per Tangy's recheck.
+
+---
 
 ## Issue #60: Stage creation, deletion, and editing
 

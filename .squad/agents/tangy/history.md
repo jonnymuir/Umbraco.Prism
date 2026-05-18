@@ -11,6 +11,12 @@ QA/Tester specializing in end-to-end validation and quality assurance.
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #61 recheck
+
+- Re-ran the #61 transition-editor quality gate on the latest slice and it is green for issue scope: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, the graph keyboard contract, the dedicated transition-editor Playwright contract, and the live planning workflow smoke all passed.
+- The previously missing acceptance behaviours are now present in the shipped surface: graph drag and keyboard creation open a labelled transition dialog, list mode exposes an Add transition action, the inspector edits target/label/condition/role guard, transition delete works cleanly, and workspace warnings surface unreachable and dead-end routing problems.
+- #61 is acceptance-complete. Dedicated transition connectivity coverage is in place through Storybook interaction stories plus the focused Playwright transition-editor contract, with manual re-probing confirming the list-mode create path and warning banner behaviour.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #60 recheck
 
 - Re-ran the #60 quality gate on the latest slice and it is green: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, the focused workflow graph/stage workspace Playwright contract, and the live planning workflow smoke all passed.
@@ -52,6 +58,73 @@ QA/Tester specializing in end-to-end validation and quality assurance.
 - The missing acceptance blocker for #58 is best covered as a dedicated Playwright screenshot contract against the Storybook iframe story, not by overloading Storybook's interaction/a11y runner.
 - Stable editor-surface baselines need a fixed viewport plus committed screenshots under `src/UmbracoPrism.Client/tests/__screenshots__/`, with Playwright configured to avoid platform-suffixed snapshot paths so one baseline can serve CI.
 - The graph workspace slice is now green with build, Storybook CI (all browsers + WCAG), the new visual regression spec, the existing keyboard contract, and the live planning workflow smoke.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #61 transition editor quality gate
+
+- Minimum honest keep-green gate for the transition slice is: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, the existing workflow graph keyboard contract, a dedicated transition-editor Playwright contract, and the live planning workflow smoke.
+- The current worktree is green on build, authoring tests, Storybook CI, the graph keyboard contract, and the planning smoke, so the plumbing is healthy enough to review the slice without blaming unrelated regressions.
+- #61 is not acceptance-complete yet: graph drag creates a transition immediately with a default label instead of prompting, list mode has no transition-create affordance, the transition inspector is read-only, retarget/guard/action editing is absent, unreachable-stage validation is not implemented, and there is no dedicated transition connectivity spec protecting post-edit graph integrity.
+
+## 2026-05-18: Issue #61 Quality Gate & Acceptance
+
+**Outcome:** ✅ Green and acceptance-complete  
+
+### Initial Pass: Quality Gate Confirmation
+
+Established minimum honest gate for issue #61 (6 seams):
+1. `cd src/UmbracoPrism.Client && npm run build` — TypeScript/Lit integration
+2. `cd src/UmbracoPrism.Core.Tests && dotnet test --filter "FullyQualifiedName~Workflow.Authoring"` — Backend model contract
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all` — Accessibility via axe across browsers
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts` — Graph keyboard contract
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-transition-editor.spec.ts` — Dedicated transition contract
+6. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke` — Live planning workflow smoke
+
+Found acceptance items missing in initial state (no label prompt, no list create affordance, no editable inspector, etc.).
+
+### Second Pass: Recheck
+
+Confirmed all acceptance items complete:
+- Graph drag-to-connect and keyboard handles open labelled transition modal
+- List mode exposes explicit Add transition row action
+- Inspector edits target, label/action, condition, role guard inline
+- Transition delete works cleanly from inspector
+- Workspace warnings surface unreachable and dead-end routing problems
+- All six gates pass end to end
+
+**Result:** Issue #61 is green and acceptance-complete per Isabelle's delivery.
+
+---
+
+## 2026-05-18: Issue #60 Quality Gate & Acceptance
+
+**Outcome:** ✅ Green and acceptance-complete  
+
+### Initial Pass: Quality Gate Confirmation
+
+Established minimum honest gate for issue #60 (6 seams):
+1. `npm run build` — TypeScript/Lit integration
+2. Authoring-focused .NET workflow tests — Backend model contract
+3. `npm run test-storybook:ci:all` — Accessibility via axe across browsers
+4. Existing workflow graph/list keyboard contract — Graph contract maintained
+5. Dedicated Playwright stage-editor behavioural contract — Comprehensive coverage
+6. Live planning workflow smoke — End-to-end shell scenario
+
+Found acceptance items missing in initial state (dialog-driven create, editable inspector, etc.).
+
+### Second Pass: Recheck
+
+Confirmed all acceptance items complete:
+- Create dialog validates duplicate keys with seeded focus
+- Delete confirms and warns about affected transitions
+- Inspector fields (title/key/description/actor/type) editable inline
+- Actions reorderable via keyboard and drag
+- All keyboard accessibility flows tested
+- Live announcements for screen readers
+- All six gates pass end to end
+
+**Result:** Issue #60 is green and acceptance-complete per Isabelle's delivery.
+
+---
 
 ## 2026-05-18: Issue #58 Quality Gate and Acceptance Completion
 
