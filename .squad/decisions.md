@@ -3207,3 +3207,95 @@ Keep one focused Playwright path that:
 - The broader action-editor contract already protects context filtering, schema-driven widgets, and 5+ action types.
 - That breadth can still miss regressions in modal focus management or delete confirmation because those behaviours are orthogonal to schema shape.
 - Treating keyboard parity and explicit confirmation as a separate acceptance clause keeps the shared action editor honest for both stage and transition contexts.
+# Decision: Workflow editor undo/redo should live at the host editor boundary
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+Keep undo/redo history in `prism-workflow-editor`, not inside `prism-workflow-graph`, `prism-step-inspector`, or the action editor.
+
+## Decision
+
+1. Treat `workflow-updated` as the single mutation seam for local authoring history.
+2. Snapshot the authored workflow plus the current stage/transition selection in the host editor.
+3. Reset history only when a fresh workflow is loaded; preview, validation, and proposal review should not clear undo/redo state.
+4. Cap local history to the latest 50 changes and surface availability through toolbar buttons, keyboard shortcuts, and a visible status bar.
+
+## Why
+
+- The graph and inspector already split ownership of structural vs. detailed editing, so child-local history would drift and miss cross-surface changes.
+- A host-owned stack keeps selection restore, toolbar affordances, and keyboard shortcuts consistent across every editor surface.
+- Keeping preview/validation outside the reset boundary matches the product promise that authors can safely inspect or validate work without losing recovery options.
+
+## Impact
+
+- Future editor mutations should continue to dispatch through `workflow-updated` so they are automatically undoable.
+- New toolbar/status affordances must preserve disabled states, `aria-keyshortcuts`, and live announcements.
+- If proposal apply/publish later becomes undoable, it should integrate with the same host-level history seam rather than adding a second stack.
+
+---
+date: 2026-05-18T13:17:12.103+01:00
+agent: Tangy
+issue: 63
+topic: deterministic stage-create undo/redo selection
+---
+
+# Decision: stage-create undo/redo should prove selection before inspector
+
+For the workflow editor undo/redo contract, the deterministic point after stage creation or redo is not merely "the dialog closed" — it is "the new stage is selected and its inspector is visible".
+
+## Decision
+
+1. In the dedicated Playwright history contract, wait for the created stage node to appear and expose `aria-pressed="true"` before asserting `[data-prism-stage-detail="..."]`.
+2. Treat that selected-node state as the behavioural handoff between graph workspace and host inspector for stage-create undo/redo.
+3. Keep the product scope unchanged unless the selected-stage affordance itself becomes unreliable; the acceptance blocker here was test timing, not a broader undo/redo regression.
+
+## Consequence
+
+- The contract still proves the real user-facing requirement: create or redo a stage and land back in that stage's inspector.
+- The test no longer races the render boundary between graph selection and inspector hydration, so retry-only green should no longer be needed to accept #63.
+
+---
+date: 2026-05-18T13:17:12.103+01:00
+agent: Tangy
+issue: 63
+topic: workflow editor undo/redo quality gate
+---
+
+# Decision: minimum honest gate for issue #63
+
+For the undo/redo workflow-editor slice, we will not call the feature green unless these seams pass together:
+
+1. `dotnet test src/UmbracoPrism.Core.Tests --filter "FullyQualifiedName~Workflow.Authoring"`
+2. `cd src/UmbracoPrism.Client && npm run build`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-undo-redo.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+Reasoning:
+
+- Undo/redo touches shared editor state, so build plus authoring tests catch model drift before UI review starts.
+- Storybook CI and the existing keyboard contract protect the editor's accessibility baseline while Isabelle threads history through graph/list/inspector editing.
+- A dedicated undo/redo Playwright contract is mandatory because acceptance depends on ordered state transitions, disabled/enabled toolbar state, keyboard shortcuts, and history surviving preview/validation.
+- The live planning smoke stays in the gate because #63 explicitly requires history to survive preview/validation without breaking the real authoring shell.
+
+---
+date: 2026-05-18T13:17:12.103+01:00
+agent: Tangy
+issue: 63
+topic: workflow editor undo/redo recheck
+---
+
+# Decision: retry-green is still red for issue #63
+
+The undo/redo slice is functionally much further on than my first pass: toolbar controls, keyboard shortcuts, visible history state, selection restore, and focused history coverage are all now in place.
+
+But the quality gate should still treat issue #63 as blocked until the dedicated undo/redo behavioural contract is deterministic. On recheck, `tests/workflow-editor/workflow-editor-history.spec.ts` repeatedly failed its first attempt on the stage-create path because `[data-prism-stage-detail="site-visit"]` did not become visible in time after create, then passed on retry.
+
+## Consequence
+
+1. Do not mark #63 green from a retry-only Playwright result.
+2. Treat the remaining blocker as a real editor-state race in stage-create selection/inspector restoration, not as mere test noise.
+3. Re-run the issue gate only after that handoff is made deterministic.
