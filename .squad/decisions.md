@@ -2907,3 +2907,73 @@ But the live editor still depends on the real MockBusinessApp authored store. Du
 - Blathers can use the focused backend suite for rapid iteration on the publish pipeline.
 - The branch should not be treated as green for issue #57 until the live planning authored seed is valid again and the planning smoke can complete.
 - Any future authoring/publish change must keep the test fixture and the live MockBusinessApp authored seed in sync, or Tangy's smoke coverage will miss the real runtime path.
+# Decision: Workflow graph workspace interaction boundary
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+Ship issue #58 as a **focused graph workspace slice** with these boundaries:
+
+1. **Graph owns local structural interactions** — stage add/delete, transition creation, selection, zoom, fit-to-screen, and context-menu affordances all happen inside the graph component and emit updated workflow state upward.
+2. **Inspector remains the edit surface** — double-click or keyboard inspect actions move focus into the inspector; the graph slice does not try to become a form editor itself.
+3. **Front-stage/back-stage stays editor-native for now** — the client accepts an optional `editorSurface` hint, but defaults to lane inference from role gates and actor labels until persisted lane metadata is formalised server-side.
+4. **Keyboard parity is mandatory** — the visual graph stays pointer-friendly, but stage selection, mode toggle, context menu, inspect actions, and zoom controls remain reachable from the keyboard; linear mode stays the fallback orientation surface.
+
+## Why
+
+- The graph needs enough local state to feel like an editor, but not so much that it duplicates inspector responsibilities.
+- Persisted authoring contracts for lane metadata are still evolving, so the canvas needs a safe interim rule that keeps front-stage and back-stage visually distinct without blocking backend work.
+- Custom context menus and drag handles are only acceptable if the same slice still provides predictable keyboard focus, visible focus states, and an alternate linear path.
+
+## Impact
+
+- Frontend follow-up work can deepen inspector editing without re-litigating where structural mutations live.
+- Backend follow-up work can add explicit lane metadata later by filling `editorSurface` rather than rewriting the graph contract.
+- QA should treat graph/list parity, focus transfer into the inspector, and context-menu keyboard access as the minimum accessibility contract for future graph iterations.
+# 2026-05-18T13:17:12.103+01:00 | Issue #58 — Graph workspace quality gate
+
+**Decision:** Keep issue #58 green with a four-part UI gate: client build, Storybook interaction/a11y tests, the dedicated workflow-graph keyboard contract spec, and the live planning workflow smoke. Do not call #58 done until those checks pass **and** the missing acceptance-criteria behaviours are implemented.
+
+**Rationale:** The graph workspace is primarily a frontend slice, so the fastest honest signal is the component/build + Storybook path. The live planning smoke remains necessary because the editor is mounted through the real shell and authoring API flow, which catches integration drift that Storybook alone will miss.
+
+**Artifacts:**
+- Design: `docs/design/workflow-editor-v1/01-authoring-ux.md`
+- Tracking: Issue #58
+- Implementation evidence: `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts`, `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`
+
+**Current readout:**
+- Green now: client build, backend core tests, Storybook test run, workflow graph keyboard spec, planning workflow smoke
+- Still missing for acceptance: visual transition edges/routing, transition selection, add-stage/context menu flows, double-click-to-edit contract, drag-to-create transitions, true front-stage/back-stage distinction, visual regression coverage in Storybook
+
+**Impact:** Isabelle can keep iterating with a tight regression net while avoiding false “done” calls from partial UI scaffolding. Reviewers should treat the current implementation as a foundation for #58, not a complete acceptance pass.
+# 2026-05-18T13:17:12.103+01:00 | Issue #58 — Recheck outcome
+
+**Decision:** Issue #58 is functionally green through Tangy's UI quality gate, but it is not acceptance-complete until Storybook includes an actual visual regression contract for the graph workspace.
+
+**Rationale:** The latest slice now satisfies the previously missing behaviour checks in code and Playwright: transition edges render, stage/transition selection works, add/delete/copy context actions are wired, drag-to-create transitions is covered, zoom/fit controls respond, and double-click inspection handoff works. The only unmet acceptance item from the issue body is the explicit “Tests in Storybook with visual regression” requirement, and the current Storybook setup still runs interaction and a11y checks only.
+
+**Artifacts:**
+- Issue #58
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.stories.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts`
+- `src/UmbracoPrism.Client/package.json`
+
+**Impact:** Review can treat the graph workspace implementation itself as substantially complete, but #58 should stay open or unmerged against its acceptance checklist until a screenshot/snapshot-style Storybook regression check is added.
+# 2026-05-18T13:17:12.103+01:00 | Issue #58 — Visual regression coverage for editor surfaces
+
+**Decision:** Treat visual regression for workflow editor surfaces as a dedicated Playwright screenshot contract against Storybook iframe stories, with committed baselines under `src/UmbracoPrism.Client/tests/__screenshots__/` and CI wiring in the Storybook test job. Keep Storybook test-runner focused on interaction and accessibility assertions.
+
+**Rationale:** Storybook's existing runner already gives good behavioural and WCAG coverage, but it does not provide a true screenshot baseline. A separate Playwright visual spec keeps the baseline deterministic, allows fixed viewport control, and avoids weakening interaction/a11y checks with screenshot-specific concerns.
+
+**Artifacts:**
+- Issue #58
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts`
+- `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/`
+- `src/UmbracoPrism.Client/playwright.config.ts`
+- `src/UmbracoPrism.Client/package.json`
+- `.github/workflows/ci-tests.yml`
+
+**Impact:** Editor-surface work can now satisfy “Storybook visual regression” acceptance criteria without blurring the purpose of Storybook's interaction/a11y lane. For #58 specifically, the previous acceptance blocker is cleared as long as the visual baseline remains green alongside the existing keyboard and live-shell checks.
