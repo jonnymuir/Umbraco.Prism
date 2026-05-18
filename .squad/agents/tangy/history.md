@@ -11,6 +11,18 @@ QA/Tester specializing in end-to-end validation and quality assurance.
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #59 recheck
+
+- Re-running the issue #59 list workspace gate is green on the latest slice: client build, Storybook CI across browsers with axe, the focused Playwright workflow workspace contract, and the live planning workflow smoke all passed.
+- The previously missing acceptance items are now present in the shipped surface: list mode is a semantic table with key/title/actor/type columns, inline row editing, front/back-stage filters, add/insert/delete controls, keyboard plus drag reordering hooks, polite live announcements, and row click handoff into the inspector.
+- #59 is acceptance-complete because the list workspace mutates and emits the shared workflow model used by the host editor rather than maintaining a separate list-only state.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #59 list workspace quality gate
+
+- Minimum keep-green gate for the list/table workspace slice is: client build, Storybook CI across browsers with axe, a dedicated Playwright contract for list-mode keyboard and row-editing behaviour, and the live planning workflow smoke covering list-view entry from the real shell.
+- The current worktree is green on build, Storybook CI, the existing workflow-graph keyboard contract, and the planning smoke, but #59 is not acceptance-complete: list mode is still a card/listbox fallback rather than a table-like editing workspace, click selects a row without opening the inspector, inline editing and front/back filtering are absent, and there is no reorder contract.
+- Shared-model integrity is already in place because the list mode mutates and emits the same `workflow-updated` workflow object used by the graph/editor host, so the remaining gap is behaviour depth rather than model divergence.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #58 graph workspace quality gate
 
 - Minimum keep-green gate for the graph workspace slice is: client build, Storybook interaction/a11y run, dedicated keyboard contract spec for the graph, and the live planning workflow smoke.
@@ -49,4 +61,32 @@ QA/Tester specializing in end-to-end validation and quality assurance.
 ### Acceptance Status
 
 ✅ Issue #58 is now acceptance-complete. All quality criteria met.
+
+## 2026-05-18: Issue #59 Quality Gate & Acceptance
+
+**Outcome:** ✅ Green and acceptance-complete  
+
+### Initial Pass: Quality Gate Confirmation
+
+Established minimum honest gate for issue #59 (4 seams):
+1. `npm run build` — TypeScript/Lit integration
+2. `npm run test-storybook:ci:all` — Accessibility via axe across browsers
+3. Focused Playwright contract for keyboard/list behaviour
+4. Live planning workflow smoke test
+
+Found acceptance items missing in initial state (list not yet table, no inspector click, etc.).
+
+### Second Pass: Recheck
+
+Confirmed all acceptance items complete:
+- Semantic table rows with inline editing
+- Front/back-stage filters
+- Add/insert/delete and reorder (drag and keyboard)
+- Live announcements
+- Row click opens inspector
+- All four gates pass end to end
+
+**Result:** Issue #59 is green and acceptance-complete per Isabelle's delivery.
+
+---
 

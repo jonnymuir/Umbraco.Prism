@@ -61,3 +61,37 @@ Frontend Dev specializing in workflow editor UX and component system.
 ---
 
 **Earlier learnings and archived entries:** See history-archive.md
+
+## Learnings
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #59 list/table workspace slice
+
+- **List workspace stays on the shared authored model:** the table edits the same `workflow.stages` array as graph mode, including stage-key renames that also retarget `initialStageKey` and transition `fromStage`/`toStage` references.
+- **Interaction boundary:** the list owns compact structural editing only (filters, inline key/title/actor/type edits, add/insert/delete, reorder, row selection); the inspector remains the detailed edit surface and row activation should move focus there.
+- **Accessibility pattern:** use a semantic table with a dedicated row-focus trigger, Alt+ArrowUp/Alt+ArrowDown keyboard reorder, drag-handle parity, and polite live-region announcements so screen-reader users get the same structural editing feedback as pointer users.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the list workspace changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.stories.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts`, `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`.
+
+## 2026-05-18: Issue #59 List Workspace Completed
+
+**Outcome:** ✅ Acceptance-complete  
+
+Turned list mode into a real accessible table workspace for the workflow editor:
+- Semantic `<table>` with stage rows
+- Inline editing for key/title/actor/type
+- Front/back-stage filters
+- Add/insert/delete/reorder controls  
+- Keyboard navigation and live announcements
+- Row activation opens the inspector
+- Storybook and Playwright coverage
+
+**Key decisions:**
+- List and graph share one authored workflow model (no separate editing model)
+- List workspace owns compact structural edits; inspector owns detailed configuration
+- Keyboard parity is mandatory
+- Same workflow object consumed by both surfaces (dual-surface authoring)
+
+**Tangy's recheck:** All four quality gates pass; issue #59 is green and acceptance-complete.
+
+---
+

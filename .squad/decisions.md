@@ -2977,3 +2977,77 @@ Ship issue #58 as a **focused graph workspace slice** with these boundaries:
 - `.github/workflows/ci-tests.yml`
 
 **Impact:** Editor-surface work can now satisfy “Storybook visual regression” acceptance criteria without blurring the purpose of Storybook's interaction/a11y lane. For #58 specifically, the previous acceptance blocker is cleared as long as the visual baseline remains green alongside the existing keyboard and live-shell checks.
+
+# Decision: Workflow editor list workspace owns compact structural editing, not detailed configuration
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+For the list/table workspace slice, keep the editing boundary intentionally narrow:
+
+1. **Graph and list share one authored workflow model.** Filters and view-mode switches only change presentation; they never create a second ordering or editing model.
+2. **List workspace owns compact structural edits.** Inline edits cover stage key, title, actor, and type, plus add/insert/delete/reorder actions for stage rows.
+3. **Inspector remains the detailed edit surface.** Activating a row should open the inspector rather than expanding large inline forms inside the table.
+4. **Keyboard parity is mandatory.** Row navigation, reorder, and announcements must work without drag input.
+
+## Why
+
+- The table needs to be efficient for keyboard-first and assistive-technology users, but it becomes noisy and hard to scan if every detailed field editor expands inline.
+- Keeping graph and list on the same authored model avoids drift between surfaces and preserves predictable undo/save behaviour.
+- A narrow inline-edit set gives authors the common changes they need in context while preserving the inspector as the place for richer future configuration.
+
+## Consequences
+
+- Stage-key edits in list mode must also retarget transition references and `initialStageKey`.
+- Filters should affect visibility only, not reorder semantics; reorder continues to operate on the authored stage array.
+- Screen-reader feedback should come from a polite live region so focus can stay with the row controls during edits and reordering.
+
+
+# Decision: Issue #59 quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+For issue #59, treat the minimum honest green gate as:
+
+1. `cd src/UmbracoPrism.Client && npm run build`
+2. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+3. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line` until a list-specific contract replaces or expands it
+4. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why
+
+Issue #59 is an accessible list/table workspace slice inside the workflow editor, so green status has to prove four seams together:
+
+- TypeScript/Lit integration still builds
+- Storybook still renders and passes axe-backed accessibility checks
+- Keyboard/list behaviour remains covered by a focused Playwright contract
+- The real editor shell can still load and switch into list mode in the live planning workflow
+
+## Current acceptance read
+
+The current worktree passes the gate above, but it is not yet acceptance-complete for #59:
+
+- list mode is still rendered as selectable cards in a `listbox`, not a compact list/table editing workspace with the requested columns
+- click selects a row but does not open the inspector
+- add/delete exist through shared graph actions and context menus, but insert-before/insert-after are missing and there is no dedicated list-surface affordance
+- reorder (drag or keyboard), inline field editing, and front-stage/back-stage filtering are not implemented
+- accessible coverage is present at the broad Storybook level, but there is no list-specific axe/assertion contract proving the final behaviour slice
+
+
+# Decision: Issue #59 recheck is green and acceptance-complete
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Accepted  
+
+Treat issue #59 as green and acceptance-complete.
+
+## Why
+
+- The quality gate passed end to end: client build, Storybook CI across Chromium/Firefox/WebKit with axe, the focused Playwright workflow workspace contract, and the live planning workflow smoke.
+- The accessible list workspace now satisfies the issue contract: semantic table rows, inline editing for common fields, front/back-stage filters, add/insert/delete controls, keyboard navigation, keyboard reorder, drag reorder affordance, live announcements, and row click opening the inspector.
+- The list surface edits the same workflow object consumed by the host editor and inspector, so this is dual-surface authoring rather than a separate fallback model.
+
