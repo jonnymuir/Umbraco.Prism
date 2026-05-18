@@ -3343,3 +3343,71 @@ Copy/paste crosses three existing behavioural seams at once: graph/list stage se
 ## Current gate call
 
 The current branch is **not** acceptance-complete for #64 yet. Supporting seams are green, but the shipped surface still exposes only undo/redo plus view toggle in the editor toolbar, the graph offers only JSON copy from its context menu, there is no authoring paste flow for stages or actions, and there is no dedicated issue-specific behavioural contract.
+# Decision: Issue #65 recheck outcome
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** ✅ Confirmed Green  
+
+Issue #65 can now be treated as acceptance-complete.
+
+## Decision
+
+1. Keep the seven-seam gate for this slice: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, the dedicated workflow-editor validation Playwright contract, and the live planning workflow smoke.
+2. Credit the slice as complete because the host editor now owns one shared validation pass, one visible validation rail, jump-to-item links, inline inspector field errors, and save blocking for blocking structural issues.
+3. Treat the retry-only action-editor flake as unrelated legacy noise unless it starts failing hard; it does not invalidate the dedicated #65 contract or the green planning smoke.
+
+## Why
+
+The original blocker was fragmented evidence: validation rules existed, but the host editor did not bind them into a single authoring contract. The latest implementation and gate run now prove the missing acceptance items together, so the slice has honest quality coverage instead of inferred confidence.
+# Decision: Workflow validation and error reporting boundary
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+Treat editor validation as a host-owned confidence seam, not as separate graph-only or inspector-only checks.
+
+## Decision
+
+1. Run one shared workflow validation pass in `prism-workflow-editor` so the rail, save state, and jump-to-item behaviour all use the same issue list.
+2. Classify **orphaned stages** and **unreachable stages** as blocking errors because they make the authored flow structurally unusable.
+3. Classify **dead-end stage reminders** and **action parameter issues** as warnings so authors can keep editing without being locked out of save for unfinished detail work.
+4. Keep the validation rail button-driven and focus the affected inspector control when possible so keyboard and screen-reader users can move from summary to fix without hunting.
+5. Use the existing `/publish` endpoint for the host Save button until the backend exposes a dedicated authored-workflow save endpoint.
+
+## Why
+
+The editor already has in-context warnings in the graph and inline field errors in the inspector, but issue #65 needs those surfaces tied together into one workflow-friendly authoring contract. Centralising validation in the host keeps save blocking honest, avoids duplicated rule drift, and gives accessibility users one predictable path from summary to repair.
+
+# Decision: Issue #65 quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Treat workflow validation and error reporting as a dedicated release seam, not as incidental graph or inspector polish.
+
+## Decision
+
+Do not call issue #65 green until all of the following are true:
+
+1. A shared validation pass surfaces orphaned stages, unreachable stages, and action-parameter issues in workflow-friendly language.
+2. The editor exposes a visible validation rail that includes those issues and lets authors jump directly to the affected stage, transition, or action.
+3. Critical validation errors block save/publish from the main editor surface.
+4. A dedicated behavioural contract covers the validation rail, jump-to-item flow, plain-language messages, and save blocking.
+
+## Minimum gate
+
+1. `cd src/UmbracoPrism.Client && npm run build`
+2. `cd /Users/jonnymuir/Documents/Projects/Umbraco.Prism && dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-validation-error-reporting.spec.ts --reporter=line`
+7. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why
+
+The current branch already proves pieces of #65 in isolation, but the end-to-end authoring contract is still incomplete. A utility-only validator, graph-only routing warnings, or inspector-only field errors are not enough unless the host editor binds them together and save blocking is proven in a focused test.
+

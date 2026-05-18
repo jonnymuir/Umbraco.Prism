@@ -44,3 +44,25 @@ Delivered complete copy/paste functionality with:
 - Immediate post-paste selection for accessibility
 - Comprehensive Playwright coverage for graph, action editor, and toolbar behavior
 
+
+## Learnings
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #65 workflow validation and error reporting slice
+
+- **Validation boundary:** treat orphaned and unreachable stages as blocking editor errors; keep dead ends and action-parameter gaps as workflow-friendly warnings so save stays available while authors finish detailed configuration.
+- **Save seam:** use `POST /api/workflow-authoring/workflows/{key}/publish` for the host Save button until a dedicated authored-workflow save endpoint exists; the client labels it as Save, but the current persistence boundary is publish-backed.
+- **Accessibility pattern:** make the validation rail a button-based jump list, preserve inline inspector errors, and move focus to the affected stage or action field when an author opens an issue from the rail.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts --workers=1 --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the validation/error-reporting changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/workflow-validation.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-validation.spec.ts`.
+
+## 2026-05-18T13:17:12Z — Issue #65 validation and error reporting completed
+
+Delivered shared workflow validation infrastructure:
+- Single validation pass in `prism-workflow-editor` serving rail, save state, and jump-to-item behaviour
+- Error classification: blocking errors (orphaned/unreachable stages) vs. warnings (dead-end reminders, parameter issues)
+- Validation rail button-driven with jump-to-item links for accessibility
+- Inline inspector field errors tied to validation
+- Save blocking for critical structural problems
+- Focused behavioural contract covers validation rail, plain-language messages, and save blocking
+
+**Status:** Acceptance-complete per Tangy's seven-seam gate. Ready for production.
