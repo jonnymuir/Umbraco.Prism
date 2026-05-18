@@ -3051,3 +3051,51 @@ Treat issue #59 as green and acceptance-complete.
 - The accessible list workspace now satisfies the issue contract: semantic table rows, inline editing for common fields, front/back-stage filters, add/insert/delete controls, keyboard navigation, keyboard reorder, drag reorder affordance, live announcements, and row click opening the inspector.
 - The list surface edits the same workflow object consumed by the host editor and inspector, so this is dual-surface authoring rather than a separate fallback model.
 
+
+
+# Decision: Stage editing interaction boundary
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle
+
+## Decision
+
+Keep **stage creation, insertion, and deletion confirmation** inside the graph/list workspace, but keep **stage property editing and stage action configuration** inside the inspector.
+
+## Why
+
+- The workspace already owns structural editing, ordering, and selection, so add/insert/delete flows stay predictable there.
+- The inspector is the stable detail surface shared by graph and list selection, which keeps stage title/description/actor/type/action editing in one keyboard-accessible place.
+- Destructive and creation flows need explicit modal focus handling, while inspector edits should remain inline and non-modal.
+
+## Accessibility notes
+
+- Create/delete flows use labelled dialogs with seeded focus, Escape support, and Tab trapping.
+- Validation stays in plain language: duplicate keys block creation/editing, and missing outbound transitions remain visible in the inspector rather than being silently inferred.
+
+
+# Decision: Issue #60 stage editor quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Keep the issue #60 stage creation and editing slice green with a six-part gate:
+
+1. Authoring-focused .NET workflow tests
+2. Client build
+3. Storybook CI across browsers with axe
+4. Existing workflow graph/list keyboard contract
+5. Dedicated Playwright stage-editor behavioural contract
+6. Live planning workflow smoke
+
+## Why
+
+- Issue #60 spans both workflow-shell interactions and authoring contracts: stage actions depend on the backend action catalog, while stage selection and editing ride on the graph/list workspace already shipped in #58 and #59.
+- Storybook plus build catches component drift, but only a focused stage-editor Playwright spec can honestly protect create-dialog validation, delete confirmation, action reordering, and keyboard-only editing.
+- The live planning smoke remains necessary so graph/list selection, inspector updates, and authoring-shell wiring stay real rather than story-only.
+
+## Current gap
+
+- The baseline is green today, but the new stage-editor behavioural contract does not exist yet.
+- Acceptance should stay red until the slice adds dialog-driven creation, editable inspector fields including description, action catalog wiring, delete confirmation with affected transitions, and focused tests for those flows.

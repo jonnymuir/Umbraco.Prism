@@ -11,6 +11,18 @@ QA/Tester specializing in end-to-end validation and quality assurance.
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #60 recheck
+
+- Re-ran the #60 quality gate on the latest slice and it is green: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, the focused workflow graph/stage workspace Playwright contract, and the live planning workflow smoke all passed.
+- The previously missing acceptance items are now present in the shipped surface: accessible create/delete dialogs, an editable stage inspector for title/key/description/actor/type, catalog-backed stage actions with reorder/remove affordances, and authored description/action data flowing through fixtures plus the authoring API.
+- #60 is now acceptance-complete. Coverage is split sensibly between Storybook behavioural stories for inspector/action editing and Playwright contracts for workspace creation, deletion, selection, and live-shell smoke.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #60 stage editor quality gate
+
+- Re-ran the current #60 baseline and it is green on the latest worktree: authoring-focused .NET workflow tests, client build, Storybook CI across browsers with axe, the workflow graph/list keyboard contract, and the live planning workflow smoke all passed.
+- Minimum keep-green coverage for the stage editor slice should add one missing behavioural contract on top of that baseline: a focused Playwright stage-editor spec that exercises create-stage validation, inspector editing, action add/reorder flows, delete confirmation, and keyboard-only paths.
+- The current implementation is still short of #60 acceptance: stage creation is template-first rather than dialog-driven, the inspector is read-only, the TypeScript workflow model drops stage `description` and `actions`, the client does not consume the action catalog endpoint, delete is immediate with no affected-transition confirmation, and there is no dedicated stage-editor test yet.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #59 recheck
 
 - Re-running the issue #59 list workspace gate is green on the latest slice: client build, Storybook CI across browsers with axe, the focused Playwright workflow workspace contract, and the live planning workflow smoke all passed.
@@ -90,3 +102,39 @@ Confirmed all acceptance items complete:
 
 ---
 
+## Issue #60: Stage editor quality gate
+
+**Date:** 2026-05-18T12:17:12Z  
+**Outcome:** ✅ Green and acceptance-complete
+
+Quality-gated issue #60 stage editor slice with comprehensive verification:
+
+### First Pass: Gap Identification
+
+Tracked missing acceptance items:
+- Dialog-driven stage creation and deletion
+- Editable inspector with description field
+- Action catalog integration
+- Delete confirmation showing affected transitions
+- Keyboard-only editing flows
+
+### Verification Gate
+
+1. ✅ Authoring-focused .NET workflow tests — Pass
+2. ✅ Client build — Green
+3. ✅ Storybook CI across browsers with axe — All pass
+4. ✅ Existing workflow graph/list keyboard contract — Maintained
+5. ✅ Dedicated Playwright stage-editor behavioural contract — Comprehensive coverage
+6. ✅ Live planning workflow smoke — Passing
+
+### Second Pass: Recheck and Acceptance
+
+Confirmed Isabelle's delivery:
+- Create dialog validates duplicate keys
+- Delete confirms and warns about affected transitions
+- Inspector fields (title/key/description/actor/type) editable inline
+- Actions reorderable via keyboard and drag
+- All keyboard accessibility flows tested
+- Live announcements for screen readers
+
+**Result:** Issue #60 is green and acceptance-complete. Workflow editor stage editing slice ready for production.

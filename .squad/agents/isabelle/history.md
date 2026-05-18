@@ -64,6 +64,15 @@ Frontend Dev specializing in workflow editor UX and component system.
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #60 stage creation and editing slice
+
+- **Interaction boundary:** graph/list keep structural stage operations (create, insert, reorder, delete confirmation), while the inspector owns stage property edits and catalog-backed stage actions.
+- **Accessibility pattern:** create/delete flows use labelled dialogs with seeded focus, Escape handling, and Tab trapping; inspector validation keeps duplicate-key and missing-outbound-transition feedback in plain language.
+- **Shared authored model:** the client now normalises stage descriptions and authored actions from the workflow API/fixtures so graph, list, and inspector stay on one workflow object.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the stage editing changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts`.
+
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #59 list/table workspace slice
 
 - **List workspace stays on the shared authored model:** the table edits the same `workflow.stages` array as graph mode, including stage-key renames that also retarget `initialStageKey` and transition `fromStage`/`toStage` references.
@@ -95,3 +104,38 @@ Turned list mode into a real accessible table workspace for the workflow editor:
 
 ---
 
+
+## Issue #60: Stage creation, deletion, and editing
+
+**Date:** 2026-05-18T12:17:12Z  
+**Outcome:** ✅ Completed and acceptance-gated
+
+Implemented stage editor slice with accessible create/delete dialogs, editable inspector, and catalog-backed actions:
+
+### Deliverables
+
+- **Create Dialog:** Validation for duplicate keys, seeded focus, Escape support, Tab trapping
+- **Delete Dialog:** Confirmation with affected transition warnings
+- **Inspector:** Inline editing for title/key/description/actor/type; action reordering
+- **Action Catalog:** Backend catalog integration with fallback generic action configuration
+- **Storybook:** Component documentation and story coverage
+- **Playwright:** Focused behavioural specs for create/delete/edit workflows
+- **Accessibility:** WCAG 2.1 AA compliance with screen-reader announcements
+
+### Key Decisions
+
+- Stage workspace owns structural edits (create/insert/delete); inspector owns property editing
+- Create/delete flows are modal and destructive; inspector edits are inline
+- Validation stays plain language (no silent inference)
+
+### Quality Gate
+
+All six gates pass:
+1. ✅ Authoring-focused .NET workflow tests
+2. ✅ Client build
+3. ✅ Storybook CI across browsers with axe
+4. ✅ Existing workflow graph/list keyboard contract
+5. ✅ Dedicated Playwright stage-editor behavioural contract
+6. ✅ Live planning workflow smoke
+
+**Status:** Green and acceptance-complete per Tangy's recheck.
