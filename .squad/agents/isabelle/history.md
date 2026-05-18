@@ -66,3 +66,22 @@ Delivered shared workflow validation infrastructure:
 - Focused behavioural contract covers validation rail, plain-language messages, and save blocking
 
 **Status:** Acceptance-complete per Tangy's seven-seam gate. Ready for production.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #66 help system and shortcut reference slice
+
+- **Shortcut source of truth:** define workflow-editor commands in `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts` and drive the toolbar `aria-keyshortcuts`, help modal content, and Playwright parity checks from that shared map so discoverability does not drift from implementation.
+- **Accessibility pattern:** expose help as a host-owned modal opened by both the toolbar Help button and `F1`, trap focus while it is open, restore focus to the invoking control on close, and keep inline help on complex inspector/action-editor fields reachable by hover and keyboard focus.
+- **Empty-state guidance:** when the workflow has no stages, replace the generic “nothing to display” message with actionable getting-started tips plus first-stage buttons inside `prism-workflow-graph` so authors can recover without guessing the next step.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-graph-keyboard.spec.ts --workers=1 --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the help/discoverability changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-inline-help.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-help.spec.ts`.
+
+## 2026-05-18T12:17:12Z — Issue #66 help and shortcut discoverability completed
+
+Delivered help and shortcut discoverability as host-editor responsibility:
+- Shared shortcut catalog at `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts` drives toolbar affordances, help modal, and parity tests
+- Help button visible on toolbar; `F1` opens shortcut reference modal with focus trap and restore
+- Inline help on complex inspector fields reachable by hover and keyboard focus
+- Empty-state shows getting-started tips with action buttons instead of generic "nothing to display"
+- Comprehensive Playwright coverage ensures keyboard paths and empty-state recovery work end-to-end
+
+**Status:** Acceptance-complete per Tangy's six-seam gate. Production-ready.

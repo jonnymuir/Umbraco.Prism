@@ -1,3 +1,63 @@
+# Decision: Workflow editor help and shortcut discoverability
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+Treat help and shortcut discoverability as a **host-editor responsibility**, not scattered helper copy in child components.
+
+## Decision
+
+1. Keep a shared shortcut catalog in `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts`.
+2. Drive the toolbar affordances, shortcut reference modal, and parity tests from that catalog.
+3. Open the shortcut reference from both a visible Help button and `F1`.
+4. Keep complex-field guidance inline and keyboard reachable with hover/focus help affordances in the inspector and action editor.
+5. When a workflow is empty, show actionable getting-started tips and first-step buttons inside the workspace rather than a passive empty message.
+
+## Why
+
+- Shortcut discoverability fails when the visible list, `aria-keyshortcuts`, and actual handlers drift apart.
+- Keyboard users need the same help path as pointer users, so Help must be visible and callable without leaving the editor surface.
+- Empty states and complex fields are where new authors stall; guidance has to appear exactly where the confusion happens.
+
+## Consequences
+
+- Future shortcut additions should start in the shared catalog so the help surface and tests stay current automatically.
+- Accessibility review for editor help should check focus trapping, focus return, and hover/focus help affordances together.
+- Empty-state copy should stay action-oriented and paired with real entry-point buttons.
+
+
+# Decision: Minimum honest gate for issue #66 help and shortcut discoverability
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Issue #66 should not be treated as green on Storybook or toolbar screenshots alone. The slice crosses toolbar affordances, keyboard handling, empty-state guidance, and inline help on complex fields, so the acceptance proof needs one dedicated behavioural contract plus the existing editor UI seams around it.
+
+## Minimum gate
+
+1. `cd src/UmbracoPrism.Client && npm run build`
+2. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+3. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why this is the honest boundary
+
+- **Build** catches drift between any shortcut registry, toolbar labels, and help-surface wiring.
+- **Storybook CI** keeps the help affordances and inline guidance WCAG-clean across browsers.
+- **Graph keyboard coverage** proves the new help affordance fits the editor's keyboard model instead of becoming a pointer-only escape hatch.
+- **Action editor coverage** protects inline explanations on complex parameters and forms-backed fields.
+- **Dedicated help contract** must own the real acceptance items: help button opens the shortcut reference, the list matches implemented commands and keys, empty state shows getting-started tips, and the panel/dialog is usable end-to-end from the keyboard.
+- **Planning smoke** proves the live authoring shell still loads with the added help surface.
+
+## Current blocker call
+
+As of this review, the host editor does not yet expose a help button or help surface, the keyboard handler only covers copy/paste/undo/redo, the empty state is still "No stages to display.", and there is no dedicated help-focused Playwright contract. Until those seams land together, #66 is not acceptance-complete.
+
+
 # Decision: Workflow editor doc reframe
 
 **Date:** 2026-05-17T22:05:30.472+01:00  

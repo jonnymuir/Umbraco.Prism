@@ -33,6 +33,11 @@ Identified missing acceptance items, stabilized flaky stage-create test, confirm
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #66 recheck
+
+- Re-ran the full #66 help/discoverability gate: client build, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, the dedicated workflow-editor help Playwright contract, and the live planning workflow smoke all completed green.
+- The previously missing acceptance seams are now present together: the toolbar exposes a visible Help button, F1 opens the in-editor shortcut reference, the shortcut dialog is driven from the shared shortcut catalog, empty workflows now show getting-started guidance, and complex inspector/action fields ship hover/focus inline help.
+- The dedicated parity contract proves the help surface stays aligned with the exported shortcut map and that keyboard users can open, dismiss, and return focus predictably. No #66-specific blocker remains.
 ### 2026-05-18T13:17:12.103+01:00 — Issue #64 recheck
 
 - Re-ran the full #64 copy/paste gate: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, dedicated workflow copy/paste Playwright, and the live planning workflow smoke all passed.
@@ -51,6 +56,12 @@ Identified missing acceptance items, stabilized flaky stage-create test, confirm
 - Re-ran the full #65 quality gate: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, the dedicated workflow-editor validation Playwright contract, and the live planning workflow smoke all completed green.
 - The previously missing acceptance seams are now present together in the host editor: `validateWorkflow(...)` drives the validation rail and save state, the rail lists orphaned/unreachable/action issues in workflow language with jump buttons, inspector focus follows rail jumps, and blocking structural errors disable save while action-field problems stay warnings.
 - The action-editor suite still shows one retry-only flake in an older keyboard-only forms path, but it recovered and does not contradict the dedicated #65 evidence. Issue #65 is now honest green and acceptance-complete with no slice-specific blocker remaining.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #66 quality gate
+
+- Minimum honest keep-green coverage for workflow editor help and shortcut discoverability is six seams: client build, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, a dedicated help-and-shortcuts Playwright contract, and the live planning workflow smoke.
+- The surrounding editor seams are healthy on the current branch: client build, Storybook CI, workflow graph keyboard, workflow action editor, and the live planning workflow smoke all passed; the action-editor suite still showed one retry-only validation-timing flake that recovered and does not read as #66 evidence.
+- Do not call #66 green yet: the toolbar exposes save/undo/redo/copy/paste plus view toggle but no help button, the host keyboard handler only wires copy/paste/undo/redo, the list empty state only says “No stages to display.”, and there is no dedicated behavioural contract proving shortcut-reference parity, keyboard-accessible help, or getting-started guidance.
 
 ## 2026-05-18T12:17:12Z — Issue #64 acceptance confirmed
 
@@ -76,3 +87,27 @@ Key acceptance items verified:
 Only remaining noise: unrelated retry-only flake in older action-editor keyboard/forms spec.
 
 **Status:** Issue #65 confirmed green and acceptance-complete. Ready for production.
+
+## 2026-05-18T12:17:12Z — Issue #66 help and shortcut discoverability quality gate and acceptance confirmation
+
+Defined and passed six-seam quality gate:
+1. Client build
+2. Storybook CI across browsers with axe
+3. Workflow graph keyboard Playwright
+4. Workflow action editor Playwright
+5. Workflow editor help and shortcuts Playwright
+6. Live planning workflow smoke
+
+Key acceptance items verified:
+- Shared shortcut catalog (workflow-shortcuts.ts) drives toolbar affordances, help modal, parity tests
+- Help button visible on toolbar opens shortcut reference modal
+- F1 opens and closes help modal predictably with focus trap/restore
+- Inline help on complex inspector fields reachable by hover and keyboard focus
+- Empty-state shows getting-started tips with action buttons
+- All shortcuts listed in help match implemented keyboard handlers
+- Keyboard and screen-reader paths work end-to-end
+- Dedicated help contract owns real acceptance: button opens, list matches commands, empty state guides, panel is usable keyboard-first
+
+No slice-specific blocker remaining. All six gates passed.
+
+**Status:** Issue #66 confirmed green and acceptance-complete. Ready for production.
