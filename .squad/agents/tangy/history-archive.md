@@ -24,3 +24,9 @@ recent_kept: "Issue #68 full coverage (recheck, quality gate, evidence) + Issue 
 ---
 
 Condensed tangy/history.md to retain recent issue work (#68, #67-#64 rechecks/confirmations) while archiving verbose early-gate descriptions and pre-issue workflow work. Key learnings: honest seven-seam gates, environment noise classification, and production readiness criteria.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #64 recheck
+
+- Re-ran the full #64 copy/paste gate: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, dedicated workflow copy/paste Playwright, and the live planning workflow smoke all passed.
+- The dedicated behavioural contract now proves the previously missing acceptance seams: copied stages get fresh `-copy` keys, pasted stages exclude transitions, validation warnings surface after paste, toolbar clipboard state is visible, Ctrl/Cmd+C and Ctrl/Cmd+V work, action paste works in the same stage and a different stage, and the pasted stage/action becomes the active edit target immediately.
+- The unrelated `govuk-frontend.min.css` authoring-test noise did not block this recheck; the live planning smoke stayed green, so #64 is now honest green and acceptance-complete.

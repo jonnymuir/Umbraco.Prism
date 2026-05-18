@@ -1,6 +1,10 @@
 # History: Isabelle (Frontend Dev)
 
 
+
+# History: Isabelle (Frontend Dev)
+
+
 ### Quality Gate
 
 All six gates pass:
@@ -12,66 +16,45 @@ All six gates pass:
 6. ✅ Live planning workflow smoke
 
 **Status:** Green and acceptance-complete per Tangy's recheck.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #69 browser-surface green fix
 
-### 2026-05-18T13:17:12.103+01:00 — Issue #63 undo and redo workflow changes slice
+- **Readiness contract:** reflect `data-prism-workflow-loaded` on the `<prism-workflow-editor>` host once the authored workflow is loaded so localhost smoke checks do not depend on piercing shadow DOM.
+- **Hosted shell polish:** the reference host page should carry its own inline favicon to keep the live browser console free of avoidable 404 noise.
+- **Walkthrough resilience:** when host chrome overlaps graph controls, prefer the editor's keyboard contract (`focus()` + key activation) over pointer clicks in the planning walkthrough so the smoke exercises the accessible path instead of a brittle hit target.
+- **Validation gate for this fix:** `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`, `npm run build`, and `npm run test:playwright:planning-smoke` passed after the browser-surface fixes.
+- **Key file paths:** `src/UmbracoPrism.Client/workflow-editor.html`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`, `.squad/decisions/inbox/isabelle-issue-69-green-fix.md`.
+#### 2026-05-18T19:41:25Z — Issue #69 browser-surface blockers resolved
 
-- **Undo/redo ownership:** keep the bounded history stack in `prism-workflow-editor` so every structural graph mutation and every inspector-driven stage/transition/action edit is captured through the shared `workflow-updated` event seam instead of duplicating history logic in child components.
-- **Accessibility pattern:** expose undo/redo as real toolbar buttons with disabled states, `aria-keyshortcuts`, a visible history status bar, and a polite live announcement so keyboard and screen-reader users get the same recovery feedback as pointer users.
-- **History boundary:** preview/reject flows and validation surfaces must not clear local undo history; only loading a fresh workflow should reset the stack, and the editor should cap retained snapshots to the latest 50 changes.
-- **Validation gate for this slice:** `npm run build`, `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-transition-editor.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the undo/redo changes.
-- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-history.spec.ts`.
+Completed the remaining surface-level fixes for issue #69:
+- Removed `/favicon.ico` 404 from host page by serving inline data-URL favicon.
+- Reflected `data-prism-workflow-loaded` readiness attribute on `<prism-workflow-editor>` host element (not shadow-only).
+- Updated localhost smoke to use shadow-aware Playwright locators for readiness check.
+- Validated browser console cleanliness on live reference host.
+- All five-seam gate passed: .NET tests (77/77), build, Storybook CI, localhost probe, save round-trip.
 
-## 2026-05-18T12:17:12Z — Issue #63 completed
-
-Implemented host-owned undo/redo stack with 50-step cap, toolbar UI, keyboard shortcuts (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z), selection restore, and comprehensive Playwright coverage for stage, transition, action, reorder, and parameter-change flows.
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #64 copy and paste stages and actions slice
-
-- **Clipboard ownership:** keep copy/paste state, toolbar affordances, and `Ctrl/Cmd+C` / `Ctrl/Cmd+V` handling in `prism-workflow-editor` so stage workspace selection and inspector action selection share one accessible clipboard contract.
-- **Copy boundary:** stage copy duplicates authored stage properties, fields, waits, and actions but intentionally excludes inbound/outbound transitions; pasted stages rely on existing workspace/inspector validation to surface missing routes immediately.
-- **Action paste rule:** pasted actions keep all params, but timing must be normalised against the destination context (`stage.onEntry`, `stage.onExit`, or `transition`) so the same copied action can move safely between stages and other action targets.
-- **Accessibility pattern:** expose clipboard state in the toolbar with visible copy/paste buttons, `aria-keyshortcuts`, and selection highlighting in `prism-workflow-action-editor` so keyboard users know what will paste before they invoke it.
-- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, and `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts --reporter=line` all passed after the copy/paste changes; the attempted authoring `.NET` test run was blocked by an existing `UmbracoPrism.TestSite` missing `govuk-frontend.min.css` asset.
-- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-action-editor.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-copy-paste.spec.ts`.
-
-## 2026-05-18T12:17:12Z — Issue #64 completed
-
-Delivered complete copy/paste functionality with:
-- Host-owned clipboard state in prism-workflow-editor
-- Toolbar copy/paste buttons and Ctrl/Cmd+C / Ctrl/Cmd+V shortcuts
-- Safe stage duplication (fresh keys, no transitions)
-- Action duplication with destination-aware normalization
-- Immediate post-paste selection for accessibility
-- Comprehensive Playwright coverage for graph, action editor, and toolbar behavior
-
-
-## Learnings
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #68 workflow path simulation slice
+**Status:** Issue #69 acceptance-complete and production-ready. Browser surface blockers resolved.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #68 workflow path simulation slice
 
 - **Simulation ownership:** keep path simulation state in `prism-workflow-editor` so the graph highlight, simulation panel, and shared validation issues all stay in sync from one authored-workflow source of truth.
 - **Simulation boundary:** start from `initialStageKey`, stop automatically at waiting/terminal/dead-end stages, and treat route-specific blocking validation issues as disabled transition buttons while still showing condition and role-guard copy as author guidance rather than pretending to execute runtime rules.
 - **Accessibility pattern:** render simulation as a persistent panel with real buttons, breadcrumb history, polite live announcements, and graph highlights so keyboard and screen-reader users can follow the same route-planning feedback as pointer users.
 - **Validation gate for this slice:** `npm run build`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-simulation.spec.ts tests/workflow-editor/workflow-editor-stage-preview.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts --reporter=line`, `node node_modules/.bin/test-storybook --url http://localhost:6006 --browsers chromium firefox webkit`, and `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts --reporter=line` passed after the simulation changes; `npm run test:playwright:planning-smoke` reached the live stack but was blocked by an existing `workflow-editor.html` shell readiness failure (`prism-workflow-editor` element missing on the served page) unrelated to the Storybook/editor-host slice.
 - **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-simulation.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-simulation.spec.ts`.
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #67 runtime stage preview slice
+##### 2026-05-18T13:17:12.103+01:00 — Issue #67 runtime stage preview slice
 
 - **Preview source of truth:** drive stage preview from the authoring `/project` endpoint so the editor shows the same deterministic runtime projection that publish uses, with a local projector fallback only for Storybook/offline shells.
 - **Accessibility pattern:** keep the preview panel visibly separate from authoring, expose public/member/back-stage surface buttons even when some are disabled, announce loading politely, and render every control as disabled or static text so the preview never steals keyboard focus from editing.
 - **Preview update seam:** debounce projection requests from `prism-workflow-editor`, preserve the last successful preview while a new one is loading, and let actor/surface edits re-evaluate which surface tab is available before re-rendering.
 - **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-stage-preview.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` passed after the runtime preview changes.
 - **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-stage-preview.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-runtime-projection.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-stage-preview.spec.ts`.
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #65 workflow validation and error reporting slice
+##### 2026-05-18T13:17:12.103+01:00 — Issue #65 workflow validation and error reporting slice
 
 - **Validation boundary:** treat orphaned and unreachable stages as blocking editor errors; keep dead ends and action-parameter gaps as workflow-friendly warnings so save stays available while authors finish detailed configuration.
 - **Save seam:** use `POST /api/workflow-authoring/workflows/{key}/publish` for the host Save button until a dedicated authored-workflow save endpoint exists; the client labels it as Save, but the current persistence boundary is publish-backed.
 - **Accessibility pattern:** make the validation rail a button-based jump list, preserve inline inspector errors, and move focus to the affected stage or action field when an author opens an issue from the rail.
 - **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts --workers=1 --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the validation/error-reporting changes.
 - **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/workflow-validation.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-validation.spec.ts`.
-
-## 2026-05-18T13:17:12Z — Issue #65 validation and error reporting completed
+#### 2026-05-18T13:17:12Z — Issue #65 validation and error reporting completed
 
 Delivered shared workflow validation infrastructure:
 - Single validation pass in `prism-workflow-editor` serving rail, save state, and jump-to-item behaviour
@@ -82,16 +65,14 @@ Delivered shared workflow validation infrastructure:
 - Focused behavioural contract covers validation rail, plain-language messages, and save blocking
 
 **Status:** Acceptance-complete per Tangy's seven-seam gate. Ready for production.
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #66 help system and shortcut reference slice
+##### 2026-05-18T13:17:12.103+01:00 — Issue #66 help system and shortcut reference slice
 
 - **Shortcut source of truth:** define workflow-editor commands in `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts` and drive the toolbar `aria-keyshortcuts`, help modal content, and Playwright parity checks from that shared map so discoverability does not drift from implementation.
 - **Accessibility pattern:** expose help as a host-owned modal opened by both the toolbar Help button and `F1`, trap focus while it is open, restore focus to the invoking control on close, and keep inline help on complex inspector/action-editor fields reachable by hover and keyboard focus.
 - **Empty-state guidance:** when the workflow has no stages, replace the generic “nothing to display” message with actionable getting-started tips plus first-stage buttons inside `prism-workflow-graph` so authors can recover without guessing the next step.
 - **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-graph-keyboard.spec.ts --workers=1 --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the help/discoverability changes.
 - **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-inline-help.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-help.spec.ts`.
-
-## 2026-05-18T12:17:12Z — Issue #66 help and shortcut discoverability completed
+#### 2026-05-18T12:17:12Z — Issue #66 help and shortcut discoverability completed
 
 Delivered help and shortcut discoverability as host-editor responsibility:
 - Shared shortcut catalog at `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts` drives toolbar affordances, help modal, and parity tests
@@ -101,14 +82,12 @@ Delivered help and shortcut discoverability as host-editor responsibility:
 - Comprehensive Playwright coverage ensures keyboard paths and empty-state recovery work end-to-end
 
 **Status:** Acceptance-complete per Tangy's six-seam gate. Production-ready.
-
-### 2026-05-18T12:17:12Z — Issue #67 stage preview completed
+##### 2026-05-18T12:17:12Z — Issue #67 stage preview completed
 
 Delivered read-only runtime preview pane driven from authoring project pipeline with public/member/back-stage switching, auto-update on edits, loading feedback, dedicated `prism-stage-preview` component, and planning workflow coverage.
 
 **Quality gate:** All six acceptance seams green. Production-ready.
-
-### 2026-05-18T12:17:12Z — Issue #68 workflow simulation completed
+##### 2026-05-18T12:17:12Z — Issue #68 workflow simulation completed
 
 Delivered dedicated path-simulation panel with authored-initial-stage start, breadcrumb history, happy/rejection/waiting-blocker routes, current-stage and traversed-path highlighting, Storybook scenarios, and targeted Playwright coverage.
 
