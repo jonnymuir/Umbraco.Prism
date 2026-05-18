@@ -2715,3 +2715,35 @@ Copilot can start on #55–#57 (foundation contracts) once Lead reviews routing.
 - "Unclear what V1 baseline vs V1+ means" — baseline is #55–#72; V1+ is #73 and future.
 - "Editor is one phase among many" — editor is the focus; runtime hosting and AI are supporting.
 
+
+# Workflow schema foundation lives with the Workflow Editor authoring backend
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Blathers  
+**Issue:** #55  
+**Status:** Proposed
+
+## Decision
+
+Keep the authored workflow contract in `src/UmbracoPrism.WorkflowEditor/Authoring/` and publish the locked JSON shape alongside it at `src/UmbracoPrism.WorkflowEditor/Authoring/Schemas/authored-workflow.schema.json`.
+
+Use the new persisted schema shape for editor-owned documents:
+
+- stages use `key`, `title`, `type`, `actor`, `actions`
+- transitions use `source`, `target`, `trigger`, `conditions`, `actions`
+- actions use `type`, `timing`, `params`, `parameterSchemaKey`
+- reusable parameter contracts live in top-level `parameterSchemas`
+
+Preserve proposal/patch compatibility by accepting legacy payload aliases such as `stageKey`, `displayName`, `kind`, `fromStage`, `toStage`, and `action` during deserialisation.
+
+## Why
+
+The schema belongs with the editor/backend seam that saves, validates, previews, and projects authored workflows, not in the shared runtime seed contract. Co-locating the C# records, validator, and JSON schema keeps the authoring contract testable while leaving `WorkflowDefinitionFile` unchanged for current runtime consumers.
+
+The compatibility aliases let existing patch/proposal payloads keep working while the saved V1 document moves to the clearer editor-facing names agreed in the design work.
+
+## Consequences
+
+- Runtime projection remains backward compatible because only `WorkflowProjector` bridges authored JSON into `WorkflowDefinitionFile`.
+- Authoring tests can validate both the persisted schema file and the C# record/validator behaviour in one place.
+- Future action-catalog work can enrich `parameterSchemas` without reshaping stage or transition envelopes again.

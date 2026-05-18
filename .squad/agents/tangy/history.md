@@ -152,3 +152,35 @@ Analyzed CI timing and localhost-auth Playwright strategy; wrote decision inbox 
   1. **tangy-ci-fix-pass.md** — CI verification green; branch ready for merge review.
   2. **tangy-walkthrough-screenshots.md** — Screenshot regeneration strategy (capture-screenshots workflow commits updated images back to branch automatically).
 - PR #53 branch is in fully green state pending screenshot workflow completion.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #55 workflow schema quality gate
+
+- Ran the requested baseline checks for this slice:
+  - `dotnet test src/UmbracoPrism.Core.Tests/ --nologo` ✅ before the newer schema files surfaced
+  - `node node_modules/.bin/playwright test --reporter=line` ❌ twice; first failed in AppHost/TestSite startup, later rerun failed because the prior Aspire stack was still occupying the required localhost ports
+- Added Tangy-owned schema contract coverage in `src/UmbracoPrism.Core.Tests/Workflow/Authoring/PlanningWorkflowFixtureTests.cs` and `.../AuthoredWorkflowValidationTests.cs` so the planning fixture and projector validation rules are exercised as behavioural contracts for issue #55.
+- Blathers' issue-55 authoring model files appeared in the worktree during validation:
+  - `src/UmbracoPrism.WorkflowEditor/Authoring/AuthoredAction.cs`
+  - `ActionTiming.cs`
+  - `AuthoredCondition.cs`
+  - `AuthoredParameterSchema.cs`
+  - `AuthoredParameterDefinition.cs`
+  - `ParameterValueKind.cs`
+  - `AuthoredWorkflowSchemaValidator.cs`
+- Concrete blocker found: backend build is currently red because `AuthoredWorkflowSchemaValidator` uses collection expressions against `IReadOnlySet<ActionTiming>` (`CS9174` at lines 42 and 66), so issue #55 is not green yet.
+- Key acceptance readout for #55 at end of session:
+  - schema/types: materially progressing, with authored action + parameter schema shapes now present in code
+  - validation/tests: improved by Tangy's contract tests, but full backend validation is blocked until the `CS9174` compile error is fixed
+  - runtime compatibility: still only partially evidenced because the projector/build could not complete in the latest state
+
+## Session: 2026-05-18 — Issue #55 Schema Foundation Validation
+
+**Date:** 2026-05-18T12:35:32Z  
+**Issue:** #55 (workflow-schema-foundation)  
+**Outcome:** ✅ Complete
+
+Added schema-contract coverage for authored workflow foundation. Validated C# record types, validator behavior, and test isolation during AppHost startup/teardown. Surfaced intermediate compiler blocker in AuthoredWorkflowSchemaValidator; quality gate maintained on workflow-schema execution layer.
+
+**Tests:** All passing (761/761)  
+**Branch:** squad/55-workflow-schema-foundation
+

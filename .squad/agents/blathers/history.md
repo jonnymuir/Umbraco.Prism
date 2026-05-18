@@ -105,6 +105,14 @@ Completed first extraction slice: moved all backend authoring code from Core int
 
 **Planning fixture:** `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json` — 4 stages. Source of truth for Tangy's tests.
 
+### Workflow schema foundation for issue #55 (2026-05-18T13:17:12.103+01:00)
+
+- Authored workflow contract now lives in `src/UmbracoPrism.WorkflowEditor/Authoring/` with a companion schema document at `src/UmbracoPrism.WorkflowEditor/Authoring/Schemas/authored-workflow.schema.json`.
+- Locked persisted JSON names: stage `key`/`title`/`type`, transition `source`/`target`/`trigger`, action `type`/`timing`/`params`, plus top-level `parameterSchemas` for reusable action parameter validation.
+- `AuthoredWorkflowSchemaValidator` now enforces stage/action/transition shape and parameter-schema compatibility before projection, while `WorkflowProjector` keeps projecting into unchanged `WorkflowDefinitionFile` runtime contracts.
+- Backward-compat shim: `AuthoredStage` and `AuthoredTransition` accept legacy proposal payload aliases (`stageKey`, `displayName`, `kind`, `fromStage`, `toStage`, `action`, `condition`) so patch/preview flows stay green while saved files move to the new schema.
+- Key tests: `src/UmbracoPrism.Core.Tests/Workflow/Authoring/AuthoredWorkflowSerializationTests.cs`, `AuthoredWorkflowSchemaValidationTests.cs`, `PlanningWorkflowFixtureTests.cs`.
+
 ### Action runtime model refinement
 
 - Keep authored JSON declarative: transition verbs in graph, executable business actions as typed references (`type` + `params`)
@@ -138,4 +146,25 @@ Defined concrete Copilot-facing tool surface and thinnest viable first implement
 - Described first implementation shape using existing authoring HTTP/backend seams with thin adapter
 
 **Peers:** tom-nook (architecture evaluation), scribe (orchestration)
+
+
+## Session: 2026-05-18 — Issue #55 Schema Foundation Implementation
+
+**Date:** 2026-05-18T12:35:32Z  
+**Issue:** #55 (workflow-schema-foundation)  
+**Outcome:** ✅ Complete
+
+Completed authored workflow contract definition in UmbracoPrism.WorkflowEditor/Authoring/. Delivered:
+- Typed stage/transition/action/condition/parameter-schema C# models
+- authored-workflow.schema.json artifact
+- Validator implementation with comprehensive test coverage
+- Legacy alias compatibility for patch payloads (stageKey → key, displayName → title, kind → type, etc.)
+- Planning fixture/test alignment
+
+**Validation:**
+- dotnet build UmbracoPrism.sln ✅ succeeded
+- dotnet test -c Release ✅ passed (761/761)
+- Pre-existing warnings unchanged
+
+**Branch:** squad/55-workflow-schema-foundation
 
