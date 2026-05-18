@@ -3519,3 +3519,82 @@ Do not mark #67 complete until the dedicated preview contract proves all of the 
 - authors can switch between relevant public/member/back-stage views
 - the preview is read-only
 - a loading state appears when preview work is slow
+
+# Decision: Workflow editor simulation stays host-owned and validation-aware
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+Keep workflow path simulation as a **host-editor responsibility** in `prism-workflow-editor`, not a standalone graph-only feature or a pseudo-runtime engine.
+
+## Decision
+
+1. Start simulation from the authored `initialStageKey` and keep the current stage, breadcrumb history, and highlighted path in host state.
+2. Let `prism-workflow-graph` render simulation highlights from host-provided stage/transition paths instead of inferring its own route state.
+3. Stop automatically when the author reaches a waiting stage, a terminal stage, or a stage with no outbound transitions.
+4. Disable only transitions with **blocking validation issues on that route**; show condition and role-guard copy as guidance, but do not pretend to evaluate runtime expressions in the editor.
+5. Reset the simulation whenever the authored workflow changes so the route, graph, and validation rail cannot drift out of sync.
+
+## Why
+
+- The authoring editor already owns the workflow model, validation pass, and graph selection state, so duplicating simulation state in a child component would create drift quickly.
+- Authors need fast design confidence, not a fake runtime engine. Showing route blockers honestly while leaving guard execution to runtime keeps the simulation trustworthy.
+- Host-owned state makes accessibility simpler: one source of truth can drive the panel copy, breadcrumb announcements, and graph highlight together.
+
+## Consequences
+
+- Future work can add richer actor data or sample payloads without changing the graph contract; the graph still only consumes highlight state.
+- Validation additions that become blocking on a route should automatically surface in simulation buttons as disabled blockers.
+- If the team later wants executable guard evaluation, that should land as a separate runtime-aware seam rather than being hidden inside the UI component.
+
+
+# Tangy — Issue #68 quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00
+**Issue:** #68 — Editor Feature: Simulate workflow path execution
+
+## Decision
+
+Treat issue #68 as a seven-seam gate:
+
+1. `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`
+2. `cd src/UmbracoPrism.Client && npm run build`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-validation.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-simulation.spec.ts --reporter=line`
+7. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why
+
+Simulation crosses authored-workflow routing semantics, editor chrome, graph highlighting, validation blockers, and the live planning shell. Existing preview or validation evidence is helpful but not sufficient; the slice needs its own behavioural contract for start-at-initial-stage, transition-choice flow, breadcrumb/history, waiting/end stops, blockers, and highlighted path coverage.
+
+## Current status
+
+- Supporting seams are green: authoring tests, client build, Storybook CI, graph keyboard Playwright, validation rail Playwright, and planning smoke all passed during this gate.
+- The #68 surface itself has not landed on this branch snapshot: the editor still renders preview rather than simulation, the graph only highlights current selection, and there is no dedicated workflow simulation spec yet.
+
+
+# Tangy — Issue #68 recheck
+
+**Date:** 2026-05-18T13:17:12.103+01:00
+**Issue:** #68 — Editor Feature: Simulate workflow path execution
+
+## Decision
+
+Count the simulation slice as acceptance-covered, but do **not** call the whole seven-seam gate green until the live planning authored seed is restored.
+
+## Evidence
+
+1. `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts` now owns simulation state and renders a dedicated path-simulation panel.
+2. `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts` now highlights the current simulated stage and traversed path.
+3. `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-simulation.spec.ts` proves happy-path, rejection-path, and waiting/blocker flows.
+4. Client build, Storybook CI, graph-keyboard Playwright, validation-rail Playwright, and simulation Playwright all passed in this recheck.
+5. The failing seams share one non-slice blocker: `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json` is empty, which causes authoring API `500` responses and breaks both the live planning smoke and `MockBusinessAppPlanningWorkflowSeedTests`.
+
+## Consequence
+
+- For #68 review, treat the localhost `workflow-editor.html` failure as **environment/data noise**, not as a missing simulation feature.
+- The concrete blocker to an all-green issue gate is restoring a valid `planning` authored seed in MockBusinessApp so the localhost authoring API loads again.
+

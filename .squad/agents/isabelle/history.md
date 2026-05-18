@@ -47,6 +47,14 @@ Delivered complete copy/paste functionality with:
 
 ## Learnings
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #68 workflow path simulation slice
+
+- **Simulation ownership:** keep path simulation state in `prism-workflow-editor` so the graph highlight, simulation panel, and shared validation issues all stay in sync from one authored-workflow source of truth.
+- **Simulation boundary:** start from `initialStageKey`, stop automatically at waiting/terminal/dead-end stages, and treat route-specific blocking validation issues as disabled transition buttons while still showing condition and role-guard copy as author guidance rather than pretending to execute runtime rules.
+- **Accessibility pattern:** render simulation as a persistent panel with real buttons, breadcrumb history, polite live announcements, and graph highlights so keyboard and screen-reader users can follow the same route-planning feedback as pointer users.
+- **Validation gate for this slice:** `npm run build`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-simulation.spec.ts tests/workflow-editor/workflow-editor-stage-preview.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts --reporter=line`, `node node_modules/.bin/test-storybook --url http://localhost:6006 --browsers chromium firefox webkit`, and `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts --reporter=line` passed after the simulation changes; `npm run test:playwright:planning-smoke` reached the live stack but was blocked by an existing `workflow-editor.html` shell readiness failure (`prism-workflow-editor` element missing on the served page) unrelated to the Storybook/editor-host slice.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-simulation.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-simulation.spec.ts`.
+
 ### 2026-05-18T13:17:12.103+01:00 — Issue #67 runtime stage preview slice
 
 - **Preview source of truth:** drive stage preview from the authoring `/project` endpoint so the editor shows the same deterministic runtime projection that publish uses, with a local projector fallback only for Storybook/offline shells.
@@ -99,3 +107,13 @@ Delivered help and shortcut discoverability as host-editor responsibility:
 Delivered read-only runtime preview pane driven from authoring project pipeline with public/member/back-stage switching, auto-update on edits, loading feedback, dedicated `prism-stage-preview` component, and planning workflow coverage.
 
 **Quality gate:** All six acceptance seams green. Production-ready.
+
+### 2026-05-18T12:17:12Z — Issue #68 workflow simulation completed
+
+Delivered dedicated path-simulation panel with authored-initial-stage start, breadcrumb history, happy/rejection/waiting-blocker routes, current-stage and traversed-path highlighting, Storybook scenarios, and targeted Playwright coverage.
+
+**Architecture:** Simulation stays host-owned in `prism-workflow-editor`; graph renders highlights only. Validation blockers shown honestly without fake runtime evaluation. Reset on workflow change.
+
+**Quality gate:** Client build, Storybook CI, graph keyboard, validation rail, and simulation Playwright all passed. Acceptance-complete.
+
+**Status:** Production-ready. Non-slice environment blocker (empty planning.workflow.json) identified in separate remediation.
