@@ -3299,3 +3299,47 @@ But the quality gate should still treat issue #63 as blocked until the dedicated
 1. Do not mark #63 green from a retry-only Playwright result.
 2. Treat the remaining blocker as a real editor-state race in stage-create selection/inspector restoration, not as mere test noise.
 3. Re-run the issue gate only after that handoff is made deterministic.
+# Decision: Workflow editor copy and paste lives at the host, not inside individual surfaces
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Isabelle  
+**Status:** Proposed  
+
+Copy and paste for the workflow editor should be owned by `prism-workflow-editor`, with graph selection and inspector action selection feeding a single clipboard state.
+
+## Decision
+
+1. **Toolbar + shortcuts are the primary clipboard surface.** The host owns visible copy/paste buttons, clipboard status text, and `Ctrl/Cmd+C` / `Ctrl/Cmd+V` handling.
+2. **Stage copy is structural but not connective.** Copy the authored stage payload (properties, fields, waits, actions) but do not copy inbound or outbound transitions; pasted stages should rely on existing validation warnings to reveal missing routes.
+3. **Action copy is payload-preserving but destination-aware.** Copy the full action params, then normalise timing on paste so the action stays valid for the destination context (`stage.onEntry`, `stage.onExit`, or `transition`).
+4. **Selection must move with the paste.** After paste, select the new stage or action so keyboard and screen-reader users land on the thing they just created.
+
+## Consequences
+
+- `prism-workflow-editor` now coordinates clipboard state across graph and inspector surfaces.
+- `prism-workflow-action-editor` exposes selection state so pasted actions can be highlighted and re-edited immediately.
+- Future duplicate/clipboard work should plug into the same host-owned clipboard rather than writing bespoke per-component clipboard logic.
+
+# Decision: Issue #64 copy/paste quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Treat issue #64 as green only when the workflow editor copy/paste slice passes a seven-seam gate:
+
+1. `cd src/UmbracoPrism.Client && npm run build`
+2. `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-copy-paste.spec.ts --reporter=line`
+7. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why
+
+Copy/paste crosses three existing behavioural seams at once: graph/list stage selection, shared action editing, and editor-level keyboard/toolbar affordances. Build, authoring tests, Storybook CI, and the existing stage/action contracts keep the surrounding workspace honest, but only a dedicated copy/paste Playwright contract can prove new keys, transition exclusion, toolbar clipboard state, validation-after-paste, cross-stage action paste, and immediate post-paste selection.
+
+## Current gate call
+
+The current branch is **not** acceptance-complete for #64 yet. Supporting seams are green, but the shipped surface still exposes only undo/redo plus view toggle in the editor toolbar, the graph offers only JSON copy from its context menu, there is no authoring paste flow for stages or actions, and there is no dedicated issue-specific behavioural contract.

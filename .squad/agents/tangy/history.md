@@ -24,3 +24,22 @@ Confirmed Isabelle's delivery:
 ## 2026-05-18T12:17:12Z — Issue #63 quality gate complete
 
 Identified missing acceptance items, stabilized flaky stage-create test, confirmed selection determinism, and marked slice as green and acceptance-complete.
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #64 copy/paste quality gate
+
+- Minimum honest keep-green coverage for workflow editor copy/paste is seven seams: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, the graph keyboard contract, the action editor contract, a dedicated copy/paste Playwright contract, and the live planning workflow smoke.
+- On the current branch, the supporting seams are healthy but the #64 slice has not landed: the editor toolbar only exposes undo/redo plus view toggle, the graph context menu only offers “Copy stage JSON” and “Copy transition JSON”, and there is no stage/action paste flow, clipboard state indicator, or Ctrl/Cmd+C and Ctrl/Cmd+V authoring contract.
+- Do not call #64 green until the shipped surface proves pasted stages/actions become the active edit target, copied stages do not bring inbound or outbound transitions with them, validation warnings surface immediately after paste, and the dedicated behavioural contract covers same-stage and cross-stage action paste alongside keyboard shortcuts.
+
+## Learnings
+
+### 2026-05-18T13:17:12.103+01:00 — Issue #64 recheck
+
+- Re-ran the full #64 copy/paste gate: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, dedicated workflow copy/paste Playwright, and the live planning workflow smoke all passed.
+- The dedicated behavioural contract now proves the previously missing acceptance seams: copied stages get fresh `-copy` keys, pasted stages exclude transitions, validation warnings surface after paste, toolbar clipboard state is visible, Ctrl/Cmd+C and Ctrl/Cmd+V work, action paste works in the same stage and a different stage, and the pasted stage/action becomes the active edit target immediately.
+- The unrelated `govuk-frontend.min.css` authoring-test noise did not block this recheck; the live planning smoke stayed green, so #64 is now honest green and acceptance-complete.
+
+## 2026-05-18T12:17:12Z — Issue #64 acceptance confirmed
+
+Re-ran the full quality gate (seven seams: client build, authoring tests, Storybook CI, graph keyboard, action editor, copy/paste contract, planning smoke). All passed. Issue #64 is acceptance-complete and ready for merge. Unrelated CSS noise does not block this slice.
+
