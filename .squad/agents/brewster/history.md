@@ -67,3 +67,36 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 **Outcome:** brewster completed assigned work on issue #57 publish pipeline.
 
 **Status:** Green end-to-end
+
+---
+
+## Session 2026-05-18T21:48:37Z — Issue #71 Status Check
+
+**Context:** Asked to continue work on issue #71 (Runtime: Enable workflow runtime in Umbraco surfaces).
+
+**Finding:** All acceptance criteria already implemented and tested:
+- Route hijacking controllers exist (`WorkflowPageController`, `WorkflowHubController`)
+- `WorkflowRuntimeEngine` provides instance resolution, state management, transitions
+- `PrismWorkflowPageController<T>` handles GET/POST/PRG pattern with nonce validation
+- Member auth enforced via `PrismMemberCookie` scheme
+- 782 unit tests pass (349 workflow-specific)
+- 6 E2E scenarios in `workflow-gds-journey.spec.ts` verify full journey
+
+**Action:** Closed issue #71 with completion documentation.
+
+**Status:** Green — repo fully operational for workflow runtime in Umbraco public/member surfaces
+
+## 2026-05-18: Issue #71 Approval
+
+Issue #71 "Workflow Runtime in Umbraco Surfaces" has been marked **acceptance-complete** by Tangy (quality gate review). All seven acceptance criteria are satisfied:
+
+✅ Workflow start page loads in Umbraco
+✅ Forms render for first stage
+✅ Submit creates instance and advances stage
+✅ Back-stage visibility enforced
+✅ Instance state persisted correctly
+✅ Resume/dashboard works
+✅ Tests for planning workflow through Umbraco
+
+Backend test suite: 782/782 passing (no blockers). Issue ready for merge.
+

@@ -1,32 +1,52 @@
-# Tangy — History Archive
+# Archive: Tangy — Earlier Issues #64–#68
 
-[Archived from history.md due to size exceeding 15KB threshold on 2026-05-18T12:17:12Z]
+## Issues #64–#68 Quality Gate Summary (2026-05-18)
 
-**Summary:** Tangy validated backend and end-to-end quality gates for issue #57, surfacing blockers and confirming resolution. Testing expertise includes Playwright end-to-end, CI validation, workflow testing, and quality automation across the stack.
+### Issue #64: Copy/Paste keyboard shortcuts
+- Seven-seam gate: authoring tests, client build, Storybook CI, graph keyboard, action editor, copy/paste contract, planning smoke
+- Status: Acceptance-complete; all gates passed
 
-## Archived Entries
+### Issue #65: Workflow validation and error reporting
+- Seven-seam gate: authoring tests, client build, Storybook CI, graph keyboard, action editor, validation contract, planning smoke
+- Status: Acceptance-complete; validation rail surfaces errors, save blocking works, dedication contract passed
+- Note: Unrelated retry-only flake in older action-editor keyboard/forms spec
+
+### Issue #66: Help and shortcut discoverability
+- Six-seam gate: client build, Storybook CI, graph keyboard, action editor, help/shortcuts contract, planning smoke
+- Status: Acceptance-complete; toolbar help button visible, F1 opens shortcut reference, shared catalog drives all surfaces, keyboard/screen-reader paths work
+
+### Issue #67: Stage preview editing
+- Six-seam gate: authoring tests, client build, Storybook CI, graph keyboard, preview contract, planning smoke
+- Status: Acceptance-complete; stage renders in preview panel, auto-updates on edits, surface selector works, read-only enforced, loading feedback present
+
+### Issue #68: Simulate workflow path execution
+- Seven-seam gate: authoring tests, client build, Storybook CI, graph keyboard, validation rail, simulation contract, planning smoke
+- Status: Acceptance-complete; simulation panel owns state, graph highlights from host only, happy-path/rejection/blocker flows covered
+- Note: Non-slice blocker identified (empty planning.workflow.json seed → API 500s; environment remediation, not feature gap)
+
+## Key Learnings from Earlier Gates
+
+### Pattern: Quality gate structure
+Each slice owns seven seams (or variant count) including:
+- Focused .NET authoring/engine tests
+- Client build + Storybook CI across browsers with axe
+- Keyboard contract (workflow-graph-keyboard.spec.ts)
+- Slice-specific Playwright contract
+- Live planning workflow smoke
+
+### Pattern: Honest acceptance boundary
+- Distinguish slice-specific gaps from surrounding environment noise
+- Document expected seams that are currently missing
+- Call out infrastructure vs. feature blockers explicitly
+- Treat retry-only flakes as non-evidence unless they propagate
+
+### Pattern: Shared surfaces reduce drift
+- Shared shortcut catalog drives toolbar affordances, help modal, tests
+- Shared validation pass drives rail, save state, jump links
+- Shared simulation state in host owner prevents component-local drift
+- Reusing authoring catalog in runtime registry avoids duplication
 
 ---
-date: 2026-05-18T12:17:12Z
-summary: "Issue #63 quality gate — flake resolution, deterministic selection, acceptance-complete"
-entries_archived: 12
----
 
-Tester Tangy quality-gated issue #63, identified missing undo/redo acceptance criteria, stabilized flaky stage-create behavioural contract by ensuring selection determinism before inspector visibility, and confirmed the slice is now green and acceptance-complete.
-
----
-
----
-date: 2026-05-18T12:17:12Z (Scribe)
-summary: "Summarized history.md from 15925 to ~4500 bytes due to 15KB threshold"
-entries_archived: "Early uncategorized work + complete entry text for issues #60-#67 initial gate descriptions"
-recent_kept: "Issue #68 full coverage (recheck, quality gate, evidence) + Issue #67/#66/#65/#64 rechecks and confirmations"
----
-
-Condensed tangy/history.md to retain recent issue work (#68, #67-#64 rechecks/confirmations) while archiving verbose early-gate descriptions and pre-issue workflow work. Key learnings: honest seven-seam gates, environment noise classification, and production readiness criteria.
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #64 recheck
-
-- Re-ran the full #64 copy/paste gate: client build, workflow authoring .NET tests, Storybook CI across browsers with axe, workflow graph keyboard Playwright, workflow action editor Playwright, dedicated workflow copy/paste Playwright, and the live planning workflow smoke all passed.
-- The dedicated behavioural contract now proves the previously missing acceptance seams: copied stages get fresh `-copy` keys, pasted stages exclude transitions, validation warnings surface after paste, toolbar clipboard state is visible, Ctrl/Cmd+C and Ctrl/Cmd+V work, action paste works in the same stage and a different stage, and the pasted stage/action becomes the active edit target immediately.
-- The unrelated `govuk-frontend.min.css` authoring-test noise did not block this recheck; the live planning smoke stayed green, so #64 is now honest green and acceptance-complete.
+**Archive created:** 2026-05-18T20:48:37Z by Scribe  
+**Reason:** History.md summarization (original file 17,780 bytes)
