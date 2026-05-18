@@ -56,3 +56,14 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 - The strongest Umbraco reference pattern here is a **thin typed Razor wrapper** in TestSite that selects Core workflow shells and partials, while leaving nonce handling, field validation, and workflow progression in Core/Business App boundaries.
 - Seeded workflow/member journeys read more like a real Umbraco site when `workflowPage` and `workflowHub` live under `Home` instead of as root nodes; route ownership stays content-driven without changing the public URLs.
 - Exact workflow-key lookup is safer than alias fallback once multiple workflow pages exist; missing content should fall back to the expected route contract, not to whichever workflow page happens to be first in the tree.
+- The live MockBusinessApp authored seed (`src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json`) is a separate contract from the backend fixture under `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/`; keep the live file non-empty and keyed to the shell route (`planning`) so `/workflow-editor` stays loadable.
+- Long-running LiveAppHost startup belongs behind an explicit Playwright worker-fixture timeout; `src/UmbracoPrism.Client/tests/support/shared-app-host-fixture.ts` now allows 10 minutes so cold Aspire warmups do not die at the default 30-second fixture limit.
+- The workflow editor browser client still expects `stageKey`/`displayName`/`kind` and `fromStage`/`toStage`/`action`, so `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts` must normalize the canonical C# API shape (`key`/`title`/`type`, `source`/`target`/`trigger`) before rendering graph and inspector components.
+
+---
+
+## Session 2026-05-18T12:17:12Z — Issue #57 Completion
+
+**Outcome:** brewster completed assigned work on issue #57 publish pipeline.
+
+**Status:** Green end-to-end

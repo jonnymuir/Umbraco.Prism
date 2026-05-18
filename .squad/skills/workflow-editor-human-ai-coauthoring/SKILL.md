@@ -30,6 +30,10 @@ Use this skill when designing or reviewing a workflow editor that must serve bot
   - proposal renders as a human-readable diff
   - human applies all/part/rejects
   - resulting change is replayable in history
+- Prefer **Copilot as the conversational shell**, with workflow-specific MCP tools behind it:
+  - Copilot handles intent capture, clarification, capability discovery, and orchestration
+  - workflow MCP tools handle semantic draft/diff/validate/preview/apply behaviour
+  - the editor stays the authority for review, approval, and publish
 - Reuse one validation engine for both human and AI edits so trust is anchored in the same rules and messages.
 - Give agents a **machine-facing bundle**, not just raw JSON:
   - authored workflow source
@@ -37,6 +41,12 @@ Use this skill when designing or reviewing a workflow editor that must serve bot
   - structured diff + provenance
   - validate/simulate/preview/test commands
 - Treat natural-language generation as **draft → clarify → diff → validate → replay**, especially for research-led service designs.
+- The north-star conversational flow is:
+  1. ask in service-design language
+  2. draft a proposal against named workflow concepts
+  3. inspect semantic diff + validation + preview
+  4. accept/reject partially or fully
+  5. publish explicitly from the editor
 - Anchor targeted edits to named workflow concepts (`stageKey`, actor, handoff, rule, route), not vague UI positions like "somewhere after this page".
 - Make one complex service journey the **golden executable spec** across layers so AI changes are checked against the same behavioural story in unit, projection, and E2E tests.
 

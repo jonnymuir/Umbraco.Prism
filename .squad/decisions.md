@@ -2794,3 +2794,116 @@ The acceptance criteria for #56 are backend-heavy (catalog shape, entries, widge
 - Any fixture or authored-model rename that changes stage keys must update the walkthrough selectors in the same change.
 
 
+# Decision: Publish preview stays dry-run; apply republishes synchronously
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Blathers  
+**Status:** Proposed  
+
+For the workflow editor foundation slice, keep the publish boundary simple:
+
+1. **Preview** computes the patched authored workflow, projects the runtime definition, and compares it to the currently published seed with **no writes**.
+2. **Apply** remains the human-approved mutation step for proposal envelopes and now performs two writes in one transaction-shaped backend flow:
+   - save the authored workflow JSON
+   - republish the projected runtime definition into `workflow-seeds/`
+3. **Publish** is also exposed directly as a service/endpoint for authored-workflow bodies, but it still uses the same deterministic projection and round-trip verification path as apply.
+
+## Projection compatibility rule
+
+Extend `WorkflowDefinitionFile` only with optional metadata blocks:
+
+- workflow-level metadata for authored id, schema version, tags, and handoffs
+- state metadata for stage type, actor, role gates, description, and stage actions
+- transition metadata for conditions and transition actions
+
+The existing runtime engine can continue to load and execute the same core Prism shape (`definitionKey`, `initialState`, `states`, `transitions`) while future handler execution can recover typed authored actions from the published artifact.
+
+## Consequences
+
+- The publish pipeline is deterministic and verifiable without introducing timestamps or other non-repeatable fields into the runtime JSON.
+- Preview/apply remain aligned with the proposal-first editor model from the design docs.
+- Runtime compatibility is preserved while issue #57 carries forward action and condition intent needed for later handler work.
+# Decision: Issue #57 green fix keeps the live planning seed route-keyed
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Brewster  
+**Status:** Proposed  
+
+## Summary
+
+For the issue #57 end-to-end gate, treat the live MockBusinessApp planning workflow as a route-owned smoke contract:
+
+1. `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json` must stay valid and non-empty.
+2. Its live workflow key must remain `planning` so the shell redirect at `/workflow-editor` and the authoring API route `/api/workflow-authoring/workflows/planning` stay aligned.
+3. The browser client must normalize canonical authored-workflow API payloads (`key`/`title`/`type`, `source`/`target`/`trigger`) back into the UI contract (`stageKey`/`displayName`/`kind`, `fromStage`/`toStage`/`action`) before rendering.
+
+## Smoke startup boundary
+
+The planning smoke is allowed to pay for a real cold Aspire warmup:
+
+- `LiveAppHost` keeps its full readiness gate.
+- The Playwright worker fixture gets an explicit 10-minute setup timeout instead of inheriting the default 30-second fixture limit.
+- MockBusinessApp serves the workflow-editor dist with no-cache headers in Development so rebuilt assets are not masked by stale browser cache during repeated smoke runs.
+
+## Consequences
+
+- Backend fixture/projection tests can keep their richer `planning-application` contract without forcing the live shell route to rename.
+- The live smoke now proves the real authored-seed file, frontend normalization path, and startup boundary together instead of only exercising isolated backend fixtures.
+- Future issue #57 regressions should be caught by the new live-seed test plus the rebuilt planning smoke lane.
+# Decision: Issue #57 recheck is green after Brewster's revision
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+## Summary
+
+Issue #57 can now be treated as green end-to-end on the revised worktree.
+
+## Evidence
+
+1. The focused backend publish/contracts suite passed, including the live-seed guard:
+   - `WorkflowProjectorDeterminismTests`
+   - `WorkflowPublishServiceTests`
+   - `WorkflowAuthoringEndpointsTests`
+   - planning fixture/schema validation coverage
+   - `MockBusinessAppPlanningWorkflowSeedTests`
+2. The planning smoke passed twice back-to-back through the real localhost stack.
+3. Direct live probes to `https://localhost:7245/api/workflow-authoring/workflows` and `.../workflows/planning` returned `200`, confirming the previous authored-seed `500` is gone.
+
+## Consequences
+
+- The authored planning seed/API 500 issue is no longer the blocker for #57.
+- The planning smoke startup path is acceptable for this slice with the current worker-fixture timeout and readiness gate.
+- Future #57 regressions should still be judged on both halves of the gate: focused publish contracts plus the live planning smoke.
+# Decision: Issue #57 publish pipeline quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+## Summary
+
+For issue #57, do not call the slice green from backend unit coverage alone. The minimum quality gate is:
+
+1. focused backend publish contracts for deterministic projection, publish preview/apply, planning fixture projection, and round-trip verification
+2. the planning workflow editor smoke against the live MockBusinessApp shell
+
+## Why
+
+The backend publish path is now materially covered by:
+
+- `WorkflowProjectorDeterminismTests`
+- `WorkflowPublishServiceTests`
+- `WorkflowAuthoringEndpointsTests`
+- planning fixture/schema validation tests
+
+Those prove the authored-workflow → runtime-definition contract in isolation.
+
+But the live editor still depends on the real MockBusinessApp authored store. During validation, `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json` was empty, which caused the real `/api/workflow-authoring/workflows` and `/api/workflow-authoring/workflows/planning` endpoints to throw `500` from `FilesystemAuthoredWorkflowStore.LoadAsync(...)`. That means issue #57 is **not** green end to end yet even though the backend contract suite passes.
+
+## Consequences
+
+- Blathers can use the focused backend suite for rapid iteration on the publish pipeline.
+- The branch should not be treated as green for issue #57 until the live planning authored seed is valid again and the planning smoke can complete.
+- Any future authoring/publish change must keep the test fixture and the live MockBusinessApp authored seed in sync, or Tangy's smoke coverage will miss the real runtime path.
