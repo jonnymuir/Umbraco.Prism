@@ -95,6 +95,13 @@ Completed first extraction slice: moved all backend authoring code from Core int
 
 ## Learnings
 
+### Action catalog foundation for issue #56 (2026-05-18T13:17:12.103+01:00)
+
+- Action discovery now lives in `src/UmbracoPrism.WorkflowEditor/Authoring/` via `IActionCatalogProvider`, `ActionCatalogEntry`, and `BuiltInActionCatalogProvider`; editor discovery should call `/api/workflow-authoring/action-catalog` instead of hard-coding action lists.
+- Built-in action metadata reuses `AuthoredParameterSchema` and `AuthoredParameterDefinition`, so parameter validation and catalog export share one shape and stable action `type` keys preserve runtime compatibility.
+- `DefaultParameterWidgetMapper` resolves common widgets (`text`, `number`, `select`, `toggle`, `date`, `textarea`) from parameter schema metadata; lock this with `src/UmbracoPrism.Core.Tests/Workflow/Authoring/ActionCatalogTests.cs`.
+- Relevant files: `src/UmbracoPrism.WorkflowEditor/Authoring/BuiltInActionCatalogProvider.cs`, `AuthoredWorkflowSchemaValidator.cs`, `WorkflowAuthoringEndpoints.cs`, `src/UmbracoPrism.Core.Tests/Workflow/Authoring/ActionCatalogTests.cs`.
+
 ### Authored Workflow V1 Foundation (2026-05-16)
 
 **Authored types:** `src/UmbracoPrism.Core/Workflow/Authoring/`, namespace `UmbracoPrism.Core.Workflow.Authoring`. All types are immutable records, JSON-serializable via STJ.
@@ -167,4 +174,38 @@ Completed authored workflow contract definition in UmbracoPrism.WorkflowEditor/A
 - Pre-existing warnings unchanged
 
 **Branch:** squad/55-workflow-schema-foundation
+
+
+---
+
+## 2026-05-18T12:17:12Z — Issue #56 Action Catalog Implementation Complete
+
+**Task:** Implement workflow authoring action catalog contract.
+
+**Deliverables:**
+- `ActionCatalogEntry` and `IActionCatalogProvider` design-time contracts in `src/UmbracoPrism.WorkflowEditor/Authoring/`
+- Built-in catalog with 9 typed actions (9 actions confirmed per spawn manifest)
+- Shared parameter schemas (reuse `AuthoredParameterSchema` / `AuthoredParameterDefinition` from issue #55)
+- Widget inference for common parameter types
+- Catalog-backed validation
+- `/api/workflow-authoring/action-catalog` discovery endpoint
+- Targeted discovery and parameter-validation tests
+
+**Validation Results:**
+✅ Targeted tests green  
+✅ `dotnet build UmbracoPrism.sln` green  
+✅ `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests` green (only pre-existing warnings)
+
+**Architectural Decision:**
+The action catalog lives in the authoring boundary (`src/UmbracoPrism.WorkflowEditor/Authoring/`) as a design-time contract, separate from the runtime `WorkflowDefinitionFile` projection. This keeps the editor honest about what can be authored today while allowing forward-compatible workflow files.
+
+**Key Points:**
+- `IActionCatalogProvider` and `ActionCatalogEntry` define discoverable action metadata: stable action `type`, label, summary, applicability, parameter schema, defaults, widget hints, and status
+- Built-in entries reuse parameter contracts from issue #55 so catalog metadata and authored-workflow validation stay on the same contract
+- Runtime compatibility preserved by keeping authored actions declarative (`type` + `params`) and projecting into unchanged Prism runtime workflow shape
+- Runtime hosts can later swap or extend the provider without changing saved workflow JSON, as long as they keep the same stable action type keys
+
+**Consequence:** The editor can now discover action metadata from one backend seam instead of hard-coding action lists in the UI. Validation works even when a workflow omits duplicate top-level parameter schemas for built-in actions. Future business-app registries can share the same action type keys.
+
+**Decision:** .squad/decisions.md (Workflow action catalog lives in the authoring boundary)
 

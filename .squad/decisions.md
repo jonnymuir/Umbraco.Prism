@@ -2747,3 +2747,50 @@ The compatibility aliases let existing patch/proposal payloads keep working whil
 - Runtime projection remains backward compatible because only `WorkflowProjector` bridges authored JSON into `WorkflowDefinitionFile`.
 - Authoring tests can validate both the persisted schema file and the C# record/validator behaviour in one place.
 - Future action-catalog work can enrich `parameterSchemas` without reshaping stage or transition envelopes again.
+# Decision: Workflow action catalog lives in the authoring boundary
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Blathers  
+**Status:** Proposed  
+
+Keep the workflow action catalog in `src/UmbracoPrism.WorkflowEditor/Authoring/` as a design-time contract, not in the runtime `WorkflowDefinitionFile` projection.
+
+## Decision
+
+- `IActionCatalogProvider` and `ActionCatalogEntry` define what the editor can discover: stable action `type`, label, summary, applicability, parameter schema, defaults, widget hints, and status.
+- Built-in entries reuse `AuthoredParameterSchema` / `AuthoredParameterDefinition` from issue #55 so catalog metadata and authored-workflow validation stay on the same contract.
+- Runtime compatibility is preserved by keeping authored actions declarative (`type` + `params`) and projecting into the unchanged Prism runtime workflow shape.
+- Runtime hosts can later swap or extend the provider without changing saved workflow JSON, as long as they keep the same stable action type keys.
+
+## Consequences
+
+- The editor can discover action metadata from one backend seam instead of hard-coding action lists in the UI.
+- Validation now works even when a workflow omits duplicate top-level parameter schemas for built-in actions.
+- Future business-app registries can share the same action type keys while exposing richer runtime implementation states over time.
+# Decision: Issue #56 action catalog quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Issue #56 should use a tight quality gate focused on the workflow-editor authoring contract:
+
+1. `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --nologo`
+2. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Why
+
+The acceptance criteria for #56 are backend-heavy (catalog shape, entries, widget mappings, built-in actions, discovery, parameter validation), so the core test suite is the main signal. But the planning workflow smoke is still necessary because authored workflow fixture changes can silently break the live editor walkthrough even when unit tests stay green.
+
+## Current readout
+
+- Backend core tests are green.
+- Planning smoke is red because the walkthrough spec still expects the old `applicant-details` stage while the authored planning fixture now starts at `declaration`.
+- No code-level action catalog/provider/entry implementation was found yet, so #56 is not acceptance-complete at the current worktree state.
+
+## Consequences
+
+- Blathers can keep building #56 behind the core suite, but the slice should not be called green until the planning smoke is realigned and passing again.
+- Any fixture or authored-model rename that changes stage keys must update the walkthrough selectors in the same change.
+
+

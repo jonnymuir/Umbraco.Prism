@@ -184,3 +184,46 @@ Added schema-contract coverage for authored workflow foundation. Validated C# re
 **Tests:** All passing (761/761)  
 **Branch:** squad/55-workflow-schema-foundation
 
+### 2026-05-18T13:17:12.103+01:00 — Issue #56 action catalog quality gate
+
+- Ran the backend green check for this slice: `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --nologo` ✅ (761/761).
+- Ran the minimum live authoring smoke most relevant to workflow-editor changes: `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke` ❌.
+- Concrete smoke failure: `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts` still waits for and clicks `data-prism-stage="applicant-details"`, but `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json` now seeds `declaration` as the initial stage. The localhost-auth stack came up cleanly; the failure is contract drift, not environment readiness.
+- Issue #56 acceptance readout at end of session:
+  - action catalog interface/provider: not found in `src/`
+  - `ActionCatalogEntry` shape: not found in `src/`
+  - widget mapping system: not found beyond schema/editor hints on `AuthoredParameterDefinition`
+  - built-in actions: no code-defined catalog of 8+ actions found; only authored action examples and docs references
+  - tests for catalog discovery/parameter validation: parameter-schema validation exists, but no catalog discovery contract tests were found
+- Minimum validation to keep this slice honest:
+  1. backend core tests (or at least the authored workflow/unit tests covering catalog + parameter validation once added)
+  2. planning workflow editor smoke (`npm run test:playwright:planning-smoke`) so authored fixture changes still render in the live authoring shell
+- Key file paths checked:
+  - `src/UmbracoPrism.WorkflowEditor/Authoring/AuthoredAction.cs`
+  - `src/UmbracoPrism.WorkflowEditor/Authoring/AuthoredParameterSchema.cs`
+  - `src/UmbracoPrism.WorkflowEditor/Authoring/AuthoredParameterDefinition.cs`
+  - `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json`
+  - `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`
+
+---
+
+## 2026-05-18T12:17:12Z — Issue #56 Action Catalog Quality Gate Validation
+
+**Task:** Validate issue #56 slice boundaries and establish quality gate.
+
+**Findings:**
+- Backend Core tests are **green**
+- Planning smoke is **red** due to unrelated fixture drift (applicant-details → declaration)
+- No code-level action catalog/provider/entry implementation found yet in worktree state
+
+**Quality Gate Decision:**
+The acceptance criteria for #56 are backend-heavy (catalog shape, entries, widget mappings, built-in actions, discovery, parameter validation), so the core test suite is the main signal. However, planning smoke is still necessary because authored workflow fixture changes can silently break the live editor walkthrough even when unit tests stay green.
+
+**Recommended gate:**
+1. `dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj --nologo`
+2. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+**Consequence:** Blathers can keep building #56 behind the core suite, but the slice should not be called green until planning smoke is realigned and passing again. Any fixture or authored-model rename that changes stage keys must update the walkthrough selectors in the same change.
+
+**Decision:** .squad/decisions.md (Issue #56 action catalog quality gate)
+
