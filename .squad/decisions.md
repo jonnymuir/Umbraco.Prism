@@ -3150,3 +3150,60 @@ Transition editing crosses authored-model serialization, graph/list workspace be
 
 - Build, workflow authoring tests, Storybook CI, the existing graph keyboard spec, and the planning smoke are all green on the current worktree.
 - Acceptance is still open because transition creation/editing behaviour is incomplete: no label prompt on create, no list-view create affordance, no editable transition inspector, no unreachable-stage warning, and no dedicated post-edit connectivity test.
+
+# 2026-05-18T13:17:12.103+01:00 — Action/forms editing boundary
+
+- **Context:** Issue #62 adds workflow action configuration, generic parameter editing, and forms-backed action field editing after the stage and transition slices.
+- **Decision:** Keep action/forms summaries in the workspace, but keep all typed action editing, forms-backed field configuration, validation messaging, and delete confirmation inside the inspector via one shared `prism-workflow-action-editor` component used by both stage and transition details.
+- **Why:** This preserves the workflow editor boundary established in issues #60 and #61: graph/list surfaces own structural scanning and selection, while the inspector owns detailed editing. Reusing one action editor also keeps keyboard/accessibility behaviour, validation wording, and context filtering consistent across stage and transition actions.
+- **Accessibility note:** Action picker and delete confirmation must follow the existing modal contract (seeded focus, Escape close, Tab trap, focus restore), and forms-backed field editing must preserve keyboard reorder parity with the surrounding action list.
+
+# Decision: Issue #62 needs an action-editor-specific quality gate
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Issue #62 should not be called green on catalog plumbing alone. The acceptance slice is action configuration, not just action discovery, so the quality gate must prove authors can choose actions by context, configure parameters, build forms-backed fields, and complete those flows accessibly.
+
+## Minimum gate
+
+1. `cd src/UmbracoPrism.Client && npm run build`
+2. `cd /Users/jonnymuir/Documents/Projects/Umbraco.Prism && dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`
+3. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all`
+4. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line`
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts --reporter=line`
+6. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke`
+
+## Acceptance guardrails
+
+- Do not credit context filtering if the picker only supports stage actions or ignores transition applicability.
+- Do not credit the parameter-editor requirement unless inputs render from schema metadata rather than hard-coded per-action controls.
+- Do not credit forms-backed action support unless field rows can be added, removed, and reordered and the type picker includes text, number, textarea, select, radio, and date.
+- Validation must block invalid save/confirm actions in the UI; backend schema errors alone are not enough.
+- Action summaries must reflect authored values in plain language, not just repeat static catalog descriptions.
+- Require a focused behavioural contract covering at least five action types with distinct schemas, including one transition-context flow.
+
+# Decision: Action/forms acceptance needs an explicit keyboard-first delete contract
+
+**Date:** 2026-05-18T13:17:12.103+01:00  
+**Author:** Tangy  
+**Status:** Proposed  
+
+Issue #62 should not be called acceptance-complete on schema breadth alone. Because stage and transition action editing share one `prism-workflow-action-editor`, the quality gate also needs a focused behavioural contract that proves keyboard-only authoring and the explicit delete-confirmation path.
+
+## Contract guardrail
+
+Keep one focused Playwright path that:
+
+1. opens the action picker from the keyboard
+2. adds an action without pointer-only interaction
+3. edits required parameters
+4. adds and reorders a forms-backed field through keyboard-accessible controls
+5. opens delete confirmation, verifies cancel/focus restore, then confirms removal
+
+## Why
+
+- The broader action-editor contract already protects context filtering, schema-driven widgets, and 5+ action types.
+- That breadth can still miss regressions in modal focus management or delete confirmation because those behaviours are orthogonal to schema shape.
+- Treating keyboard parity and explicit confirmation as a separate acceptance clause keeps the shared action editor honest for both stage and transition contexts.
