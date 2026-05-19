@@ -95,3 +95,22 @@ Decisions consolidated into team decisions log. Orchestration recorded.
 Implemented startup publishing to establish authored workflows as single source of truth. Added Program.cs startup block to load and project all authored workflows at boot. Created StartupWorkflowPublishingTests.cs with 3 tests. All 803 backend tests pass.
 
 Decision merged into decisions.md by Scribe 2026-05-19T22:00:07Z.
+
+## 2026-05-19 — Reference Workflow Repository Implementation Decision
+
+**Status:** Implemented; decision merged to `.squad/decisions.md`.
+
+**Deliverable:** `blathers-reference-workflow-repo.md` — Pattern and implementation for in-memory demo seeding.
+
+**Implementation:**
+- **New:** `ReferenceWorkflowRepository` (C# static methods defining 4 authored workflows as code)
+- **New:** `ReferenceWorkflowDefinitionStore` (in-memory `IWorkflowDefinitionStore` projecting workflows)
+- **Updated:** `Program.cs` — Wiring changes for unified Authored → Projector → Runtime flow
+- **Removed:** Filesystem loading from `workflow-authored/`, startup publishing loop
+- **Removed:** Legacy `planning-notification.json` (no longer needed)
+
+**Benefit:** Single source of truth for reference workflows (C# code, not scattered JSON); extension point for downstream apps.
+
+**Consequence:** Reference repository becomes pattern for downstream consumption; tests must verify in-memory approach vs. filesystem approach.
+
+**Basis:** Blathers background agent submission to Scribe inbox.

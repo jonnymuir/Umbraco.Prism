@@ -75,3 +75,21 @@ Defined practical GitHub issue structure, naming conventions, labels, milestones
 **Deliverables:** Issue templates, label taxonomy, milestone structure, reviewer routing  
 **Next:** Create GitHub issues and sequence per dependency requirements
 
+
+## 2026-05-19 — Reference Workflow Contract Documentation Decision
+
+**Status:** Proposed; decision merged to `.squad/decisions.md`.
+
+**Deliverable:** `mabel-reference-workflow-docs.md` — Product-facing documentation for 4-workflow reference contract.
+
+**Documentation Updates:**
+- **Created:** `docs/guides/reference-workflow-contract.md` (200+ lines) — Comprehensive contract explanation, architecture narrative, verification checklist, quick reference
+- **Updated:** `docs/walkthroughs/README.md` — Explicit four-workflow listing, removed planning-notification, reference updated
+- **Updated:** `docs/walkthroughs/workflow-administration.md` — Admin panel workflow list now shows 4 workflows only
+- **Updated:** `README.md` — Walkthrough references updated to planning-workflow-complete
+
+**Clarity Achieved:** Removed confusion about the 5th workflow (planning-notification); established four-workflow contract as explicit product claim.
+
+**Consequence:** Documentation now anchors E2E tests as enforcement mechanism; downstream developers see seam for plugging custom repository.
+
+**Basis:** Mabel background agent submission to Scribe inbox.

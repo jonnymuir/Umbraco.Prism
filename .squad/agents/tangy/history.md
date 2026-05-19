@@ -192,3 +192,27 @@ Decisions consolidated into team decisions log. Orchestration recorded.
 Added behavioural tests to make workflow-authored → workflow-seeds alignment explicit. Implemented MockBusinessAppPlanningWorkflowSeedTests and WorkflowAuthoringEndpointsTests. All 27 focused tests passing (3 MockBusinessApp, 21 endpoints, 3 showcase shortcuts).
 
 Decision merged into decisions.md by Scribe 2026-05-19T22:00:07Z.
+
+## 2026-05-19 — Green-State Assessment: squad/55-workflow-schema-foundation
+
+**Status:** Not green. 2 blocking validation failures; cleanup debt.
+
+**Validation Results:**
+- ❌ `dotnet build UmbracoPrism.sln` — Missing static web asset (`web-Kp6nb9p5.js.map`)
+- ❌ `dotnet test` (Authoring) — 6 contract failures; only 2/4 workflows via authoring API
+- ✅ `npm run build`, Storybook CI, 3× Playwright seams (keyboard, action-editor, validation)
+- ⚠️ Planning smoke blocked by occupied Aspire ports (environment, not product)
+
+**Blocking Issues:**
+1. Solution build failure (check-in blocker)
+2. Four-workflow contract failures (check-in blocker)
+
+**Cleanup Candidates:**
+- `.git-commit-msg.txt`, `.playwright-cli/`, `__screenshots__/`
+- `.provenance/*.json`, `.bak` files
+
+**Deliverables:**
+- `tangy-clean-green-assessment.md` — Full assessment
+- `tangy-four-workflow-contract.md` — Quality gate with test coverage
+
+**Basis:** Tangy background agent (test/quality specialist).

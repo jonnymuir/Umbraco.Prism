@@ -6660,3 +6660,528 @@ Files touched:
 - `MockBusinessAppPlanningWorkflowSeedTests.cs` (added alignment test)
 - `WorkflowAuthoringEndpointsTests.cs` (added publish metadata test)
 - `StartupWorkflowPublishingTests.cs` (fixed using statements)
+
+# Branch Hygiene Assessment: squad/55-workflow-schema-foundation
+
+## Executive Summary
+
+**Status:** ⚠️ **Not ready to merge. Too broad. Three conceptually independent work streams are tangled together.** The branch mixes committed squad/scribe orchestration work with extensive uncommitted engineering work across architecture, docs, and tests. Recommend: **split this into two clean branches immediately**.
+
+---
+
+## What We Have
+
+### Committed (10 commits)
+The branch has 10 commits from main, all from Scribe's orchestration work:
+- Squad member history consolidations (Blathers, Isabelle, Tangy, Brewster)
+- Decision inbox → decisions.md merges (14 decisions)
+- Agent orchestration logs and session artifacts
+- New 9 SKILL.md files (docs-issues-bridge, workflow-action-catalog, etc.)
+- One live test file: `planning-workflow-complete.walkthrough.spec.ts` (417 lines)
+
+**Net committed:** ~5,793 insertions, mostly coordination/documentation. **Build: ✅ green with 1 known warning (NU1510 pre-existing).**
+
+### Uncommitted (62 modified files, 35 untracked)
+Working tree changes span **three distinct clusters**, not one coherent slice:
+
+#### Cluster 1: Reference Workflow Repository (Backend implementation)
+**Files:** `src/UmbracoPrism.MockBusinessApp/*`, `src/UmbracoPrism.Core.Tests/*`, `.squad/decisions/inbox/*`
+
+Three decisions in flight:
+1. **Blathers** — `blathers-reference-workflow-repo.md`: In-memory `ReferenceWorkflowRepository` pattern (implemented but not committed)
+2. **Tangy** — `tangy-four-workflow-contract.md`: Four-workflow quality gate with backend + Playwright tests
+3. **Mabel** — `mabel-reference-workflow-docs.md`: Reference contract documentation
+
+**Scope:** This is **issue #55 foundation work** — authoring schema, runtime seeding, deterministic publishing. Complete, but uncommitted. Tests are written but failing (expected; awaiting authored workflow definitions).
+
+#### Cluster 2: Editor UX & Components (Frontend implementation)
+**Files:** `src/UmbracoPrism.Client/src/workflow-editor/*`, `src/UmbracoPrism.Client/tests/workflow-editor/*`, `src/UmbracoPrism.Client/playwright.config.ts`, `.vscode/tasks.json`, `.vscode/launch.json`
+
+Changes to:
+- Workflow editor shell, graph, inspector, conversation pane (Lit components)
+- Step inspector stories, workflow editor stories, graph stories
+- Shared app-host fixture for E2E tests
+- Workflow graph keyboard spec, GDS journey spec, planning workflow walkthroughs (Playwright)
+- Helper modules: action editing, validation, simulation, undo/redo, transitions, shortcuts, runtime projection
+
+**Scope:** This spans **issues #58–#68** (editor workspace, affordances, confidence tools). UX direction locked in issue #74 (swim lanes + tabs). Substantial but not yet staged.
+
+#### Cluster 3: Design Documents & Architecture Decisions
+**Files:** `docs/design/workflow-editor-v1/*`, `docs/walkthroughs/*`, `docs/README.md`, `README.md`, `.squad/skills/*` (workflow-authoring-*, docs-issues-bridge), `.github/workflows/ci-tests.yml`
+
+Recent changes:
+- V1 design doc reframe (3-product narrative: editor, engine, forms)
+- Walkthrough docs updated (planning-workflow-complete narrative)
+- Skill definitions for cross-cutting concerns
+- CI/CD workflow tuning
+
+**Scope:** This is **architectural documentation and design-phase work**, not implementation. It's on the right branch but should be its own PR.
+
+#### Cluster 4: Untracked Generated & Skill Assets
+**Files:** `.playwright-cli/`, `.squad/skills/workflow-editor-*` (20+ new skill directories), `src/UmbracoPrism.Client/tests/__screenshots__/`, `scripts/*.sh`
+
+Generated Playwright screenshots, new skill templates (not yet filled), cleanup scripts. These should be .gitignored or committed separately.
+
+---
+
+## The Problem
+
+1. **Three teams' work streams are mingled**: Blathers (backend reference repo), Isabelle (frontend editor), Tangy (QA/testing) all have uncommitted changes on the same branch.
+
+2. **Staging boundary is unclear**: You have committed (squad/scribe orchestration) and 62 modified files unstaged. The next person to pull will see chaos: `git status` shows 62 uncategorized modifications.
+
+3. **PR would be impossible to review**: A single PR with 5,793+ insertions across decisions, components, tests, docs, and skills cannot be properly reviewed. Reviewers would miss the real architectural changes in the noise.
+
+4. **Quality gates are incomplete**:
+   - Backend tests for reference workflow repo are **written but failing** (expected — need 3 more authored workflows from Blathers)
+   - Frontend component work is **not yet integrated into CI** (playwright.config changes but tests not run)
+   - Four-workflow contract tests **exist but will fail until Blathers completes the implementations**
+
+5. **Release readiness**: **NOT ready**. The branch goal is "workflow schema foundation" (issue #55), but it contains foundation *plus* workspace work *plus* docs *plus* skills.
+
+---
+
+## Risk Assessment
+
+### High Risk 🔴
+- **Uncommitted work loss**: 62 files of engineering work are one `git clean -fd` away from being lost
+- **Reviewer confusion**: A PR with this mix would generate "What is this actually changing?" questions and require multiple rounds of clarification
+- **Partial integration**: Tests are written but won't pass until dependent work lands; CI will be red on merge
+
+### Medium Risk 🟡
+- **Branch age**: Started from `d6af901` (2026-05-19); now has 10 commits + 62 uncommitted. Merge conflicts likely if anyone else lands on main
+- **Doc staleness**: Design docs updated, but not all code reflects those decisions yet (e.g., help affordance in #66 still pending)
+- **Stash residue**: One stash exists from a previous context switch; easy to lose if not tracked
+
+### Low Risk 🟢
+- **Build is green**: Builds successfully, no compilation errors (known warning pre-exists)
+- **No deletions**: No permanent loss; just organization debt
+
+---
+
+## Recommended Path Forward
+
+### Option A: Split Now (Recommended) ✅
+
+Create **three focused branches** from `main`:
+
+1. **`squad/55-reference-workflow-foundation`** (from Blathers's work)
+   - Commits: Orchestration work from current branch + reference workflow implementation
+   - Files: `src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowRepository.cs`, `ReferenceWorkflowDefinitionStore.cs`, `Program.cs` changes
+   - Tests: Backend contract tests (will be green once 3 authored workflows are stubbed)
+   - Docs: `mabel-reference-workflow-docs.md` as reference guide
+   - **Acceptance:** Backend tests green, workflow seeding verified, reference app loads
+
+2. **`squad/58-editor-workspace-foundation`** (from Isabelle's work)
+   - Commits: Planning walkthrough E2E test (417 lines)
+   - Files: Workflow editor components, Lit fixtures, Playwright specs
+   - Tests: Playwright suites (graph keyboard, GDS journey, walkthroughs)
+   - **Acceptance:** Playwright tests green, storybook builds, components render correctly
+
+3. **`squad/design-reframe-docs`** (from design docs)
+   - Commits: Orchestration + design updates
+   - Files: `docs/design/workflow-editor-v1/*`, `.squad/skills/`, walkthrough docs
+   - **Acceptance:** Docs consistent, no stale references, links resolve
+
+### Option B: Commit Atomically on Current Branch (If Splitting Is Hard)
+
+If splitting is not feasible:
+
+1. **Stage all 62 files** (don't cherry-pick — all or nothing):
+   ```bash
+   git add -A
+   ```
+
+2. **Commit with multi-part message** that clarifies the slice:
+   ```
+   Squad: Reference workflow foundation + editor workspace + docs reframe
+
+   Includes:
+   - Blathers: ReferenceWorkflowRepository pattern (#55)
+   - Isabelle: Editor UX components and E2E tests (#58+)
+   - Design reframe: Three-product narrative with decision closures
+   - Quality gates: Backend contract tests + Playwright suites (awaiting stubs)
+
+   [List all decision inbox items being merged]
+   ```
+
+3. **But this creates debt**: Reviewers still see a 68-file PR. The slice is incoherent. Easier to split.
+
+---
+
+## Hygiene Checkpoints
+
+### Before next commit (or after split):
+
+- [ ] **Staging is intentional**: `git status` shows exactly what you mean to commit, nothing accidental
+- [ ] **Quality gates green**: 
+  - `dotnet build UmbracoPrism.sln` ✅ (currently green)
+  - `dotnet test src/UmbracoPrism.Core.Tests/` for contract tests
+  - `npm run test-storybook:ci:all` in Client folder
+  - Playwright tests (awaiting fixtures)
+- [ ] **No stale files**: `.playwright-cli/`, generated screenshots are .gitignored or intentional
+- [ ] **Decisions are authored**: Inbox decisions have decision IDs and are ready to merge into `.squad/decisions.md`
+- [ ] **Branch name matches scope**: `squad/55-*` for foundation, not `squad/55-*-plus-everything-else`
+- [ ] **No interleaved team work**: Each branch is owned by one team member or a clear pair
+
+---
+
+## Outcomes & Next Steps
+
+1. **Immediate (next 30 min):** Decide: split now, or commit everything with a multi-part message?
+
+2. **If splitting:**
+   - Stash current work: `git stash push -m "squad/55 uncommitted work to redistribute"`
+   - Create three branches from main
+   - Cherry-pick committed work (orchestration) into each
+   - Unstash and distribute files to their natural homes
+   - Write separate decision messages for each
+
+3. **If committing atomically:**
+   - Add all: `git add -A`
+   - Write multi-part commit message with issue references
+   - Push for review as a **coordinated squad merge** (multiple reviewers per layer)
+   - Note in PR: "This is a coordinated team slice; review in layers: backend contract → editor components → docs/decisions"
+
+4. **Long-term hygiene:**
+   - Agree on squad work patterns: one branch per issue or per team member per week?
+   - Add pre-commit hook to warn on >20 files staged?
+   - Use GitHub draft PRs to signal "work in progress, don't review yet"
+
+---
+
+## Why This Matters
+
+A clean branch history is how we hand knowledge to the next person. Right now, the branch is:
+- **Too big to review** (68 files across 3 domains)
+- **Too unclear in intent** (is this about reference seeding, editor UX, or design docs?)
+- **Too risky to land** (uncommitted work + failing tests + incoherent scope)
+
+Splitting now takes 20 minutes and saves hours of review churn and merge risk later.
+
+---
+
+## Files Affected Summary
+
+| Category | File Count | Status | Issue(s) |
+|----------|-----------|--------|---------|
+| Backend/Reference | 8 | Uncommitted, tests written | #55 |
+| Editor/UX/Components | 18 | Uncommitted, storybook builds | #58–#68 |
+| Design/Docs/Skills | 24 | Uncommitted + committed | Various |
+| Generated/Ephemeral | 12 | Untracked, should be .gitignored | N/A |
+| **TOTAL** | **62** | **Mixed** | **#55–#68 + design** |
+
+# Decision: Branch readiness assessment for clean check-in
+
+## Context
+
+Jonny asked for a readiness pass to determine whether the current branch can be checked in cleanly and trusted as green. The working tree contains substantial workflow authoring, workflow editor, docs, skill, and validation changes.
+
+## Assessment
+
+**Status:** Not green. The branch is carrying blocking validation failures and cleanup debt.
+
+### Validation seams run
+
+1. `dotnet build UmbracoPrism.sln` ❌
+2. `cd src/UmbracoPrism.Client && npm run build` ✅
+3. `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo` ❌
+4. `cd src/UmbracoPrism.Client && npm run test-storybook:ci:all` ✅
+5. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line` ✅
+6. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts --reporter=line` ✅
+7. `cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-validation.spec.ts --reporter=line` ✅
+8. `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke` ⚠️ blocked by occupied Aspire ports
+
+## Blocking findings
+
+### 1. Solution build is red
+
+`dotnet build UmbracoPrism.sln` fails in `UmbracoPrism.MockBusinessApp` because Static Web Assets expects a generated file that is not present:
+
+- missing asset: `src/UmbracoPrism.Core/wwwroot/dist/web-Kp6nb9p5.js.map`
+
+This is a check-in blocker because the solution cannot currently build from the working tree.
+
+### 2. Workflow authoring contract tests are red
+
+Focused workflow authoring tests fail with 6 errors. The failures are product-level, not flaky:
+
+- authoring API lists only 2 workflows instead of the expected 4
+- `community-enquiry` returns 404 from the authoring API
+- admin surface does not show the full expected four-workflow set
+- editor-link and key-alignment contract tests fail across admin/authoring surfaces
+
+This is a second check-in blocker because the branch does not satisfy the current four-workflow reference contract.
+
+## Non-blocking / environment noise
+
+- `NU1510` on `System.Security.Cryptography.Xml` remains present during .NET restore/test. It is warning debt, but not the reason this slice is red today.
+- Planning smoke could not run because the required Aspire ports were already occupied by existing local processes. Treat that as environment contention until rerun on a clean host; do not treat it as proof of a product regression by itself.
+
+## Cleanup before commit
+
+These look like obvious generated or temporary artifacts and should be reviewed/cleaned before check-in unless intentionally versioned:
+
+- `.git-commit-msg.txt`
+- `.playwright-cli/`
+- `src/UmbracoPrism.Client/tests/__screenshots__/`
+- `src/UmbracoPrism.MockBusinessApp/workflow-authored/.provenance/*.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json.bak`
+- `src/UmbracoPrism.TestSite/VinylVaultContentTypes.cs.bak`
+
+## Consequence
+
+Do not call this branch clean or green yet. The minimum honest next step is: clear the solution build failure, satisfy the four-workflow contract failures, then rerun the blocked planning smoke on a clean Aspire host.
+
+# Decision: Four-workflow reference contract quality gate
+
+## Context
+
+The MockBusinessApp currently has 5 workflow seeds in `workflow-seeds/` but only 1 authored workflow in `workflow-authored/` (planning). The user expects exactly 4 demo workflows, seeded at runtime from authored sources, and consistently available through editor, admin, and runtime paths from the same lineage.
+
+## Decision
+
+Establish a comprehensive four-workflow contract with focused behavioural tests that prove:
+
+1. Exactly 4 workflows exist in the authored directory
+2. The same 4 workflows are listed via the authoring API
+3. All 4 workflows are loadable via the authoring API
+4. The admin screen shows exactly 4 workflows (no more, no less)
+5. All 4 workflows have editor links (proving authored lineage)
+6. Workflow keys match across authoring API and admin surfaces
+
+### Canonical four workflows
+
+```
+- community-enquiry
+- information-request
+- payment-demo
+- planning
+```
+
+These are the reference contract. The confusing fifth workflow (`planning-notification`) should be removed from workflow-seeds/ once Blathers completes the authored workflow creation.
+
+## Implementation
+
+### Backend tests
+
+1. **`FourWorkflowReferenceContractTests.cs`** — Integration tests against MockBusinessApp via WebApplicationFactory:
+   - `AuthoringApi_ListsExactlyFourWorkflows()` — proves authoring API returns exactly 4 workflows
+   - `AuthoringApi_AllFourWorkflowsAreLoadable()` — proves all 4 can be loaded
+   - `RuntimeStore_PublishesExactlyFourWorkflowsAtStartup()` — proves startup publishing
+   - `AdminScreen_ShowsExactlyFourWorkflowDefinitions()` — proves admin HTML contract
+   - `AdminScreen_AllFourWorkflowsHaveEditorLinks()` — proves authored lineage
+   - `WorkflowKeys_MatchAcrossAuthoringAndAdminSurfaces()` — proves consistency
+
+2. **`MockBusinessAppPlanningWorkflowSeedTests.cs`** — Updated with:
+   - `AuthoredWorkflowDirectory_ContainsExactlyFourWorkflows()` — proves filesystem seed contract
+
+### Playwright tests
+
+1. **`four-workflow-contract.spec.ts`** — Frontend validation:
+   - `admin screen lists exactly 4 workflows` — visual/DOM contract
+   - `all 4 workflows have editor links` — proves user-facing editor affordance
+   - `authoring API lists exactly 4 workflows` — API-level smoke test
+   - `all 4 workflows are loadable via authoring API` — proves API completeness
+
+## Expected test behavior
+
+**Current state (2026-05-19T23:10:06.472+01:00):**
+- Tests **correctly fail** because only 1 authored workflow exists (planning)
+- Tests will pass once Blathers creates the other 3 authored workflows
+- Tests will fail again if anyone adds a 5th workflow or removes one of the 4
+
+**When Blathers completes the work:**
+- All tests should turn green
+- Tests will catch any drift from the four-workflow contract
+- Tests will fail if `planning-notification` (5th workflow) remains in workflow-seeds/
+
+## Quality gate seams
+
+Run these seams after Blathers completes the authored workflow creation:
+
+```bash
+# Backend contract tests
+dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj \
+  --filter "FullyQualifiedName~FourWorkflowReferenceContractTests" \
+  --nologo
+
+dotnet test src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj \
+  --filter "FullyQualifiedName~MockBusinessAppPlanningWorkflowSeedTests" \
+  --nologo
+
+# Frontend contract test
+cd src/UmbracoPrism.Client && \
+  npx playwright test tests/four-workflow-contract.spec.ts --reporter=line
+```
+
+## Why this matters
+
+- **Behavioural contract:** These tests prove the product claim, not implementation details
+- **Cross-surface consistency:** Same 4 workflows visible to editor, admin, and runtime
+- **Authored lineage:** All 4 workflows must have authored sources (no runtime-only drift)
+- **Reference clarity:** Removes confusion about the 5th workflow
+- **Regression protection:** Tests will fail if someone adds/removes workflows without updating the contract
+
+## Consequences
+
+- The four-workflow count is now an explicit contract, not an implementation accident
+- Blathers's work is considered incomplete until these tests pass
+- Any future workflow additions must update the ExpectedWorkflowKeys arrays in tests
+- The team must decide whether to keep the 5th workflow (planning-notification) or remove it
+
+## References
+
+- `.squad/decisions.md` — "Create authored definitions for the 4 workflows OR remove the 4 runtime-only seeds"
+- My history (2026-05-19T22:50:10.335+01:00) — Previous authored workflow traceability tests
+- User request: "I am expecting 4 workflows, seeded at runtime, in memory, the same 4 that are available to the Umbraco Prism front end, and the same 4 that are available to be edited."
+
+# Reference Workflow Repository Pattern
+
+## Context
+
+The MockBusinessApp reference host had a fragmented workflow seeding approach:
+- **Authored workflows** loaded from filesystem `workflow-authored/` (only 1 file: planning)
+- **Runtime seeds** loaded from filesystem `workflow-seeds/` (5 files: planning, planning-notification, community-enquiry, information-request, payment-demo)
+- Admin screen showed all 5 runtime workflows, but only 1 could be edited
+- User expectation: exactly 4 workflows, all editable, unified source
+
+## Decision
+
+Implement `ReferenceWorkflowRepository` as the single authoritative source for the reference/demo app's four workflows:
+
+1. **Four workflows**: planning, community-enquiry, information-request, payment-demo
+2. **In-memory seeding**: C# static methods define authored workflows as code, not filesystem
+3. **Unified flow**: Authored → Projector → Runtime (no separate filesystem seeds)
+4. **Extension point**: Downstream apps replace `ReferenceWorkflowRepository` with their own `IAuthoredWorkflowStore` implementation (filesystem, database, etc.)
+
+## Implementation
+
+### New Components
+- `ReferenceWorkflowRepository` - Static class providing 4 authored workflows
+- `ReferenceWorkflowDefinitionStore` - In-memory `IWorkflowDefinitionStore` that projects reference workflows at startup
+
+### Wiring Changes (Program.cs)
+```csharp
+// Authored workflow store - in-memory from reference repository
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => new InMemoryAuthoredWorkflowStore(ReferenceWorkflowRepository.GetReferenceWorkflows()));
+
+// Runtime definition store - projects reference workflows on construction
+builder.Services.AddSingleton<IWorkflowDefinitionStore, ReferenceWorkflowDefinitionStore>();
+```
+
+### Removed
+- Filesystem loading from `workflow-authored/` directory
+- Startup publishing loop (workflows now projected during `IWorkflowDefinitionStore` construction)
+- Legacy `planning-notification.json` (no longer needed)
+
+## Benefits
+
+1. **Clarity**: Single source of truth for reference workflows (C# code, not scattered JSON files)
+2. **Consistency**: All 4 workflows available in editor, admin, and runtime simultaneously
+3. **Extensibility**: Clean seam for downstream apps to provide their own workflow repository
+4. **Maintainability**: Reference workflows live as strongly-typed C# objects, not fragile JSON files
+
+## Downstream App Pattern
+
+To use filesystem/database workflow storage instead of the reference repository:
+
+```csharp
+// Filesystem approach
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => new FilesystemAuthoredWorkflowStore("/path/to/workflows"));
+
+// Or custom database approach
+builder.Services.AddSingleton<IAuthoredWorkflowStore, DatabaseAuthoredWorkflowStore>();
+
+// Runtime store can use FilesystemWorkflowDefinitionStore or custom implementation
+builder.Services.AddPrismWorkflowRuntime<BusinessAppWorkflowEngine>("/path/to/runtime/seeds");
+```
+
+## Related Files
+
+- `/src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowRepository.cs`
+- `/src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowDefinitionStore.cs`
+- `/src/UmbracoPrism.MockBusinessApp/Program.cs`
+
+## Test Impact
+
+Tests expecting filesystem-backed workflows will need updates to work with the in-memory approach:
+- `MockBusinessAppPlanningWorkflowSeedTests.AuthoredWorkflowDirectory_ContainsExactlyFourWorkflows`
+- `FourWorkflowReferenceContractTests.*`
+
+These tests should verify the in-memory repository provides 4 workflows instead of checking filesystem.
+
+# Decision: Reference Workflow Contract Documentation
+
+## Context
+
+The MockBusinessApp seeds exactly 4 demo workflows at runtime from authored sources. However, documentation was scattered and stale — some docs still referenced an older 5th workflow (`planning-notification`), and the reference contract wasn't clearly explained. End-to-end tests exist to verify the contract, but documentation didn't clearly link them to that verification story.
+
+## Decision
+
+Establish a clear, product-facing documentation story around the four-workflow reference contract:
+
+1. **Four-workflow reference contract doc** — Created `docs/guides/reference-workflow-contract.md`:
+   - Clearly lists the four workflows (planning, community-enquiry, information-request, payment-demo)
+   - Explains where they're defined (authored directory + ReferenceWorkflowRepository code)
+   - Describes the seed-at-startup pattern
+   - Calls out the repository seam — downstream apps replace with their own store
+   - Links to E2E tests that verify the contract
+   - Explains why this matters
+
+2. **Walkthrough documentation updated** — Removed stale references to planning-notification:
+   - `docs/walkthroughs/README.md` — Reframed to explicitly list four workflows as the reference contract; removed planning-notification entry
+   - `docs/walkthroughs/workflow-administration.md` — Updated the admin panel workflow list to show only four workflows
+   - `README.md` — Updated walkthrough references to link to planning-workflow-complete (end-to-end test) instead of planning-notification
+
+3. **Naming clarified** — "Planning Application" (workflow key `planning`) is now consistently referred to as such across docs, distinct from the legacy planning-notification
+
+## Implementation
+
+### Files Created
+
+- `docs/guides/reference-workflow-contract.md` — 200+ lines of clear explanation with code examples, architecture diagram via narrative, verification checklist, and quick reference table
+
+### Files Updated
+
+1. `docs/walkthroughs/README.md`
+   - Added preamble explaining exactly four workflows and seeding pattern
+   - Removed planning-notification from end-user workflows section
+   - Updated workflow descriptions to call out reference contract status
+   - Updated closing note to reference the new docs/guides/reference-workflow-contract.md
+
+2. `docs/walkthroughs/workflow-administration.md` (line 99–106)
+   - Updated "View Available Workflow Definitions" to list exactly four workflows
+   - Removed planning-notification
+
+3. `README.md` 
+   - Line 57: Updated "Alternative" link to point to planning-workflow-complete instead of planning-notification
+   - Line 246: Updated documentation table to reference planning-workflow-complete with description emphasizing end-to-end nature
+
+## Why This Matters
+
+- **Product clarity:** Developers immediately understand what's in the reference app and what stays with the product vs. what they replace
+- **Reduces confusion:** No more debate about whether planning-notification is a supported workflow
+- **Anchors testing:** E2E tests now have a documented home that explains what they verify and why
+- **Onboarding:** New contributors get a clear "how this works" document in the guides folder
+
+## Consequences
+
+- Documentation now explicitly states the four-workflow contract
+- Downstream app developers will see the reference seam and understand where to plug in their own repository
+- Planning Notification walkthrough remains in the repo (planning-notification.md file and images) but is no longer promoted in the index — it's historical reference only
+- Tests are now clearly documented as the enforcement mechanism for the contract
+
+## Notes
+
+- Planning-notification.json in `workflow-seeds/` remains but is not seeded at runtime (only the four are seeded)
+- The old planning-notification walkthrough can be deprecated once all consumers migrate to planning-workflow-complete
+- This documentation establishes the contract; the decision to remove planning-notification.json file itself from the repo is separate and should happen when Blathers completes the three remaining authored workflow files (to make the archival transition complete)
+
+## References
+
+- `.squad/decisions/inbox/tangy-four-workflow-contract.md` — Four-workflow contract quality gate and test definitions
+- `src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowRepository.cs` — Code that defines the four workflows
+- `src/UmbracoPrism.MockBusinessApp/Program.cs` — Startup integration (lines 34–42)
