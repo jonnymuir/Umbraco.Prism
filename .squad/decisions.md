@@ -6547,3 +6547,116 @@ The existing open issues split the work into graph, list, stage editing, validat
 ## Tracking
 
 - GitHub issue: #74
+
+# Decision: Workflow Alignment Implementation — Authored as Single Source of Truth
+
+**Date:** 2026-05-19T22:50:10.335+01:00
+**Author:** Blathers
+**Status:** Implemented
+
+## Decision
+
+Implement startup publishing to establish authored workflows as the single source of truth while preserving the authored → projector → runtime boundary:
+
+1. **At application startup**, load all authored workflows from `IAuthoredWorkflowStore`
+2. **Project each authored workflow** through `IWorkflowPublishService` into runtime format
+3. **Publish to runtime store** so `InMemoryRuntimePublishedWorkflowStore` holds the projected definitions
+4. **Keep both schemas separate** — do NOT collapse authored and runtime formats
+5. **Preserve runtime seeds as fallback** — workflows without authored sources continue to work
+
+## Implementation
+
+### Startup Logic (Program.cs)
+
+Added startup publishing block immediately after `var app = builder.Build()`:
+
+```csharp
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+var authoredStore = app.Services.GetRequiredService<IAuthoredWorkflowStore>();
+var publishService = app.Services.GetRequiredService<IWorkflowPublishService>();
+
+var authoredEntries = await authoredStore.ListAsync();
+var loadableEntries = authoredEntries.Where(entry => entry.IsLoadable).ToList();
+
+foreach (var entry in loadableEntries)
+{
+    var authored = await authoredStore.LoadAsync(entry.WorkflowKey);
+    if (authored is null) continue;
+
+    var result = await publishService.PublishAsync(authored);
+    if (result.HasErrors)
+    {
+        startupLogger.LogError(
+            "Failed to publish authored workflow {Key} (definitionKey: {DefinitionKey}): {Errors}",
+            entry.WorkflowKey,
+            authored.DefinitionKey,
+            string.Join("; ", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Message)));
+    }
+    else
+    {
+        startupLogger.LogInformation(
+            "Published authored workflow {Key} → runtime definition {DefinitionKey}",
+            entry.WorkflowKey,
+            authored.DefinitionKey);
+    }
+}
+```
+
+### Test Coverage
+
+Added `StartupWorkflowPublishingTests.cs` with 3 tests validating the publishing contract.
+
+### Files Changed
+
+- `src/UmbracoPrism.MockBusinessApp/Program.cs` — added startup publishing block
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/StartupWorkflowPublishingTests.cs` — new test file
+
+## Consequences
+
+- **Authored workflows are now the single source of truth**
+- **Clear lineage** — runtime metadata includes `authoredWorkflowId` for provenance tracking
+- **Projector boundary preserved** — authored format remains richer than runtime format
+- **All 803 backend tests pass**
+
+
+# Decision: Workflow Alignment Quality Gate
+
+**Date:** 2026-05-19T22:50:10.335+01:00
+**Author:** Tangy
+**Status:** Implemented
+
+## Decision
+
+Added behavioural tests to make the workflow-authored → workflow-seeds alignment contract explicit:
+
+1. **MockBusinessAppPlanningWorkflowSeedTests.PlanningSeed_AuthoredId_IsPreservedInPublishedWorkflow**
+   - Proves `workflow-authored/planning.workflow.json` (with `id: "a1b2c3d4..."` and `definitionKey: "planning-application"`)
+   - Projects to `workflow-seeds/planning.json` (with `definitionKey: "planning"` and `metadata.authoredWorkflowId: "a1b2c3d4..."`)
+   - Validates that published workflows trace back to authored source via `authoredWorkflowId`
+
+2. **WorkflowAuthoringEndpointsTests.PostPublish_PreservesAuthoredWorkflowId_InPublishedMetadata**
+   - End-to-end API test proving publish flow preserves `metadata.authoredWorkflowId`
+   - Validates that `PublishResult.VerifiedFile.Metadata.AuthoredWorkflowId` matches `AuthoredWorkflow.Id`
+
+## Context
+
+The workflow alignment slice ensures authored workflows are the editable source and runtime availability stays coherent. The contract has three layers:
+
+1. **Authored layer** (`workflow-authored/*.workflow.json`): Editable source with `id` (GUID) and `definitionKey`
+2. **Projection layer** (`WorkflowProjector`): Embeds `authored.Id` as `metadata.authoredWorkflowId` in published runtime definition
+3. **Runtime layer** (`workflow-seeds/*.json`): Published definitions keyed by filename
+
+## Quality Gate Status
+
+- ✅ `MockBusinessAppPlanningWorkflowSeedTests` (3/3 tests pass)
+- ✅ `WorkflowAuthoringEndpointsTests` (21/21 tests pass)
+- ✅ `WorkflowShowcaseShortcutTests` (3/3 tests pass)
+
+## Test Location
+
+`src/UmbracoPrism.Core.Tests/Workflow/Authoring/`
+
+Files touched:
+- `MockBusinessAppPlanningWorkflowSeedTests.cs` (added alignment test)
+- `WorkflowAuthoringEndpointsTests.cs` (added publish metadata test)
+- `StartupWorkflowPublishingTests.cs` (fixed using statements)

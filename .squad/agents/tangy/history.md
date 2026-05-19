@@ -184,3 +184,11 @@ Run `./scripts/validate-debugger-cleanup.sh` before and after debugger stop. Bas
 ## Scribe Consolidation (2026-05-19T21:41:48.843Z)
 
 Decisions consolidated into team decisions log. Orchestration recorded.
+
+## 2026-05-19: Workflow Alignment Quality Gate Tests
+
+### 2026-05-19T22:50:10.335+01:00 | Authored workflow traceability tests added
+
+Added behavioural tests to make workflow-authored → workflow-seeds alignment explicit. Implemented MockBusinessAppPlanningWorkflowSeedTests and WorkflowAuthoringEndpointsTests. All 27 focused tests passing (3 MockBusinessApp, 21 endpoints, 3 showcase shortcuts).
+
+Decision merged into decisions.md by Scribe 2026-05-19T22:00:07Z.

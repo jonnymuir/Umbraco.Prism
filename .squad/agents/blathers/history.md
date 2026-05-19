@@ -5,12 +5,15 @@ Backend Developer specializing in core infrastructure and pipeline design.
 **Current Focus:**
 - Issue #72: Planning workflow alignment (COMPLETED 2026-05-18T22:14:30.041+01:00)
 - Fixed workflow definition mismatch between editor and runtime
-- Backend tests passing (782/782)
+- Backend tests passing (803/803)
 
-**Latest:** Completed issue #72 planning workflow alignment (2026-05-18T22:14:30.041+01:00)
+**Latest:** Implemented startup workflow publishing for authored → runtime alignment (2026-05-19T22:50:10.335+01:00)
 
 ## Learnings
 
+- 2026-05-19T22:50:10.335+01:00 — Startup workflow publishing: At application startup, load authored workflows from `IAuthoredWorkflowStore`, project through `IWorkflowPublishService`, and publish to runtime store. This establishes authored definitions as the single source of truth while preserving the authored → projector → runtime boundary. Runtime seed files remain as fallback for workflows without authored sources.
+- 2026-05-19T22:50:10.335+01:00 — Projection error handling: Startup publishing must check `PublishResult.HasErrors` and log projection diagnostics with severity filtering (`DiagnosticSeverity.Error`). Failed projections should log errors but not block startup for other workflows.
+- 2026-05-19T22:50:10.335+01:00 — Test engine construction: `BusinessAppWorkflowEngine` requires `IWebHostEnvironment` (can be mocked), `IWorkflowContentSanitizer` (test-only passthrough implementation), and `IWorkflowDefinitionStore`. For testing startup publishing, use `InMemoryRuntimePublishedWorkflowStore` as the published workflow target.
 - 2026-05-19T21:15:20.177+01:00 — Aspire debugger cleanup: VS Code's .NET debugger does not automatically clean up child processes spawned by Aspire DCP (Distributed Application Runtime) or Docker containers. Use `postDebugTask` in `.vscode/launch.json` to wire an automated cleanup script that terminates orphaned processes and stops Aspire-labeled containers on debugger stop.
 - 2026-05-19T21:15:20.177+01:00 — Process cleanup safety: Cleanup scripts must use specific PIDs (`kill $PID`) rather than name-based killing (`pkill`, `killall`) per security guidelines. Pattern: find PIDs via `ps aux | grep pattern`, validate with `kill -0 $PID`, terminate gracefully (`kill`), then force kill (`kill -9`) after a brief wait.
 - 2026-05-19T21:15:20.177+01:00 — Aspire container identification: Docker containers spawned by Aspire carry the label `aspire.resource.name`, making them queryable via `docker ps --filter "label=aspire.resource.name"`. This enables targeted cleanup of Aspire-managed containers without affecting other developer containers.
@@ -84,3 +87,11 @@ Deep-link parameter mismatch between admin card URL (`workflow=planning-notifica
 ## Scribe Consolidation (2026-05-19T21:41:48.843Z)
 
 Decisions consolidated into team decisions log. Orchestration recorded.
+
+## 2026-05-19: Workflow Publishing Implementation
+
+### 2026-05-19T22:50:10.335+01:00 | Startup workflow publishing pipeline wired
+
+Implemented startup publishing to establish authored workflows as single source of truth. Added Program.cs startup block to load and project all authored workflows at boot. Created StartupWorkflowPublishingTests.cs with 3 tests. All 803 backend tests pass.
+
+Decision merged into decisions.md by Scribe 2026-05-19T22:00:07Z.
