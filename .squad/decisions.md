@@ -4652,3 +4652,721 @@ The current editor layout is confusing and cramped. A full-screen tabbed interfa
 
 **ACCEPTED.** Move forward with the full-screen tabbed interface redesign as described. The workflow editor should be a dedicated authoring tool; AI assistance flows through the external Copilot CLI via MCP contracts. Implementation order: layout refactor → move confidence surfaces to tabs → remove conversation pane. Target completion: by end of V1 baseline.
 
+## Decision: authoring shortcuts only advertise authored workflows
+
+- **Date:** 2026-05-19T19:16:08.421+01:00
+- **Author:** Blathers
+- **Status:** Proposed
+
+### Decision
+
+Only runtime workflow definitions that also have an authored workflow document should expose the admin-page `Edit workflow` shortcut into the reference editor. When a URL asks for a workflow the authoring API does not list, the editor shell must stay on that requested key instead of silently switching to a different workflow.
+
+### Why
+
+The admin surface lists runtime seed definitions, but the reference editor is backed by authored workflow documents. Showing an editor link for runtime-only definitions caused an honest-route mismatch: the browser landed on the expected URL, then the shell fell back to a different authored workflow and made the shortcut lie.
+
+### Consequences
+
+- Admin cards without authored coverage should show an explicit unavailable state rather than a broken editor link.
+- Direct editor URLs remain deterministic: missing authored definitions fail honestly instead of loading the wrong workflow.
+- Route-to-editor regression coverage should assert both halves of the contract: authored definitions link through, runtime-only definitions do not.
+---
+status: in_review
+author: Isabelle (Frontend Dev)
+date: 2026-05-19T18:16:08Z
+relates_to: .squad/decisions.md (tabbed interface decision), docs/design/workflow-editor-v1/01-authoring-ux.md
+---
+
+# Swim Lane Editor Ideas — Three UX Concepts
+
+## Context
+
+The current tabbed mental model (Graph / List / Validation / Preview / Simulation) treats each view as separate concerns. However, authors think about workflows as flows of work through roles. A swim lane approach organizes the editor around role-based horizontal or vertical lanes, with stage-focused zooming for detailed editing.
+
+This explores three swim lane concepts that keep the workflow mental model front-and-center while enabling the tasks authors care most about: creating stages, editing transitions, configuring actions, and understanding branching.
+
+---
+
+## Concept 1: Horizontal Swim Lanes with Stage Cards (Recommended First Pass)
+
+### Visual Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Toolbar: Save | Undo | Redo | Copy | Paste | Help        │
+├─────────────────────────────────────────────────────────────┤
+│ ▼ Filter: All roles                                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│ 🚶 Applicant                                                │
+│  ┌──────────┐         ┌──────────┐         ┌──────────┐     │
+│  │Start:    │ ──→ │Form:       │ ──→ │Submit:     │ ──→   │
+│  │welcome   │    │Application│    │Confirm     │    │     │
+│  └──────────┘         └──────────┘         └──────────┘     │
+│        │                                           ↓         │
+│        └─────────────────────────────────────────┐          │
+│                                                   ↓         │
+│ 👔 Caseworker                                      │         │
+│  ┌──────────┐         ┌──────────┐         ┌──────────┐     │
+│  │Queued:   │ ──→ │Review:     │ ──→ │Decision:   │     │
+│  │ready     │    │Application│    │Approve/...│     │
+│  └──────────┘         └──────────┘         └──────────┘     │
+│                                                  ↓ ↓ ↓       │
+│ ⚙️ System                                       │ │ │       │
+│  ┌──────────┐         ┌──────────┐         ┌──────────┐     │
+│  │          │         │Send ID   │         │Archive   │     │
+│  │          │ ──→ │Verification│ ──→ │Outcome     │     │
+│  │          │         │           │         │           │     │
+│  └──────────┘         └──────────┘         └──────────┘     │
+│                                                               │
+├─────────────────────────────────────────────────────────────┤
+│ Status: 6 stages, 3 paths • Validation: ✓ Clean │ Save      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Always Visible
+
+- **Role lanes** — Each actor/role gets its own horizontal lane (Applicant, Caseworker, System).
+- **Stage cards in sequence** — Cards show stage key, title, and a quick icon indicating stage type (form, review, decision, etc.).
+- **Transition arrows** — Simple arrows between cards within a lane, plus cross-lane arrows to show hand-offs.
+- **Brief inline controls** — Small `+` button to add a stage before/after; context menu on card (edit, duplicate, delete).
+- **Filter/collapse lane** — Toggle to show/hide roles with no active stages or to focus on one role.
+
+### What Opens on Zoom (Click Stage Card)
+
+When an author clicks a stage card, a **stage detail drawer** slides in from the right:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Main Swim Lane View    │ Stage Detail Drawer               │
+│                        │ ┌─────────────────────────────┐   │
+│                        │ │ START: WELCOME              │   │
+│                        │ ├─────────────────────────────┤   │
+│ 🚶 Applicant           │ │ Actor: Applicant            │   │
+│  ┌──────────┐          │ │ Type: Form confirmation     │   │
+│  │Start:    │ [OPEN]   │ │ Description: Greet and      │   │
+│  │welcome   │◄─────────│ │   collect consent           │   │
+│  └──────────┘          │ │                             │   │
+│                        │ │ Actions (2)                 │   │
+│                        │ │  □ Show welcome message     │   │
+│                        │ │  □ Send confirmation email  │   │
+│                        │ │  [+ Add action]             │   │
+│                        │ │                             │   │
+│                        │ │ Outbound Transitions (1)    │   │
+│                        │ │  → Application Form         │   │
+│                        │ │     (condition: accepted)   │   │
+│                        │ │  [+ Add transition]         │   │
+│                        │ │                             │   │
+│                        │ │ [Edit] [Duplicate] [Delete] │   │
+│                        │ └─────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+The drawer shows:
+- **Stage properties** — key, title, description, actor, stage type.
+- **Actions list** — all actions in this stage, with summary text (e.g., "Send email to {email_field}").
+- **Transitions list** — all outbound transitions, clickable to edit the target or condition.
+- **Quick add** — buttons to add actions or transitions without leaving the drawer.
+- **Danger zone** — delete or duplicate the stage.
+
+Authors can edit any property inline; the main swim lane updates in real time as they type (debounced to avoid visual noise).
+
+### Handling Branching Transitions
+
+Branching is the trickiest part. Instead of spaghetti lines, we use **visual grouping and explicit labeling**:
+
+1. **Multiple transitions from one stage show as a small branching node** in the swimlane:
+   ```
+   Caseworker Lane:
+   ┌────────────────┐
+   │ Decision:      │
+   │ Approve/Reject │  ──┬─→ [Approved]
+   └────────────────┘    ├─→ [Rejected]
+                         └─→ [Request Info]
+   ```
+
+2. **Clicking the branching node** shows transition details in the drawer, with a clear decision tree visual:
+   ```
+   Transitions from Decision stage:
+   
+   [Condition: score >= 80]
+   ├─→ Approved (target: Sent to Council)
+   
+   [Condition: score < 80]
+   ├─→ Rejected (target: Rejection notice)
+   
+   [Default]
+   └─→ Request Info (target: Follow-up form)
+   ```
+
+3. **For cross-lane arrows**, the swim lane view shows them as light **beige connecting lines** with a label, but they are not cluttered. Authors can see the target lane at a glance.
+
+4. **Validation highlights dead-end and branching issues**:
+   - Yellow triangle on stages with no outbound transition.
+   - Red badge if all conditions lead to dead ends.
+   - These appear in a compact **Validation summary** at the bottom.
+
+### Accessibility (Swim Lane Horizontal)
+
+**Keyboard Navigation:**
+- Tab through role headers and stage cards in order.
+- Arrow keys to move between stages within a lane (Left/Right) or between lanes (Up/Down).
+- Enter or Space to open stage drawer.
+- Tab inside drawer to reach action/transition controls.
+- Escape to close drawer and return focus to stage card.
+
+**Screen Reader:**
+- Announce each role header as a region landmark: "Applicant lane, 3 stages."
+- Stage cards described as: "Start: Welcome stage, form type. 2 actions, 1 outbound transition."
+- Transitions announced as: "Application Form stage, hand-off transition to Caseworker Review, no condition."
+- When drawer is open, announce stage detail heading and set focus to first interactive control; close button always last.
+
+**Focus Management:**
+- Stage card has `aria-expanded` and `aria-controls` pointing to drawer `id`.
+- Drawer is a `role="dialog"` with `aria-labelledby`.
+- Close drawer moves focus back to the stage card that opened it.
+
+---
+
+## Concept 2: Vertical Swim Lanes with Compact Timeline
+
+### Visual Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Toolbar: Save | Undo | Redo | Copy | Paste | Help        │
+├─────────────────────────────────────────────────────────────┤
+│ ▼ Filter: All roles                                         │
+├──────┬──────┬──────┬──────┬──────┬──────┬─────┬────────────┤
+│ 🚶   │      │      │      │      │      │     │            │
+│ App  │      │      │      │      │      │     │            │
+├──────┼──────┼──────┼──────┼──────┼──────┼─────┼────────────┤
+│ 👔   │ ┌──┐ │ ┌──┐ │ ┌──┐ │      │ ┌──┐ │     │            │
+│ Case │ │Re│ │ │De│ │ │Se│ │      │ │Ar│ │     │            │
+│work  │ │vi│ │ │ci│ │ │nd│ │      │ │ch│ │     │            │
+│      │ │ew│ │ │si│ │ │No│ │      │ │iv│ │     │            │
+│      │ │ │ │ │on│ │ │ti│ │      │ │e │ │     │            │
+│      │ └──┘ │ └──┘ │ └──┘ │      │ └──┘ │     │            │
+├──────┼──────┼──────┼──────┼──────┼──────┼─────┼────────────┤
+│ ⚙️   │      │      │      │      │      │ ┌──┐│            │
+│ Sys  │      │      │      │      │      │ │ID││            │
+│      │      │      │      │      │      │ │Ve││            │
+│      │      │      │      │      │      │ │ri││            │
+│      │      │      │      │      │      │ │fy││            │
+│      │      │      │      │      │      │ └──┘│            │
+├──────┴──────┴──────┴──────┴──────┴──────┴─────┴────────────┤
+│ Status: 6 stages, 3 paths • Validation: ✓ Clean │ Save      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Always Visible
+
+- **Vertical role lanes** — Left sidebar shows abbreviated role names (🚶 App, 👔 Casework, ⚙️ Sys).
+- **Compact timeline** — Horizontal timeline with stage boxes positioned top-to-bottom within their role lane.
+- **Transition connectors** — Lines showing paths between stages, color-coded by role.
+- **Stage box summary** — Shows stage key and type icon only; text is minimal to keep boxes small.
+
+### What Opens on Zoom (Click Stage Box)
+
+Same drawer as Concept 1, but positioned differently:
+
+```
+Vertical Lane (compact)
+  👔
+  ┌─────┐
+  │Review│ ─[CLICK]─→ Drawer opens on right
+  └─────┘
+
+[Detailed stage editor drawer, same content as Concept 1]
+```
+
+### Handling Branching Transitions
+
+- **Multiple outbound transitions** are shown as **branching lines** diverging from the stage box.
+- Condition labels appear inline on the lines (very small).
+- **On drawer open**, the transition decision tree is clearly laid out with conditions and targets.
+
+This concept allows **dense packing** — many stages visible at once — but trades readability for compactness.
+
+### Accessibility (Vertical Swim Lanes)
+
+**Keyboard Navigation:**
+- Tab and Shift+Tab to move through stages in sequence.
+- Arrow keys: Left/Right to move between lanes, Up/Down to move within lane.
+- Enter/Space to open drawer.
+- Escape to close drawer.
+
+**Screen Reader:**
+- Role lane headers announced as regions: "Applicant lane, 3 stages."
+- Stage boxes announced with context: "Application Form stage, step 2 of 6 in Applicant lane."
+- Transitions within drawer clearly labeled: "Approved condition leads to Sent to Council, role Caseworker."
+
+**Focus Management:**
+- Drawer uses same focus trap and restore pattern as Concept 1.
+
+---
+
+## Concept 3: Hybrid — Swim Lanes for Orientation, List for Detailed Editing
+
+### Visual Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Toolbar: Save | Undo | Redo | Copy | Paste | Help        │
+├─────────────────────────────────────────────────────────────┤
+│ [Swim Lanes View] [Detailed List] [Validation] [Preview]   │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│ Swim Lanes Tab (current):                                   │
+│  🚶 Applicant     👔 Caseworker    ⚙️ System                │
+│  ┌──────┐        ┌──────┐        ┌──────┐                   │
+│  │ Welcome        │ Review         │ Archive                 │
+│  └──────┘        └──────┘        └──────┘                   │
+│                                                               │
+│ → [Switch to Detailed List for parameter editing]           │
+│                                                               │
+├─────────────────────────────────────────────────────────────┤
+│ Status: 6 stages, 3 paths • Validation: ✓ Clean │ Save      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Always Visible
+
+- **Top-level tab bar** showing multiple view modes.
+- **Swim lanes tab** is the default — provides quick orientation and navigation.
+- **Detailed list tab** for deeper editing — scrollable, full property access.
+
+### What Opens on Zoom
+
+- **In Swim Lanes**: Click a stage card, drawer opens (same as Concept 1).
+- **In Detailed List**: Click a row to expand inline or navigate to a detail form.
+
+### Handling Branching Transitions
+
+- **In Swim Lanes**, branching uses the visual model described in Concept 1.
+- **In Detailed List**, branching is a simple **conditions table**:
+  ```
+  Transitions from Decision stage
+  ┌────────────────┬──────────────┬─────────────┐
+  │ Condition      │ Target Stage │ Target Role │
+  ├────────────────┼──────────────┼─────────────┤
+  │ score >= 80    │ Approved     │ Caseworker  │
+  │ score < 80     │ Rejected     │ Applicant   │
+  │ (default)      │ Request Info │ Applicant   │
+  └────────────────┴──────────────┴─────────────┘
+  ```
+
+### Accessibility (Hybrid)
+
+**Keyboard Navigation:**
+- Tab between view mode tabs.
+- Within Swim Lanes: same as Concept 1.
+- Within List: standard table navigation (arrow keys in tbody, Enter to open detail).
+
+**Screen Reader:**
+- Both tabs announced as tab panel landmarks.
+- Swim Lanes described as spatial/graphical; List described as tabular.
+- Switch instructions provided: "Press Ctrl+L to go to Detailed List view" (with shortcut in help).
+
+---
+
+## Comparison Matrix
+
+| Aspect | Concept 1: Horizontal | Concept 2: Vertical | Concept 3: Hybrid |
+|--------|:---:|:---:|:---:|
+| **Visual clarity** | Excellent — role sequence obvious | Good — compact | Excellent — both views |
+| **Branching readability** | Good — clear branching node | Fair — lines can clutter | Excellent — visual + tabular |
+| **Screen reader support** | Strong — lane regions + drawers | Strong — same pattern | Strong — both surfaces |
+| **Keyboard efficiency** | Fast — Tab/Arrow + Enter | Fast — same pattern | Fastest — switch to List for parameters |
+| **Suitable for large workflows** | Yes (scroll horizontally) | Yes (scroll in grid) | Best — narrow focus per mode |
+| **Implementation complexity** | Medium (layout + drawer) | Medium (grid layout + drawer) | Higher (two surfaces + sync) |
+| **Author confidence (branching)** | High — visual grouping | Medium — needs drawer | Highest — see both visual + table |
+
+---
+
+## Recommendation: Best First Pass
+
+**Concept 1 (Horizontal Swim Lanes) is the recommended first pass** for these reasons:
+
+1. **Familiar mental model** — Workflows naturally flow left-to-right through roles.
+2. **Smooth migration** — Current graph view can be gradually replaced; list view becomes "detailed list mode."
+3. **Branching clarity** — Horizontal branching nodes are easier to render and understand than vertical.
+4. **Accessibility** — Lane regions + drawers map well to screen reader expectations.
+5. **Reduced implementation scope** — Start with swim lanes + drawer; add validation/preview panels later.
+
+### Simplest Path to First Pass Implementation
+
+**Phase 1: Core Swim Lanes (2–3 weeks)**
+- Render horizontal lanes per role.
+- Display stage cards in lane order.
+- Add stage detail drawer (reuse existing prism-step-inspector component).
+- Implement arrow transitions within and across lanes.
+- Tab key navigation + Arrow keys for lane/stage movement.
+
+**Phase 2: Branching & Transitions (2 weeks)**
+- Show branching nodes for stages with multiple outbound transitions.
+- Implement transition editing inside drawer.
+- Add condition visual grouping.
+
+**Phase 3: Validation Panel & Refresh (1 week)**
+- Bottom validation rail (reuse existing prism-workflow-validation component).
+- Sync validation state with swim lane highlights.
+
+**Do NOT include in Phase 1:**
+- Preview tab (move to Phase 4).
+- Simulation panel (move to Phase 4).
+- AI proposal diffing (move to Phase 5).
+
+This keeps scope tight and delivers a coherent, working editor in the first push.
+
+---
+
+## Accessibility Deep Dive
+
+### Focus Management
+
+1. **On load**, focus starts on the first stage card in the first lane.
+2. **Arrow key navigation** cycles through lanes (Up/Down) and stages within lane (Left/Right).
+3. **Tab key** skips the swim lane area and moves to the next high-level control (e.g., validation panel, toolbar).
+4. **Enter/Space** opens the stage drawer and moves focus to the drawer's first editable field.
+5. **Escape** in the drawer closes it and returns focus to the stage card.
+
+### Screen Reader Announcements
+
+- **Lanes**: "Applicant lane, 3 stages. Use Up/Down arrow to move between lanes."
+- **Stage cards**: "Application Form, stage 2 of 6 in Applicant lane. Click to edit."
+- **Transitions**: "Transition to Caseworker Review, no condition. Arrow right to see target stage."
+- **Branching**: "Decision stage has 3 outbound transitions. Press Enter to see options."
+
+### Interaction Patterns
+
+- **Live regions** for validation changes: `aria-live="polite"` on validation rail.
+- **Dialog management**: Drawer as modal dialog with `aria-labelledby` and `aria-describedby`.
+- **Form labels**: All inspector fields have explicit `<label for="...">` or `aria-label` attributes.
+- **Tooltips**: Inline help text as `aria-describedby` instead of title attributes.
+
+---
+
+## Decision
+
+**Recommended UX approach:** Horizontal Swim Lanes with Stage Detail Drawer (Concept 1).
+
+**Next steps:**
+1. Review this concept with Jonny and team for alignment.
+2. If approved, schedule Phase 1 implementation.
+3. Create acceptance criteria and Playwright specs for swim lane navigation and drawer behavior.
+4. Update `.squad/decisions.md` with final decision once team confirms direction.
+
+**Key trade-off:** Moving from tab-based (Graph/List/Validation/Preview/Simulation) to role-based (Swim Lanes) requires new mental model adoption by authors, but better matches how they think about workflows in practice.
+
+---
+
+## References
+
+- Current editor design: `docs/design/workflow-editor-v1/01-authoring-ux.md`
+- Previous tabbed interface decision: `.squad/decisions.md` (search "Tom Nook")
+- Implementation components: `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts` (graph layout logic), `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts` (inspector drawer)
+# Design: Workflow Editor Reframed for Business Designers
+
+**Date:** 2026-05-19T19:33:29.427+01:00  
+**Author:** Tom Nook  
+**Status:** Proposal — for team discussion and feedback  
+**Context:** Challenge to the tabbed-editor direction; reframing around actual business-designer workflow  
+
+---
+
+## Executive Summary
+
+The workflow editor should be designed around **who does what and when** — not generic tabs or generic graph surfaces. A business service designer thinks in terms of **roles** (swim lanes), **stages** (units of work within each role), **handoffs** (transitions between roles), **branching** (multiple paths), and **details** (actions and parameters within a stage).
+
+This proposal presents **three concrete interaction models** for organizing stages, transitions, branching, role-based swim lanes, and detail editing. Each model trades off different design principles; I recommend **Model 2 (Stacked Swim Lanes)** as the best starting point because it puts roles first (matching designer mental models), keeps stages scannable, makes branching visible, and reserves complexity for when the designer needs it.
+
+---
+
+## The Business Designer's Job
+
+Before building an interface, let's name what a business designer actually does when authoring a workflow:
+
+1. **Understand who participates** — identify the roles (applicant, caseworker, manager, external system, etc.)
+2. **Design role responsibilities** — what does each role do in the workflow?
+3. **Chain work across roles** — when does work pass from one role to another?
+4. **Handle branching** — when decisions happen, what are the possible next paths?
+5. **Configure stage details** — what form does this stage show? What actions run here?
+6. **Connect actions to roles** — who triggers or performs this action?
+7. **Review for completeness** — can the workflow reach all required outcomes? Are there dead ends?
+
+This is fundamentally a **role-driven workflow** job, not a "generic stage graph" job. The designer thinks about the workflow as **multiple concurrent responsibilities** that handoff to each other.
+
+---
+
+## Why the Tabbed-Editor Direction Didn't Fit
+
+The earlier tabbed-editor proposal (removing the in-editor conversation widget and moving to full-screen tabs) treated the workflow as a **collection of pages to switch between**, not as an **integrated picture of roles, stages, and handoffs**.
+
+Problems:
+- **Tabs separate things that are conceptually linked** — branching from stage A to stage B becomes invisible when B is on a different tab.
+- **Context switching every time you edit details** — designers can't see "the big picture" and "a stage's actions" at the same time.
+- **Swim-lane thinking gets hidden** — roles and their responsibilities don't have a natural first-class home in a tab model.
+- **Conversation removal loses the proposal loop** — the editor-first workflow means validation, preview, and proposal review should stay visible during authoring.
+
+---
+
+## Three Interaction Models
+
+### Model 1: Vertical Swim Lanes (All-on-One Canvas)
+
+**Concept:** The entire workflow is one visual canvas. Roles are **vertical bands**. Each role's band contains its stages. Transitions are arrows between stages, including cross-lane arrows showing role handoffs.
+
+**Visual structure:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Toolbar: save • undo • redo • copy • paste • help • + Stage    │
+├────────────────┬────────────────┬────────────────┬──────────────┤
+│ Role: Applicant│ Role: Officer  │ Role: Manager  │ Inspector    │
+│                │                │                │ (hidden      │
+│ ┌─────────────┐│ ┌─────────────┐│ ┌─────────────┐│  unless      │
+│ │ Start form  │ │ Review       │ │ Final        │ │ something   │
+│ │ (Front)     ├→│ Decision     ├→│ Approval     │ │ is          │
+│ └─────────────┘│ (Back)        │ │ (Back)       │ │ selected)   │
+│        ↓       │ └─────────────┘ │ └─────────────┘│             │
+│ ┌─────────────┐│        ↓        │                │             │
+│ │ Confirm and │ │ ┌─────────────┐│                │             │
+│ │ Submit      ├→│ │ Request     │ │                │             │
+│ │ (Front)     │ │ │ More Info   │ │                │             │
+│ └─────────────┘ │ └─────────────┘ │                │             │
+│                 │        ↓        │                │             │
+│                 │ ┌─────────────┐ │                │             │
+│                 │ │ Decide      │ │                │             │
+│                 │ │ (Back)      ├→ (loop back)    │             │
+│                 │ └─────────────┘ │                │             │
+└────────────────┴────────────────┴────────────────┴──────────────┘
+│ Validation rail: No issues                                      │
+├──────────────────────────────────────────────────────────────────┤
+│ Preview / Simulation panel (collapsible)                          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Interaction:**
+- **Click a stage** → inspector opens showing stage name, actor, type, and actions
+- **Drag between stages** → creates transition; icon shows direction
+- **Click transition** → inspector shows trigger, conditions, guards
+- **Right-click stage** → add after, delete, duplicate, convert type
+- **Right-click transition** → edit, delete, relabel, set condition
+
+**Strengths:**
+- ✅ **Roles are first-class and visible** — you can see the whole org structure at once
+- ✅ **Branching is obvious** — multiple arrows from one stage are immediately visible
+- ✅ **Handoffs are clear** — cross-lane arrows show role boundaries
+- ✅ **One coherent picture** — designers see the full workflow without switching views
+
+**Weaknesses:**
+- ❌ **Canvas gets crowded fast** — more than 4–5 roles or 8–10 stages per role becomes overwhelming
+- ❌ **Mobile and narrow screens don't work well** — horizontal scrolling is friction-heavy
+- ❌ **Detail editing still needs the inspector** — parameter editing is still in a side panel, not inline
+- ❌ **Empty space and layout** — you have to decide how much space each role gets; it's a design puzzle
+- ❌ **Accessibility challenge** — screen readers need a strong outline/list alternative
+
+---
+
+### Model 2: Stacked Swim Lanes (Inspector-Heavy)
+
+**Concept:** Roles are **horizontal stacked bands** (one above the other). Each role shows a compact **timeline or flowchart** of its stages. Stages are smaller, more compact. When you select a stage, the inspector expands to show all details, actions, and transitions. This keeps the main canvas scannable while putting power in the inspector.
+
+**Visual structure:**
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ Toolbar: save • undo • redo • copy • paste • help • + Stage         │
+├─────────────────────────────────────────────────────────────────┬────┤
+│ Main canvas (stacked roles)                                     │Insp│
+│                                                                  │ect │
+│ ┌─ Role: Applicant ──────────────────────────────────────┐     │ or │
+│ │  [Start] ──→ [Form] ──→ [Confirm] ──→ [Submit]        │     │    │
+│ └────────────────────────────────────────────────────────┘     │    │
+│ ┌─ Role: Officer ────────────────────────────────────────┐     │    │
+│ │  [Review] ←─ (from Applicant Submit)                   │     │    │
+│ │     ├─→ [Request More Info]                            │     │    │
+│ │     └─→ [Decision]                                     │     │    │
+│ └────────────────────────────────────────────────────────┘     │    │
+│ ┌─ Role: Manager ────────────────────────────────────────┐     │    │
+│ │  [Final Approval] ←─ (from Officer Decision)           │     │    │
+│ │     └─→ [Outcome Notice]                               │     │    │
+│ └────────────────────────────────────────────────────────┘     │    │
+│                                                                  │    │
+│ (When you click "Decision" above, inspector shows:)             │    │
+│  ┌──────────────────────────────────────────────────────────┐  │    │
+│  │ Stage: Decision                                          │  │    │
+│  │ Actor: Officer                                           │  │    │
+│  │ Type: Back-stage decision                               │  │    │
+│  │                                                          │  │    │
+│  │ Actions:                                                │  │    │
+│  │  ☑ Record decision (required)                          │  │    │
+│  │  ☑ Send notification                                   │  │    │
+│  │                                                          │  │    │
+│  │ Outbound transitions:                                  │  │    │
+│  │  • Approve → [Final Approval] (Manager)                │  │    │
+│  │  • Decline → [Outcome Notice]                          │  │    │
+│  │  • More Info Needed → [Request More Info]              │  │    │
+│  └──────────────────────────────────────────────────────────┘  │    │
+└─────────────────────────────────────────────────────────────────┴────┘
+│ Validation rail: No issues                                          │
+├──────────────────────────────────────────────────────────────────────┤
+│ Preview / Simulation panel (collapsible)                              │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Interaction:**
+- **Click a stage in the canvas** → inspector expands to show full details: name, actor, type, actions, outbound transitions
+- **In the inspector, click "+ Add transition"** → new transition editor appears inline; you pick target role and stage
+- **In the inspector, click an action** → action editor expands to show parameters and forms configuration
+- **Drag the boundary between role bands** → resize how much space each role gets
+- **Collapse/expand a role band** → hide stages in a role you're not working on
+- **Right-click a stage in the canvas** → quick menu: add after, delete, duplicate
+
+**Strengths:**
+- ✅ **Roles are primary organizing unit** — clear vertical ownership
+- ✅ **Canvas stays scannable** — stages are compact, one row per role
+- ✅ **Branching visible at the role level** — you can see stage flow within a role
+- ✅ **Handoff visibility** — incoming transition arrows show which role hands off to this one
+- ✅ **Inspector becomes the detail workspace** — stage details, actions, transitions, and parameters all in one expanding panel
+- ✅ **Works on narrow screens** — stages compress well; inspector can be a modal on mobile
+- ✅ **Accessibility is natural** — outline follows role → stage → transition hierarchy
+- ✅ **Conversation widget can stay** — inspector area is large enough to coexist with a collapsible proposal/chat pane
+
+**Weaknesses:**
+- ⚠️ **Multiple transitions from one stage need careful UX** — the inspector shows them, but editing three parallel branches gets complex
+- ⚠️ **You have to scroll vertically to see all roles** — if you have 8 roles, they don't all fit
+- ⚠️ **Stage position on canvas matters** — you need layout rules so transitions don't cross confusingly
+
+---
+
+### Model 3: Role Tab Strip (Tab-Free Alternative)
+
+**Concept:** Roles are accessible via a **horizontal tab strip or pill bar** at the top of the canvas (not full-page tabs). Each role can be **viewed or toggled on/off**. The main canvas shows **only the selected role(s)** in detail, with mini indicators for other roles' incoming/outgoing transitions. The inspector is always available on the right and can show cross-role details.
+
+**Visual structure:**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ Toolbar: save • undo • redo • copy • paste • help • + Stage        │
+├─────────────────────────────────────────────────────────────────────┤
+│ Role selector: ☑ Applicant  ☑ Officer  ☑ Manager  [⊕ Add role]   │
+├──────────────────────────────────────────────┬─────────────────────┤
+│ Canvas (showing selected roles)              │ Inspector / Proposal│
+│                                              │ (conversation pane  │
+│ ┌─ Applicant ─────────────────────────────┐ │  collapsible)      │
+│ │ [Start] ──→ [Form] ──→ [Confirm] ──→    ├→ │ (Applicant        │
+│ │                         [Submit]         │ │  Submit)           │
+│ └──────────────────────────────────────────┘ │ Actions:           │
+│                                              │  • Send             │
+│ ┌─ Officer ────────────────────────────────┐ │    confirmation    │
+│ │ ← [Review] ──→ [Decision]                ├→ │                   │
+│ │   [Request More Info]                   │ │ Transitions:       │
+│ │ ← ← ←                                    │ │  1. To Officer     │
+│ └──────────────────────────────────────────┘ │     Review         │
+│                                              │  2. To Officer     │
+│ ┌─ Manager ────────────────────────────────┐ │     Request Info   │
+│ │ ← [Final Approval] ──→ [Outcome]        ├→ │                   │
+│ │ ← ← ←                                    │ │                   │
+│ └──────────────────────────────────────────┘ │                   │
+│                                              │                   │
+│ (Arrows with ← show incoming from other     │                   │
+│  roles; → arrows show outgoing to others)   │                   │
+└──────────────────────────────────────────────┴─────────────────────┘
+│ Validation rail: No issues                                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ Preview / Simulation panel (collapsible)                             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Interaction:**
+- **Click role checkbox** → toggle that role's band on/off in the main canvas
+- **Click stage** → inspector expands to show stage details, even if the stage is in a role that's not currently selected
+- **Incoming/outgoing transition arrows show cross-role flow** — you can click an arrow to jump to the target stage
+- **Right-click stage** → quick menu as before
+- **In inspector, click a transition target** → jumps to that stage and ensures its role is visible on the canvas
+
+**Strengths:**
+- ✅ **Roles are clearly available and toggleable** — you can focus on one or two roles at a time
+- ✅ **No separate tabs (cleaner mental model)** — you're toggling what's visible, not switching pages
+- ✅ **Canvas stays readable** — you control density by toggling roles on/off
+- ✅ **Conversation widget can stay** — you're not using full-screen tabs
+- ✅ **Inspector can show cross-role context** — transitions to other roles are clear
+- ✅ **Works on mobile** — toggles adapt to small screens
+
+**Weaknesses:**
+- ❌ **You have to remember state** — toggling roles on and off is stateful; easy to lose context
+- ❌ **Cross-role handoffs are harder to see** — you might have Officer toggled off and miss an incoming arrow from Officer
+- ❌ **Adding a new transition between hidden roles is friction-heavy** — you have to toggle them visible first
+- ❌ **Branching across roles needs work** — if three different roles branch from one stage, setting that up is a multiple-toggle dance
+
+---
+
+## Recommendation: Start with Model 2 (Stacked Swim Lanes)
+
+**Model 2 is the best first-pass direction because:**
+
+1. **Puts roles first, matching designer mental models** — the designer thinks "what does each role do", not "what are the generic stages"; stacked lanes naturally encode that.
+
+2. **Keeps the main canvas scannable even as workflows grow** — stages are compact; the inspector handles details. You can see all roles at a glance (or collapse ones you're not working on).
+
+3. **Branching is visible and navigable** — multiple transitions from one stage appear naturally in the inspector; the small branching arrows in the canvas hint at complexity without overwhelming.
+
+4. **Preserves the conversation widget** — the inspector panel is large enough to coexist with a collapsible proposal/chat pane on the right, maintaining the editor-first workflow with live proposal review.
+
+5. **Accessibility is straightforward** — the role → stage → transition hierarchy mirrors screen-reader navigation and list-view structure naturally.
+
+6. **Gracefully accommodates detail editing** — actions, parameters, and forms configuration all expand inline in the inspector without requiring a tab switch or modal.
+
+7. **Supports future enhancements** — you can later add nested sub-workflows, form preview, or simulation without major restructuring.
+
+### Where the Complexity Should Live
+
+**Keep simple:** Main canvas, role organization, stage flow within a role, quick access to transitions.  
+**Put complexity in the inspector:** Action parameters, forms configuration, advanced conditions, cross-role branching logic, validation messages.
+
+This way, the surface feels simple to learn and navigate, but power is available when you need it.
+
+---
+
+## Next Implementation Slices to Get There
+
+1. **Slice 1: Role-based stage grouping** — Refactor the current outline/graph to group stages under their owning role. Update the list view to mirror this role → stage hierarchy.
+
+2. **Slice 2: Stacked lane layout** — Implement horizontal stacked role bands in the graph view. Stages appear as compact boxes within each role band. Transitions are rendered as arrows (including cross-lane).
+
+3. **Slice 3: Inspector expansion for transitions** — When you select a stage, the inspector shows not just stage details but also outbound transitions. Add a "+ Add transition" button that lets you create new transitions inline without leaving the inspector.
+
+4. **Slice 4: Action details in inspector** — Expand the inspector to show actions attached to the selected stage. Clicking an action drills into parameter editing inline (not a modal or separate panel).
+
+5. **Slice 5: Conversation pane repositioning** — If currently removed, restore the proposal/conversation widget as a collapsible panel on the right side of the inspector, so proposals can be reviewed live during editing.
+
+6. **Slice 6: Keyboard and accessibility for role navigation** — Add keyboard shortcuts to jump between roles, select stages within a role, and edit transitions. Ensure screen readers announce role boundaries and stage counts.
+
+7. **Slice 7: Collapsible role bands** — Allow collapsing/expanding role bands to focus on fewer roles at a time. This reduces canvas clutter for large workflows.
+
+---
+
+## Decision Checkpoint
+
+This proposal suggests:
+- **Reject** the full-screen tabbed editor direction (Model 3 falls back toward tabs; avoid it).
+- **Adopt** Model 2 (Stacked Swim Lanes) as the V1 direction.
+- **Next review**: Once Slice 1 is prototyped (role-based grouping), gather feedback from a business designer or two to confirm the role-first framing matches their mental model.
+- **Fallback**: If stacked lanes prove too dense with many roles, we can add role collapsing (Slice 7) or switch to Model 3 (role toggles) during iteration.
+
+---
+
+## Appendix: Why Not Model 1 (Vertical Swim Lanes)?
+
+Model 1 is beautiful for small-to-medium workflows (3–4 roles, 5–8 stages each), but it breaks for realistic service designs:
+- Government workflows often have 6–10 roles (applicant, officer, manager, reviewer, external agency, system, finance, etc.).
+- Each role might have 4–6 stages.
+- At full size, the canvas becomes a poster you can't fit on a screen.
+- Scrolling kills the "one coherent picture" benefit.
+
+Model 2 solves this by making the canvas a compact starting point and moving detail into the inspector. You still get the one-picture benefit for a selected role or two, and you can expand your view as needed.
+
+---
+
+*Prepared for team discussion and feedback.* — Tom Nook, 2026-05-19
+
