@@ -6524,3 +6524,26 @@ This is a cross-cutting concern touching:
 
 Recommend raising a scoped GitHub issue (child of #57 — deterministic publish pipeline) to track the startup-seeding wiring.
 
+# Decision: Create a parent GitHub issue for the locked workflow editor swim-lane UX
+
+**Date:** 2026-05-19T22:54:23.812+01:00  
+**Author:** Tom Nook  
+**Status:** Proposed
+
+## Decision
+
+Create one new parent GitHub issue that captures the locked workflow editor UX direction: role-first swim lanes as the main editing model, supporting tabs only for confidence and structural views, accessibility as a baseline requirement, and atomic undo/redo from the first usable slice.
+
+## Why
+
+The existing open issues split the work into graph, list, stage editing, validation, preview, simulation, and undo/redo, but none of them fully describe the now-locked integrated UX direction. Without a parent issue, those slices could be implemented against the older tab-first layout and drift from the current decision.
+
+## Consequences
+
+- Future work on #58, #59, #60, #61, #63, #65, #67, and #68 should treat this parent issue as the UX source of truth.
+- Tabs are clarified as supporting views, not the main editing model.
+- Accessibility and atomic undo/redo stay in the baseline scope, not deferred polish.
+
+## Tracking
+
+- GitHub issue: #74

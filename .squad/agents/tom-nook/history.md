@@ -191,3 +191,13 @@ Transformed workflow-editor design into dependency-ordered execution backlog:
 ## Scribe Consolidation (2026-05-19T21:41:48.843Z)
 
 Decisions consolidated into team decisions log. Orchestration recorded.
+
+## 2026-05-19: Swim-Lane UX Parent Issue
+
+### 2026-05-19T22:54:23.812+01:00 | Issue #74 created: Locked workflow editor swim-lane UX direction
+
+Orchestrated parent GitHub issue #74 capturing integrated UX decision: role-first swim lanes as main editing model, tabs as supporting views, accessibility baseline, atomic undo/redo from first usable slice.
+
+Decision routing: Future work on #58, #59, #60, #61, #63, #65, #67, #68 treats #74 as UX source of truth.
+
+**Scribe update:** Decision inbox merged 2026-05-19T22:00:07Z.
