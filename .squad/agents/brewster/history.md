@@ -100,3 +100,8 @@ Issue #71 "Workflow Runtime in Umbraco Surfaces" has been marked **acceptance-co
 
 Backend test suite: 782/782 passing (no blockers). Issue ready for merge.
 
+## Revision Handoff (2026-05-19)
+
+Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
+
+---

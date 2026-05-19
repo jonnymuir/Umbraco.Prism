@@ -1,4 +1,4 @@
-# Decision: Workflow editor help and shortcut discoverability
+# Decision:# Decision: Workflow editor help and shortcut discoverability
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -28,7 +28,8 @@ Treat help and shortcut discoverability as a **host-editor responsibility**, not
 
 
 
-# Decision: Minimum honest gate for issue #66 help and shortcut discoverability
+
+# Decision:# Decision: Minimum honest gate for issue #66 help and shortcut discoverability
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -60,7 +61,8 @@ As of this review, the host editor does not yet expose a help button or help sur
 
 
 
-# Decision: Workflow editor doc reframe
+
+# Decision:# Decision: Workflow editor doc reframe
 
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Author:** Tom Nook  
@@ -88,7 +90,8 @@ The workflow editor is the V1 focus. Deterministic publishing, Umbraco hosting, 
 
 
 
-# Decision: Workflow editor simplification
+
+# Decision:# Decision: Workflow editor simplification
 
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Author:** Tom Nook  
@@ -133,7 +136,8 @@ For the reference business app, prefer a **named handler registry** over ad-hoc 
 
 
 
-# Decision: Workflow editor state audit
+
+# Decision:# Decision: Workflow editor state audit
 
 **Date:** 2026-05-17T20:02:23.686+01:00  
 **Author:** Tom Nook  
@@ -167,7 +171,8 @@ Sequence the next work as:
 
 
 
-# Decision: Regenerate walkthrough screenshots after reference shell extraction
+
+# Decision:# Decision: Regenerate walkthrough screenshots after reference shell extraction
 
 **Date:** 2026-05-17T17:33:13.797+01:00  
 **Author:** Tangy  
@@ -185,7 +190,8 @@ The old screenshots showed the raw editor page without the reference shell UI. T
 
 
 
-# Decision: CI Fix Verification — Both Fixes Confirmed Green
+
+# Decision:# Decision: CI Fix Verification — Both Fixes Confirmed Green
 
 **Date:** 2026-05-17T18:30:56.987+01:00  
 **Author:** Tangy  
@@ -200,7 +206,8 @@ All five CI jobs are now green on HEAD. The branch `feat/workflow-editor-library
 
 
 
-# Decision: Design Documentation & Execution Artifact Structure Recommendation
+
+# Decision:# Decision: Design Documentation & Execution Artifact Structure Recommendation
 
 **Date:** 2026-05-17T21:48:11.537+01:00  
 **Author:** Mabel  
@@ -228,7 +235,8 @@ Three hygiene rules keep them in sync:
 
 
 
-# Decision: Workflow Editor V1 Documentation Terminology Polish
+
+# Decision:# Decision: Workflow Editor V1 Documentation Terminology Polish
 
 **Date:** 2026-05-17  
 **Author:** Mabel  
@@ -256,7 +264,8 @@ All changes are terminology and clarity only; no substantive architecture decisi
 
 
 
-# Decision: Workflow editor V1 should be a structured authoring workspace, not a JSON-first tool
+
+# Decision:# Decision: Workflow editor V1 should be a structured authoring workspace, not a JSON-first tool
 
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Author:** Isabelle  
@@ -290,7 +299,8 @@ Within that workspace, the primary editing model is **workflow-native**:
 
 
 
-# Decision: explain workflow actions as catalog plus handler registry
+
+# Decision:# Decision: explain workflow actions as catalog plus handler registry
 
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Author:** Blathers  
@@ -314,7 +324,8 @@ This keeps the editor contract declarative and keeps runtime behaviour in the bu
 
 
 
-# Decision: use a handler registry for workflow runtime actions
+
+# Decision:# Decision: use a handler registry for workflow runtime actions
 
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Author:** Blathers  
@@ -341,7 +352,8 @@ A pure callback/lambda pattern is attractive for a small demo, but only as regis
 
 
 
-# Decision: PASA death-process should use verified case access, not mandatory registration
+
+# Decision:# Decision: PASA death-process should use verified case access, not mandatory registration
 
 **Date:** 2026-05-15T06:35:47.013+01:00  
 **Author:** Blathers  
@@ -367,7 +379,8 @@ Instead, the product should use a lightweight verified contact mechanism such as
 
 
 
-# Decision: PASA Death Process Design Scaffold
+
+# Decision:# Decision: PASA Death Process Design Scaffold
 
 **Date:** 2026-05-15T06:35:47.013+01:00  
 **Author:** Celeste (Documentation Engineer)  
@@ -428,7 +441,8 @@ This approach — **design scaffold with explicit decision slots** — is reusab
 
 
 
-# Decision: PASA death-process should use staged assurance and case-scoped access
+
+# Decision:# Decision: PASA death-process should use staged assurance and case-scoped access
 
 **Date:** 2026-05-15T06:35:47.013+01:00  
 **Author:** Copper (Security Engineer)  
@@ -512,7 +526,8 @@ Use a **case-scoped notifier model** for the PASA death-process example:
 
 
 
-# Decision: Workflow Editor V1 — Projection Determinism & Storage Layout
+
+# Decision:# Decision: Workflow Editor V1 — Projection Determinism & Storage Layout
 
 **Date:** 2026-05-16  
 **Author:** Blathers  
@@ -812,7 +827,8 @@ AI assistance must operate through the same workspace as the human author, using
 - JSON/code view should remain available as an advanced/debug surface, but not as the default primary workflow editor.
 
 
-# Decision: Workflow editor V1 — Authoring UX key decisions
+
+# Decision:# Decision: Workflow editor V1 — Authoring UX key decisions
 
 **Date:** 2026-05-16T13:20:33.659+01:00  
 **Author:** Isabelle  
@@ -863,7 +879,8 @@ The `data-testid` and `data-*` attributes listed in `01-authoring-ux.md §10` ar
 - Undo across accepted agent proposals (needs formal spec before implementation)
 
 
-# Decision: Workflow editor agentic operating model (restart recommendation)
+
+# Decision:# Decision: Workflow editor agentic operating model (restart recommendation)
 
 **Date:** 2026-05-16  
 **Author:** Tangy  
@@ -971,7 +988,8 @@ The bundle should contain:
 - Do not let research-derived generation skip clarification when policy, jurisdiction, actor ownership, or evidence requirements are ambiguous.
 
 
-# Decision: Workflow editor V1 agentic surfaces — proposal envelope schema + reuse/build boundary
+
+# Decision:# Decision: Workflow editor V1 agentic surfaces — proposal envelope schema + reuse/build boundary
 
 **Date:** 2026-05-16  
 **Author:** Tangy  
@@ -1272,7 +1290,8 @@ When projecting a `CheckAnswers` stage, the `SummaryListComponent.Children` are 
 - Patch service, Preview service, HTTP API, and Umbraco wiring are explicitly out of scope for this slice.
 
 
-# Decision: Workflow Authoring HTTP API Contract — V1
+
+# Decision:# Decision: Workflow Authoring HTTP API Contract — V1
 
 **Author:** Blathers (Backend Dev)  
 **Date:** 2026-05-17  
@@ -1397,7 +1416,8 @@ Dev-only CORS policy `WorkflowAuthoringDevCors` (AllowAnyOrigin/Header/Method) a
 **Design shape selected:** Single library + one-line extension method (chosen over a deeper Core/Web/Client split).
 
 
-# Decision: Wait for Workflow Data Load Before Asserting Editor State
+
+# Decision:# Decision: Wait for Workflow Data Load Before Asserting Editor State
 
 ## Context
 
@@ -2085,7 +2105,8 @@ Once the above are resolved, Tangy will:
 _Logged by Tangy · 2026-05-16 · See PR #52 for full spec context._
 
 
-# Decision: E2E CI Architecture — Fast Fail + Shared Environment Strategy
+
+# Decision:# Decision: E2E CI Architecture — Fast Fail + Shared Environment Strategy
 
 ## Context
 
@@ -2471,7 +2492,8 @@ Created `planning-workflow-editor-smoke` CI job that runs before the broader loc
 ---
 
 
-# Decision: Copilot + MCP should be the conversational service-design layer
+
+# Decision:# Decision: Copilot + MCP should be the conversational service-design layer
 
 **Date:** 2026-05-17T22:21:16.980+01:00  
 **Author:** Tom Nook  
@@ -2520,7 +2542,8 @@ The desired experience is **one conversation inside the workflow editor workspac
 ---
 
 
-# Decision: Copilot-facing workflow integration surface
+
+# Decision:# Decision: Copilot-facing workflow integration surface
 
 **Date:** 2026-05-17T22:21:16.980+01:00  
 **Author:** Blathers  
@@ -2563,7 +2586,8 @@ Start with the existing authoring HTTP/backend seams and add a thin adapter that
 ---
 
 
-# Decision: User directive – AI integration for workflow editor
+
+# Decision:# Decision: User directive – AI integration for workflow editor
 
 **Date:** 2026-05-17T22:21:16.980+01:00  
 **By:** Jonny Muir (via Copilot)  
@@ -2575,7 +2599,8 @@ Reuse existing AI tools like GitHub Copilot via MCP and skills so the workflow e
 ---
 
 
-# Decision: Workflow Editor V1 — Execution backlog sequencing
+
+# Decision:# Decision: Workflow Editor V1 — Execution backlog sequencing
 
 **Date:** 2026-05-17T22:28:34.036+01:00  
 **Author:** Tom Nook  
@@ -2617,7 +2642,8 @@ Coordinators can now create execution issues directly from the Workflow Editor V
 ---
 
 
-# Decision: User directive – plain-English backlog and features
+
+# Decision:# Decision: User directive – plain-English backlog and features
 
 **Date:** 2026-05-17T22:34:01.015+01:00  
 **By:** Jonny Muir (via Copilot)  
@@ -2628,7 +2654,8 @@ Keep backlog and design language plain and product-focused; avoid fancy architec
 ---
 
 
-# Decision: Plain-English Workflow Backlog Reframe
+
+# Decision:# Decision: Plain-English Workflow Backlog Reframe
 
 **Date:** 2026-05-17T22:34:01.015+01:00  
 **Author:** Tom Nook  
@@ -2668,7 +2695,8 @@ Future Workflow Editor issues should be easy to read without design-doc context.
 ---
 
 
-# Decision: User directive – editor scope
+
+# Decision:# Decision: User directive – editor scope
 
 **Date:** 2026-05-17T22:39:44.751+01:00  
 **By:** Jonny Muir (via Copilot)  
@@ -2679,7 +2707,8 @@ Keep the workflow editor scoped to the reference app only; Umbraco is for workfl
 ---
 
 
-# Decision: Workflow Editor V1 GitHub Issue Set
+
+# Decision:# Decision: Workflow Editor V1 GitHub Issue Set
 
 **Date:** 2026-05-17T22:39:44.751+01:00  
 **Author:** Tom Nook (Lead)  
@@ -2837,7 +2866,8 @@ The compatibility aliases let existing patch/proposal payloads keep working whil
 - Authoring tests can validate both the persisted schema file and the C# record/validator behaviour in one place.
 - Future action-catalog work can enrich `parameterSchemas` without reshaping stage or transition envelopes again.
 
-# Decision: Workflow action catalog lives in the authoring boundary
+
+# Decision:# Decision: Workflow action catalog lives in the authoring boundary
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Blathers  
@@ -2858,7 +2888,8 @@ Keep the workflow action catalog in `src/UmbracoPrism.WorkflowEditor/Authoring/`
 - Validation now works even when a workflow omits duplicate top-level parameter schemas for built-in actions.
 - Future business-app registries can share the same action type keys while exposing richer runtime implementation states over time.
 
-# Decision: Issue #56 action catalog quality gate
+
+# Decision:# Decision: Issue #56 action catalog quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -2886,7 +2917,8 @@ The acceptance criteria for #56 are backend-heavy (catalog shape, entries, widge
 
 
 
-# Decision: Publish preview stays dry-run; apply republishes synchronously
+
+# Decision:# Decision: Publish preview stays dry-run; apply republishes synchronously
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Blathers  
@@ -2916,7 +2948,8 @@ The existing runtime engine can continue to load and execute the same core Prism
 - Preview/apply remain aligned with the proposal-first editor model from the design docs.
 - Runtime compatibility is preserved while issue #57 carries forward action and condition intent needed for later handler work.
 
-# Decision: Issue #57 green fix keeps the live planning seed route-keyed
+
+# Decision:# Decision: Issue #57 green fix keeps the live planning seed route-keyed
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Brewster  
@@ -2944,7 +2977,8 @@ The planning smoke is allowed to pay for a real cold Aspire warmup:
 - The live smoke now proves the real authored-seed file, frontend normalization path, and startup boundary together instead of only exercising isolated backend fixtures.
 - Future issue #57 regressions should be caught by the new live-seed test plus the rebuilt planning smoke lane.
 
-# Decision: Issue #57 recheck is green after Brewster's revision
+
+# Decision:# Decision: Issue #57 recheck is green after Brewster's revision
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -2971,7 +3005,8 @@ Issue #57 can now be treated as green end-to-end on the revised worktree.
 - The planning smoke startup path is acceptable for this slice with the current worker-fixture timeout and readiness gate.
 - Future #57 regressions should still be judged on both halves of the gate: focused publish contracts plus the live planning smoke.
 
-# Decision: Issue #57 publish pipeline quality gate
+
+# Decision:# Decision: Issue #57 publish pipeline quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3003,7 +3038,8 @@ But the live editor still depends on the real MockBusinessApp authored store. Du
 - The branch should not be treated as green for issue #57 until the live planning authored seed is valid again and the planning smoke can complete.
 - Any future authoring/publish change must keep the test fixture and the live MockBusinessApp authored seed in sync, or Tangy's smoke coverage will miss the real runtime path.
 
-# Decision: Workflow graph workspace interaction boundary
+
+# Decision:# Decision: Workflow graph workspace interaction boundary
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3075,7 +3111,8 @@ Ship issue #58 as a **focused graph workspace slice** with these boundaries:
 **Impact:** Editor-surface work can now satisfy “Storybook visual regression” acceptance criteria without blurring the purpose of Storybook's interaction/a11y lane. For #58 specifically, the previous acceptance blocker is cleared as long as the visual baseline remains green alongside the existing keyboard and live-shell checks.
 
 
-# Decision: Workflow editor list workspace owns compact structural editing, not detailed configuration
+
+# Decision:# Decision: Workflow editor list workspace owns compact structural editing, not detailed configuration
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3102,7 +3139,8 @@ For the list/table workspace slice, keep the editing boundary intentionally narr
 
 
 
-# Decision: Issue #59 quality gate
+
+# Decision:# Decision: Issue #59 quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3136,7 +3174,8 @@ The current worktree passes the gate above, but it is not yet acceptance-complet
 
 
 
-# Decision: Issue #59 recheck is green and acceptance-complete
+
+# Decision:# Decision: Issue #59 recheck is green and acceptance-complete
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3153,7 +3192,8 @@ Treat issue #59 as green and acceptance-complete.
 
 
 
-# Decision: Stage editing interaction boundary
+
+# Decision:# Decision: Stage editing interaction boundary
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle
@@ -3175,7 +3215,8 @@ Keep **stage creation, insertion, and deletion confirmation** inside the graph/l
 
 
 
-# Decision: Issue #60 stage editor quality gate
+
+# Decision:# Decision: Issue #60 stage editor quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3203,7 +3244,8 @@ Keep the issue #60 stage creation and editing slice green with a six-part gate:
 
 
 
-# Decision: Transition editing interaction boundary for issue #61
+
+# Decision:# Decision: Transition editing interaction boundary for issue #61
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3230,7 +3272,8 @@ Keep **transition editing** in the inspector:
 - Validation warnings for unreachable stages and dead-end stages stay visible in the workspace so routing problems are discoverable before the inspector is opened.
 
 
-# Decision: Issue #61 transition editor quality gate
+
+# Decision:# Decision: Issue #61 transition editor quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3262,7 +3305,8 @@ Transition editing crosses authored-model serialization, graph/list workspace be
 - **Accessibility note:** Action picker and delete confirmation must follow the existing modal contract (seeded focus, Escape close, Tab trap, focus restore), and forms-backed field editing must preserve keyboard reorder parity with the surrounding action list.
 
 
-# Decision: Issue #62 needs an action-editor-specific quality gate
+
+# Decision:# Decision: Issue #62 needs an action-editor-specific quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3289,7 +3333,8 @@ Issue #62 should not be called green on catalog plumbing alone. The acceptance s
 - Require a focused behavioural contract covering at least five action types with distinct schemas, including one transition-context flow.
 
 
-# Decision: Action/forms acceptance needs an explicit keyboard-first delete contract
+
+# Decision:# Decision: Action/forms acceptance needs an explicit keyboard-first delete contract
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3313,7 +3358,8 @@ Keep one focused Playwright path that:
 - That breadth can still miss regressions in modal focus management or delete confirmation because those behaviours are orthogonal to schema shape.
 - Treating keyboard parity and explicit confirmation as a separate acceptance clause keeps the shared action editor honest for both stage and transition contexts.
 
-# Decision: Workflow editor undo/redo should live at the host editor boundary
+
+# Decision:# Decision: Workflow editor undo/redo should live at the host editor boundary
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3348,7 +3394,8 @@ topic: deterministic stage-create undo/redo selection
 ---
 
 
-# Decision: stage-create undo/redo should prove selection before inspector
+
+# Decision:# Decision: stage-create undo/redo should prove selection before inspector
 
 For the workflow editor undo/redo contract, the deterministic point after stage creation or redo is not merely "the dialog closed" — it is "the new stage is selected and its inspector is visible".
 
@@ -3371,7 +3418,8 @@ topic: workflow editor undo/redo quality gate
 ---
 
 
-# Decision: minimum honest gate for issue #63
+
+# Decision:# Decision: minimum honest gate for issue #63
 
 For the undo/redo workflow-editor slice, we will not call the feature green unless these seams pass together:
 
@@ -3397,7 +3445,8 @@ topic: workflow editor undo/redo recheck
 ---
 
 
-# Decision: retry-green is still red for issue #63
+
+# Decision:# Decision: retry-green is still red for issue #63
 
 The undo/redo slice is functionally much further on than my first pass: toolbar controls, keyboard shortcuts, visible history state, selection restore, and focused history coverage are all now in place.
 
@@ -3409,7 +3458,8 @@ But the quality gate should still treat issue #63 as blocked until the dedicated
 2. Treat the remaining blocker as a real editor-state race in stage-create selection/inspector restoration, not as mere test noise.
 3. Re-run the issue gate only after that handoff is made deterministic.
 
-# Decision: Workflow editor copy and paste lives at the host, not inside individual surfaces
+
+# Decision:# Decision: Workflow editor copy and paste lives at the host, not inside individual surfaces
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3431,7 +3481,8 @@ Copy and paste for the workflow editor should be owned by `prism-workflow-editor
 - Future duplicate/clipboard work should plug into the same host-owned clipboard rather than writing bespoke per-component clipboard logic.
 
 
-# Decision: Issue #64 copy/paste quality gate
+
+# Decision:# Decision: Issue #64 copy/paste quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3455,7 +3506,8 @@ Copy/paste crosses three existing behavioural seams at once: graph/list stage se
 
 The current branch is **not** acceptance-complete for #64 yet. Supporting seams are green, but the shipped surface still exposes only undo/redo plus view toggle in the editor toolbar, the graph offers only JSON copy from its context menu, there is no authoring paste flow for stages or actions, and there is no dedicated issue-specific behavioural contract.
 
-# Decision: Issue #65 recheck outcome
+
+# Decision:# Decision: Issue #65 recheck outcome
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3473,7 +3525,8 @@ Issue #65 can now be treated as acceptance-complete.
 
 The original blocker was fragmented evidence: validation rules existed, but the host editor did not bind them into a single authoring contract. The latest implementation and gate run now prove the missing acceptance items together, so the slice has honest quality coverage instead of inferred confidence.
 
-# Decision: Workflow validation and error reporting boundary
+
+# Decision:# Decision: Workflow validation and error reporting boundary
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3494,7 +3547,8 @@ Treat editor validation as a host-owned confidence seam, not as separate graph-o
 The editor already has in-context warnings in the graph and inline field errors in the inspector, but issue #65 needs those surfaces tied together into one workflow-friendly authoring contract. Centralising validation in the host keeps save blocking honest, avoids duplicated rule drift, and gives accessibility users one predictable path from summary to repair.
 
 
-# Decision: Issue #65 quality gate
+
+# Decision:# Decision: Issue #65 quality gate
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Tangy  
@@ -3575,7 +3629,8 @@ Do not mark #67 complete until the dedicated preview contract proves all of the 
 - a loading state appears when preview work is slow
 
 
-# Decision: Workflow editor simulation stays host-owned and validation-aware
+
+# Decision:# Decision: Workflow editor simulation stays host-owned and validation-aware
 
 **Date:** 2026-05-18T13:17:12.103+01:00  
 **Author:** Isabelle  
@@ -3658,7 +3713,8 @@ Count the simulation slice as acceptance-covered, but do **not** call the whole 
 
 
 
-# Decision: keep runtime handler registration in the reference app boundary
+
+# Decision:# Decision: keep runtime handler registration in the reference app boundary
 
 **Date:** 2026-05-18T13:17:12.103+01:00
 **Agent:** Blathers
@@ -4010,7 +4066,8 @@ No gold-plating. No unrelated changes. Clean acceptance surface.
 **APPROVED for merge.** Issue #71 is production-ready. Playwright environment convergence is a separate remediation item (infrastructure timing, not acceptance blocker).
 
 
-# Decision: Copilot design guidance — Composition and IoC
+
+# Decision:# Decision: Copilot design guidance — Composition and IoC
 
 **Date:** 2026-05-18T21:46:35.426+01:00
 **Author:** Jonny Muir (via Copilot)
@@ -4025,4 +4082,13 @@ Prefer explicit construction over opaque IoC. Dependency inversion is fine, but 
 - Explicit construction makes it easier to understand data flow and test edge cases
 - Opaque IoC can hide coupling and make debugging harder
 - Simpler designs reduce cognitive load for future maintainers
+
+
+
+
+
+
+
+
+
 

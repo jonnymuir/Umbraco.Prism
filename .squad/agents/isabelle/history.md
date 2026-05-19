@@ -122,3 +122,8 @@ Delivered dedicated path-simulation panel with authored-initial-stage start, bre
 **Quality gate:** Client build, Storybook CI, graph keyboard, validation rail, and simulation Playwright all passed. Acceptance-complete.
 
 **Status:** Production-ready. Non-slice environment blocker (empty planning.workflow.json) identified in separate remediation.
+## Revision Handoff (2026-05-19)
+
+Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
+
+---
