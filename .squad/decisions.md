@@ -4092,3 +4092,563 @@ Prefer explicit construction over opaque IoC. Dependency inversion is fine, but 
 
 
 
+### 2026-05-19T19:16:08.421+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** First-pass workflow editor UX changes must be accessible by default and treated as a baseline requirement, not optional polish.
+**Why:** User request — captured for team memory
+---
+created_at: 2026-05-19T19:16:08.421+01:00
+author: Isabelle (Frontend Dev)
+reviewed_by: null
+status: in_review
+relates_to: '#70, docs/design/workflow-editor-v1/'
+---
+
+# Workflow Editor UX Redesign: Full-Screen Tabbed Layout
+
+## Executive Summary
+
+The current workflow editor splits the right panel between **Stage Inspector** (top) and **Conversation Pane** (bottom) in a fixed 50/50 split. This layout creates three usability problems:
+
+1. **Cramped working area** — Neither component gets enough vertical room; both scroll awkwardly when content is dense
+2. **Confused AI surface** — The embedded conversation pane mixes authoring feedback (validation, stage preview, simulation) with agent requests, making it unclear what is "editing" vs "conversation"
+3. **Screen real estate wasted** — Two full-height panels compete for floor space, especially problematic on smaller screens and during collaborative work
+
+This decision proposes a **full-screen tabbed layout** that gives each editor mode its own complete canvas while keeping persistent control surfaces available.
+
+---
+
+## Current State: Problems Identified
+
+### Problem 1: Vertical Space Constraint
+- Inspector panel is a flex-1 split with conversation pane, creating implicit 50/50 height pressure
+- Long stage definitions (many transitions, actions, parameters) force scrolling within the inspector
+- Conversation pane never has room for rich chat history; messages scroll aggressively
+- Status bar and validation rail squeeze into the bottom of the left panel
+
+### Problem 2: Conceptual Collision
+The conversation pane is positioned as an "embedded sidebar feature," but:
+- It handles AI agent proposals (not yet active, but designed for)
+- It mixes user prompts with system feedback (draft proposals, errors, previews)
+- The proposal diff currently lives *inside* the conversation pane, reducing clarity
+- A screen-reader user cannot easily distinguish editing feedback from conversation
+
+This makes it ambiguous whether the pane is:
+- A **workspace control surface** (part of editing)
+- A **communication channel** (separate from editing)
+- A **review surface** for proposals
+
+When MCP is introduced and agents become active, embedding conversation in the editor will feel even more tangled because editor state changes (validation results, preview updates) will arrive asynchronously alongside agent messages.
+
+### Problem 3: Inflexible Space Allocation
+- Fixed 380px right panel leaves uneven horizontal space on large screens
+- Small screens (tablet, 13" laptop) push the conversation below the fold entirely
+- No way to give one panel "more time" without sacrificing the other
+- Copy/paste clipboard and history state bar fight for vertical attention on the left
+
+---
+
+## Recommended Layout: Full-Screen Tabbed Editor
+
+### 3.1 High-Level Structure
+
+```text
+┌────────────────────────────────────────────────────┐
+│ Title bar (workflow name, save status, toolbar)   │
+├────────────────────────────────────────────────────┤
+│ Tabs: Graph | Outline | Inspector | AI            │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│  [Full-screen active tab content]                 │
+│                                                    │
+│                                                    │
+│                                                    │
+├────────────────────────────────────────────────────┤
+│ Persistent footer: validation rail + preview      │
+│                   stage preview + simulation      │
+└────────────────────────────────────────────────────┘
+```
+
+### 3.2 Tab Definitions
+
+#### Tab 1: Graph
+- **Show:** Visual workflow graph (stages, transitions, visual editing)
+- **Replaces:** Current left-panel graph
+- **Full height:** Graph takes the entire tab area, no height negotiation with other panels
+- **Retains:** Graph mode toggle (graph/linear view), keyboard navigation, drag-and-drop
+- **Persistent below:** Validation rail (jump-list for errors), footer confidence panels
+
+#### Tab 2: Outline
+- **Show:** Hierarchical tree of workflow structure (stages, transitions, actions, actors)
+- **Replaces:** Current "workflow outline" concept (proposed in design docs but not yet in V1 UI)
+- **Full height:** Outline scrolls if needed; no competition for space
+- **Use case:** Accessible navigation, keyboard-driven editing, jumping to distant stages
+- **Accessible by:** Arrow keys to navigate tree, Enter to select, Ctrl+G to jump-to-stage
+
+#### Tab 3: Inspector
+- **Show:** Editable properties for the selected stage, transition, or action
+- **Replaces:** Current right-panel Stage Inspector
+- **Full height:** Inspector gets the entire tab, scrollable if needed
+- **Sticky header:** Inspector title (e.g., "Stage: Review") stays visible while scrolling
+- **Validation inline:** Field-level errors stay attached to their inputs
+- **No height pressure:** Author can see all properties without scrolling up/down in both panes
+
+#### Tab 4: AI Assistance _(future, marked for Phase 2)_
+- **Show:** Conversation history, agent proposals, and chat interface
+- **Placeholder now:** Empty state with "AI assistance coming with MCP integration"
+- **Future behavior:** 
+  - Message history (user requests, agent responses)
+  - Proposal diff with accept/reject controls
+  - Agent status (idle, thinking, done)
+  - Link back to Graph tab to see live updates
+- **Rationale:** Keeps conversation separate from authoring until MCP is active
+
+### 3.3 Persistent Elements (Always Visible)
+
+#### Header (Stays at Top)
+- Workflow name (left)
+- Dirty state indicator
+- Save, Undo, Redo, Copy, Paste, Help buttons
+- Graph/Linear mode toggle (only active on Graph tab)
+- Clipboard status
+
+#### Footer (Stays at Bottom)
+- **Left:** Validation rail with error count and jump-list buttons
+- **Right:** Stage Preview and Simulation panels (auto-fit grid, can wrap)
+- **Behavior:** Stays visible across all tabs so authors see real-time validation feedback and simulation state without switching tabs
+
+---
+
+## What Stays Where
+
+### Stays in Header
+- Title + dirty state
+- Save, Undo, Redo, Copy, Paste, Help buttons
+- Mode toggle (Graph/Linear)
+- Clipboard chip
+- Keyboard shortcut reference (F1 modal)
+
+### Moves to Tabs
+- **Graph** — Left panel → Graph tab (full height)
+- **Outline** — New Outline tab (structured navigation)
+- **Inspector** — Right panel → Inspector tab (full height, full width)
+- **Conversation** — Right panel bottom → AI Assistance tab (future)
+
+### Stays in Footer (Persistent)
+- Validation rail (errors, warnings, jump-list)
+- Stage Preview panel (read-only runtime preview, surface switcher)
+- Simulation panel (path breadcrumb, state highlight, transition simulator)
+
+### Removed or Repositioned
+- **Graph mode toggle:** Moves to header, only active when Graph tab is selected
+- **Conversation pane:** Becomes AI Assistance tab (placeholder for now, populated later)
+- **Proposal diff in conversation:** Moves to AI tab when active (not embedded in conversation history)
+
+---
+
+## Conversation Widget: Recommendation
+
+### Status: **Remove from embedded editor, move to external AI client**
+
+**Reasoning:**
+
+1. **Conceptual clarity** — Conversation is a *communication channel* with an agent, not an *editor workspace control*. It belongs in the external AI client (MCP-based agent), not in the authoring UI.
+
+2. **MCP design** — When MCP is active, agents should:
+   - Call validate and preview tools to check proposals
+   - Return structured results (diff + validation status)
+   - The editor *displays* those results, not the conversation
+   - The agent conversation happens in the external client, not in the editor
+
+3. **Editor focus** — The editor should show *workflow state* (graph, inspector, validation, preview, simulation), not agent chat logs.
+
+4. **UI simplicity** — Removing the embedded chat pane eliminates:
+   - Competing vertical space claims
+   - Confusion about "is this editing or chatting?"
+   - Awkward proposal diff placement
+   - Need for proposal acceptance/rejection in two places (chat + modal)
+
+5. **Future-proof** — If proposals are generated by an external agent, they arrive as events, not messages. The editor *receives* a proposal, displays a diff modal, and the user accepts/rejects. No chat history needed.
+
+### Transition Path
+
+**Phase 1 (Now):** Replace embedded conversation pane with AI Assistance tab (placeholder: "Coming soon with MCP integration").
+
+**Phase 2 (MCP integration):**
+- External Copilot agent calls validate, preview, apply tools
+- Agent returns structured proposal envelope
+- Editor receives proposal event, renders modal diff, user accepts/rejects
+- Conversation stays in Copilot client, not in editor
+- AI tab can remain as a "proposal history" log (optional, low priority)
+
+**If chat log is desired later:**
+- Make it a *read-only audit log* of proposals applied (not a bidirectional chat)
+- Host it in the external agent, not in the editor
+- Editor only shows the live proposal diff modal
+
+---
+
+## UX Implementation Steps (Smallest-First)
+
+### Step 1: Extract Inspector to Tab (1–2 sprints)
+- Build tab container with Graph, Inspector, Outline (placeholder), AI (placeholder)
+- Move Stage Inspector component into Inspector tab
+- Move Graph into Graph tab
+- Validation rail and footer panels stay persistent
+- No change to Graph, Inspector, or Validation components yet
+- **Validation:** Current graph and inspector tests still pass; new tab routing tests added
+
+### Step 2: Build Outline Tab (1 sprint)
+- Create new `prism-workflow-outline` component
+- Render stages, transitions, actions, actors in hierarchical tree
+- Implement keyboard navigation (arrows, Enter, Escape)
+- Connect to existing stage/transition/action selection events
+- Add jump-to-stage Ctrl+G command
+- **Validation:** Keyboard navigation tests; contrast and focus tests with axe
+
+### Step 3: Refine Tab Styling (0.5 sprint)
+- Full-height tab content (no artificial height limits)
+- Sticky headers on Inspector and Outline (title stays visible while scrolling)
+- Footer panels (validation, preview, simulation) stay visible and resize responsively
+- Ensure validation errors stay clickable and reachable from all tabs
+- Test on tablet and 13" laptop (ensure footer isn't hidden)
+- **Validation:** Responsive tests at 320px, 768px, 1024px viewports
+
+### Step 4: Replace Conversation with AI Tab Placeholder (1 day)
+- Remove embedded `prism-conversation-pane` from right panel
+- Add "AI Assistance" tab with placeholder text: "Agent proposals will appear here once MCP integration is enabled."
+- Conversation pane component remains in codebase (unused until MCP phase)
+- No breaking changes; conversation tests remain but are skipped
+- **Validation:** Tab switcher logic tests; no broken playwright tests
+
+### Step 5: Polish and Accessibility Audit (0.5 sprint)
+- Tab focus management (focus on tab button when switching, or first control in tab?)
+- ARIA labels on tabs: `aria-label="Graph: visual workflow editing"` etc.
+- Screen reader announcement when tab content loads
+- Keyboard shortcut to switch tabs (e.g., Ctrl+Tab, or custom shortcuts per team preference)
+- axe-core scan on each tab to ensure no new violations
+- **Validation:** Storybook CI with axe; Playwright tab-switching tests with screen reader simulator
+
+### Step 6: Update Documentation (in-line)
+- Update design doc (01-authoring-ux.md) to show new tabbed layout diagram
+- Add accessibility patterns for tab navigation to Storybook stories
+- Update walkthrough tests to use Graph tab explicitly
+- Note AI tab as Phase 2 placeholder in implementation comments
+- **Validation:** Build docs; design review pass
+
+---
+
+## Accessibility Considerations
+
+### Tab Container
+- ARIA `role="tablist"` on tab button container
+- ARIA `role="tab"` on each button, `aria-selected="true/false"`, `aria-controls="[id]"`
+- Tab panel: `role="tabpanel"` with `aria-labelledby="[tab-id]"`
+- Keyboard: Left/Right arrows move focus between tabs; Enter/Space activates
+
+### Outline Navigation (Keyboard-First)
+- Tree structure: `role="tree"`, each node is `role="treeitem"`
+- Expand/collapse with Left/Right arrows
+- Select with Enter; open inspector with Ctrl+E
+- Home/End jump to first/last stage
+
+### Focus Management
+- Switching tabs moves focus to the first interactive element in the tab (or tab content container)
+- Closing a modal (Escape) returns focus to the previously-focused tab button
+- Inspector scrolls to focused field when an error is selected from validation rail
+
+### Screen Reader
+- Tab name clearly states its purpose: "Graph: Visual workflow editing"
+- Tab panel announces its content region: "Inspector panel for selected stage"
+- Outline tree structure is unambiguous with `role="tree"` and proper nesting
+
+---
+
+## Risks and Mitigation
+
+| Risk | Mitigation |
+|------|-----------|
+| Tab switching feels slower (visual flicker) | Use CSS `display: none` for off-tab content; preload components in background |
+| Users lose sense of where they are | Persist tab selection in sessionStorage; visual indicator shows active tab |
+| Validation rail becomes hard to reach | Keep it sticky in footer; add Ctrl+V shortcut to focus validation list |
+| Outline too deep/complex | Start with 2 levels (stages + transitions); fold actions under transitions initially |
+| Accessible outline navigation is hard | Copy proven patterns from VSCode Explorer (tree keyboard + focus trapping) |
+| MCP phase expects different tab layout | Design AI tab as a phase-2 placeholder now; revisit layout after MCP proof-of-concept |
+
+---
+
+## Design Decisions Recorded
+
+1. **Tabbed over split-pane:** Tabs give each mode a full canvas; split-panes force height negotiation and visual complexity.
+
+2. **Conversation moves out:** AI assistance is a separate concern from authoring; it belongs in the external agent client, not embedded in the editor.
+
+3. **Outline as a tab, not a sidebar:** Simplifies CSS (no new flex columns), avoids 3-pane layout complexity, and makes outline equally "discoverable" as graph.
+
+4. **Footer stays persistent:** Validation and confidence panels (preview, simulation) are continuous feedback; they should not disappear when switching tabs.
+
+5. **No conversation history in editor, ever:** Proposals are structured diffs, not chat messages. A read-only audit log is nice-to-have, not core.
+
+---
+
+## Next Steps
+
+1. **Design review:** Team feedback on tab names, order, and footer layout (Jonny, Tangy, Blathers).
+2. **Prototype in Storybook:** Create isolated stories for each tab to validate focus, keyboard, and responsive behavior.
+3. **Stakeholder check:** Confirm with product that AI assistance delay (until MCP phase) is acceptable.
+4. **Implement Step 1:** Extract Inspector to tab and validate with existing tests.
+5. **Iterate:** Steps 2–6 follow incrementally, each with validation before moving to the next.
+
+---
+
+## Related Issues & Documents
+
+- Issue #70: Missing 'Edit workflow' link on admin page (separate implementation revision)
+- docs/design/workflow-editor-v1/01-authoring-ux.md (current design; will be updated to show new layout)
+- docs/design/workflow-editor-v1/04-agentic-surfaces.md (MCP and proposal envelope; this layout supports that design)
+- .squad/agents/isabelle/charter.md (Frontend Dev responsibilities; this work is in scope)
+
+---
+
+## Appendix: Mockup Notation
+
+```
+CURRENT STATE (Fixed Split)
+
+┌─────────────────────────────────────────┐
+│ Toolbar: title • save • undo • etc      │
+├────────────────────┬────────────────────┤
+│                    │  Stage Inspector   │
+│  Workflow Graph    │  (scrolling)       │
+│                    │ ┌────────────────┐ │
+│  (1/2 height)      │ ┌────────────────┐ │
+│                    ├────────────────────┤
+│                    │ Conversation Pane  │
+│                    │ (scrolling)        │
+│                    └────────────────────┘
+├────────────────────┴────────────────────┤
+│ Validation Rail + Preview + Simulation  │
+└────────────────────────────────────────┘
+
+PROPOSED STATE (Full-Screen Tabs)
+
+┌─────────────────────────────────────────┐
+│ Toolbar: title • save • undo • etc      │
+├─────────────────────────────────────────┤
+│ [Graph] [Outline] [Inspector] [AI]     │
+├─────────────────────────────────────────┤
+│                                         │
+│  Full-Height Active Tab Content        │
+│  (Graph / Outline / Inspector / AI)    │
+│                                         │
+├─────────────────────────────────────────┤
+│ Validation Rail | Preview | Simulation │
+└─────────────────────────────────────────┘
+```
+## Decision: Edit workflow link re-review remains rejected
+
+**Date:** 2026-05-19T19:16:08.421+01:00  
+**Author:** Tangy  
+**Status:** Rejected
+
+The previous blocker is only partially closed. The admin workflow definitions page now shows an explicit **Edit workflow** link and the card-toggle interference is guarded, but the link does not reliably open the editor for the same definition the user clicked.
+
+### Evidence
+
+- Focused file-shape coverage passes for the new shortcut surface:
+  - `src/UmbracoPrism.Core.Tests/WorkflowShowcaseShortcutTests.cs`
+- Client build is green:
+  - `cd src/UmbracoPrism.Client && npm run build`
+- Focused live behavioural coverage still fails on the real contract:
+  - `tests/workflow-gds-journey.spec.ts`
+  - The admin definition card click reaches `/workflow-editor.html?workflow=planning-notification`, but the mounted shell settles on `workflow-key="planning"` instead of the clicked definition.
+
+### Smallest real blocker set
+
+1. **Admin card deep-link mismatch:** at least one definition card's **Edit workflow** link does not land in the editor for that same definition, so discoverability is still misleading rather than green.
+
+### Noise call
+
+Shared-stack lock contention was not the deciding factor in this re-review. The decisive failure was a product-level behavioural mismatch after the focused live contract reached the editor page.
+---
+title: Workflow Editor V1 UX Redesign — Tabbed Full-Screen Interface
+author: Tom Nook
+date: 2026-05-19T19:16:08.421+01:00
+status: Proposed
+relates_to:
+  - docs/design/workflow-editor-v1/README.md
+  - docs/design/workflow-editor-v1/01-authoring-ux.md
+  - docs/design/workflow-editor-v1/04-agentic-surfaces.md
+  - GitHub issues #54–#73 (Workflow Editor V1 Initiative)
+---
+
+# Workflow Editor V1 UX Redesign — Tabbed Full-Screen Interface
+
+## Executive Summary
+
+The current editor layout is confusing and cramped. A full-screen tabbed interface will give authors the room they need and clarify responsibilities. Key changes:
+1. **Move from three-panel layout to tabbed interface** — remove the fixed right-side inspector/conversation split.
+2. **Give each authoring surface its own full-height tab** — graph, list, validation, preview, simulation, and history get dedicated space.
+3. **Remove the in-editor conversation widget** — AI/MCP orchestration stays in the external Copilot CLI, not embedded in the editor.
+4. **Establish clear boundaries** — the editor is for human authoring and review; Copilot is for drafting and orchestration.
+
+## Current Problems
+
+### 1. **Cramped horizontal space**
+- Right panel is only 380px wide, forcing both inspector and conversation pane to share a thin vertical slice.
+- Graph view is squeezed into the remaining width, limiting readability for large workflows.
+- Toolbar buttons stack awkwardly and toolbar is hard to scan.
+
+### 2. **Confusing responsibility boundaries**
+- The conversation pane sits inside the editor, suggesting the editor is responsible for AI proposals and orchestration.
+- In reality, natural-language drafting belongs in the external Copilot CLI, not here.
+- Authors expect to type workflows directly, but the conversation pane nudges them toward NL prompts.
+- The proposal diff modal appears suddenly, breaking the authoring flow.
+
+### 3. **Overlapping surfaces fighting for attention**
+- Inspector panel shows details for selected items.
+- Conversation pane wants to show proposals and messages.
+- Validation rail shows errors/warnings.
+- Preview and simulation panels are collapsed at the bottom.
+- All compete for vertical space; none get enough room.
+
+### 4. **Preview and simulation are hidden**
+- Confidence-building surfaces (preview state graph, simulation walkthrough) are relegated to a collapsed panel at the bottom.
+- Authors rarely see them because they're not prominent in the authoring flow.
+
+### 5. **One-workflow-at-a-time mental model**
+- The shell tries to load workflows from a list, but doesn't let authors easily compare or switch between multiple open workflows.
+
+## Proposed UX Shape
+
+### Structure: Full-screen tabbed interface
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Toolbar: Save | Undo | Redo | Copy | Paste | Help │ 
+├──────────────────────────────────────────────────────────┤
+│ Tab: [Graph] [List] [Validation] [Preview] [Simulation] │
+├──────────────────────────────────────────────────────────┤
+│                                                            │
+│                    Authoring Surface                      │
+│                    (full available space)                 │
+│                                                            │
+│         Inspector appears on right 25% when               │
+│         item is selected; remains when switching tabs     │
+│                                                            │
+│                                                            │
+├──────────────────────────────────────────────────────────┤
+│ Status bar: Dirty | Undo/Redo ready | Save status │ Help │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Tabs and Purpose
+
+| Tab | Purpose | Surfaces |
+|-----|---------|----------|
+| **Graph** | Visual authoring of the workflow topology. | Stages, transitions, actions displayed as a directed graph with click-to-select. Inspector panel on the right shows details. |
+| **List** | Accessible row-based authoring of stages, transitions, and actions. | A structured table or accordion view for authors using keyboard/screen reader. Same inspector on the right. |
+| **Validation** | Full list of validation issues, grouped by severity. | Errors block save; warnings are informational. Click an issue to jump to the relevant stage/transition in Graph or List. |
+| **Preview** | Visual preview of the workflow's state graph post-projection. | Mermaid diagram or structured render of all states and transitions. Shows how the authored workflow will appear to the runtime engine. |
+| **Simulation** | Step-by-step walkthrough of one or more actor paths. | "Walk as applicant from start to review" — shows journey, stages entered, actions triggered. Helps validate the flow before publishing. |
+
+### Inspector Panel Behavior
+
+- **Pinned by default on the right** (25% of viewport width) when an item (stage, transition, action) is selected.
+- **Stays visible across tabs** — if you select a stage in Graph view and switch to Validation, the inspector remains, showing the selected stage's details.
+- **Collapsible** — small toggle to hide/show inspector to maximize authoring surface space.
+- **Scrollable** — inspector can hold complex action parameter editors and nested form configurations.
+
+### Removed: In-Editor Conversation Pane
+
+- **No built-in chat widget inside the editor.**
+- **Why:** The conversation pane was meant to support proposal drafting, but it blurs the line between human authoring and AI assistance. The external Copilot CLI is the right place for NL orchestration.
+- **How AI flows work instead:**
+  1. Author uses Copilot CLI (`copilot` command) to draft or modify workflows using natural language.
+  2. Copilot (running outside the browser) calls MCP tools for validation, preview, and simulation.
+  3. If the author approves, Copilot applies the proposal via the apply endpoint (or generates a patch file).
+  4. Author opens the editor to review the result. No hidden proposal dance inside the editor.
+- **Proposal diff still exists** as a server-side artifact and can be reviewed before apply, but it's not part of the editor UI.
+
+## Responsibilities: Editor vs AI Client
+
+### Inside the Workflow Editor
+- **Authoring:** Create, edit, delete stages, transitions, and actions.
+- **Local editing:** Undo/redo, copy/paste, direct keyboard input.
+- **Validation:** Show errors and warnings inline. Prevent save if blocking issues exist.
+- **Preview:** Render the projected workflow to show what the runtime will see.
+- **Simulation:** Walk a stage path to test logic and sequence.
+- **Publication:** Save authored workflow to the back-end; trigger deterministic projection to runtime.
+
+### Outside the Editor (Copilot CLI + MCP)
+- **Natural-language drafting:** "Add identity verification before reviewer approval" → Copilot interprets this and composes a proposal.
+- **Semantic diffs:** MCP tools compute structured diffs on the authored model.
+- **Validation orchestration:** Copilot calls the validate endpoint to check a proposed change.
+- **Proposal envelope:** Copilot packages the change with rationale, validation results, and preview.
+- **Application decision:** Author decides in Copilot whether to apply or reject. If apply, Copilot calls the apply endpoint.
+- **Audit trail:** Copilot records the session as a planning artifact (who, what, when, why).
+
+**Key principle:** The editor remains the human-friendly authoring surface. Copilot and MCP tools remain the orchestration and intelligence layer. They do not conflate.
+
+## Next Implementation Slices
+
+### Slice 1: Tab Navigation & Layout Refactor
+- Replace the three-panel fixed layout with a tabbed container.
+- Implement tab switching with keyboard support (Ctrl+1, Ctrl+2, etc. or a tab bar with click).
+- Size inspector to 25% on the right; authoring surface fills the rest.
+- **Acceptance:** All five tabs present; switching tabs doesn't lose inspector state; focus management works.
+
+### Slice 2: Move Preview to Its Own Tab
+- Extract the stage preview (currently collapsed at the bottom) into a full-height Preview tab.
+- Render the complete state graph in the tab; no horizontal scrolling.
+- **Acceptance:** Preview tab shows the projected workflow; users can see the full topology without scrolling off-screen.
+
+### Slice 3: Move Simulation to Its Own Tab
+- Extract the simulation panel (currently at the bottom) into a full-height Simulation tab.
+- Preserve the journey walkthrough UI; let it expand to fill the tab.
+- **Acceptance:** Simulation tab shows actor path traces; users can run and review multiple paths.
+
+### Slice 4: Move Validation to Its Own Tab
+- Move the validation rail (currently below main editor) into its own tab.
+- Allow clicking a validation issue to jump to the relevant item in Graph or List.
+- **Acceptance:** Validation tab shows all errors and warnings; clicking an issue navigates to and highlights the item.
+
+### Slice 5: Remove Conversation Pane
+- Delete `prism-conversation-pane` component from the editor.
+- Remove NL request handling from the main editor logic (`_handleNlRequest`, draftProposal, etc.).
+- Keep the proposal diff modal **out of the editor** for now (or move it to a server-side artifact review surface).
+- **Acceptance:** Editor UI no longer references conversation; no chat input visible.
+
+### Slice 6: Refactor Shell for Multi-Workflow Awareness (Future)
+- Currently, the shell (`prism-workflow-editor-shell`) loads and switches between workflows via dropdown.
+- Future: Allow side-by-side or tabbed workflow switching so authors can compare workflows.
+- **Acceptance:** Prerequisite work documented; not implemented in V1 but architecture supports it.
+
+## How This Addresses the User Direction
+
+- **"Tabbed interface"** — ✓ Each surface (graph, list, validation, preview, simulation) gets its own tab.
+- **"Fill the screen"** — ✓ Full-screen layout with inspector on the right; no wasted space; each tab uses all available height.
+- **"Conversation widget is confusing"** — ✓ Removed. AI orchestration stays in Copilot CLI.
+- **"Keep it simple"** — ✓ Three products (workflow editor, workflow engine, forms engine) are clear; no hidden complexity; each tab has one job.
+
+## Remaining Open Questions
+
+1. **Tab bar UX:** Should tabs be at the top or side? Currently proposed as top (horizontal), but accessible keyboard nav (Ctrl+N) should work either way.
+2. **Inspector width:** 25% of viewport might be too wide or too narrow depending on workflow size. Should it be adjustable (resizable divider)?
+3. **History tab:** Should a History or Changelog tab show who edited what and when? This is a V1+ feature but might inform architecture.
+4. **Copy/paste across tabs:** If an author copies a stage in Graph tab and switches to List tab, should paste work? (Yes, they share clipboard state.)
+5. **Keyboard shortcuts per tab:** Should `Ctrl+1` always jump to Graph, or should it be context-sensitive (e.g., Ctrl+1 jumps to the "first active tab")?
+
+## References
+
+- **Current editor:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts` — three-panel layout with 380px right sidebar.
+- **Conversation pane:** `src/UmbracoPrism.Client/src/workflow-editor/prism-conversation-pane.ts` — to be removed.
+- **Test seam surfaces:** `docs/design/workflow-editor-v1/04-agentic-surfaces.md` — validate, preview, simulate endpoints stay; proposal envelope stays; UI removal of chat.
+- **V1 design:** `docs/design/workflow-editor-v1/README.md` — confirms editor-first, engine second, forms third.
+
+---
+
+## Decision
+
+**ACCEPTED.** Move forward with the full-screen tabbed interface redesign as described. The workflow editor should be a dedicated authoring tool; AI assistance flows through the external Copilot CLI via MCP contracts. Implementation order: layout refactor → move confidence surfaces to tabs → remove conversation pane. Target completion: by end of V1 baseline.
+

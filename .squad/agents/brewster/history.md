@@ -105,3 +105,15 @@ Backend test suite: 782/782 passing (no blockers). Issue ready for merge.
 Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
 
 ---
+
+## 2026-05-19T18:16:08Z: Admin-Page Edit-Workflow Link — LOCKED OUT (Tangy Re-review Rejected)
+
+**Status:** 🔴 Blocked
+
+The admin-page edit-workflow slice has been re-reviewed and rejected by Tangy. The blocker is a deep-link parameter mismatch: admin card clicks do not consistently open the editor to the same workflow definition the user clicked on.
+
+**Your next steps:** Await Blathers' resolution of the deep-link alignment. Brewster is locked out until Blathers submits a new revision with the parameter mismatch fixed.
+
+**References:**
+- `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
+- `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`

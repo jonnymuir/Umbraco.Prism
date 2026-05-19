@@ -127,3 +127,28 @@ Delivered dedicated path-simulation panel with authored-initial-stage start, bre
 Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
 
 ---
+
+## 2026-05-19T18:16:08Z: Editor UX Redesign — Decisions Merged (Tabbed Interface ACCEPTED)
+
+**Status:** 🟢 Decisions finalized; implementation ready
+
+Two overlapping proposals for the workflow editor redesign were submitted simultaneously and merged into the decisions log:
+
+1. **Isabelle's Proposal** (status: in_review)
+   - Full-screen tabbed layout with Graph, Outline, Inspector, AI tabs
+   - 6-step implementation plan with validation gates
+
+2. **Tom Nook's Proposal** (status: ACCEPTED)
+   - Full-screen tabbed interface with Graph, List, Validation, Preview, Simulation tabs
+   - Removes embedded conversation widget; keeps conversation in external Copilot CLI
+   - 6-slice implementation plan; decision finalized as ACCEPTED
+
+**Next Steps for Isabelle:**
+- Review Tom Nook's ACCEPTED decision (more recent, finalizes the UI shape)
+- Align Isabelle's in_review proposal with Tom Nook's accepted version if needed
+- Both proposals are available in `.squad/decisions.md` for team reference
+
+**References:**
+- `.squad/decisions/inbox/isabelle-editor-ux-shape.md`
+- `.squad/decisions/inbox/tom-nook-editor-ux-redesign.md`
+- `.squad/orchestration-log/2026-05-19T18-16-08Z-scribe.md`

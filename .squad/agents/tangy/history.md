@@ -125,3 +125,23 @@ Previous work on issues #64 (copy/paste), #65 (validation), #66 (help/shortcuts)
 Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
 
 ---
+
+## 2026-05-19T18:16:08Z: Admin-Page Edit-Workflow Link — RE-REVIEW REJECTED
+
+**Decision:** Reject slice — deep-link parameter mismatch persists
+
+### Blocker Evidence
+- Admin card click reaches `/workflow-editor.html?workflow=planning-notification`
+- Editor shell settles on `workflow-key="planning"` (does not match clicked card)
+- Focused test fails: `tests/workflow-gds-journey.spec.ts`
+- **Product-level contract broken:** Visible link does not open the correct workflow
+
+### Decision Factor
+This is a product-level behavioral mismatch, not shared-stack contention. The visible "Edit workflow" link is misleading because it doesn't open the user-clicked definition. Until deep-link parameter alignment is fixed, the slice remains rejected.
+
+### Next Assignment
+**Blathers** assigned to resolve workflow parameter alignment in next revision.
+
+**References:**
+- `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
+- `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`
