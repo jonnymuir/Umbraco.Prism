@@ -187,3 +187,7 @@ Transformed workflow-editor design into dependency-ordered execution backlog:
 - All issues use plain-English product language; dependencies explicit ("Depends on" links); dual-surface accessibility built into acceptance criteria.
 - GitHub issues now the execution spine; design docs remain architecture source of truth.
 
+
+## Scribe Consolidation (2026-05-19T21:41:48.843Z)
+
+Decisions consolidated into team decisions log. Orchestration recorded.

@@ -59,6 +59,7 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 - The live MockBusinessApp authored seed (`src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json`) is a separate contract from the backend fixture under `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/`; keep the live file non-empty and keyed to the shell route (`planning`) so `/workflow-editor` stays loadable.
 - Long-running LiveAppHost startup belongs behind an explicit Playwright worker-fixture timeout; `src/UmbracoPrism.Client/tests/support/shared-app-host-fixture.ts` now allows 10 minutes so cold Aspire warmups do not die at the default 30-second fixture limit.
 - The workflow editor browser client still expects `stageKey`/`displayName`/`kind` and `fromStage`/`toStage`/`action`, so `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts` must normalize the canonical C# API shape (`key`/`title`/`type`, `source`/`target`/`trigger`) before rendering graph and inspector components.
+- 2026-05-19T21:20:21.447+01:00 — The authoring host key (`planning`) and the authored/runtime `definitionKey` (`planning-application`) are different contracts; list, load, and save must round-trip on the host key or the admin screen and reference shell drift apart.
 
 ---
 
@@ -117,3 +118,7 @@ The admin-page edit-workflow slice has been re-reviewed and rejected by Tangy. T
 **References:**
 - `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
 - `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`
+
+## Scribe Consolidation (2026-05-19T21:41:48.843Z)
+
+Decisions consolidated into team decisions log. Orchestration recorded.

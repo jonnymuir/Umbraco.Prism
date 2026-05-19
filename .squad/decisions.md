@@ -5370,3 +5370,1157 @@ Model 2 solves this by making the canvas a compact starting point and moving det
 
 *Prepared for team discussion and feedback.* — Tom Nook, 2026-05-19
 
+---
+date: 2026-05-19T21:15:20.177+01:00
+status: implemented
+author: blathers
+scope: developer-experience
+---
+
+# VS Code Debugger Process Cleanup for Aspire
+
+## Problem
+
+Stopping the VS Code debugger for the Aspire AppHost left orphaned DCP (Distributed Application Runtime) processes running, including:
+- The AppHost process itself
+- Aspire Dashboard
+- DCP child processes
+- Docker containers spawned by Aspire (e.g., Keycloak)
+
+This caused port conflicts and required manual cleanup (`ps aux | grep ...` and `kill`) on subsequent debug sessions.
+
+## Root Cause
+
+VS Code's .NET debugger terminates the debugged process (UmbracoPrism.AppHost.dll) but does not automatically clean up:
+1. Child processes spawned by Aspire's DCP orchestrator
+2. Docker containers launched by the AppHost
+3. Background services like the Aspire Dashboard
+
+This is a known limitation of the VS Code debugger lifecycle — `postDebugTask` must be explicitly configured to handle cleanup.
+
+## Solution
+
+Implemented automated cleanup using VS Code's `postDebugTask` mechanism:
+
+### 1. Created Cleanup Script
+**File:** `scripts/cleanup-aspire-processes.sh`
+- Finds all PIDs matching Aspire-related patterns (AppHost, dashboard, DCP)
+- Gracefully terminates processes (SIGTERM), then force kills if needed (SIGKILL)
+- Stops and removes Docker containers with `label=aspire.resource.name`
+- Uses specific PIDs (not `pkill`/`killall`) per security guidelines
+
+### 2. Wired as VS Code Task
+**File:** `.vscode/tasks.json`
+- Added `"Aspire: cleanup processes"` task
+- Configured with `presentation: { reveal: "silent", close: true }` for minimal UI noise
+
+### 3. Added to Launch Configuration
+**File:** `.vscode/launch.json`
+- Set `"postDebugTask": "Aspire: cleanup processes"` on the `"C#: Aspire (Full Stack)"` configuration
+- Now runs automatically when the debugger stops
+
+## Benefits
+
+- **Zero manual cleanup:** Developers no longer need to remember cleanup commands
+- **Port availability:** Subsequent debug sessions start cleanly without port conflicts
+- **Docker hygiene:** Prevents accumulation of stopped Aspire containers
+- **Safe termination:** Uses specific PIDs, not name-based killing
+
+## Testing
+
+Verified:
+1. Cleanup script successfully terminates orphaned processes (tested with real orphaned PID)
+2. AppHost builds successfully after changes
+3. `postDebugTask` properly wired in launch.json
+
+## Limitations
+
+- The cleanup runs **after** the debugger stops, so there's a brief window where processes remain
+- If the VS Code process crashes, `postDebugTask` won't run (edge case)
+- Developers can still manually stop containers if needed
+
+## References
+
+- VS Code debugging documentation on `postDebugTask`
+- Web research confirmed this is a common pattern for Aspire DCP cleanup
+- Follows repo security guidelines (no `pkill`/`killall`, explicit PIDs only)
+
+---
+date: 2026-05-19T19:57:17.429+01:00
+author: Blathers
+---
+
+# Decision: keep workflow-editor availability honest when authored files drift
+
+## Decision
+- The workflow-list API must skip invalid authored workflow documents instead of failing the whole editor picker.
+- Direct workflow-load endpoints must return a clear conflict response when the authored JSON exists but is invalid.
+- The admin workflow screen must distinguish between:
+  - **No authored workflow file yet** for runtime-only definitions.
+  - **Authored workflow file invalid** when a file exists but cannot be loaded.
+
+## Why
+A single empty or malformed authored workflow file can otherwise take down `/api/workflow-authoring/workflows`, which makes the reference editor look broken even when the rest of the authoring surface is healthy. The admin shortcut also needs to describe whether a workflow is genuinely runtime-only or whether the authored source needs repair, so showcase links stay honest.
+
+## Notes
+- Restored `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json` after it had become empty, which was the live root cause behind the failing workflow-list call.
+- Regression coverage now exercises both the list endpoint and the admin availability copy against invalid authored files.
+
+---
+date: 2026-05-19T22:41:48.843+01:00
+author: blathers
+status: proposed
+scope: reference-host-architecture
+confidence: high
+---
+
+# Workflow Store Alignment for MockBusinessApp
+
+## Investigation Summary
+
+MockBusinessApp currently operates TWO separate workflow discovery systems with inconsistent key mappings, causing only "planning" to appear editable while other workflows exist in runtime but have no editor path.
+
+## Root Cause: Split Store Architecture
+
+### Runtime Discovery Path
+**Source:** `workflow-seeds/` directory  
+**Loader:** `FilesystemWorkflowDefinitionStore`  
+**Registered via:** `AddPrismWorkflowRuntime<BusinessAppWorkflowEngine>(publishedWorkflowPath)`  
+**Key used:** `definitionKey` from JSON (e.g., "planning", "community-enquiry", "information-request", "payment-demo", "planning-notification")
+
+```csharp
+// src/UmbracoPrism.WorkflowRuntime/Extensions/WorkflowRuntimeServiceExtensions.cs:23
+services.AddSingleton<IWorkflowDefinitionStore>(
+    _ => new FilesystemWorkflowDefinitionStore(workflowSeedPath));
+```
+
+Runtime engine loads 5 workflows from `workflow-seeds/`:
+- `planning.json` → definitionKey: "planning"
+- `community-enquiry.json` → definitionKey: "community-enquiry"
+- `information-request.json` → definitionKey: "information-request"
+- `payment-demo.json` → definitionKey: "payment-demo"
+- `planning-notification.json` → definitionKey: "planning-notification"
+
+### Editor Discovery Path
+**Source:** `workflow-authored/` directory  
+**Loader:** `InMemoryAuthoredWorkflowStore.FromFilesystemDirectory(authoredWorkflowPath)`  
+**Registered via:** `AddSingleton<IAuthoredWorkflowStore>` in Program.cs:38-39  
+**Key used:** filename-derived `workflowKey` (strips `.workflow.json` suffix)
+
+```csharp
+// src/UmbracoPrism.MockBusinessApp/Program.cs:38-39
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => InMemoryAuthoredWorkflowStore.FromFilesystemDirectory(authoredWorkflowPath));
+```
+
+Editor store loads 1 workflow from `workflow-authored/`:
+- `planning.workflow.json` → workflowKey: "planning" (from filename)  
+  - Internal `definitionKey`: "planning-application" (does NOT match runtime key!)
+
+### Admin UI Key Mismatch
+**Location:** `src/UmbracoPrism.MockBusinessApp/Program.cs:339-342, 451`
+
+```csharp
+// Line 339-342: Build set of workflowKeys from editor store
+var loadableAuthoredWorkflowKeys = authoredWorkflowEntries
+    .Where(entry => entry.IsLoadable)
+    .Select(entry => entry.WorkflowKey)  // filename-based keys
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+// Line 451: Check if runtime definition has authored source
+var hasAuthoredWorkflow = loadableAuthoredWorkflowKeys.Contains(def.DefinitionKey);
+```
+
+**The Bug:** Admin UI checks if runtime `definitionKey` exists in authored `workflowKey` set. Only "planning" matches because the filename happens to align with the runtime key, despite the authored workflow internally having `definitionKey: "planning-application"`.
+
+## Why Only Planning Appears Editable
+
+1. Runtime has `planning.json` with `definitionKey: "planning"`
+2. Authored has `planning.workflow.json` → extracted `workflowKey: "planning"`
+3. Admin UI: `loadableAuthoredWorkflowKeys.Contains("planning")` → ✅ TRUE
+4. Editor link generated: `/workflow-editor?workflow=planning`
+
+Other workflows fail because:
+- Runtime has `community-enquiry.json` with `definitionKey: "community-enquiry"`
+- Authored has NO `community-enquiry.workflow.json`
+- Admin UI: `loadableAuthoredWorkflowKeys.Contains("community-enquiry")` → ❌ FALSE
+
+## Conceptual Confusion: Seeds vs. Authored Sources
+
+The system conflates two distinct concerns:
+
+### Current (Confused) Model
+- `workflow-seeds/` → Runtime definitions (5 files, used by engine)
+- `workflow-authored/` → Editor source (1 file, used by authoring API)
+- Publish step writes **projected** runtime JSON to `workflow-seeds/` (per design)
+- But runtime engine loads from `workflow-seeds/` **independently** of editor state
+
+**Result:** Runtime and editor operate on separate, uncoordinated datasets. The reference host cannot demonstrate round-trip editing because most workflows exist only in runtime.
+
+### Intended (Clarified) Model for Reference Host
+
+Per the [workflow-authoring-live-seed-contract skill](../../.squad/skills/workflow-authoring-live-seed-contract/SKILL.md):
+
+> Keep the **host lookup key** (usually the filename / route key such as `planning`) distinct from the authored workflow's projected `definitionKey`.
+
+For a **reference/demo host**, runtime should derive from authoring state:
+1. Authored workflows seed the `IAuthoredWorkflowStore` (in-memory for demo)
+2. Publish/projection writes to `IPublishedWorkflowStore` (in-memory, feeds runtime engine)
+3. Runtime engine reads published definitions via `IPublishedWorkflowStore` bridge
+4. Admin UI matches runtime keys against authored keys using **workflowKey** (not definitionKey)
+
+This ensures:
+- Every runtime workflow has an editable authored source
+- Publish updates propagate to runtime immediately (in-memory)
+- No stale seed files diverge from editor state
+- Demo resets to baseline on each run (in-memory clears)
+
+## Feasibility: Shared Repository with In-Memory Backing
+
+**Highly feasible.** The infrastructure already exists:
+
+1. **InMemoryAuthoredWorkflowStore** (`src/UmbracoPrism.WorkflowEditor/Authoring/InMemoryAuthoredWorkflowStore.cs`)  
+   ✅ Seeds from filesystem via `FromFilesystemDirectory()`  
+   ✅ Stores edits in-memory (no disk writes)
+
+2. **InMemoryRuntimePublishedWorkflowStore** (`src/UmbracoPrism.MockBusinessApp/Services/InMemoryRuntimePublishedWorkflowStore.cs`)  
+   ✅ Reads from `BusinessAppWorkflowEngine.GetDefinition()` as fallback  
+   ✅ Overrides runtime definitions when publish writes occur  
+   ✅ No disk mutation
+
+3. **WorkflowPublishService** (`src/UmbracoPrism.WorkflowEditor/Authoring/WorkflowPublishService.cs`)  
+   ✅ Projects `AuthoredWorkflow` → `WorkflowDefinitionFile`  
+   ✅ Writes to `IPublishedWorkflowStore`
+
+### Proposed Alignment
+
+**For MockBusinessApp only** (production hosts would use filesystem persistence):
+
+```csharp
+// Seed authored workflows from workflow-authored/ into memory
+var authoredWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-authored");
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => InMemoryAuthoredWorkflowStore.FromFilesystemDirectory(authoredWorkflowPath));
+
+// Runtime engine initially loads from workflow-seeds/ (baseline)
+var publishedWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds");
+builder.Services.AddPrismWorkflowRuntime<BusinessAppWorkflowEngine>(publishedWorkflowPath);
+
+// Published store bridges authored edits to runtime (in-memory overlay)
+builder.Services.AddSingleton<IPublishedWorkflowStore, InMemoryRuntimePublishedWorkflowStore>();
+```
+
+**Key change:** Move seed workflow JSONs from `workflow-seeds/*.json` to `workflow-authored/*.workflow.json` format. This makes the authored source the single source of truth for the reference host.
+
+**Migration path:**
+1. Convert each `workflow-seeds/*.json` (runtime format) to `workflow-authored/*.workflow.json` (authored format)
+2. Ensure filename-derived `workflowKey` matches the workflow's `definitionKey` for admin UI lookup
+3. Or: Fix admin UI to use a separate mapping table / lookup method
+
+## Evidence Files
+
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:36-42` (store registration)
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:54-55` (runtime registration)
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:333-346` (admin UI key extraction)
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:451` (editability check)
+- `src/UmbracoPrism.WorkflowRuntime/Extensions/WorkflowRuntimeServiceExtensions.cs:23` (runtime store)
+- `src/UmbracoPrism.WorkflowEditor/Authoring/InMemoryAuthoredWorkflowStore.cs:55-83` (seed factory)
+- `src/UmbracoPrism.MockBusinessApp/Services/InMemoryRuntimePublishedWorkflowStore.cs:10-28` (publish bridge)
+- `.squad/skills/workflow-authoring-live-seed-contract/SKILL.md` (host key vs definitionKey distinction)
+
+## Recommendation
+
+**Decision:** Align MockBusinessApp to use a single repository surface where runtime and editor share workflow definitions through in-memory stores.
+
+**Rationale:**
+- Reference host demonstrates full workflow lifecycle (author → publish → runtime)
+- Eliminates key mismatch confusion (workflowKey vs definitionKey)
+- Every runtime workflow becomes immediately editable
+- Demo isolation: each run starts from seeded baseline, edits stay in-memory
+
+**Next Steps:**
+1. Convert existing workflow-seeds/*.json to workflow-authored/*.workflow.json format (authored schema)
+2. Update admin UI key matching logic to align with workflowKey (or add mapping table)
+3. Validate round-trip: edit in UI → publish → runtime reflects changes → reset on restart
+
+**Out of Scope:** Production filesystem-backed hosts (TestSite, real customers) remain unchanged. This alignment applies only to the reference demo host.
+
+## Decision: Canonical workflow editor shortcut for showcase surfaces
+
+**Date:** 2026-05-19T19:57:17.429+01:00  
+**Author:** Brewster  
+**Status:** Proposed
+
+Make `/workflow-editor` the single showcase entry point everywhere user-facing shortcuts are advertised.
+
+### Decision
+
+1. AppHost, TestSite dashboard, Umbraco backoffice host, and the Workflow Admin header should link to `/workflow-editor`, not a second “Workflow Editor Page” shortcut.
+2. Definition-specific admin cards may still deep-link into a chosen workflow, but they should do so through `/workflow-editor?workflow={key}` so the canonical entry path stays consistent.
+3. Runtime-only definitions should say they have no authored workflow file yet, rather than implying the editor itself is broken.
+
+### Why
+
+- The duplicate shell/page shortcuts make the showcase path feel like two products when there is really one reference editor entry.
+- Keeping the public shortcut stable while allowing query-based workflow selection preserves deep links without leaking the lower-level `.html` route into every surface.
+- Honest availability copy helps authors distinguish “this definition is runtime-only” from “the editor failed to load.”
+
+---
+author: brewster
+date: 2026-05-19T22:41:48.843+01:00
+status: proposed
+confidence: high
+tags: [workflow-editor, mockbusiness, reference-architecture]
+---
+
+# MockBusinessApp Reference Host Contract
+
+## Context
+
+MockBusinessApp is positioned as the **reference host for Prism workflow** — both runtime execution and editor experience. As the project evolves from simple runtime workflow demos to richer authoring tooling, the host's dual-responsibility contract must stay clear and honest.
+
+## Current State
+
+### Two-Store Model (Lines 36-42, Program.cs)
+
+```csharp
+var authoredWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-authored");
+var publishedWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds");
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => InMemoryAuthoredWorkflowStore.FromFilesystemDirectory(authoredWorkflowPath));
+builder.Services.AddSingleton<IPublishedWorkflowStore, InMemoryRuntimePublishedWorkflowStore>();
+```
+
+- **`workflow-authored/`**: Optional rich AuthoredWorkflow definitions for the editor
+- **`workflow-seeds/`**: Published runtime WorkflowDefinitionFile JSON
+- **`InMemoryRuntimePublishedWorkflowStore`**: Bridging store that accepts editor publishes and updates the live engine without mutating seed files
+
+### Admin UI Communication (Lines 502-510, Program.cs)
+
+The admin screen displays workflow definitions and checks whether an authored editor source exists:
+
+- ✅ **If authored source exists**: `↗ Edit workflow` link to `/workflow-editor?workflow={key}`
+- ⚠️ **If source invalid**: "Editor definition invalid" (cannot open until repaired)
+- ℹ️ **If no source yet**: "No editor definition yet" (workflow has no editor config)
+
+### Key Files
+
+**Runtime seeds (always present):**
+- `workflow-seeds/planning.json` (runtime WorkflowDefinitionFile)
+- `workflow-seeds/community-enquiry.json`
+- `workflow-seeds/payment-demo.json`
+- `workflow-seeds/information-request.json`
+- `workflow-seeds/planning-notification.json`
+
+**Authored sources (optional, richer):**
+- `workflow-authored/planning.workflow.json` (AuthoredWorkflow with editor metadata)
+- `workflow-authored/.provenance/` (versioned snapshots)
+
+**Only `planning` has an authored source.** The others are runtime-only.
+
+## Assessment
+
+### 1. Behavioral Unity
+
+**Finding:** The host **does** behave like a unified system, not two bolted demos.
+
+**Evidence:**
+- The workflow runtime engine (`BusinessAppWorkflowEngine`) is the single source of truth for execution (Program.cs:54-56).
+- The authoring publish pipeline (`WorkflowPublishService`) projects AuthoredWorkflow → WorkflowDefinitionFile → runtime store, ensuring deterministic consistency.
+- The custom `InMemoryRuntimePublishedWorkflowStore` updates the live engine immediately on publish (InMemoryRuntimePublishedWorkflowStore.cs:22-26), making authoring changes testable without restarting the host.
+- The admin screen reads from both `IAuthoredWorkflowStore` and the runtime engine, presenting them as complementary surfaces of the same system (Program.cs:333-346).
+
+**Strength:** Runtime workflows can exist without authored sources. This is the correct product stance: authoring is an **optional editorial enhancement**, not a prerequisite for execution.
+
+### 2. UX Clarity
+
+**Finding:** The host UX **accurately communicates** the two-phase model but could strengthen the relationship narrative.
+
+**Current communication (admin screen):**
+- "No editor definition yet" signals a workflow is runtime-ready but not editor-ready.
+- "Edit workflow" button appears only when an authored source exists and is loadable.
+
+**Strength:** The language doesn't expose technical storage paths or confuse users with "missing file" jargon. It correctly describes a **product state** (editor not configured) rather than an **implementation detail** (JSON file absent).
+
+**Opportunity:** The admin screen could add a **"Create editor definition"** affordance for runtime-only workflows, making it clearer that authoring is an available upgrade path, not a hidden feature.
+
+### 3. Reference Host Quality
+
+**Finding:** MockBusinessApp is a **strong reference host** for the three-plane architecture.
+
+**Why:**
+- ✅ Authoring plane: filesystem-backed `IAuthoredWorkflowStore` with rich graph, actions, parameter schemas
+- ✅ Projection plane: `WorkflowPublishService` + `WorkflowProjector` deterministically emit runtime JSON
+- ✅ Runtime plane: `BusinessAppWorkflowEngine` executes published definitions with instance state, transitions, validation
+
+**Alignment with `.squad/skills/workflow-editor-three-plane-architecture/SKILL.md`:**
+- ✅ "Treat Prism-compatible workflow JSON as a projection target" — yes, authored sources publish to runtime format
+- ✅ "Workflows without an editor source should explain the prerequisite without exposing storage details" — yes, admin screen uses "No editor definition yet"
+- ✅ "Planning-style journeys exercise actor changes, review loops, multi-surface publishing" — yes, `planning` workflow includes handoffs and back-stage reviewer actions
+
+### 4. Keying Hygiene
+
+**Observation:** Runtime `definitionKey` and editor host `workflow` query param must match.
+
+**Current state:**
+- Runtime seed: `"definitionKey": "planning"` (workflow-seeds/planning.json:1)
+- Authored source: `"definitionKey": "planning-application"` (workflow-authored/planning.workflow.json:3)
+- Admin link: `/workflow-editor?workflow=planning` (Program.cs:503)
+- Editor redirect: `/workflow-editor.html?workflow=planning` (Program.cs:84)
+
+**Risk:** The authored `definitionKey` is `planning-application`, but the host key and admin links use `planning`. This is intentional (per brewster history.md line 62: "authoring host key and authored/runtime definitionKey are different contracts"), but it creates a **coordination surface** where the two keys must stay aligned.
+
+**Current mitigation:** The `InMemoryAuthoredWorkflowStore.FromFilesystemDirectory` pattern (Program.cs:39) uses filename as host key, not authored `definitionKey`, so the admin screen can list authored workflows by filename and route correctly.
+
+**Recommendation:** Keep the current dual-key model but document it explicitly in the README. The host key (filename) gates editor access; the runtime `definitionKey` gates execution.
+
+## Recommendations
+
+### 1. Reference Host Contract (Proposal)
+
+**For downstream apps integrating Prism workflow authoring + runtime:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Reference Host Responsibilities                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Runtime Engine (Required)                                    │
+│    • Load published WorkflowDefinitionFile definitions          │
+│    • Manage instance state, transitions, validation             │
+│    • Provide workflow API for Umbraco surfaces                  │
+│                                                                  │
+│ 2. Authoring Services (Optional)                                │
+│    • IAuthoredWorkflowStore: load/save richer editor sources    │
+│    • IPublishedWorkflowStore: accept publish, update runtime    │
+│    • WorkflowPublishService: project authored → runtime JSON    │
+│                                                                  │
+│ 3. Admin UI (Optional Reference Pattern)                        │
+│    • Display runtime definitions from engine                    │
+│    • Show authored sources if store configured                  │
+│    • Link to editor when authored source exists + valid         │
+│    • Explain "No editor definition yet" for runtime-only flows  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key principle:** Runtime is authoritative. Authoring is an editorial enhancement. The host should work if authoring services are absent.
+
+### 2. Admin Screen Enhancement (Low Priority)
+
+Consider adding a "Create editor definition" button for runtime-only workflows:
+
+```html
+<!-- Instead of just a passive message -->
+<span class="editor-unavailable">No editor definition yet</span>
+
+<!-- Offer an upgrade path -->
+<button class="btn btn-action" onclick="createEditorDefinition('{def.DefinitionKey}')">
+  + Create editor definition
+</button>
+```
+
+This would:
+- Reinforce that authoring is an **available** feature, not a hidden one
+- Make the relationship between runtime and editor more discoverable
+- Align with the product goal of making the editor a first-class showcase surface
+
+### 3. README Clarification (Actionable)
+
+Add a section to `src/UmbracoPrism.MockBusinessApp/README.md`:
+
+```markdown
+## Workflow Runtime + Authoring
+
+MockBusinessApp serves as the reference host for both workflow **runtime** and **authoring**.
+
+### Runtime (Always Active)
+- Seed files in `workflow-seeds/*.json` define published workflows the engine can execute.
+- These files are standard Prism `WorkflowDefinitionFile` JSON.
+- All workflows are executable at startup without requiring editor definitions.
+
+### Authoring (Optional Editorial Layer)
+- Rich `AuthoredWorkflow` definitions in `workflow-authored/*.json` add editor metadata, parameter schemas, and graph intent.
+- The authoring API (`/api/workflow-authoring/workflows/{key}`) loads, validates, and publishes authored sources.
+- Publish deterministically projects AuthoredWorkflow → WorkflowDefinitionFile → live runtime engine.
+- Only `planning` currently has an authored source; other workflows are runtime-only and work as-is.
+
+### Admin Screen
+- Visit `/admin/workflow` to see all runtime definitions and workflow instances.
+- If an authored source exists and is valid, "Edit workflow" links to `/workflow-editor`.
+- If no authored source, the screen shows "No editor definition yet" — the workflow is runtime-ready but not editor-ready.
+```
+
+### 4. Test Coverage (Already Present)
+
+`WorkflowShowcaseShortcutTests.cs` already guards the reference surface:
+- ✅ Single workflow editor shortcut in Aspire dashboard (line 22)
+- ✅ Single workflow editor CTA in member dashboard (line 42)
+- ✅ Admin screen links to `/workflow-editor` with workflow param (line 57)
+- ✅ "No editor definition yet" message for runtime-only workflows (line 63)
+
+This ensures the host contract stays discoverable and doesn't regress into multiple conflicting entry points.
+
+## Decision
+
+**Status:** Proposed
+
+The current MockBusinessApp design is sound. It accurately models the product stance:
+- Runtime workflows may exist without authored sources.
+- Authoring is an optional enhancement, not a blocker.
+- The admin UI honestly communicates workflow state without exposing storage internals.
+
+**Action:** Document the dual-responsibility contract in the README (Recommendation 3 above).
+
+**Optional follow-up:** Add "Create editor definition" affordance to admin screen if team wants to make authoring more discoverable (Recommendation 2 above).
+
+## References
+
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:36-42` (store setup)
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:333-346` (admin UI data fetch)
+- `src/UmbracoPrism.MockBusinessApp/Program.cs:502-510` (editor link logic)
+- `src/UmbracoPrism.MockBusinessApp/Services/InMemoryRuntimePublishedWorkflowStore.cs` (bridging store)
+- `src/UmbracoPrism.WorkflowEditor/Authoring/WorkflowPublishService.cs` (projection pipeline)
+- `src/UmbracoPrism.Core.Tests/WorkflowShowcaseShortcutTests.cs` (showcase guards)
+- `.squad/skills/workflow-editor-three-plane-architecture/SKILL.md` (design spine)
+- `.squad/skills/umbraco-workflow-page-ownership/SKILL.md` (Umbraco patterns)
+
+# Decision: Workflow authoring source owns route-key lookup
+
+**Date:** 2026-05-19T21:20:21.447+01:00  
+**Author:** Brewster  
+**Status:** Proposed  
+
+The workflow-authoring source should be the single host seam for authoring list/load/save behaviour, and it must treat the **route key / host lookup key** as distinct from the authored workflow's internal `definitionKey`.
+
+## Decision
+
+1. `IAuthoredWorkflowStore` is the canonical seam for:
+   - listing editor-visible workflows
+   - loading a workflow by the host-facing route key
+   - saving back to the same route key
+2. Hosts may expose a friendly route key such as `planning` while the authored document still projects to runtime `definitionKey` `planning-application`.
+3. Admin screens and editor workflow pickers should use the store's listed `workflowKey`, not infer editability from runtime definitions alone.
+
+## Why
+
+- The current breakage came from mixing runtime definition keys with authored-document lookup keys.
+- That mismatch made the admin page advertise `planning`, while the shell list advertised `planning-application`, so the editor warned that the requested workflow was unavailable and could drift into 404/save-path problems.
+- Keeping list/load/save on one source removes that disagreement and leaves a clean extension point for a future real repository implementation.
+
+## Consequences
+
+- Demo hosts can keep an in-memory implementation that seeds from disk but preserves stable route keys across edits.
+- Future real repositories should implement the same contract instead of teaching the shell, admin page, and save pipeline different lookup rules.
+
+### 2026-05-19T21:20:21.447+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Get the workflow editability, workflow list, and authoring API behavior correct before continuing UX changes; prefer a reusable service/repository seam so the demo can use an in-memory implementation while other hosts can wire a real workflow repository.
+**Why:** User request — captured for team memory
+
+# Decision: Aspire debugger shutdown cleanup strategy
+
+**Date:** 2026-05-19T21:15:20.177+01:00  
+**Author:** Tangy  
+**Status:** Implemented  
+
+## Context
+
+When stopping the VS Code debugger for the Aspire Full Stack launch configuration, the CoreCLR debugger terminates the AppHost process but does not recursively clean up the full Aspire DCP process tree, including:
+
+- Child project services (TestSite, MockBusinessApp, KeycloakProxy)
+- Aspire dashboard processes  
+- Docker containers (Keycloak)
+- Port listeners on dashboard endpoints (17214, 15135, 21233, 22194)
+
+This is a known limitation documented in [dotnet/aspire#625](https://github.com/dotnet/aspire/issues/625) and other VS Code CoreCLR debugger issues.
+
+## Decision
+
+Use VS Code's `postDebugTask` to automatically clean up stale Aspire processes after debugger stop.
+
+### Implementation
+
+1. **Cleanup script:** `scripts/cleanup-aspire-processes.sh`  
+   - Terminates AppHost/DCP processes by PID
+   - Stops Aspire-spawned Docker containers  
+   - Uses individual `kill` calls (not `pkill`/`killall`)
+   - Graceful SIGTERM → force SIGKILL fallback
+
+2. **VS Code task:** `.vscode/tasks.json`  
+   - `"Aspire: cleanup after debug"` task invokes cleanup script
+   - Silent presentation (no intrusive terminal)
+
+3. **Launch config:** `.vscode/launch.json`  
+   - `"C#: Aspire (Full Stack)"` configuration has:  
+     ```json
+     "postDebugTask": "Aspire: cleanup processes"
+     ```
+
+4. **Validation script:** `scripts/validate-debugger-cleanup.sh`  
+   - Checks for stale listeners on Aspire ports  
+   - Checks for orphaned DCP processes  
+   - Checks for stale Keycloak containers  
+   - Run before/after debugger stop to verify cleanup
+
+## Why this approach
+
+- **Platform limitation:** VS Code's CoreCLR debugger does not propagate shutdown signals to Aspire's full process tree  
+- **Repo-owned fix:** `postDebugTask` provides deterministic cleanup without relying on upstream debugger fixes
+- **User ergonomics:** Automatic cleanup on debugger stop—no manual `docker stop` or port hunting
+- **Test-aligned:** Uses same cleanup primitives as `live-app-host.ts` (SIGTERM → SIGKILL cascade, individual PIDs)
+
+## Alternatives considered
+
+1. **Wait for dotnet/aspire upstream fix**  
+   - Rejected: Issue open since 2023; no timeline for resolution  
+   - Developer friction remains until upstream fix lands
+
+2. **Manual cleanup instructions in docs**  
+   - Rejected: Error-prone; requires remembering port numbers/container names
+
+3. **VS Code extension customization**  
+   - Rejected: Over-engineered for this use case; `postDebugTask` is simpler
+
+## Validation
+
+**Before debugger start:**
+```bash
+./scripts/validate-debugger-cleanup.sh
+# Expected: ✅ Clean shutdown — no stale processes
+```
+
+**After debugger stop:**
+```bash
+./scripts/validate-debugger-cleanup.sh
+# Expected: ✅ Clean shutdown — no stale processes (postDebugTask ran)
+```
+
+If validation fails, `cleanup-aspire-processes.sh` can be run manually.
+
+## Consequences
+
+- Debugger stop now includes ~3-5s cleanup delay (acceptable for dev ergonomics)
+- Cleanup script is macOS/Linux only (uses `lsof`, `ps`, `kill`)  
+- Windows developers need equivalent PowerShell script (future work if needed)
+- If cleanup script fails, validation script provides diagnostic output
+
+## Test surface
+
+**No new Playwright tests required.** This is VS Code debugger behavior, not a repo-owned API surface. Existing `live-app-host.ts` stop logic already validates programmatic cleanup contracts.
+
+## Related
+
+- `.squad/skills/playwright-aspire-restart-harness/SKILL.md` — documents test-owned cleanup patterns
+- `src/UmbracoPrism.Client/tests/support/live-app-host.ts` — programmatic AppHost lifecycle management
+
+---
+status: approved
+author: Tangy (Tester)
+date: 2026-05-19T19:39:04.940+01:00
+relates_to: 'workflow shortcut/discoverability slice, src/UmbracoPrism.MockBusinessApp/**, src/UmbracoPrism.Client/**, src/UmbracoPrism.Core.Tests/**'
+decision_type: final_quality_gate
+---
+
+# Decision: Workflow shortcut/discoverability slice final gate
+
+## Verdict
+
+**APPROVED** — the selection-handoff blocker is closed.
+
+## Why this is green
+
+1. The admin workflow screen now only shows **Edit workflow** for definitions that actually have an authored workflow document behind them.
+2. Runtime-only definitions now show **Editor unavailable** instead of advertising a broken deep link.
+3. The editor shell no longer rewrites a requested workflow key to some other available workflow when the requested key is missing; it stays on the requested key and warns instead of silently swapping.
+4. Focused regression evidence is present in both backend and browser-facing coverage:
+   - `WorkflowShowcaseShortcutTests`
+   - `WorkflowAuthoringEndpointsTests`
+   - `tests/workflow-gds-journey.spec.ts`
+5. Validation run during this gate:
+   - focused .NET shortcut/authoring tests passed
+   - full client build passed
+
+## Important non-blocker
+
+The current local `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json` is **0 bytes / invalid local state**. In live browser validation this causes authoring API `500` responses (`Failed to list workflows: 500`, `Failed to fetch workflow "planning": 500`) and prevents the editor from loading the planning workflow.
+
+That is **not the slice blocker** that previously caused rejection. It is pre-existing local authored-workflow corruption/noise. The shortcut slice should be judged separately from that bad local seed state.
+
+## Gate call
+
+- **Slice blocker status:** closed
+- **Local environment/state issue:** present, but separate and non-blocking for this slice
+- **Recommendation:** merge the slice, then repair/regenerate the local planning authored seed in a separate follow-up if live local authoring verification is needed
+
+# Decision: workflow authoring source quality gate
+
+**Date:** 2026-05-19T21:20:21.447+01:00  
+**Author:** Tangy  
+**Status:** Implemented  
+
+## Context
+
+The workflow admin screen, authoring list endpoint, and editor load route drifted apart once MockBusinessApp switched to the in-memory authored store. The host shell entered on `/workflow-editor?workflow=planning`, while the authored document still carried `definitionKey: planning-application`, which caused the shell to warn that the requested workflow was missing and left the editor load contract looking broken.
+
+## Decision
+
+Treat the **host-facing workflow key** as the behavioural contract for discovery and loading.
+
+- Admin edit links must use the host key that the authoring API can load.
+- `/api/workflow-authoring/workflows` must expose that host key explicitly.
+- The editor shell picker must compare against the host key, not the authored workflow's internal `definitionKey`.
+
+The authored `definitionKey` may still differ (for example `planning-application`), but that drift is now an internal mapping detail rather than a broken surface contract.
+
+## Validation
+
+Validated with:
+
+1. Focused .NET tests for authoring endpoints, showcase shortcuts, and in-memory store alias behaviour
+2. `npm run build` in `src/UmbracoPrism.Client`
+3. Focused localhost-auth Playwright admin/editor contract test
+4. `npm run test:playwright:planning-smoke`
+
+## Consequences
+
+- Hosts can keep stable route keys such as `planning` even when authored definitions project to a different runtime or authored identifier.
+- Future store implementations must preserve the host key on list/load/save paths.
+- Remaining `planning` vs `planning-application` drift is acceptable only if no user-facing surface swaps or guesses between them.
+
+---
+date: 2026-05-19T19:57:17.429+01:00
+agent: Tangy
+topic: workflow-editor-cleanup-gate
+---
+
+# Decision: workflow editor cleanup gate
+
+For this cleanup slice, treat runtime-only definitions showing **Editor unavailable** as honest and non-blocking. The gate is instead:
+
+1. the workflow editor shell must successfully list authored workflows from `/api/workflow-authoring/workflows`,
+2. authored definitions on the admin screen must expose **Edit workflow** while runtime-only definitions explain why they do not,
+3. the dashboard/AppHost must expose a single **Workflow Editor** shortcut rather than a duplicate direct-page shortcut.
+
+This keeps the slice focused on correctness and clarity before any UX expansion work.
+
+---
+date: 2026-05-19T22:41:48.843+01:00
+author: Tangy
+status: proposed
+---
+
+# Workflow Host Contract: Runtime-Only vs Editor-Backed Split
+
+## Context
+
+The E2E test suite (`workflow-gds-journey.spec.ts`, line 166–176) exercises **five** runtime workflows but expects editor affordances for only **one** (`planning`). The test explicitly validates that `community-enquiry` **must not** have an "Edit workflow" link.
+
+## Current State
+
+### Authored Workflows (Editor-Backed)
+Only **one** authored workflow exists in `workflow-authored/`:
+- `planning.workflow.json` (projects to runtime definition `planning-application`)
+
+### Runtime-Only Workflows (No Editor Source)
+**Four** runtime workflows exist only as seeds in `workflow-seeds/`:
+- `community-enquiry.json`
+- `information-request.json`
+- `payment-demo.json`
+- `planning-notification.json`
+
+## Test Evidence
+
+`workflow-gds-journey.spec.ts` lines 166–176:
+```typescript
+const planningCard = page.locator('.def-card[data-definition-key="planning"]');
+const runtimeOnlyCard = page.locator('.def-card[data-definition-key="community-enquiry"]');
+
+await expect(planningCard.getByRole('link', { name: 'Edit workflow' })).toHaveAttribute(
+  'href',
+  '/workflow-editor?workflow=planning'
+);
+await expect(runtimeOnlyCard.getByRole('link', { name: 'Edit workflow' })).toHaveCount(0);
+await expect(runtimeOnlyCard.getByText('No editor definition yet')).toBeVisible();
+```
+
+`WorkflowAuthoringEndpointsTests.cs` lines 80–94:
+```csharp
+body.Should().Contain("href=\"/workflow-editor?workflow=planning\"",
+    because: "planning has an authored workflow document");
+body.Should().NotContain("href=\"/workflow-editor?workflow=community-enquiry\"",
+    because: "runtime-only definitions should not advertise a broken editor handoff");
+body.Should().Contain("No editor definition yet",
+    because: "the admin screen should explain that the editor source is not configured");
+```
+
+## Mismatch Analysis
+
+**There is no mismatch.** The tests intentionally encode the split:
+
+1. **Planning** workflow:
+   - Has authored source: `workflow-authored/planning.workflow.json`
+   - Projects to: `workflow-seeds/planning.json` (runtime definition `planning-application`)
+   - UI affordance: "Edit workflow" link to `/workflow-editor?workflow=planning`
+   - Test validation: lines 172–175 (link **must** be present)
+
+2. **Other four workflows** (community-enquiry, information-request, payment-demo, planning-notification):
+   - No authored source (only runtime seeds)
+   - UI affordance: "No editor definition yet" message
+   - Test validation: lines 176–177 (link **must not** be present)
+
+## Behavioural Contract
+
+The host presents:
+
+1. **Editor-backed workflows:**
+   - Must have `workflow-authored/{workflowKey}.workflow.json` file
+   - Admin UI shows "Edit workflow" link to `/workflow-editor?workflow={workflowKey}`
+   - `/api/workflow-authoring/workflows` includes the workflow in the list
+   - Editor shell can load/save the workflow
+
+2. **Runtime-only workflows:**
+   - Only have `workflow-seeds/{definitionKey}.json` file
+   - Admin UI shows "No editor definition yet" message (no edit link)
+   - `/api/workflow-authoring/workflows` does **not** include the workflow
+   - Editor cannot load these workflows
+
+## User Observation
+
+The user noted: "The original end to end tests I think for Prism use the first four, but the editor only recognises the last."
+
+**Correction:** The E2E tests exercise **all five** workflows at runtime (planning-notification, community-enquiry, payment-demo, information-request, and planning), but the **admin UI editor affordance** is intentionally limited to **only planning** because it's the only one with an authored source file.
+
+## Recommendation
+
+**No product change needed.** The current behavior is correct by design:
+
+- The split between authored and runtime-only workflows is intentional
+- The tests enforce this contract explicitly
+- The UI messaging ("No editor definition yet") correctly explains the difference
+- The workflow-authoring skill (`.squad/skills/workflow-authoring-live-seed-contract/SKILL.md`) documents this pattern
+
+If the goal is to enable editor affordances for the other four workflows, they need authored workflow files created in `workflow-authored/`:
+- `community-enquiry.workflow.json`
+- `information-request.workflow.json`
+- `payment-demo.workflow.json`
+- `planning-notification.workflow.json`
+
+## References
+
+- Test: `src/UmbracoPrism.Client/tests/workflow-gds-journey.spec.ts:166-177`
+- Test: `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringEndpointsTests.cs:80-94`
+- Host: `src/UmbracoPrism.MockBusinessApp/Program.cs:36-42`
+- Skill: `.squad/skills/workflow-authoring-live-seed-contract/SKILL.md`
+- History: `.squad/agents/tangy/history.md:180-182` (workflow authoring source gate)
+
+---
+status: proposal_ready_for_issue_creation
+author: Tom Nook (Lead)
+date: 2026-05-19T19:39:04.940+01:00
+relates_to: '.squad/decisions.md (Tom Nook swim-lane proposal + Isabelle accessibility directive), GitHub issue #54 (parent initiative), docs/design/workflow-editor-v1/'
+decision_type: sequencing_and_scoping
+---
+
+# Decision: Workflow Editor UX — Phase 1 Specification
+
+## Executive Summary
+
+With the role-first swim-lane editor direction now locked in (Model 2: Stacked Swim Lanes from analysis dated 2026-05-19), the team is ready to move from design exploration to actionable implementation. This decision packages the locked-in UX requirements into **a single parent issue with clear acceptance criteria, sequencing notes, and guidance on whether to split into sub-issues during implementation**.
+
+---
+
+## What Is "Locked In"
+
+Per user direction (Jonny Muir, 2026-05-19T19:39:04+01:00):
+
+- **Role-first swim-lane editor** — Horizontal stacked role bands (one role per row). Stages appear as compact stage cards within each band. Transitions shown as arrows, including cross-lane handoffs.
+- **Stage drill-in with detail drawer** — Click a stage card to expand an inspector drawer on the right showing stage name, actor, type, description, actions list, outbound transitions, and parameters.
+- **No embedded AI conversation widget** — Remove the embedded conversation pane from the editor. AI assistance moves to an external client or separate tab (Phase 2). Proposal review is modal-based, not embedded.
+- **Accessibility as baseline** — Keyboard navigation, screen reader support, and WCAG 2.2 AA compliance are **first-pass requirements**, not polish phases.
+- **Atomic undo/redo from v1** — Undo/redo stack supports workflow-level changes, not just single-field edits. Includes debouncing to avoid clutter in history.
+
+---
+
+## Why This Direction
+
+1. **Matches designer mental models** — Business service designers think about workflows as **role responsibilities that handoff to each other**, not as generic stage graphs.
+2. **Scalable to realistic workflows** — Compact stacked stages mean 6–10 roles with 4–6 stages each stay scannable without overwhelming the canvas.
+3. **Preserves the "one picture" benefit** — Designers see all roles at a glance (or collapse roles they're not working on), keeping context intact.
+4. **Detail editing stays powerful** — The inspector drawer shows all stage actions, transitions, and parameters in one place without tab-switching or modal fragmentation.
+5. **Accessibility is natural** — Role → stage → transition → action hierarchy mirrors keyboard navigation and screen-reader structure.
+6. **Foundation for future growth** — Nested sub-workflows, form preview, simulation, and MCP-based proposal review can layer on top without restructuring.
+
+---
+
+## What NOT to Build
+
+- **Full-screen tabbed editor** (Graph/Outline/Inspector/AI tabs) — This was considered but rejected; tabs separate conceptually linked elements and make role-first thinking harder.
+- **Vertical swim lanes** — Beautiful for small workflows but doesn't scale; causes horizontal scrolling and canvas overflow.
+- **Embedded conversation pane** — Removed to clarify that conversation is a **communication channel** (external to editor), not a **workspace control**. Proposals arrive as events, not chat messages.
+- **Detail editing in modals or separate panels** — Parameters and transitions stay inline in the inspector, not popped out.
+
+---
+
+## Acceptance Criteria for Phase 1 (Parent Issue)
+
+**When complete, a designer should be able to:**
+
+- [ ] Open an existing workflow in the editor
+- [ ] See all roles as horizontal stacked bands; each role shows its stages in sequence
+- [ ] Click a stage card to see an inspector drawer expand on the right
+- [ ] In the drawer, view and edit: stage name, actor, description, stage type (form/decision/notification)
+- [ ] In the drawer, see all actions attached to this stage and click to drill into parameters
+- [ ] In the drawer, see all outbound transitions and click to drill into transition conditions
+- [ ] Add a new stage by clicking "+ Add Stage" within a role band (or context menu)
+- [ ] Create a new transition by clicking "+ Add Transition" in the inspector drawer
+- [ ] Undo and redo changes using toolbar buttons or Ctrl+Z / Ctrl+Shift+Z (or Cmd equivalents)
+- [ ] Copy and paste a stage (with actions and transitions) to another role
+- [ ] Navigate between stages using Tab key (forward) and Shift+Tab (backward); arrow keys move between roles
+- [ ] Use Ctrl+G (or Cmd+G) to jump to a stage by name (keyboard-driven search/select)
+- [ ] Hear stage, role, and action details when using a screen reader; keyboard focus is announced and visible
+- [ ] See validation errors highlighted in the canvas and inspector; click an error to jump to the offending stage
+
+**Accessibility (WCAG 2.2 AA):**
+- [ ] Tab order follows role → stage → action → transition visual order
+- [ ] Focus is always visible and meets 3:1 contrast ratio
+- [ ] Stage drill-in/collapse is keyboard operable (Enter/Space)
+- [ ] Screen reader reads: role name, stage count in role, stage name, actor, type, action count, transition count
+- [ ] Form labels and field errors are correctly associated (aria-label, aria-describedby)
+- [ ] No reliance on color alone to indicate state (disabled, error, active)
+
+---
+
+## Implementation Shape: One Issue or Split?
+
+### Recommendation: **Create ONE parent issue with clear sub-tasks, ready to split if any task exceeds 2–3 weeks**
+
+**Rationale:**
+1. All tasks are highly interdependent (swim-lane canvas must exist before drawer can attach; role grouping must precede stage drill-in).
+2. Accessibility is embedded in every task, not a separate phase.
+3. Best sequenced as a continuous 4–6 week slice with parallel workstreams after role grouping is done.
+
+**If splitting is needed later:**
+- **Sub-issue 1:** Role-based stage grouping (refactor model, update outline and list view)
+- **Sub-issue 2:** Stacked lane canvas (render role bands and stage cards; transitions as arrows)
+- **Sub-issue 3:** Inspector drawer expansion (show stage details, actions, transitions on click)
+- **Sub-issue 4:** Action/transition parameter editing (drill-in inline, not modal)
+- **Sub-issue 5:** Undo/redo wiring (debounced history, toolbar buttons, keyboard shortcuts)
+- **Sub-issue 6:** Accessibility polish (keyboard navigation, screen-reader testing, focus management)
+- **Sub-issue 7:** Copy/paste support (stage cloning with actions)
+
+Each can be 1–2 weeks and run in sequence or light parallelism (canvas + drawer overlap).
+
+---
+
+## Sequencing Notes
+
+### Constraints
+
+1. **One-slice-at-a-time rule** — There is an active implementation slice in flight for the workflow shortcut mismatch. This editor UX work should **not** start until that slice completes and merges, to respect the one-at-a-time discipline.
+
+2. **Dependency on foundation work** — This issue depends on GitHub issues #55–#57 (workflow schema, action catalog, publish pipeline) being complete and merged. Verify those are stable before starting.
+
+3. **Accessibility must be first-pass, not polish** — Do not plan accessibility as a separate 2-week phase after the UI is "done". Embed it from day 1: keyboard shortcuts, ARIA labels, focus management, and screen-reader navigation are part of every task.
+
+### Suggested Timing
+
+- **After:** Shortcut mismatch slice merges + foundation issues #55–#57 stable (earliest: late May 2026, pending active slice completion)
+- **Duration:** 4–6 weeks for full Phase 1 swim-lane editor with accessibility baseline
+- **Team:** Isabelle (UI lead), Blathers (state management / undo-redo), Tangy (QA / accessibility testing)
+- **Definition of done:** All acceptance criteria met, Playwright tests pass, axe-core accessibility scan passes, team review complete
+
+---
+
+## Not Included in Phase 1
+
+- **AI/MCP integration** (Phase 2, after baseline ships)
+- **Form preview panel** (can be added later without restructuring)
+- **Simulation walkthrough** (separate issue #68, depends on this but can run in parallel once core editing works)
+- **Advanced branching UI** (multi-transition paths are shown in inspector for now; richer visualization is Phase 1.5)
+- **Validation panel deep-dive** (basic validation rail stays; rich validation workspace is Phase 2)
+
+---
+
+## Issue Title and Format Recommendation
+
+### Suggested GitHub Issue Title
+
+```
+Editor Feature: Workflow authoring with role-first swim lanes and stage drill-in (Phase 1)
+```
+
+### Key Details for Issue Body
+
+```markdown
+## What to Build
+
+The editor workspace for authors to build and maintain workflows. Shift from tabs to a **role-first swim-lane model** where:
+
+- **Swim lanes** = Horizontal role bands, one role per row
+- **Stage cards** = Compact representation within a lane; clicking a card expands an inspector drawer
+- **Inspector drawer** = Full detail editing (stage name, actor, actions, transitions, parameters)
+- **Accessibility baseline** = Keyboard nav, screen reader support, WCAG 2.2 AA from day 1
+
+## Problem Solved
+
+Current workflow editor splits the right panel between inspector (top) and conversation pane (bottom), creating:
+- Cramped vertical space
+- Confusion about editing vs. conversation
+- Hard to see role responsibilities at a glance
+
+The swim-lane model solves all three: roles are first-class, stages stay compact, and the inspector drawer gives full power when needed.
+
+## Acceptance Criteria
+
+[List from above]
+
+## Implementation Shape
+
+This is ONE parent issue with clear sub-tasks (see decision doc). Start with role grouping, then canvas, then drawer. Accessibility is embedded in each task.
+
+## Sequencing
+
+- Depends on: #55, #56, #57 (foundation)
+- Blocked by: Active shortcut-mismatch slice (one-at-a-time rule)
+- Estimated: 4–6 weeks after shortcut slice merges
+
+## Design Reference
+
+- **Design doc:** `docs/design/workflow-editor-v1/01-authoring-ux.md` (sections on Model 2)
+- **Decision:** `.squad/decisions.md` (Tom Nook swim-lane proposal, 2026-05-19)
+```
+
+---
+
+## Team Assignments
+
+**Proposed Squad Routing:**
+- **Isabelle** (Frontend/UI) — Lead; owns swim-lane layout, stage cards, inspector drawer styling
+- **Blathers** (Backend/Infrastructure) — Undo/redo state machine, event sourcing, debouncing
+- **Tangy** (QA/Accessibility) — Keyboard navigation specs, accessibility testing, axe-core scans
+- **Copilot** (if needed) — Refactoring / state management details on request
+
+---
+
+## Decision Checkpoint
+
+✅ **Locked in:** Role-first swim-lane editor (Model 2), stage drill-in, no embedded conversation, accessibility baseline, atomic undo/redo  
+✅ **Rejected:** Full-screen tabs, vertical swim lanes, embedded AI pane, modal-based parameter editing  
+✅ **Ready:** Create GitHub issue #XYZ with title and body as specified above  
+✅ **Next review:** Assign to Isabelle and Blathers; review with team before sprint planning
+
+---
+
+*Prepared by Tom Nook (Lead) for team sequencing and execution planning.*  
+*Date: 2026-05-19T19:39:04.940+01:00*
+
+---
+author: tom-nook
+date: 2026-05-19T22:41:48.843+01:00
+status: proposal
+---
+
+# Workflow Host Alignment: Runtime Seeds vs Authored Definitions
+
+## Context
+
+Jonny raised a concern that the MockBusinessApp shows 5 workflow services, 4 of which display "No editor definition yet" and 1 (planning) that has an editor link. He asked whether this is a justified architecture boundary or accidental drift, and whether we should simplify back to the spirit of Prism with a single shared definition source.
+
+---
+
+## 1. Is the split justified? — Verdict: Accidental drift
+
+The **three-plane architecture** (authored → projector → runtime) is correct and should be preserved. But the current state has drifted significantly from that intent:
+
+- `workflow-seeds/` contains **5 hand-crafted runtime format files** (`WorkflowDefinitionFile` shape — `definitionKey`, `states`, `transitions`). Four of them (community-enquiry, information-request, payment-demo, planning-notification) have no authored source. They predate the editor and were created directly in Prism's runtime format.
+- `workflow-authored/` contains **1 authored file** (`planning.workflow.json`) in the editor's richer `AuthoredWorkflow` shape (`stages`, richer transitions, handoffs, parameter schemas).
+- The authored store and the runtime engine draw from **completely disjoint directories**. Neither knows about the other's content. The admin screen bridges them with a key-membership check, but that bridge is fragile.
+
+This is drift, not design.
+
+---
+
+## 2. Why only planning shows an editor definition — File-level evidence
+
+**Program.cs (lines 36–42):**
+```csharp
+var authoredWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-authored");
+var publishedWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds");
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => InMemoryAuthoredWorkflowStore.FromFilesystemDirectory(authoredWorkflowPath));
+builder.Services.AddPrismWorkflowRuntime<BusinessAppWorkflowEngine>(publishedWorkflowPath);
+```
+
+The **authored store** seeds from `workflow-authored/` — which contains only `planning.workflow.json`.  
+The **runtime engine** seeds from `workflow-seeds/` — which contains all 5 `.json` files.
+
+**Program.cs (lines 338–342 + 451):**
+```csharp
+var authoredWorkflowEntries = await authoredWorkflowStore.ListAsync(ct);
+var loadableAuthoredWorkflowKeys = authoredWorkflowEntries
+    .Where(entry => entry.IsLoadable)
+    .Select(entry => entry.WorkflowKey)  // filename-derived key
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+// ...
+var hasAuthoredWorkflow = loadableAuthoredWorkflowKeys.Contains(def.DefinitionKey);
+```
+
+The admin screen checks whether each runtime `def.DefinitionKey` (e.g., `"planning"`) exists as a key in the authored store (e.g., `"planning"` from filename `planning.workflow.json`). For planning this matches; for the other 4 it does not — because no `*.workflow.json` files exist for them in `workflow-authored/`.
+
+**Secondary inconsistency:** The authored file `planning.workflow.json` has an internal `definitionKey` of `"planning-application"` — not `"planning"`. The lookup succeeds only because the admin uses the filename-based route key, not the internal `definitionKey`. This is a known quirk (documented in the `workflow-authoring-live-seed-contract` skill) but worth noting: the runtime seed key and the authored definition key do not match.
+
+---
+
+## 3. The GDS E2E test confusion — two separate "planning" concepts
+
+`workflow-gds-journey.spec.ts` navigates to Umbraco routes like `/apply-for-planning-permission` and expects stage headings matching `planning-notification.json` (initialState `project-details`, displayName "Describe your project"). This is the **Umbraco public-facing planning workflow** — not the same as the MockBusinessApp's `planning` workflow or the `planning.workflow.json` authored source.
+
+There are three separate things all called "planning" with no clear lineage between them:
+- `workflow-seeds/planning.json` — MockBusinessApp runtime planning application
+- `workflow-authored/planning.workflow.json` — authored planning application (definitionKey: `planning-application`)  
+- `workflow-seeds/planning-notification.json` — Umbraco public-facing planning notification (used by GDS E2E tests)
+
+The GDS tests exercise the **runtime execution plane via Umbraco**. The editor exercises the **authoring plane via MockBusinessApp**. They are legitimately on different planes, but sharing a name without shared lineage creates genuine confusion for developers reading the codebase.
+
+---
+
+## 4. Assessment of the proposed simplification
+
+Jonny's proposal is correct in spirit: all 5 workflows should draw from a single source of truth — the authored definition — and the runtime should be a projected output of that source, not a parallel hand-crafted artefact.
+
+The good news: the infrastructure for this already exists.
+- `InMemoryAuthoredWorkflowStore` with `.FromFilesystemDirectory()` already seeds from JSON files into memory.
+- `InMemoryRuntimePublishedWorkflowStore` already exists as an in-memory runtime target.
+- The `IWorkflowPublishService` already projects authored → runtime format.
+
+What is missing is the **startup wiring**: at boot, load all authored definitions → project each → publish into the runtime store. If this were done, `workflow-seeds/` would not need to exist as a direct runtime source for workflows that have authored definitions. The workflow-seeds files for the 4 "authored-less" workflows would need to become authored definitions (or be dropped from the reference app as non-canonical examples).
+
+---
+
+## 5. Recommended direction
+
+**Keep the three-plane architecture.** It is the right boundary. The author plane rightly knows more than the runtime format, and the projector rightly owns the translation. Do not collapse this.
+
+**Fix the population split:**
+1. Create authored definitions (`.workflow.json`) for the 4 workflows that currently exist only as runtime seeds — OR — remove the 4 runtime-only seeds from the reference app and reduce the showcase to a smaller number of fully-authored workflows.
+2. Wire startup to project authored definitions into the runtime store at boot (`IWorkflowPublishService.PublishAsync` for each authored definition). Remove `workflow-seeds/` as the direct runtime seed directory, or keep it only as a fallback for workflows that have no authored source yet.
+3. The in-memory stores are correct for the reference app. Keep them. Filesystem persistence is opt-in for the editor package, not a requirement for the host.
+
+**Fix the key naming ambiguity:**
+- The admin screen's `loadableAuthoredWorkflowKeys.Contains(def.DefinitionKey)` join is working by coincidence. Make it explicit: either the authored store should provide a `workflowKey → definitionKey` mapping and the admin should join on `workflowKey`, or the runtime store should carry the authored source key as a provenance field. The `workflow-authoring-live-seed-contract` skill documents the existing quirk.
+
+**Clarify the "planning" naming:**
+- Rename `planning-notification` to something that doesn't collide with the authoring showcase (`planning-gds-journey` or similar), or document explicitly that it is the Umbraco-side runtime companion to the authored planning application. This is low-risk but removes real confusion.
+
+**Do not do:** Do not collapse authored and runtime into one JSON format. The richer authored format is exactly the value the editor delivers. The projector is not overhead; it is the seam that keeps the editor free to evolve without touching runtime.
+
+---
+
+## Routing
+
+This is a cross-cutting concern touching:
+- **Blathers** — startup publish pipeline wiring (project authored → runtime at boot)
+- **Isabelle** — no immediate UI change needed, but the admin screen key lookup should be cleaned up
+- **Tangy** — `WorkflowAuthoringEndpointsTests` and `MockBusinessAppPlanningWorkflowSeedTests` will need counterpart tests for the new authored seeds once they exist
+
+Recommend raising a scoped GitHub issue (child of #57 — deterministic publish pipeline) to track the startup-seeding wiring.
+

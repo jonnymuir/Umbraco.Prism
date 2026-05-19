@@ -145,3 +145,42 @@ This is a product-level behavioral mismatch, not shared-stack contention. The vi
 **References:**
 - `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
 - `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`
+
+## 2026-05-19T21:15:20.177+01:00: Debugger shutdown cleanup validation
+
+### Context
+User reported that stopping the VS Code debugger doesn't cleanly shut down the full Aspire process tree, leaving stale listeners and containers behind.
+
+### Investigation
+- Verified baseline: no stale processes before debugger start
+- Reviewed web sources: confirmed this is a known VS Code CoreCLR + Aspire DCP limitation ([dotnet/aspire#625](https://github.com/dotnet/aspire/issues/625))
+- Analyzed existing cleanup patterns in `live-app-host.ts` (SIGTERM → SIGKILL cascade, individual PIDs, port listener checks)
+- Found that `.vscode/launch.json` already had `postDebugTask` configured by Blathers
+
+### Solution implemented
+Blathers already added:
+1. `scripts/cleanup-aspire-processes.sh` — cleanup script (AppHost/DCP PIDs + Docker containers)
+2. `.vscode/tasks.json` — `"Aspire: cleanup after debug"` task
+3. `.vscode/launch.json` — `postDebugTask` reference in Aspire launch config
+
+I added:
+1. `scripts/validate-debugger-cleanup.sh` — validation script to check for stale processes/containers
+2. Decision document at `.squad/decisions/inbox/tangy-debugger-shutdown-validation.md`
+
+### Verdict
+**Platform limitation with repo-owned mitigation in place.** VS Code's CoreCLR debugger does not propagate shutdown to Aspire's full DCP process tree. The `postDebugTask` approach is the correct repo-level fix until an upstream debugger improvement lands.
+
+### Validation approach
+Run `./scripts/validate-debugger-cleanup.sh` before and after debugger stop. Baseline should be clean; post-stop should remain clean due to `postDebugTask`.
+
+### Learnings
+- **postDebugTask pattern:** VS Code's standard hook for cleanup after debugger termination
+- **Platform vs. product:** This is a VS Code debugger limitation, not a repo-owned API contract — no Playwright test needed
+- **Cleanup primitives:** Align repo validation scripts with existing test patterns (live-app-host.ts)
+- **Graceful degradation:** SIGTERM first, SIGKILL fallback, individual PIDs (safer than name-based process killing)
+- **Workflow authoring source gate:** Admin links, workflow list summaries, and load routes must round-trip on the same host-facing workflow key even when the authored `definitionKey` differs (for example `planning` → `planning-application`).
+- **Live-store regression seam:** Filesystem-backed endpoint tests can stay green while the in-memory host regresses; keep one test on the real host path plus one unit test for store alias preservation.
+
+## Scribe Consolidation (2026-05-19T21:41:48.843Z)
+
+Decisions consolidated into team decisions log. Orchestration recorded.

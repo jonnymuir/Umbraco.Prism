@@ -11,6 +11,9 @@ Backend Developer specializing in core infrastructure and pipeline design.
 
 ## Learnings
 
+- 2026-05-19T21:15:20.177+01:00 — Aspire debugger cleanup: VS Code's .NET debugger does not automatically clean up child processes spawned by Aspire DCP (Distributed Application Runtime) or Docker containers. Use `postDebugTask` in `.vscode/launch.json` to wire an automated cleanup script that terminates orphaned processes and stops Aspire-labeled containers on debugger stop.
+- 2026-05-19T21:15:20.177+01:00 — Process cleanup safety: Cleanup scripts must use specific PIDs (`kill $PID`) rather than name-based killing (`pkill`, `killall`) per security guidelines. Pattern: find PIDs via `ps aux | grep pattern`, validate with `kill -0 $PID`, terminate gracefully (`kill`), then force kill (`kill -9`) after a brief wait.
+- 2026-05-19T21:15:20.177+01:00 — Aspire container identification: Docker containers spawned by Aspire carry the label `aspire.resource.name`, making them queryable via `docker ps --filter "label=aspire.resource.name"`. This enables targeted cleanup of Aspire-managed containers without affecting other developer containers.
 - 2026-05-18T22:14:30.041+01:00 — Planning workflow alignment: The TestSite's `PlanningWorkflowKey` must match the authored workflow's `definitionKey` to enable honest end-to-end validation. Changed from `"planning-notification"` to `"planning"` so editor and runtime serve the same workflow structure.
 - 2026-05-18T22:14:30.041+01:00 — Workflow routing contract: The TestSite seed uses `TestSiteSeedContract.cs` constants to wire Umbraco content nodes to workflow definitions. Mismatched keys block E2E testing because the runtime serves a different workflow than the editor authors.
 - 2026-05-18T22:14:30.041+01:00 — Fixture preservation: Keep legacy workflow seeds (like `planning-notification.json`) even when changing primary routes, as other tests may reference them for validation coverage.
@@ -77,3 +80,7 @@ Deep-link parameter mismatch between admin card URL (`workflow=planning-notifica
 **References:**
 - `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
 - `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`
+
+## Scribe Consolidation (2026-05-19T21:41:48.843Z)
+
+Decisions consolidated into team decisions log. Orchestration recorded.
