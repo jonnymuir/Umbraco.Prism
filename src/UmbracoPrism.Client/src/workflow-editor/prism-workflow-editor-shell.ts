@@ -1,5 +1,6 @@
 import { LitElement, css, html } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
+import { live } from 'lit/directives/live.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { WorkflowAuthoringSummary } from './workflow-authoring-client.js';
 import {
@@ -22,6 +23,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   @state() private _workflowOptions: WorkflowAuthoringSummary[] = [];
   @state() private _loadingOptions = false;
   @state() private _optionsError: string | null = null;
+  @state() private _requestedWorkflowMissing = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -50,15 +52,18 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   private async _loadWorkflowOptions(): Promise<void> {
     this._loadingOptions = true;
     this._optionsError = null;
+    this._requestedWorkflowMissing = false;
 
     try {
       const options = await listWorkflows(this._resolvedAuthoringApiBase);
       this._workflowOptions = options;
+      const requestedWorkflowAvailable = options.some(option => option.workflowKey === this.workflowKey);
+      this._requestedWorkflowMissing = options.length > 0 && !requestedWorkflowAvailable;
 
-      if (!options.some(option => option.definitionKey === this.workflowKey) && options.length > 0) {
-        this.workflowKey = options[0].definitionKey;
+      if (requestedWorkflowAvailable) {
         this._draftWorkflowKey = this.workflowKey;
-        this._syncUrl();
+      } else if (!this._draftWorkflowKey.trim() && options.length > 0) {
+        this._draftWorkflowKey = options[0].workflowKey;
       }
     } catch (error) {
       this._workflowOptions = [];
@@ -90,16 +95,31 @@ export class PrismWorkflowEditorShellElement extends LitElement {
 
   private _renderWorkflowOptions() {
     if (this._workflowOptions.length === 0) {
-      return html`<option value="${this._draftWorkflowKey}">${this._draftWorkflowKey}</option>`;
+      return html`
+        <option value="${this._draftWorkflowKey}" ?selected="${true}">
+          ${this._draftWorkflowKey}
+        </option>
+      `;
     }
 
-    return this._workflowOptions.map(
-      option => html`
-        <option value="${option.definitionKey}">
-          ${option.displayName} (${option.definitionKey})
-        </option>
-      `
-    );
+    const requestedOption = this._requestedWorkflowMissing
+      ? html`
+          <option value="${this._draftWorkflowKey}" ?selected="${true}">
+            ${this._draftWorkflowKey} (requested URL — not available from this authoring API)
+          </option>
+        `
+      : null;
+
+    return [
+      requestedOption,
+      ...this._workflowOptions.map(
+        option => html`
+          <option value="${option.workflowKey}" ?selected="${option.workflowKey === this._draftWorkflowKey}">
+            ${option.displayName} (${option.workflowKey}${option.definitionKey !== option.workflowKey ? ` → ${option.definitionKey}` : ''})
+          </option>
+        `
+      )
+    ];
   }
 
   private _renderSnippet() {
@@ -137,7 +157,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
               <label for="workflow-key">Workflow definition</label>
               <select
                 id="workflow-key"
-                .value="${this._draftWorkflowKey}"
+                .value="${live(this._draftWorkflowKey)}"
                 @change="${(event: Event) => {
                   this._draftWorkflowKey = (event.target as HTMLSelectElement).value;
                 }}"
@@ -171,6 +191,14 @@ export class PrismWorkflowEditorShellElement extends LitElement {
               ? html`
                   <p class="inline-error" role="alert">
                     Could not query the authoring API: ${this._optionsError}
+                  </p>
+                `
+              : null}
+            ${this._requestedWorkflowMissing
+              ? html`
+                  <p class="inline-warning">
+                    The current URL requests <code>${this.workflowKey}</code>, but this authoring API
+                    does not list it. The shell is staying on that key instead of switching workflows.
                   </p>
                 `
               : null}
@@ -354,6 +382,14 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       border-left: 4px solid #d4351c;
       background: #fce8e6;
       color: #d4351c;
+    }
+
+    .inline-warning {
+      margin-bottom: 0;
+      padding: 0.75rem 1rem;
+      border-left: 4px solid #1d70b8;
+      background: #e8f1fb;
+      color: #003078;
     }
 
     .content {

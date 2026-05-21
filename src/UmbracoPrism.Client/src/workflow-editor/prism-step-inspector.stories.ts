@@ -2,19 +2,40 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import { expect } from '@storybook/test';
 import './prism-step-inspector.js';
 import type { PrismStepInspectorElement } from './prism-step-inspector.js';
-import { STUB_WORKFLOW } from './types.js';
-import type { AuthoredWorkflow } from './types.js';
+import { STUB_ACTION_CATALOG, STUB_WORKFLOW } from './types.js';
+import type { ActionCatalogEntry, AuthoredWorkflow } from './types.js';
 
 type StoryArgs = {
   workflow: AuthoredWorkflow | null;
   selectedStageKey: string | null;
+  selectedTransitionIndex?: number | null;
+  actionCatalog: ActionCatalogEntry[];
 };
 
 function makeElement(args: StoryArgs): PrismStepInspectorElement {
   const el = document.createElement('prism-step-inspector') as PrismStepInspectorElement;
   el.workflow = args.workflow;
   el.selectedStageKey = args.selectedStageKey;
-  el.style.cssText = 'display: block; width: 360px; height: 480px;';
+  el.selectedTransitionIndex = args.selectedTransitionIndex ?? null;
+  el.actionCatalog = args.actionCatalog;
+  el.addEventListener('workflow-updated', event => {
+    const detail = (event as CustomEvent<{
+      workflow: AuthoredWorkflow;
+      selection?: { kind?: 'stage' | 'transition'; stageKey?: string; transitionIndex?: number } | null;
+    }>).detail;
+    el.workflow = detail.workflow;
+    if (detail.selection?.kind === 'transition') {
+      el.selectedTransitionIndex = detail.selection.transitionIndex ?? null;
+      el.selectedStageKey = null;
+    } else if (detail.selection?.stageKey) {
+      el.selectedStageKey = detail.selection.stageKey;
+      el.selectedTransitionIndex = null;
+    } else {
+      el.selectedStageKey = null;
+      el.selectedTransitionIndex = null;
+    }
+  });
+  el.style.cssText = 'display:block;width:380px;height:640px;';
   return el;
 }
 
@@ -35,81 +56,111 @@ const meta: Meta<StoryArgs> = {
   args: {
     workflow: null,
     selectedStageKey: null,
+    selectedTransitionIndex: null,
+    actionCatalog: STUB_ACTION_CATALOG,
   },
-  render: (args) => makeElement(args),
+  render: args => makeElement(args),
 };
 
 export default meta;
 type Story = StoryObj<StoryArgs>;
 
 export const Empty: Story = {
-  args: { workflow: null, selectedStageKey: null },
   play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(resolve => setTimeout(resolve, 100));
     const el = canvasElement.querySelector('prism-step-inspector') as PrismStepInspectorElement;
     await el.updateComplete;
-
-    const root = el.shadowRoot!;
-    const container = root.querySelector('[data-prism-component="step-inspector"]');
-    await expect(container).not.toBeNull();
-
-    const emptyState = root.querySelector('.empty-state');
-    await expect(emptyState).not.toBeNull();
+    await expect(el.shadowRoot?.querySelector('.empty-state')).not.toBeNull();
   },
 };
 
-export const CaptureStage: Story = {
-  args: { workflow: STUB_WORKFLOW, selectedStageKey: 'applicant-details' },
+export const EditableStage: Story = {
+  args: {
+    workflow: STUB_WORKFLOW,
+    selectedStageKey: 'reviewer-assessment',
+  },
   play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(resolve => setTimeout(resolve, 120));
     const el = canvasElement.querySelector('prism-step-inspector') as PrismStepInspectorElement;
     await el.updateComplete;
 
     const root = el.shadowRoot!;
-    const container = root.querySelector('[data-prism-component="step-inspector"]')!;
-    await expect(container).not.toBeNull();
+    const title = root.querySelector<HTMLInputElement>('[data-prism-stage-title]')!;
+    title.value = 'Applicant Intake';
+    title.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
 
-    const stageDetail = root.querySelector('[data-prism-stage-detail="applicant-details"]');
-    await expect(stageDetail).not.toBeNull();
+    const actor = root.querySelector<HTMLSelectElement>('[data-prism-stage-actor]')!;
+    actor.value = 'member';
+    actor.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
 
-    const h2 = root.querySelector('h2');
-    await expect(h2).not.toBeNull();
-    await expect(h2?.textContent?.trim()).toContain('Applicant Details');
+    const stageType = root.querySelector<HTMLSelectElement>('[data-prism-stage-type]')!;
+    stageType.value = 'review';
+    stageType.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
 
-    const h3s = root.querySelectorAll('h3');
-    await expect(h3s.length).toBeGreaterThan(0);
+    const actionEditor = root.querySelector('prism-workflow-action-editor')!;
+    await expect(actionEditor).not.toBeNull();
+    await expect(actionEditor.shadowRoot?.querySelectorAll('[data-prism-stage-action]').length).toBe(2);
+    await expect(actionEditor.shadowRoot?.querySelector('[data-prism-action-forms-editor="1"]')).not.toBeNull();
+    await expect(root.querySelector('[data-prism-stage-detail="reviewer-assessment"]')).not.toBeNull();
   },
 };
 
-export const WaitingStage: Story = {
-  args: { workflow: STUB_WORKFLOW, selectedStageKey: 'waiting-for-review' },
-  play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 100));
-    const el = canvasElement.querySelector('prism-step-inspector') as PrismStepInspectorElement;
-    await el.updateComplete;
-
-    const root = el.shadowRoot!;
-    const h2 = root.querySelector('h2');
-    await expect(h2?.textContent?.trim()).toContain('Waiting for Review');
-
-    const waitingSection = root.querySelector('[id^="section-waiting"]');
-    await expect(waitingSection).not.toBeNull();
+export const ActionConfiguration: Story = {
+  args: {
+    workflow: STUB_WORKFLOW,
+    selectedStageKey: 'reviewer-assessment',
   },
 };
 
-export const DecisionStage: Story = {
-  args: { workflow: STUB_WORKFLOW, selectedStageKey: 'reviewer-assessment' },
+export const TransitionSelected: Story = {
+  args: {
+    workflow: STUB_WORKFLOW,
+    selectedTransitionIndex: 0,
+  },
   play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(resolve => setTimeout(resolve, 100));
     const el = canvasElement.querySelector('prism-step-inspector') as PrismStepInspectorElement;
     await el.updateComplete;
 
     const root = el.shadowRoot!;
-    const h2 = root.querySelector('h2');
-    await expect(h2?.textContent?.trim()).toContain('Reviewer Assessment');
+    await expect(root.querySelector('[data-prism-inspector-kind="transition"]')).not.toBeNull();
 
-    const roleTag = root.querySelector('.role-tag');
-    await expect(roleTag).not.toBeNull();
-    await expect(roleTag?.textContent?.trim()).toContain('Planning Officer');
+    const labelInput = root.querySelector<HTMLInputElement>('[data-prism-transition-label]')!;
+    labelInput.value = 'route-for-review';
+    labelInput.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
+
+    const actionPreset = root.querySelector<HTMLSelectElement>('[data-prism-transition-action]')!;
+    actionPreset.value = 'submit';
+    actionPreset.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
+
+    const targetSelect = root.querySelector<HTMLSelectElement>('[data-prism-transition-target]')!;
+    targetSelect.value = 'reviewer-assessment';
+    targetSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
+
+    const conditionMode = root.querySelector<HTMLSelectElement>('[data-prism-transition-condition-mode]')!;
+    conditionMode.value = 'event';
+    conditionMode.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
+
+    const conditionValue = root.querySelector<HTMLInputElement>('[data-prism-transition-condition-value]')!;
+    conditionValue.value = 'application-submitted';
+    conditionValue.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    await el.updateComplete;
+
+    await expect(root.querySelector<HTMLInputElement>('[data-prism-transition-label]')?.value).toBe('submit');
+    await expect(root.querySelector('[data-prism-transition-detail="applicant-details-submit-reviewer-assessment"]')).not.toBeNull();
+  },
+};
+
+export const TransitionActionConfiguration: Story = {
+  args: {
+    workflow: STUB_WORKFLOW,
+    selectedTransitionIndex: 0,
   },
 };

@@ -179,7 +179,7 @@ export class PrismConversationPaneElement extends LitElement {
         ${this.proposal ? html`
           <div class="proposal-area" aria-label="Agent proposal">
             <prism-proposal-diff
-              .proposal="${this.proposal}"
+            .proposal=${this.proposal}
               @proposal-accept="${this._handleProposalAccept}"
               @proposal-reject="${this._handleProposalReject}"
             ></prism-proposal-diff>

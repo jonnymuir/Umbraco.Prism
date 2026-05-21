@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using UmbracoPrism.WorkflowEditor.Extensions;
 
 namespace UmbracoPrism.WorkflowEditor.Authoring.Http;
 
@@ -8,19 +9,12 @@ namespace UmbracoPrism.WorkflowEditor.Authoring.Http;
 public static class WorkflowAuthoringServiceExtensions
 {
     /// <summary>
-    /// Registers <see cref="IWorkflowProjector"/>, <see cref="IWorkflowPatchService"/>,
-    /// <see cref="IWorkflowPreviewService"/>, and a filesystem-backed <see cref="IAuthoredWorkflowStore"/>
-    /// pointing at <paramref name="authoredWorkflowBasePath"/>.
+    /// Registers the workflow authoring services and default filesystem-backed persistence.
+    /// Hosts can override the persistence services before calling this method.
     /// </summary>
     public static IServiceCollection AddWorkflowAuthoring(
         this IServiceCollection services,
-        string authoredWorkflowBasePath)
-    {
-        services.AddSingleton<IAuthoredWorkflowStore>(
-            _ => new FilesystemAuthoredWorkflowStore(authoredWorkflowBasePath));
-        services.AddSingleton<IWorkflowProjector, WorkflowProjector>();
-        services.AddSingleton<IWorkflowPatchService, WorkflowPatchService>();
-        services.AddSingleton<IWorkflowPreviewService, WorkflowPreviewService>();
-        return services;
-    }
+        string authoredWorkflowBasePath,
+        string? publishedWorkflowBasePath = null) =>
+        services.AddPrismWorkflowEditor(authoredWorkflowBasePath, publishedWorkflowBasePath);
 }

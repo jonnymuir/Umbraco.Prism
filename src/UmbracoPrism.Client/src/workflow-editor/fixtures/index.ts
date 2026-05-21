@@ -2,24 +2,17 @@
  * Planning workflow fixture — shared between Core.Tests and Client.
  * The raw JSON is byte-aligned with:
  *   src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json
- *
- * `normalisePlanningFixture` maps the raw fixture field names to the
- * TypeScript AuthoredWorkflow types (camelCase, FieldKind mapping).
- * Stages carry their fields directly; transitions live at the workflow level.
  */
 
 import type {
-  AuthoredWorkflow,
-  AuthoredStage,
+  AuthoredAction,
   AuthoredField,
+  AuthoredStage,
   AuthoredTransition,
-  StageKind,
+  AuthoredWorkflow,
   FieldKind,
+  StageKind,
 } from '../types.js';
-
-// ---------------------------------------------------------------------------
-// Raw fixture shape (mirrors the JSON on disk)
-// ---------------------------------------------------------------------------
 
 interface FixtureField {
   key: string;
@@ -30,11 +23,21 @@ interface FixtureField {
   options: string[];
 }
 
+interface FixtureAction {
+  type: string;
+  timing: AuthoredAction['timing'];
+  parameterSchemaKey?: string;
+  params?: Record<string, unknown>;
+  summary?: string;
+}
+
 interface FixtureStage {
   stageKey: string;
   displayName: string;
+  description?: string;
   kind: string;
   actor?: string;
+  actions: FixtureAction[];
   fields: FixtureField[];
   roleGates: string[];
   editorComment?: string;
@@ -44,6 +47,7 @@ interface FixtureTransition {
   fromStage: string;
   toStage: string;
   action: string;
+  actions?: FixtureAction[];
 }
 
 interface RawPlanningWorkflow {
@@ -58,10 +62,6 @@ interface RawPlanningWorkflow {
   transitions: FixtureTransition[];
 }
 
-// ---------------------------------------------------------------------------
-// Inline fixture data (byte-aligned with the JSON file)
-// ---------------------------------------------------------------------------
-
 const RAW: RawPlanningWorkflow = {
   id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   definitionKey: 'planning-application',
@@ -74,8 +74,18 @@ const RAW: RawPlanningWorkflow = {
     {
       stageKey: 'declaration',
       displayName: 'Declaration',
+      description: 'Collects applicant and site identity before the full planning form.',
       kind: 'Question',
       actor: 'applicant',
+      actions: [
+        {
+          type: 'forms.load',
+          timing: 'OnEntry',
+          parameterSchemaKey: 'forms-form-definition',
+          params: { formDefinitionId: 'planning-declaration' },
+          summary: 'Load the declaration form.',
+        },
+      ],
       fields: [
         {
           key: 'applicant-name',
@@ -100,8 +110,18 @@ const RAW: RawPlanningWorkflow = {
     {
       stageKey: 'application-form',
       displayName: 'Application Form',
+      description: 'Captures the substantive planning request.',
       kind: 'Question',
       actor: 'applicant',
+      actions: [
+        {
+          type: 'forms.save',
+          timing: 'OnExit',
+          parameterSchemaKey: 'forms-form-definition',
+          params: { formDefinitionId: 'planning-application' },
+          summary: 'Persist the application form before moving on.',
+        },
+      ],
       fields: [
         {
           key: 'description',
@@ -124,8 +144,10 @@ const RAW: RawPlanningWorkflow = {
     {
       stageKey: 'check-answers',
       displayName: 'Check your answers',
+      description: 'Summarises captured answers before final submission.',
       kind: 'CheckAnswers',
       actor: 'applicant',
+      actions: [],
       fields: [],
       roleGates: [],
       editorComment: 'Summary of all answers before final submission.',
@@ -133,47 +155,84 @@ const RAW: RawPlanningWorkflow = {
     {
       stageKey: 'submitted',
       displayName: 'Application submitted',
+      description: 'Confirms receipt and moves the case into reviewer handling.',
       kind: 'Confirmation',
       actor: 'applicant',
+      actions: [],
       fields: [],
       roleGates: [],
     },
   ],
   transitions: [
-    { fromStage: 'declaration', toStage: 'application-form', action: 'continue' },
-    { fromStage: 'application-form', toStage: 'check-answers', action: 'continue' },
-    { fromStage: 'check-answers', toStage: 'submitted', action: 'submit' },
+    { fromStage: 'declaration', toStage: 'application-form', action: 'continue', actions: [] },
+    { fromStage: 'application-form', toStage: 'check-answers', action: 'continue', actions: [] },
+    {
+      fromStage: 'check-answers',
+      toStage: 'submitted',
+      action: 'submit',
+      actions: [
+        {
+          type: 'forms.submit',
+          timing: 'OnTransition',
+          parameterSchemaKey: 'forms-form-definition',
+          params: { formDefinitionId: 'planning-application' },
+          summary: 'Submit the application form to the business app.',
+        },
+      ],
+    },
   ],
 };
 
-// ---------------------------------------------------------------------------
-// Normalisation helpers
-// ---------------------------------------------------------------------------
-
 function mapKind(raw: string): StageKind {
   switch (raw) {
-    case 'Question':       return 'Question';
-    case 'CheckAnswers':   return 'CheckAnswers';
-    case 'Confirmation':   return 'Confirmation';
-    case 'TaskList':       return 'TaskList';
-    case 'Waiting':        return 'Waiting';
-    case 'StatusTimeline': return 'StatusTimeline';
-    default:               return 'Question';
+    case 'Question':
+      return 'Question';
+    case 'CheckAnswers':
+      return 'CheckAnswers';
+    case 'Confirmation':
+      return 'Confirmation';
+    case 'TaskList':
+      return 'TaskList';
+    case 'Waiting':
+      return 'Waiting';
+    case 'StatusTimeline':
+      return 'StatusTimeline';
+    default:
+      return 'Question';
   }
 }
 
 function mapFieldKind(raw: string): FieldKind {
   switch (raw) {
-    case 'Text':        return 'TextInput';
-    case 'Textarea':    return 'Textarea';
-    case 'Select':      return 'Select';
-    case 'Radios':      return 'Radios';
-    case 'Checkboxes':  return 'Checkboxes';
-    case 'Date':        return 'DateInput';
-    case 'FileUpload':  return 'FileUpload';
-    case 'Hidden':      return 'Hidden';
-    default:            return 'TextInput';
+    case 'Text':
+      return 'TextInput';
+    case 'Textarea':
+      return 'Textarea';
+    case 'Select':
+      return 'Select';
+    case 'Radios':
+      return 'Radios';
+    case 'Checkboxes':
+      return 'Checkboxes';
+    case 'Date':
+      return 'DateInput';
+    case 'FileUpload':
+      return 'FileUpload';
+    case 'Hidden':
+      return 'Hidden';
+    default:
+      return 'TextInput';
   }
+}
+
+function normaliseAction(raw: FixtureAction): AuthoredAction {
+  return {
+    type: raw.type,
+    timing: raw.timing,
+    parameterSchemaKey: raw.parameterSchemaKey,
+    params: raw.params ?? {},
+    summary: raw.summary,
+  };
 }
 
 function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
@@ -181,6 +240,7 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     fromStage: t.fromStage,
     toStage: t.toStage,
     action: t.action,
+    actions: (t.actions ?? []).map(normaliseAction),
   }));
 
   const stages: AuthoredStage[] = raw.stages.map(s => {
@@ -196,8 +256,10 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     return {
       stageKey: s.stageKey,
       displayName: s.displayName,
+      description: s.description,
       kind: mapKind(s.kind),
       actor: s.actor,
+      actions: s.actions.map(normaliseAction),
       fields,
       roleGates: s.roleGates,
       editorComment: s.editorComment,

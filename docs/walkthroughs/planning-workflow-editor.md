@@ -1,6 +1,6 @@
 # Walkthrough — Planning Workflow Editor
 
-A developer-facing guide to using the natural-language workflow editor to inspect and modify a planning permission workflow definition in Umbraco.Prism.
+A developer-facing guide to using the natural-language workflow editor to inspect and modify the planning application workflow definition in Umbraco.Prism.
 
 > **Prerequisites:** Stack running via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Familiarity with the [Planning Notification](planning-notification.md) walkthrough is recommended so you understand the citizen-facing journey you are modifying.
 
@@ -44,21 +44,20 @@ The editor loads with the workflow graph visible in visual (graph) mode. The `<p
 
 ---
 
-## Step 2 — Graph view shows the planning permission stages
+## Step 2 — Graph view shows the planning application stages
 
 `<prism-workflow-graph>` renders the workflow definition as a directed graph. Each stage is a node in the canvas; each permitted transition is an edge.
 
 ![Graph view — planning permission stages](../images/walkthroughs/planning-workflow-editor/02-graph-view-stages.png)
 
-For the planning-permission workflow the stages are (from the planning seed):
+For the live planning workflow the stages are (from the planning seed):
 
 | Stage key | Kind | Description |
 |---|---|---|
-| `applicant-details` | Capture | Personal and contact details |
+| `declaration` | Capture | Applicant identity and site basics |
+| `application-form` | Capture | Main planning request details |
 | `check-answers` | Review | GDS check-answers summary |
-| `waiting-for-review` | Waiting | Holding state while the caseworker assesses |
-| `reviewer-assessment` | Decision | Caseworker approval or rejection |
-| `confirmation` | Terminal | Outcome displayed to the applicant |
+| `submitted` | Terminal | Confirmation that the application was received |
 
 Each node carries `data-prism-stage="{stageKey}"` in shadow DOM — the same selector used by the `workflow-graph-keyboard.spec.ts` accessibility contract tests.
 
@@ -68,7 +67,7 @@ Each node carries `data-prism-stage="{stageKey}"` in shadow DOM — the same sel
 
 Clicking any stage node dispatches a `stage-selected` CustomEvent. `<prism-step-inspector>` renders in the right-hand sidebar.
 
-![Step inspector open — applicant-details stage](../images/walkthroughs/planning-workflow-editor/03-step-inspector-open.png)
+![Step inspector open — declaration stage](../images/walkthroughs/planning-workflow-editor/03-step-inspector-open.png)
 
 The inspector shows the stage's display name, kind, and any role constraints. The sidebar root carries `data-prism-component="step-inspector"` and `data-prism-stage-detail="{stageKey}"`.
 
@@ -80,7 +79,7 @@ The inspector shows the stage's display name, kind, and any role constraints. Th
 
 The inspector lists the polymorphic component tree for the selected stage — sections, fieldsets, form fields, and conditional children. This mirrors the JSON structure in the workflow seed file.
 
-![Step inspector properties — applicant-details](../images/walkthroughs/planning-workflow-editor/04-step-inspector-properties.png)
+![Step inspector properties — declaration](../images/walkthroughs/planning-workflow-editor/04-step-inspector-properties.png)
 
 Each operation (field or component in the tree) carries `data-prism-op-index="{n}"`. The tree is read-only in Wave 1; editing individual components is a Wave 2 milestone.
 
@@ -112,7 +111,7 @@ The full keyboard contract is exercised by [`workflow-graph-keyboard.spec.ts`](.
 ![Natural language change request typed](../images/walkthroughs/planning-workflow-editor/06-nl-request-typed.png)
 
 > **Example request used in this walkthrough:**
-> _"Add an identity verification step before the reviewer assessment stage."_
+> _"Add an identity verification step before submission."_
 
 The conversation pane carries `data-prism-component="conversation-pane"`. The textarea has `data-prism-conversation-input` in shadow DOM. Playwright's `getByRole('textbox')` finds it by piercing the shadow root.
 
@@ -122,7 +121,7 @@ The conversation pane carries `data-prism-component="conversation-pane"`. The te
 
 ## Step 7 — Submit and receive a proposal diff
 
-Clicking Send issues a `POST /api/workflow-authoring/workflows/planning/preview` with the NL request body. Blathers' endpoint invokes the AI agent, which produces an `AuthoringProposal` envelope describing the proposed change as a set of atomic operations.
+Clicking Send issues a `POST /api/workflow-authoring/workflows/planning/preview`. The V1 reference shell still uses the mock drafter, so the backend preview currently validates a canned "identity verification before submission" proposal envelope rather than a real model-generated draft.
 
 ![Proposal diff rendered in conversation thread](../images/walkthroughs/planning-workflow-editor/07-proposal-diff.png)
 
@@ -147,7 +146,7 @@ The Accept all button is accessible via `getByRole('button', { name: /accept all
 
 ## Step 9 — Workflow graph reflects the applied change
 
-After the apply request completes, `<prism-workflow-graph>` re-renders with the updated definition returned by the API. The new identity-verification stage appears as a node in the graph, positioned between `check-answers` and `reviewer-assessment`.
+After the apply request completes, `<prism-workflow-graph>` re-renders with the updated definition returned by the API. The new identity-verification stage appears as a node in the graph before `submitted`.
 
 ![Workflow graph with identity-verification stage applied](../images/walkthroughs/planning-workflow-editor/09-proposal-applied.png)
 

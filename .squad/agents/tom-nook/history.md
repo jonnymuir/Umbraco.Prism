@@ -218,3 +218,66 @@ Decision routing: Future work on #58, #59, #60, #61, #63, #65, #67, #68 treats #
 **Deliverable:** Full assessment written to `.squad/decisions.md` via inbox merge.
 
 **Basis:** Tom Nook background agent (branch hygiene specialist).
+
+## 2026-05-21 — Merge-Readiness Assessment: squad/55-workflow-schema-foundation (Final)
+
+**Status:** 🟡 **Logically ready, not procedurally clean**
+
+**Timestamp:** 2026-05-21T21:54:07.868+01:00
+
+### Summary
+
+The branch is **logically fit to land** once the working-tree is committed (169 uncommitted files). All green blockers are cleared:
+
+- ✅ **Build:** Passes cleanly (6 pre-existing warnings)
+- ✅ **Four-workflow contract:** All 6 tests passing
+- ✅ **Workflow story coherence:** Code/docs/tests use consistent names for all four workflows
+- ✅ **Reference implementation:** ReferenceWorkflowRepository provides all 4 as C# code fallbacks
+
+### Workflow story verification
+
+The four workflows (planning, community-enquiry, information-request, payment-demo) are:
+- Defined in `ReferenceWorkflowRepository.cs`
+- Documented in `docs/guides/reference-workflow-contract.md`
+- Tested by `FourWorkflowReferenceContractTests.cs` (all passing)
+- Consistent across authoring API, admin screen, and runtime engine
+
+No contradictions found. The product story is coherent: the reference app seeds exactly four workflows through a canonical contract, enforced by tests.
+
+### Recommendations
+
+The branch needs three procedures before merge:
+
+1. **Stage 169 uncommitted files** into logical commits:
+   - Backend (Reference Workflow Repository + tests)
+   - Frontend (Editor components + Playwright tests)
+   - Architecture (Docs + design updates)
+   
+2. **Verify each commit** — build and test after each stage
+3. **Merge with assessment context** — document why the four-workflow contract matters
+
+The **"too broad" concern from 2026-05-19** is not a blocker; the three clusters belong together logically as issue #55 foundation work. Splitting would create artificial boundaries.
+
+### Quality bar met
+
+- ✅ Simple, durable seams — four-workflow contract is explicit and enforced
+- ✅ No accidental complexity — ReferenceWorkflowRepository is straightforward
+- ✅ Product story coherent — workflow definitions consistent across all surfaces
+
+**Decision:** Written to `.squad/decisions/inbox/tom-nook-merge-readiness.md`
+
+## 2026-05-21T21:54:07.868+01:00 — Merge-readiness verdict (tom-nook-5)
+
+**Assessment:** squad/55-workflow-schema-foundation branch is logically ready for merge
+
+**Key verdict:** Four-workflow contract satisfied, build green, story coherent. Working tree has 169 uncommitted files across three logical clusters. Recommendation: stage into focused commits before merge.
+
+**Evidence:**
+- ✅ Four-workflow contract: all 6 tests passing
+- ✅ Build: green with only pre-existing warnings
+- ✅ Story consistency: planning-application, community-enquiry, information-request, payment-demo defined in code, docs, tests
+- ✅ Zero merge conflicts
+
+**Staging procedure:** Organize into three commits (backend refs, frontend UX, docs), verify each commit, land with context about the four-workflow canonical contract.
+
+**Decision doc:** `.squad/decisions.md` (merged from inbox/tom-nook-merge-readiness.md)

@@ -60,6 +60,9 @@ public class MemberDashboardController(
         ViewBag.WorkflowAdminUrl = string.IsNullOrWhiteSpace(workflowApiBase)
             ? null
             : $"{workflowApiBase}/admin/workflow";
+        ViewBag.WorkflowEditorUrl = string.IsNullOrWhiteSpace(workflowApiBase)
+            ? null
+            : $"{workflowApiBase}/workflow-editor";
 
         // Render the authored dashboard view directly. On the first authenticated
         // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle

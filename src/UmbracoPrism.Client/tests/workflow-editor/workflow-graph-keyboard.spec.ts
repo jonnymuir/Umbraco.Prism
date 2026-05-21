@@ -1,128 +1,79 @@
-/**
- * Workflow graph — keyboard navigation contract
- *
- * These tests run against Storybook (baseURL: http://127.0.0.1:6006) and assert
- * the keyboard accessibility contracts documented in:
- *   docs/design/workflow-editor-v1/01-authoring-ux.md §2.1 (keyboard shortcuts)
- *   docs/design/workflow-editor-v1/01-authoring-ux.md §2.3 (dual-mode, WCAG 2.1.1)
- *
- * Actual component hooks shipped by Isabelle (data-prism-* attributes):
- *   data-prism-component="workflow-graph"   → inner root div (shadow DOM)
- *   data-prism-mode="graph|linear"          → reflects current view mode
- *   data-prism-stage="{stageKey}"           → individual stage node/card
- *
- * Role-based selectors are used where possible — they pierce shadow DOM and are
- * more resilient than attribute selectors. WCAG 2.1.1 requires all functionality
- * to be available from the keyboard; these tests assert that contract.
- *
- * Story IDs (verified against src/UmbracoPrism.Client/src/workflow-editor/*.stories.ts):
- *   workflow-editor-workflow-graph--populated-workflow → graph mode, STUB_WORKFLOW loaded
- */
+import { expect, test } from '@playwright/test';
 
-import { test, expect } from '@playwright/test';
-
-/** Storybook iframe URL for a given story. */
 function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
 
-// ---------------------------------------------------------------------------
-// 1. Stage-list (linear) mode keyboard navigation
-// ---------------------------------------------------------------------------
+test.describe('Workflow graph workspace', () => {
+  test('linear mode supports keyboard navigation, filtering, and reordering', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
-test.describe('Workflow graph keyboard navigation', () => {
-  test(
-    'Stage list mode supports arrow-key navigation',
-    async ({ page }) => {
-      // Use PopulatedWorkflow story — STUB_WORKFLOW loaded, starts in graph mode.
-      // Story ID verified from prism-workflow-graph.stories.ts (PopulatedWorkflow export).
-      await page.goto(storyUrl('workflow-editor-workflow-graph--populated-workflow'));
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'List view' }).click();
+    const table = page.locator('[data-prism-linear-table]');
+    await expect(table).toBeVisible();
 
-      // Wait for the custom element to be defined and rendered
-      const storyEl = page.locator('prism-workflow-graph');
-      await expect(storyEl).toBeVisible({ timeout: 10_000 });
+    const firstTrigger = page.locator('[data-prism-list-row-trigger]').first();
+    await firstTrigger.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('[data-prism-list-row-trigger]').nth(1)).toBeFocused();
 
-      // Switch to linear mode via the mode-toggle button.
-      // getByRole() pierces shadow DOM — Playwright's aria tree traverses shadow boundaries.
-      const toggleBtn = page.getByRole('button', { name: 'List view' });
-      await expect(toggleBtn).toBeVisible({ timeout: 5_000 });
-      await toggleBtn.click();
+    await firstTrigger.evaluate(element => {
+      element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }));
+    });
+    await expect(page.locator('[data-prism-list-row]').first()).not.toHaveAttribute('data-prism-list-row', 'applicant-details');
 
-      // Linear list is now visible (role="listbox" inside shadow DOM)
-      const listbox = page.getByRole('listbox');
-      await expect(listbox).toBeVisible({ timeout: 5_000 });
+    await page.locator('[data-prism-linear-filter="back-stage"]').click();
+    await expect(page.locator('[data-prism-list-row]')).toHaveCount(1);
+  });
 
-      // Each stage card has role="option" (inside shadow DOM)
-      // WCAG 2.1.1 — Tab into the first row, then Arrow to navigate.
-      const firstOption = page.getByRole('option').first();
-      const secondOption = page.getByRole('option').nth(1);
+  test('create stage dialog validates input and creates a stage', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
-      await firstOption.focus();
-      await expect(firstOption).toBeFocused();
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Add stage' }).click();
 
-      // ArrowDown moves focus to the next stage
-      await page.keyboard.press('ArrowDown');
-      await expect(secondOption).toBeFocused();
+    const dialog = page.locator('[data-prism-create-stage-dialog]');
+    await expect(dialog).toBeVisible();
 
-      // ArrowUp returns focus to the previous stage
-      await page.keyboard.press('ArrowUp');
-      await expect(firstOption).toBeFocused();
+    const keyInput = dialog.locator('[data-prism-create-stage-key]');
+    await keyInput.fill('');
+    await dialog.getByRole('button', { name: 'Create stage' }).click();
+    await expect(page.locator('[data-prism-create-stage-error]')).toContainText(/stage key is required/i);
 
-      // Pressing Enter on a stage fires stage-selected and updates the SR announcer.
-      // The announcer has role="status" (aria-live="polite") in shadow DOM.
-      await page.keyboard.press('Enter');
-      const announcer = page.getByRole('status');
-      if (await announcer.count() > 0) {
-        await expect(announcer).not.toBeEmpty({ timeout: 2_000 });
-      }
-    }
-  );
+    await dialog.locator('[data-prism-create-stage-title]').fill('Site visit');
+    await keyInput.fill('site-visit');
+    await dialog.locator('[data-prism-create-stage-actor]').selectOption('reviewer');
+    await dialog.locator('[data-prism-create-stage-type]').selectOption('review');
+    await dialog.getByRole('button', { name: 'Create stage' }).click();
 
-  // ---------------------------------------------------------------------------
-  // 2. Mode toggle — keyboard accessible, aria-pressed reflects state
-  // ---------------------------------------------------------------------------
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('[data-prism-stage="site-visit"]')).toBeVisible();
+  });
 
-  test(
-    'Mode toggle is keyboard accessible and aria-pressed reflects state',
-    async ({ page }) => {
-      // Use PopulatedWorkflow story — STUB_WORKFLOW loaded, starts in graph mode.
-      // This story does not change mode in its play() function, giving us a clean
-      // initial state: graph canvas visible, aria-pressed="false" on toggle button.
-      await page.goto(storyUrl('workflow-editor-workflow-graph--populated-workflow'));
+  test('delete stage confirmation lists affected transitions', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
-      // Wait for the custom element to render
-      await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'List view' }).click();
+    await page.locator('[data-prism-delete-stage="reviewer-assessment"]').click();
+    const dialog = page.locator('[data-prism-delete-stage-dialog]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('[data-prism-delete-stage-transitions] li')).toHaveCount(3);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+  });
 
-      // Graph starts in visual mode — the canvas has role="application" (shadow DOM)
-      const graphCanvas = page.getByRole('application');
-      await expect(graphCanvas).toBeVisible({ timeout: 5_000 });
+  test('stage selection from graph and list updates the inspector in the host editor', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
 
-      // Toggle button: starts with aria-pressed="false" and label "List view"
-      // (label switches to "Graph view" when in linear mode)
-      const toggleButton = page.getByRole('button', { name: 'List view' });
-      await expect(toggleButton).toBeVisible({ timeout: 5_000 });
-      await expect(toggleButton).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await page.locator('[data-prism-stage="declaration"]').dblclick();
+    await expect(page.locator('prism-step-inspector')).toBeFocused();
+    await expect(page.locator('[data-prism-stage-detail="declaration"]')).toBeVisible();
 
-      // Toggle must be reachable and activatable via keyboard alone (WCAG 2.1.1)
-      await toggleButton.focus();
-      await expect(toggleButton).toBeFocused();
-      await page.keyboard.press('Enter');
-
-      // After toggle: linear-list (listbox) becomes visible, graph canvas removed from DOM
-      const linearList = page.getByRole('listbox');
-      await expect(linearList).toBeVisible({ timeout: 5_000 });
-      await expect(graphCanvas).toHaveCount(0);
-
-      // aria-pressed="true" and button label is now "Graph view" (4.1.2 Name, Role, Value)
-      const toggleButtonInLinear = page.getByRole('button', { name: 'Graph view' });
-      await expect(toggleButtonInLinear).toHaveAttribute('aria-pressed', 'true');
-
-      // Toggle back via keyboard — graph canvas returns, listbox removed
-      await toggleButtonInLinear.focus();
-      await page.keyboard.press('Enter');
-      await expect(graphCanvas).toBeVisible({ timeout: 5_000 });
-      await expect(linearList).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'false');
-    }
-  );
+    await page.locator('prism-workflow-graph').getByRole('button', { name: 'List view' }).click();
+    await page.locator('[data-prism-list-row-trigger]').first().press('Enter');
+    await expect(page.locator('[data-prism-stage-detail]')).toBeVisible();
+  });
 });

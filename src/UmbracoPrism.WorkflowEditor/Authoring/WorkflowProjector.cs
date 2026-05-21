@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
@@ -22,6 +23,18 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 /// </summary>
 public sealed class WorkflowProjector : IWorkflowProjector
 {
+    private readonly IActionCatalogProvider _actionCatalogProvider;
+
+    public WorkflowProjector()
+        : this(new BuiltInActionCatalogProvider())
+    {
+    }
+
+    public WorkflowProjector(IActionCatalogProvider actionCatalogProvider)
+    {
+        _actionCatalogProvider = actionCatalogProvider;
+    }
+
     /// <summary>
     /// Canonical serialization options used for both the checksum computation and external consumers
     /// that need to reproduce the projected JSON. Exposed as a public static so tests can verify
@@ -34,6 +47,15 @@ public sealed class WorkflowProjector : IWorkflowProjector
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
+
+    public static byte[] SerializeCanonical(WorkflowDefinitionFile file) =>
+        JsonSerializer.SerializeToUtf8Bytes(file, CanonicalOptions);
+
+    public static string ComputeCanonicalChecksum(WorkflowDefinitionFile file)
+    {
+        var hash = SHA256.HashData(SerializeCanonical(file));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
 
     /// <inheritdoc/>
     public ProjectionResult Project(AuthoredWorkflow authored)
@@ -71,13 +93,12 @@ public sealed class WorkflowProjector : IWorkflowProjector
             InitialState = authored.InitialStageKey,
             InstancePolicy = authored.InstancePolicy,
             States = states,
-            Transitions = transitions
+            Transitions = transitions,
+            Metadata = EmitWorkflowMetadata(authored)
         };
 
         // 4. Checksum — SHA-256 of canonical UTF-8 JSON (no BOM)
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(file, CanonicalOptions);
-        var hash = SHA256.HashData(bytes);
-        var checksum = Convert.ToHexString(hash).ToLowerInvariant();
+        var checksum = ComputeCanonicalChecksum(file);
 
         return new ProjectionResult
         {
@@ -89,8 +110,10 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
     // ─── Stage 1: Validate ────────────────────────────────────────────────────
 
-    private static void Validate(AuthoredWorkflow authored, List<ProjectionDiagnostic> diagnostics)
+    private void Validate(AuthoredWorkflow authored, List<ProjectionDiagnostic> diagnostics)
     {
+        AuthoredWorkflowSchemaValidator.Validate(authored, diagnostics, _actionCatalogProvider);
+
         var stageKeys = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var stage in authored.Stages)
@@ -146,7 +169,8 @@ public sealed class WorkflowProjector : IWorkflowProjector
         {
             StateKey = stage.StageKey,
             DisplayName = stage.DisplayName,
-            Components = components
+            Components = components,
+            Metadata = EmitStateMetadata(stage)
         };
     }
 
@@ -231,8 +255,120 @@ public sealed class WorkflowProjector : IWorkflowProjector
             FromState = t.FromStage,
             ToState = t.ToStage,
             Action = t.Action,
-            RequiresRole = t.RequiresRole
+            RequiresRole = t.RequiresRole,
+            Metadata = EmitTransitionMetadata(t)
         };
+
+    private static WorkflowDefinitionMetadata? EmitWorkflowMetadata(AuthoredWorkflow authored)
+    {
+        var handoffs = authored.Handoffs.Count == 0
+            ? null
+            : authored.Handoffs
+                .OrderBy(h => h.Id, StringComparer.Ordinal)
+                .Select(h => new WorkflowHandoffDefinition
+                {
+                    Id = h.Id,
+                    FromState = h.FromStage,
+                    ToState = h.ToStage,
+                    Label = h.Label,
+                    ActorChange = h.ActorChange
+                })
+                .ToArray();
+
+        var tags = authored.Metadata.Count == 0
+            ? null
+            : authored.Metadata
+                .OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(authored.Description)
+            && string.IsNullOrWhiteSpace(authored.SchemaVersion)
+            && handoffs is null
+            && tags is null)
+        {
+            return new WorkflowDefinitionMetadata
+            {
+                AuthoredWorkflowId = authored.Id
+            };
+        }
+
+        return new WorkflowDefinitionMetadata
+        {
+            AuthoredWorkflowId = authored.Id,
+            Description = authored.Description,
+            SchemaVersion = authored.SchemaVersion,
+            Tags = tags,
+            Handoffs = handoffs
+        };
+    }
+
+    private static WorkflowStateMetadata? EmitStateMetadata(AuthoredStage stage)
+    {
+        var actions = EmitActions(stage.Actions);
+        var roleGates = stage.RoleGates.Count == 0 ? null : stage.RoleGates.ToArray();
+
+        if (string.IsNullOrWhiteSpace(stage.Description)
+            && string.IsNullOrWhiteSpace(stage.Actor)
+            && roleGates is null
+            && actions is null)
+        {
+            return new WorkflowStateMetadata
+            {
+                StageType = stage.Kind.ToString()
+            };
+        }
+
+        return new WorkflowStateMetadata
+        {
+            Description = stage.Description,
+            StageType = stage.Kind.ToString(),
+            Actor = stage.Actor,
+            RoleGates = roleGates,
+            Actions = actions
+        };
+    }
+
+    private static WorkflowTransitionMetadata? EmitTransitionMetadata(AuthoredTransition transition)
+    {
+        var actions = EmitActions(transition.Actions);
+        var conditions = transition.Conditions.Count == 0
+            ? null
+            : transition.Conditions.Select(c => new WorkflowConditionDefinition
+            {
+                Kind = c.Kind,
+                Expression = c.Expression,
+                Description = c.Description
+            }).ToArray();
+
+        return actions is null && conditions is null
+            ? null
+            : new WorkflowTransitionMetadata
+            {
+                Conditions = conditions,
+                Actions = actions
+            };
+    }
+
+    private static IReadOnlyList<WorkflowActionDefinition>? EmitActions(IReadOnlyList<AuthoredAction> actions) =>
+        actions.Count == 0
+            ? null
+            : actions.Select(a => new WorkflowActionDefinition
+            {
+                Type = a.Type,
+                Timing = a.Timing.ToString(),
+                ParameterSchemaKey = a.ParameterSchemaKey,
+                Summary = a.Summary,
+                Parameters = CloneParameters(a.Parameters)
+            }).ToArray();
+
+    private static JsonObject CloneParameters(JsonObject parameters)
+    {
+        var clone = new JsonObject();
+        foreach (var kvp in parameters)
+            clone[kvp.Key] = kvp.Value?.DeepClone();
+
+        return clone;
+    }
 
     // ─── Field-to-component mapping ───────────────────────────────────────────
 

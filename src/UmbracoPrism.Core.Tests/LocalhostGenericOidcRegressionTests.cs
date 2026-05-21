@@ -273,7 +273,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
         vault.Setup(v => v.ResolveSecretAsync(
                 PrismSecretProviderNames.Inline,
                 LocalhostKeycloakTenant.OidcClientSecretReference))
-            .ReturnsAsync((string?)null); // Secret resolution fails
+            .Returns(Task.FromResult<string>(null!)); // Secret resolution fails
 
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
 

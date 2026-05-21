@@ -1,18 +1,124 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { AuthoredWorkflow, ProposalEnvelope } from './types.js';
+import {
+  actorToEditorActor,
+  type ActionCatalogEntry,
+  type AuthoredAction,
+  type AuthoredStage,
+  type AuthoredTransition,
+  type AuthoredWorkflow,
+  type ProposalEnvelope,
+} from './types.js';
 import {
   defaultAuthoringApiBase,
   fetchWorkflow,
+  fetchActionCatalog,
+  projectWorkflow,
+  publishWorkflow,
   previewProposal,
   applyProposal,
 } from './workflow-authoring-client.js';
 import { draftProposal, V1_UNRECOGNISED_MESSAGE } from './workflow-authoring-mock-drafter.js';
+import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
+import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
+import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
 import './prism-conversation-pane.js';
 import './prism-proposal-diff.js';
+import './prism-stage-preview.js';
+import './prism-workflow-simulation.js';
 import type { PrismConversationPaneElement } from './prism-conversation-pane.js';
+import type { PreviewSurface, PreviewSurfaceAvailability } from './prism-stage-preview.js';
+import type {
+  WorkflowSimulationHistoryEntry,
+  WorkflowSimulationStopReason,
+  WorkflowSimulationTransitionOption,
+} from './prism-workflow-simulation.js';
+import type { ProjectWorkflowResult, ProjectedWorkflowState, ProjectedWorkflowTransition } from './workflow-runtime-projection.js';
+
+type WorkflowSelection =
+  | { kind: 'stage'; stageKey: string }
+  | { kind: 'transition'; transitionIndex: number }
+  | null;
+
+type WorkflowHistoryEntry = {
+  workflow: AuthoredWorkflow;
+  selection: WorkflowSelection;
+};
+
+type ActionSelection = {
+  target: 'stage' | 'transition';
+  index: number;
+} | null;
+
+type ClipboardEntry =
+  | { kind: 'stage'; stage: AuthoredStage; label: string }
+  | { kind: 'action'; action: AuthoredAction; label: string; sourceTarget: 'stage' | 'transition' };
+
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+type SimulationState = {
+  currentStageKey: string;
+  history: WorkflowSimulationHistoryEntry[];
+  pathTransitionIndices: number[];
+};
+
+const HISTORY_LIMIT = 50;
+const SAVE_SHORTCUT = findWorkflowShortcut('save');
+const UNDO_SHORTCUT = findWorkflowShortcut('undo');
+const REDO_SHORTCUT = findWorkflowShortcut('redo');
+const COPY_SHORTCUT = findWorkflowShortcut('copy');
+const PASTE_SHORTCUT = findWorkflowShortcut('paste');
+const HELP_SHORTCUT = findWorkflowShortcut('help');
+
+function cloneWorkflow(workflow: AuthoredWorkflow): AuthoredWorkflow {
+  return JSON.parse(JSON.stringify(workflow)) as AuthoredWorkflow;
+}
+
+function cloneSelection(selection: WorkflowSelection): WorkflowSelection {
+  return selection ? { ...selection } : null;
+}
+
+function cloneStage(stage: AuthoredStage): AuthoredStage {
+  return JSON.parse(JSON.stringify(stage)) as AuthoredStage;
+}
+
+function cloneAction(action: AuthoredAction): AuthoredAction {
+  return JSON.parse(JSON.stringify(action)) as AuthoredAction;
+}
+
+function workflowsEqual(left: AuthoredWorkflow | null, right: AuthoredWorkflow | null): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function selectionsEqual(left: WorkflowSelection, right: WorkflowSelection): boolean {
+  if (left?.kind !== right?.kind) {
+    return false;
+  }
+
+  if (left?.kind === 'stage' && right?.kind === 'stage') {
+    return left.stageKey === right.stageKey;
+  }
+
+  if (left?.kind === 'transition' && right?.kind === 'transition') {
+    return left.transitionIndex === right.transitionIndex;
+  }
+
+  return left === right;
+}
+
+function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): string {
+  const usedKeys = new Set(workflow.stages.map(stage => stage.stageKey));
+  let candidate = `${baseStageKey}-copy`;
+  let suffix = 2;
+  while (usedKeys.has(candidate)) {
+    candidate = `${baseStageKey}-copy-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
 
 /**
  * Top-level editor host page composing the four V1 workflow editor components.
@@ -27,7 +133,7 @@ import type { PrismConversationPaneElement } from './prism-conversation-pane.js'
  *
  * Test hooks:
  *   data-prism-component="workflow-editor"
- *   data-prism-workflow-loaded="{key}"
+ *   data-prism-workflow-loaded="{key}" (reflected on the custom-element host once ready)
  *   data-prism-toast  (on the toast confirmation banner)
  */
 @customElement('prism-workflow-editor')
@@ -53,15 +159,38 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   @state() private _workflow: AuthoredWorkflow | null = null;
   @state() private _selectedStageKey: string | null = null;
+  @state() private _selectedTransitionIndex: number | null = null;
   @state() private _proposal: ProposalEnvelope | null = null;
   @state() private _modalOpen = false;
   @state() private _toastMessage: string | null = null;
   @state() private _loading = false;
   @state() private _error: string | null = null;
   @state() private _graphMode: 'graph' | 'linear' = 'graph';
+  @state() private _actionCatalog: ActionCatalogEntry[] = [];
+  @state() private _undoHistory: WorkflowHistoryEntry[] = [];
+  @state() private _redoHistory: WorkflowHistoryEntry[] = [];
+  @state() private _historyAnnouncement = '';
+  @state() private _actionSelection: ActionSelection = null;
+  @state() private _clipboard: ClipboardEntry | null = null;
+  @state() private _saveState: SaveState = 'idle';
+  @state() private _saveMessage: string | null = null;
+  @state() private _helpOpen = false;
+  @state() private _previewSurface: PreviewSurface = 'public';
+  @state() private _stagePreviewState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+  @state() private _stagePreviewError: string | null = null;
+  @state() private _projectedWorkflowPreview: ProjectWorkflowResult | null = null;
+  @state() private _simulation: SimulationState | null = null;
+  @state() private _simulationAnnouncement = '';
+
+  private _savedWorkflowSnapshot: AuthoredWorkflow | null = null;
+  private _helpReturnTarget: HTMLElement | null = null;
+  private _stagePreviewTimer: number | null = null;
+  private _stagePreviewRequestId = 0;
 
   connectedCallback() {
     super.connectedCallback();
+    this.addEventListener('keydown', this._handleEditorKeydown, true);
+    this._reflectWorkflowLoadedState();
 
     // Honour ?workflow= URL param when running as a standalone page
     if (typeof window !== 'undefined') {
@@ -70,22 +199,768 @@ export class PrismWorkflowEditorElement extends LitElement {
       if (keyParam) this.workflowKey = keyParam;
     }
 
+    void this._loadActionCatalog();
+
     if (this.initialWorkflow) {
-      this._workflow = this.initialWorkflow;
+      this._initialiseEditorState(this.initialWorkflow);
     } else {
-      this._loadWorkflow();
+      void this._loadWorkflow();
     }
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener('keydown', this._handleEditorKeydown, true);
+    this._clearStagePreviewTimer();
+    super.disconnectedCallback();
   }
 
   private async _loadWorkflow() {
     this._loading = true;
     this._error = null;
+    this._reflectWorkflowLoadedState();
     try {
-      this._workflow = await fetchWorkflow(this.workflowKey, this._resolvedAuthoringApiBase);
+      const workflow = await fetchWorkflow(this.workflowKey, this._resolvedAuthoringApiBase);
+      this._initialiseEditorState(workflow);
     } catch (err) {
       this._error = err instanceof Error ? err.message : String(err);
+      this._workflow = null;
+      this._reflectWorkflowLoadedState();
     } finally {
       this._loading = false;
+    }
+  }
+
+  private async _loadActionCatalog() {
+    this._actionCatalog = await fetchActionCatalog(this._resolvedAuthoringApiBase);
+  }
+
+  private _initialiseEditorState(workflow: AuthoredWorkflow) {
+    this._workflow = cloneWorkflow(workflow);
+    this._reflectWorkflowLoadedState();
+    this._savedWorkflowSnapshot = cloneWorkflow(this._workflow);
+    this._undoHistory = [];
+    this._redoHistory = [];
+    this._actionSelection = null;
+    this._saveState = 'idle';
+    this._saveMessage = null;
+    this._projectedWorkflowPreview = null;
+    this._stagePreviewState = 'idle';
+    this._stagePreviewError = null;
+    this._simulation = null;
+    this._simulationAnnouncement = '';
+    this._applySelection(null, this._workflow);
+    this._announceHistory('Workflow loaded. Undo history is ready for your next edit.');
+  }
+
+  private _reflectWorkflowLoadedState() {
+    const loadedKey = this.workflowKey?.trim() || this._workflow?.definitionKey?.trim();
+    if (loadedKey) {
+      this.setAttribute('data-prism-workflow-loaded', loadedKey);
+      return;
+    }
+
+    this.removeAttribute('data-prism-workflow-loaded');
+  }
+
+  private get _selectedStage(): AuthoredStage | null {
+    if (!this._workflow || !this._selectedStageKey) {
+      return null;
+    }
+
+    return this._workflow.stages.find(stage => stage.stageKey === this._selectedStageKey) ?? null;
+  }
+
+  private get _previewedStage(): ProjectedWorkflowState | null {
+    const selectedStage = this._selectedStage;
+    if (!selectedStage || !this._projectedWorkflowPreview) {
+      return null;
+    }
+
+    return this._projectedWorkflowPreview.file.states.find(state => state.stateKey === selectedStage.stageKey) ?? null;
+  }
+
+  private get _previewedTransitions(): ProjectedWorkflowTransition[] {
+    const selectedStage = this._selectedStage;
+    if (!selectedStage || !this._projectedWorkflowPreview) {
+      return [];
+    }
+
+    return this._projectedWorkflowPreview.file.transitions.filter(
+      transition => transition.fromState === selectedStage.stageKey
+    );
+  }
+
+  private get _initialSimulationStage(): AuthoredStage | null {
+    if (!this._workflow) {
+      return null;
+    }
+
+    return this._workflow.stages.find(stage => stage.stageKey === this._workflow?.initialStageKey) ?? null;
+  }
+
+  private get _simulationCurrentStage(): AuthoredStage | null {
+    const simulation = this._simulation;
+    if (!this._workflow || !simulation) {
+      return null;
+    }
+
+    return this._workflow.stages.find(stage => stage.stageKey === simulation.currentStageKey) ?? null;
+  }
+
+  private _announceSimulation(message: string) {
+    this._simulationAnnouncement = '';
+    requestAnimationFrame(() => {
+      this._simulationAnnouncement = message;
+    });
+  }
+
+  private _resetSimulation(announcement?: string) {
+    if (!this._simulation && !announcement) {
+      return;
+    }
+
+    this._simulation = null;
+    if (announcement) {
+      this._announceSimulation(announcement);
+    } else {
+      this._simulationAnnouncement = '';
+    }
+  }
+
+  private get _simulationStartBlocker() {
+    const initialStage = this._initialSimulationStage;
+    if (initialStage) {
+      return '';
+    }
+
+    return this._validationIssues.find(issue => issue.code === 'initial-stage-missing')?.message
+      ?? 'Pick an initial stage before you simulate this workflow.';
+  }
+
+  private get _simulationCanStart() {
+    return Boolean(this._workflow && this._initialSimulationStage);
+  }
+
+  private _simulationBlockersForTransition(transitionIndex: number) {
+    if (!this._workflow) {
+      return [];
+    }
+
+    const transition = this._workflow.transitions[transitionIndex];
+    if (!transition) {
+      return ['This transition is no longer available.'];
+    }
+
+    const targetStage = this._workflow.stages.find(stage => stage.stageKey === transition.toStage);
+    const blockingIssues = this._blockingValidationIssues.filter(issue => {
+      if (issue.location.kind === 'transition') {
+        return issue.location.transitionIndex === transitionIndex;
+      }
+
+      if (issue.location.kind === 'action' && issue.location.target === 'transition') {
+        return issue.location.transitionIndex === transitionIndex && issue.blocking;
+      }
+
+      if (issue.location.kind === 'stage') {
+        return issue.location.stageKey === transition.toStage;
+      }
+
+      return false;
+    });
+
+    const messages = blockingIssues.map(issue => issue.message);
+    if (!targetStage && messages.length === 0) {
+      messages.push(`Target stage “${transition.toStage}” is missing.`);
+    }
+
+    return messages;
+  }
+
+  private get _simulationStopReason(): WorkflowSimulationStopReason {
+    const currentStage = this._simulationCurrentStage;
+    if (!currentStage || !this._simulation) {
+      return null;
+    }
+
+    if (currentStage.kind === 'Waiting') {
+      return 'waiting';
+    }
+
+    if (isTerminalStage(currentStage)) {
+      return 'terminal';
+    }
+
+    return this._simulationTransitionOptions.length === 0 ? 'no-transitions' : null;
+  }
+
+  private get _simulationTransitionOptions(): WorkflowSimulationTransitionOption[] {
+    if (!this._workflow || !this._simulationCurrentStage) {
+      return [];
+    }
+
+    return this._workflow.transitions
+      .map((transition, transitionIndex) => ({ transition, transitionIndex }))
+      .filter(({ transition }) => transition.fromStage === this._simulationCurrentStage?.stageKey)
+      .map(({ transition, transitionIndex }) => {
+        const targetStage = this._workflow?.stages.find(stage => stage.stageKey === transition.toStage) ?? null;
+        const blockerMessages = this._simulationBlockersForTransition(transitionIndex);
+        return {
+          transitionIndex,
+          label: transition.action,
+          targetStageKey: transition.toStage,
+          targetStageLabel: targetStage?.displayName ?? transition.toStage,
+          targetStageKind: targetStage?.kind,
+          blocked: blockerMessages.length > 0,
+          blockerMessages,
+          conditionSummary: transition.condition ? `Condition: ${transition.condition}` : undefined,
+          roleSummary: transition.requiresRole ? `Role guard: ${transition.requiresRole}` : undefined,
+        };
+      });
+  }
+
+  private _currentSelection(): WorkflowSelection {
+    if (this._selectedStageKey) {
+      return { kind: 'stage', stageKey: this._selectedStageKey };
+    }
+
+    if (this._selectedTransitionIndex !== null) {
+      return { kind: 'transition', transitionIndex: this._selectedTransitionIndex };
+    }
+
+    return null;
+  }
+
+  private _normaliseSelection(
+    selection?: { kind: 'stage' | 'transition'; stageKey?: string; transitionIndex?: number } | null
+  ): WorkflowSelection {
+    if (selection?.kind === 'stage' && selection.stageKey) {
+      return { kind: 'stage', stageKey: selection.stageKey };
+    }
+
+    if (selection?.kind === 'transition' && typeof selection.transitionIndex === 'number') {
+      return { kind: 'transition', transitionIndex: selection.transitionIndex };
+    }
+
+    return null;
+  }
+
+  private _applySelection(selection: WorkflowSelection, workflow: AuthoredWorkflow | null = this._workflow) {
+    if (!workflow) {
+      this._selectedStageKey = null;
+      this._selectedTransitionIndex = null;
+      this._syncStagePreview();
+      return;
+    }
+
+    if (selection?.kind === 'stage') {
+      this._selectedStageKey = workflow.stages.some(stage => stage.stageKey === selection.stageKey)
+        ? selection.stageKey
+        : null;
+      this._selectedTransitionIndex = null;
+      this._syncStagePreview();
+      return;
+    }
+
+    if (
+      selection?.kind === 'transition'
+      && selection.transitionIndex >= 0
+      && selection.transitionIndex < workflow.transitions.length
+    ) {
+      this._selectedTransitionIndex = selection.transitionIndex;
+      this._selectedStageKey = null;
+      this._syncStagePreview();
+      return;
+    }
+
+    this._selectedStageKey = null;
+    this._selectedTransitionIndex = null;
+    this._syncStagePreview();
+  }
+
+  private _isBackStage(stage: AuthoredStage): boolean {
+    if (stage.editorSurface) {
+      return stage.editorSurface === 'back-stage';
+    }
+
+    const actor = actorToEditorActor(stage.actor);
+    return actor === 'reviewer' || actor === 'system';
+  }
+
+  private _previewSurfaceAvailability(stage: AuthoredStage): PreviewSurfaceAvailability {
+    const backStage = this._isBackStage(stage);
+    return {
+      public: !backStage,
+      member: !backStage,
+      'back-stage': backStage,
+    };
+  }
+
+  private _defaultPreviewSurface(stage: AuthoredStage): PreviewSurface {
+    if (this._isBackStage(stage)) {
+      return 'back-stage';
+    }
+
+    return actorToEditorActor(stage.actor) === 'member' ? 'member' : 'public';
+  }
+
+  private _clearStagePreviewTimer() {
+    if (this._stagePreviewTimer !== null && typeof window !== 'undefined') {
+      window.clearTimeout(this._stagePreviewTimer);
+    }
+    this._stagePreviewTimer = null;
+  }
+
+  private _syncStagePreview() {
+    this._clearStagePreviewTimer();
+
+    const selectedStage = this._selectedStage;
+    if (!selectedStage || !this._workflow) {
+      this._stagePreviewState = 'idle';
+      this._stagePreviewError = null;
+      this._projectedWorkflowPreview = null;
+      return;
+    }
+
+    const availableViews = this._previewSurfaceAvailability(selectedStage);
+    if (!availableViews[this._previewSurface]) {
+      this._previewSurface = this._defaultPreviewSurface(selectedStage);
+    }
+
+    if (typeof window === 'undefined') {
+      void this._refreshStagePreview();
+      return;
+    }
+
+    this._stagePreviewTimer = window.setTimeout(() => {
+      void this._refreshStagePreview();
+    }, 180);
+  }
+
+  private async _refreshStagePreview() {
+    if (!this._workflow || !this._selectedStage) {
+      return;
+    }
+
+    const requestId = ++this._stagePreviewRequestId;
+    this._stagePreviewState = 'loading';
+    this._stagePreviewError = null;
+
+    try {
+      const preview = await projectWorkflow(this.workflowKey, this._workflow, this._resolvedAuthoringApiBase);
+      if (requestId !== this._stagePreviewRequestId) {
+        return;
+      }
+
+      this._projectedWorkflowPreview = preview;
+      this._stagePreviewState = 'ready';
+
+      if (!preview.file.states.some(state => state.stateKey === this._selectedStage?.stageKey)) {
+        this._stagePreviewState = 'error';
+        this._stagePreviewError = `The selected stage could not be found in the projected runtime preview.`;
+      }
+    } catch (error) {
+      if (requestId !== this._stagePreviewRequestId) {
+        return;
+      }
+
+      this._stagePreviewState = 'error';
+      this._stagePreviewError = error instanceof Error ? error.message : 'The runtime preview could not be rendered.';
+    }
+  }
+
+  private _snapshotCurrentState(): WorkflowHistoryEntry | null {
+    if (!this._workflow) {
+      return null;
+    }
+
+    return {
+      workflow: cloneWorkflow(this._workflow),
+      selection: cloneSelection(this._currentSelection()),
+    };
+  }
+
+  private _restoreHistoryEntry(entry: WorkflowHistoryEntry) {
+    this._workflow = cloneWorkflow(entry.workflow);
+    this._applySelection(cloneSelection(entry.selection), this._workflow);
+    this._actionSelection = null;
+  }
+
+  private _announceHistory(message: string) {
+    this._historyAnnouncement = '';
+    requestAnimationFrame(() => {
+      this._historyAnnouncement = message;
+    });
+  }
+
+  private get _canUndo() {
+    return this._undoHistory.length > 0;
+  }
+
+  private get _canRedo() {
+    return this._redoHistory.length > 0;
+  }
+
+  private get _historyStatusSummary() {
+    if (!this._workflow) {
+      return 'History unavailable until the workflow loads.';
+    }
+
+    if (this._undoHistory.length === 0 && this._redoHistory.length === 0) {
+      return 'No editor changes yet. Undo and redo will appear as you edit.';
+    }
+
+    const undoLabel = `${this._undoHistory.length} change${this._undoHistory.length === 1 ? '' : 's'} available to undo`;
+    const redoLabel = this._redoHistory.length > 0
+      ? `${this._redoHistory.length} change${this._redoHistory.length === 1 ? '' : 's'} available to redo`
+      : 'Redo disabled — you are at the latest change';
+
+    return `${undoLabel}. ${redoLabel}.`;
+  }
+
+  private get _selectedActionIndex() {
+    const currentSelection = this._currentSelection();
+    if (!currentSelection || !this._actionSelection) {
+      return null;
+    }
+
+    return (currentSelection.kind === 'stage' && this._actionSelection.target === 'stage')
+      || (currentSelection.kind === 'transition' && this._actionSelection.target === 'transition')
+      ? this._actionSelection.index
+      : null;
+  }
+
+  private get _clipboardSummary() {
+    if (!this._clipboard) {
+      return 'Clipboard empty — copy a stage or action to paste it elsewhere.';
+    }
+
+    return this._clipboard.kind === 'stage'
+      ? `Clipboard: stage “${this._clipboard.label}” ready to paste.`
+      : `Clipboard: action “${this._clipboard.label}” ready to paste.`;
+  }
+
+  private get _validationIssues(): WorkflowValidationIssue[] {
+    return this._workflow ? validateWorkflow(this._workflow, this._actionCatalog) : [];
+  }
+
+  private get _blockingValidationIssues() {
+    return this._validationIssues.filter(issue => issue.blocking);
+  }
+
+  private get _warningValidationIssues() {
+    return this._validationIssues.filter(issue => !issue.blocking);
+  }
+
+  private get _hasBlockingValidationIssues() {
+    return this._blockingValidationIssues.length > 0;
+  }
+
+  private get _isDirty() {
+    return !workflowsEqual(this._workflow, this._savedWorkflowSnapshot);
+  }
+
+  private get _canSave() {
+    return Boolean(this._workflow) && !this._hasBlockingValidationIssues && this._saveState !== 'saving';
+  }
+
+  private get _dirtyStateSummary() {
+    if (!this._workflow) {
+      return 'Workflow not loaded yet.';
+    }
+
+    return this._isDirty ? 'Unsaved changes' : 'All changes saved';
+  }
+
+  private get _validationStatusSummary() {
+    if (!this._workflow) {
+      return 'Validation will appear when the workflow loads.';
+    }
+
+    if (this._validationIssues.length === 0) {
+      return 'No validation issues. The workflow is ready to save.';
+    }
+
+    const parts: string[] = [];
+    if (this._blockingValidationIssues.length > 0) {
+      parts.push(`${this._blockingValidationIssues.length} blocking error${this._blockingValidationIssues.length === 1 ? '' : 's'}`);
+    }
+    if (this._warningValidationIssues.length > 0) {
+      parts.push(`${this._warningValidationIssues.length} warning${this._warningValidationIssues.length === 1 ? '' : 's'}`);
+    }
+    return `${parts.join(' and ')} in the validation rail.`;
+  }
+
+  private get _saveStatusSummary() {
+    if (this._saveState === 'saving') {
+      return 'Saving workflow changes…';
+    }
+
+    if (this._saveState === 'saved') {
+      return this._saveMessage ?? 'Workflow changes saved.';
+    }
+
+    if (this._saveState === 'error') {
+      return this._saveMessage ?? 'Save failed.';
+    }
+
+    if (this._hasBlockingValidationIssues) {
+      return 'Save is blocked until the blocking validation errors are fixed.';
+    }
+
+    return this._saveMessage ?? 'Save is ready.';
+  }
+
+  private _commitWorkflowUpdate(nextWorkflow: AuthoredWorkflow, nextSelection: WorkflowSelection) {
+    const previousSelection = this._currentSelection();
+
+    if (workflowsEqual(this._workflow, nextWorkflow)) {
+      if (!selectionsEqual(previousSelection, nextSelection)) {
+        this._applySelection(nextSelection, nextWorkflow);
+        this._actionSelection = null;
+      }
+      return;
+    }
+
+    const currentState = this._snapshotCurrentState();
+    if (currentState) {
+      this._undoHistory = [...this._undoHistory, currentState].slice(-HISTORY_LIMIT);
+    }
+
+    if (!selectionsEqual(previousSelection, nextSelection)) {
+      this._actionSelection = null;
+    }
+
+    this._redoHistory = [];
+    this._workflow = nextWorkflow;
+    this._saveState = 'idle';
+    this._saveMessage = null;
+    this._resetSimulation(this._simulation ? 'Simulation reset because the workflow changed.' : undefined);
+    this._applySelection(nextSelection, nextWorkflow);
+    this._announceHistory(`Change recorded. ${this._historyStatusSummary}`);
+  }
+
+  private _currentAction(): { action: AuthoredAction; target: 'stage' | 'transition' } | null {
+    if (!this._workflow || !this._actionSelection) {
+      return null;
+    }
+
+    if (this._actionSelection.target === 'stage' && this._selectedStageKey) {
+      const stage = this._workflow.stages.find(candidate => candidate.stageKey === this._selectedStageKey);
+      const action = stage?.actions?.[this._actionSelection.index];
+      return action ? { action, target: 'stage' } : null;
+    }
+
+    if (this._actionSelection.target === 'transition' && this._selectedTransitionIndex !== null) {
+      const transition = this._workflow.transitions[this._selectedTransitionIndex];
+      const action = transition?.actions?.[this._actionSelection.index];
+      return action ? { action, target: 'transition' } : null;
+    }
+
+    return null;
+  }
+
+  private _canPasteActionIntoSelection(action: AuthoredAction) {
+    const currentSelection = this._currentSelection();
+    if (!currentSelection) {
+      return false;
+    }
+
+    const target = currentSelection.kind === 'stage' ? 'stage' : 'transition';
+    const entry = this._actionCatalog.find(candidate => candidate.type === action.type) ?? null;
+    return entry ? availableContexts(entry, target).length > 0 : true;
+  }
+
+  private get _canCopy() {
+    return this._currentAction() !== null || this._currentSelection()?.kind === 'stage';
+  }
+
+  private get _canPaste() {
+    if (!this._workflow || !this._clipboard) {
+      return false;
+    }
+
+    return this._clipboard.kind === 'stage'
+      ? true
+      : this._canPasteActionIntoSelection(this._clipboard.action);
+  }
+
+  private _normalisePastedAction(action: AuthoredAction, target: 'stage' | 'transition'): AuthoredAction | null {
+    const nextAction = cloneAction(action);
+    const entry = this._actionCatalog.find(candidate => candidate.type === nextAction.type) ?? null;
+
+    if (!entry) {
+      return {
+        ...nextAction,
+        timing: target === 'transition'
+          ? 'OnTransition'
+          : nextAction.timing === 'OnExit'
+            ? 'OnExit'
+            : 'OnEntry',
+      };
+    }
+
+    const contexts = availableContexts(entry, target);
+    if (contexts.length === 0) {
+      return null;
+    }
+
+    const preferredContext = target === 'transition'
+      ? 'transition'
+      : contexts.includes(contextForTiming(nextAction.timing, 'stage'))
+        ? contextForTiming(nextAction.timing, 'stage')
+        : contexts[0];
+
+    return updateActionSummary(entry, {
+      ...nextAction,
+      timing: timingForContext(preferredContext),
+    });
+  }
+
+  private _undo = () => {
+    if (!this._canUndo) {
+      return;
+    }
+
+    const previous = this._undoHistory[this._undoHistory.length - 1];
+    const current = this._snapshotCurrentState();
+    if (!current) {
+      return;
+    }
+
+    this._undoHistory = this._undoHistory.slice(0, -1);
+    this._redoHistory = [...this._redoHistory, current].slice(-HISTORY_LIMIT);
+    this._restoreHistoryEntry(previous);
+    this._announceHistory(`Undid the last workflow change. ${this._historyStatusSummary}`);
+  };
+
+  private _redo = () => {
+    if (!this._canRedo) {
+      return;
+    }
+
+    const next = this._redoHistory[this._redoHistory.length - 1];
+    const current = this._snapshotCurrentState();
+    if (!current) {
+      return;
+    }
+
+    this._redoHistory = this._redoHistory.slice(0, -1);
+    this._undoHistory = [...this._undoHistory, current].slice(-HISTORY_LIMIT);
+    this._restoreHistoryEntry(next);
+    this._announceHistory(`Redid the workflow change. ${this._historyStatusSummary}`);
+  };
+
+  private _isEditableTarget(event: KeyboardEvent) {
+    return event.composedPath().some(target =>
+      target instanceof HTMLElement
+      && (
+        target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target instanceof HTMLSelectElement
+        || target.isContentEditable
+      )
+    );
+  }
+
+  private _handleEditorKeydown = (event: KeyboardEvent) => {
+    if (!event.defaultPrevented && HELP_SHORTCUT && matchesShortcut(event, HELP_SHORTCUT)) {
+      event.preventDefault();
+      this._openShortcutGuide(this.shadowRoot?.activeElement as HTMLElement | null);
+      return;
+    }
+
+    if (this._modalOpen || this._helpOpen || event.defaultPrevented || event.altKey) {
+      return;
+    }
+
+    if (SAVE_SHORTCUT && matchesShortcut(event, SAVE_SHORTCUT)) {
+      event.preventDefault();
+      void this._handleSave();
+      return;
+    }
+
+    if (
+      ((COPY_SHORTCUT && matchesShortcut(event, COPY_SHORTCUT))
+        || (PASTE_SHORTCUT && matchesShortcut(event, PASTE_SHORTCUT)))
+      && this._isEditableTarget(event)
+    ) {
+      return;
+    }
+
+    if (COPY_SHORTCUT && matchesShortcut(event, COPY_SHORTCUT)) {
+      if (this._copySelection()) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (PASTE_SHORTCUT && matchesShortcut(event, PASTE_SHORTCUT)) {
+      if (this._pasteClipboard()) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (REDO_SHORTCUT && matchesShortcut(event, REDO_SHORTCUT)) {
+      event.preventDefault();
+      if (this._canRedo) {
+        this._redo();
+      }
+      return;
+    }
+
+    if (!UNDO_SHORTCUT || !matchesShortcut(event, UNDO_SHORTCUT)) {
+      return;
+    }
+
+    event.preventDefault();
+    if (this._canUndo) {
+      this._undo();
+    }
+  };
+
+  private _openShortcutGuide(activator?: HTMLElement | null) {
+    this._helpReturnTarget = activator ?? null;
+    this._helpOpen = true;
+    requestAnimationFrame(() => {
+      this.shadowRoot?.querySelector<HTMLElement>('[data-prism-help-close]')?.focus();
+    });
+  }
+
+  private _closeShortcutGuide() {
+    this._helpOpen = false;
+    this._helpReturnTarget?.focus();
+    this._helpReturnTarget = null;
+  }
+
+  private _handleDialogKeydown(event: KeyboardEvent, onClose: () => void) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const root = event.currentTarget as HTMLElement;
+    const focusable = Array.from(
+      root.querySelectorAll<HTMLElement>('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])')
+    ).filter(element => !element.hasAttribute('disabled') && element.tabIndex >= 0);
+    if (focusable.length === 0) {
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const activeElement = this.shadowRoot?.activeElement as HTMLElement | null;
+    if (event.shiftKey && activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   }
 
@@ -94,7 +969,140 @@ export class PrismWorkflowEditorElement extends LitElement {
   // ---------------------------------------------------------------------------
 
   private _handleStageSelected(e: CustomEvent<{ stageKey: string }>) {
-    this._selectedStageKey = e.detail.stageKey;
+    this._applySelection({ kind: 'stage', stageKey: e.detail.stageKey }, this._workflow);
+    this._actionSelection = null;
+  }
+
+  private _handleTransitionSelected(e: CustomEvent<{ transitionIndex: number }>) {
+    this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
+    this._actionSelection = null;
+  }
+
+  private _handleActionSelected(e: CustomEvent<{ index: number | null; target: 'stage' | 'transition' }>) {
+    this._actionSelection = e.detail.index === null
+      ? null
+      : { target: e.detail.target, index: e.detail.index };
+  }
+
+  private _handleWorkflowUpdated(
+    e: CustomEvent<{
+      workflow: AuthoredWorkflow;
+      selection?: { kind: 'stage' | 'transition'; stageKey?: string; transitionIndex?: number } | null;
+    }>
+  ) {
+    const nextWorkflow = cloneWorkflow(e.detail.workflow);
+    const nextSelection = this._normaliseSelection(e.detail.selection);
+    this._commitWorkflowUpdate(nextWorkflow, nextSelection);
+  }
+
+  private _handleInspectorRequested() {
+    requestAnimationFrame(() => {
+      this.shadowRoot?.querySelector<HTMLElement>('prism-step-inspector')?.focus();
+    });
+  }
+
+  private _copySelection() {
+    const selectedAction = this._currentAction();
+    if (selectedAction) {
+      const label = selectedAction.action.summary?.trim()
+        || this._actionCatalog.find(entry => entry.type === selectedAction.action.type)?.label
+        || selectedAction.action.type;
+      this._clipboard = {
+        kind: 'action',
+        action: cloneAction(selectedAction.action),
+        label,
+        sourceTarget: selectedAction.target,
+      };
+      this._showToast(`Copied action ${label}.`);
+      return true;
+    }
+
+    if (!this._workflow || !this._selectedStageKey) {
+      return false;
+    }
+
+    const stage = this._workflow.stages.find(candidate => candidate.stageKey === this._selectedStageKey);
+    if (!stage) {
+      return false;
+    }
+
+    this._clipboard = {
+      kind: 'stage',
+      stage: cloneStage(stage),
+      label: stage.displayName,
+    };
+    this._showToast(`Copied stage ${stage.displayName}.`);
+    return true;
+  }
+
+  private _pasteClipboard() {
+    if (!this._workflow || !this._clipboard) {
+      return false;
+    }
+
+    if (this._clipboard.kind === 'stage') {
+      const copiedStage = cloneStage(this._clipboard.stage);
+      const stageKey = makeCopiedStageKey(copiedStage.stageKey, this._workflow);
+      const pastedStage: AuthoredStage = {
+        ...copiedStage,
+        stageKey,
+      };
+
+      const stages = [...this._workflow.stages];
+      const selectedStageIndex = this._selectedStageKey
+        ? stages.findIndex(stage => stage.stageKey === this._selectedStageKey)
+        : -1;
+      const insertIndex = selectedStageIndex >= 0 ? selectedStageIndex + 1 : stages.length;
+      stages.splice(insertIndex, 0, pastedStage);
+
+      this._commitWorkflowUpdate({ ...this._workflow, stages }, { kind: 'stage', stageKey });
+      this._showToast(`Pasted stage ${pastedStage.displayName}.`);
+      this._handleInspectorRequested();
+      return true;
+    }
+
+    const currentSelection = this._currentSelection();
+    if (!currentSelection) {
+      return false;
+    }
+
+    const target = currentSelection.kind === 'stage' ? 'stage' : 'transition';
+    const pastedAction = this._normalisePastedAction(this._clipboard.action, target);
+    if (!pastedAction) {
+      this._showToast(`Action ${this._clipboard.label} cannot be pasted into the current ${target}.`);
+      return false;
+    }
+
+    if (currentSelection.kind === 'stage') {
+      const stageIndex = this._workflow.stages.findIndex(stage => stage.stageKey === currentSelection.stageKey);
+      if (stageIndex < 0) {
+        return false;
+      }
+
+      const stages = [...this._workflow.stages];
+      const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
+      stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
+      this._commitWorkflowUpdate({ ...this._workflow, stages }, currentSelection);
+      this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
+      this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
+      return true;
+    }
+
+    const transition = this._workflow.transitions[currentSelection.transitionIndex];
+    if (!transition) {
+      return false;
+    }
+
+    const transitions = [...this._workflow.transitions];
+    const nextActions = [...(transition.actions ?? []), pastedAction];
+    transitions[currentSelection.transitionIndex] = {
+      ...transition,
+      actions: nextActions,
+    } as AuthoredTransition;
+    this._commitWorkflowUpdate({ ...this._workflow, transitions }, currentSelection);
+    this._actionSelection = { target: 'transition', index: nextActions.length - 1 };
+    this._showToast(`Pasted action ${this._clipboard.label} into transition ${transition.action}.`);
+    return true;
   }
 
   private async _handleNlRequest(e: CustomEvent<{ text: string }>) {
@@ -207,8 +1215,327 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._graphMode = this._graphMode === 'graph' ? 'linear' : 'graph';
   }
 
+  private _focusInspectorForValidationIssue(issue: WorkflowValidationIssue) {
+    const actionLocation = issue.location.kind === 'action' ? issue.location : null;
+    requestAnimationFrame(() => {
+      const inspector = this.shadowRoot?.querySelector<HTMLElement>('prism-step-inspector');
+      inspector?.focus();
+
+      if (!actionLocation) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        const actionEditor = inspector?.shadowRoot?.querySelector<HTMLElement>('prism-workflow-action-editor');
+        const selector = actionLocation.fieldKey && actionLocation.fieldKey !== 'fields'
+          ? `[data-prism-action-param="${actionLocation.actionIndex}-${actionLocation.fieldKey}"]`
+          : typeof actionLocation.formFieldIndex === 'number'
+            ? `[data-prism-form-field-key="${actionLocation.actionIndex}-${actionLocation.formFieldIndex}"]`
+            : `[data-prism-stage-action="${actionLocation.actionIndex}"]`;
+        actionEditor?.shadowRoot?.querySelector<HTMLElement>(selector)?.focus();
+      });
+    });
+  }
+
+  private _jumpToValidationIssue(issue: WorkflowValidationIssue) {
+    if (!this._workflow) {
+      return;
+    }
+
+    if (issue.location.kind === 'stage') {
+      this._applySelection({ kind: 'stage', stageKey: issue.location.stageKey }, this._workflow);
+      this._actionSelection = null;
+      this._focusInspectorForValidationIssue(issue);
+      return;
+    }
+
+    if (issue.location.kind === 'transition') {
+      this._applySelection({ kind: 'transition', transitionIndex: issue.location.transitionIndex }, this._workflow);
+      this._actionSelection = null;
+      this._focusInspectorForValidationIssue(issue);
+      return;
+    }
+
+    const selection = issue.location.target === 'stage'
+      ? { kind: 'stage' as const, stageKey: issue.location.stageKey ?? '' }
+      : { kind: 'transition' as const, transitionIndex: issue.location.transitionIndex ?? 0 };
+    this._applySelection(selection, this._workflow);
+    this._actionSelection = { target: issue.location.target, index: issue.location.actionIndex };
+    this._focusInspectorForValidationIssue(issue);
+  }
+
+  private async _handleSave() {
+    if (!this._workflow) {
+      return;
+    }
+
+    if (this._hasBlockingValidationIssues) {
+      this._saveState = 'error';
+      this._saveMessage = 'Save blocked. Fix the blocking validation errors first.';
+      this._showToast(this._saveMessage);
+      return;
+    }
+
+    this._saveState = 'saving';
+    this._saveMessage = null;
+
+    try {
+      await publishWorkflow(this.workflowKey, this._workflow, this._resolvedAuthoringApiBase);
+      this._savedWorkflowSnapshot = cloneWorkflow(this._workflow);
+      this._saveState = 'saved';
+      this._saveMessage = 'Workflow saved and published.';
+      this._showToast(this._saveMessage);
+    } catch (error) {
+      this._saveState = 'error';
+      this._saveMessage = error instanceof Error ? error.message : 'Save failed.';
+      this._showToast(this._saveMessage);
+    }
+  }
+
+  private _handlePreviewSurfaceSelected(e: CustomEvent<{ surface: PreviewSurface }>) {
+    const selectedStage = this._selectedStage;
+    if (!selectedStage) {
+      return;
+    }
+
+    const availableViews = this._previewSurfaceAvailability(selectedStage);
+    if (!availableViews[e.detail.surface]) {
+      return;
+    }
+
+    this._previewSurface = e.detail.surface;
+  }
+
+  private _startSimulation() {
+    const initialStage = this._initialSimulationStage;
+    if (!initialStage) {
+      this._announceSimulation(this._simulationStartBlocker);
+      return;
+    }
+
+    this._simulation = {
+      currentStageKey: initialStage.stageKey,
+      history: [{
+        stageKey: initialStage.stageKey,
+        stageLabel: initialStage.displayName,
+        enteredByTransitionIndex: null,
+      }],
+      pathTransitionIndices: [],
+    };
+    this._announceSimulation(`Simulation started at ${initialStage.displayName}.`);
+  }
+
+  private _handleSimulationTransitionSelected(e: CustomEvent<{ transitionIndex: number }>) {
+    if (!this._workflow || !this._simulation) {
+      return;
+    }
+
+    const transition = this._workflow.transitions[e.detail.transitionIndex];
+    if (!transition) {
+      return;
+    }
+
+    const blockers = this._simulationBlockersForTransition(e.detail.transitionIndex);
+    if (blockers.length > 0) {
+      this._announceSimulation(`Transition ${transition.action} is blocked by validation.`);
+      return;
+    }
+
+    const nextStage = this._workflow.stages.find(stage => stage.stageKey === transition.toStage);
+    if (!nextStage) {
+      this._announceSimulation(`Transition ${transition.action} cannot continue because the target stage is missing.`);
+      return;
+    }
+
+    this._simulation = {
+      currentStageKey: nextStage.stageKey,
+      history: [
+        ...this._simulation.history,
+        {
+          stageKey: nextStage.stageKey,
+          stageLabel: nextStage.displayName,
+          enteredByLabel: transition.action,
+          enteredByTransitionIndex: e.detail.transitionIndex,
+        },
+      ],
+      pathTransitionIndices: [...this._simulation.pathTransitionIndices, e.detail.transitionIndex],
+    };
+
+    const stopReason = nextStage.kind === 'Waiting'
+      ? 'waiting'
+      : isTerminalStage(nextStage)
+        ? 'terminal'
+        : null;
+    this._announceSimulation(
+      stopReason === 'waiting'
+        ? `Simulation stopped at waiting stage ${nextStage.displayName}.`
+        : stopReason === 'terminal'
+          ? `Simulation reached end stage ${nextStage.displayName}.`
+          : `Simulation moved to ${nextStage.displayName}.`
+    );
+  }
+
+  private _renderSimulationPanel() {
+    return html`
+      <prism-workflow-simulation
+        .initialStage=${this._initialSimulationStage}
+        .currentStage=${this._simulationCurrentStage}
+        .history=${this._simulation?.history ?? []}
+        .transitionOptions=${this._simulationStopReason ? [] : this._simulationTransitionOptions}
+        .active=${Boolean(this._simulation)}
+        .canStart=${this._simulationCanStart}
+        .startBlocker=${this._simulationStartBlocker}
+        .stopReason=${this._simulationStopReason}
+        .announcement=${this._simulationAnnouncement}
+        @simulation-started=${this._startSimulation}
+        @simulation-reset=${() => this._resetSimulation('Simulation cleared.')}
+        @simulation-transition-selected=${this._handleSimulationTransitionSelected}
+      ></prism-workflow-simulation>
+    `;
+  }
+
+  private _renderValidationRail() {
+    if (!this._workflow) {
+      return nothing;
+    }
+
+    const issues = this._validationIssues;
+    const errorCount = this._blockingValidationIssues.length;
+    const warningCount = this._warningValidationIssues.length;
+
+    return html`
+      <section class="validation-rail" aria-labelledby="workflow-validation-rail-title" data-prism-validation-rail>
+        <div class="validation-rail-header">
+          <div>
+            <h2 id="workflow-validation-rail-title" class="validation-rail-title">Validation and save</h2>
+            <p class="validation-rail-summary">${this._validationStatusSummary}</p>
+          </div>
+          <div class="validation-rail-meta">
+            <span class="validation-count validation-count-error" data-prism-validation-errors>${errorCount} errors</span>
+            <span class="validation-count validation-count-warning" data-prism-validation-warnings>${warningCount} warnings</span>
+          </div>
+        </div>
+
+        <div class="validation-rail-save-status" data-prism-save-status>
+          <span class="validation-save-label">Save status</span>
+          <span>${this._saveStatusSummary}</span>
+        </div>
+
+        ${issues.length === 0
+          ? html`<p class="validation-empty">No validation issues. You can save whenever you are ready.</p>`
+          : html`
+              <ol class="validation-issue-list">
+                ${issues.map(issue => html`
+                  <li>
+                    <button
+                      type="button"
+                      class="validation-issue-link"
+                      data-prism-validation-issue=${issue.id}
+                      @click=${() => this._jumpToValidationIssue(issue)}
+                    >
+                      <span class=${`validation-issue-badge validation-issue-badge-${issue.severity}`}>
+                        ${issue.severity === 'error' ? 'Error' : 'Warning'}
+                      </span>
+                      <span>${issue.message}</span>
+                    </button>
+                  </li>
+                `)}
+              </ol>
+            `}
+      </section>
+    `;
+  }
+
+  private _renderShortcutGuide() {
+    if (!this._helpOpen) {
+      return nothing;
+    }
+
+    return html`
+      <div
+        class="modal-backdrop"
+        role="presentation"
+        @click=${(event: MouseEvent) => {
+          if (event.target === event.currentTarget) {
+            this._closeShortcutGuide();
+          }
+        }}
+      >
+        <section
+          class="shortcut-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="workflow-shortcut-title"
+          aria-describedby="workflow-shortcut-copy"
+          data-prism-shortcut-dialog
+          @keydown=${(event: KeyboardEvent) => this._handleDialogKeydown(event, () => this._closeShortcutGuide())}
+        >
+          <div class="shortcut-dialog-header">
+            <div>
+              <p class="shortcut-dialog-eyebrow">Help and shortcuts</p>
+              <h2 id="workflow-shortcut-title" class="shortcut-dialog-title">Workflow editor keyboard reference</h2>
+              <p id="workflow-shortcut-copy" class="shortcut-dialog-copy">
+                These shortcuts stay visible in the editor so authors do not have to memorise them. Open this guide any time with F1.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="toolbar-btn shortcut-dialog-close"
+              data-prism-help-close
+              @click=${() => this._closeShortcutGuide()}
+            >
+              Close
+            </button>
+          </div>
+
+          <div class="shortcut-groups">
+            ${WORKFLOW_SHORTCUT_GROUPS.map(group => html`
+              <section class="shortcut-group" data-prism-shortcut-group=${group.id}>
+                <h3 class="shortcut-group-title">${group.title}</h3>
+                <ol class="shortcut-list">
+                  ${group.shortcuts.map(shortcut => html`
+                    <li class="shortcut-item" data-prism-shortcut=${shortcut.id}>
+                      <div class="shortcut-copy">
+                        <p class="shortcut-command">${shortcut.command}</p>
+                        <p class="shortcut-description">${shortcut.description}</p>
+                      </div>
+                      <div class="shortcut-keys" aria-label=${`${shortcut.command} shortcuts`}>
+                        ${shortcut.labels.map(label => html`<kbd>${label}</kbd>`)}
+                      </div>
+                      <p class="shortcut-context">${shortcut.context}</p>
+                    </li>
+                  `)}
+                </ol>
+              </section>
+            `)}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   private get _resolvedAuthoringApiBase(): string {
     return this.authoringApiBase || defaultAuthoringApiBase();
+  }
+
+  private _renderStagePreview() {
+    const selectedStage = this._selectedStage;
+    const availableViews = selectedStage
+      ? this._previewSurfaceAvailability(selectedStage)
+      : { public: false, member: false, 'back-stage': false };
+
+    return html`
+      <prism-stage-preview
+        .stage=${selectedStage}
+        .projectedState=${this._previewedStage}
+        .outgoingTransitions=${this._previewedTransitions}
+        .previewState=${this._stagePreviewState}
+        .errorMessage=${this._stagePreviewError ?? ''}
+        .selectedView=${this._previewSurface}
+        .availableViews=${availableViews}
+        @preview-surface-selected=${this._handlePreviewSurfaceSelected}
+      ></prism-stage-preview>
+    `;
   }
 
   // ---------------------------------------------------------------------------
@@ -219,7 +1546,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     return html`
       <div
         data-prism-component="workflow-editor"
-        data-prism-workflow-loaded="${this._workflow?.definitionKey ?? ''}"
+        data-prism-workflow-loaded="${this.workflowKey || this._workflow?.definitionKey || ''}"
         class="editor-root"
       >
         ${this._renderToast()}
@@ -233,20 +1560,93 @@ export class PrismWorkflowEditorElement extends LitElement {
               <h1 id="workflow-editor-title" class="editor-title">
                 ${this._workflow?.displayName ?? 'Workflow Editor'}
               </h1>
-              <button
-                class="mode-toggle-btn govuk-button govuk-button--secondary"
-                @click="${this._toggleGraphMode}"
-                aria-label="${this._graphMode === 'graph' ? 'Switch to list view' : 'Switch to graph view'}"
-              >
-                ${this._graphMode === 'graph' ? 'List view' : 'Graph view'}
-              </button>
+              <div class="editor-toolbar" role="toolbar" aria-label="Workflow editor tools">
+                <button
+                  class="toolbar-btn govuk-button"
+                  data-prism-save
+                  ?disabled=${!this._canSave}
+                  aria-keyshortcuts=${SAVE_SHORTCUT?.ariaKeys ?? nothing}
+                  @click=${this._handleSave}
+                >
+                  ${this._saveState === 'saving' ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  class="toolbar-btn govuk-button govuk-button--secondary"
+                  data-prism-undo
+                  ?disabled=${!this._canUndo}
+                  aria-keyshortcuts=${UNDO_SHORTCUT?.ariaKeys ?? nothing}
+                  @click=${this._undo}
+                >
+                  Undo
+                </button>
+                <button
+                  class="toolbar-btn govuk-button govuk-button--secondary"
+                  data-prism-redo
+                  ?disabled=${!this._canRedo}
+                  aria-keyshortcuts=${REDO_SHORTCUT?.ariaKeys ?? nothing}
+                  @click=${this._redo}
+                >
+                  Redo
+                </button>
+                <button
+                  class="toolbar-btn govuk-button govuk-button--secondary"
+                  data-prism-copy
+                  ?disabled=${!this._canCopy}
+                  aria-keyshortcuts=${COPY_SHORTCUT?.ariaKeys ?? nothing}
+                  @click=${() => this._copySelection()}
+                >
+                  Copy
+                </button>
+                <button
+                  class="toolbar-btn govuk-button govuk-button--secondary"
+                  data-prism-paste
+                  ?disabled=${!this._canPaste}
+                  aria-keyshortcuts=${PASTE_SHORTCUT?.ariaKeys ?? nothing}
+                  @click=${() => this._pasteClipboard()}
+                >
+                  Paste
+                </button>
+                <button
+                  class="toolbar-btn govuk-button govuk-button--secondary"
+                  data-prism-help
+                  aria-keyshortcuts=${HELP_SHORTCUT?.ariaKeys ?? nothing}
+                  @click=${(event: Event) => this._openShortcutGuide(event.currentTarget as HTMLElement)}
+                >
+                  Help
+                </button>
+                <button
+                  class="mode-toggle-btn govuk-button govuk-button--secondary"
+                  @click="${this._toggleGraphMode}"
+                  aria-label="${this._graphMode === 'graph' ? 'Switch to list view' : 'Switch to graph view'}"
+                >
+                  ${this._graphMode === 'graph' ? 'List view' : 'Graph view'}
+                </button>
+                <span class="clipboard-chip" data-prism-clipboard-state>${this._clipboardSummary}</span>
+              </div>
             </div>
+            <div class="editor-statusbar" data-prism-history-status>
+              <span class="status-chip">${this._dirtyStateSummary}</span>
+              <span class="status-chip">${this._canUndo ? 'Undo ready' : 'Undo idle'}</span>
+              <span class="status-chip">${this._canRedo ? 'Redo ready' : 'Redo idle'}</span>
+              <span class="status-chip">${this._hasBlockingValidationIssues ? 'Save blocked' : 'Save ready'}</span>
+              <span class="status-chip">Help F1</span>
+              <span class="status-text">${this._historyStatusSummary}</span>
+            </div>
+            <div class="sr-only" role="status" aria-live="polite">${this._historyAnnouncement}</div>
 
             <prism-workflow-graph
               class="graph-panel"
-              .workflow="${this._workflow}"
-              .mode="${this._graphMode}"
+              .workflow=${this._workflow}
+              .mode=${this._graphMode}
+              .selectedStageKey=${this._selectedStageKey}
+              .selectedTransitionIndex=${this._selectedTransitionIndex}
+              .simulationCurrentStageKey=${this._simulationCurrentStage?.stageKey ?? null}
+              .simulationPathStageKeys=${this._simulation?.history.map(entry => entry.stageKey) ?? []}
+              .simulationPathTransitionIndices=${this._simulation?.pathTransitionIndices ?? []}
               @stage-selected="${this._handleStageSelected}"
+              @transition-selected="${this._handleTransitionSelected}"
+              @workflow-updated="${this._handleWorkflowUpdated}"
+              @inspector-requested="${this._handleInspectorRequested}"
             ></prism-workflow-graph>
           </div>
 
@@ -255,8 +1655,13 @@ export class PrismWorkflowEditorElement extends LitElement {
             <prism-step-inspector
               class="inspector-panel"
               tabindex="0"
-              .workflow="${this._workflow}"
+              .workflow=${this._workflow}
               selected-stage-key="${this._selectedStageKey ?? ''}"
+              .selectedTransitionIndex=${this._selectedTransitionIndex}
+              .selectedActionIndex=${this._selectedActionIndex}
+              .actionCatalog=${this._actionCatalog}
+              @workflow-updated=${this._handleWorkflowUpdated}
+              @action-selected=${this._handleActionSelected}
             ></prism-step-inspector>
 
             <prism-conversation-pane
@@ -265,6 +1670,13 @@ export class PrismWorkflowEditorElement extends LitElement {
             ></prism-conversation-pane>
           </div>
         </div>
+
+        ${this._renderValidationRail()}
+        <div class="editor-confidence-panels">
+          ${this._renderStagePreview()}
+          ${this._renderSimulationPanel()}
+        </div>
+        ${this._renderShortcutGuide()}
 
         <!-- Modal overlay for proposal diff -->
         ${this._modalOpen && this._proposal
@@ -277,7 +1689,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                 }}"
               >
                 <prism-proposal-diff
-                  .proposal="${this._proposal}"
+                  .proposal=${this._proposal}
                   @proposal-accept="${this._handleProposalAccept}"
                   @proposal-reject="${this._handleProposalReject}"
                 ></prism-proposal-diff>
@@ -316,6 +1728,18 @@ export class PrismWorkflowEditorElement extends LitElement {
       font-size: 1rem;
       color: #0b0c0c;
       background: #f3f2f1;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .editor-root {
@@ -362,6 +1786,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       display: flex;
       flex: 1;
       overflow: hidden;
+      min-height: 0;
     }
 
     /* ---- Left panel ---- */
@@ -391,6 +1816,14 @@ export class PrismWorkflowEditorElement extends LitElement {
       flex: 1;
     }
 
+    .editor-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    .toolbar-btn,
     .mode-toggle-btn {
       font-size: 0.875rem;
       padding: 0.4rem 0.75rem;
@@ -401,15 +1834,64 @@ export class PrismWorkflowEditorElement extends LitElement {
       cursor: pointer;
       font-weight: 600;
       white-space: nowrap;
+      margin: 0;
     }
 
-    .mode-toggle-btn:hover {
+    .toolbar-btn[disabled],
+    .mode-toggle-btn[disabled] {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .toolbar-btn:hover:not([disabled]),
+    .mode-toggle-btn:hover:not([disabled]) {
       background: #e8f0fb;
     }
 
+    .toolbar-btn:focus-visible,
     .mode-toggle-btn:focus-visible {
       outline: 3px solid #ffdd00;
       outline-offset: 2px;
+    }
+
+    .clipboard-chip {
+      display: inline-flex;
+      align-items: center;
+      max-width: 20rem;
+      min-height: 2.25rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #003078;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .editor-statusbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      background: #ffffff;
+      border-bottom: 1px solid #b1b4b6;
+      flex-shrink: 0;
+      font-size: 0.875rem;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: #d8dde3;
+      color: #0b0c0c;
+      font-weight: 700;
+    }
+
+    .status-text {
+      color: #505a5f;
     }
 
     .graph-panel {
@@ -441,6 +1923,120 @@ export class PrismWorkflowEditorElement extends LitElement {
       border-top: 2px solid #b1b4b6;
     }
 
+    .validation-rail {
+      padding: 1rem;
+      border-top: 2px solid #b1b4b6;
+      background: #ffffff;
+      display: grid;
+      gap: 0.875rem;
+    }
+
+    .editor-confidence-panels {
+      padding: 1rem;
+      border-top: 1px solid #d8dde3;
+      background: #f8fafc;
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+
+    .validation-rail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .validation-rail-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .validation-rail-summary,
+    .validation-empty,
+    .validation-rail-save-status {
+      margin: 0;
+      color: #505a5f;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .validation-rail-meta {
+      display: inline-flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .validation-count,
+    .validation-save-label,
+    .validation-issue-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .validation-count-error,
+    .validation-issue-badge-error {
+      background: #f8d7da;
+      color: #6f1d1b;
+    }
+
+    .validation-count-warning,
+    .validation-issue-badge-warning {
+      background: #fff1cc;
+      color: #594100;
+    }
+
+    .validation-rail-save-status {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .validation-save-label {
+      background: #d8dde3;
+      color: #0b0c0c;
+    }
+
+    .validation-issue-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 0.625rem;
+    }
+
+    .validation-issue-link {
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 0.875rem;
+      border: 1px solid #b1b4b6;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #0b0c0c;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .validation-issue-link:hover {
+      background: #f8f8f8;
+    }
+
+    .validation-issue-link:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 2px;
+    }
+
     /* ---- Modal overlay ---- */
 
     .modal-backdrop {
@@ -459,6 +2055,142 @@ export class PrismWorkflowEditorElement extends LitElement {
       width: 100%;
       max-height: 90vh;
       overflow-y: auto;
+    }
+
+    .shortcut-dialog {
+      width: min(64rem, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      padding: 1.25rem;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+      display: grid;
+      gap: 1rem;
+    }
+
+    .shortcut-dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .shortcut-dialog-eyebrow {
+      margin: 0 0 0.25rem;
+      color: #1d4ed8;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .shortcut-dialog-title {
+      margin: 0;
+      color: #0b0c0c;
+      font-size: 1.35rem;
+      line-height: 1.3;
+    }
+
+    .shortcut-dialog-copy {
+      margin: 0.5rem 0 0;
+      color: #505a5f;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      max-width: 48rem;
+    }
+
+    .shortcut-dialog-close {
+      flex-shrink: 0;
+    }
+
+    .shortcut-groups {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .shortcut-group {
+      border: 1px solid #d8dde3;
+      border-radius: 12px;
+      padding: 1rem;
+      background: #f8f8f8;
+    }
+
+    .shortcut-group-title {
+      margin: 0 0 0.875rem;
+      font-size: 1rem;
+      color: #0b0c0c;
+    }
+
+    .shortcut-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .shortcut-item {
+      display: grid;
+      grid-template-columns: minmax(0, 2.2fr) minmax(12rem, 1fr) minmax(0, 1.3fr);
+      gap: 0.875rem;
+      align-items: start;
+      padding: 0.875rem;
+      border-radius: 10px;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+    }
+
+    .shortcut-command,
+    .shortcut-description,
+    .shortcut-context {
+      margin: 0;
+    }
+
+    .shortcut-command {
+      color: #0b0c0c;
+      font-weight: 700;
+    }
+
+    .shortcut-description,
+    .shortcut-context {
+      color: #505a5f;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .shortcut-description {
+      margin-top: 0.25rem;
+    }
+
+    .shortcut-keys {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .shortcut-keys kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2rem;
+      padding: 0.25rem 0.625rem;
+      border: 1px solid #b1b4b6;
+      border-bottom-width: 3px;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #0b0c0c;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 960px) {
+      .shortcut-item {
+        grid-template-columns: 1fr;
+      }
     }
   `;
 }

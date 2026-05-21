@@ -1,15 +1,74 @@
-import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import type { AuthoredWorkflow, AuthoredStage } from './types.js';
+import { LitElement, css, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import type {
+  ActionCatalogEntry,
+  AuthoredAction,
+  AuthoredStage,
+  AuthoredTransition,
+  AuthoredWorkflow,
+  EditorActor,
+  EditorStageType,
+} from './types.js';
+import {
+  actorToEditorActor,
+  editorActorToActor,
+  editorStageTypeToStageKind,
+  stageKindToEditorStageType,
+} from './types.js';
+import {
+  describeTransitionCondition,
+  parseTransitionCondition,
+  serialiseTransitionCondition,
+  TRANSITION_ACTION_OPTIONS,
+  transitionQuickAction,
+  type TransitionConditionMode,
+} from './workflow-transition-editing.js';
+import {
+  isTerminalStage,
+  workflowDeadEndStages,
+  workflowOrphanedStages,
+  workflowOutgoingTransitions,
+  workflowUnreachableStages,
+} from './workflow-validation.js';
+import './prism-workflow-action-editor.js';
+import './prism-inline-help.js';
 
-/**
- * Step inspector skeleton — right-panel read-only summary of a selected stage.
- *
- * Heading hierarchy: one h2 (stage title), h3 for each subsection.
- * Editing affordances are V2; V1 renders read-only fields/exits/role gates.
- *
- * Test hooks: data-prism-component, data-prism-stage-detail
- */
+const STAGE_TYPE_OPTIONS: Array<{ value: EditorStageType; label: string }> = [
+  { value: 'form', label: 'Form' },
+  { value: 'review', label: 'Review' },
+  { value: 'decision', label: 'Decision' },
+  { value: 'waiting', label: 'Waiting' },
+  { value: 'confirmation', label: 'Confirmation' },
+  { value: 'system-work', label: 'System work' },
+];
+
+const ACTOR_OPTIONS: Array<{ value: EditorActor; label: string }> = [
+  { value: 'public', label: 'Public' },
+  { value: 'member', label: 'Member' },
+  { value: 'reviewer', label: 'Reviewer' },
+  { value: 'system', label: 'System' },
+];
+
+type GraphSelectionDetail = {
+  kind: 'stage' | 'transition';
+  stageKey?: string;
+  transitionIndex?: number;
+};
+
+type WorkflowUpdatedDetail = {
+  workflow: AuthoredWorkflow;
+  selection?: GraphSelectionDetail | null;
+};
+
+type ActionsUpdatedDetail = {
+  actions: AuthoredAction[];
+};
+
+type ActionSelectedDetail = {
+  index: number | null;
+  target: 'stage' | 'transition';
+};
+
 @customElement('prism-step-inspector')
 export class PrismStepInspectorElement extends LitElement {
   @property({ attribute: false })
@@ -18,138 +77,727 @@ export class PrismStepInspectorElement extends LitElement {
   @property({ type: String, attribute: 'selected-stage-key' })
   selectedStageKey: string | null = null;
 
+  @property({ type: Number, attribute: false })
+  selectedTransitionIndex: number | null = null;
+
+  @property({ attribute: false })
+  actionCatalog: ActionCatalogEntry[] = [];
+
+  @property({ type: Number, attribute: false })
+  selectedActionIndex: number | null = null;
+
+  @state() private _stageKeyError: string | null = null;
+  @state() private _statusMessage: string | null = null;
+
   private get _selectedStage(): AuthoredStage | null {
-    if (!this.workflow || !this.selectedStageKey) return null;
-    return this.workflow.stages.find(s => s.stageKey === this.selectedStageKey) ?? null;
+    if (!this.workflow || !this.selectedStageKey) {
+      return null;
+    }
+
+    return this.workflow.stages.find(stage => stage.stageKey === this.selectedStageKey) ?? null;
+  }
+
+  private get _selectedTransition(): AuthoredTransition | null {
+    if (!this.workflow || this.selectedTransitionIndex === null) {
+      return null;
+    }
+
+    return this.workflow.transitions[this.selectedTransitionIndex] ?? null;
+  }
+
+  protected updated(changed: Map<string, unknown>) {
+    if (changed.has('selectedStageKey')) {
+      this._stageKeyError = null;
+    }
+  }
+
+  private _announce(message: string) {
+    this._statusMessage = '';
+    requestAnimationFrame(() => {
+      this._statusMessage = message;
+    });
+  }
+
+  private _emitWorkflowUpdated(workflow: AuthoredWorkflow, selection?: GraphSelectionDetail | null) {
+    this.dispatchEvent(
+      new CustomEvent<WorkflowUpdatedDetail>('workflow-updated', {
+        detail: { workflow, selection },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _handleActionSelected(event: CustomEvent<ActionSelectedDetail>) {
+    event.stopPropagation();
+    this.dispatchEvent(
+      new CustomEvent<ActionSelectedDetail>('action-selected', {
+        detail: event.detail,
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _stageLabel(stageKey: string) {
+    return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
+  }
+
+  private _surfaceForStage(stage: AuthoredStage) {
+    if (stage.editorSurface) {
+      return stage.editorSurface;
+    }
+
+    if ((stage.roleGates?.length ?? 0) > 0) {
+      return 'back-stage';
+    }
+
+    const actor = stage.actor?.trim().toLowerCase() ?? '';
+    return actor.includes('review') || actor.includes('case') || actor.includes('system')
+      ? 'back-stage'
+      : 'front-stage';
+  }
+
+  private _selectedStageOutgoing(stage: AuthoredStage) {
+    return this.workflow ? workflowOutgoingTransitions(this.workflow, stage.stageKey) : [];
+  }
+
+  private _replaceSelectedTransition(nextTransition: AuthoredTransition) {
+    if (!this.workflow || this.selectedTransitionIndex === null) {
+      return;
+    }
+
+    const transitions = [...this.workflow.transitions];
+    if (!transitions[this.selectedTransitionIndex]) {
+      return;
+    }
+
+    transitions[this.selectedTransitionIndex] = nextTransition;
+    this._emitWorkflowUpdated(
+      { ...this.workflow, transitions },
+      { kind: 'transition', transitionIndex: this.selectedTransitionIndex }
+    );
+  }
+
+  private _replaceSelectedStage(nextStage: AuthoredStage, previousStageKey = this._selectedStage?.stageKey) {
+    if (!this.workflow || !previousStageKey) {
+      return;
+    }
+
+    const stageIndex = this.workflow.stages.findIndex(stage => stage.stageKey === previousStageKey);
+    if (stageIndex < 0) {
+      return;
+    }
+
+    const stages = [...this.workflow.stages];
+    stages[stageIndex] = nextStage;
+
+    let transitions = [...this.workflow.transitions];
+    let initialStageKey = this.workflow.initialStageKey;
+
+    if (nextStage.stageKey !== previousStageKey) {
+      transitions = transitions.map(transition => ({
+        ...transition,
+        fromStage: transition.fromStage === previousStageKey ? nextStage.stageKey : transition.fromStage,
+        toStage: transition.toStage === previousStageKey ? nextStage.stageKey : transition.toStage,
+      }));
+      if (initialStageKey === previousStageKey) {
+        initialStageKey = nextStage.stageKey;
+      }
+    }
+
+    const workflow: AuthoredWorkflow = {
+      ...this.workflow,
+      initialStageKey,
+      stages,
+      transitions,
+    };
+
+    this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: nextStage.stageKey });
+  }
+
+  private _updateSelectedStageActions(event: CustomEvent<ActionsUpdatedDetail>) {
+    const stage = this._selectedStage;
+    if (!stage) {
+      return;
+    }
+
+    this._replaceSelectedStage({
+      ...stage,
+      actions: event.detail.actions,
+    });
+  }
+
+  private _updateSelectedTransitionActions(event: CustomEvent<ActionsUpdatedDetail>) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    this._replaceSelectedTransition({
+      ...transition,
+      actions: event.detail.actions,
+    });
+  }
+
+  private _updateStageTitle(event: Event) {
+    const stage = this._selectedStage;
+    if (!stage) {
+      return;
+    }
+
+    const nextTitle = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!nextTitle || nextTitle === stage.displayName) {
+      return;
+    }
+
+    this._replaceSelectedStage({ ...stage, displayName: nextTitle });
+    this._announce(`${nextTitle} title updated.`);
+  }
+
+  private _updateStageKey(event: Event) {
+    const stage = this._selectedStage;
+    if (!stage || !this.workflow) {
+      return;
+    }
+
+    const nextKey = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!nextKey) {
+      this._stageKeyError = 'Stage key is required.';
+      this._announce('Stage key is required.');
+      return;
+    }
+
+    const duplicate = this.workflow.stages.some(candidate =>
+      candidate.stageKey === nextKey && candidate.stageKey !== stage.stageKey
+    );
+    if (duplicate) {
+      this._stageKeyError = 'Stage key must be unique.';
+      this._announce(`Stage key ${nextKey} is already in use.`);
+      return;
+    }
+
+    if (nextKey === stage.stageKey) {
+      this._stageKeyError = null;
+      return;
+    }
+
+    this._stageKeyError = null;
+    this._replaceSelectedStage({ ...stage, stageKey: nextKey }, stage.stageKey);
+    this._announce(`Stage key updated to ${nextKey}.`);
+  }
+
+  private _updateStageDescription(event: Event) {
+    const stage = this._selectedStage;
+    if (!stage) {
+      return;
+    }
+
+    const nextDescription = (event.currentTarget as HTMLTextAreaElement).value.trim();
+    const previousDescription = stage.description?.trim() ?? '';
+    if (nextDescription === previousDescription) {
+      return;
+    }
+
+    this._replaceSelectedStage({
+      ...stage,
+      description: nextDescription || undefined,
+    });
+    this._announce(`${stage.displayName} description updated.`);
+  }
+
+  private _updateStageActor(event: Event) {
+    const stage = this._selectedStage;
+    if (!stage) {
+      return;
+    }
+
+    const nextActor = (event.currentTarget as HTMLSelectElement).value as EditorActor;
+    const actor = editorActorToActor(nextActor);
+    const nextStage: AuthoredStage = {
+      ...stage,
+      actor,
+      editorSurface: nextActor === 'reviewer' || nextActor === 'system' ? 'back-stage' : 'front-stage',
+      roleGates: nextActor === 'reviewer' ? ['reviewer'] : [],
+    };
+
+    this._replaceSelectedStage(nextStage);
+    this._announce(`${stage.displayName} actor updated.`);
+  }
+
+  private _updateStageType(event: Event) {
+    const stage = this._selectedStage;
+    if (!stage) {
+      return;
+    }
+
+    const nextType = (event.currentTarget as HTMLSelectElement).value as EditorStageType;
+    const nextKind = editorStageTypeToStageKind(nextType);
+    const nextStage: AuthoredStage = {
+      ...stage,
+      kind: nextKind,
+      waiting: nextKind === 'Waiting' ? stage.waiting ?? { allowDefer: false } : stage.waiting,
+    };
+
+    this._replaceSelectedStage(nextStage);
+    this._announce(`${stage.displayName} type updated.`);
+  }
+
+  private _updateTransitionLabel(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const action = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!action || action === transition.action) {
+      return;
+    }
+
+    this._replaceSelectedTransition({ ...transition, action });
+    this._announce(`Transition label updated to ${action}.`);
+  }
+
+  private _updateTransitionActionPreset(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const nextAction = (event.currentTarget as HTMLSelectElement).value;
+    if (nextAction === 'custom' || nextAction === transition.action) {
+      return;
+    }
+
+    this._replaceSelectedTransition({ ...transition, action: nextAction });
+    this._announce(`Transition action updated to ${nextAction}.`);
+  }
+
+  private _updateTransitionTarget(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const toStage = (event.currentTarget as HTMLSelectElement).value;
+    if (!toStage || toStage === transition.toStage) {
+      return;
+    }
+
+    this._replaceSelectedTransition({ ...transition, toStage });
+    this._announce(`Transition now routes to ${this._stageLabel(toStage)}.`);
+  }
+
+  private _updateTransitionConditionMode(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const mode = (event.currentTarget as HTMLSelectElement).value as TransitionConditionMode;
+    const current = parseTransitionCondition(transition.condition);
+    const condition = serialiseTransitionCondition(mode, mode === current.mode ? current.value : '');
+
+    this._replaceSelectedTransition({ ...transition, condition });
+    this._announce(
+      mode === 'always'
+        ? 'Transition condition cleared.'
+        : `${mode === 'event' ? 'Event' : 'Guard'} condition enabled.`
+    );
+  }
+
+  private _updateTransitionConditionValue(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const parsed = parseTransitionCondition(transition.condition);
+    const condition = serialiseTransitionCondition(
+      parsed.mode === 'always' ? 'guard' : parsed.mode,
+      (event.currentTarget as HTMLInputElement).value
+    );
+
+    this._replaceSelectedTransition({ ...transition, condition });
+    this._announce('Transition condition updated.');
+  }
+
+  private _updateTransitionRole(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const requiresRole = (event.currentTarget as HTMLInputElement).value.trim() || undefined;
+    if (requiresRole === transition.requiresRole) {
+      return;
+    }
+
+    this._replaceSelectedTransition({ ...transition, requiresRole });
+    this._announce(requiresRole ? `Role guard updated to ${requiresRole}.` : 'Role guard cleared.');
+  }
+
+  private _deleteSelectedTransition() {
+    if (!this.workflow || this.selectedTransitionIndex === null) {
+      return;
+    }
+
+    const transition = this.workflow.transitions[this.selectedTransitionIndex];
+    if (!transition) {
+      return;
+    }
+
+    const transitions = this.workflow.transitions.filter((_, index) => index !== this.selectedTransitionIndex);
+    this._emitWorkflowUpdated({ ...this.workflow, transitions }, null);
+    this._announce(`Transition ${transition.action} deleted.`);
   }
 
   private _renderEmpty() {
     return html`
       <div class="empty-state" role="status">
-        <p>Select a stage from the graph to inspect its properties.</p>
+        <p>Select a stage or transition from the workspace to inspect its details.</p>
       </div>
     `;
   }
 
+  private _renderTransition(transition: AuthoredTransition) {
+    const condition = parseTransitionCondition(transition.condition);
+    const targetOptions = (this.workflow?.stages ?? []).filter(stage => stage.stageKey !== transition.fromStage);
+
+    return html`
+      <article
+        class="inspector-panel"
+        data-prism-transition-detail="${transition.fromStage}-${transition.action}-${transition.toStage}"
+        data-prism-inspector-kind="transition"
+        aria-labelledby="inspector-transition-title"
+      >
+        <div class="inspector-header">
+          <div>
+            <p class="eyebrow">Transition</p>
+            <h2 id="inspector-transition-title" class="stage-title">${transition.action}</h2>
+          </div>
+          <span class="stage-kind-badge transition-badge">Edge</span>
+        </div>
+
+        <section class="inspector-section" aria-labelledby="section-transition-route">
+          <h3 id="section-transition-route" class="section-heading">Route</h3>
+          <dl class="meta-list">
+            <div class="meta-row">
+              <dt>From</dt>
+              <dd>${this._stageLabel(transition.fromStage)}</dd>
+            </div>
+            <div class="meta-row">
+              <dt>To</dt>
+              <dd>${this._stageLabel(transition.toStage)}</dd>
+            </div>
+            <div class="meta-row">
+              <dt>Condition</dt>
+              <dd>${describeTransitionCondition(transition.condition)}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="inspector-section" aria-labelledby="section-transition-edit">
+          <div class="section-header-row">
+            <h3 id="section-transition-edit" class="section-heading">Edit transition</h3>
+            <span class="section-meta">${transitionQuickAction(transition.action) === 'custom' ? 'Custom label' : 'Preset label'}</span>
+          </div>
+          <div class="field-grid">
+            <label class="field-block">
+              <span class="field-label">Label</span>
+              <input
+                class="field-control"
+                data-prism-transition-label
+                .value=${transition.action}
+                @change=${this._updateTransitionLabel}
+              />
+            </label>
+            <label class="field-block">
+              <span class="field-label">Action shortcut</span>
+              <select class="field-control" data-prism-transition-action @change=${this._updateTransitionActionPreset}>
+                ${TRANSITION_ACTION_OPTIONS.map(option => html`
+                  <option value=${option.value} ?selected=${transitionQuickAction(transition.action) === option.value}>${option.label}</option>
+                `)}
+                <option value="custom" ?selected=${transitionQuickAction(transition.action) === 'custom'}>Custom label</option>
+              </select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Target stage</span>
+              <select class="field-control" data-prism-transition-target @change=${this._updateTransitionTarget}>
+                ${targetOptions.map(stage => html`
+                  <option value=${stage.stageKey} ?selected=${stage.stageKey === transition.toStage}>${stage.displayName}</option>
+                `)}
+              </select>
+            </label>
+            <label class="field-block">
+              <span class="field-label-row">
+                <span class="field-label">Role guard</span>
+                <prism-inline-help
+                  label="Role guard help"
+                  message="Add a role only when this route should be limited to a specific actor such as reviewer or caseworker. Leave it blank when everyone on the route can use the transition."
+                ></prism-inline-help>
+              </span>
+              <input
+                class="field-control"
+                data-prism-transition-role
+                .value=${transition.requiresRole ?? ''}
+                placeholder="reviewer"
+                @change=${this._updateTransitionRole}
+              />
+            </label>
+          </div>
+
+          <div class="field-grid">
+            <label class="field-block">
+              <span class="field-label-row">
+                <span class="field-label">Condition type</span>
+                <prism-inline-help
+                  label="Condition type help"
+                  message="Choose Always available for a standard route, Event for named workflow triggers, or Guard expression when runtime data decides whether this transition can run."
+                ></prism-inline-help>
+              </span>
+              <select class="field-control" data-prism-transition-condition-mode @change=${this._updateTransitionConditionMode}>
+                <option value="always" ?selected=${condition.mode === 'always'}>Always available</option>
+                <option value="event" ?selected=${condition.mode === 'event'}>Event</option>
+                <option value="guard" ?selected=${condition.mode === 'guard'}>Guard expression</option>
+              </select>
+            </label>
+            <label class="field-block ${condition.mode === 'always' ? 'field-block-disabled' : ''}">
+              <span class="field-label-row">
+                <span class="field-label">${condition.mode === 'event' ? 'Event name' : 'Condition value'}</span>
+                <prism-inline-help
+                  label="Condition value help"
+                  message=${condition.mode === 'event'
+                    ? 'Use the exact event name your runtime emits, for example submit-clicked.'
+                    : 'Use a concise guard expression that explains when this route should unlock, for example application.isComplete == true.'}
+                ></prism-inline-help>
+              </span>
+              <input
+                class="field-control"
+                data-prism-transition-condition-value
+                .value=${condition.value}
+                ?disabled=${condition.mode === 'always'}
+                placeholder=${condition.mode === 'event' ? 'submit-clicked' : 'application.isComplete == true'}
+                @change=${this._updateTransitionConditionValue}
+              />
+            </label>
+          </div>
+
+          <div class="action-buttons">
+            <button
+              type="button"
+              class="icon-button danger-button"
+              data-prism-transition-delete
+              @click=${this._deleteSelectedTransition}
+            >
+              Delete transition
+            </button>
+          </div>
+        </section>
+
+        <section class="inspector-section" aria-labelledby="section-transition-actions">
+          <div class="section-header-row">
+            <h3 id="section-transition-actions" class="section-heading">Transition actions</h3>
+            <span class="section-meta">${transition.actions?.length ?? 0} configured</span>
+          </div>
+          <prism-workflow-action-editor
+            .actions=${transition.actions ?? []}
+            .actionCatalog=${this.actionCatalog}
+            .selectedActionIndex=${this.selectedActionIndex}
+            target="transition"
+            subject-label="transition"
+            @actions-updated=${this._updateSelectedTransitionActions}
+            @action-selected=${this._handleActionSelected}
+          ></prism-workflow-action-editor>
+        </section>
+      </article>
+    `;
+  }
+
   private _renderStage(stage: AuthoredStage) {
-    // Fields are carried directly on the stage in the C# schema.
     const fields = stage.fields ?? [];
-
-    const outgoing = (this.workflow?.transitions ?? []).filter(
-      t => t.fromStage === stage.stageKey
-    );
-
-    const roleLabels = (stage.roleGates ?? []).map(key => {
-      const role = this.workflow?.roles?.find(r => r.roleKey === key);
-      return role?.displayName ?? key;
-    });
+    const actions = stage.actions ?? [];
+    const outgoing = this._selectedStageOutgoing(stage);
+    const surface = this._surfaceForStage(stage);
+    const stageType = stageKindToEditorStageType(stage.kind);
+    const actor = actorToEditorActor(stage.actor);
+    const unreachable = this.workflow
+      ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
+      : false;
+    const orphaned = this.workflow
+      ? workflowOrphanedStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
+      : false;
+    const deadEnd = this.workflow
+      ? workflowDeadEndStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
+      : false;
+    const validationMessages = [
+      ...(this._stageKeyError ? [this._stageKeyError] : []),
+      ...(orphaned ? ['This stage is disconnected from the workflow. Add at least one transition to connect it.'] : []),
+      ...(deadEnd || (outgoing.length === 0 && !isTerminalStage(stage))
+        ? ['Add at least one outbound transition before publishing this stage.']
+        : []),
+      ...(unreachable ? ['This stage is unreachable from the workflow start. Add or retarget an inbound transition.'] : []),
+    ];
 
     return html`
       <article
         class="inspector-panel"
         data-prism-stage-detail="${stage.stageKey}"
+        data-prism-inspector-kind="stage"
         aria-labelledby="inspector-stage-title"
       >
         <div class="inspector-header">
-          <h2 id="inspector-stage-title" class="stage-title">${stage.displayName}</h2>
-          <span class="stage-kind-badge">${stage.kind}</span>
+          <div>
+            <p class="eyebrow">${surface === 'front-stage' ? 'Front stage' : 'Back stage'}</p>
+            <h2 id="inspector-stage-title" class="stage-title">${stage.displayName}</h2>
+          </div>
+          <span class="stage-kind-badge">${STAGE_TYPE_OPTIONS.find(option => option.value === stageType)?.label ?? stage.kind}</span>
         </div>
 
-        <!-- Fields subsection -->
-        <section class="inspector-section" aria-labelledby="section-fields-${stage.stageKey}">
-          <h3 id="section-fields-${stage.stageKey}" class="section-heading">
-            Fields
-          </h3>
+        ${validationMessages.length > 0
+          ? html`
+              <section class="inspector-section validation-section" aria-labelledby="stage-validation-heading">
+                <h3 id="stage-validation-heading" class="section-heading">Validation</h3>
+                <ul class="validation-list">
+                  ${validationMessages.map(message => html`<li>${message}</li>`) }
+                </ul>
+              </section>
+            `
+          : nothing}
+
+        <section class="inspector-section" aria-labelledby="stage-basics-heading">
+          <h3 id="stage-basics-heading" class="section-heading">Stage details</h3>
+          <div class="field-grid">
+            <label class="field-block">
+              <span class="field-label">Title</span>
+              <input
+                class="field-control"
+                data-prism-stage-title
+                .value=${stage.displayName}
+                @change=${this._updateStageTitle}
+              />
+            </label>
+            <label class="field-block">
+              <span class="field-label-row">
+                <span class="field-label">Key</span>
+                <prism-inline-help
+                  label="Stage key help"
+                  message="Use a stable, machine-friendly key. Transitions, validation links, and saved workflow JSON all depend on this value staying predictable."
+                ></prism-inline-help>
+              </span>
+              <input
+                class="field-control ${this._stageKeyError ? 'field-control-error' : ''}"
+                data-prism-stage-key
+                aria-invalid=${String(Boolean(this._stageKeyError))}
+                .value=${stage.stageKey}
+                @input=${() => {
+                  this._stageKeyError = null;
+                }}
+                @change=${this._updateStageKey}
+              />
+              ${this._stageKeyError
+                ? html`<span class="field-error" data-prism-stage-key-error>${this._stageKeyError}</span>`
+                : nothing}
+            </label>
+            <label class="field-block">
+              <span class="field-label">Actor</span>
+              <select class="field-control" data-prism-stage-actor @change=${this._updateStageActor}>
+                ${ACTOR_OPTIONS.map(option => html`
+                  <option value=${option.value} ?selected=${actor === option.value}>${option.label}</option>
+                `)}
+              </select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Type</span>
+              <select class="field-control" data-prism-stage-type @change=${this._updateStageType}>
+                ${STAGE_TYPE_OPTIONS.map(option => html`
+                  <option value=${option.value} ?selected=${stageType === option.value}>${option.label}</option>
+                `)}
+              </select>
+            </label>
+          </div>
+
+          <label class="field-block field-block-full">
+            <span class="field-label">Description</span>
+            <textarea
+              class="field-control field-textarea"
+              data-prism-stage-description
+              .value=${stage.description ?? ''}
+              @change=${this._updateStageDescription}
+            ></textarea>
+          </label>
+        </section>
+
+        <section class="inspector-section" aria-labelledby="stage-actions-heading">
+          <div class="section-header-row">
+            <h3 id="stage-actions-heading" class="section-heading">Actions</h3>
+            <span class="section-meta">${actions.length} configured</span>
+          </div>
+          <prism-workflow-action-editor
+            .actions=${actions}
+            .actionCatalog=${this.actionCatalog}
+            .selectedActionIndex=${this.selectedActionIndex}
+            target="stage"
+            subject-label="stage"
+            @actions-updated=${this._updateSelectedStageActions}
+            @action-selected=${this._handleActionSelected}
+          ></prism-workflow-action-editor>
+        </section>
+
+        <section class="inspector-section" aria-labelledby="stage-transitions-heading">
+          <div class="section-header-row">
+            <h3 id="stage-transitions-heading" class="section-heading">Outbound transitions</h3>
+            <span class="section-meta">${outgoing.length}</span>
+          </div>
+          ${outgoing.length === 0
+            ? html`<p class="section-empty">No outbound transitions yet.</p>`
+            : html`
+                <ul class="transition-list">
+                  ${outgoing.map(transition => html`
+                    <li class="transition-item">
+                      <span class="transition-action">${transition.action}</span>
+                      <span class="transition-arrow" aria-hidden="true">→</span>
+                      <span>${this._stageLabel(transition.toStage)}</span>
+                    </li>
+                  `)}
+                </ul>
+              `}
+        </section>
+
+        <section class="inspector-section" aria-labelledby="stage-fields-heading">
+          <div class="section-header-row">
+            <h3 id="stage-fields-heading" class="section-heading">Fields</h3>
+            <span class="section-meta">${fields.length}</span>
+          </div>
           ${fields.length === 0
             ? html`<p class="section-empty">No fields defined for this stage.</p>`
             : html`
                 <ul class="field-list">
-                  ${fields.map(f => html`
+                  ${fields.map(field => html`
                     <li class="field-item">
-                      <span class="field-label">${f.label}</span>
-                      <span class="field-meta">${f.kind}${f.required ? ' · required' : ''}</span>
+                      <span class="field-item-label">${field.label}</span>
+                      <span class="field-item-meta">${field.kind}${field.required ? ' · required' : ''}</span>
                     </li>
                   `)}
                 </ul>
               `}
         </section>
-
-        <!-- Role gating subsection -->
-        <section class="inspector-section" aria-labelledby="section-roles-${stage.stageKey}">
-          <h3 id="section-roles-${stage.stageKey}" class="section-heading">
-            Role gating
-          </h3>
-          ${roleLabels.length === 0
-            ? html`<p class="section-empty">Accessible by any authenticated user.</p>`
-            : html`
-                <ul class="role-list">
-                  ${roleLabels.map(label => html`<li class="role-tag">${label}</li>`)}
-                </ul>
-              `}
-        </section>
-
-        <!-- Exits (transitions) subsection -->
-        <section class="inspector-section" aria-labelledby="section-exits-${stage.stageKey}">
-          <h3 id="section-exits-${stage.stageKey}" class="section-heading">
-            Transitions (outgoing)
-          </h3>
-          ${outgoing.length === 0
-            ? html`<p class="section-empty">No outgoing transitions. This is a terminal stage.</p>`
-            : html`
-                <ul class="exit-list">
-                  ${outgoing.map(t => html`
-                    <li class="exit-item">
-                      <span class="exit-action">${t.action}</span>
-                      <span aria-hidden="true" class="exit-arrow">→</span>
-                      <span class="exit-target">${t.toStage}</span>
-                      ${t.requiresRole
-                        ? html`<span class="exit-role" title="Required role">(${t.requiresRole})</span>`
-                        : nothing}
-                    </li>
-                  `)}
-                </ul>
-              `}
-        </section>
-
-        <!-- Waiting metadata subsection (only for Waiting stages) -->
-        ${stage.kind === 'Waiting' && stage.waiting ? html`
-          <section class="inspector-section" aria-labelledby="section-waiting-${stage.stageKey}">
-            <h3 id="section-waiting-${stage.stageKey}" class="section-heading">
-              Waiting configuration
-            </h3>
-            <dl class="waiting-meta">
-              ${stage.waiting.content ? html`
-                <div class="meta-row">
-                  <dt>Message</dt>
-                  <dd>${stage.waiting.content}</dd>
-                </div>
-              ` : nothing}
-              ${stage.waiting.expectedWaitSeconds ? html`
-                <div class="meta-row">
-                  <dt>Expected wait</dt>
-                  <dd>${Math.round(stage.waiting.expectedWaitSeconds / 3600)} hours</dd>
-                </div>
-              ` : nothing}
-              <div class="meta-row">
-                <dt>Allow defer</dt>
-                <dd>${stage.waiting.allowDefer ? 'Yes' : 'No'}</dd>
-              </div>
-            </dl>
-          </section>
-        ` : nothing}
       </article>
     `;
   }
 
   render() {
-    const stage = this._selectedStage;
+    const transition = this._selectedTransition;
+    const stage = transition ? null : this._selectedStage;
+
     return html`
-      <div
-        class="step-inspector-root"
-        data-prism-component="step-inspector"
-        tabindex="0"
-      >
-        ${stage ? this._renderStage(stage) : this._renderEmpty()}
+      <div class="step-inspector-root" data-prism-component="step-inspector" tabindex="0">
+        <div id="inspector-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true">${this._statusMessage ?? ''}</div>
+        ${transition
+          ? this._renderTransition(transition)
+          : stage
+            ? this._renderStage(stage)
+            : this._renderEmpty()}
       </div>
     `;
   }
@@ -157,46 +805,56 @@ export class PrismStepInspectorElement extends LitElement {
   static styles = css`
     :host {
       display: block;
+      height: 100%;
       font-family: var(--uui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .step-inspector-root {
       height: 100%;
       overflow-y: auto;
-      background: var(--uui-color-surface-alt, #ffffff);
-      border: 1px solid var(--uui-color-border, #d1d5db);
-      border-radius: var(--uui-border-radius, 6px);
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
     }
 
     .empty-state {
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100%;
-      min-height: 120px;
+      min-height: 12rem;
       padding: 2rem;
-      color: #4b5563;
-      font-size: 0.875rem;
+      color: #475569;
       text-align: center;
-    }
-
-    .empty-state p {
-      margin: 0;
-    }
-
-    .inspector-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
     }
 
     .inspector-header {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      gap: 0.5rem;
+      gap: 0.75rem;
       padding: 1rem 1.25rem 0.875rem;
       border-bottom: 1px solid #e5e7eb;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
+
+    .eyebrow {
+      margin: 0 0 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #1d4ed8;
     }
 
     .stage-title {
@@ -208,20 +866,25 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     .stage-kind-badge {
-      flex-shrink: 0;
+      align-self: flex-start;
+      padding: 0.25rem 0.625rem;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
       font-size: 0.6875rem;
-      font-weight: 600;
-      color: #374151;
-      background: #e5e7eb;
-      padding: 0.125rem 0.5rem;
-      border-radius: 3px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
+    .transition-badge {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
     .inspector-section {
-      padding: 0.875rem 1.25rem;
-      border-bottom: 1px solid #f3f4f6;
+      padding: 0.9375rem 1.25rem;
+      border-bottom: 1px solid #f1f5f9;
     }
 
     .inspector-section:last-child {
@@ -229,129 +892,279 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     .section-heading {
-      margin: 0 0 0.625rem;
+      margin: 0;
       font-size: 0.8125rem;
       font-weight: 700;
-      color: #374151;
+      color: #334155;
       text-transform: uppercase;
       letter-spacing: 0.06em;
     }
 
+    .section-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-meta {
+      color: #475569;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+
+    .section-copy,
     .section-empty {
       margin: 0;
+      color: #475569;
       font-size: 0.875rem;
-      color: #595959;
-      font-style: italic;
+      line-height: 1.5;
     }
 
-    /* Field list */
-    .field-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
+    .validation-section {
+      background: #fff7ed;
+    }
+
+    .validation-list {
+      margin: 0.75rem 0 0;
+      padding-left: 1rem;
+      color: #9a3412;
+      display: grid;
       gap: 0.375rem;
+      font-size: 0.875rem;
     }
 
-    .field-item {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding: 0.375rem 0.5rem;
-      background: #f9fafb;
-      border-radius: 4px;
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.875rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .field-block {
+      display: grid;
+      gap: 0.375rem;
+      min-width: 0;
+    }
+
+    .field-block-full {
+      margin-top: 0.25rem;
+    }
+
+    .field-block-disabled {
+      opacity: 0.7;
     }
 
     .field-label {
-      font-size: 0.875rem;
-      font-weight: 500;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .field-label-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      flex-wrap: wrap;
+    }
+
+    .field-control {
+      width: 100%;
+      min-height: 2.5rem;
+      padding: 0.625rem 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #ffffff;
       color: #111827;
+      font: inherit;
+      box-sizing: border-box;
     }
 
-    .field-meta {
-      font-size: 0.75rem;
-      color: #4b5563;
-      white-space: nowrap;
+    .field-textarea {
+      min-height: 6.5rem;
+      resize: vertical;
     }
 
-    /* Role list */
-    .role-list {
+    .field-control-error {
+      border-color: #dc2626;
+    }
+
+    .field-error {
+      color: #b91c1c;
+      font-size: 0.8125rem;
+    }
+
+    .field-control:focus-visible,
+    .secondary-button:focus-visible,
+    .icon-button:focus-visible,
+    .drag-button:focus-visible,
+    .action-item:focus-visible {
+      outline: 3px solid #1d4ed8;
+      outline-offset: 2px;
+    }
+
+    .action-adder {
+      display: flex;
+      align-items: end;
+      gap: 0.75rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .action-select-block {
+      flex: 1;
+    }
+
+    .secondary-button,
+    .icon-button,
+    .drag-button {
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #111827;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .secondary-button {
+      min-height: 2.5rem;
+      padding: 0.625rem 0.875rem;
+      font-weight: 600;
+    }
+
+    .secondary-button:disabled,
+    .icon-button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .action-list,
+    .field-list,
+    .transition-list {
       list-style: none;
       margin: 0;
       padding: 0;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .action-item {
+      display: grid;
+      gap: 0.875rem;
+      padding: 0.875rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+
+    .action-item-drop {
+      border-color: #1d4ed8;
+      box-shadow: inset 0 0 0 2px rgba(29, 78, 216, 0.2);
+    }
+
+    .action-item-main {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+
+    .drag-button {
+      width: 2.25rem;
+      height: 2.25rem;
+      flex-shrink: 0;
+      font-weight: 700;
+    }
+
+    .action-copy {
+      min-width: 0;
+    }
+
+    .action-title {
+      margin: 0 0 0.25rem;
+      color: #111827;
+      font-weight: 700;
+      font-size: 0.9375rem;
+    }
+
+    .action-summary {
+      margin: 0;
+      color: #475569;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .action-item-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 11rem) 1fr;
+      gap: 0.75rem;
+      align-items: end;
+    }
+
+    .compact-field {
+      margin: 0;
+    }
+
+    .action-buttons {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.375rem;
+      gap: 0.5rem;
+      justify-content: flex-end;
     }
 
-    .role-tag {
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: #1e40af;
-      background: #dbeafe;
-      padding: 0.25rem 0.625rem;
-      border-radius: 3px;
+    .icon-button {
+      min-height: 2.25rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
     }
 
-    /* Exit list */
-    .exit-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
+    .danger-button {
+      border-color: #fecaca;
+      color: #b91c1c;
+      background: #fff5f5;
     }
 
-    .exit-item {
+    .transition-item,
+    .field-item {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border-radius: 10px;
+      background: #f8fafc;
+      color: #111827;
       font-size: 0.875rem;
+    }
+
+    .transition-action,
+    .field-item-label {
+      font-weight: 700;
       color: #111827;
     }
 
-    .exit-action {
-      font-weight: 600;
-      color: #1d4ed8;
-    }
-
-    .exit-arrow {
-      color: #595959;
-    }
-
-    .exit-target {
-      font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace;
+    .transition-arrow,
+    .field-item-meta {
+      color: #475569;
       font-size: 0.8125rem;
-      color: #374151;
     }
 
-    .exit-role {
-      font-size: 0.75rem;
-      color: #4b5563;
-      font-style: italic;
-    }
-
-    /* Waiting metadata */
-    .waiting-meta {
+    .meta-list {
       margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
+      display: grid;
+      gap: 0.5rem;
     }
 
     .meta-row {
       display: flex;
-      gap: 0.5rem;
+      gap: 0.75rem;
+      align-items: baseline;
       font-size: 0.875rem;
     }
 
     .meta-row dt {
-      font-weight: 600;
-      color: #374151;
-      min-width: 120px;
+      min-width: 6rem;
+      color: #334155;
+      font-weight: 700;
     }
 
     .meta-row dd {
@@ -359,10 +1172,30 @@ export class PrismStepInspectorElement extends LitElement {
       color: #111827;
     }
 
-    /* Focus indicators */
-    :focus-visible {
-      outline: 3px solid #2563eb;
-      outline-offset: 2px;
+    @media (max-width: 760px) {
+      .field-grid,
+      .action-item-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .action-adder {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .action-buttons {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .field-control,
+      .secondary-button,
+      .icon-button,
+      .drag-button,
+      .action-item {
+        scroll-behavior: auto;
+      }
     }
   `;
 }

@@ -36,6 +36,8 @@ Use this when a workflow editor needs to let authors configure runtime actions s
 
 - `src/UmbracoPrism.WorkflowRuntime/Services/WorkflowRuntimeEngine.cs` — current runtime orchestration boundary
 - `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs` — host-specific extension over generic runtime
+- `src/UmbracoPrism.MockBusinessApp/Services/WorkflowActions/WorkflowActionRegistry.cs` — registry that reuses the action catalog as discovery metadata
+- `src/UmbracoPrism.MockBusinessApp/Services/WorkflowActions/BuiltInWorkflowActionHandlers.cs` — reference implementations for forms, case, and notification action types
 - `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs` — stable runtime response contract
 - `docs/design/workflow-forms-engine-backend.md` — current business-app ownership of workflow behaviour
 - `docs/design/workflow-editor-v1/02-runtime-projection.md` and `04-agentic-surfaces.md` — authored/projection/agent split

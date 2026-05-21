@@ -1,0 +1,29 @@
+{
+  "id": "d4e5f6a7-b8c9-0123-def0-123456789abc",
+  "definitionKey": "payment-demo",
+  "displayName": "Payment Demo",
+  "version": 1,
+  "description": "Two-stage authored payment flow for the reference contract.",
+  "schemaVersion": "1.0",
+  "initialStageKey": "enter-details",
+  "instancePolicy": "single",
+  "stages": [
+    {
+      "key": "enter-details",
+      "title": "Enter Payment Details",
+      "type": "Question"
+    },
+    {
+      "key": "payment-confirmed",
+      "title": "Payment confirmed",
+      "type": "Confirmation"
+    }
+  ],
+  "transitions": [
+    {
+      "source": "enter-details",
+      "target": "payment-confirmed",
+      "trigger": "pay"
+    }
+  ]
+}

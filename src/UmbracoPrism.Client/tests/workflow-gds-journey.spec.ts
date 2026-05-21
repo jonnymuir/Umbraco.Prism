@@ -158,24 +158,37 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
   test('workflow admin definitions are collapsed by default and can be expanded', async ({ page }) => {
     await page.goto('https://localhost:7245/admin/workflow');
+    await expect(page).toHaveURL(/\/admin\/workflow$/);
+    await expect(page.getByRole('heading', { name: /workflow admin/i })).toBeVisible();
 
     const cards = page.locator('.def-card');
-    const firstCard = cards.first();
-    const firstHeader = firstCard.locator('.def-header');
-    const firstBody = firstCard.locator('.def-body');
+    const planningCard = page.locator('.def-card').filter({ hasText: 'Planning Application' });
+    const planningHeader = planningCard.locator('.def-header');
+    const planningBody = planningCard.locator('.def-body');
+    const communityEnquiryCard = page.locator('.def-card').filter({ hasText: 'Get in Touch' });
 
     await expect(cards).not.toHaveCount(0);
-    await expect(firstHeader).toHaveAttribute('aria-expanded', 'false');
-    await expect(firstBody).toBeHidden();
+    await expect(planningCard).toBeVisible();
+    await expect(planningHeader).toHaveAttribute('aria-expanded', 'false');
+    await expect(planningBody).toBeHidden();
+    await expect(planningCard.getByRole('link', { name: 'Edit workflow' })).toHaveAttribute(
+      'href',
+      '/workflow-editor?workflow=planning'
+    );
+    await expect(communityEnquiryCard.getByRole('link', { name: 'Edit workflow' })).toHaveAttribute(
+      'href',
+      '/workflow-editor?workflow=community-enquiry'
+    );
+    await expect(communityEnquiryCard.getByText('No editor definition yet')).toHaveCount(0);
 
-    await firstHeader.click();
-    await expect(firstHeader).toHaveAttribute('aria-expanded', 'true');
-    await expect(firstBody).toBeVisible();
-    await expect(firstCard).toHaveAttribute('data-mermaid-render-state', 'ready');
+    await planningHeader.click();
+    await expect(planningHeader).toHaveAttribute('aria-expanded', 'true');
+    await expect(planningBody).toBeVisible();
+    await expect(planningCard).toHaveAttribute('data-mermaid-render-state', 'ready');
 
-    await firstHeader.click();
-    await expect(firstHeader).toHaveAttribute('aria-expanded', 'false');
-    await expect(firstBody).toBeHidden();
+    await planningHeader.click();
+    await expect(planningHeader).toHaveAttribute('aria-expanded', 'false');
+    await expect(planningBody).toBeHidden();
 
     const totalCards = await cards.count();
 
@@ -184,6 +197,18 @@ test.describe('Planning workflow GDS journey behavioural contracts', () => {
 
     await page.getByRole('button', { name: 'Collapse All' }).click();
     await expect(page.locator('.def-card.open')).toHaveCount(0);
+
+    await planningCard.getByRole('link', { name: 'Edit workflow' }).click();
+    await expect(page).toHaveURL(/\/workflow-editor\.html\?workflow=planning$/);
+    await expect(page.locator('[data-prism-component="workflow-editor-shell"]')).toHaveAttribute(
+      'data-prism-active-workflow',
+      'planning'
+    );
+    await expect(page.getByText(/does not list it/i)).toHaveCount(0);
+    await expect(page.locator('prism-workflow-editor')).toHaveAttribute(
+      'data-prism-workflow-loaded',
+      'planning'
+    );
   });
 
   test('check-answers allows changing an answer via Change link', async ({ page }) => {

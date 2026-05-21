@@ -95,4 +95,20 @@ public class WorkflowEditorManifestTests
         File.Exists(jsPath).Should().BeTrue(
             because: "the prism-workflow-editor-host Lit element script must be present");
     }
+
+    [Fact]
+    public void HostElement_JS_MustUse_CanonicalWorkflowEditorShortcut()
+    {
+        var jsPath = Path.Combine(
+            RepoRoot,
+            "src", "UmbracoPrism.TestSite", "App_Plugins", "PrismWorkflowEditor",
+            "web-components", "prism-workflow-editor-host.js");
+
+        var content = File.ReadAllText(jsPath);
+
+        content.Should().Contain("/workflow-editor`",
+            because: "the backoffice host should enter through the same showcase shortcut as AppHost and TestSite");
+        content.Should().NotContain("/workflow-editor.html?workflow=planning",
+            because: "the canonical entry point should hide the direct page path from shortcut surfaces");
+    }
 }

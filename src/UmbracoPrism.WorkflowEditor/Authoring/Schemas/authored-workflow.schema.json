@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://umbraco-prism.local/schemas/authored-workflow.schema.json",
+  "title": "AuthoredWorkflow",
+  "description": "Editor-native workflow schema saved by Workflow Editor V1 and projected into Prism runtime definitions.",
+  "type": "object",
+  "required": [
+    "definitionKey",
+    "displayName",
+    "schemaVersion",
+    "initialStageKey",
+    "stages",
+    "transitions"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "definitionKey": {
+      "type": "string"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "description": {
+      "type": ["string", "null"]
+    },
+    "schemaVersion": {
+      "type": "string"
+    },
+    "initialStageKey": {
+      "type": "string"
+    },
+    "instancePolicy": {
+      "type": "string"
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stage"
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/transition"
+      }
+    },
+    "handoffs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/handoff"
+      }
+    },
+    "parameterSchemas": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/parameterSchema"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "authorNote": {
+      "type": ["string", "null"]
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "required": ["key", "title", "type", "actions"],
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "actor": { "type": ["string", "null"] },
+        "type": {
+          "type": "string",
+          "enum": ["Question", "CheckAnswers", "Confirmation", "TaskList", "Waiting", "StatusTimeline"]
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/field" }
+        },
+        "roleGates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "waiting": {
+          "type": ["object", "null"]
+        },
+        "editorComment": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "required": ["source", "target", "trigger", "conditions", "actions"],
+      "properties": {
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "trigger": { "type": "string" },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/condition" }
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "requiresRole": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["type", "timing", "params"],
+      "properties": {
+        "type": { "type": "string" },
+        "timing": {
+          "type": "string",
+          "enum": ["OnEntry", "OnExit", "OnTransition"]
+        },
+        "params": {
+          "type": "object"
+        },
+        "parameterSchemaKey": {
+          "type": ["string", "null"]
+        },
+        "summary": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": ["kind", "expression"],
+      "properties": {
+        "kind": { "type": "string" },
+        "expression": { "type": "string" },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["key", "label", "type"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["Text", "Number", "Decimal", "Email", "Date", "Textarea", "Boolean", "Select", "Radios", "Checkboxes"]
+        },
+        "required": { "type": "boolean" },
+        "hint": { "type": ["string", "null"] },
+        "validationPattern": { "type": ["string", "null"] },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "parameterSchema": {
+      "type": "object",
+      "required": ["key", "valueKind", "properties", "required"],
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "appliesTo": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "valueKind": {
+          "type": "string",
+          "enum": ["String", "Number", "Integer", "Boolean", "Object", "Array", "Null"]
+        },
+        "allowAdditionalProperties": { "type": "boolean" },
+        "properties": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/parameterDefinition" }
+        },
+        "required": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "parameterDefinition": {
+      "type": "object",
+      "required": ["key", "valueKind"],
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "valueKind": {
+          "type": "string",
+          "enum": ["String", "Number", "Integer", "Boolean", "Object", "Array", "Null"]
+        },
+        "format": { "type": ["string", "null"] },
+        "editor": { "type": ["string", "null"] },
+        "allowedValues": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "defaultValue": {},
+        "properties": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/parameterDefinition" }
+        },
+        "items": {
+          "anyOf": [
+            { "$ref": "#/$defs/parameterDefinition" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["id", "fromStage", "toStage", "label"],
+      "properties": {
+        "id": { "type": "string" },
+        "fromStage": { "type": "string" },
+        "toStage": { "type": "string" },
+        "label": { "type": "string" },
+        "actorChange": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

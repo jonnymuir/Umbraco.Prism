@@ -6,10 +6,13 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.MockBusinessApp.Services.WorkflowActions;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
+using UmbracoPrism.WorkflowEditor.Authoring;
 using UmbracoPrism.WorkflowEditor.Extensions;
+using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,9 +31,21 @@ builder.Services.AddHttpClient();
 // The real GDS allowlist sanitizer (WorkflowContentSanitizer) is wired up in TestSite via Core.
 builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>();
 
-// Workflow authoring services (patch, preview, projector, filesystem store).
-var authoredWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-authored");
-builder.Services.AddPrismWorkflowEditor(authoredWorkflowPath);
+// Workflow authoring services.
+// The reference app seeds exactly 4 demo workflows in memory (planning, community-enquiry,
+// information-request, payment-demo). All 4 are available to the editor, front-end, and runtime.
+// Downstream apps replace ReferenceWorkflowRepository with their own authored workflow store
+// (filesystem, database, etc.) by registering a different IAuthoredWorkflowStore implementation.
+builder.Services.AddSingleton<IAuthoredWorkflowStore>(
+    _ => new InMemoryAuthoredWorkflowStore(ReferenceWorkflowRepository.GetReferenceWorkflows()));
+builder.Services.AddSingleton<IPublishedWorkflowStore, InMemoryRuntimePublishedWorkflowStore>();
+builder.Services.AddSingleton<IWorkflowAuthoringProvenanceStore, InMemoryWorkflowAuthoringProvenanceStore>();
+
+// AddPrismWorkflowEditor registers the projector, patch service, preview service, etc.
+// The authoredWorkflowBasePath is ignored because we've already registered the stores above.
+var publishedWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds");
+builder.Services.AddPrismWorkflowEditor(string.Empty, publishedWorkflowPath);
+builder.Services.AddBusinessAppWorkflowActions();
 
 // Development CORS — allows the editor host page (Isabelle) running on a different origin to call
 // the authoring API. Never enabled outside Development.
@@ -40,9 +55,12 @@ builder.Services.AddCors(options =>
         policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 });
 
-// Business App workflow engine — singleton so in-memory instance state survives across requests
-builder.Services.AddPrismWorkflowRuntime<BusinessAppWorkflowEngine>(
-    Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds"));
+// Business App workflow engine — singleton so in-memory instance state survives across requests.
+// The reference app uses ReferenceWorkflowDefinitionStore to seed exactly 4 workflows at runtime.
+// Downstream apps can use FilesystemWorkflowDefinitionStore or their own IWorkflowDefinitionStore.
+builder.Services.AddSingleton<IWorkflowDefinitionStore, ReferenceWorkflowDefinitionStore>();
+builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
+builder.Services.AddSingleton<IWorkflowRuntimeEngine>(sp => sp.GetRequiredService<BusinessAppWorkflowEngine>());
 builder.Services.AddHostedService<WorkflowTuiService>();
 
 var app = builder.Build();
@@ -58,11 +76,23 @@ if (Directory.Exists(distPath))
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = new PhysicalFileProvider(distPath),
-        RequestPath = ""
+        RequestPath = "",
+        OnPrepareResponse = ctx =>
+        {
+            ctx.Context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+            ctx.Context.Response.Headers.Pragma = "no-cache";
+            ctx.Context.Response.Headers.Expires = "0";
+        }
     });
 }
 
-app.MapGet("/workflow-editor", () => Results.Redirect("/workflow-editor.html?workflow=planning"));
+app.MapGet("/workflow-editor", (HttpRequest request) =>
+{
+    var workflowKey = request.Query["workflow"].ToString();
+    var targetWorkflow = string.IsNullOrWhiteSpace(workflowKey) ? "planning" : workflowKey;
+
+    return Results.Redirect($"/workflow-editor.html?workflow={Uri.EscapeDataString(targetWorkflow)}");
+});
 
 // SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
 // TLS certificate validation for OIDC metadata fetches, which is only acceptable
@@ -308,11 +338,24 @@ app.MapGet("/debug/auth", (IConfiguration config) =>
 
 // ── Admin UI (no auth — local dev only) ─────────────────────────────────────
 
-app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
+app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IAuthoredWorkflowStore authoredWorkflowStore, CancellationToken ct) =>
 {
     var instances = engine.GetAllInstances().OrderBy(i => i.CreatedAt).ToList();
     var defs = engine.GetAllDefinitions().ToList();
     var defsByKey = defs.ToDictionary(d => d.DefinitionKey, StringComparer.OrdinalIgnoreCase);
+    var authoredWorkflowEntries = await authoredWorkflowStore.ListAsync(ct);
+    var authoredWorkflowRouteKeysByDefinitionKey = authoredWorkflowEntries
+        .Where(entry => entry.IsLoadable && !string.IsNullOrWhiteSpace(entry.DefinitionKey))
+        .GroupBy(entry => entry.DefinitionKey!, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(group => group.Key, group => group.First().WorkflowKey, StringComparer.OrdinalIgnoreCase);
+    var loadableAuthoredWorkflowKeys = authoredWorkflowEntries
+        .Where(entry => entry.IsLoadable)
+        .Select(entry => entry.WorkflowKey)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var invalidAuthoredWorkflowKeys = authoredWorkflowEntries
+        .Where(entry => !entry.IsLoadable && !string.IsNullOrWhiteSpace(entry.ErrorMessage))
+        .Select(entry => entry.WorkflowKey)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
     string SafeId(string key) => key.Replace("-", "_").Replace(".", "_").Replace(" ", "_");
@@ -417,6 +460,12 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
         ? """<p style="color:#888;text-align:center">No definitions loaded</p>"""
         : string.Join("\n", defs.Select(def =>
         {
+            var authoredWorkflowKey = authoredWorkflowRouteKeysByDefinitionKey.TryGetValue(def.DefinitionKey, out var resolvedWorkflowKey)
+                ? resolvedWorkflowKey
+                : loadableAuthoredWorkflowKeys.Contains(def.DefinitionKey)
+                    ? def.DefinitionKey
+                    : null;
+            var hasAuthoredWorkflow = authoredWorkflowKey is not null;
             var stateRows = string.Join("\n", def.States.Select(s =>
             {
                 var icon = s.Components.InferStepType() switch
@@ -467,9 +516,20 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
 
             // V2: field groups removed — components are inline in each state's component tree.
             var fieldGroupsSection = "";
+            var editorShortcut = hasAuthoredWorkflow
+                ? $"""<a class="btn btn-edit-workflow" href="/workflow-editor?workflow={Esc(authoredWorkflowKey!)}">↗ Edit workflow</a>"""
+                : invalidAuthoredWorkflowKeys.Contains(def.DefinitionKey)
+                  ? "<span class=\"editor-unavailable\""
+                    + " aria-label=\"Workflow editor unavailable because this workflow's editor definition is invalid and needs repair.\""
+                    + " title=\"Repair the editor definition before opening it in the reference editor.\">Editor definition invalid</span>"
+                : "<span class=\"editor-unavailable\""
+                  + " aria-label=\"Workflow editor unavailable because this workflow is not configured for the editor yet.\""
+                  + " title=\"This workflow currently has no editor definition configured.\">No editor definition yet</span>";
+            var editorJsonKey = authoredWorkflowKey ?? def.DefinitionKey;
 
             return $"""
             <div class="def-card"
+                 data-workflow-key="{Esc(editorJsonKey)}"
                  data-definition-key="{Esc(def.DefinitionKey)}"
                  data-mermaid-render-state="idle">
               <div class="def-header"
@@ -485,9 +545,10 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
                     <span style="color:#888;font-size:.82rem;margin-left:.5rem">({Esc(def.DefinitionKey)} v{def.Version})</span>
                   </div>
                 </div>
-                <div style="display:flex;gap:.5rem;align-items:center">
+                <div class="def-actions">
                   {policyBadge}
-                  <button type="button" class="btn btn-edit" onclick="openEditor('{Esc(def.DefinitionKey)}')">✎ Edit JSON</button>
+                  {editorShortcut}
+                  <button type="button" class="btn btn-edit" onclick="openEditor('{Esc(editorJsonKey)}')">✎ Edit JSON</button>
                 </div>
               </div>
               <div class="def-body">
@@ -563,11 +624,26 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             .btn-reset:hover   { background:#e5e7eb; }
             .btn-reset-all { background:#fee2e2; color:#991b1b; padding:.35rem 1rem; }
             .btn-reset-all:hover { background:#fca5a5; }
+            .header-links { margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap; }
+            .header-link {
+              display:inline-flex;
+              align-items:center;
+              justify-content:center;
+              padding:.45rem .8rem;
+              border-radius:999px;
+              background:rgba(255,255,255,.12);
+              color:#fff;
+              text-decoration:none;
+              font-size:.82rem;
+              font-weight:600;
+            }
+            .header-link:hover { background:rgba(255,255,255,.2); }
             .toolbar { margin-bottom:.75rem; display:flex; gap:.5rem; align-items:center; }
             .count { color:#888; font-size:.85rem; }
             .def-card { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:1.25rem; overflow:hidden; }
             .def-header { padding:.75rem 1rem; background:#f8f9fb; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
             .def-header:focus-visible { outline:3px solid #2563eb; outline-offset:-3px; }
+            .def-actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
             .def-toggle { display:inline-block; transition:transform .16s ease; }
             .def-card.open .def-toggle { transform:rotate(90deg); }
             .def-body { padding:1rem; display:none; flex-direction:column; gap:1rem; }
@@ -584,14 +660,34 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             #ace-editor { flex:1; min-height:400px; font-size:13px; }
             .modal-ftr { padding:.75rem 1rem; border-top:1px solid #eee; display:flex; align-items:center; gap:.6rem; }
             .save-msg { flex:1; font-size:.82rem; color:#b91c1c; }
-            .btn-edit { background:#f0f4ff; color:#3730a3; margin-left:.5rem; }
+            .btn-edit { background:#f0f4ff; color:#3730a3; }
             .btn-edit:hover { background:#e0e7ff; }
+            .btn-edit-workflow {
+              background:#dbeafe;
+              color:#1d4ed8;
+              text-decoration:none;
+            }
+            .btn-edit-workflow:hover { background:#bfdbfe; }
+            .editor-unavailable {
+              display:inline-flex;
+              align-items:center;
+              min-height:30px;
+              padding:.25rem .65rem;
+              border-radius:999px;
+              background:#f3f4f6;
+              color:#4b5563;
+              font-size:.8rem;
+              font-weight:600;
+            }
           </style>
         </head>
         <body>
           <header>
             <h1>🔧 Workflow Admin</h1>
             <span style="opacity:.6;font-size:.85rem">MockBusinessApp — local dev only</span>
+            <nav class="header-links" aria-label="Workflow showcase shortcuts">
+              <a class="header-link" href="/workflow-editor">Workflow Editor</a>
+            </nav>
           </header>
           <main>
             <h2>Workflow Instances</h2>
@@ -644,7 +740,7 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine) =>
             }
 
             function toggleCard(e, hdr) {
-              if (e.target instanceof Element && e.target.closest('button')) return;
+              if (e.target instanceof Element && e.target.closest('button, a')) return;
               const card = hdr.closest('.def-card');
               setCardOpen(card, !card.classList.contains('open'));
             }
@@ -777,13 +873,17 @@ app.MapPost("/admin/workflow/reset-all", (BusinessAppWorkflowEngine engine) =>
     return Results.Redirect("/admin/workflow");
 });
 
-app.MapGet("/admin/workflow/definition/{key}/json", (string key, BusinessAppWorkflowEngine engine) =>
+app.MapGet("/admin/workflow/definition/{key}/json", async (
+    string key,
+    BusinessAppWorkflowEngine engine,
+    IAuthoredWorkflowStore authoredWorkflowStore,
+    CancellationToken ct) =>
 {
     // SECURITY: Validate key format to prevent path traversal or injection
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9\-]+$"))
         return Results.BadRequest("Invalid workflow key.");
-    
-    var def = engine.GetDefinition(key);
+
+    var def = engine.GetDefinition(await ResolveWorkflowDefinitionKeyAsync(key, authoredWorkflowStore, ct));
     if (def == null) return Results.NotFound();
     
     var opts = new System.Text.Json.JsonSerializerOptions
@@ -796,7 +896,12 @@ app.MapGet("/admin/workflow/definition/{key}/json", (string key, BusinessAppWork
     return Results.Content(json, "application/json");
 });
 
-app.MapPut("/admin/workflow/definition/{key}", async (string key, HttpContext ctx, BusinessAppWorkflowEngine engine) =>
+app.MapPut("/admin/workflow/definition/{key}", async (
+    string key,
+    HttpContext ctx,
+    BusinessAppWorkflowEngine engine,
+    IAuthoredWorkflowStore authoredWorkflowStore,
+    CancellationToken ct) =>
 {
     // SECURITY: Validate key format to prevent path traversal or injection
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9\-]+$"))
@@ -814,7 +919,8 @@ app.MapPut("/admin/workflow/definition/{key}", async (string key, HttpContext ct
         return Results.BadRequest($"Invalid JSON: {ex.Message}");
     }
     if (updated == null) return Results.BadRequest("Empty body");
-    var success = engine.UpdateDefinition(key, updated);
+    var definitionKey = await ResolveWorkflowDefinitionKeyAsync(key, authoredWorkflowStore, ct);
+    var success = engine.UpdateDefinition(definitionKey, updated);
     return success ? Results.Ok(new { updated = key }) : Results.NotFound();
 });
 
@@ -832,6 +938,15 @@ static string GetCallerTraceId(HttpRequest request)
     }
 
     return "absent";
+}
+
+static async Task<string> ResolveWorkflowDefinitionKeyAsync(
+    string workflowKeyOrDefinitionKey,
+    IAuthoredWorkflowStore authoredWorkflowStore,
+    CancellationToken ct)
+{
+    var authoredWorkflow = await authoredWorkflowStore.LoadAsync(workflowKeyOrDefinitionKey, ct);
+    return authoredWorkflow?.DefinitionKey ?? workflowKeyOrDefinitionKey;
 }
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);

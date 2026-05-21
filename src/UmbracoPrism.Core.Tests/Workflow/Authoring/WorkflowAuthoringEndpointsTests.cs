@@ -24,32 +24,180 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// </summary>
 public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWebFactory>
 {
+    private readonly WorkflowAuthoringWebFactory _factory;
     private readonly HttpClient _client;
 
     public WorkflowAuthoringEndpointsTests(WorkflowAuthoringWebFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task GetWorkflows_ReturnsOk()
+    public async Task GetWorkflows_ReturnsPlanningSummary_ForReferenceEditorShell()
     {
         var response = await _client.GetAsync("/api/workflow-authoring/workflows");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().NotBeNullOrWhiteSpace();
+
+        var workflows = await response.Content.ReadFromJsonAsync<List<WorkflowAuthoringSummary>>();
+
+        workflows.Should().NotBeNull();
+        workflows.Should().Contain(workflow =>
+            workflow.WorkflowKey == "planning"
+            && workflow.DefinitionKey == "planning-application"
+            && !string.IsNullOrWhiteSpace(workflow.DisplayName),
+            because: "the reference editor shell needs the route key it can round-trip back into the load endpoint");
     }
 
     [Fact]
-    public async Task GetWorkflow_ByKey_ReturnsWorkflowOrNotFound()
+    public async Task GetWorkflows_SkipsInvalidAuthoredWorkflowFiles_InsteadOfFailingTheEditorList()
     {
-        // The test store may have no workflows on disk — both 200 and 404 are valid outcomes.
-        var response = await _client.GetAsync("/api/workflow-authoring/workflows/planning-application");
+        await WriteAuthoredFixtureAsync("broken-listing", "{");
 
-        response.StatusCode.Should().BeOneOf(
-            new[] { HttpStatusCode.OK, HttpStatusCode.NotFound },
-            "endpoint returns 200 with workflow or 404 if not seeded");
+        try
+        {
+            var response = await _client.GetAsync("/api/workflow-authoring/workflows");
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var workflows = await response.Content.ReadFromJsonAsync<List<WorkflowAuthoringSummary>>();
+
+            workflows.Should().NotBeNull();
+            workflows.Should().Contain(workflow =>
+                workflow.WorkflowKey == "planning"
+                && workflow.DefinitionKey == "planning-application");
+            workflows.Should().NotContain(workflow => workflow.WorkflowKey == "broken-listing",
+                because: "an invalid authored document should be skipped instead of crashing the workflow picker");
+        }
+        finally
+        {
+            CleanupAuthoredFixture("broken-listing");
+        }
+    }
+
+    [Fact]
+    public async Task WorkflowAdmin_ShowsEditorAffordances_WhenCanonicalAuthoredWorkflowsExist()
+    {
+        var response = await _client.GetAsync("/admin/workflow");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Edit workflow",
+            because: "the admin screen should offer the reference editor when authored workflows exist");
+        body.Should().Contain("data-workflow-key=\"planning\"",
+            because: "planning should round-trip on the route key even when its authored definition key differs");
+        body.Should().Contain("data-workflow-key=\"community-enquiry\"",
+            because: "community-enquiry is part of the canonical authored contract");
+        body.Should().NotContain("No editor definition yet",
+            because: "the canonical four workflows should all have authored sources");
+    }
+
+    [Fact]
+    public async Task WorkflowAdmin_ShowsInvalidAuthoringStatus_ForBrokenAuthoredWorkflowFiles()
+    {
+        await WriteAuthoredFixtureAsync("community-enquiry", "{");
+
+        try
+        {
+            var response = await _client.GetAsync("/admin/workflow");
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var body = await response.Content.ReadAsStringAsync();
+            body.Should().Contain("data-definition-key=\"community-enquiry\"");
+            body.Should().Contain("Editor definition invalid",
+                because: "the admin page should distinguish a broken editor definition from a workflow that is not configured for the editor");
+            body.Should().NotContain("href=\"/workflow-editor?workflow=community-enquiry\"",
+                because: "the editor shortcut must stay honest when the authored file cannot be loaded");
+        }
+        finally
+        {
+            CleanupAuthoredFixture("community-enquiry");
+        }
+    }
+
+    [Fact]
+    public async Task GetWorkflow_ByRouteKey_ReturnsWorkflow()
+    {
+        var response = await _client.GetAsync("/api/workflow-authoring/workflows/planning");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var workflow = await response.Content.ReadFromJsonAsync<AuthoredWorkflow>(WorkflowProjector.CanonicalOptions);
+        workflow.Should().NotBeNull();
+        workflow!.DefinitionKey.Should().Be("planning-application",
+            because: "the route key should stay aligned with the authored file name even when the authored definition key differs");
+    }
+
+    [Fact]
+    public async Task GetWorkflow_WithInvalidAuthoredFile_ReturnsConflict()
+    {
+        await WriteAuthoredFixtureAsync("broken-workflow", "{");
+
+        try
+        {
+            var response = await _client.GetAsync("/api/workflow-authoring/workflows/broken-workflow");
+
+            response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            var body = await response.Content.ReadAsStringAsync();
+            body.Should().Contain("editor definition is invalid");
+        }
+        finally
+        {
+            CleanupAuthoredFixture("broken-workflow");
+        }
+    }
+
+    [Fact]
+    public async Task GetActionCatalog_ReturnsBuiltInActions()
+    {
+        var response = await _client.GetAsync("/api/workflow-authoring/action-catalog");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await response.Content.ReadFromJsonAsync<List<ActionCatalogEntry>>(WorkflowProjector.CanonicalOptions);
+
+        catalog.Should().NotBeNull();
+        catalog.Should().HaveCountGreaterOrEqualTo(8);
+        catalog!.Should().ContainSingle(entry => entry.Type == "forms.load")
+            .Which.ParameterWidgets.Should().ContainKey("formDefinitionId").WhoseValue.Should().Be(ParameterWidgets.Text);
+    }
+
+    [Fact]
+    public async Task GetActionCatalog_UsesRegisteredCatalogSource()
+    {
+        using var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IActionCatalogSource>();
+                services.AddSingleton<IActionCatalogSource>(new StubActionCatalogSource(
+                [
+                    new ActionCatalogEntry
+                    {
+                        Type = "runtime.fake",
+                        Label = "Runtime fake",
+                        Summary = "Proves the endpoint reads the host catalog source.",
+                        AppliesTo = [ActionCatalogScopes.Transition],
+                        ParamsSchema = new AuthoredParameterSchema
+                        {
+                            Key = "runtime.fake",
+                            Title = "Runtime fake",
+                            AppliesTo = ["runtime.fake"]
+                        }
+                    }
+                ]));
+            });
+        }).CreateClient();
+
+        var response = await client.GetAsync("/api/workflow-authoring/action-catalog");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await response.Content.ReadFromJsonAsync<List<ActionCatalogEntry>>(WorkflowProjector.CanonicalOptions);
+        catalog.Should().ContainSingle(entry => entry.Type == "runtime.fake");
     }
 
     [Fact]
@@ -84,6 +232,110 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
     }
 
     [Fact]
+    public async Task PostPublish_WithValidWorkflow_ReturnsRoundTripVerifiedPublish()
+    {
+        var authored = BuildMinimalAuthoredWorkflow();
+        var json = JsonSerializer.Serialize(authored, WorkflowProjector.CanonicalOptions);
+
+        var response = await _client.PostAsync(
+            "/api/workflow-authoring/workflows/smoke-test/publish",
+            new StringContent(json, Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("savedPath");
+        body.Should().Contain("publishedPath");
+        body.Should().Contain("roundTripVerified");
+        body.Should().Contain("verifiedChecksum");
+
+        File.Exists(GetAuthoredFixturePath("smoke-test")).Should().BeTrue();
+        CleanupAuthoredFixture("smoke-test");
+    }
+
+    [Fact]
+    public async Task PostPublish_PreservesAuthoredWorkflowId_InPublishedMetadata()
+    {
+        var authored = BuildMinimalAuthoredWorkflow() with
+        {
+            DefinitionKey = "metadata-alignment",
+            DisplayName = "Metadata Alignment Test"
+        };
+        var json = JsonSerializer.Serialize(authored, WorkflowProjector.CanonicalOptions);
+
+        try
+        {
+            var response = await _client.PostAsync(
+                "/api/workflow-authoring/workflows/metadata-alignment/publish",
+                new StringContent(json, Encoding.UTF8, "application/json"));
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var body = await response.Content.ReadFromJsonAsync<PublishResult>();
+            body.Should().NotBeNull();
+            body!.VerifiedFile.Should().NotBeNull();
+            body.VerifiedFile!.Metadata.Should().NotBeNull();
+            body.VerifiedFile.Metadata!.AuthoredWorkflowId.Should().Be(authored.Id,
+                because: "the published workflow must trace back to the authored source via metadata.authoredWorkflowId");
+        }
+        finally
+        {
+            CleanupAuthoredFixture("metadata-alignment");
+        }
+    }
+
+    [Fact]
+    public async Task PostSave_WithValidWorkflow_PersistsAuthoredAndPublishedDefinitions()
+    {
+        var authored = BuildMinimalAuthoredWorkflow() with
+        {
+            DefinitionKey = "save-smoke",
+            DisplayName = "Save Smoke Workflow"
+        };
+        var json = JsonSerializer.Serialize(authored, WorkflowProjector.CanonicalOptions);
+
+        var response = await _client.PostAsync(
+            "/api/workflow-authoring/workflows/save-smoke/save",
+            new StringContent(json, Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("savedPath");
+        body.Should().Contain("publishedPath");
+        body.Should().Contain("roundTripVerified");
+
+        File.Exists(GetAuthoredFixturePath("save-smoke")).Should().BeTrue();
+        CleanupAuthoredFixture("save-smoke");
+    }
+
+    [Fact]
+    public async Task PostSave_PreservesRouteWorkflowKey_WhenDefinitionKeyDiffers()
+    {
+        const string workflowKey = "planning-shell";
+        const string definitionKey = "planning-shell-definition";
+        var authored = BuildMinimalAuthoredWorkflow() with
+        {
+            DefinitionKey = definitionKey,
+            DisplayName = "Planning Application"
+        };
+        var json = JsonSerializer.Serialize(authored, WorkflowProjector.CanonicalOptions);
+
+        try
+        {
+            var response = await _client.PostAsync(
+                $"/api/workflow-authoring/workflows/{workflowKey}/save",
+                new StringContent(json, Encoding.UTF8, "application/json"));
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            File.Exists(GetAuthoredFixturePath(workflowKey)).Should().BeTrue();
+            File.Exists(GetAuthoredFixturePath(definitionKey)).Should().BeFalse();
+        }
+        finally
+        {
+            CleanupAuthoredFixture(workflowKey);
+            CleanupAuthoredFixture(definitionKey);
+        }
+    }
+
+    [Fact]
     public async Task PostPreview_WithInvalidKey_ReturnsNotFound()
     {
         var envelope = BuildMinimalEnvelope("smoke-workflow-does-not-exist");
@@ -94,6 +346,22 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
             new StringContent(json, Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task PostPreview_WithValidWorkflow_IncludesPublishPreview()
+    {
+        var envelope = BuildMinimalEnvelope("planning-application");
+        var json = JsonSerializer.Serialize(envelope, WorkflowProjector.CanonicalOptions);
+
+        var response = await _client.PostAsync(
+            "/api/workflow-authoring/workflows/planning/preview",
+            new StringContent(json, Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("publishPreview");
+        body.Should().Contain("currentPublishedChecksum");
     }
 
     [Fact]
@@ -126,6 +394,42 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
             new StringContent(body, Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task PostApply_WithExistingWorkflow_PublishesRuntimeDefinition()
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            envelope = BuildMinimalEnvelope("planning-application"),
+            approver = "test-approver"
+        }, WorkflowProjector.CanonicalOptions);
+
+        var response = await _client.PostAsync(
+            "/api/workflow-authoring/workflows/planning/apply",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var responseBody = await response.Content.ReadAsStringAsync();
+        responseBody.Should().Contain("\"publish\"");
+        responseBody.Should().Contain("roundTripVerified");
+        responseBody.Should().Contain("publishedPath");
+    }
+
+    [Fact]
+    public async Task PostSimulate_WithStoredWorkflow_ReturnsDeterministicPath()
+    {
+        var response = await _client.PostAsync(
+            "/api/workflow-authoring/workflows/planning/simulate",
+            new StringContent("{\"actions\":[\"continue\",\"continue\",\"submit\"]}", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"initialStageKey\":\"declaration\"");
+        body.Should().Contain("\"currentStageKey\":\"submitted\"");
+        body.Should().Contain("\"stopReason\":\"terminal-stage\"");
+        body.Should().Contain("\"completed\":true");
     }
 
     [Fact]
@@ -167,6 +471,24 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
         Rationale        = "Smoke test envelope",
         Ops              = []
     };
+
+    private static string GetAuthoredFixturePath(string key) =>
+        Path.Combine(
+            Path.GetDirectoryName(typeof(WorkflowAuthoringEndpointsTests).Assembly.Location)!,
+            "Workflow",
+            "Authoring",
+            "Fixtures",
+            $"{key}.workflow.json");
+
+    private static Task WriteAuthoredFixtureAsync(string key, string content) =>
+        File.WriteAllTextAsync(GetAuthoredFixturePath(key), content);
+
+    private static void CleanupAuthoredFixture(string key)
+    {
+        var path = GetAuthoredFixturePath(key);
+        if (File.Exists(path))
+            File.Delete(path);
+    }
 }
 
 /// <summary>
@@ -177,6 +499,8 @@ public sealed class WorkflowAuthoringWebFactory : WebApplicationFactory<MockProg
 {
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        ResetAuthoredFixturesDirectory();
+
         // Set to Development so authoring CORS policy is registered.
         builder.UseEnvironment("Development");
 
@@ -202,6 +526,16 @@ public sealed class WorkflowAuthoringWebFactory : WebApplicationFactory<MockProg
             services.RemoveAll<IAuthoredWorkflowStore>();
             services.AddSingleton<IAuthoredWorkflowStore>(
                 _ => new FilesystemAuthoredWorkflowStore(GetFixturesPath()));
+            services.RemoveAll<IPublishedWorkflowStore>();
+            services.AddSingleton<IPublishedWorkflowStore>(_ =>
+            {
+                var publishedPath = GetPublishedPath();
+                if (Directory.Exists(publishedPath))
+                    Directory.Delete(publishedPath, recursive: true);
+
+                Directory.CreateDirectory(publishedPath);
+                return new FilesystemPublishedWorkflowStore(publishedPath);
+            });
         });
     }
 
@@ -209,4 +543,41 @@ public sealed class WorkflowAuthoringWebFactory : WebApplicationFactory<MockProg
         Path.Combine(
             Path.GetDirectoryName(typeof(WorkflowAuthoringEndpointsTests).Assembly.Location)!,
             "Workflow", "Authoring", "Fixtures");
+
+    private static string GetSourceFixturesPath() =>
+        Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../",
+            "src",
+            "UmbracoPrism.Core.Tests",
+            "Workflow",
+            "Authoring",
+            "Fixtures"));
+
+    private static string GetPublishedPath() =>
+        Path.Combine(
+            Path.GetDirectoryName(typeof(WorkflowAuthoringEndpointsTests).Assembly.Location)!,
+            "Workflow", "Authoring", "Published");
+
+    private static void ResetAuthoredFixturesDirectory()
+    {
+        var fixturesPath = GetFixturesPath();
+        Directory.CreateDirectory(fixturesPath);
+
+        foreach (var path in Directory.GetFiles(fixturesPath, "*.workflow.json"))
+            File.Delete(path);
+
+        foreach (var path in Directory.GetFiles(GetSourceFixturesPath(), "*.workflow.json"))
+        {
+            var targetPath = Path.Combine(fixturesPath, Path.GetFileName(path));
+            File.Copy(path, targetPath, overwrite: true);
+        }
+    }
 }
+
+internal sealed class StubActionCatalogSource(IReadOnlyList<ActionCatalogEntry> entries) : IActionCatalogSource
+{
+    public IReadOnlyList<ActionCatalogEntry> GetCatalog() => entries;
+}
+
+internal sealed record WorkflowAuthoringSummary(string WorkflowKey, Guid Id, string DefinitionKey, string DisplayName);

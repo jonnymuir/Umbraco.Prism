@@ -112,6 +112,13 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
                 DisplayText = "Workflow Admin",
                 DisplayOrder = 1,
             });
+
+            ctx.Urls.Add(new ResourceUrlAnnotation
+            {
+                Url = $"{baseUrl}/workflow-editor",
+                DisplayText = "Workflow Editor",
+                DisplayOrder = 2,
+            });
         }
     });
 

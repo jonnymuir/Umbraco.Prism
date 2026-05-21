@@ -1,4 +1,4 @@
-# 04 — Agentic Surfaces & Test Seam
+# 04 — Agentic support and test seam
 
 **Date:** 2026-05-16  
 **Author:** Tangy (Tester)  
@@ -8,21 +8,21 @@
 
 ## 1. Purpose & Scope
 
-This document specifies the **agent plane** of the V1 workflow editor: the structured, machine-facing surfaces that allow agents (including GitHub Copilot) to propose, validate, preview, and apply workflow changes without ever mutating live runtime state directly. It also defines the **test seam** — how the entire proposal-first system is observably testable end-to-end, anchored on the planning application reference workflow. Overall architecture, authoring model, and projection rules are covered in the sibling design documents; this document focuses solely on agent-facing contracts and testability.
+This document specifies the supporting agent-facing surfaces around the V1 workflow editor: the structured, machine-facing capabilities that let agents, including GitHub Copilot, propose, validate, preview, and apply workflow changes without ever mutating live runtime state directly. It also defines the **test seam** — how the proposal-first support layer stays observably testable end to end, anchored on the planning application reference workflow. Overall editor, workflow-engine, and publish-model decisions are covered in the sibling design documents; this document is deliberately secondary to that editor-first framing.
 
 ---
 
 ## 2. Operating Model
 
-The workflow editor operates on a **proposal-first** basis. No agent may write directly to a live `WorkflowDefinitionFile` or a running workflow instance. Every agent-initiated change flows through six ordered surfaces:
+The workflow editor can optionally use a **proposal-first** agent loop. No agent may write directly to a live `WorkflowDefinitionFile` or a running workflow instance. Every agent-initiated change flows through six ordered supporting surfaces:
 
 ### Surface 1 — Authored Workflow Source (Blathers' Authored Model)
 
 The human-editable source of truth. Stages are modelled at service-design level (`kind`, `serviceZone`, `views`, `handoffs`, `deadlines`) rather than raw Prism states. This is the document agents read to understand current workflow intent and the document they modify via patch operations in a proposal. It is never projected directly; the projector owns that step.
 
-### Surface 2 — Deterministic Projected Runtime File (`WorkflowDefinitionFile`)
+### Surface 2 — Deterministic published runtime file (`WorkflowDefinitionFile`)
 
-The projector compiles the authored source into a Prism-compatible `WorkflowDefinitionFile`. The projection is deterministic and idempotent: the same authored source always produces the same runtime file. Agents never edit this file directly. It exists as the output of projection and the input to runtime validation. Re-running projection after an applied proposal is how the runtime contract is updated.
+The editor's publish step compiles the authored source into a Prism-compatible `WorkflowDefinitionFile`. Publishing is deterministic and idempotent: the same authored source always produces the same runtime file. Agents never edit this file directly. It exists as the output of publishing and the input to runtime validation. Re-running publish after an applied proposal is how the runtime contract is updated.
 
 ### Surface 3 — Structured Diff + Provenance Artifact (Proposal Envelope)
 
@@ -56,7 +56,7 @@ Narrow entry points that allow a CI pipeline or an agent orchestrator to run tar
 
 ## 3. Tool Boundary — Reuse vs Build
 
-The key principle (per user directive 2026-05-16T11:06:16): **use the appropriate tools for the appropriate jobs; avoid reinventing the wheel**.
+The key principle is simple: **use the appropriate tools for the appropriate jobs and avoid reinventing the wheel**. Agentic support is only valuable where it helps the workflow editor safely draft, review, and publish changes.
 
 | Capability | Owner | Rationale |
 |---|---|---|
@@ -513,7 +513,7 @@ The audit log is not a git substitute; it complements the git history of the aut
 
 3. **Rollback semantics** — the current model relies on git history for rollback (revert the authored source commit, re-project). Should the system also support a first-class `workflow.rollback --to-envelope <id>` command that re-applies the state at a given audit log point? This is desirable but adds complexity to the apply/audit contract.
 
-4. **Operator backstage views** — Blathers' open question: should backstage operator views stay inside Prism payloads or move to a separate operator UI contract? The agent plane is agnostic, but the preview/simulate command needs to know which actor paths to trace. Resolution needed before V1 preview command is implemented.
+4. **Operator backstage views** — Blathers' open question: should backstage operator views stay inside Prism payloads or move to a separate operator UI contract? The agent-support layer is agnostic, but the preview and simulate command needs to know which actor paths to trace. Resolution needed before V1 preview command is implemented.
 
 5. **Multi-actor concurrent proposals** — if two agents (or a human + agent) produce proposals simultaneously targeting the same workflow, which one wins? The apply command should acquire a file lock on the authored source; concurrent applies must queue or fail with a conflict error.
 

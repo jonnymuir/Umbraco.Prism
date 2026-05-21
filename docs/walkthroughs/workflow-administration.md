@@ -96,11 +96,11 @@ Look at the state field for each instance. The state reflects where the user is 
 
 ### Step 1: View Available Workflow Definitions
 
-On the admin panel, below the instances section, you see the **Workflow Definitions** editor. It lists all seeded workflows:
+On the admin panel, below the instances section, you see the **Workflow Definitions** editor. It lists all seeded workflows — exactly four reference workflows:
 
+- `planning`
 - `community-enquiry`
 - `payment-demo`
-- `planning-notification`
 - `information-request`
 
 ![Workflow Admin panel — definition editor](../images/walkthroughs/workflow-administration/03-admin-definition-editor.png)

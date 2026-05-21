@@ -56,6 +56,20 @@
       },
       "isBackground": true,
       "problemMatcher": []
+    },
+    {
+      "label": "Aspire: cleanup after debug",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/cleanup-aspire-processes.sh",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      }
     }
   ]
 }

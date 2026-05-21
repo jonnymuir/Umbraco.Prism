@@ -4,6 +4,12 @@ import { LiveAppHost } from '../support/live-app-host';
 import { assertHealthyPage, step, signIn } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
+const expectedWorkflowDemos = [
+  'Get in Touch',
+  'Apply for Planning Permission',
+  'Payment Demo',
+  'Request Information'
+] as const;
 
 test.describe('Home entry walkthrough', () => {
   test.describe.configure({ mode: 'serial' });
@@ -72,7 +78,10 @@ test.describe('Home entry walkthrough', () => {
 
     await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible();
-    await expect(workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' })).toBeVisible();
+    for (const workflowTitle of expectedWorkflowDemos) {
+      await expect(workflowDemoCard(page, workflowTitle)).toBeVisible();
+      await expect(workflowDemoCard(page, workflowTitle).getByRole('link', { name: 'Start' })).toBeVisible();
+    }
 
     // Navigate to the seeded workflow demo entry point first.
     await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
@@ -80,7 +89,7 @@ test.describe('Home entry walkthrough', () => {
 
     await step(page, '04-start-workflow.png', {
       url: /\/get-in-touch\/?$/,
-      heading: 'Tell us about your enquiry'
+      heading: 'Your details'
     }, 'home-entry');
 
     // Return to dashboard and navigate to workflow hub via View Workflows.

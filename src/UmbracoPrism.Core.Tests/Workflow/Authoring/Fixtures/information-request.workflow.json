@@ -1,0 +1,29 @@
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "definitionKey": "information-request",
+  "displayName": "Information Request",
+  "version": 1,
+  "description": "Request information from the service with a simple authored flow.",
+  "schemaVersion": "1.0",
+  "initialStageKey": "collecting-info",
+  "instancePolicy": "single",
+  "stages": [
+    {
+      "key": "collecting-info",
+      "title": "Tell us about yourself",
+      "type": "Question"
+    },
+    {
+      "key": "submitted",
+      "title": "Request submitted",
+      "type": "Confirmation"
+    }
+  ],
+  "transitions": [
+    {
+      "source": "collecting-info",
+      "target": "submitted",
+      "trigger": "submit"
+    }
+  ]
+}

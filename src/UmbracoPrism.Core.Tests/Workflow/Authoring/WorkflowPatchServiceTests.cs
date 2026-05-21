@@ -5,7 +5,7 @@ using UmbracoPrism.WorkflowEditor.Authoring;
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
 /// <summary>
-/// Verifies successful patch operations against the planning fixture.
+/// Verifies successful patch operations against the shared community-enquiry reference workflow.
 /// Input immutability is asserted after every test.
 /// </summary>
 public class WorkflowPatchServiceTests
@@ -23,7 +23,7 @@ public class WorkflowPatchServiceTests
     [Fact]
     public async Task Apply_InsertStage_AppendsByDefault()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
         var originalStageCount = original.Stages.Count;
 
         var envelope = BuildEnvelope("insert-stage", value: new
@@ -48,10 +48,10 @@ public class WorkflowPatchServiceTests
     [Fact]
     public async Task Apply_InsertStage_BeforeTarget_InsertsAtCorrectPosition()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
 
         var envelope = BuildEnvelope("insert-stage",
-            before: "check-answers",
+            before: "submitted",
             value: new
             {
                 stageKey    = "supporting-docs",
@@ -67,17 +67,17 @@ public class WorkflowPatchServiceTests
         result.HasErrors.Should().BeFalse();
         var keys = result.Updated.Stages.Select(s => s.StageKey).ToList();
         var newIdx     = keys.IndexOf("supporting-docs");
-        var checkIdx   = keys.IndexOf("check-answers");
-        newIdx.Should().BeLessThan(checkIdx, because: "supporting-docs should precede check-answers");
+        var submittedIdx = keys.IndexOf("submitted");
+        newIdx.Should().BeLessThan(submittedIdx, because: "supporting-docs should precede submitted");
     }
 
     [Fact]
     public async Task Apply_InsertStage_AfterTarget_InsertsAtCorrectPosition()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
 
         var envelope = BuildEnvelope("insert-stage",
-            after: "declaration",
+            after: "collecting-details",
             value: new
             {
                 stageKey    = "eligibility-check",
@@ -93,21 +93,21 @@ public class WorkflowPatchServiceTests
         result.HasErrors.Should().BeFalse();
         var keys = result.Updated.Stages.Select(s => s.StageKey).ToList();
         var newIdx  = keys.IndexOf("eligibility-check");
-        var prevIdx = keys.IndexOf("declaration");
+        var prevIdx = keys.IndexOf("collecting-details");
         newIdx.Should().Be(prevIdx + 1);
     }
 
     [Fact]
     public async Task Apply_RemoveStage_RemovesCorrectStage()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
 
-        var envelope = BuildEnvelope("remove-stage", path: "/stages/application-form");
+        var envelope = BuildEnvelope("remove-stage", path: "/stages/submitted");
 
         var result = _sut.Apply(envelope, original);
 
         // Projection may warn about dangling transitions but the stage should be gone.
-        result.Updated.Stages.Should().NotContain(s => s.StageKey == "application-form",
+        result.Updated.Stages.Should().NotContain(s => s.StageKey == "submitted",
             because: "remove-stage should eliminate the target stage");
         result.Updated.Stages.Count.Should().Be(original.Stages.Count - 1);
 
@@ -118,13 +118,13 @@ public class WorkflowPatchServiceTests
     [Fact]
     public async Task Apply_UpdateStage_ReplacesStageInPlace()
     {
-        var original = await LoadPlanningFixture();
-        var originalDeclaration = original.Stages.Single(s => s.StageKey == "declaration");
+        var original = await LoadReferenceFixture();
+        var originalDetailsStage = original.Stages.Single(s => s.StageKey == "collecting-details");
 
-        var envelope = BuildEnvelope("update-stage", path: "/stages/declaration", value: new
+        var envelope = BuildEnvelope("update-stage", path: "/stages/collecting-details", value: new
         {
-            stageKey    = "declaration",
-            displayName = "Updated Declaration",
+            stageKey    = "collecting-details",
+            displayName = "Updated Details",
             kind        = "Question",
             actor       = "applicant",
             fields      = Array.Empty<object>(),
@@ -134,17 +134,17 @@ public class WorkflowPatchServiceTests
         var result = _sut.Apply(envelope, original);
 
         result.HasErrors.Should().BeFalse();
-        var updated = result.Updated.Stages.Single(s => s.StageKey == "declaration");
-        updated.DisplayName.Should().Be("Updated Declaration");
+        var updated = result.Updated.Stages.Single(s => s.StageKey == "collecting-details");
+        updated.DisplayName.Should().Be("Updated Details");
 
         // Original unchanged
-        originalDeclaration.DisplayName.Should().NotBe("Updated Declaration");
+        originalDetailsStage.DisplayName.Should().NotBe("Updated Details");
     }
 
     [Fact]
     public async Task Apply_IncrementsVersion()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
@@ -165,7 +165,7 @@ public class WorkflowPatchServiceTests
     [Fact]
     public async Task Apply_InputNotMutated_AfterSuccessfulPatch()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
         var snapshot = new
         {
             StageCount      = original.Stages.Count,
@@ -194,11 +194,11 @@ public class WorkflowPatchServiceTests
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private static async Task<AuthoredWorkflow> LoadPlanningFixture()
+    private static async Task<AuthoredWorkflow> LoadReferenceFixture()
     {
         var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        var wf    = await store.LoadAsync("planning");
-        return wf ?? throw new InvalidOperationException("planning fixture not found");
+        var wf    = await store.LoadAsync("community-enquiry");
+        return wf ?? throw new InvalidOperationException("community-enquiry fixture not found");
     }
 
     private static ProposalEnvelope BuildEnvelope(
@@ -228,7 +228,7 @@ public class WorkflowPatchServiceTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetWorkflowId = "community-enquiry",
             Rationale        = "Test patch",
             Ops              = ops
         };

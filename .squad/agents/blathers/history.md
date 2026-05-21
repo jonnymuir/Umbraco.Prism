@@ -114,3 +114,34 @@ Decision merged into decisions.md by Scribe 2026-05-19T22:00:07Z.
 **Consequence:** Reference repository becomes pattern for downstream consumption; tests must verify in-memory approach vs. filesystem approach.
 
 **Basis:** Blathers background agent submission to Scribe inbox.
+
+## 2026-05-21T21:54:07.868+01:00 — Workflow proof case stabilization
+
+- Switched generic `WorkflowPatchServiceTests` and `WorkflowPreviewServiceTests` from the planning fixture to the shared `community-enquiry` reference workflow.
+- Kept planning-specific behaviour in richer publish and fixture coverage where actions, conditions, and handoffs are the point of the test.
+- Confirmed the backend/client four-workflow slice stays green enough to land without deleting required Playwright screenshot baselines.
+
+## 2026-05-21T21:54:07.868+01:00 — NU1510 cleanup
+
+- Removed `System.Security.Cryptography.Xml` from `UmbracoPrism.Core.Tests` and `UmbracoPrism.Shared` after confirming neither project uses XML crypto types directly.
+- Tightened two backend tests to clear nullability warnings that surfaced during a full solution rebuild.
+- Verified `dotnet build UmbracoPrism.sln` succeeds without the `NU1510` warning, and the focused backend auth/refresh regression tests stay green.
+
+## 2026-05-21T21:54:07.868+01:00 — Workflow proof case decision + NU1510 cleanup (blathers-4 & blathers-5)
+
+**Decisions made:**
+
+### blathers-4: Canonical proof workflow for patch/preview tests
+Use community-enquiry instead of planning fixture for generic `WorkflowPatchService` and `WorkflowPreviewService` tests. Rationale: planning is overspecified (domain-rich, multi-stage complexity adds noise without proving generic contracts). community-enquiry is minimal (2 stages, 1 transition) and domain-agnostic.
+
+**Consequence:** Patch/preview tests become self-documenting. Product changes to planning won't ripple into authoring service test suite.
+
+### blathers-5: Remove NU1510 warning
+- Removed direct `System.Security.Cryptography.Xml` refs from `UmbracoPrism.Core.Tests` and `UmbracoPrism.Shared`
+- Tightened two focused backend tests for nullability
+- Full build and test suite passes
+- Warning eliminated without dependency graph widening
+
+**Impact:** Landing gate now clean. All seams green. Branch ready for merge.
+
+**Decision docs:** Merged to `.squad/decisions.md` (from inbox/blathers-workflow-proof-case.md, inbox/blathers-nu1510-cleanup.md)

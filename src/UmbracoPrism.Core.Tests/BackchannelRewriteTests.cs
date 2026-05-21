@@ -584,11 +584,12 @@ public class BackchannelRewriteTests
         await prismContext.GetAuthorizationHeaderAsync();
 
         capturedHeaders.Should().NotBeNull("forwarding headers must be passed on the backchannel path");
-        capturedHeaders!.Should().ContainKey("X-Forwarded-Proto");
-        capturedHeaders["X-Forwarded-Proto"].Should().Be("https",
+        var forwardedHeaders = capturedHeaders!;
+        forwardedHeaders.Should().ContainKey("X-Forwarded-Proto");
+        forwardedHeaders["X-Forwarded-Proto"].Should().Be("https",
             "the public OidcAuthority scheme is https so Keycloak must compute an https issuer");
-        capturedHeaders.Should().ContainKey("X-Forwarded-Host");
-        capturedHeaders["X-Forwarded-Host"].Should().Be(new Uri(OidcAuthority).Host,
+        forwardedHeaders.Should().ContainKey("X-Forwarded-Host");
+        forwardedHeaders["X-Forwarded-Host"].Should().Be(new Uri(OidcAuthority).Host,
             "Keycloak must see the public hostname, not localhost");
     }
 
