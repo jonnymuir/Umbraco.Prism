@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+test.use({
+  launchOptions: {
+    args: ['--font-render-hinting=none'],
+  },
+});
+
 function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
@@ -18,6 +24,7 @@ async function loadWorkspaceStory(page: Page) {
   await storyEl.evaluate(async element => {
     (element as HTMLElement).style.width = '1280px';
     (element as HTMLElement).style.height = '560px';
+    (element as HTMLElement).style.setProperty('--uui-font-family', 'Arial, Helvetica, sans-serif');
     await (element as { updateComplete?: Promise<unknown> }).updateComplete;
   });
 

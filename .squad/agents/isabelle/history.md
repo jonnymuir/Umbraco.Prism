@@ -1,5 +1,14 @@
 # History: Isabelle (Frontend Dev)
 
+#### 2026-05-21T21:54:07.868+01:00 — Workflow graph visual regression fix
+
+- Diagnosed PR #75 `storybook-tests` failure as a cross-platform visual baseline mismatch in `workflow-graph-visual.spec.ts`: GitHub Actions Linux reported 8,174 differing pixels for the canvas view and 19,017 for list mode while the branch baselines had been recorded on macOS.
+- Stabilized the screenshot harness instead of changing product UI: the visual spec now launches Chromium with `--font-render-hinting=none` and pins the graph host to an Arial/Helvetica fallback stack through `--uui-font-family` before capturing screenshots.
+- Re-recorded the workflow graph baselines under `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/` to match the stabilized harness output.
+- Validation: `npm run test-storybook:ci:all` and `CI=1 npm run test:playwright:workflow-graph-visual` both passed after the fix.
+
+**Status:** Visual lane stabilized for CI and ready for re-run.
+
 #### 2026-05-18T22:14:30.041+01:00 — Issue #72 E2E Test Implementation
 
 Implemented 4 missing behavioural tests for planning workflow complete E2E coverage, converting all `.skip()` placeholders to working tests:
