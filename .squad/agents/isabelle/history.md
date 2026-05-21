@@ -1,5 +1,13 @@
 # History: Isabelle (Frontend Dev)
 
+#### 2026-05-21T21:54:07.868+01:00 — Linux workflow graph rerun follow-up
+
+- Reproduced the still-red `storybook-tests` workflow-graph visual lane against current PR #75 branch state, then rechecked it in the closest available Linux/CI mode using the existing Debian-based Node devcontainer image with Playwright Chromium.
+- Confirmed the remaining mismatch was still text rasterization drift: the graph and list screenshots were stable inside Linux, but the committed baselines were still coming from a different renderer despite the earlier fallback stack fix.
+- Hardened the visual harness by vendoring an embedded Inter test font into `workflow-graph-visual.spec.ts`, forcing the graph shadow root to use that font for all controls and content, and keeping the Chromium screenshot flags pinned to grayscale/sRGB output.
+- Refreshed the two workflow graph baselines from the Linux repro and re-validated `npm run test-storybook:ci:all` plus the Linux Playwright visual spec pass after the refresh.
+- Key files: `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts`, `src/UmbracoPrism.Client/tests/assets/fonts/inter-400.ttf`, `src/UmbracoPrism.Client/tests/assets/fonts/inter-600.ttf`, `src/UmbracoPrism.Client/tests/assets/fonts/inter-700.ttf`, `.squad/decisions/inbox/isabelle-storybook-rerun-fix.md`.
+
 #### 2026-05-21T21:54:07.868+01:00 — Linux workflow graph visual baseline follow-up
 
 - Reproduced the PR #75 `storybook-tests` visual failure in a Linux container against commit `20cf8b3`, matching the GitHub Actions pixel drift on the workflow graph canvas and list-mode screenshots.
