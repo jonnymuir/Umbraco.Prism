@@ -30,9 +30,9 @@ public static class PrismAuthExtensions
                         string? tokenIssuer = null;
                         string? tokenAzp = null;
                         string? tokenKid = null;
-                        var rawToken = context.Request.Headers.Authorization.FirstOrDefault()
-                            ?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
-                            ? context.Request.Headers.Authorization.First()["Bearer ".Length..]
+                        var authorizationHeader = context.Request.Headers.Authorization.FirstOrDefault();
+                        var rawToken = authorizationHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
+                            ? authorizationHeader["Bearer ".Length..]
                             : null;
                         if (!string.IsNullOrEmpty(rawToken))
                         {

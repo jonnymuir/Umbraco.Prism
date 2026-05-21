@@ -145,3 +145,11 @@ Use community-enquiry instead of planning fixture for generic `WorkflowPatchServ
 **Impact:** Landing gate now clean. All seams green. Branch ready for merge.
 
 **Decision docs:** Merged to `.squad/decisions.md` (from inbox/blathers-workflow-proof-case.md, inbox/blathers-nu1510-cleanup.md)
+
+## 2026-05-21T21:54:07.868+01:00 — Core-tests CI warning cleanup
+
+- Replaced `ForwardedHeadersOptions.KnownNetworks` usage in `PrismComposer` with `KnownIPNetworks` to match the current ASP.NET deprecation guidance without changing trust behaviour.
+- Tightened bearer header extraction in `PrismAuthExtensions` so the authentication-failure diagnostics keep working without a nullable dereference warning.
+- Verified `dotnet build UmbracoPrism.sln -c Release`, focused auth regression tests, and the full core-tests lane command all pass cleanly after the fix.
+
+**Decision doc:** `.squad/decisions/inbox/blathers-ci-core-tests.md`
