@@ -1,5 +1,12 @@
 # History: Isabelle (Frontend Dev)
 
+#### 2026-05-21T21:54:07.868+01:00 — Linux workflow graph visual baseline follow-up
+
+- Reproduced the PR #75 `storybook-tests` visual failure in a Linux container against commit `20cf8b3`, matching the GitHub Actions pixel drift on the workflow graph canvas and list-mode screenshots.
+- Confirmed the rendered UI was unchanged and the remaining mismatch was baseline-only after the earlier harness stabilization, then replaced the two workflow graph baselines with Linux-captured images from the CI-like repro.
+- Re-validated the targeted lane in the closest available CI mode with `CI=1 npm run test:playwright:workflow-graph-visual` inside the project Linux devcontainer image; the visual spec passed there after the baseline refresh.
+- Key files: `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/workflow-graph-workspace-canvas.png`, `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/workflow-graph-workspace-list-mode.png`, `.squad/decisions/inbox/isabelle-linux-visual-fix.md`.
+
 #### 2026-05-21T21:54:07.868+01:00 — Workflow graph visual regression fix
 
 - Diagnosed PR #75 `storybook-tests` failure as a cross-platform visual baseline mismatch in `workflow-graph-visual.spec.ts`: GitHub Actions Linux reported 8,174 differing pixels for the canvas view and 19,017 for list mode while the branch baselines had been recorded on macOS.
