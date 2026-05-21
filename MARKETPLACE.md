@@ -54,7 +54,7 @@ The walkthrough covers:
 - Behind the scenes: workflow definitions, state machines, the Prism workflow engine, and how persistence and real-time updates work
 - Exploring further: editing workflow definitions, monitoring engine logs in Aspire, testing async patterns
 
-**Alternative:** [Planning permission walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-notification.md) for multi-step complex forms with conditional field logic.
+**Alternative:** [Planning Application walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-workflow-complete.md) for a complete end-to-end journey covering authoring, public submission, member continuation, and back-stage review.
 
 ---
 
@@ -239,7 +239,7 @@ In backoffice:
 | Guide | Description |
 |---|---|
 | [Workflow Walkthrough — Payment Demo](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment workflow — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer workflows |
-| [Alternative Walkthrough — Planning Permission](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-notification.md) | Multi-step form with conditional fields, document upload, and review screens — demonstrates complex form branching |
+| [Alternative Walkthrough — Planning Application Complete](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-workflow-complete.md) | Full end-to-end workflow covering editor authoring, public submission, member continuation, and back-stage review — demonstrates the complete workflow lifecycle |
 | [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
 | [Biometric Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/biometric-setup.md) | Generate signing/encryption keys for mobile biometric auth |
