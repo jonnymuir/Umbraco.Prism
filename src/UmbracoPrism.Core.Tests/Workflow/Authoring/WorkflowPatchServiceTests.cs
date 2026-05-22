@@ -10,7 +10,7 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// </summary>
 public class WorkflowPatchServiceTests
 {
-    private static readonly string FixturesPath = GetFixturesPath();
+    private static readonly string FixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
 
     private readonly WorkflowProjector _projector = new();
     private readonly WorkflowPatchService _sut;
@@ -237,9 +237,4 @@ public class WorkflowPatchServiceTests
     private static void AssertOriginalUnmutated(AuthoredWorkflow original, int originalStageCount) =>
         original.Stages.Should().HaveCount(originalStageCount,
             because: "the original AuthoredWorkflow must never be mutated");
-
-    private static string GetFixturesPath() =>
-        Path.Combine(
-            Path.GetDirectoryName(typeof(WorkflowPatchServiceTests).Assembly.Location)!,
-            "Workflow", "Authoring", "Fixtures");
 }

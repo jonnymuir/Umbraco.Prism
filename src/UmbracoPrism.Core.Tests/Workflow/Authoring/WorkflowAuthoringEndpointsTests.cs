@@ -480,12 +480,30 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
             "Fixtures",
             $"{key}.workflow.json");
 
+    private static string GetSourceAuthoredFixturePath(string key) =>
+        Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../",
+            "src",
+            "UmbracoPrism.Core.Tests",
+            "Workflow",
+            "Authoring",
+            "Fixtures",
+            $"{key}.workflow.json"));
+
     private static Task WriteAuthoredFixtureAsync(string key, string content) =>
         File.WriteAllTextAsync(GetAuthoredFixturePath(key), content);
 
     private static void CleanupAuthoredFixture(string key)
     {
         var path = GetAuthoredFixturePath(key);
+        var sourcePath = GetSourceAuthoredFixturePath(key);
+        if (File.Exists(sourcePath))
+        {
+            File.Copy(sourcePath, path, overwrite: true);
+            return;
+        }
+
         if (File.Exists(path))
             File.Delete(path);
     }

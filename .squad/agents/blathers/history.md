@@ -161,3 +161,9 @@ Use community-enquiry instead of planning fixture for generic `WorkflowPatchServ
 - Verified `dotnet build UmbracoPrism.sln -c Release` passes and re-probed the failing protected routes on a fresh local stack: `/dashboard`, `/my-workflows`, `/get-in-touch`, and `/apply-for-planning-permission` now all return the expected 302 login redirect.
 
 **Decision doc:** `.squad/decisions/inbox/blathers-localhost-auth-timeout.md`
+
+## 2026-05-21T21:54:07.868+01:00 — Community fixture CI fix
+
+- Fixed the PR #75 `core-tests` order dependency where `WorkflowAuthoringEndpointsTests` could leave `community-enquiry.workflow.json` deleted from the shared output fixtures directory.
+- Restored canonical authored fixtures after endpoint-test mutation, added a source-tree fallback for patch/preview fixture lookup, and tightened fixture item wiring in `UmbracoPrism.Core.Tests.csproj`.
+- Re-ran `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests --nologo`; all 810 core backend tests passed and the copied fixtures directory retained `community-enquiry.workflow.json`.

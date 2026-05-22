@@ -35,7 +35,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Workflow\Authoring\Fixtures\*.workflow.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Workflow/Authoring/Fixtures/*.workflow.json" />
+    <Content Include="Workflow/Authoring/Fixtures/*.workflow.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
