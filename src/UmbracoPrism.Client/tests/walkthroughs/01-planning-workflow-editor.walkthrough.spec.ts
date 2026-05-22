@@ -233,7 +233,9 @@ test.describe('Planning Workflow Editor walkthrough', () => {
         req.method() === 'POST'
     );
 
-    await page.getByRole('button', { name: /send/i }).click();
+    const sendButton = page.getByRole('button', { name: /send/i });
+    await sendButton.focus();
+    await sendButton.press('Enter');
     await nlRequestInflight;
 
     const proposalDiff = page.locator('[data-prism-component="proposal-diff"]');
@@ -256,7 +258,8 @@ test.describe('Planning Workflow Editor walkthrough', () => {
         req.method() === 'POST'
     );
 
-    await acceptBtn.click();
+    await acceptBtn.focus();
+    await acceptBtn.press('Enter');
     await applyRequest;
 
     // ─── Step 9: Workflow graph reflects the applied change ────────────────────

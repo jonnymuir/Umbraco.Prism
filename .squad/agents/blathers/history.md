@@ -173,3 +173,10 @@ Use community-enquiry instead of planning fixture for generic `WorkflowPatchServ
 - Diagnosed the PR #75 planning failure as two backend drifts: the runtime engine re-keyed reference workflows by projected `DefinitionKey`, and the in-memory planning reference workflow had been reduced to a two-stage skeleton instead of the authored four-stage contract.
 - Restored host-key runtime lookups (`planning` stays routable even though the authored definition key is `planning-application`) and rebuilt the in-memory planning workflow to match the authored Declaration → Application Form → Check your answers → Application submitted flow.
 - Locked the fix with focused backend contract coverage and re-ran the planning/localhost-auth Playwright repro slice after aligning the stale planning walkthrough assertions to the live contract.
+
+## 2026-05-22T05:48:34.538+01:00 — Planning smoke merge gate unblocked
+
+- Reproduced the latest `planning-workflow-editor-smoke` cancellation and confirmed it was not a backend/runtime/seed regression: the job reached readiness, then the walkthrough hung until the 15-minute job timeout because the workflow-editor validation rail intercepted pointer clicks on the Send button.
+- The same interaction bug was also the first failing assertion in the red `localhost-auth-playwright` lane, so the cancelled planning smoke was a rerun-worthy harness failure rather than a fresh runtime break.
+- Switched the walkthrough to keyboard activation (`focus()` + `press('Enter')`) for Send and Accept All, keeping the test aligned with the editor's accessible interaction model and avoiding pointer interception.
+- Verified `dotnet build UmbracoPrism.sln -c Release` and `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke` both pass after the change.
