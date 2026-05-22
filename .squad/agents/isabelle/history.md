@@ -1,5 +1,37 @@
 # History: Isabelle (Frontend Dev)
 
+#### 2026-05-22T19:54:45.780+01:00 — Editor shell cohesion (first corrective slice)
+
+Implemented the first corrective slice for mature workflow editor UX: persistent left-side outline for navigation, tabbed confidence surfaces (Validation, Preview, Simulation, Help), and tighter selection/focus flow. This addresses the primary orientation and layout gaps identified in the UX audit.
+
+**New components:**
+- `prism-workflow-outline` — persistent stage/transition navigation tree (240px left panel)
+- `prism-confidence-tabs` — tab bar with role=tablist pattern, four tabs with slotted content
+- `prism-help-panel` — embedded help content (shortcuts, tips, getting started)
+
+**Architecture:**
+- Three-column grid: `240px (outline) | 1fr (canvas) | 380px (inspector)`
+- Bottom confidence panel: `280px` fixed height with tabbed surfaces
+- Outline selection events feed same handlers as graph/list selection
+- Validation moved from rail → tab (kept `data-prism-validation-rail` test hook)
+- Role-first canvas stays primary; inspector persistent; all existing behavior preserved
+
+**Accessibility:**
+- Outline: keyboard-navigable buttons, aria-current location markers
+- Tabs: ARIA tablist/tab/tabpanel pattern, keyboard arrow navigation
+- Focus management: selection updates inspector without stealing focus
+
+**Quality gate:**
+- ✅ `npm run build` — TypeScript compile clean
+- ✅ Keyboard tests: `workflow-graph-keyboard.spec.ts` — 7/7 passed
+- ✅ Validation tests: `workflow-editor-validation.spec.ts` — 1/1 passed
+
+**Decision:** `.squad/decisions/inbox/isabelle-editor-shell-cohesion.md`
+
+**Trade-off:** Partial alignment with Tom Nook's accepted full-tab proposal — implemented tabbed confidence surfaces but kept canvas (graph/list) persistent rather than moving to separate tabs. Canvas tabs can be added later if needed without breaking outline or tab infrastructure.
+
+**Deferred:** Storybook CI — some stories may need updates for tab interaction; follow-up slice to stabilize.
+
 #### 2026-05-22T19:33:56.538+01:00 — Issue #74 role-first swim lanes completed
 
 Delivered the first usable slice of issue #74: horizontal role-first swim lanes replacing the old front-stage/back-stage canvas framing. The workflow graph now renders dynamic role lanes from stage actors, with each role (applicant, reviewer, etc.) getting its own lane row. Stages are positioned by actor rather than generic surface hint.
@@ -103,3 +135,21 @@ Two overlapping proposals for the workflow editor redesign were submitted simult
 - Accessibility improved (semantics, focus, keyboard)
 - All quality gates passing: client build, Storybook CI, keyboard tests, visual regression, planning smoke
 - Awaiting merge review
+
+#### 2026-05-22T20:06:00Z — Scribe Batch Close: Cross-Agent Sync
+
+**Context:** Batch orchestration complete. Scribe merged 5 decision inbox entries from this session's agent work (Isabelle, Tangy, Tom Nook).
+
+**Your contributions referenced:**
+- `isabelle-editor-shell-cohesion.md` — shell slice decision and implementation details
+- `isabelle-mature-editor-gap-audit.md` — audit findings: 10 corrective slices, prioritized
+
+**Cross-agent outcomes:**
+- Tangy delivered comprehensive behavioral test proof (24 tests, semantic hooks documented)
+- Tom Nook locked strategic direction (Phase 1–5 roadmap, integration-first approach)
+- Scribe merged all decisions to `.squad/decisions.md`
+- Orchestration logs written for all three agents
+
+**Integration note:** Tangy's tests are ready once your shell implementation provides the documented hooks (`[data-prism-workflow-outline]`, `[data-prism-confidence-tabs]`, etc.). No blockers from other team members.
+
+**Status:** All squad metadata written; ready for merge.

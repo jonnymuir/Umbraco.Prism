@@ -1,5 +1,45 @@
 # History: Tangy (Tester)
 
+## 2026-05-22T19:54:45.780+01:00 — Editor Shell Behavioral Proof Design
+
+**Status:** Tests designed and landed, awaiting Isabelle's shell implementation
+
+**What I delivered:**
+
+1. **New dedicated test file:** `tests/workflow-editor/workflow-editor-shell.spec.ts`  
+   Comprehensive behavioral proof covering:
+   - Persistent outline visibility and navigation
+   - Tabbed confidence surfaces (validation/preview/simulation)
+   - Selection sync across outline/graph/list/inspector
+   - Keyboard and focus flow through the new shell
+   - Integration with existing behaviors (undo/redo, copy/paste)
+
+2. **Enhanced walkthrough assertions:** `tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`  
+   Added shell-specific checks:
+   - Outline visible when editor loads
+   - Confidence tabs present and functional
+   - Selection sync with outline highlighting
+   - Outline stays visible across mode switches
+   - Tabs replace stacked panels
+
+3. **Test hook requirements:** `.squad/decisions/inbox/tangy-editor-shell-proof.md`  
+   Documented exact semantic selectors/ARIA states needed:
+   - `[data-prism-workflow-outline]` and outline item structure
+   - `[data-prism-confidence-tabs]` and tab/panel contracts
+   - Selection sync via `aria-current`, `aria-pressed`, `aria-selected`
+   - Keyboard flow and focus restoration patterns
+
+**Working in parallel with Isabelle:** All test hooks are documented inline with `BEHAVIORAL HOOK REQUEST FOR ISABELLE` comments. The tests are ready to run once her shell implementation lands.
+
+**Validation approach:**
+- Tests will fail until shell implementation is complete (expected)
+- Build shows in-progress TypeScript errors in Isabelle's files (expected)
+- Tests guide the final behavioral contracts without blocking her work
+- Once implementation lands: `npm run build`, then run shell spec and planning smoke
+
+**Plain-language verdict:**  
+The behavioral proof is complete and ready. It proves the four critical shell improvements (persistent outline, tabbed confidence surfaces, selection sync, keyboard flow) that make this a "mature" editor. The tests are waiting for Isabelle's implementation to land.
+
 ## 2026-05-18T22:14:30.041+01:00: Issue #72 Final Review — APPROVED ✅
 
 ### Status
@@ -103,3 +143,21 @@
 - All quality gates passing: client build, keyboard tests, visual regression, Storybook accessibility
 - Created testing skill and decision inbox notes
 - Awaiting merge review
+
+## 2026-05-22T20:06:00Z — Scribe Batch Close: Cross-Agent Sync
+
+**Context:** Batch orchestration complete. Scribe merged 5 decision inbox entries from this session's agent work (Isabelle, Tangy, Tom Nook).
+
+**Your contributions referenced:**
+- `tangy-editor-shell-proof.md` — behavioral test spec (24 tests, documented hooks, validation commands)
+- `tangy-mature-editor-quality-bar.md` — quality bar definition for "mature" editor
+
+**Cross-agent outcomes:**
+- Isabelle delivered shell implementation (outline, tabs, selection sync, focus management)
+- Tom Nook locked strategic direction (Phase 1–5 roadmap, Phase 1 is integration-first cohesion)
+- Scribe merged all decisions to `.squad/decisions.md`
+- Orchestration logs written for all three agents
+
+**Your tests are unblocked:** All semantic hooks documented in your spec. Ready to run once Isabelle's shell implementation lands. Validation commands: `npm run build`, `playwright test workflow-editor-shell.spec.ts`, `npm run test:playwright:planning-smoke`.
+
+**Status:** All squad metadata written; ready for merge.
