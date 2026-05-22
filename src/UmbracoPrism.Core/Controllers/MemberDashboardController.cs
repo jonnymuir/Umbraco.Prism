@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +15,6 @@ namespace UmbracoPrism.Core.Controllers;
 /// the naming convention: controller name matches document type alias
 /// "memberDashboard" → <c>MemberDashboardController</c>.
 /// </summary>
-[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class MemberDashboardController(
     ILogger<MemberDashboardController> logger,
     ICompositeViewEngine compositeViewEngine,
@@ -41,7 +39,7 @@ public class MemberDashboardController(
     public override IActionResult Index()
     {
         if (User.Identity?.IsAuthenticated != true)
-            return Redirect("/auth/login?returnUrl=/dashboard");
+            return Redirect(BuildLoginRedirectUrl());
 
         ViewBag.DisplayName = User.FindFirst("name")?.Value
                               ?? User.FindFirst("preferred_username")?.Value
@@ -60,10 +58,19 @@ public class MemberDashboardController(
         ViewBag.WorkflowAdminUrl = string.IsNullOrWhiteSpace(workflowApiBase)
             ? null
             : $"{workflowApiBase}/admin/workflow";
+        ViewBag.WorkflowEditorUrl = string.IsNullOrWhiteSpace(workflowApiBase)
+            ? null
+            : $"{workflowApiBase}/workflow-editor";
 
         // Render the authored dashboard view directly. On the first authenticated
         // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle
         // into a self-redirect loop on /dashboard under the local Aspire stack.
         return View("~/Views/memberDashboard.cshtml", CurrentPage!);
+    }
+
+    private string BuildLoginRedirectUrl()
+    {
+        var returnUrl = $"{Request.PathBase}{Request.Path}{Request.QueryString}";
+        return $"/auth/login?ReturnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 }

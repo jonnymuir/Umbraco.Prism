@@ -33,7 +33,7 @@ class PrismWorkflowEditorHostElement extends UmbLitElement {
   }
 
   get _editorUrl() {
-    return `${getAuthoringBaseUrl()}/workflow-editor.html?workflow=planning`;
+    return `${getAuthoringBaseUrl()}/workflow-editor`;
   }
 
   async _checkEditorAvailability() {

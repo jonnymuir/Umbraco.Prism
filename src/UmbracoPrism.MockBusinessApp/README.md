@@ -51,3 +51,4 @@ The business app now exposes a thin reference editor shell at `/workflow-editor`
 - It hosts authoring-only concerns: picking a workflow, pointing at the authoring API, and mounting `<prism-workflow-editor>`.
 - It does **not** own runtime workflow execution or business case logic — those stay in the business app domain.
 - Use it as the reference integration slice for downstream apps that want to embed the workflow editor with minimal wiring.
+- Authoring endpoints live under `/api/workflow-authoring/workflows/{key}` and cover load, save/publish, validate, preview, apply, and simulate against the filesystem-backed reference store.

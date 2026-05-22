@@ -23,7 +23,7 @@ const editorUrl = /workflow-editor\.html/;
 function editorHealthCheck(override: Partial<PageHealthCheck> = {}): PageHealthCheck {
   return {
     url: editorUrl,
-    heading: /planning permission/i,
+    heading: /planning application/i,
     bodyMustNotContain: /\b(404|Not Found|An error occurred|Server Error)\b/i,
     ...override,
   };
@@ -80,25 +80,43 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Step 1: Load the reference shell from the business app ────────────────
     // The shell redirects /workflow-editor → /workflow-editor.html?workflow=planning
     // and demonstrates the minimal downstream integration surface.
+    const workflowListResponse = page.waitForResponse(
+      response =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/api/workflow-authoring/workflows') &&
+        response.status() === 200
+    );
     await page.goto(`${businessAppOrigin}/workflow-editor`);
+    await workflowListResponse;
     await expect(page).toHaveURL(/\/workflow-editor\.html\?workflow=planning(?:&|$)/);
     await expect(page.getByRole('heading', { name: /compose the editor into your app/i })).toBeVisible();
     await expect(page.getByText(/this shell stays focused on authoring/i)).toBeVisible();
     await expect(page.getByText(/let your business app own runtime workflows and domain actions/i)).toBeVisible();
+    await expect(page.locator('[data-prism-component="workflow-editor-shell"]')).toHaveAttribute(
+      'data-prism-active-workflow',
+      'planning'
+    );
+    await expect(page.locator('prism-workflow-editor')).toHaveAttribute('data-prism-workflow-loaded', 'planning', {
+      timeout: 30_000,
+    });
     await expect(page.getByRole('combobox', { name: 'Workflow definition' })).toHaveValue('planning');
     await expect(page.getByRole('textbox', { name: 'Authoring API base' })).toHaveValue(businessAppOrigin);
     await expect(page.getByText(/<prism-workflow-editor/i)).toBeVisible();
     await expect(page.getByText(`authoring-api-base="${businessAppOrigin}"`)).toBeVisible();
+    await expect(page.getByText(/4 workflow definitions discovered/i)).toBeVisible();
+    await expect(page.locator('#workflow-key option[value="planning"]')).toContainText('planning');
+    await expect(page.locator('#workflow-key option[value="planning"]')).toContainText('planning-application');
+    await expect(page.getByRole('alert')).toHaveCount(0);
 
-    // Wait for the workflow data to load before asserting page health. The custom element
-    // sets data-prism-workflow-loaded="{key}" after the API fetch completes. On slower CI
+    // Wait for the workflow data to load before asserting page health. The custom-element host
+    // reflects data-prism-workflow-loaded="{key}" after the API fetch completes. On slower CI
     // hardware, the page.goto() 'load' event fires before the JS module executes and the
     // async workflow fetch finishes, causing the heading check to race and timeout.
     //
     // Enhanced diagnostics on failure: captures page state, screenshots, and trace to pinpoint
     // the exact readiness failure mode (module not loaded, fetch not started, fetch failed, etc.).
     try {
-      await page.waitForSelector('[data-prism-workflow-loaded]:not([data-prism-workflow-loaded=""])', {
+      await expect(page.locator('prism-workflow-editor')).toHaveAttribute('data-prism-workflow-loaded', /.+/, {
         timeout: 30_000,
       });
     } catch (e) {
@@ -136,23 +154,23 @@ test.describe('Planning Workflow Editor walkthrough', () => {
 
     // ─── Step 2: Graph view shows the planning permission stages ───────────────
     // prism-workflow-graph renders in "graph" mode by default (aria role="application").
-    // The STUB_WORKFLOW stages are: applicant-details, check-answers, waiting-for-review,
-    // reviewer-assessment, confirmation.
+    // The live authored planning seed stages are: declaration, application-form,
+    // check-answers, submitted.
     const graphCanvas = page.getByRole('application');
     await expect(graphCanvas).toBeVisible({ timeout: 10_000 });
 
-    // Each stage node has data-prism-stage="{stageKey}" in shadow DOM.
-    // "applicant-details" is the initial stage (first node in the graph).
-    await expect(page.locator('[data-prism-stage="applicant-details"]')).toBeVisible({ timeout: 10_000 });
+    await expect(graphCanvas.getByText('Declaration')).toBeVisible({ timeout: 10_000 });
 
     await step(page, '02-graph-view-stages.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="workflow-graph"]',
     }), WALKTHROUGH_KEY);
 
     // ─── Step 3: Click a stage to open the step inspector ─────────────────────
-    // Clicking the "applicant-details" node dispatches a stage-selected CustomEvent.
-    // prism-step-inspector renders on the right with the stage's fields/components.
-    await page.locator('[data-prism-stage="applicant-details"]').click();
+    // Use the graph's keyboard inspector shortcut so the walkthrough follows the
+    // accessible selection contract even when surrounding chrome overlaps pointer hits.
+    const declarationStage = page.locator('[data-prism-stage="declaration"]');
+    await declarationStage.focus();
+    await declarationStage.press('e');
 
     const stepInspector = page.locator('[data-prism-component="step-inspector"]');
     await expect(stepInspector).toBeVisible({ timeout: 10_000 });
@@ -164,8 +182,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Step 4: Step inspector shows stage properties ─────────────────────────
     // The inspector panel lists the stage's display name, kind (Capture/Review/Decision),
     // and the tree of polymorphic form components (section → fieldset → field).
-    // data-prism-stage-detail="applicant-details" is set on the inspector root.
-    await expect(page.locator('[data-prism-stage-detail="applicant-details"]')).toBeVisible({ timeout: 5_000 });
+    await expect(stepInspector.getByRole('heading', { name: 'Declaration' })).toBeVisible({ timeout: 5_000 });
 
     await step(page, '04-step-inspector-properties.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="step-inspector"]',
@@ -173,21 +190,24 @@ test.describe('Planning Workflow Editor walkthrough', () => {
 
     // ─── Step 5: Toggle to stage list view ────────────────────────────────────
     // The mode-toggle button ("List view", aria-pressed="false") switches the graph
-    // canvas (role="application") to a linear list (role="listbox") of stage cards.
+    // canvas (role="application") to a keyboard-first table of stage rows.
     // This mirrors the keyboard-accessible contract tested in workflow-graph-keyboard.spec.ts.
     const toggleBtn = page.locator('prism-workflow-graph').getByRole('button', { name: 'List view' });
     await expect(toggleBtn).toBeVisible({ timeout: 5_000 });
-    await toggleBtn.click();
+    await toggleBtn.focus();
+    await toggleBtn.press('Enter');
 
-    const stageList = page.getByRole('listbox');
-    await expect(stageList).toBeVisible({ timeout: 5_000 });
+    const stageTable = page.locator('[data-prism-linear-table]');
+    await expect(stageTable).toBeVisible({ timeout: 5_000 });
 
     await step(page, '05-stage-list-view.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="workflow-graph"]',
     }), WALKTHROUGH_KEY);
 
     // Switch back to graph view so the conversation pane step is clearer
-    await page.locator('prism-workflow-graph').getByRole('button', { name: 'Graph view' }).click();
+    const graphToggleBtn = page.locator('prism-workflow-graph').getByRole('button', { name: 'Graph view' });
+    await graphToggleBtn.focus();
+    await graphToggleBtn.press('Enter');
     await expect(graphCanvas).toBeVisible({ timeout: 5_000 });
 
     // ─── Step 6: Type a natural language change request ────────────────────────
@@ -213,7 +233,9 @@ test.describe('Planning Workflow Editor walkthrough', () => {
         req.method() === 'POST'
     );
 
-    await page.getByRole('button', { name: /send/i }).click();
+    const sendButton = page.getByRole('button', { name: /send/i });
+    await sendButton.focus();
+    await sendButton.press('Enter');
     await nlRequestInflight;
 
     const proposalDiff = page.locator('[data-prism-component="proposal-diff"]');
@@ -236,14 +258,15 @@ test.describe('Planning Workflow Editor walkthrough', () => {
         req.method() === 'POST'
     );
 
-    await acceptBtn.click();
+    await acceptBtn.focus();
+    await acceptBtn.press('Enter');
     await applyRequest;
 
     // ─── Step 9: Workflow graph reflects the applied change ────────────────────
     // After apply, prism-workflow-graph re-renders with the updated definition.
     // The ID&V stage (injected by the agent) must now appear as a node.
     await expect(page.locator('[data-prism-toast]')).toContainText(/workflow updated successfully/i);
-    await expect(page.locator('[data-prism-stage="id-verification"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('application').getByText('Identity Verification')).toBeVisible({ timeout: 10_000 });
 
     await step(page, '09-proposal-applied.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="workflow-graph"]',

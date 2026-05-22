@@ -56,3 +56,69 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 - The strongest Umbraco reference pattern here is a **thin typed Razor wrapper** in TestSite that selects Core workflow shells and partials, while leaving nonce handling, field validation, and workflow progression in Core/Business App boundaries.
 - Seeded workflow/member journeys read more like a real Umbraco site when `workflowPage` and `workflowHub` live under `Home` instead of as root nodes; route ownership stays content-driven without changing the public URLs.
 - Exact workflow-key lookup is safer than alias fallback once multiple workflow pages exist; missing content should fall back to the expected route contract, not to whichever workflow page happens to be first in the tree.
+- The live MockBusinessApp authored seed (`src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json`) is a separate contract from the backend fixture under `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/`; keep the live file non-empty and keyed to the shell route (`planning`) so `/workflow-editor` stays loadable.
+- Long-running LiveAppHost startup belongs behind an explicit Playwright worker-fixture timeout; `src/UmbracoPrism.Client/tests/support/shared-app-host-fixture.ts` now allows 10 minutes so cold Aspire warmups do not die at the default 30-second fixture limit.
+- The workflow editor browser client still expects `stageKey`/`displayName`/`kind` and `fromStage`/`toStage`/`action`, so `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts` must normalize the canonical C# API shape (`key`/`title`/`type`, `source`/`target`/`trigger`) before rendering graph and inspector components.
+- 2026-05-19T21:20:21.447+01:00 — The authoring host key (`planning`) and the authored/runtime `definitionKey` (`planning-application`) are different contracts; list, load, and save must round-trip on the host key or the admin screen and reference shell drift apart.
+
+---
+
+## Session 2026-05-18T12:17:12Z — Issue #57 Completion
+
+**Outcome:** brewster completed assigned work on issue #57 publish pipeline.
+
+**Status:** Green end-to-end
+
+---
+
+## Session 2026-05-18T21:48:37Z — Issue #71 Status Check
+
+**Context:** Asked to continue work on issue #71 (Runtime: Enable workflow runtime in Umbraco surfaces).
+
+**Finding:** All acceptance criteria already implemented and tested:
+- Route hijacking controllers exist (`WorkflowPageController`, `WorkflowHubController`)
+- `WorkflowRuntimeEngine` provides instance resolution, state management, transitions
+- `PrismWorkflowPageController<T>` handles GET/POST/PRG pattern with nonce validation
+- Member auth enforced via `PrismMemberCookie` scheme
+- 782 unit tests pass (349 workflow-specific)
+- 6 E2E scenarios in `workflow-gds-journey.spec.ts` verify full journey
+
+**Action:** Closed issue #71 with completion documentation.
+
+**Status:** Green — repo fully operational for workflow runtime in Umbraco public/member surfaces
+
+## 2026-05-18: Issue #71 Approval
+
+Issue #71 "Workflow Runtime in Umbraco Surfaces" has been marked **acceptance-complete** by Tangy (quality gate review). All seven acceptance criteria are satisfied:
+
+✅ Workflow start page loads in Umbraco
+✅ Forms render for first stage
+✅ Submit creates instance and advances stage
+✅ Back-stage visibility enforced
+✅ Instance state persisted correctly
+✅ Resume/dashboard works
+✅ Tests for planning workflow through Umbraco
+
+Backend test suite: 782/782 passing (no blockers). Issue ready for merge.
+
+## Revision Handoff (2026-05-19)
+
+Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
+
+---
+
+## 2026-05-19T18:16:08Z: Admin-Page Edit-Workflow Link — LOCKED OUT (Tangy Re-review Rejected)
+
+**Status:** 🔴 Blocked
+
+The admin-page edit-workflow slice has been re-reviewed and rejected by Tangy. The blocker is a deep-link parameter mismatch: admin card clicks do not consistently open the editor to the same workflow definition the user clicked on.
+
+**Your next steps:** Await Blathers' resolution of the deep-link alignment. Brewster is locked out until Blathers submits a new revision with the parameter mismatch fixed.
+
+**References:**
+- `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
+- `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`
+
+## Scribe Consolidation (2026-05-19T21:41:48.843Z)
+
+Decisions consolidated into team decisions log. Orchestration recorded.

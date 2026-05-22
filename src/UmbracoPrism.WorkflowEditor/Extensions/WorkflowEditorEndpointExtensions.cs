@@ -40,29 +40,70 @@ public static class WorkflowEditorEndpointExtensions
         if (env.IsDevelopment())
             group.RequireCors("WorkflowAuthoringDevCors");
 
+        // ── GET /api/workflow-authoring/action-catalog ────────────────────────
+
+        group.MapGet("/action-catalog", (IActionCatalogSource catalogSource)
+            => Results.Json(catalogSource.GetCatalog(), WorkflowProjector.CanonicalOptions));
+
         // ── GET /api/workflow-authoring/workflows ─────────────────────────────
 
-        group.MapGet("/workflows", async (IAuthoredWorkflowStore store, CancellationToken ct) =>
+        group.MapGet("/workflows", async (IAuthoredWorkflowStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
-            var keys = await store.ListKeysAsync(ct);
-            var summaries = new List<object>(keys.Count);
-            foreach (var key in keys)
+            var logger = loggerFactory.CreateLogger("WorkflowAuthoringEndpoints");
+            var entries = await store.ListAsync(ct);
+            var summaries = new List<object>(entries.Count);
+            foreach (var entry in entries)
             {
-                var wf = await store.LoadAsync(key, ct);
-                if (wf != null)
-                    summaries.Add(new { id = wf.Id, definitionKey = wf.DefinitionKey, displayName = wf.DisplayName });
+                if (!entry.IsLoadable)
+                {
+                    if (!string.IsNullOrWhiteSpace(entry.ErrorMessage))
+                    {
+                        logger.LogWarning(
+                            "Skipping invalid authored workflow document for key '{WorkflowKey}'. {Reason}",
+                            entry.WorkflowKey,
+                            entry.ErrorMessage);
+                    }
+
+                    continue;
+                }
+
+                var loadResult = await TryLoadWorkflowAsync(entry.WorkflowKey, store, logger, ct);
+                if (loadResult.Workflow != null)
+                    summaries.Add(new
+                    {
+                        workflowKey = entry.WorkflowKey,
+                        id = loadResult.Workflow.Id,
+                        definitionKey = loadResult.Workflow.DefinitionKey,
+                        displayName = loadResult.Workflow.DisplayName
+                    });
             }
             return Results.Json(summaries, WorkflowProjector.CanonicalOptions);
         });
 
         // ── GET /api/workflow-authoring/workflows/{key} ───────────────────────
 
-        group.MapGet("/workflows/{key}", async (string key, IAuthoredWorkflowStore store, CancellationToken ct) =>
+        group.MapGet("/workflows/{key}", async (string key, IAuthoredWorkflowStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
-            var wf = await store.LoadAsync(key, ct);
-            return wf is null
+            var logger = loggerFactory.CreateLogger("WorkflowAuthoringEndpoints");
+            var loadResult = await TryLoadWorkflowAsync(key, store, logger, ct);
+            if (loadResult.ErrorMessage != null)
+                return Results.Conflict(new { error = loadResult.ErrorMessage });
+
+            return loadResult.Workflow is null
                 ? Results.NotFound(new { error = $"Workflow '{key}' not found." })
-                : Results.Json(wf, WorkflowProjector.CanonicalOptions);
+                : Results.Json(loadResult.Workflow, WorkflowProjector.CanonicalOptions);
+        });
+
+        group.MapGet("/workflows/{key}/load", async (string key, IAuthoredWorkflowStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
+        {
+            var logger = loggerFactory.CreateLogger("WorkflowAuthoringEndpoints");
+            var loadResult = await TryLoadWorkflowAsync(key, store, logger, ct);
+            if (loadResult.ErrorMessage != null)
+                return Results.Conflict(new { error = loadResult.ErrorMessage });
+
+            return loadResult.Workflow is null
+                ? Results.NotFound(new { error = $"Workflow '{key}' not found." })
+                : Results.Json(loadResult.Workflow, WorkflowProjector.CanonicalOptions);
         });
 
         // ── POST /api/workflow-authoring/workflows/{key}/validate ─────────────
@@ -105,6 +146,36 @@ public static class WorkflowEditorEndpointExtensions
             }, WorkflowProjector.CanonicalOptions);
         });
 
+        // ── POST /api/workflow-authoring/workflows/{key}/publish ──────────────
+
+        group.MapPost("/workflows/{key}/save", async (
+            string key,
+            HttpContext ctx,
+            IAuthoredWorkflowStore store,
+            IWorkflowPublishService publishService,
+            CancellationToken ct) =>
+        {
+            var authored = await ReadBodyAsync<AuthoredWorkflow>(ctx, ct);
+            return authored is null
+                ? Results.BadRequest(new { error = "Request body must be a valid AuthoredWorkflow." })
+                : await SaveAndPublishAsync(key, authored, store, publishService, ct);
+        });
+
+        // ── POST /api/workflow-authoring/workflows/{key}/publish ──────────────
+
+        group.MapPost("/workflows/{key}/publish", async (
+            string key,
+            HttpContext ctx,
+            IAuthoredWorkflowStore store,
+            IWorkflowPublishService publishService,
+            CancellationToken ct) =>
+        {
+            var authored = await ReadBodyAsync<AuthoredWorkflow>(ctx, ct);
+            return authored is null
+                ? Results.BadRequest(new { error = "Request body must be a valid AuthoredWorkflow." })
+                : await SaveAndPublishAsync(key, authored, store, publishService, ct);
+        });
+
         // ── POST /api/workflow-authoring/workflows/{key}/preview ──────────────
 
         group.MapPost("/workflows/{key}/preview", async (
@@ -113,6 +184,7 @@ public static class WorkflowEditorEndpointExtensions
             IAuthoredWorkflowStore store,
             IWorkflowPatchService patchService,
             IWorkflowPreviewService previewService,
+            IWorkflowPublishService publishService,
             CancellationToken ct) =>
         {
             var envelope = await ReadBodyAsync<ProposalEnvelope>(ctx, ct);
@@ -126,7 +198,30 @@ public static class WorkflowEditorEndpointExtensions
                 return Results.Json(new { hasErrors = true, diagnostics = patchResult.Diagnostics }, WorkflowProjector.CanonicalOptions);
 
             var preview = previewService.Preview(original, patchResult.Updated);
-            return Results.Json(preview, WorkflowProjector.CanonicalOptions);
+            var publishPreview = await publishService.PreviewAsync(patchResult.Updated, ct);
+            return Results.Json(preview with { PublishPreview = publishPreview }, WorkflowProjector.CanonicalOptions);
+        });
+
+        // ── POST /api/workflow-authoring/workflows/{key}/simulate ─────────────
+
+        group.MapPost("/workflows/{key}/simulate", async (
+            string key,
+            HttpContext ctx,
+            IAuthoredWorkflowStore store,
+            IWorkflowSimulationService simulationService,
+            CancellationToken ct) =>
+        {
+            var request = await ReadBodyAsync<SimulateWorkflowRequest>(ctx, ct);
+            var workflow = request?.Workflow ?? await store.LoadAsync(key, ct);
+            if (workflow is null)
+                return Results.NotFound(new { error = $"Workflow '{key}' not found." });
+
+            if (request?.Workflow is not null
+                && !string.Equals(key, workflow.DefinitionKey, StringComparison.Ordinal))
+                return Results.BadRequest(new { error = $"Route key '{key}' must match workflow definitionKey '{workflow.DefinitionKey}'." });
+
+            var result = simulationService.Simulate(workflow, request?.Actions, request?.MaxSteps);
+            return Results.Json(result, WorkflowProjector.CanonicalOptions);
         });
 
         // ── POST /api/workflow-authoring/workflows/{key}/apply ────────────────
@@ -136,7 +231,8 @@ public static class WorkflowEditorEndpointExtensions
             HttpContext ctx,
             IAuthoredWorkflowStore store,
             IWorkflowPatchService patchService,
-            IHostEnvironment env2,
+            IWorkflowPublishService publishService,
+            IWorkflowAuthoringProvenanceStore provenanceStore,
             ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
@@ -152,11 +248,11 @@ public static class WorkflowEditorEndpointExtensions
             if (patchResult.HasErrors)
                 return Results.Json(new { hasErrors = true, diagnostics = patchResult.Diagnostics }, WorkflowProjector.CanonicalOptions);
 
-            var savedPath = await store.SaveAsync(patchResult.Updated, ct);
+            var savedPath = await store.SaveAsync(key, patchResult.Updated, ct);
+            var publishResult = await publishService.PublishAsync(patchResult.Updated, ct);
 
-            // Write provenance record — fire-and-forget-safe (errors logged, never surface to caller)
-            var provenancePath = await WriteProvenanceAsync(
-                env2.ContentRootPath, key, request.Envelope, request.Approver, logger, ct);
+            var provenancePath = await SaveProvenanceAsync(
+                key, request.Envelope, request.Approver, provenanceStore, logger, ct);
 
             logger.LogInformation(
                 "Workflow authoring apply: key={Key} approver={Approver} envelopeId={EnvelopeId} savedPath={SavedPath} provenance={Provenance}",
@@ -166,7 +262,8 @@ public static class WorkflowEditorEndpointExtensions
             {
                 updated       = patchResult.Updated,
                 savedPath,
-                provenancePath
+                provenancePath,
+                publish = publishResult
             }, WorkflowProjector.CanonicalOptions);
         });
 
@@ -181,37 +278,51 @@ public static class WorkflowEditorEndpointExtensions
         catch { return default; }
     }
 
-    private static async Task<string?> WriteProvenanceAsync(
-        string contentRootPath,
-        string workflowKey,
-        ProposalEnvelope envelope,
-        string approver,
+    private static async Task<AuthoredWorkflowLoadResult> TryLoadWorkflowAsync(
+        string key,
+        IAuthoredWorkflowStore store,
         ILogger logger,
         CancellationToken ct)
     {
         try
         {
-            var provenanceDir = Path.Combine(contentRootPath, "workflow-authored", ".provenance");
-            Directory.CreateDirectory(provenanceDir);
+            return new(await store.LoadAsync(key, ct), null);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex,
+                "Skipping invalid authored workflow document for key '{WorkflowKey}'.",
+                key);
 
-            // File-system-safe UTC timestamp: replace colons with hyphens.
-            var utcStamp   = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
-            var fileName   = $"{workflowKey}-{utcStamp}.json";
-            var filePath   = Path.Combine(provenanceDir, fileName);
+            return new(
+                null,
+                $"Workflow '{key}' exists, but its editor definition is invalid. Repair the editor source before opening it in the reference editor.");
+        }
+    }
 
-            var record = new
-            {
-                workflowKey,
-                appliedAt  = DateTimeOffset.UtcNow,
-                approver,
-                envelopeId = envelope.Id,
-                rationale  = envelope.Rationale
-            };
+    private static async Task<IResult> SaveAndPublishAsync(
+        string key,
+        AuthoredWorkflow authored,
+        IAuthoredWorkflowStore store,
+        IWorkflowPublishService publishService,
+        CancellationToken ct)
+    {
+        var savedPath = await store.SaveAsync(key, authored, ct);
+        var result = await publishService.PublishAsync(authored, ct);
+        return Results.Json(result with { SavedPath = savedPath }, WorkflowProjector.CanonicalOptions);
+    }
 
-            await using var stream = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await JsonSerializer.SerializeAsync(stream, record, WorkflowProjector.CanonicalOptions, ct);
-
-            return filePath;
+    private static async Task<string?> SaveProvenanceAsync(
+        string workflowKey,
+        ProposalEnvelope envelope,
+        string approver,
+        IWorkflowAuthoringProvenanceStore provenanceStore,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await provenanceStore.SaveAsync(workflowKey, envelope, approver, ct);
         }
         catch (Exception ex)
         {
@@ -219,11 +330,15 @@ public static class WorkflowEditorEndpointExtensions
             return null;
         }
     }
-}
 
-/// <summary>Request body for the <c>POST /workflows/{key}/apply</c> endpoint.</summary>
-public record ApplyWorkflowRequest
-{
-    public required ProposalEnvelope Envelope { get; init; }
-    public required string Approver { get; init; }
+    private sealed record SimulateWorkflowRequest
+    {
+        public AuthoredWorkflow? Workflow { get; init; }
+
+        public IReadOnlyList<string>? Actions { get; init; }
+
+        public int? MaxSteps { get; init; }
+    }
+
+    private sealed record AuthoredWorkflowLoadResult(AuthoredWorkflow? Workflow, string? ErrorMessage);
 }

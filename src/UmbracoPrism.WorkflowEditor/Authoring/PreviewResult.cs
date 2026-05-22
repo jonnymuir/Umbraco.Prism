@@ -12,6 +12,7 @@ public record PreviewResult
     public required string Checksum { get; init; }
     public IReadOnlyList<ProjectionDiagnostic> Diagnostics { get; init; } = [];
     public IReadOnlyList<DiffEntry> Diff { get; init; } = [];
+    public PublishPreviewResult? PublishPreview { get; init; }
 
     /// <summary>
     /// Ordered list of stage keys from the entry stage to the first terminal stage,

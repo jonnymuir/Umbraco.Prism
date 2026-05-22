@@ -29,6 +29,9 @@ Comprehensive guide to the CSS variable annotation system. Learn the `@property`
 ### [Cloudflare Maintenance Pages](cloudflare-maintenance.md)
 Handle backend downtime at the edge. Custom error pages or Workers for branded maintenance pages. Separate responses for browser vs mobile app users.
 
+### [Reference Workflow Contract](guides/reference-workflow-contract.md)
+Understand the four-workflow reference contract in the MockBusinessApp. Learn how workflows are defined, seeded at runtime, and where downstream apps integrate their own workflow repository.
+
 ---
 
 ## Mobile & Notifications

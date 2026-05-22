@@ -7,6 +7,7 @@
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
     var workflowAdminUrl = ViewBag.WorkflowAdminUrl as string;
+    var workflowEditorUrl = ViewBag.WorkflowEditorUrl as string;
     var rootContent = Umbraco.ContentAtRoot().ToList();
     var workflowHubUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.WorkflowHubAlias),
@@ -396,19 +397,33 @@
             }
         </script>
 
-        @if (!string.IsNullOrWhiteSpace(workflowAdminUrl))
+        @if (!string.IsNullOrWhiteSpace(workflowAdminUrl) ||
+             !string.IsNullOrWhiteSpace(workflowEditorUrl))
         {
-            <!-- Developer tools — workflow admin screen on MockBusinessApp -->
+            <!-- Developer tools — showcase shortcuts into the MockBusinessApp workflow surfaces -->
             <div class="dash-section">
                 <h2>Developer Tools</h2>
-                <p>Administrative views for inspecting workflow state during development.</p>
+                <p>Jump straight into the Prism workflow showcase surfaces without hunting through routes.</p>
                 <div class="dash-grid" style="margin-top: 16px;">
-                    <div class="dash-card dash-card--cta">
-                        <div class="dash-card__icon dash-card__icon--workflow">⚙️</div>
-                        <h3>Workflow Admin</h3>
-                        <p>Inspect and manage workflow instances from the MockBusinessApp admin screen.</p>
-                        <a href="@workflowAdminUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Admin</a>
-                    </div>
+                    @if (!string.IsNullOrWhiteSpace(workflowAdminUrl))
+                    {
+                        <div class="dash-card dash-card--cta">
+                            <div class="dash-card__icon dash-card__icon--workflow">⚙️</div>
+                            <h3>Workflow Admin</h3>
+                            <p>Inspect and manage workflow instances from the MockBusinessApp admin screen.</p>
+                            <a href="@workflowAdminUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Admin</a>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(workflowEditorUrl))
+                    {
+                        <div class="dash-card dash-card--cta">
+                            <div class="dash-card__icon dash-card__icon--workflow">🧭</div>
+                            <h3>Workflow Editor</h3>
+                            <p>Open the reference shell for Prism workflow authoring; it lands on the planning workflow by default.</p>
+                            <a href="@workflowEditorUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Editor</a>
+                        </div>
+                    }
                 </div>
             </div>
         }

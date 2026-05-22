@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
@@ -6,18 +8,89 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 /// </summary>
 public record AuthoredTransition
 {
+    private string _fromStage = string.Empty;
+    private string _toStage = string.Empty;
+    private string _action = string.Empty;
+
     /// <summary>The <see cref="AuthoredStage.StageKey"/> this transition originates from.</summary>
-    public required string FromStage { get; init; }
+    [JsonPropertyName("source")]
+    public string FromStage
+    {
+        get => _fromStage;
+        init => _fromStage = value;
+    }
+
+    [JsonPropertyName("fromStage")]
+    public string? LegacyFromStage
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                _fromStage = value;
+        }
+    }
 
     /// <summary>The <see cref="AuthoredStage.StageKey"/> this transition goes to.</summary>
-    public required string ToStage { get; init; }
+    [JsonPropertyName("target")]
+    public string ToStage
+    {
+        get => _toStage;
+        init => _toStage = value;
+    }
 
-    /// <summary>Action name that triggers this transition (e.g. "submit", "continue").</summary>
-    public required string Action { get; init; }
+    [JsonPropertyName("toStage")]
+    public string? LegacyToStage
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                _toStage = value;
+        }
+    }
 
-    /// <summary>Optional authored condition expression (stripped at projection; carried for agent tooling).</summary>
-    public string? Condition { get; init; }
+    /// <summary>Action label that triggers this transition (e.g. "submit", "continue").</summary>
+    [JsonPropertyName("trigger")]
+    public string Action
+    {
+        get => _action;
+        init => _action = value;
+    }
 
-    /// <summary>Optional role that must be present for this transition to be valid.</summary>
+    [JsonPropertyName("action")]
+    public string? LegacyAction
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                _action = value;
+        }
+    }
+
+    /// <summary>Optional structured conditions that gate whether the transition is available.</summary>
+    [JsonPropertyName("conditions")]
+    public IReadOnlyList<AuthoredCondition> Conditions { get; init; } = [];
+
+    [JsonPropertyName("condition")]
+    public string? LegacyCondition
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                Conditions =
+                [
+                    new AuthoredCondition
+                    {
+                        Expression = value
+                    }
+                ];
+        }
+    }
+
+    /// <summary>Typed actions that run as part of taking the transition.</summary>
+    [JsonPropertyName("actions")]
+    public IReadOnlyList<AuthoredAction> Actions { get; init; } = [];
+
+    /// <summary>Optional role that must be present for this transition to be valid at runtime.</summary>
+    [JsonPropertyName("requiresRole")]
     public string? RequiresRole { get; init; }
 }

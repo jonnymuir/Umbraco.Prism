@@ -7,6 +7,12 @@ const demoCredentials = {
   username: 'demo@prism.local',
   password: 'password'
 };
+const expectedWorkflowDemos = [
+  { title: 'Get in Touch', path: /\/get-in-touch$/ },
+  { title: 'Apply for Planning Permission', path: /\/apply-for-planning-permission$/ },
+  { title: 'Payment Demo', path: /\/payment-demo$/ },
+  { title: 'Request Information', path: /\/request-information$/ }
+] as const;
 
 test.describe('Localhost auth/session behavioural contracts', () => {
   test.describe.configure({ mode: 'serial' });
@@ -47,9 +53,8 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await signIn(page);
     await page.goto('/get-in-touch');
 
-    await expect(page.getByRole('heading', { name: 'Tell us about your enquiry' })).toBeVisible();
-    await expect(page.getByLabel('Full name')).toBeVisible();
-    await expect(page.getByLabel('Email address')).toHaveValue('demo@prism.local');
+    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
   });
 
   test('signed-in member can reach seeded workflow pages from the dashboard', async ({ page }) => {
@@ -60,9 +65,17 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await expect(page).toHaveURL(/\/my-workflows$/);
 
     await openDashboard(page);
+    for (const workflow of expectedWorkflowDemos) {
+      await expect(workflowDemoCard(page, workflow.title)).toBeVisible();
+      await expect(workflowDemoCard(page, workflow.title).getByRole('link', { name: 'Start' })).toHaveAttribute(
+        'href',
+        workflow.path
+      );
+    }
+
     await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
-    await expect(page).toHaveURL(/\/get-in-touch$/);
-    await expect(page.getByRole('heading', { name: 'Tell us about your enquiry' })).toBeVisible();
+    await expect(page).toHaveURL(expectedWorkflowDemos[0].path);
+    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
   });
 
   test('signed-in member can still call the mock business app API after the whole stack restarts', async ({ page }) => {

@@ -9,10 +9,22 @@
   "instancePolicy": "single",
   "stages": [
     {
-      "stageKey": "declaration",
-      "displayName": "Declaration",
-      "kind": "Question",
+      "key": "declaration",
+      "title": "Declaration",
+      "description": "Collects applicant and site identity before the full planning form.",
+      "type": "Question",
       "actor": "applicant",
+      "actions": [
+        {
+          "type": "forms.load",
+          "timing": "OnEntry",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-declaration"
+          },
+          "summary": "Load the declaration form."
+        }
+      ],
       "fields": [
         {
           "key": "applicant-name",
@@ -35,10 +47,22 @@
       "editorComment": "Entry point — collects basic applicant and site identity."
     },
     {
-      "stageKey": "application-form",
-      "displayName": "Application Form",
-      "kind": "Question",
+      "key": "application-form",
+      "title": "Application Form",
+      "description": "Captures the substantive planning request.",
+      "type": "Question",
       "actor": "applicant",
+      "actions": [
+        {
+          "type": "forms.save",
+          "timing": "OnExit",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-application"
+          },
+          "summary": "Persist the application form before moving on."
+        }
+      ],
       "fields": [
         {
           "key": "description",
@@ -59,38 +83,64 @@
       "roleGates": []
     },
     {
-      "stageKey": "check-answers",
-      "displayName": "Check your answers",
-      "kind": "CheckAnswers",
+      "key": "check-answers",
+      "title": "Check your answers",
+      "description": "Summarises captured answers before final submission.",
+      "type": "CheckAnswers",
       "actor": "applicant",
+      "actions": [],
       "fields": [],
       "roleGates": [],
       "editorComment": "Summary of all answers before final submission."
     },
     {
-      "stageKey": "submitted",
-      "displayName": "Application submitted",
-      "kind": "Confirmation",
+      "key": "submitted",
+      "title": "Application submitted",
+      "description": "Confirms receipt and moves the case into reviewer handling.",
+      "type": "Confirmation",
       "actor": "applicant",
+      "actions": [],
       "fields": [],
       "roleGates": []
     }
   ],
   "transitions": [
     {
-      "fromStage": "declaration",
-      "toStage": "application-form",
-      "action": "continue"
+      "source": "declaration",
+      "target": "application-form",
+      "trigger": "continue",
+      "conditions": [],
+      "actions": []
     },
     {
-      "fromStage": "application-form",
-      "toStage": "check-answers",
-      "action": "continue"
+      "source": "application-form",
+      "target": "check-answers",
+      "trigger": "continue",
+      "conditions": [],
+      "actions": []
     },
     {
-      "fromStage": "check-answers",
-      "toStage": "submitted",
-      "action": "submit"
+      "source": "check-answers",
+      "target": "submitted",
+      "trigger": "submit",
+      "conditions": [
+        {
+          "kind": "expression",
+          "expression": "application.isComplete == true",
+          "description": "Prevent submission until the applicant has completed the form."
+        }
+      ],
+      "actions": [
+        {
+          "type": "forms.submit",
+          "timing": "OnTransition",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-application"
+          },
+          "summary": "Submit the application form to the business app."
+        }
+      ]
     }
   ],
   "handoffs": [
@@ -100,6 +150,26 @@
       "toStage": "submitted",
       "label": "applicant-to-caseworker",
       "actorChange": "caseworker"
+    }
+  ],
+  "parameterSchemas": [
+    {
+      "key": "forms-form-definition",
+      "title": "Forms engine definition reference",
+      "description": "Shared parameter contract for load/save/submit form actions.",
+      "appliesTo": ["forms.load", "forms.save", "forms.submit"],
+      "valueKind": "Object",
+      "allowAdditionalProperties": false,
+      "properties": [
+        {
+          "key": "formDefinitionId",
+          "title": "Form definition id",
+          "description": "Stable forms-engine key to load or persist.",
+          "valueKind": "String",
+          "editor": "text"
+        }
+      ],
+      "required": ["formDefinitionId"]
     }
   ],
   "metadata": {

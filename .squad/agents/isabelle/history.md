@@ -1,120 +1,185 @@
-## 2026-05-17: Workflow Editor Asset Extraction
+# History: Isabelle (Frontend Dev)
 
-**Scope:** Frontend asset wiring for workflow editor library extraction  
-**Outcome:** Split Vite build to route workflow-editor assets to new library while preserving Core dependencies  
-**Commits:** `9ab9ba4` (backend, Blathers), `0553af5` (asset split fix, Isabelle)  
+#### 2026-05-21T21:54:07.868+01:00 — WebKit editor-host story stabilization
 
-### Implementation
+- Diagnosed the remaining PR #75 Storybook WebKit blocker as story harness timing, not product state: the `Stage Selected` editor-host story was synthesizing a `stage-selected` event during render and then asserting after a fixed delay, which left WebKit free to observe the preview label before the real selection/render cycle had settled.
+- Replaced that synthetic selection path with the honest user path inside the story play function: click the graph’s `Declaration` stage button from the component shadow root and wait for the preview label to resolve instead of sleeping for 300 ms.
+- Re-validated the directly affected lane locally with `cd src/UmbracoPrism.Client && npm run build` and `cd src/UmbracoPrism.Client && npx test-storybook --url http://127.0.0.1:6006 --browsers webkit --verbose`; the full WebKit Storybook suite passed after the story fix.
+- Key files: `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.stories.ts`, `.squad/decisions/inbox/isabelle-webkit-story-fix.md`.
 
-Corrected the asset build output paths to properly split concerns:
-- **Core assets** (dashboard, mobile-nav) → `Core/wwwroot/dist` (preserves TestSite dependency)
-- **WorkflowEditor assets** → `WorkflowEditor/wwwroot/dist` (new library)
+#### 2026-05-21T21:54:07.868+01:00 — Linux workflow graph rerun follow-up
 
-Created `vite.workflow-editor.config.ts` for the workflow-editor build target. Updated package.json build script to run both configs sequentially: `tsc && vite build && vite build --config vite.workflow-editor.config.ts`.
+- Reproduced the still-red `storybook-tests` workflow-graph visual lane against current PR #75 branch state, then rechecked it in the closest available Linux/CI mode using the existing Debian-based Node devcontainer image with Playwright Chromium.
+- Confirmed the remaining mismatch was still text rasterization drift: the graph and list screenshots were stable inside Linux, but the committed baselines were still coming from a different renderer despite the earlier fallback stack fix.
+- Hardened the visual harness by vendoring an embedded Inter test font into `workflow-graph-visual.spec.ts`, forcing the graph shadow root to use that font for all controls and content, and keeping the Chromium screenshot flags pinned to grayscale/sRGB output.
+- Refreshed the two workflow graph baselines from the Linux repro and re-validated `npm run test-storybook:ci:all` plus the Linux Playwright visual spec pass after the refresh.
+- Key files: `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts`, `src/UmbracoPrism.Client/tests/assets/fonts/inter-400.ttf`, `src/UmbracoPrism.Client/tests/assets/fonts/inter-600.ttf`, `src/UmbracoPrism.Client/tests/assets/fonts/inter-700.ttf`, `.squad/decisions/inbox/isabelle-storybook-rerun-fix.md`.
 
-### Key Learning
+#### 2026-05-21T21:54:07.868+01:00 — Linux workflow graph visual baseline follow-up
 
-**Split build is safer than monolithic outDir change:** The initial backend commit set all assets to output to WorkflowEditor, which would have broken TestSite's dependency on `prism-mobile-nav.js` served from Core's `/App_Plugins/UmbracoPrism/dist/`. Splitting the build preserves backward compatibility.
+- Reproduced the PR #75 `storybook-tests` visual failure in a Linux container against commit `20cf8b3`, matching the GitHub Actions pixel drift on the workflow graph canvas and list-mode screenshots.
+- Confirmed the rendered UI was unchanged and the remaining mismatch was baseline-only after the earlier harness stabilization, then replaced the two workflow graph baselines with Linux-captured images from the CI-like repro.
+- Re-validated the targeted lane in the closest available CI mode with `CI=1 npm run test:playwright:workflow-graph-visual` inside the project Linux devcontainer image; the visual spec passed there after the baseline refresh.
+- Key files: `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/workflow-graph-workspace-canvas.png`, `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/workflow-graph-workspace-list-mode.png`, `.squad/decisions/inbox/isabelle-linux-visual-fix.md`.
 
-**Dual Vite configs scale well:** The overhead is minimal (~95ms for the second pass). Each library owns its own asset manifest. No duplication or post-build scripting required.
+#### 2026-05-21T21:54:07.868+01:00 — Workflow graph visual regression fix
 
-**Accessibility validation gates asset refactors:** Ran full Storybook suite (30 test suites, 282 tests, 3 browsers) to confirm no regressions from the build config changes. All WCAG 2.2 AA checks passed.
+- Diagnosed PR #75 `storybook-tests` failure as a cross-platform visual baseline mismatch in `workflow-graph-visual.spec.ts`: GitHub Actions Linux reported 8,174 differing pixels for the canvas view and 19,017 for list mode while the branch baselines had been recorded on macOS.
+- Stabilized the screenshot harness instead of changing product UI: the visual spec now launches Chromium with `--font-render-hinting=none` and pins the graph host to an Arial/Helvetica fallback stack through `--uui-font-family` before capturing screenshots.
+- Re-recorded the workflow graph baselines under `src/UmbracoPrism.Client/tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/` to match the stabilized harness output.
+- Validation: `npm run test-storybook:ci:all` and `CI=1 npm run test:playwright:workflow-graph-visual` both passed after the fix.
 
-### Files Changed
+**Status:** Visual lane stabilized for CI and ready for re-run.
 
-- `src/UmbracoPrism.Client/vite.config.ts` — Reverted outDir to Core, removed workflow-editor entry
-- `src/UmbracoPrism.Client/vite.workflow-editor.config.ts` — New config for workflow-editor build
-- `src/UmbracoPrism.Client/package.json` — Updated build script to run both configs
+#### 2026-05-18T22:14:30.041+01:00 — Issue #72 E2E Test Implementation
 
----
+Implemented 4 missing behavioural tests for planning workflow complete E2E coverage, converting all `.skip()` placeholders to working tests:
 
-## 2026-05-16: Workflow Editor V1 Design Cycle
+1. **Complete multi-stage flow** — Declaration → Application Form → Check Answers → Submitted with full form interaction and validation
+2. **Validation enforcement** — Required field blocking with graceful multi-mechanism detection (error summary, field errors, disabled buttons)
+3. **Member continuation** — Partial completion → dashboard navigation → resume with preserved state
+4. **Back-stage review** — Submission visible in MockBusinessApp admin interface at `/admin/workflow`, infrastructure validated
 
-**Scope:** Five-agent orchestration for workflow editor design iteration  
-**Outcome:** Complete V1 design with cross-cutting architecture, UX, runtime, integration, and agentic surfaces  
-**Peers:** tom-nook, isabelle, blathers, brewster, tangy  
-**Files:** docs/design/workflow-editor-v1/* (5 docs, ~145KB)  
-**Decisions:** Merged to .squad/decisions.md  
+**Key decisions:**
+- Tests use real Playwright actions (no mocks) for honest behavioural coverage
+- Graceful handling of current workflow scope: planning workflow ends at "submitted" (terminal) without explicit caseworker review/rejection stages yet
+- Back-stage test validates infrastructure readiness (admin UI exists, shows instances) while documenting that full rejection/re-submission requires workflow extension
+- All tests include screenshot steps for walkthrough documentation
 
-### Contributions
+**Validation:**
+- Client build: ✅ Passes
+- Backend tests: ✅ 349/349 workflow tests pass
+- No skipped tests: ✅ Verified 0 `.skip()` in test file
 
-- **Architecture** (tom-nook): Three-plane spine, cross-cutting contracts, planning-app reference
-- **Authoring UX** (isabelle): 4 editor surfaces, WCAG 2.2 AA dual-mode, 10-component inventory
-- **Runtime Projection** (blathers): AuthoredWorkflow model, 5-stage pipeline, JSON-Pointer patches
-- **Umbraco Integration** (brewster): Hybrid editor hosting, v17 backoffice embedding, TestSite removal P1
-- **Agentic Surfaces** (tangy): Proposal envelope, MCP+CLI, 4-level test seam, planning workflow spec
+**Files:**
+- `src/UmbracoPrism.Client/tests/walkthroughs/planning-workflow-complete.walkthrough.spec.ts` — Implemented 4 tests
+- `.squad/decisions/inbox/isabelle-issue-72-tests.md` — Decision document
 
----
-
-## Learnings (Summarized)
-
-### 2026-05-17T17:09:07.957+01:00 — Reference editor shell hosting
-
-- **Keep the host shell thin:** workflow selection, API-base wiring, and editor mounting belong in the shell; runtime case handling and business logic do not.
-- **Property-based API wiring beats env-only wiring:** letting `<prism-workflow-editor>` accept `authoring-api-base` keeps the component portable across Storybook, MockBusinessApp, and future standalone hosts.
-- **Reference hosts should show the integration seam in the UI:** an inline snippet plus live workflow picker makes the “drop this into your app” story clearer than a bare fullscreen editor.
-
-### 2026-05-16T13:20:33.659+01:00 — Workflow Editor V1: Authoring UX & Accessibility
-
-- **Dual-mode graph navigation** (visual graph + linear list, toggled by `L`) is the correct accessibility pattern for graph canvases — gives AT users full operability while preserving visual-first design intent.
-- **Conversation Pane as primary agent surface** — persistent pane for NL requests, proposals, and provenance keeps author in context; collapsible but never hidden.
-- **Agent proposal diff is hunk-level** — per-hunk accept/reject controls; bulk-accept is convenience, not primary.
-- **Provenance on every field** — authors trace field origins back to introducing agent turn, weeks later.
-- **Focus management non-disruptive** — proposals announced via ARIA live region only; focus stays; author-driven review.
-- **Explicit save (not autosave)** — dirty state + beforeunload warning is safe baseline for in-flight proposals.
-
-### 2026-05-16T10:59:37.438+01:00 — Workflow Editor UX Direction
-
-- **Split authoring surface:** definition library → editor workspace → simulation/validation, not card-to-JSON jump.
-- **Runtime shell visibility:** show inferred shell as feedback; authors edit model (components, transitions, roles, pages); shell inference remains runtime-driven.
-- **Preserve narrative pattern:** citizen-facing + reviewer handoff; editor surfaces both lanes.
-- **Progressive routing:** compact "Experience & Routing" step with optional advanced drill-down.
-- **Safe co-authoring:** proposals → diffs → preview → approval → apply; never silent mutations.
-
-### 2026-05-04 | Recent Sessions
-
-- **Screenshot-Mode Control:** Implemented `prism-screenshot-mode` cookie to suppress mobile helper during walkthroughs.
-- **Walkthrough Coverage Audit:** Identified gaps (back/edit flows, validation tests, mobile viewports); closure path documented.
-- **Walkthrough Discovery:** All findings merged to decisions.md; implementation phase ready.
-
-### 2026-05-16 — V1 Workflow Editor Component Scaffold
-
-- **Directory:** all four components live in `src/UmbracoPrism.Client/src/workflow-editor/`.
-- **Types first:** central `types.ts` exports all interfaces (`AuthoredWorkflow`, `AuthoredStage`, `AuthoredTransition`, `AuthoredRole`, `AuthoredField`, `ProposalEnvelope`, `ProposalOp`, `ProposalPlacement`, `ValidationResult`) plus `STUB_WORKFLOW` and `STUB_PROPOSAL` for stories.
-- **Import convention:** cross-component imports use `.js` extension (TypeScript ESM, same as rest of project).
-- **Dual-mode graph:** `role="application"` for graph mode, `role="listbox"` / `role="option"` for linear mode — arrow-key nav managed via `_focusedIndex` + manual `focus()`.
-- **ARIA live regions:** `role="status"` + `aria-live="polite"` for graph announcements; `role="log"` + `aria-live="polite"` + `aria-relevant="additions"` for conversation pane message list. Double-write pattern (`''` then value) on `requestAnimationFrame` resets live region to re-announce.
-- **Focus trap pattern:** `prism-proposal-diff` queries `button:not([disabled]), [tabindex="0"]:not([disabled])` within `shadowRoot` to cycle Tab/Shift+Tab; Escape emits `proposal-reject`.
-- **Data test hooks established:** `data-prism-component` on root, `data-prism-stage-id`, `data-prism-stage-detail`, `data-prism-conversation-input`, `data-prism-op-index`.
-- **Storybook a11y config:** applied per 01-authoring-ux.md §4.6 — `color-contrast: true`, `aria-required-children: true`, `aria-dialog-name: true` per story set.
-- **Unused imports cause build failure:** tsc strict mode (`noUnusedLocals`) is on — remove any import not referenced in the file body.
-- **`@state()` unused var:** decorators don't suppress TS6133; remove unused `@state()` fields entirely rather than leaving them as stubs.
+**Status:** All #72 acceptance criteria now have executable test coverage. Ready for Tangy's re-validation.
 
 ---
 
-**Archive:** Pre-2026-04-22 history archived to `.squad/agents/isabelle/archive/` for traceability. SEC-005 closed. Component system migration (4-22) complete. GDS integration and accessibility patterns established (4-13, 4-19, 4-22).
+# History: Isabelle (Frontend Dev)
+
+
+### Quality Gate
+
+All six gates pass:
+1. ✅ Authoring-focused .NET workflow tests
+2. ✅ Client build
+3. ✅ Storybook CI across browsers with axe
+4. ✅ Existing workflow graph/list keyboard contract
+5. ✅ Dedicated Playwright stage-editor behavioural contract
+6. ✅ Live planning workflow smoke
+
+**Status:** Green and acceptance-complete per Tangy's recheck.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #69 browser-surface green fix
+
+- **Readiness contract:** reflect `data-prism-workflow-loaded` on the `<prism-workflow-editor>` host once the authored workflow is loaded so localhost smoke checks do not depend on piercing shadow DOM.
+- **Hosted shell polish:** the reference host page should carry its own inline favicon to keep the live browser console free of avoidable 404 noise.
+- **Walkthrough resilience:** when host chrome overlaps graph controls, prefer the editor's keyboard contract (`focus()` + key activation) over pointer clicks in the planning walkthrough so the smoke exercises the accessible path instead of a brittle hit target.
+- **Validation gate for this fix:** `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`, `npm run build`, and `npm run test:playwright:planning-smoke` passed after the browser-surface fixes.
+- **Key file paths:** `src/UmbracoPrism.Client/workflow-editor.html`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`, `.squad/decisions/inbox/isabelle-issue-69-green-fix.md`.
+#### 2026-05-18T19:41:25Z — Issue #69 browser-surface blockers resolved
+
+Completed the remaining surface-level fixes for issue #69:
+- Removed `/favicon.ico` 404 from host page by serving inline data-URL favicon.
+- Reflected `data-prism-workflow-loaded` readiness attribute on `<prism-workflow-editor>` host element (not shadow-only).
+- Updated localhost smoke to use shadow-aware Playwright locators for readiness check.
+- Validated browser console cleanliness on live reference host.
+- All five-seam gate passed: .NET tests (77/77), build, Storybook CI, localhost probe, save round-trip.
+
+**Status:** Issue #69 acceptance-complete and production-ready. Browser surface blockers resolved.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #68 workflow path simulation slice
+
+- **Simulation ownership:** keep path simulation state in `prism-workflow-editor` so the graph highlight, simulation panel, and shared validation issues all stay in sync from one authored-workflow source of truth.
+- **Simulation boundary:** start from `initialStageKey`, stop automatically at waiting/terminal/dead-end stages, and treat route-specific blocking validation issues as disabled transition buttons while still showing condition and role-guard copy as author guidance rather than pretending to execute runtime rules.
+- **Accessibility pattern:** render simulation as a persistent panel with real buttons, breadcrumb history, polite live announcements, and graph highlights so keyboard and screen-reader users can follow the same route-planning feedback as pointer users.
+- **Validation gate for this slice:** `npm run build`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-simulation.spec.ts tests/workflow-editor/workflow-editor-stage-preview.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts --reporter=line`, `node node_modules/.bin/test-storybook --url http://localhost:6006 --browsers chromium firefox webkit`, and `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts --reporter=line` passed after the simulation changes; `npm run test:playwright:planning-smoke` reached the live stack but was blocked by an existing `workflow-editor.html` shell readiness failure (`prism-workflow-editor` element missing on the served page) unrelated to the Storybook/editor-host slice.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-simulation.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-simulation.spec.ts`.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #67 runtime stage preview slice
+
+- **Preview source of truth:** drive stage preview from the authoring `/project` endpoint so the editor shows the same deterministic runtime projection that publish uses, with a local projector fallback only for Storybook/offline shells.
+- **Accessibility pattern:** keep the preview panel visibly separate from authoring, expose public/member/back-stage surface buttons even when some are disabled, announce loading politely, and render every control as disabled or static text so the preview never steals keyboard focus from editing.
+- **Preview update seam:** debounce projection requests from `prism-workflow-editor`, preserve the last successful preview while a new one is loading, and let actor/surface edits re-evaluate which surface tab is available before re-rendering.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-stage-preview.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` passed after the runtime preview changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-stage-preview.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-runtime-projection.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-stage-preview.spec.ts`.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #65 workflow validation and error reporting slice
+
+- **Validation boundary:** treat orphaned and unreachable stages as blocking editor errors; keep dead ends and action-parameter gaps as workflow-friendly warnings so save stays available while authors finish detailed configuration.
+- **Save seam:** use `POST /api/workflow-authoring/workflows/{key}/publish` for the host Save button until a dedicated authored-workflow save endpoint exists; the client labels it as Save, but the current persistence boundary is publish-backed.
+- **Accessibility pattern:** make the validation rail a button-based jump list, preserve inline inspector errors, and move focus to the affected stage or action field when an author opens an issue from the rail.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts --workers=1 --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the validation/error-reporting changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/workflow-validation.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-validation.spec.ts`.
+#### 2026-05-18T13:17:12Z — Issue #65 validation and error reporting completed
+
+Delivered shared workflow validation infrastructure:
+- Single validation pass in `prism-workflow-editor` serving rail, save state, and jump-to-item behaviour
+- Error classification: blocking errors (orphaned/unreachable stages) vs. warnings (dead-end reminders, parameter issues)
+- Validation rail button-driven with jump-to-item links for accessibility
+- Inline inspector field errors tied to validation
+- Save blocking for critical structural problems
+- Focused behavioural contract covers validation rail, plain-language messages, and save blocking
+
+**Status:** Acceptance-complete per Tangy's seven-seam gate. Ready for production.
+##### 2026-05-18T13:17:12.103+01:00 — Issue #66 help system and shortcut reference slice
+
+- **Shortcut source of truth:** define workflow-editor commands in `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts` and drive the toolbar `aria-keyshortcuts`, help modal content, and Playwright parity checks from that shared map so discoverability does not drift from implementation.
+- **Accessibility pattern:** expose help as a host-owned modal opened by both the toolbar Help button and `F1`, trap focus while it is open, restore focus to the invoking control on close, and keep inline help on complex inspector/action-editor fields reachable by hover and keyboard focus.
+- **Empty-state guidance:** when the workflow has no stages, replace the generic “nothing to display” message with actionable getting-started tips plus first-stage buttons inside `prism-workflow-graph` so authors can recover without guessing the next step.
+- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-editor-help.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts tests/workflow-editor/workflow-editor-validation.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-graph-keyboard.spec.ts --workers=1 --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the help/discoverability changes.
+- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-inline-help.ts`, `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-help.spec.ts`.
+#### 2026-05-18T12:17:12Z — Issue #66 help and shortcut discoverability completed
+
+Delivered help and shortcut discoverability as host-editor responsibility:
+- Shared shortcut catalog at `src/UmbracoPrism.Client/src/workflow-editor/workflow-shortcuts.ts` drives toolbar affordances, help modal, and parity tests
+- Help button visible on toolbar; `F1` opens shortcut reference modal with focus trap and restore
+- Inline help on complex inspector fields reachable by hover and keyboard focus
+- Empty-state shows getting-started tips with action buttons instead of generic "nothing to display"
+- Comprehensive Playwright coverage ensures keyboard paths and empty-state recovery work end-to-end
+
+**Status:** Acceptance-complete per Tangy's six-seam gate. Production-ready.
+##### 2026-05-18T12:17:12Z — Issue #67 stage preview completed
+
+Delivered read-only runtime preview pane driven from authoring project pipeline with public/member/back-stage switching, auto-update on edits, loading feedback, dedicated `prism-stage-preview` component, and planning workflow coverage.
+
+**Quality gate:** All six acceptance seams green. Production-ready.
+##### 2026-05-18T12:17:12Z — Issue #68 workflow simulation completed
+
+Delivered dedicated path-simulation panel with authored-initial-stage start, breadcrumb history, happy/rejection/waiting-blocker routes, current-stage and traversed-path highlighting, Storybook scenarios, and targeted Playwright coverage.
+
+**Architecture:** Simulation stays host-owned in `prism-workflow-editor`; graph renders highlights only. Validation blockers shown honestly without fake runtime evaluation. Reset on workflow change.
+
+**Quality gate:** Client build, Storybook CI, graph keyboard, validation rail, and simulation Playwright all passed. Acceptance-complete.
+
+**Status:** Production-ready. Non-slice environment blocker (empty planning.workflow.json) identified in separate remediation.
+## Revision Handoff (2026-05-19)
+
+Workflow editor shortcuts slice: Tangy final review complete. Blocker: admin definitions page missing 'Edit workflow' link. Isabelle assigned for revision cycle.
 
 ---
 
-## 2026-05-16 — Editor Host Page V1 Implementation
+## 2026-05-19T18:16:08Z: Editor UX Redesign — Decisions Merged (Tabbed Interface ACCEPTED)
 
-**Scope:** Composed `<prism-workflow-editor>` host page from four V1 components, wired to Blathers HTTP API, tested with axe-core WCAG 2.2 AA.
+**Status:** 🟢 Decisions finalized; implementation ready
 
-### Files Created
-- `src/workflow-editor/fixtures/planning.workflow.json` — planning workflow fixture copy
-- `src/workflow-editor/fixtures/index.ts` — `normalisePlanningFixture()` + `PLANNING_WORKFLOW: AuthoredWorkflow`
-- `src/workflow-editor/workflow-authoring-client.ts` — `fetchWorkflow`, `previewProposal`, `applyProposal`
-- `src/workflow-editor/workflow-authoring-mock-drafter.ts` — V1 canned drafter (id-verification insertion)
-- `src/workflow-editor/prism-workflow-editor.ts` — host component (left/right split, event wiring, toast)
-- `src/workflow-editor/prism-workflow-editor.stories.ts` — 3 stories with offline fetch stub
-- `workflow-editor.html` — Vite entry point
+Two overlapping proposals for the workflow editor redesign were submitted simultaneously and merged into the decisions log:
 
-### Key Learnings
+1. **Isabelle's Proposal** (status: in_review)
+   - Full-screen tabbed layout with Graph, Outline, Inspector, AI tabs
+   - 6-step implementation plan with validation gates
 
-- **axe-core shadow DOM landmark piercing**: `<header>` inside ANY shadow DOM component is treated as a top-level landmark by axe 4.x. Always use `<div>` for section headers inside shadow DOM components.
-- **`scrollable-region-focusable`**: Every `overflow: auto` region needs `tabindex="0"`, including the host element that contains the scrollable child component.
-- **`<ul role="alert">` breaks ARIA structure**: `role="alert"` on `<ul>` orphans `<li>` children. Fix: `<div role="alert"><ul>`.
-- **axe-core colour computation through shadow DOM**: The `color-contrast` rule can misattribute the parent background as the button background when the button is inside a shadow DOM, even with explicit inline `background-color`. Solution: disable `color-contrast` for the specific story with a comment noting the verified contrast ratio.
-- **Stale Storybook on port 6006**: If a prior Storybook process is still running on 6006, `npm run storybook` starts on 6007 but tests connect to 6006 (old build). Always `kill $(lsof -ti tcp:6006)` before running tests.
-- **Story page state bleed**: Storybook test-runner reuses the browser page between stories in the same file. If one story mutates component state (e.g., toggles mode to 'linear'), the next story may inherit that state. Add an explicit state reset at the start of play functions that depend on a known initial state.
-- **Mock drafter in `workflow-editor/` not `stories/`**: V1 canned drafters belong next to the components they serve, not in a shared test folder, so they can be imported by both stories and future integration tests.
+2. **Tom Nook's Proposal** (status: ACCEPTED)
+   - Full-screen tabbed interface with Graph, List, Validation, Preview, Simulation tabs
+   - Removes embedded conversation widget; keeps conversation in external Copilot CLI
+   - 6-slice implementation plan; decision finalized as ACCEPTED
+
+**Next Steps for Isabelle:**
+- Review Tom Nook's ACCEPTED decision (more recent, finalizes the UI shape)
+- Align Isabelle's in_review proposal with Tom Nook's accepted version if needed
+- Both proposals are available in `.squad/decisions.md` for team reference
+
+**References:**
+- `.squad/decisions/inbox/isabelle-editor-ux-shape.md`
+- `.squad/decisions/inbox/tom-nook-editor-ux-redesign.md`
+- `.squad/orchestration-log/2026-05-19T18-16-08Z-scribe.md`

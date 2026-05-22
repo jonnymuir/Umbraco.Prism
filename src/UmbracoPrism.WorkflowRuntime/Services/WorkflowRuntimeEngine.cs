@@ -29,11 +29,15 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         Logger = logger;
         _sanitizer = sanitizer;
 
-        foreach (var definition in definitionStore.LoadDefinitions(logger).Values)
+        foreach (var (lookupKey, definition) in definitionStore.LoadDefinitions(logger))
         {
-            if (!string.IsNullOrWhiteSpace(definition.DefinitionKey))
+            var runtimeLookupKey = !string.IsNullOrWhiteSpace(lookupKey)
+                ? lookupKey
+                : definition.DefinitionKey;
+
+            if (!string.IsNullOrWhiteSpace(runtimeLookupKey))
             {
-                _definitions[definition.DefinitionKey] = definition;
+                _definitions[runtimeLookupKey] = definition;
             }
         }
 
@@ -78,14 +82,16 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
         if (string.Equals(action, "start-new", StringComparison.OrdinalIgnoreCase))
         {
-            var newInstance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
-            _instancesById[newInstance.InstanceId] = newInstance;
-            _instanceLookup[lookupKey] = newInstance.InstanceId;
-            Logger.LogInformation(
+            return CreateAndRegisterNewInstance(
+                workflowKey,
+                tenantId,
+                userId,
+                definition,
+                lookupKey,
+                action,
+                persistLookup: true,
                 "Created new workflow instance {Id} for key={Key} (action=start-new)",
-                newInstance.InstanceId,
                 workflowKey);
-            return BuildEnvelope(newInstance, definition);
         }
 
         if (string.Equals(action, "resume", StringComparison.OrdinalIgnoreCase))
@@ -97,27 +103,32 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 return BuildEnvelope(resumeInstance, definition);
             }
 
-            var newInstance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
-            _instancesById[newInstance.InstanceId] = newInstance;
-            _instanceLookup[lookupKey] = newInstance.InstanceId;
-            Logger.LogInformation(
+            return CreateAndRegisterNewInstance(
+                workflowKey,
+                tenantId,
+                userId,
+                definition,
+                lookupKey,
+                action,
+                persistLookup: true,
                 "Created workflow instance {Id} for key={Key} (action=resume, no existing)",
-                newInstance.InstanceId,
                 workflowKey);
-            return BuildEnvelope(newInstance, definition);
         }
 
         var policy = definition.InstancePolicy;
 
         if (string.Equals(policy, "multiple", StringComparison.OrdinalIgnoreCase))
         {
-            var multipleInstance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
-            _instancesById[multipleInstance.InstanceId] = multipleInstance;
-            Logger.LogInformation(
+            return CreateAndRegisterNewInstance(
+                workflowKey,
+                tenantId,
+                userId,
+                definition,
+                lookupKey,
+                action,
+                persistLookup: false,
                 "Created new workflow instance {Id} for key={Key} (policy=multiple)",
-                multipleInstance.InstanceId,
                 workflowKey);
-            return BuildEnvelope(multipleInstance, definition);
         }
 
         if (string.Equals(policy, "prompt", StringComparison.OrdinalIgnoreCase))
@@ -154,25 +165,30 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 }
             }
 
-            var newPromptInstance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
-            _instancesById[newPromptInstance.InstanceId] = newPromptInstance;
-            _instanceLookup[lookupKey] = newPromptInstance.InstanceId;
-            Logger.LogInformation(
+            return CreateAndRegisterNewInstance(
+                workflowKey,
+                tenantId,
+                userId,
+                definition,
+                lookupKey,
+                action,
+                persistLookup: true,
                 "Created workflow instance {Id} for key={Key} (policy=prompt, no active)",
-                newPromptInstance.InstanceId,
                 workflowKey);
-            return BuildEnvelope(newPromptInstance, definition);
         }
 
         if (!_instanceLookup.TryGetValue(lookupKey, out var singleInstanceId)
             || !_instancesById.TryGetValue(singleInstanceId, out var singleInstance))
         {
-            singleInstance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
-            _instancesById[singleInstance.InstanceId] = singleInstance;
-            _instanceLookup[lookupKey] = singleInstance.InstanceId;
-            Logger.LogInformation(
+            return CreateAndRegisterNewInstance(
+                workflowKey,
+                tenantId,
+                userId,
+                definition,
+                lookupKey,
+                action,
+                persistLookup: true,
                 "Created workflow instance {Id} for key={Key} tenant={Tenant}",
-                singleInstance.InstanceId,
                 workflowKey,
                 tenantId);
         }
@@ -348,6 +364,11 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         WorkflowDefinitionFile definition,
         Dictionary<string, object?>? fieldValues) => null;
 
+    protected virtual WorkflowResponseEnvelope? InitializeNewInstance(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        string? action) => null;
+
     protected bool TryGetInstance(string instanceId, out WorkflowInstanceState instance) =>
         _instancesById.TryGetValue(instanceId, out instance!);
 
@@ -418,6 +439,33 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             ServerTimeUtc = DateTimeOffset.UtcNow,
             Problems = [new WorkflowProblem { FieldKey = string.Empty, Message = message, Code = code }]
         };
+
+    private WorkflowResponseEnvelope CreateAndRegisterNewInstance(
+        string workflowKey,
+        string tenantId,
+        string userId,
+        WorkflowDefinitionFile definition,
+        string lookupKey,
+        string? action,
+        bool persistLookup,
+        string logMessage,
+        params object?[] additionalLogArgs)
+    {
+        var instance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
+        if (InitializeNewInstance(instance, definition, action) is { } error)
+        {
+            return error;
+        }
+
+        _instancesById[instance.InstanceId] = instance;
+        if (persistLookup)
+        {
+            _instanceLookup[lookupKey] = instance.InstanceId;
+        }
+
+        Logger.LogInformation(logMessage, [instance.InstanceId, .. additionalLogArgs]);
+        return BuildEnvelope(instance, definition);
+    }
 
     private static WorkflowInstanceState CreateNewInstance(
         string workflowKey,

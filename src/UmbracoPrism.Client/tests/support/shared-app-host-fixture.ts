@@ -21,6 +21,8 @@ type AppHostWorkerFixtures = {
   appHost: LiveAppHost;
 };
 
+const liveAppHostStartupTimeoutMs = 10 * 60_000;
+
 export const test = base.extend<{}, AppHostWorkerFixtures>({
   appHost: [async ({}, use, workerInfo) => {
     console.log(`[worker-fixture] Worker ${workerInfo.workerIndex} starting LiveAppHost...`);
@@ -31,7 +33,7 @@ export const test = base.extend<{}, AppHostWorkerFixtures>({
     console.log(`[worker-fixture] Worker ${workerInfo.workerIndex} stopping LiveAppHost...`);
     await liveAppHost.stop();
     console.log(`[worker-fixture] Worker ${workerInfo.workerIndex} LiveAppHost stopped.`);
-  }, { scope: 'worker', auto: true }],
+  }, { scope: 'worker', auto: true, timeout: liveAppHostStartupTimeoutMs }],
 });
 
 export { expect } from '@playwright/test';

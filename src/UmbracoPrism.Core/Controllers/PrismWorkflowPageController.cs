@@ -84,6 +84,11 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     /// <returns>An <see cref="IActionResult"/> containing the rendered view or redirect.</returns>
     public override IActionResult Index()
     {
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return Redirect(BuildLoginRedirectUrl());
+        }
+
         if (HttpContext.Request.Method == HttpMethods.Post)
             return HandlePost().GetAwaiter().GetResult();
 
@@ -380,5 +385,11 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
 
         _logger.LogWarning("Rejected external ReturnUrl in workflow POST: {ReturnUrl}", returnUrl);
         return "/";
+    }
+
+    private string BuildLoginRedirectUrl()
+    {
+        var returnUrl = $"{Request.PathBase}{Request.Path}{Request.QueryString}";
+        return $"/auth/login?ReturnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 }

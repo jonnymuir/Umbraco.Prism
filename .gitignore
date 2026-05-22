@@ -258,6 +258,12 @@ Generated_Code/
 # because we have git ;-)
 _UpgradeReport_Files/
 Backup*/
+
+# Local workflow-authoring and tool scratch noise
+.git-commit-msg.txt
+.playwright-cli/
+src/UmbracoPrism.MockBusinessApp/workflow-authored/.provenance/
+src/UmbracoPrism.MockBusinessApp/workflow-authored/*.bak
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/

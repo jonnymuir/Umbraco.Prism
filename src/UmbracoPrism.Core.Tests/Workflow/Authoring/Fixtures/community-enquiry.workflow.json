@@ -1,0 +1,29 @@
+{
+  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "definitionKey": "community-enquiry",
+  "displayName": "Get in Touch",
+  "version": 1,
+  "description": "Simple contact workflow for community enquiries.",
+  "schemaVersion": "1.0",
+  "initialStageKey": "collecting-details",
+  "instancePolicy": "single",
+  "stages": [
+    {
+      "key": "collecting-details",
+      "title": "Your details",
+      "type": "Question"
+    },
+    {
+      "key": "submitted",
+      "title": "Thank you",
+      "type": "Confirmation"
+    }
+  ],
+  "transitions": [
+    {
+      "source": "collecting-details",
+      "target": "submitted",
+      "trigger": "submit"
+    }
+  ]
+}

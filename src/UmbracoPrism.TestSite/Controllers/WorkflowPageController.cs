@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
@@ -20,7 +19,6 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// <remarks>
 /// Requires an authenticated PrismMemberCookie session; unauthenticated requests are challenged by the framework.
 /// </remarks>
-[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class WorkflowPageController(
     ILogger<RenderController> logger,
     ICompositeViewEngine compositeViewEngine,

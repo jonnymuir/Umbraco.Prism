@@ -56,15 +56,15 @@ public class PrismComposer : IComposer
         // 3. Middleware Registration
         // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
         // (e.g. biometric rate limiting in BiometricController).
-        // PRODUCTION: configure KnownProxies / KnownNetworks to restrict which upstream
+        // PRODUCTION: configure KnownProxies / KnownIPNetworks to restrict which upstream
         // proxies are trusted to supply X-Forwarded-For (see ForwardedHeadersOptions docs).
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
             // Clear default loopback-only network restrictions so ForwardedHeadersMiddleware
             // processes the header when running behind any proxy. Deployments SHOULD
-            // restrict this to known proxy CIDRs via KnownNetworks before going to production.
-            options.KnownNetworks.Clear();
+            // restrict this to known proxy CIDRs via KnownIPNetworks before going to production.
+            options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
         });
 

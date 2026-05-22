@@ -5,6 +5,11 @@ export default defineConfig({
   testIgnore: ['**/localhost-auth-session.spec.ts', '**/workflow-gds-journey.spec.ts'],
   timeout: 30_000,
   retries: 1,
+  expect: {
+    toHaveScreenshot: {
+      pathTemplate: '{testDir}/__screenshots__{/projectName}/{testFilePath}/{arg}{ext}'
+    }
+  },
   use: {
     baseURL: 'http://127.0.0.1:6006',
     trace: 'on-first-retry'

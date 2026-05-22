@@ -7,11 +7,11 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// <summary>
 /// Verifies <see cref="WorkflowPreviewService"/>:
 /// – diff entries accurately describe changes between original and patched workflows.
-/// – journey trace from the planning fixture follows the expected happy path.
+/// – journey trace from the shared community-enquiry reference workflow follows the expected happy path.
 /// </summary>
 public class WorkflowPreviewServiceTests
 {
-    private static readonly string FixturesPath = GetFixturesPath();
+    private static readonly string FixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
 
     private readonly WorkflowProjector    _projector = new();
     private readonly WorkflowPatchService _patcher;
@@ -24,24 +24,24 @@ public class WorkflowPreviewServiceTests
     }
 
     [Fact]
-    public async Task Preview_PlanningFixture_JourneyTraceMatchesHappyPath()
+    public async Task Preview_ReferenceFixture_JourneyTraceMatchesHappyPath()
     {
-        var workflow = await LoadPlanningFixture();
+        var workflow = await LoadReferenceFixture();
 
         // Use the same fixture as both original and patched (no diff, just trace)
         var result = _sut.Preview(workflow, workflow);
 
         result.JourneyTrace.Should().Equal(
-            ["declaration", "application-form", "check-answers", "submitted"],
-            because: "the planning fixture happy path goes declaration → application-form → check-answers → submitted");
+            ["collecting-details", "submitted"],
+            because: "the shared reference fixture happy path goes collecting-details → submitted");
     }
 
     [Fact]
     public async Task Preview_StageAdded_AppearsInDiff()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
 
-        var envelope = BuildInsertStageEnvelope("site-notice", "Site Notice", after: "declaration");
+        var envelope = BuildInsertStageEnvelope("site-notice", "Site Notice", after: "collecting-details");
         var patchResult = _patcher.Apply(envelope, original);
         patchResult.HasErrors.Should().BeFalse();
 
@@ -54,17 +54,17 @@ public class WorkflowPreviewServiceTests
     [Fact]
     public async Task Preview_StageRemoved_AppearsInDiff()
     {
-        var original = await LoadPlanningFixture();
+        var original = await LoadReferenceFixture();
 
-        // Remove application-form via patch
+        // Remove submitted via patch
         var envelope = new ProposalEnvelope
         {
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
-            Rationale        = "Remove application-form for preview test",
-            Ops              = [new PatchOp { Op = "remove-stage", Path = "/stages/application-form" }]
+            TargetWorkflowId = "community-enquiry",
+            Rationale        = "Remove submitted for preview test",
+            Ops              = [new PatchOp { Op = "remove-stage", Path = "/stages/submitted" }]
         };
 
         var patchResult = _patcher.Apply(envelope, original);
@@ -73,30 +73,30 @@ public class WorkflowPreviewServiceTests
 
         var preview = _sut.Preview(original, patched);
 
-        preview.Diff.OfType<StageRemoved>().Should().ContainSingle(sr => sr.Key == "application-form",
-            because: "removing application-form should appear as StageRemoved in the diff");
+        preview.Diff.OfType<StageRemoved>().Should().ContainSingle(sr => sr.Key == "submitted",
+            because: "removing submitted should appear as StageRemoved in the diff");
     }
 
     [Fact]
     public async Task Preview_StageUpdated_AppearsInDiff()
     {
-        var original  = await LoadPlanningFixture();
-        var envelope  = BuildUpdateStageEnvelope("declaration", "Updated Declaration");
+        var original  = await LoadReferenceFixture();
+        var envelope  = BuildUpdateStageEnvelope("collecting-details", "Updated Details");
         var patched   = _patcher.Apply(envelope, original).Updated;
 
         var preview = _sut.Preview(original, patched);
 
-        preview.Diff.OfType<StageUpdated>().Should().ContainSingle(su => su.Key == "declaration",
-            because: "changing declaration's displayName should appear as StageUpdated");
+        preview.Diff.OfType<StageUpdated>().Should().ContainSingle(su => su.Key == "collecting-details",
+            because: "changing collecting-details displayName should appear as StageUpdated");
 
-        var diff = preview.Diff.OfType<StageUpdated>().Single(su => su.Key == "declaration");
+        var diff = preview.Diff.OfType<StageUpdated>().Single(su => su.Key == "collecting-details");
         diff.FieldChanges.Should().Contain("displayName");
     }
 
     [Fact]
     public async Task Preview_ProjectedFile_IsNotNull()
     {
-        var workflow = await LoadPlanningFixture();
+        var workflow = await LoadReferenceFixture();
         var preview  = _sut.Preview(workflow, workflow);
 
         preview.ProjectedFile.Should().NotBeNull();
@@ -106,7 +106,7 @@ public class WorkflowPreviewServiceTests
     [Fact]
     public async Task Preview_NoDiff_WhenOriginalAndPatchedAreEqual()
     {
-        var workflow = await LoadPlanningFixture();
+        var workflow = await LoadReferenceFixture();
         var preview  = _sut.Preview(workflow, workflow);
 
         preview.Diff.Should().BeEmpty(because: "identical original and patched produces no diff");
@@ -114,11 +114,11 @@ public class WorkflowPreviewServiceTests
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private static async Task<AuthoredWorkflow> LoadPlanningFixture()
+    private static async Task<AuthoredWorkflow> LoadReferenceFixture()
     {
         var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        var wf    = await store.LoadAsync("planning");
-        return wf ?? throw new InvalidOperationException("planning fixture not found");
+        var wf    = await store.LoadAsync("community-enquiry");
+        return wf ?? throw new InvalidOperationException("community-enquiry fixture not found");
     }
 
     private static ProposalEnvelope BuildInsertStageEnvelope(
@@ -128,7 +128,7 @@ public class WorkflowPreviewServiceTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetWorkflowId = "community-enquiry",
             Rationale        = "Preview test",
             Ops              =
             [
@@ -155,7 +155,7 @@ public class WorkflowPreviewServiceTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetWorkflowId = "community-enquiry",
             Rationale        = "Preview test",
             Ops              =
             [
@@ -175,9 +175,4 @@ public class WorkflowPreviewServiceTests
                 }
             ]
         };
-
-    private static string GetFixturesPath() =>
-        Path.Combine(
-            Path.GetDirectoryName(typeof(WorkflowPreviewServiceTests).Assembly.Location)!,
-            "Workflow", "Authoring", "Fixtures");
 }

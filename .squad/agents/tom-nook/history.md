@@ -16,128 +16,268 @@
 
 ---
 
-# tom-nook History (Summary)
+## 2026-05-17: Workflow Editor Foundation & Reframe
 
-## Latest Updates
-
-See history-archive.md for full history.
-
-   - **Phase 4 (Push/Manual):** Complete push-notifications; decide on authoring/tenant manual captures (Mabel + Tangy, 2 days)
-   - **Phase 5 (Review):** Final navigation audit, SKILL.md updates (Tom Nook, 1 day)
-
-4. **File-level cross-touch analysis:**
-   - **memberDashboard.cshtml** — dashboard cards + admin link (Phase 1)
-   - **walkthroughs/support/walkthrough.ts** — viewport + mobile-nav hiding (Phase 2)
-   - **workflow-administration.walkthrough.spec.ts** (NEW) — ops walkthrough (Phase 3)
-   - **docs/images/walkthroughs/**/*.png** — all regenerated (Phase 2)
-   - **SKILL.md updates** — viewport standard, height rules (Phase 2–5)
-
-5. **Strategic insight:**
-   - Prism's admin surface (`/admin/workflow`) is fully functional but completely hidden from navigation. This is a UX debt, not an architecture flaw. Exposing the link (with proper role gating for production) unblocks ops documentation and makes the feature discoverable.
-   - MockBusinessApp is both demo and reference implementation, creating a shadowing risk (same pattern repeated by real BusinessApp implementors). This is a separate tom-nook-prism-reflection decision already recorded.
-
-**Decision:** Architecture proposal recorded in `.squad/decisions/inbox/tom-nook-walkthrough-discovery-2026-05-04.md`. No code changes in this pass. Ready for team review and sequencing.
-
-## 2026-05-04 | Walkthrough Discovery Completion
-
-Discovery phase completed. Findings documented in decisions.md.
-Awaiting implementation phase dispatch.
-
-## 2026-05-08 | Post-Publish Release Review (v1.9.1)
-
-**Task:** Verify post-publish state after 1.9.1 release work lands.
-
-**Finding:** v1.9.1 tag was misaligned—positioned on commit 2951551 (Fix 1.9.0 package version sources) instead of correct commit 8b78831 (chore(release): bump version to 1.9.1 and update marketplace packaging). This blocked CI workflows.
-
-**Action Taken:**
-- Deleted remote v1.9.1 tag
-- Repositioned tag to correct commit 8b78831
-- Pushed corrected tag to GitHub
-
-**Result:**
-- ✅ Package Release workflow executed successfully (2026-05-08T05:26:46Z → 05:27:54Z)
-- ✅ GitHub Release v1.9.1 created (published_at: 2026-05-08T05:27:51Z, draft=false, prerelease=false)
-- ✅ NuGet package pushed (UmbracoPrism.1.9.1.nupkg artifact confirmed)
-- ✅ MARKETPLACE.md updated with generated marketplace-friendly documentation
-- ⏳ NuGet indexing in progress (typically 15-60 minutes)
-- ⏳ Umbraco Marketplace sync pending (occurs after NuGet indexing)
-
-**Learnings:**
-1. **Tag alignment is critical for release workflows.** GitHub Actions package-release.yml triggers on tag push but only processes tags that exist at proper commit point. Misalignment silently skips execution—CI status doesn't signal the root cause.
-2. **Marketplace documentation generation is now part of CI.** The generate-marketplace-readme.mjs script (v1.9.1 addition) ensures MARKETPLACE.md stays in sync with README.md. package-release.yml includes `npm run check:marketplace` verification step—this guards against stale marketplace copy in published packages.
-3. **Marketplace propagation delay is expected.** Umbraco Marketplace pulls package README from NuGet feed and ingests MARKETPLACE.md as the rendering source. Full propagation to marketplace.umbraco.com typically takes 30-90 minutes after package publication, not instant.
-
-**Marketplace body status:** MARKETPLACE.md was generated and packaged. Once NuGet indexing completes, Marketplace will ingest the updated body from the package readme. User's goal is satisfied—the machinery is running on time.
-
-
-
-**2026-05-08T05:26:48.026Z — Squad Sync:** Post-publish verification and tag correction recorded.
-
-## Learnings
-
-### 2026-05-17T17:09:07.957+01:00 | Reference split review
-
-- The extraction branch is architecturally sound as a **partial** split: `UmbracoPrism.WorkflowEditor` now owns the authoring domain, but MockBusinessApp still owns too much host/runtime composition to claim the boundary is finished.
-- The right V1 demonstration shape is **reference app, not hidden owner**: MockBusinessApp should stay as the sample that shows how to compose the pieces, while reusable editor/runtime logic moves into dedicated libraries.
-- “Right tool for the right job” needs to stay explicit in the architecture: Copilot CLI handles natural-language drafting/orchestration, workflow-aware MCP/tool surfaces handle semantic operations, and the runtime never becomes the place where AI writes directly.
-
-### 2026-05-15T06:35:47.013+01:00 | PASA death-process design
-
-- PASA's public guidance is strongest on **risk-based identity management** and the need for a clear member identity view across life events, but it does not prescribe a detailed digital bereavement journey. The notifier UX, optional-account posture, and assisted-digital shape therefore need to come from broader UK bereavement and service-design practice.
-- The most reusable Prism pattern for third-party initiated casework is to separate the **workflow actor** from the **linked subject**. For bereavement reporting, the notifier is the actor and the deceased member is matched server-side as the subject.
-- Save/resume for sensitive one-off reporting works best when the service verifies a contact channel early, creates a case shell immediately after, and combines passwordless resume with case-reference recovery instead of forcing permanent registration.
-
-## 2026-05-15: PASA Death Process Baseline Decision
-
-Produced foundational decision on case-scoped notifier model for death-process example. Confirmed notifier as authenticated workflow actor, deceased member as linked subject, no mandatory registration up front. Hybrid save/resume via verified-session + case-reference. Decision merged to shared registry.
-
-### 2026-05-16T10:59:37.438+01:00 | Workflow editor architecture proposal
-
-- Jonny wants the next workflow editor effort grounded in Prism's existing workflow/forms/runtime model, but intentionally designed for both human editing and AI/agent authoring/testing.
-- Recommended architecture is a three-plane split: **authored model** (editor-native graph + component semantics), **runtime projection** (Prism-compatible `WorkflowDefinitionFile`/component tree), and **agent surfaces** (MCP/skills/structured diff APIs) so AI integrations do not become the runtime authority.
-- Planning application should be the reference demo because it spans rich citizen input, multi-step service design, check-answers, and cross-surface handoff potential better than the simpler enquiry or payment samples.
-- Prism pages should stay content-owned shells while the business app/runtime remains authoritative for state, transitions, validation, nonce-safe field contracts, and render-shell inference.
-- Key grounding paths: `src/UmbracoPrism.Shared/Models/Workflow/WorkflowDefinitionFile.cs`, `src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs`, `src/UmbracoPrism.Core/Models/Workflow/WorkflowRenderShellResolver.cs`, `src/UmbracoPrism.Core/Controllers/PrismWorkflowPageController.cs`, `src/UmbracoPrism.Core/Views/workflowPage.cshtml`, `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`, `src/UmbracoPrism.MockBusinessApp/Program.cs`, `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`.
-
-## Learnings — 2026-05-16 Workflow Editor V1 spine
-
-**V1 architecture invariants (locked):**
-- Three planes — Authoring / Projection / Agent — with stable contracts between them; the Prism runtime contract is untouched.
-- `WorkflowDefinitionFile` is the projection *target*, never the editor's primary model. Authors design stages; shells stay inferred via `PrismComponentExtensions.InferStepType()`.
-- Projection is a pure, deterministic function: same authored input ⇒ byte-identical seed; unknown fields rejected; total over stages and handoffs.
-- Every agent change is a structured proposal bundle (authored diff + projected diff + rationale + validation + preview + provenance). No live-instance writes, ever.
-- Natural-language generation and conversational refinement are first-class entry points, but they ride on **general** agents (GitHub Copilot) for NL/drafting and on **workflow-specific** MCP tools for transforms, projection, semantic diffing, simulation.
-- Planning application is the single V1 reference demo; "insert external ID&V after declaration" is the canonical agent-loop scenario.
-- Authoring lives in the Business App; Umbraco keeps public/member shells; the v17 backoffice extension is a thin link/embed, not a re-implementation.
-
-**Deferred to V2:**
-- Versioning / lifecycle / rollback semantics.
-- In-flight instance migration when projected definitions change.
-- Multi-tenant authoring and collaborative real-time editing.
-- Operator backstage UI contract (Blathers open #1).
-- Permission expressiveness, routing authoring depth, task-list authoring (Blathers open #2–#4).
-- Agent autonomy ceiling (when, if ever, a green proposal auto-applies).
-- Cross-workflow refactors (rename actor/policy across definitions).
-
-**Tensions resolved:**
-- *Editor vs runtime coupling.* Resolved by making `WorkflowDefinitionFile` a projection target, not the authored source — protects existing Prism contracts while freeing the authored model to grow.
-- *AI scope creep.* Resolved by the reuse-don't-reinvent directive: general agents do general work; workflow tools do workflow work. The proposal bundle is the seam.
-- *Where does authoring live?* Resolved per Brewster — Business App owns workflow authoring; Umbraco backoffice gets a thin link/embed extension, not a re-implementation.
-- *NL generation vs safety.* Resolved by routing all NL changes through the same proposal/validate/preview/approve loop human edits use — same review surface, same guardrails.
-- *Conversational refinement.* Resolved as layered proposals, not hidden mutations — each refinement is its own artifact with its own provenance.
-
-## 2026-05-17T12:32:29.455640Z
+### 2026-05-17T12:32:29.455640Z
 
 Reviewed overall CI and E2E architecture; provided architectural recommendations for faster CI
 
 ### 2026-05-17T16:56:41.297+01:00 | Workflow separation review
 
-- The extraction branch has achieved a **partial** split: authoring contracts/services now live in `UmbracoPrism.WorkflowEditor`, and Umbraco's backoffice host is a thin iframe wrapper, but the editor is still operationally hosted by `UmbracoPrism.MockBusinessApp`.
-- The clearest remaining coupling is host/composition coupling, not model coupling: `src/UmbracoPrism.MockBusinessApp/Program.cs` still serves `workflow-editor.html` via `PhysicalFileProvider` and maps `/api/workflow-authoring/*`, so the "edit anywhere" story is not yet proven by a separate shell host.
-- Runtime/backstage abstraction is the next architectural gap after host extraction. `BusinessAppWorkflowEngine` is still app-local, and the runtime response contracts are physically in `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs` but still namespaced as `UmbracoPrism.Core.Models.Workflow`, which is a coupling smell to remove before claiming a clean three-way split.
+- The extraction branch is **partial split**: authoring in `UmbracoPrism.WorkflowEditor`, but MockBusinessApp still owns too much composition.
+- Clearest remaining coupling is host/composition, not model. RuntimeBackstage abstraction is the next gap.
 
 ### 2026-05-17T17:33:13.797+01:00 | Merge-readiness review for reference split
 
-- PR #53 is **not merge-ready yet**. GitHub still shows `core-tests` failing on the pushed branch, even though the current worktree contains a local fix (removing the committed `Umbraco:CMS:Imaging:HMACSecretKey` from `src/UmbracoPrism.TestSite/appsettings.json`) and local `dotnet test UmbracoPrism.sln --no-restore -v minimal` is green.
-- The branch also has substantial uncommitted worktree changes, so the state I validated locally is not yet the state GitHub is testing. Until those changes are committed, pushed, and re-run through CI, merge-to-main stays blocked.
-- The end-to-end workflow-editor walkthrough is only **partially** documented: screenshot PNGs are present, but `docs/walkthroughs/planning-workflow-editor.md` still reads like a Wave 1 placeholder and does not actually embed the images or reflect the `/workflow-editor` reference-shell flow now exercised by Tangy's spec.
+- PR #53 not merge-ready yet: GitHub shows `core-tests` failing despite local fixes. Uncommitted worktree changes block state validation.
+- Walkthrough doc is partially documented (PNGs present but not embedded); doesn't reflect new reference-shell flow.
+
+### 2026-05-17T20:02:23.686+01:00 | Workflow editor state audit
+
+- Main contains **foundation/reference slice**, not full V1: shell page, graph/inspector/conversation Lit components, filesystem-backed store, deterministic projector, preview/apply endpoints.
+- Natural-language path is demo scaffolding (one canned prompt, local fabrication); no workflow MCP server, no Copilot wiring.
+- Projection/apply only partially wired: persists authored JSON but doesn't regenerate runtime seeds.
+- Backoffice presence is thin iframe host in TestSite; implementation doesn't match final V1 topology yet.
+- Clear summary: editor foundation + authoring model + projector + mocked proposal loop exist; real agent loop, MCP, Copilot, runtime publish, full authoring UX not yet present.
+
+### 2026-05-17T22:05:30.472+01:00 | Workflow editor doc reframe
+
+- Reframed `docs/design/workflow-editor-v1/README.md` around **three product concepts only**: workflow editor, workflow engine, forms engine (editor is V1 focus).
+- Demoted publishing, Umbraco hosting, Copilot/MCP to secondary seams.
+- Updated integration and agentic surfaces docs to match simpler framing.
+
+### 2026-05-17T22:05:30.472+01:00 | Design rewrite batch — Workflow editor doc restructuring
+
+- Completed full rewrite of `docs/design/workflow-editor-v1/` to establish three-product frame as primary narrative.
+- Produced three decisions merged to `.squad/decisions.md`:
+  1. **tom-nook-workflow-editor-doc-reframe.md** — README reframed around editor responsibilities and action-model split.
+  2. **tom-nook-workflow-editor-simplification.md** — Doc restructuring (7-section pattern) + 6 follow-on implementation phases.
+  3. **tom-nook-workflow-editor-state-audit.md** — Foundation/reference slice classification; sequenced: real agent plane → Copilot → runtime publish → UX completion.
+- Pattern: three products first, implementation seams (projection, MCP, Umbraco, validation) demoted. Scope guardrails documented.
+
+## Learnings
+
+### 2026-05-17T22:28:34.036+01:00 | Workflow backlog sequencing
+
+- **GitHub issues are the right execution layer** for Workflow Editor V1 delivery: keep `docs/design/workflow-editor-v1/` as source-of-truth design, use one initiative plus epic issues as coordination spine, and create 2–5 day child issues from the specialist sections.
+- **Backlog shape should follow dependency seams**, not org chart alone: foundation contracts first (authored schema, action catalog, publish/apply contract), then runtime publish + validation, then editor workspace completion, then Umbraco hosting, then Copilot/MCP layering.
+- **Parallelism starts after contracts lock**: UX workspace, runtime handler registry, preview/simulation, and backoffice shell can run in parallel once the authored model and publish boundary are stable.
+- **Best immediate starters** are the contract-setting issues that unblock multiple lanes: authored schema freeze, action catalog/handler registry contract, and deterministic apply/publish path into runtime seeds.
+
+### 2026-05-17T22:05:30.472+01:00 | Design rewrite learnings
+
+- **Three-product frame is clearer** than plane-heavy story. Lead with workflow editor, workflow engine, forms engine; tuck implementation seams behind.
+- **Editor owns full authored definition**: stage catalogue, graph transitions, action attachments, parameter editing, validation, preview, history, undo/redo, copy/paste, help. Raw runtime JSON stays as generated/debug artifact.
+- **Action split**: design-time action descriptors vs runtime action handlers. Editor asks catalog what exists; engine resolves named handler at runtime. Reference app uses DI-registered handler registry (not lambdas) for testability and portability.
+- **V1 demonstration shape**: MockBusinessApp stays as reference showing how to compose pieces; reusable logic moves to dedicated libraries. "Right tool for right job" remains explicit: Copilot CLI for NL drafting/orchestration, workflow-specific MCP tools for semantic ops, runtime never writes AI directly.
+
+### 2026-05-17T22:21:16.980+01:00 | Conversational service-design architecture review
+
+- **Recommended split**: Copilot is the conversational front door and orchestration shell; workflow-aware MCP tools own semantic draft/diff/validate/preview/apply operations; the workflow editor remains the human review and approval surface.
+- **Trust model**: service-design-friendly AI requires proposal-first changes, semantic diffs, shared validation messages, preview/simulation before apply, and no hidden runtime mutations.
+- **North-star UX**: one workflow-native workspace with graph/list + inspector + conversation/proposal pane + preview/simulation pane; no separate AI mode and no raw-JSON-first path for normal work.
+- **Build order**: first ship the workflow-native editor and semantic MCP verbs; then wire Copilot/skills on top; then deepen replay/history and richer orchestration.
+- **Key paths**: `docs/design/workflow-editor-v1/README.md`, `docs/design/workflow-editor-v1/04-agentic-surfaces.md`, `.squad/decisions.md`, `.squad/skills/workflow-editor-human-ai-coauthoring/SKILL.md`.
+
+---
+
+See history-archive.md for pre-2026-05-16 history.
+
+### 2026-05-17T21:24:00Z | AI integration architecture evaluation
+
+**Batch:** AI integration design  
+**Decision published:** "Copilot + MCP should be the conversational service-design layer"
+
+Evaluated overall architecture for conversational workflow/service design using Copilot + MCP + skills. Established north-star interaction model: one conversation inside the workflow editor workspace with proposal-first, reviewable, and auditable AI changes.
+
+**Key outcomes:**
+- Confirmed Copilot + MCP approach over bespoke AI stack for reusability and workflow intelligence in deterministic domain tools
+- Defined build order: workflow-native editor surfaces → workflow MCP verbs → Copilot/skills integration
+- Preserved editor-first trust model with no AI path bypassing editor review
+
+**Peers:** blathers (tool surface design), scribe (orchestration)
+
+---
+
+## 2026-05-17T22:39:44.751+01:00 | Workflow Editor V1 GitHub issues creation
+
+**User directive:** Scope correction — editor in reference app only, Umbraco for runtime only.
+
+Created comprehensive GitHub issue set for Workflow Editor V1 delivery:
+
+- **Umbrella issue #54:** Workflow Editor V1 Initiative (19 child issues)
+- **Phase 1: Contracts & Foundation** (#55–#57)
+  - #55: Workflow shape & data model
+  - #56: Action catalog & parameter system
+  - #57: Deterministic publish pipeline
+- **Phase 2: Core Workspace** (#58–#62)
+  - #58: Graph workspace (visual editor)
+  - #59: List workspace (accessible editor)
+  - #60: Stage editor
+  - #61: Transition editor
+  - #62: Action editor & forms-backed actions
+- **Phase 3: Editor Affordances** (#63–#66)
+  - #63: Undo/redo
+  - #64: Copy/paste
+  - #65: Validation system
+  - #66: Help & keyboard shortcuts
+- **Phase 4: Confidence Tools** (#67–#68)
+  - #67: Preview panel
+  - #68: Simulation/walkthrough
+- **Phase 5: Hosting & Runtime** (#69–#71)
+  - #69: Reference app hosting (editor runs here)
+  - #70: Runtime action-handler registry (Umbraco)
+  - #71: Workflow engine surfaces (Umbraco public/member)
+- **Phase 6: QA & AI** (#72–#73)
+  - #72: End-to-end tests & planning walkthrough
+  - #73: AI-assisted editing (V1+, later)
+
+**Key scope correction implemented:**
+- Editor is standalone in reference app (MockBusinessApp host), not embedded in Umbraco
+- Umbraco is runtime hosting only (public/member surfaces)
+- All child issues use plain English (no jargon: "authoring surface" not "authoring plane", "reference app hosting" not "shell integration")
+- Each issue includes explicit acceptance criteria and dependency tracking
+- Squads assigned per charter: isabelle (UI/frontend), blathers (backend/infrastructure), brewster (Umbraco platform), tangy (QA/testing)
+
+**Architecture & pattern decisions embedded:**
+- Action model split: design-time catalog vs runtime handlers (issue #56, #70)
+- Dual-surface model for accessibility: graph + list workspace (issues #58–#59)
+- Deterministic projection: authored workflow → runtime format (issue #57)
+- Editor-first workflow with validation, preview, simulation, undo/redo before publish (issues #57, #65, #67–#68, #63)
+
+**Next steps:** Assign baseline issues to Isabelle and Blathers; evaluate V1+ AI work (#73) timing after baseline ships.
+
+---
+
+## 2026-05-17 | Backlog Sequencing: Workflow Editor V1 Execution Plan
+
+**Status:** Completed  
+**Timestamp:** 2026-05-17T22:28:34+01:00  
+
+Transformed workflow-editor design into dependency-ordered execution backlog:
+
+- **Initiative:** Workflow Editor V1 delivery
+- **6 Epics:** Authoring contracts, runtime execution, editor workspace, Umbraco integration, AI/MCP support, QA hardening
+- **Sequencing rule:** Lock authored schema + action catalog + publish/apply contracts first; then parallel runtime/workspace/backoffice lanes; Copilot/skills after MCP/CLI foundation; finish with QA
+- **Immediate starters:** Freeze authored workflow schema, define action catalog contract, complete deterministic apply/publish path
+
+**Artifact:** Decision merged to decisions.md: "Workflow Editor V1 — Execution backlog sequencing"  
+**Handoff:** To Mabel for GitHub issue structure mapping; to squad for execution assignment per routing rules.
+
+
+### 2026-05-17T22:34:01.015+01:00 | Plain-English workflow backlog framing
+
+- Previous backlog wording was too abstract for delivery tracking. Terms like "projection foundation", "authoring contracts", and "backoffice shell" hid the actual user-facing work.
+- Better backlog pattern for Workflow Editor V1: name epics and issues in product language first, then keep runtime, AI, and hosting as supporting work behind those labels.
+- Must-have editor features need to be named explicitly in the backlog, not implied: copy/paste, undo/redo, stage editing, transition linking, action editing, validation, help, preview, and simulation.
+- Key paths used for this reframe: `docs/design/workflow-editor-v1/README.md`, `docs/design/workflow-editor-v1/01-authoring-ux.md`, `docs/design/workflow-editor-v1/02-runtime-projection.md`, `.squad/decisions.md`.
+
+### 2026-05-17T22:34:01.015+01:00 | Plain-English workflow backlog reframe
+
+- Reframed Workflow Editor V1 backlog with plain product language (not architecture jargon).
+- Renamed epics to user-facing concepts: "Ship Workflow Editor V1" → "Define what a workflow can contain" → "Save editor changes as a runnable workflow" → etc.
+- Placed everyday features explicitly: copy/paste and undo/redo in affordances epic; linking transitions and stage editing in workspace epic.
+
+### 2026-05-17T22:39:44.751+01:00 | Workflow Editor V1 GitHub Issue Set creation
+
+- Created 20 GitHub issues (#54–#73) to move from design-doc planning to executable work units.
+- Applied user scope correction: workflow editor stays in reference app (MockBusinessApp), Umbraco is runtime hosting only.
+- Issue set structure: umbrella (#54) + 19 child issues across 6 phases (foundation, workspace, affordances, confidence, hosting, QA+AI).
+- Squad routing: Isabelle (UI), Blathers (foundation), Brewster (Umbraco), Tangy (QA), Copilot (foundation contracts).
+- All issues use plain-English product language; dependencies explicit ("Depends on" links); dual-surface accessibility built into acceptance criteria.
+- GitHub issues now the execution spine; design docs remain architecture source of truth.
+
+
+## Scribe Consolidation (2026-05-19T21:41:48.843Z)
+
+Decisions consolidated into team decisions log. Orchestration recorded.
+
+## 2026-05-19: Swim-Lane UX Parent Issue
+
+### 2026-05-19T22:54:23.812+01:00 | Issue #74 created: Locked workflow editor swim-lane UX direction
+
+Orchestrated parent GitHub issue #74 capturing integrated UX decision: role-first swim lanes as main editing model, tabs as supporting views, accessibility baseline, atomic undo/redo from first usable slice.
+
+Decision routing: Future work on #58, #59, #60, #61, #63, #65, #67, #68 treats #74 as UX source of truth.
+
+**Scribe update:** Decision inbox merged 2026-05-19T22:00:07Z.
+
+## 2026-05-19 — Branch Hygiene Assessment: squad/55-workflow-schema-foundation
+
+**Status:** ⚠️ Not ready to merge. Too broad. Recommend split.
+
+**Assessment Scope:** Branch carries 10 commits (squad/scribe orchestration, green) but 62 uncommitted files (3 distinct engineering clusters) and 35 untracked files.
+
+**Finding:** Three independent work streams are tangled:
+1. Reference Workflow Repository (Backend: Blathers + Tangy)
+2. Editor UX & Components (Frontend: Isabelle + Tangy)
+3. Design/Docs/CI (Mabel + cleanup)
+
+**Recommendation:** Split this into 3 focused branches immediately before check-in. Each branch should be independently testable and mergeable.
+
+**Deliverable:** Full assessment written to `.squad/decisions.md` via inbox merge.
+
+**Basis:** Tom Nook background agent (branch hygiene specialist).
+
+## 2026-05-21 — Merge-Readiness Assessment: squad/55-workflow-schema-foundation (Final)
+
+**Status:** 🟡 **Logically ready, not procedurally clean**
+
+**Timestamp:** 2026-05-21T21:54:07.868+01:00
+
+### Summary
+
+The branch is **logically fit to land** once the working-tree is committed (169 uncommitted files). All green blockers are cleared:
+
+- ✅ **Build:** Passes cleanly (6 pre-existing warnings)
+- ✅ **Four-workflow contract:** All 6 tests passing
+- ✅ **Workflow story coherence:** Code/docs/tests use consistent names for all four workflows
+- ✅ **Reference implementation:** ReferenceWorkflowRepository provides all 4 as C# code fallbacks
+
+### Workflow story verification
+
+The four workflows (planning, community-enquiry, information-request, payment-demo) are:
+- Defined in `ReferenceWorkflowRepository.cs`
+- Documented in `docs/guides/reference-workflow-contract.md`
+- Tested by `FourWorkflowReferenceContractTests.cs` (all passing)
+- Consistent across authoring API, admin screen, and runtime engine
+
+No contradictions found. The product story is coherent: the reference app seeds exactly four workflows through a canonical contract, enforced by tests.
+
+### Recommendations
+
+The branch needs three procedures before merge:
+
+1. **Stage 169 uncommitted files** into logical commits:
+   - Backend (Reference Workflow Repository + tests)
+   - Frontend (Editor components + Playwright tests)
+   - Architecture (Docs + design updates)
+   
+2. **Verify each commit** — build and test after each stage
+3. **Merge with assessment context** — document why the four-workflow contract matters
+
+The **"too broad" concern from 2026-05-19** is not a blocker; the three clusters belong together logically as issue #55 foundation work. Splitting would create artificial boundaries.
+
+### Quality bar met
+
+- ✅ Simple, durable seams — four-workflow contract is explicit and enforced
+- ✅ No accidental complexity — ReferenceWorkflowRepository is straightforward
+- ✅ Product story coherent — workflow definitions consistent across all surfaces
+
+**Decision:** Written to `.squad/decisions/inbox/tom-nook-merge-readiness.md`
+
+## 2026-05-21T21:54:07.868+01:00 — Merge-readiness verdict (tom-nook-5)
+
+**Assessment:** squad/55-workflow-schema-foundation branch is logically ready for merge
+
+**Key verdict:** Four-workflow contract satisfied, build green, story coherent. Working tree has 169 uncommitted files across three logical clusters. Recommendation: stage into focused commits before merge.
+
+**Evidence:**
+- ✅ Four-workflow contract: all 6 tests passing
+- ✅ Build: green with only pre-existing warnings
+- ✅ Story consistency: planning-application, community-enquiry, information-request, payment-demo defined in code, docs, tests
+- ✅ Zero merge conflicts
+
+**Staging procedure:** Organize into three commits (backend refs, frontend UX, docs), verify each commit, land with context about the four-workflow canonical contract.
+
+**Decision doc:** `.squad/decisions.md` (merged from inbox/tom-nook-merge-readiness.md)

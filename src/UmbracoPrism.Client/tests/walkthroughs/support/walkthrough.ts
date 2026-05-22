@@ -20,6 +20,8 @@ export interface PageHealthCheck {
   heading: string | RegExp;
   /** Override default error-marker regex. */
   bodyMustNotContain?: RegExp;
+  /** Allow a GOV.UK error summary when the step intentionally captures validation feedback. */
+  allowErrorSummary?: boolean;
   /** Skip the heading check (e.g. confirmation panels using govuk-panel--confirmation). */
   skipHeading?: boolean;
   /**
@@ -66,10 +68,12 @@ export async function assertHealthyPage(page: Page, expected: PageHealthCheck): 
     page.locator('body'),
     'Page body should not contain error markers'
   ).not.toContainText(errorMarker, { timeout: 5_000 });
-  await expect(
-    page.locator('.govuk-error-summary'),
-    'Page should not show a GOV.UK error summary on a happy-path capture'
-  ).toHaveCount(0);
+  if (!expected.allowErrorSummary) {
+    await expect(
+      page.locator('.govuk-error-summary'),
+      'Page should not show a GOV.UK error summary on a happy-path capture'
+    ).toHaveCount(0);
+  }
 }
 
 /**
