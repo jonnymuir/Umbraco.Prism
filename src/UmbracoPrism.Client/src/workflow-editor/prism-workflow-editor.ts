@@ -15,20 +15,16 @@ import {
   fetchActionCatalog,
   projectWorkflow,
   publishWorkflow,
-  previewProposal,
   applyProposal,
 } from './workflow-authoring-client.js';
-import { draftProposal, V1_UNRECOGNISED_MESSAGE } from './workflow-authoring-mock-drafter.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
 import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
-import './prism-conversation-pane.js';
 import './prism-proposal-diff.js';
 import './prism-stage-preview.js';
 import './prism-workflow-simulation.js';
-import type { PrismConversationPaneElement } from './prism-conversation-pane.js';
 import type { PreviewSurface, PreviewSurfaceAvailability } from './prism-stage-preview.js';
 import type {
   WorkflowSimulationHistoryEntry,
@@ -125,7 +121,7 @@ function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): s
  *
  * Layout:
  *   Left  — prism-workflow-graph (with title bar + mode toggle)
- *   Right — prism-step-inspector (top) + prism-conversation-pane (bottom)
+ *   Right — prism-step-inspector
  *   Modal — prism-proposal-diff (overlay when a proposal is active)
  *
  * URL param: ?workflow=<key>  (default: "planning")
@@ -1105,35 +1101,6 @@ export class PrismWorkflowEditorElement extends LitElement {
     return true;
   }
 
-  private async _handleNlRequest(e: CustomEvent<{ text: string }>) {
-    const pane = this.shadowRoot?.querySelector<PrismConversationPaneElement>(
-      'prism-conversation-pane'
-    );
-    if (!this._workflow) return;
-
-    const localProposal = draftProposal(e.detail.text, this._workflow);
-
-    if (!localProposal) {
-      pane?.pushAgentMessage(V1_UNRECOGNISED_MESSAGE);
-      return;
-    }
-
-    // Send to Blathers' preview endpoint for server-side validation.
-    // The preview response is a PreviewResult (projectedFile, diff, etc.) — not a ProposalEnvelope.
-    // Always keep localProposal as the envelope to apply; preview is a validation/display step only.
-    try {
-      await previewProposal(this.workflowKey, localProposal, this._resolvedAuthoringApiBase);
-    } catch {
-      // Preview API not yet available — use locally drafted proposal for walkthrough
-    }
-
-    this._proposal = localProposal;
-    this._modalOpen = true;
-    pane?.pushAgentMessage(
-      `Proposal ready: "${localProposal.rationale}" — review the diff to accept or reject.`
-    );
-  }
-
   private async _handleProposalAccept() {
     if (!this._proposal) return;
     try {
@@ -1147,11 +1114,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       // Apply endpoint may not be live in V1 walkthrough — apply locally
       this._applyProposalLocally(this._proposal);
     }
-
-    const pane = this.shadowRoot?.querySelector<PrismConversationPaneElement>(
-      'prism-conversation-pane'
-    );
-    pane?.pushAgentMessage('Proposal accepted. Workflow updated.');
 
     this._closeModal();
     this._showToast('Workflow updated successfully.');
@@ -1186,22 +1148,13 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private _handleProposalReject() {
-    const pane = this.shadowRoot?.querySelector<PrismConversationPaneElement>(
-      'prism-conversation-pane'
-    );
-    pane?.pushAgentMessage('Proposal rejected.');
     this._closeModal();
+    this._showToast('Proposal rejected.');
   }
 
   private _closeModal() {
     this._modalOpen = false;
     this._proposal = null;
-    // Return focus to conversation input after modal closes
-    requestAnimationFrame(() => {
-      this.shadowRoot
-        ?.querySelector<HTMLElement>('[data-prism-conversation-input]')
-        ?.focus();
-    });
   }
 
   private _showToast(message: string) {
@@ -1650,7 +1603,7 @@ export class PrismWorkflowEditorElement extends LitElement {
             ></prism-workflow-graph>
           </div>
 
-          <!-- Right: inspector + conversation -->
+          <!-- Right: inspector -->
           <div class="editor-right">
             <prism-step-inspector
               class="inspector-panel"
@@ -1663,11 +1616,6 @@ export class PrismWorkflowEditorElement extends LitElement {
               @workflow-updated=${this._handleWorkflowUpdated}
               @action-selected=${this._handleActionSelected}
             ></prism-step-inspector>
-
-            <prism-conversation-pane
-              class="conversation-panel"
-              @nl-request="${this._handleNlRequest}"
-            ></prism-conversation-pane>
           </div>
         </div>
 
@@ -1915,12 +1863,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
-    }
-
-    .conversation-panel {
-      flex: 1;
-      min-height: 0;
-      border-top: 2px solid #b1b4b6;
     }
 
     .validation-rail {

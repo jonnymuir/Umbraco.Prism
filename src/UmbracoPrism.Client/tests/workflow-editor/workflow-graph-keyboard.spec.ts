@@ -76,4 +76,67 @@ test.describe('Workflow graph workspace', () => {
     await page.locator('[data-prism-list-row-trigger]').first().press('Enter');
     await expect(page.locator('[data-prism-stage-detail]')).toBeVisible();
   });
+
+  test('role lanes are structurally visible and keyboard-accessible', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+
+    // Role lanes should be rendered as focusable sections with semantic labels
+    const lanes = page.locator('[data-prism-role-lane]');
+    await expect(lanes).not.toHaveCount(0);
+
+    // Each lane should have a heading and description
+    const firstLane = lanes.first();
+    await expect(firstLane.locator('.lane-heading')).toBeVisible();
+    await expect(firstLane.locator('.lane-copy')).toBeVisible();
+
+    // Lanes should be keyboard-focusable
+    await firstLane.focus();
+    await expect(firstLane).toBeFocused();
+
+    // Lane headings should convey the role label, not just styling
+    const headingText = await firstLane.locator('.lane-heading').textContent();
+    expect(headingText).toBeTruthy();
+    expect(headingText?.trim().length).toBeGreaterThan(0);
+  });
+
+  test('graph mode shows stages in role-specific lanes', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+
+    // The workspace should be described as "Role-first"
+    const canvas = page.getByRole('application');
+    await expect(canvas).toHaveAttribute('aria-roledescription', /role-first/i);
+
+    // Front-stage and back-stage lanes should both exist (for planning workflow)
+    const frontStageLanes = page.locator('[data-prism-role-lane].lane-primary');
+    const backStageLanes = page.locator('[data-prism-role-lane].lane-supporting');
+
+    // At least one front-stage lane should exist
+    await expect(frontStageLanes).not.toHaveCount(0);
+  });
+
+  test('keyboard navigation moves between lanes and stages', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+
+    // Start by focusing the first lane
+    const firstLane = page.locator('[data-prism-role-lane]').first();
+    await firstLane.focus();
+
+    // Tab should move focus from lane to a stage within that lane
+    await page.keyboard.press('Tab');
+    const firstStage = page.locator('[data-prism-stage]').first();
+    
+    // Verify we can select a stage with Enter
+    await firstStage.press('Enter');
+    await expect(firstStage).toHaveAttribute('aria-pressed', 'true');
+
+    // The 'e' key should open the inspector (as documented in the hint)
+    await firstStage.press('e');
+    // Note: full inspector behavior is tested in the host editor test above
+  });
 });

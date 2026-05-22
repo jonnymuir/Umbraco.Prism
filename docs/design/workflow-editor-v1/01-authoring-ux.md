@@ -63,6 +63,8 @@ V1 does **not** make raw JSON the main authoring surface. JSON can remain an adv
 
 The V1 editor is a single workspace with five persistent areas.
 
+For the first role-first delivery slice, the main workspace stays on one screen: the graph/list workspace on the left, the inspector on the right, and the confidence surfaces below. That keeps the role-first framing visible while validation, preview, and simulation remain close at hand instead of becoming separate tabs.
+
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │ Toolbar: name • status • save • undo • redo • copy • paste • help │
@@ -120,13 +122,15 @@ Authors can switch between:
 - **Graph view** for visual editing of stages and transitions
 - **List view** for accessible, compact, detail-friendly editing
 
-Both views edit the same model.
+Both views edit the same model. In the first role-first slice, graph view uses horizontal role bands so authors read the workflow as responsibilities and handoffs rather than a generic node field.
 
 ### 5.4 Inspector
 
 The inspector shows the editable properties for the selected item.
 
 If the author selects a stage, the inspector shows stage details. If the author selects a transition, it shows transition details. If the author selects an action, it shows action details and parameters.
+
+The inspector is the only persistent right-side detail surface. AI conversation stays outside the editor so the workspace remains clearly about authoring.
 
 ### 5.5 Validation and activity rail
 
@@ -211,7 +215,7 @@ The editor must clearly distinguish:
 - **Front stage** — public or member-facing work
 - **Back stage** — reviewer, caseworker, or system work
 
-Graph view shows these as separate connected lanes. List view shows the same distinction as a field and filter.
+Graph view shows these as role-first horizontal bands, with front-stage and back-stage placement still expressed through the owning role and supporting styling. List view shows the same distinction as a field and filter.
 
 ---
 

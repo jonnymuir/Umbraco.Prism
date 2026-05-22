@@ -57,13 +57,9 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   // ---------------------------------------------------------------------------
   // SKIP RATIONALE
   //
-  // This walkthrough depends on two Wave 1 foundation deliverables that have not
-  // yet landed:
-  //   • Isabelle — `workflow-editor.html` served by MockBusinessApp with
-  //                `<prism-workflow-graph>`, `<prism-conversation-pane>`, and
-  //                `<prism-step-inspector>` wired to the planning workflow.
-  //   • Blathers — `/api/workflow-authoring/planning-permission` (GET + PATCH)
-  //                endpoints that load and persist the workflow definition.
+  // This walkthrough exercises the live business-app host for the current editor
+  // slice: role-first graph framing, inspector-first editing, and supporting
+  // confidence surfaces (list mode, validation, preview, simulation, help).
   //
   // When both PRs have merged:
   //   1. Remove the `test.skip(true, ...)` line.
@@ -74,7 +70,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   // See SKILL.md R6 for the screenshot capture workflow.
   // ---------------------------------------------------------------------------
 
-  test('happy path: authoring a planning permission workflow with natural language', async ({ page, appHost }) => {
+  test('happy path: authoring a planning permission workflow with the role-first workspace', async ({ page, appHost }) => {
     await signIn(page);
 
     // ─── Step 1: Load the reference shell from the business app ────────────────
@@ -152,12 +148,17 @@ test.describe('Planning Workflow Editor walkthrough', () => {
       screenshotSelector: '[data-prism-component="workflow-editor-shell"]',
     }), WALKTHROUGH_KEY);
 
-    // ─── Step 2: Graph view shows the planning permission stages ───────────────
+    // ─── Step 2: Graph view shows the planning permission stages in role lanes ──
     // prism-workflow-graph renders in "graph" mode by default (aria role="application").
+    // The graph uses horizontal role-first swim lanes, not a generic node field.
     // The live authored planning seed stages are: declaration, application-form,
     // check-answers, submitted.
     const graphCanvas = page.getByRole('application');
     await expect(graphCanvas).toBeVisible({ timeout: 10_000 });
+    await expect(graphCanvas).toHaveAttribute('aria-roledescription', /role-first/i);
+
+    // Role lanes should be structurally visible with semantic labels
+    await expect(page.locator('[data-prism-role-lane]')).not.toHaveCount(0);
 
     await expect(graphCanvas.getByText('Declaration')).toBeVisible({ timeout: 10_000 });
 
@@ -204,72 +205,57 @@ test.describe('Planning Workflow Editor walkthrough', () => {
       screenshotSelector: '[data-prism-component="workflow-graph"]',
     }), WALKTHROUGH_KEY);
 
-    // Switch back to graph view so the conversation pane step is clearer
+    // Switch back to graph view for the supporting-surface checks.
     const graphToggleBtn = page.locator('prism-workflow-graph').getByRole('button', { name: 'Graph view' });
     await graphToggleBtn.focus();
     await graphToggleBtn.press('Enter');
     await expect(graphCanvas).toBeVisible({ timeout: 5_000 });
 
-    // ─── Step 6: Type a natural language change request ────────────────────────
-    // prism-conversation-pane exposes data-prism-conversation-input for the textarea.
-    const conversationPane = page.locator('[data-prism-component="conversation-pane"]');
-    await expect(conversationPane).toBeVisible({ timeout: 10_000 });
+    // ─── Step 6: Help opens without an embedded conversation surface ───────────
+    // Issue #74 locks the UX: no embedded AI conversation pane in the editor.
+    // Supporting tabs for validation, preview, and simulation are allowed, but
+    // AI conversation stays external to preserve inspector focus.
+    await expect(page.locator('[data-prism-component="conversation-pane"]')).toHaveCount(0);
+    const helpButton = page.locator('[data-prism-help]');
+    await expect(helpButton).toBeVisible({ timeout: 5_000 });
+    await helpButton.focus();
+    await helpButton.press('Enter');
+    await expect(page.locator('[data-prism-shortcut-dialog]')).toBeVisible({ timeout: 10_000 });
 
-    const nlInput = conversationPane.locator('[data-prism-conversation-input]');
-    await expect(nlInput).toBeVisible({ timeout: 5_000 });
-    await nlInput.fill('Add an identity verification step before the reviewer assessment stage');
-
-    await step(page, '06-nl-request-typed.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-component="conversation-pane"]',
+    await step(page, '06-shortcut-guide.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-shortcut-dialog]',
     }), WALKTHROUGH_KEY);
 
-    // ─── Step 7: Submit and receive a proposal diff ────────────────────────────
-    // The Send button POSTs to /api/workflow-authoring/planning-permission/proposals.
-    // Blathers' endpoint responds with an AuthoringProposal envelope.
-    // prism-proposal-diff renders inside the conversation thread.
-    const nlRequestInflight = page.waitForRequest(
-      req =>
-        req.url().includes('/api/workflow-authoring/workflows/planning/preview') &&
-        req.method() === 'POST'
-    );
+    await page.locator('[data-prism-help-close]').click();
+    await expect(page.locator('[data-prism-shortcut-dialog]')).toHaveCount(0);
 
-    const sendButton = page.getByRole('button', { name: /send/i });
-    await sendButton.focus();
-    await sendButton.press('Enter');
-    await nlRequestInflight;
+    // ─── Step 7: Validation rail stays attached to the workspace ───────────────
+    const validationRail = page.locator('[data-prism-validation-rail]');
+    await expect(validationRail).toBeVisible({ timeout: 5_000 });
+    await expect(validationRail).toContainText(/validation and save/i);
+    await expect(page.locator('[data-prism-save-status]')).toContainText(/save/i);
 
-    const proposalDiff = page.locator('[data-prism-component="proposal-diff"]');
-    await expect(proposalDiff).toBeVisible({ timeout: 15_000 });
-
-    await step(page, '07-proposal-diff.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-component="proposal-diff"]',
+    await step(page, '07-validation-rail.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-validation-rail]',
     }), WALKTHROUGH_KEY);
 
-    // ─── Step 8: Accept the proposal ──────────────────────────────────────────
-    // "Accept all" PATCHes /api/workflow-authoring/planning-permission with the updated
-    // definition. The workflow graph refreshes; the new ID&V stage appears.
-    // Validation status "pass" is required for Accept all to be enabled (STUB_PROPOSAL).
-    const acceptBtn = page.getByRole('button', { name: /accept all/i });
-    await expect(acceptBtn).toBeEnabled({ timeout: 5_000 });
+    // ─── Step 8: Stage preview reflects the selected stage ─────────────────────
+    const stagePreview = page.locator('[data-prism-stage-preview]');
+    await expect(stagePreview).toBeVisible({ timeout: 10_000 });
+    await expect(stagePreview.locator('[data-prism-preview-stage-name]')).toContainText('Declaration', { timeout: 10_000 });
 
-    const applyRequest = page.waitForRequest(
-      req =>
-        req.url().includes('/api/workflow-authoring/workflows/planning/apply') &&
-        req.method() === 'POST'
-    );
+    await step(page, '08-stage-preview.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-stage-preview]',
+    }), WALKTHROUGH_KEY);
 
-    await acceptBtn.focus();
-    await acceptBtn.press('Enter');
-    await applyRequest;
+    // ─── Step 9: Simulation starts from the workflow's initial stage ───────────
+    const simulationPanel = page.locator('[data-prism-simulation-panel]');
+    await expect(simulationPanel).toBeVisible({ timeout: 5_000 });
+    await simulationPanel.locator('[data-prism-simulation-start]').click();
+    await expect(simulationPanel.locator('[data-prism-simulation-current-stage]')).toContainText('Declaration', { timeout: 10_000 });
 
-    // ─── Step 9: Workflow graph reflects the applied change ────────────────────
-    // After apply, prism-workflow-graph re-renders with the updated definition.
-    // The ID&V stage (injected by the agent) must now appear as a node.
-    await expect(page.locator('[data-prism-toast]')).toContainText(/workflow updated successfully/i);
-    await expect(page.getByRole('application').getByText('Identity Verification')).toBeVisible({ timeout: 10_000 });
-
-    await step(page, '09-proposal-applied.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-component="workflow-graph"]',
+    await step(page, '09-simulation-started.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-simulation-panel]',
     }), WALKTHROUGH_KEY);
   });
 });
