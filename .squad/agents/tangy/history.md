@@ -351,3 +351,17 @@ Decision merged into decisions.md by Scribe 2026-05-19T22:00:07Z.
 - Fixing that drift also fixed the next payment-demo failure in the same lane.
 - The localhost-auth lane is still not green overall; planning-notification is now the first remaining blocker.
 - Decision artifact written to `.squad/decisions/inbox/tangy-information-request-walkthrough-fix.md`.
+
+## 2026-05-22T05:48:34.538+01:00 — PR #75 localhost-auth lane green
+
+**Status:** GREEN — ready on the tested localhost-auth seam.
+
+**What I verified:**
+- Reviewed the latest failing GitHub `localhost-auth-playwright` evidence: the planning workflow editor walkthrough stalled because the visible `Send` button was being pointer-blocked by overlapping editor chrome in CI.
+- Re-ran the full localhost-auth Playwright lane on the current branch head after the keyboard-activation walkthrough fix landed.
+- Result: `34 passed`, `7 skipped`, `0 failed` on `cd src/UmbracoPrism.Client && npm run test:playwright:localhost-auth -- --max-failures=1`.
+
+**Plain-language verdict:**
+- The remaining localhost-auth blocker is gone.
+- I did not merge the PR.
+- Decision artifact written to `.squad/decisions/inbox/tangy-localhost-lane-green.md`.
