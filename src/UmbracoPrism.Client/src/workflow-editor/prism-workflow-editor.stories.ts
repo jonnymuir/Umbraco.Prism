@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
-import { expect } from '@storybook/test';
+import { expect, waitFor, within } from '@storybook/test';
 import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW } from './fixtures/index.js';
@@ -227,32 +227,31 @@ export const PlanningWorkflow: Story = {
 
 export const WithStageSelected: Story = {
   name: 'Stage Selected',
-  render: () => {
-    const el = makeEditor();
-    // Trigger stage selection after upgrade
-    requestAnimationFrame(async () => {
-      await el.updateComplete;
-      el.shadowRoot
-        ?.querySelector('prism-workflow-graph')
-        ?.dispatchEvent(
-          new CustomEvent('stage-selected', {
-            detail: { stageKey: 'declaration' },
-            bubbles: true,
-            composed: true,
-          })
-        );
-    });
-    return el;
-  },
+  render: () => makeEditor(),
   play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 300));
     const el = canvasElement.querySelector('prism-workflow-editor') as PrismWorkflowEditorElement;
     await el.updateComplete;
 
     const root = el.shadowRoot!;
+    const graph = root.querySelector('prism-workflow-graph');
     const inspector = root.querySelector('prism-step-inspector');
+    await expect(graph).not.toBeNull();
     await expect(inspector).not.toBeNull();
-    await expect(root.querySelector('prism-stage-preview')?.shadowRoot?.querySelector('[data-prism-preview-stage-name]')?.textContent?.trim()).toBe('Declaration');
+
+    const graphCanvas = within(graph!.shadowRoot as unknown as HTMLElement);
+    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, front stage' }) as HTMLButtonElement;
+    declarationStage.click();
+
+    await waitFor(() =>
+      expect(
+        root
+          .querySelector('prism-stage-preview')
+          ?.shadowRoot
+          ?.querySelector('[data-prism-preview-stage-name]')
+          ?.textContent
+          ?.trim()
+      ).toBe('Declaration')
+    );
   },
 };
 

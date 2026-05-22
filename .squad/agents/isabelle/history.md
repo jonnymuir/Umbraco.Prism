@@ -1,5 +1,12 @@
 # History: Isabelle (Frontend Dev)
 
+#### 2026-05-21T21:54:07.868+01:00 — WebKit editor-host story stabilization
+
+- Diagnosed the remaining PR #75 Storybook WebKit blocker as story harness timing, not product state: the `Stage Selected` editor-host story was synthesizing a `stage-selected` event during render and then asserting after a fixed delay, which left WebKit free to observe the preview label before the real selection/render cycle had settled.
+- Replaced that synthetic selection path with the honest user path inside the story play function: click the graph’s `Declaration` stage button from the component shadow root and wait for the preview label to resolve instead of sleeping for 300 ms.
+- Re-validated the directly affected lane locally with `cd src/UmbracoPrism.Client && npm run build` and `cd src/UmbracoPrism.Client && npx test-storybook --url http://127.0.0.1:6006 --browsers webkit --verbose`; the full WebKit Storybook suite passed after the story fix.
+- Key files: `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.stories.ts`, `.squad/decisions/inbox/isabelle-webkit-story-fix.md`.
+
 #### 2026-05-21T21:54:07.868+01:00 — Linux workflow graph rerun follow-up
 
 - Reproduced the still-red `storybook-tests` workflow-graph visual lane against current PR #75 branch state, then rechecked it in the closest available Linux/CI mode using the existing Debian-based Node devcontainer image with Playwright Chromium.
