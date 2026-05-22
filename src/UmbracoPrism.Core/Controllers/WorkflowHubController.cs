@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Umbraco.Extensions;
@@ -16,7 +15,6 @@ namespace UmbracoPrism.Core.Controllers;
 /// Umbraco route-hijacking controller for the <c>workflowHub</c> document type.
 /// Displays all workflow instances for the authenticated member.
 /// </summary>
-[Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 public class WorkflowHubController : RenderController
 {
     private readonly IBusinessAppWorkflowClient _workflowClient;
@@ -41,6 +39,11 @@ public class WorkflowHubController : RenderController
 
     public override IActionResult Index()
     {
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return Redirect(BuildLoginRedirectUrl());
+        }
+
         return IndexAsync().GetAwaiter().GetResult();
     }
 
@@ -114,5 +117,11 @@ public class WorkflowHubController : RenderController
             summary.WorkflowKey);
 
         return CurrentPage?.Url() ?? "/";
+    }
+
+    private string BuildLoginRedirectUrl()
+    {
+        var returnUrl = $"{Request.PathBase}{Request.Path}{Request.QueryString}";
+        return $"/auth/login?ReturnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 }

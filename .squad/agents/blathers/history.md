@@ -153,3 +153,11 @@ Use community-enquiry instead of planning fixture for generic `WorkflowPatchServ
 - Verified `dotnet build UmbracoPrism.sln -c Release`, focused auth regression tests, and the full core-tests lane command all pass cleanly after the fix.
 
 **Decision doc:** `.squad/decisions/inbox/blathers-ci-core-tests.md`
+
+## 2026-05-21T21:54:07.868+01:00 — Localhost auth redirect timeout fix
+
+- Diagnosed the PR #75 localhost-auth CI failure as an Umbraco route-hijacking edge: `[Authorize]` on the route controllers could fail before stable Umbraco route values were available, yielding `No UmbracoRouteValues` 500s or timed-out anonymous probes instead of the expected auth redirect.
+- Moved anonymous-member handling into the route controllers themselves so `/dashboard`, `/my-workflows`, and workflow pages issue explicit `/auth/login?ReturnUrl=...` redirects before touching route-bound workflow logic.
+- Verified `dotnet build UmbracoPrism.sln -c Release` passes and re-probed the failing protected routes on a fresh local stack: `/dashboard`, `/my-workflows`, `/get-in-touch`, and `/apply-for-planning-permission` now all return the expected 302 login redirect.
+
+**Decision doc:** `.squad/decisions/inbox/blathers-localhost-auth-timeout.md`
