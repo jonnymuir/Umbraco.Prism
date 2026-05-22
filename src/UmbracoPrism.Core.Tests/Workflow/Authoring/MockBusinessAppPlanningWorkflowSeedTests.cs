@@ -2,6 +2,11 @@ extern alias MockBusinessApp;
 
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Authoring;
 using MockReferenceWorkflowRepository = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowRepository;
 
@@ -77,5 +82,28 @@ public class MockBusinessAppPlanningWorkflowSeedTests
 
         workflowIds.Should().HaveCount(distinctIds.Count,
             because: "each workflow must have a unique ID");
+    }
+
+    [Fact]
+    public void PlanningWorkflow_RemainsReachableByHostKeyAtRuntime()
+    {
+        var environment = new Mock<IWebHostEnvironment>();
+        environment.SetupGet(e => e.ContentRootPath).Returns(AppContext.BaseDirectory);
+
+        var sanitizer = new Mock<IWorkflowContentSanitizer>();
+        sanitizer.Setup(s => s.Sanitize(It.IsAny<string?>())).Returns<string?>(value => value ?? string.Empty);
+
+        var engine = new BusinessAppWorkflowEngine(
+            NullLogger<BusinessAppWorkflowEngine>.Instance,
+            environment.Object,
+            sanitizer.Object,
+            new ReferenceWorkflowDefinitionStore(new WorkflowProjector()));
+
+        var current = engine.GetCurrent("planning", "tenant", "user");
+
+        current.ResponseState.Should().Be("render",
+            because: "runtime lookups must use the host workflow key even when the authored definition key differs");
+        current.Render.Should().NotBeNull();
+        current.Render!.StateDisplayName.Should().Be("Declaration");
     }
 }

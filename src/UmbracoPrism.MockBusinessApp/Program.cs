@@ -946,7 +946,18 @@ static async Task<string> ResolveWorkflowDefinitionKeyAsync(
     CancellationToken ct)
 {
     var authoredWorkflow = await authoredWorkflowStore.LoadAsync(workflowKeyOrDefinitionKey, ct);
-    return authoredWorkflow?.DefinitionKey ?? workflowKeyOrDefinitionKey;
+    if (authoredWorkflow != null)
+    {
+        return workflowKeyOrDefinitionKey;
+    }
+
+    var authoredEntries = await authoredWorkflowStore.ListAsync(ct);
+    return authoredEntries
+               .FirstOrDefault(entry =>
+                   entry.IsLoadable
+                   && string.Equals(entry.DefinitionKey, workflowKeyOrDefinitionKey, StringComparison.OrdinalIgnoreCase))
+               ?.WorkflowKey
+           ?? workflowKeyOrDefinitionKey;
 }
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);

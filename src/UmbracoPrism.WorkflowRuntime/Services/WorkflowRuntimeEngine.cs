@@ -29,11 +29,15 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         Logger = logger;
         _sanitizer = sanitizer;
 
-        foreach (var definition in definitionStore.LoadDefinitions(logger).Values)
+        foreach (var (lookupKey, definition) in definitionStore.LoadDefinitions(logger))
         {
-            if (!string.IsNullOrWhiteSpace(definition.DefinitionKey))
+            var runtimeLookupKey = !string.IsNullOrWhiteSpace(lookupKey)
+                ? lookupKey
+                : definition.DefinitionKey;
+
+            if (!string.IsNullOrWhiteSpace(runtimeLookupKey))
             {
-                _definitions[definition.DefinitionKey] = definition;
+                _definitions[runtimeLookupKey] = definition;
             }
         }
 

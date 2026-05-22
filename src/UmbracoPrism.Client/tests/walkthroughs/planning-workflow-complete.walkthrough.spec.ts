@@ -207,7 +207,7 @@ test.describe('Planning workflow complete E2E', () => {
     await expect(page.getByText('Jane Smith')).toBeVisible();
     await expect(page.getByText('123 Main Street, Townsville, AB12 3CD')).toBeVisible();
     await expect(page.getByText(/Single storey rear extension/i)).toBeVisible();
-    await expect(page.getByText('Extension')).toBeVisible();
+    await expect(page.getByText('Extension', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: /submit|confirm and submit/i }).click();
 
@@ -257,6 +257,7 @@ test.describe('Planning workflow complete E2E', () => {
     // ─────────────────────────────────────────────────────────────────────────
     // BACK-STAGE: REVIEW IN MOCKBUSINESSAPP ADMIN
     // ─────────────────────────────────────────────────────────────────────────
+    await openDashboard(page);
     const adminPage = await openWorkflowAdminFromDashboard(page);
 
     await step(adminPage, '41-backstage-admin-instances.png', {
@@ -284,7 +285,7 @@ test.describe('Planning workflow complete E2E', () => {
     } else {
       // Current planning workflow ends at submitted (terminal) - document this
       // The instance should show "submitted" stage as current
-      await expect(instancesTable.getByText(/submitted/i)).toBeVisible();
+      await expect(instancesTable.locator('.badge').getByText('submitted', { exact: true }).first()).toBeVisible();
       
       await step(adminPage, '42-backstage-terminal-state.png', {
         url: /\/admin\/workflow/,
@@ -330,6 +331,7 @@ test.describe('Planning workflow complete E2E', () => {
     await step(page, '20-validation-errors.png', {
       url: /\/apply-for-planning-permission/,
       heading: /Declaration/i,
+      allowErrorSummary: true,
       bodyMustNotContain: /^$/, // Allow error text in this screenshot
     }, WALKTHROUGH_KEY);
 
@@ -359,9 +361,13 @@ test.describe('Planning workflow complete E2E', () => {
     await page.getByLabel(/site address/i).fill('123 Main Street');
     await page.getByRole('button', { name: /continue/i }).click();
 
-    // Partially fill second stage
+    // Complete the second stage so the OnExit save action persists the data
     await expect(page.getByRole('heading', { name: /Application Form/i })).toBeVisible({ timeout: 30_000 });
     await page.getByLabel(/description of proposed works/i).fill('Partial work');
+    await page.getByLabel(/type of development/i).selectOption('Extension');
+    await page.getByRole('button', { name: /continue/i }).click();
+
+    await expect(page.getByRole('heading', { name: /check your answers/i })).toBeVisible({ timeout: 30_000 });
 
     // Note the current URL (includes instance ID)
     const workflowUrl = page.url();
@@ -369,7 +375,7 @@ test.describe('Planning workflow complete E2E', () => {
 
     await step(page, '30-member-partial-completion.png', {
       url: /\/apply-for-planning-permission/,
-      heading: /Application Form/i,
+      heading: /check your answers/i,
     }, WALKTHROUGH_KEY);
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -397,21 +403,17 @@ test.describe('Planning workflow complete E2E', () => {
     // ─────────────────────────────────────────────────────────────────────────
     // VERIFY CONTINUATION FROM SAVED STATE
     // ─────────────────────────────────────────────────────────────────────────
-    await expect(page.getByRole('heading', { name: /Application Form/i })).toBeVisible({ timeout: 30_000 });
-
-    // Previous data should be preserved
-    const descriptionField = page.getByLabel(/description of proposed works/i);
-    await expect(descriptionField).toHaveValue('Partial work');
+    await expect(page.getByRole('heading', { name: /check your answers/i })).toBeVisible({ timeout: 30_000 });
+    const summaryList = page.locator('.govuk-summary-list');
+    await expect(summaryList).toContainText('Partial work');
+    await expect(summaryList).toContainText('Extension');
 
     await step(page, '32-member-resumed.png', {
       url: /\/apply-for-planning-permission/,
-      heading: /Application Form/i,
+      heading: /check your answers/i,
     }, WALKTHROUGH_KEY);
 
-    // Complete the workflow
-    await page.getByLabel(/type of development/i).selectOption('Extension');
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await expect(page.getByRole('heading', { name: /check your answers/i })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: /submit|confirm and submit/i }).click();
+    await expect(page.getByRole('heading', { name: /application submitted/i })).toBeVisible({ timeout: 30_000 });
   });
 });

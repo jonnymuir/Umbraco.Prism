@@ -34,9 +34,9 @@ public sealed class ReferenceWorkflowDefinitionStore(IWorkflowProjector projecto
 
                 if (projectResult.File is not null)
                 {
-                    definitions[projectResult.File.DefinitionKey] = projectResult.File;
+                    definitions[key] = projectResult.File;
                     logger.LogInformation(
-                        "Loaded reference workflow '{Key}' ({DisplayName})",
+                        "Loaded reference workflow '{Key}' as runtime lookup key for {DisplayName}",
                         key,
                         projectResult.File.DisplayName);
                 }

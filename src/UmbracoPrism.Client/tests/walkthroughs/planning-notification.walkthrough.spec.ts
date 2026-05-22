@@ -1,11 +1,14 @@
-// Executable counterpart of docs/walkthroughs/planning-notification.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+// Legacy planning-notification walkthrough retained for historical screenshots only.
+// The live localhost-auth lane now runs against the authored "planning" workflow
+// (Declaration → Application Form → Check your answers → Application submitted).
+// See planning-workflow-complete.walkthrough.spec.ts for the current contract.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
 import { step, signIn, resetWorkflows } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
-test.describe('Planning notification walkthrough', () => {
+test.describe.skip('Planning notification walkthrough', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
 

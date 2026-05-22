@@ -167,3 +167,9 @@ Use community-enquiry instead of planning fixture for generic `WorkflowPatchServ
 - Fixed the PR #75 `core-tests` order dependency where `WorkflowAuthoringEndpointsTests` could leave `community-enquiry.workflow.json` deleted from the shared output fixtures directory.
 - Restored canonical authored fixtures after endpoint-test mutation, added a source-tree fallback for patch/preview fixture lookup, and tightened fixture item wiring in `UmbracoPrism.Core.Tests.csproj`.
 - Re-ran `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests --nologo`; all 810 core backend tests passed and the copied fixtures directory retained `community-enquiry.workflow.json`.
+
+## 2026-05-21T21:54:07.868+01:00 — Planning localhost-auth runtime parity fix
+
+- Diagnosed the PR #75 planning failure as two backend drifts: the runtime engine re-keyed reference workflows by projected `DefinitionKey`, and the in-memory planning reference workflow had been reduced to a two-stage skeleton instead of the authored four-stage contract.
+- Restored host-key runtime lookups (`planning` stays routable even though the authored definition key is `planning-application`) and rebuilt the in-memory planning workflow to match the authored Declaration → Application Form → Check your answers → Application submitted flow.
+- Locked the fix with focused backend contract coverage and re-ran the planning/localhost-auth Playwright repro slice after aligning the stale planning walkthrough assertions to the live contract.

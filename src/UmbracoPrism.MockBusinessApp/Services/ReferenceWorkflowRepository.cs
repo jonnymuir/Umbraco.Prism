@@ -30,18 +30,194 @@ public static class ReferenceWorkflowRepository
         Id = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
         DefinitionKey = "planning-application",
         DisplayName = "Planning Application",
-        Version = 2,
+        Version = 1,
+        Description = "Standard planning application workflow for submitting and tracking planning permission requests.",
+        SchemaVersion = "1.0",
         InitialStageKey = "declaration",
         InstancePolicy = "single",
         Stages =
         [
-            new AuthoredStage { StageKey = "declaration", DisplayName = "Declaration", Kind = StageKind.Question },
-            new AuthoredStage { StageKey = "submitted", DisplayName = "Submitted", Kind = StageKind.Confirmation }
+            new AuthoredStage
+            {
+                StageKey = "declaration",
+                DisplayName = "Declaration",
+                Description = "Collects applicant and site identity before the full planning form.",
+                Kind = StageKind.Question,
+                Actor = "applicant",
+                Actions =
+                [
+                    new AuthoredAction
+                    {
+                        Type = "forms.load",
+                        Timing = ActionTiming.OnEntry,
+                        ParameterSchemaKey = "forms-form-definition",
+                        Parameters = new JsonObject
+                        {
+                            ["formDefinitionId"] = "planning-declaration"
+                        },
+                        Summary = "Load the declaration form."
+                    }
+                ],
+                Fields =
+                [
+                    new AuthoredField
+                    {
+                        Key = "applicant-name",
+                        Label = "Applicant name",
+                        Type = FieldType.Text,
+                        Required = true,
+                        Hint = "Enter the full name of the person or organisation applying."
+                    },
+                    new AuthoredField
+                    {
+                        Key = "site-address",
+                        Label = "Site address",
+                        Type = FieldType.Textarea,
+                        Required = true,
+                        Hint = "Enter the full address of the site where development is proposed."
+                    }
+                ],
+                EditorComment = "Entry point — collects basic applicant and site identity."
+            },
+            new AuthoredStage
+            {
+                StageKey = "application-form",
+                DisplayName = "Application Form",
+                Description = "Captures the substantive planning request.",
+                Kind = StageKind.Question,
+                Actor = "applicant",
+                Actions =
+                [
+                    new AuthoredAction
+                    {
+                        Type = "forms.save",
+                        Timing = ActionTiming.OnExit,
+                        ParameterSchemaKey = "forms-form-definition",
+                        Parameters = new JsonObject
+                        {
+                            ["formDefinitionId"] = "planning-application"
+                        },
+                        Summary = "Persist the application form before moving on."
+                    }
+                ],
+                Fields =
+                [
+                    new AuthoredField
+                    {
+                        Key = "description",
+                        Label = "Description of proposed works",
+                        Type = FieldType.Textarea,
+                        Required = true,
+                        Hint = "Provide a clear description of the development you are proposing."
+                    },
+                    new AuthoredField
+                    {
+                        Key = "development-type",
+                        Label = "Type of development",
+                        Type = FieldType.Select,
+                        Required = true,
+                        Options =
+                        [
+                            "New build",
+                            "Extension",
+                            "Change of use",
+                            "Demolition",
+                            "Other"
+                        ]
+                    }
+                ]
+            },
+            new AuthoredStage
+            {
+                StageKey = "check-answers",
+                DisplayName = "Check your answers",
+                Description = "Summarises captured answers before final submission.",
+                Kind = StageKind.CheckAnswers,
+                Actor = "applicant",
+                EditorComment = "Summary of all answers before final submission."
+            },
+            new AuthoredStage
+            {
+                StageKey = "submitted",
+                DisplayName = "Application submitted",
+                Description = "Confirms receipt and moves the case into reviewer handling.",
+                Kind = StageKind.Confirmation,
+                Actor = "applicant"
+            }
         ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "declaration", ToStage = "submitted", Action = "submit" }
-        ]
+            new AuthoredTransition { FromStage = "declaration", ToStage = "application-form", Action = "continue" },
+            new AuthoredTransition { FromStage = "application-form", ToStage = "check-answers", Action = "continue" },
+            new AuthoredTransition
+            {
+                FromStage = "check-answers",
+                ToStage = "submitted",
+                Action = "submit",
+                Conditions =
+                [
+                    new AuthoredCondition
+                    {
+                        Expression = "application.isComplete == true",
+                        Description = "Prevent submission until the applicant has completed the form."
+                    }
+                ],
+                Actions =
+                [
+                    new AuthoredAction
+                    {
+                        Type = "forms.submit",
+                        Timing = ActionTiming.OnTransition,
+                        ParameterSchemaKey = "forms-form-definition",
+                        Parameters = new JsonObject
+                        {
+                            ["formDefinitionId"] = "planning-application"
+                        },
+                        Summary = "Submit the application form to the business app."
+                    }
+                ]
+            }
+        ],
+        Handoffs =
+        [
+            new AuthoredHandoff
+            {
+                Id = "applicant-to-caseworker",
+                FromStage = "check-answers",
+                ToStage = "submitted",
+                Label = "applicant-to-caseworker",
+                ActorChange = "caseworker"
+            }
+        ],
+        ParameterSchemas =
+        [
+            new AuthoredParameterSchema
+            {
+                Key = "forms-form-definition",
+                Title = "Forms engine definition reference",
+                Description = "Shared parameter contract for load/save/submit form actions.",
+                AppliesTo = ["forms.load", "forms.save", "forms.submit"],
+                ValueKind = ParameterValueKind.Object,
+                AllowAdditionalProperties = false,
+                Properties =
+                [
+                    new AuthoredParameterDefinition
+                    {
+                        Key = "formDefinitionId",
+                        Title = "Form definition id",
+                        Description = "Stable forms-engine key to load or persist.",
+                        ValueKind = ParameterValueKind.String,
+                        Editor = "text"
+                    }
+                ],
+                Required = ["formDefinitionId"]
+            }
+        ],
+        Metadata = new Dictionary<string, string>
+        {
+            ["serviceArea"] = "Planning",
+            ["owner"] = "planning-team"
+        }
     };
 
     private static AuthoredWorkflow CommunityEnquiryWorkflow() => new()
