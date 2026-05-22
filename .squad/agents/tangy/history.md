@@ -161,3 +161,114 @@ The behavioral proof is complete and ready. It proves the four critical shell im
 **Your tests are unblocked:** All semantic hooks documented in your spec. Ready to run once Isabelle's shell implementation lands. Validation commands: `npm run build`, `playwright test workflow-editor-shell.spec.ts`, `npm run test:playwright:planning-smoke`.
 
 **Status:** All squad metadata written; ready for merge.
+
+## 2026-05-22T20:09:11Z — Browser-Surface Behavioral Proof: Delivery Complete
+
+**Status:** ✅ APPROVED & READY FOR VALIDATION
+
+**Deliverable:** Browser-surface behavioral proof proving editor usability in browser-hosted environment
+
+**Test Suite Delivered:**
+
+1. **`workflow-browser-surface.spec.ts`** — 22 tests covering:
+   - Visual workspace prioritization (4 tests)
+     - Editor frame ≥60% viewport height
+     - Hero chrome ≤30% viewport height
+     - Swim lanes visible without excessive scrolling
+     - Stage cards not pointer-blocked
+   - Swim lane reachability & navigation (4 tests)
+     - All lanes reachable via keyboard
+     - Screen-reader labels (`aria-label`)
+     - Horizontal scroll contained
+     - Zoom/fit controls functional
+   - Keyboard & screen reader accessibility (5 tests)
+     - Skip link jumps to editor
+     - Tab order logical
+     - Screen reader announces structure
+     - Focus restoration after Escape
+     - Live region announcements
+   - Editing flow from browser entry (6 tests)
+     - Create stage
+     - Edit properties
+     - Save workflow
+     - Undo/redo
+     - Switch workflows
+     - Clean reload
+   - Browser edge cases (3 tests)
+     - Window resize
+     - URL state persistence
+     - 150% zoom support
+
+2. **Enhanced `01-planning-workflow-editor.walkthrough.spec.ts`**
+   - 3 new browser-surface assertions
+   - Workspace prioritization check
+   - Swim lane visibility check
+   - Stage clickability check (before keyboard fallback)
+
+**Root Problem Addressed:**
+Testing editor in Storybook isolation does NOT prove browser-hosted reality. Evidence from PR #75: planning walkthrough failed because "Send" button was pointer-blocked by overlapping editor chrome.
+
+**Solution:**
+Dedicated behavioral proof testing editor in real mounted context at `/workflow-editor.html` with documented semantic hooks.
+
+**Semantic Hooks Documented (inline in tests):**
+
+**Critical Path (must-have):**
+- `[data-prism-role-lane]` with `aria-label="Role: {role} lane"`
+- `[data-prism-stage]` with `aria-label="{title} stage"`
+- `.editor-frame` CSS: `min-height: 60vh`
+- `.hero` CSS: `max-height: 30vh`
+- Focus restoration pattern after Escape
+- Live region: `[role="status"][aria-live="polite"]`
+
+**Already Present (no re-implementation):**
+- `[data-prism-workflow-outline]` — outline tree
+- `[data-prism-outline-stage]` — outline items
+- `[data-prism-confidence-tabs]` — tabbed surfaces
+- `#workflow-editor-reference-main` — skip target
+- URL state: `?workflow={key}&api={base}`
+
+**Optional (graceful skip if absent):**
+- Zoom controls
+- Add stage UI
+- Stage creation form
+
+**Validation Commands (5-step gate):**
+```bash
+1. cd src/UmbracoPrism.Client && npm run build
+2. npm run test-storybook:ci:all
+3. npx playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line
+4. npm run test:playwright:planning-smoke
+5. npx playwright test tests/workflow-editor/workflow-browser-surface.spec.ts --reporter=line
+```
+
+**Expected Test States:**
+
+*Until Isabelle implements shell:*
+- `workflow-browser-surface.spec.ts` — FAILING (expected, awaiting hooks)
+- `workflow-editor-shell.spec.ts` — FAILING (expected)
+- `01-planning-workflow-editor.walkthrough.spec.ts` — PASSING (checks additive)
+- Existing editor specs — PASSING (unchanged)
+
+*After Isabelle lands shell:*
+- All specs → GREEN
+- Run full 5-command gate
+- Commit screenshot baselines if needed
+
+**Quality Bar Established:**
+Browser-surface spec proves editor is actually usable in real browser, not just theoretically correct in Storybook. This is the new quality bar for editor shell work.
+
+**Team Communication:**
+- All requirements documented inline in test comments
+- No ambiguity on what "usable in real browser" means
+- Implementation checklist provided for Isabelle
+
+**Integration Ready:**
+- Isabelle's shell implementation dependencies are clear
+- No test blockers from other squad members
+- All behavioral hooks documented with `BEHAVIORAL REQUIREMENT` comments
+
+**References:**
+- `.squad/decisions.md` — all 4 decisions merged
+- `.squad/orchestration-log/2026-05-22T20:09:11Z-tangy.md` — orchestration summary
+- `.squad/log/2026-05-22T20:09:11Z-browser-surface-orchestration.md` — session log
