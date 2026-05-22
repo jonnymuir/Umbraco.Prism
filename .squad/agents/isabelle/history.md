@@ -1,5 +1,46 @@
 # History: Isabelle (Frontend Dev)
 
+#### 2026-05-22T19:33:56.538+01:00 — Issue #74 role-first swim lanes completed
+
+Delivered the first usable slice of issue #74: horizontal role-first swim lanes replacing the old front-stage/back-stage canvas framing. The workflow graph now renders dynamic role lanes from stage actors, with each role (applicant, reviewer, etc.) getting its own lane row. Stages are positioned by actor rather than generic surface hint.
+
+**Key implementation changes:**
+- Graph canvas renders role lanes dynamically from stage actor data with lane headers showing role label, stage count, and description
+- Stages positioned in their role's lane with cross-lane transition routing that respects role boundaries
+- Single 'Add stage' button (context-aware) instead of separate front/back buttons
+- Role lanes are focusable sections with semantic labels and descriptions for keyboard + screen reader access
+- Embedded conversation pane removed per locked #74 direction; inspector remains persistent on the right
+- Stage aria-labels reference the role ("Declaration, Applicant role") not generic "front stage"
+- Graph workspace labeled as "Role-first workflow editor workspace"
+
+**Accessibility improvements:**
+- Role lanes exposed as focusable `<section>` elements with `aria-labelledby` and `aria-describedby`
+- Lane descriptions announced politely when focused ("Applicant lane. 2 stages. Public-facing stages and handoffs.")
+- Visual focus indicators on all lane controls with 3px WCAG-compliant outline
+- Keyboard Tab navigation through lanes, stages, transitions preserves role context
+
+**Supporting updates:**
+- Stories updated to validate role lane presence and test conversation pane absence
+- Walkthrough test updated to exercise role-lane structure and help surface (not embedded chat)
+- Visual baselines refreshed for swim-lane layout in both canvas and list modes
+- Design doc `01-authoring-ux.md` updated to reflect slice framing and inspector-first editing
+
+**Validation:**
+- Client build: ✅ Passes
+- Storybook CI (Chromium/Firefox/WebKit + axe): ✅ 312 tests pass, no accessibility violations
+- Workflow graph keyboard spec: ✅ 4 tests pass (navigation, create stage, delete confirmation, selection)
+- Planning smoke walkthrough: ✅ 1 test pass (1.1m full stack readiness)
+
+**Architecture patterns confirmed:**
+- Canvas owns structural layout (lanes, stage placement, transition routing)
+- Inspector remains the persistent detail editing surface for stage/action properties
+- List mode preserved as accessible structural fallback while canvas changes
+- Validation, preview, simulation, and help remain as supporting surfaces around the role-first workspace
+
+**Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.stories.ts`, `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`, `docs/design/workflow-editor-v1/01-authoring-ux.md`, `.squad/decisions/inbox/isabelle-issue74-slice.md`.
+
+**Status:** Issue #74 first usable slice complete and committed to `squad/74-role-first-swim-lanes` branch. Ready for Tangy's QA validation and PR review.
+
 #### 2026-05-21T21:54:07.868+01:00 — WebKit editor-host story stabilization
 
 - Diagnosed the remaining PR #75 Storybook WebKit blocker as story harness timing, not product state: the `Stage Selected` editor-host story was synthesizing a `stage-selected` event during render and then asserting after a fixed delay, which left WebKit free to observe the preview label before the real selection/render cycle had settled.
