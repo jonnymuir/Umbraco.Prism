@@ -217,7 +217,19 @@ public sealed class WorkflowProjector : IWorkflowProjector
     }
 
     private static IReadOnlyList<PrismComponent> EmitConfirmationComponents(AuthoredStage stage)
-        => [new PanelComponent { Heading = stage.DisplayName }];
+    {
+        var components = new List<PrismComponent>
+        {
+            new PanelComponent { Heading = stage.DisplayName }
+        };
+
+        if (!string.IsNullOrWhiteSpace(stage.Description))
+        {
+            components.Add(new BodyComponent { Content = stage.Description });
+        }
+
+        return components;
+    }
 
     private static IReadOnlyList<PrismComponent> EmitTaskListComponents()
         => [new TaskListComponent()];

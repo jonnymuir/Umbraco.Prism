@@ -225,6 +225,31 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         WorkflowDefinitionFile definition,
         Dictionary<string, object?>? fieldValues)
     {
+        if (string.Equals(definition.DefinitionKey, "payment-demo", StringComparison.OrdinalIgnoreCase)
+            && fieldValues is not null
+            && fieldValues.TryGetValue("amount", out var amountValue)
+            && decimal.TryParse(amountValue?.ToString(), out var amount)
+            && amount <= 0)
+        {
+            return new WorkflowResponseEnvelope
+            {
+                InstanceId = instance.InstanceId,
+                StateVersion = instance.StateVersion,
+                ResponseState = "validation_error",
+                CorrelationId = instance.InstanceId,
+                ServerTimeUtc = DateTimeOffset.UtcNow,
+                Problems =
+                [
+                    new WorkflowProblem
+                    {
+                        FieldKey = "amount",
+                        Code = "minimum_amount_required",
+                        Message = "Amount (£) must be at least 0.01."
+                    }
+                ]
+            };
+        }
+
         if (fieldValues == null
             || !fieldValues.TryGetValue("enquiry-type", out var enquiryTypeObj)
             || enquiryTypeObj?.ToString() != "Technical support"
