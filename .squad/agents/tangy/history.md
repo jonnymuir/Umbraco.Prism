@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-05-28 — Lane Header Clearance & Viewport Background Width Proof Tests
+
+**Status:** ✅ PROOFS WRITTEN AND VALIDATED (all 4 new tests GREEN)
+
+**What I delivered:**
+
+1. **Two new proof describe blocks** in `tests/workflow-editor/workflow-graph-layout-proof.spec.ts`:
+
+   **Block 1: Lane header clearance** (2 tests)
+   - Measures `.lane-heading` bottom, `.lane-copy` bottom, and first `[data-prism-stage]` top (relative to `.graph-scene`) per lane
+   - Test 1: `firstStageTop >= headingBottom AND firstStageTop >= copyBottom` (strict no-intrusion proof)
+   - Test 2: Gap (`firstStageTop - copyBottom`) `>= 4px` minimum breathing room
+   - Result: ✅ PASS — `LANE_HEADER_OFFSET = 80` places stage at 144px, copy bottom at ~124px → 20px gap. Regression had `LANE_HEADER_OFFSET = 44` causing 16px overlap; Isabelle's fix is mathematically verified.
+
+   **Block 2: Viewport background encompasses rightmost lane (shell context)** (2 tests)
+   - Loads `workflow-editor-editor-shell--reference-shell`, switches to `information-request` (3-lane workflow)
+   - Measures `.graph-viewport.clientWidth` vs `.graph-scene-frame.offsetWidth` and `canvas.scrollWidth` vs `sceneFrame.offsetWidth`
+   - Control: 1-lane `planning` workflow
+   - Result: ✅ PASS — `viewport.clientWidth = 1024px = sceneFrame.offsetWidth` in shell; `canvas.scrollWidth = 1058px > 1024px` → background covers full scene, user can scroll to rightmost lane
+
+2. **Decision document:** `.squad/decisions/inbox/tangy-lane-header-scene-width-proof.md`
+   - Includes measured geometry tables, explanation of why shell context is required for the viewport proof, semantic hooks for Isabelle if either proof starts failing in future
+
+3. **Comment correction:** Updated header comment in the lane-header proof block from `LANE_HEADER_OFFSET = 44` (stale) to `= 80` and corrected the "overlap proven" narrative to "no intrusion" to match the current fixed state.
+
+**Key technical findings:**
+
+- In the shell's scroll container (`canvas: overflow:auto`), `.graph-viewport` with `width:100%` and `overflow:visible` resolves its painted width to match the scene-frame content width in Chromium — so `viewport.clientWidth = sceneFrame.offsetWidth = 1024px` even when `canvas.clientWidth = 832px`. The background IS painted correctly; regression was in an older code state.
+- The `canvas.scrollWidth = 1058px > 1024px` confirms the user can scroll horizontally to reach all lane content even when the canvas is narrower than the scene.
+- Both proofs serve as **regression guards**: if either invariant is broken by future CSS changes, the tests will fail with clear measurements and diagnostic messages.
+
+**Validation:**
+```bash
+cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-layout-proof.spec.ts --grep "lane header clearance|viewport background" --reporter=line
+# Result: 4 passed
+```
+
+---
+
 ## 2026-05-23T12:27:26.493+01:00 — Graph Layout Regression Comprehensive Proof
 
 **Status:** ✅ COMPREHENSIVE PROOF DELIVERED (4 failures proven, 7 proofs passed)
