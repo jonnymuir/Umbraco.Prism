@@ -7,7 +7,7 @@ Backend Developer specializing in core infrastructure and pipeline design.
 - Fixed workflow definition mismatch between editor and runtime
 - Backend tests passing (803/803)
 
-**Latest:** Implemented startup workflow publishing for authored → runtime alignment (2026-05-19T22:50:10.335+01:00)
+**Latest:** Vinyl/Core notification boundary refactor — eliminated duplicate handler, moved vinyl types to TestSite (2026-05-23T13:51:28.022+01:00)
 
 ## Learnings
 
@@ -147,3 +147,20 @@ update: spawn-cohort-complete
 ## 2026-05-23 Spawn Completion
 
 Umbraco.Cms upgraded to 17.4.2 across all projects. User directive for warningless build achieved: 8 NuGet security warnings eliminated, 2 moderate severity CVEs patched (GHSA-2qjj-h6wp-c7h7, GHSA-vr9v-27gg-qgx4). All 811 core tests pass in Release configuration. Backward compatibility confirmed. Solution now clean for next iteration.
+
+## 2026-05-23T13:51:28.022+01:00 — Vinyl/Core notification boundary refactor
+
+Vinyl-specific types moved from `UmbracoPrism.Core` to `UmbracoPrism.TestSite`; duplicate TestSite handler deleted:
+
+- **Moved:** `PrismVinylNotificationController` → `UmbracoPrism.TestSite.Controllers`
+- **Moved:** `PrismVinylBackInStockRequest` → `UmbracoPrism.TestSite.Controllers.Models`
+- **Moved:** `LimitedEditionDropNotifier` → `UmbracoPrism.TestSite.BackgroundServices`
+- **Deleted:** Duplicate `PrismContentPublishedHandler` from TestSite; Core's config-driven handler is the sole keeper
+- **Config:** Added `Prism:Notifications:NotifiableContentTypes: vinylRecord` to TestSite `appsettings.json`
+- **Tests fixed:** `Phase1SecurityRegressionTests` and `PrismVinylNotificationSecurityTests` updated to `UmbracoPrism.TestSite.*` namespace references; security contracts preserved
+- **Ordering fix:** `WorkflowPatchServiceFailureTests` now uses `WorkflowAuthoringFixtureLocator` (source-tree fallback) instead of a direct assembly-path lookup, eliminating the planning-fixture test-ordering race
+
+Result: 815/815 backend tests green, build warning-clean. Decision doc: `.squad/decisions/inbox/blathers-vinyl-core-refactor.md`
+
+**Learnings:**
+- 2026-05-23T13:51:28.022+01:00 — Fixture ordering safety: all test classes that load workflow fixtures from the shared output directory must use `WorkflowAuthoringFixtureLocator.GetFixturesPath()` (source-tree fallback), NOT a direct `Assembly.Location`-based path. `WorkflowAuthoringEndpointsTests` resets that directory on factory init, and concurrent xUnit test collection scheduling can create a race. The locator walks up the directory tree and finds the source fixtures when the output copy is temporarily absent.
