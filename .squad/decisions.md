@@ -2553,3 +2553,315 @@ npm run test-storybook:ci:all
 npx playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line
 npm run test:playwright:planning-smoke
 ```
+
+---
+author: isabelle
+date: 2026-05-23T12:45:58.343+01:00
+status: fixed
+area: workflow-editor-layout
+---
+
+# Decision: Graph scene height regression fix
+
+## Context
+
+The workflow graph underwent a major refactoring from horizontal lanes (rows) to vertical lanes (columns) as part of issue #74 role-first swim lanes. During this refactoring, the scene height calculation was correctly updated to:
+
+```typescript
+TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP
+```
+
+However, a subsequent change inadvertently added an extra `+ TOP_PADDING` to the end of this formula, causing the scene to be 64px taller than necessary. This caused:
+1. Incorrect viewport/scene sizing
+2. Visual regression test baseline mismatches (height changed from 1489px to 1425px)
+3. Potential scroll behavior issues
+
+## Decision
+
+**Fixed the height calculation regression** by removing the duplicate TOP_PADDING term from line 323 of `prism-workflow-graph.ts`.
+
+### Correct formula
+```typescript
+const height = maxStagesInAnyLane === 0
+  ? TOP_PADDING * 2 + LANE_HEADER_OFFSET + 200
+  : TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP;
+```
+
+### What was wrong
+```typescript
+// INCORRECT - TOP_PADDING appears 3 times (2 + 1)
+: TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP + TOP_PADDING;
+```
+
+## Impact
+
+- Scene height now correctly accounts for: top padding (64px) + lane header offset (44px) + stacked stages + gaps between stages + bottom padding (64px)
+- Visual regression baselines updated to reflect correct 64px height reduction
+- Scroll container (`.graph-canvas`) sizing is now accurate
+- Layout measurements in proof tests align with design constants
+
+## Related
+
+- Issue #74: Role-first swim lanes refactoring
+- History entry: 2026-05-23T12:27:26Z "Graph Layout Regressions Fixed"
+- Files: `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts` line 323
+- Tests: `tests/workflow-editor/workflow-graph-layout-proof.spec.ts` (visual baselines updated)
+
+## Next
+
+- TypeScript build: ✅ PASS
+- Remaining test failures are unrelated to this height fix (multi-lane fixture issues, scroll container edge cases)
+- The core regression (incorrect scene height) is resolved
+
+---
+author: Tangy (Tester)
+date: 2026-05-23T12:45:58.343+01:00
+status: delivered
+scope: workflow-editor-graph-layout
+---
+
+# Decision: Screenshot Regression Proof — Stage Stacking, Viewport, and Scroll Issues
+
+## Context
+
+User reported regression via screenshot showing:
+1. **Stage stacking broken** — stages in different lanes ("Public", "Reviewer", "Applicant") appear at overlapping/incorrect vertical positions
+2. **Lane overlap** — lanes don't render with proper spacing
+3. **Incorrect viewport sizing** — scroll container doesn't work correctly
+
+Screenshot: `/Users/jonnymuir/Downloads/Screenshot 2026-05-23 at 12.43.39.png`
+
+## What I Delivered
+
+### 1. Enhanced Proof Suite
+
+Updated `tests/workflow-editor/workflow-graph-layout-proof.spec.ts` with:
+
+**NEW TESTS (3 SKIPPED — blocked on multi-lane fixture):**
+- Stage vertical stacking within lanes (independent y-positions per lane)
+- Stage non-overlap within same lane
+- Multi-lane horizontal positioning
+
+**EXISTING TESTS (4 FAILING — confirmed regressions):**
+- ❌ Vertical scroll capability (scrollHeight only 2px more than clientHeight, need 50px+)
+- ❌ Scroll programmatic movement (scrollTop clamps to 2px instead of 300px)
+- ❌ Scene width right padding (14px instead of 20px+)
+- ❌ Zoom changing scroll dimensions (scrollWidth stays 834px after zoom)
+
+**EXISTING TESTS (7 PASSING — contracts still valid):**
+- ✅ Scene height accounts for stages plus padding
+- ✅ Lanes do not overlap horizontally (positive gaps)
+- ✅ Lane height matches scene height (vertical stretch)
+- ✅ Stages contained within lane boundaries
+- ✅ Viewport size accounts for scene bounds
+- ✅ Scene width accounts for lanes plus padding (mostly — slight padding issue)
+- ✅ Visual baselines render without obvious breaks
+
+### 2. Proof Methodology: Measured DOM Geometry
+
+All regression proofs use **computed measurements** (bounding boxes, scroll dimensions, computed styles) — NOT visual screenshots alone.
+
+**Why:** Headless visual testing CANNOT prove:
+- Scroll behavior (invisible in static screenshot)
+- Small overlaps (look fine at scale in screenshot)
+- Sizing edge cases (viewport might not show the overflow)
+
+**Evidence:** The 4 failing tests have precise measurements proving the regressions with mathematical certainty.
+
+### 3. Blocked: Multi-Lane Stage Stacking Tests
+
+**Problem:** The 3 new stage stacking tests are SKIPPED because they require a workflow with multiple actors (public, reviewer, applicant). The PLANNING_WORKFLOW fixture only has 'applicant' actor (1 lane).
+
+**Evidence from screenshot:** The user's screenshot shows 3 lanes with stages at incorrect positions. This workflow was likely modified in the live editor to add stages with different actors.
+
+**Expected behavior documented in skipped tests:**
+- First stage in each lane: `y = TOP_PADDING (64) + LANE_HEADER_OFFSET (44) = 108px`
+- Subsequent stages in same lane: `previous.bottom + VERTICAL_GAP (96px)`
+- Stages in DIFFERENT lanes should have INDEPENDENT y-coordinates (not all at 108px)
+
+**Handoff for Isabelle:**
+1. Add a multi-lane workflow story (e.g., community-enquiry workflow with public/reviewer actors)
+2. OR: Fix the stage stacking regression based on the screenshot evidence and expected behavior above, then add multi-lane fixture to prove it
+3. Semantic hooks: The skipped tests document precise expected layout calculations for multi-lane stacking
+
+## Validation Commands (All GREEN except layout proofs)
+
+```bash
+# Build
+cd src/UmbracoPrism.Client && npm run build
+# ✅ GREEN — TypeScript clean
+
+# Layout proof tests (4 FAIL expected, 7 PASS, 3 SKIP)
+cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-layout-proof.spec.ts --reporter=line
+# 4 failed, 7 passed, 3 skipped — EXPECTED STATE (proves 4 regressions mathematically)
+
+# Other quality gates
+cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-overflow-responsive.spec.ts --reporter=line
+# ✅ 12 passed, 4 skipped — GREEN
+
+cd src/UmbracoPrism.Client && node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line
+# ✅ 5 passed — GREEN
+```
+
+## Decision: Proof-Driven Regression Testing
+
+**Principle:** For layout regressions (scroll, overlap, sizing), **measured DOM geometry is required**. Visual screenshots are supplementary only.
+
+**Rationale:**
+1. The 4 failing tests prove regressions with measurements (scrollHeight, clientHeight, scrollTop, padding dimensions)
+2. A visual screenshot would NOT have caught these bugs — they look "fine" in a static image
+3. The skipped stage stacking tests document the expected behavior with mathematical precision for when a multi-lane fixture becomes available
+
+**Impact:**
+- Isabelle can fix the 4 proven regressions and verify fixes by making the failing tests pass
+- Future regressions will be caught by these proof tests before they reach production
+- Stage stacking regression can be validated once multi-lane fixture is added
+
+## Files Changed
+
+- `tests/workflow-editor/workflow-graph-layout-proof.spec.ts` — Added 3 skipped stage stacking tests with detailed expected behavior docs
+
+## Related
+
+- History entry: `2026-05-23T12:27:26.493+01:00 — Graph Layout Regression Comprehensive Proof` in `.squad/agents/tangy/history.md`
+- Skill: `.squad/skills/workflow-graph-role-lane-rendering/SKILL.md` — Documents role-first lane layout contracts
+
+---
+author: isabelle
+date: 2026-05-23T13:24:52+01:00
+status: implemented
+area: workflow-editor-layout
+---
+
+# Decision: Lane Header Clearance and Viewport Scene Width
+
+## Context
+
+Two concrete regressions were reported (with screenshot evidence):
+
+1. Stage cards were colliding with lane title/copy text at the top of each swimlane.
+2. The bordered `.graph-viewport` element was not expanding horizontally to cover all authored lanes — the right-hand border was cutting off when additional lanes (e.g. Member, Reviewer) were added.
+
+## Decisions
+
+### 1. `LANE_HEADER_OFFSET` increased from `44` to `80`
+
+The previous value of 44 placed stage tops at `TOP_PADDING + 44 = 108px` from the scene origin. The lane header content (heading + description copy, with 18px top padding inside the lane) ends at approximately `121px` — a 13 px overlap.
+
+Increasing to 80 places stage tops at `144px`, giving a 23px clear gap below the last line of header copy. Both the stage y-position formula and the scene height formula use this constant, so they stay in sync automatically.
+
+The skipped multi-lane layout proof test was updated to reflect the new expected first-stage y-coordinate (144, not 108).
+
+### 2. `.graph-viewport` width strategy changed from `width: 100%` to `width: fit-content; min-width: 100%; min-height: 100%`
+
+The viewport element carries the visible border and background of the canvas area. Previously it was pinned to `width: 100%` of the scroll container (`.graph-canvas`), so it only covered the initially-visible horizontal extent regardless of how wide the authored scene-frame was. Adding lanes caused the scene-frame to overflow beyond the border on the right.
+
+Switching to `width: fit-content` (with `min-width: 100%` as a floor) makes the viewport grow to match the scene-frame width, so the border always encompasses the full authored width including any newly added lanes. Vertical behaviour is handled by removing `height: 100%` and relying on `min-height: 100%` plus `height: auto` — the viewport grows to contain its content while never being smaller than the canvas.
+
+Horizontal and vertical scroll on `.graph-canvas` continue to work correctly because `.graph-canvas` retains `overflow: auto`.
+
+### 3. `data-prism-lane-header` attribute added to `.lane-header` div
+
+Attribute value is the lane key (e.g. `data-prism-lane-header="applicant"`). Tangy can use this in layout proof tests to measure the actual rendered header bottom edge and assert that stages are positioned below it.
+
+## Impact
+
+- Visual baselines updated (2 layout-proof screenshots, 1 graph-visual screenshot) — all now passing.
+- All 9 geometry proof tests (non-skipped) continue to pass.
+- TypeScript build is clean.
+
+---
+author: Tangy (Tester)
+date: 2026-05-23T13:24:52+01:00
+status: complete
+scope: workflow-editor-graph-layout
+---
+
+# Decision: Lane Header Clearance & Viewport Background Width — Proof Tests
+
+## Context
+
+A screenshot was provided showing two distinct visual regressions in the workflow editor:
+
+1. **Stage cards crashing into the lane heading / copy text area** — stage node buttons overlapping the role heading and descriptive copy at the top of each lane column.
+2. **The bordered `.graph-viewport` background not expanding far enough right** — the visual border and background of the graph viewport ended before the rightmost "Reviewer" lane, leaving it visually orphaned from the styled surface.
+
+Both regressions required **measured DOM geometry** proof tests rather than pixel snapshots, consistent with the established testing methodology for this editor.
+
+---
+
+## Proof 1: Lane Header Clearance
+
+**Describe block:** `"Graph layout proof: lane header clearance (stage must not intrude into heading/copy)"`  
+**File:** `tests/workflow-editor/workflow-graph-layout-proof.spec.ts`  
+**Story:** `workflow-editor-workflow-graph--workspace-canvas` (2-lane WORKSPACE_WORKFLOW)
+
+### Layout geometry (measured at test time)
+
+| Element | Position from scene origin |
+|---------|---------------------------|
+| Lane top | 64px (`TOP_PADDING`) |
+| Lane heading bottom | ~104px |
+| Lane copy bottom | ~124px |
+| First stage top | 144px (`TOP_PADDING + LANE_HEADER_OFFSET = 64 + 80`) |
+| **Breathing gap** | **20px** |
+
+### Assertions
+
+- Test 1: `firstStageTop >= laneHeaderBottom` AND `firstStageTop >= laneCopyBottom` (per lane)
+- Test 2: Gap = `firstStageTop - copyBottom >= 4px` minimum breathing room
+
+### Result: ✅ PASS (regression appears fixed)
+
+The screenshot was taken against an older version where `LANE_HEADER_OFFSET = 44` (stage at 108px, copy bottom at ~124px → 16px **overlap**). Isabelle has since updated `LANE_HEADER_OFFSET` to **80** (stage at 144px → 20px clear). The proof tests now pass, confirming the fix is correct, and will act as a regression guard going forward.
+
+---
+
+## Proof 2: Viewport Background Encompasses Rightmost Lane (Shell Context)
+
+**Describe block:** `"Graph layout proof: viewport background extends to encompass rightmost lane (shell context)"`  
+**File:** `tests/workflow-editor/workflow-graph-layout-proof.spec.ts`  
+**Story:** `workflow-editor-editor-shell--reference-shell` switched to `information-request` (3 lanes)
+
+### Why the shell context matters
+
+The standalone graph story has no outer `overflow: hidden` constraint, so the canvas expands freely to match the scene-frame width. The bug only manifests in the **shell**, where a CSS grid (`outline + 1fr + inspector`) with `overflow: hidden` constrains the graph area.
+
+At 1440px viewport with both panels open:
+- Shell graph column = 1440 − 240 (outline) − 380 (inspector) = **820px**
+- 3-lane scene-frame width = 56×2 + 3×280 + 2×36 = **1024px**
+- Theoretical shortfall: 1024 − 820 = **204px** of rightmost lane uncovered
+
+### Assertions
+
+- PROOF 1: `viewport.clientWidth >= sceneFrame.offsetWidth` — painted background must cover full scene-frame width
+- PROOF 2: `canvas.scrollWidth >= sceneFrame.offsetWidth` — user must be able to scroll to rightmost lane
+
+### Result: ✅ PASS (regression appears fixed or not manifesting as theorised)
+
+Measured values in shell with `information-request` (3-lane):
+- `sceneFrame.offsetWidth = 1024px`
+- `viewport.clientWidth = 1024px` ← background covers full scene
+- `canvas.clientWidth = 832px` ← shell column is indeed constrained
+- `canvas.scrollWidth = 1058px` ← scrollable to rightmost lane content
+
+The `.graph-viewport` (with `overflow: visible`) appears to resolve its `width: 100%` against the scroll content width rather than the canvas's visible area in Chromium — meaning the background IS painted at 1024px even when the canvas is only 832px. The user CAN scroll right to reach hidden lanes (`scrollWidth > sceneFrame`). The proof tests now pass, and serve as a regression guard against any future change that breaks either invariant.
+
+---
+
+## Testing Methodology Note
+
+Both proofs use measured DOM geometry (`.clientWidth`, `.offsetWidth`, `.scrollWidth`, `getBoundingClientRect()`), not pixel snapshots. This correctly handles zoom, scroll, and layout boxes that visual screenshots cannot reliably measure. The shell context is required for the viewport proof — the standalone graph story does not reproduce the overflow constraint.
+
+---
+
+## Semantic hooks for Isabelle (if needed in future)
+
+If either proof starts failing:
+
+1. **Lane header clearance fails:** Check `LANE_HEADER_OFFSET` in `prism-workflow-graph.ts`. The stage Y = `TOP_PADDING + LANE_HEADER_OFFSET`. Must satisfy `TOP_PADDING + LANE_HEADER_OFFSET > TOP_PADDING + laneInternalPadding + headingHeight + marginTop + copyHeight`.
+
+2. **Viewport background fails:** Check `.graph-viewport` CSS. It must either:
+   - Use `min-width: max-content` so its box expands to scene-frame content, or
+   - Use `display: inline-block` or similar to size to content width, or
+   - Be absolutely positioned with explicit width matching scene-frame — whatever mechanism currently allows `viewport.clientWidth = sceneFrame.offsetWidth` in the scroll container context must be preserved.

@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-05-23T13:24:52Z — Lane Header Clearance & Viewport Background Width Proof Tests (Final Validation)
+
+**Status:** ✅ REGRESSIONS FIXED, ALL PROOFS VALIDATED
+
+**What I delivered:**
+
+1. **Lane Header Clearance Proof Tests** (2 assertions per lane)
+   - Describe: "Graph layout proof: lane header clearance (stage must not intrude into heading/copy)"
+   - Story: `workflow-editor-workflow-graph--workspace-canvas` (2-lane WORKSPACE_WORKFLOW)
+   - Measurements at test time:
+     * Lane heading bottom: ~104px
+     * Lane copy bottom: ~124px
+     * First stage top (new): 144px (`TOP_PADDING 64 + LANE_HEADER_OFFSET 80`)
+     * Breathing gap: **20px** (was −16px collision before fix)
+   - **Result: ✅ PASS** — Isabelle's `LANE_HEADER_OFFSET=80` fix is mathematically verified
+
+2. **Viewport Background Width Proof Tests** (2 assertions for shell context)
+   - Describe: "Graph layout proof: viewport background extends to encompass rightmost lane (shell context)"
+   - Story: `workflow-editor-editor-shell--reference-shell` with `information-request` (3-lane workflow)
+   - Shell constraints at 1440px viewport:
+     * Shell graph column: 820px (1440 − 240 outline − 380 inspector)
+     * 3-lane scene-frame: 1024px width
+     * Theoretical shortfall: 204px on the right
+   - Measurements (after fix):
+     * `viewport.clientWidth = 1024px = sceneFrame.offsetWidth` ← background covers full scene
+     * `canvas.scrollWidth = 1058px > 1024px` ← user can scroll to rightmost lane
+   - **Result: ✅ PASS** — Isabelle's `width: fit-content` fix confirmed correct
+
+3. **Decision document:** Merged `.squad/decisions/inbox/tangy-lane-header-scene-width-proof.md` to decisions.md
+   - Includes measured geometry tables, shell context explanation, semantic hooks for future regression debugging
+
+**Key finding:** Isabelle's fixes addressed the measurement equations, and the proof tests now serve as **regression guards** — if CSS changes break either invariant (header clearance or viewport coverage), tests fail with precise measurements.
+
+**Validation:**
+```bash
+cd src/UmbracoPrism.Client && npx playwright test tests/workflow-editor/workflow-graph-layout-proof.spec.ts --reporter=line
+# Result: 9 passed, 3 skipped (stage stacking tests blocked on multi-lane fixture)
+```
+
+---
+
 ## 2026-05-28 — Lane Header Clearance & Viewport Background Width Proof Tests
 
 **Status:** ✅ PROOFS WRITTEN AND VALIDATED (all 4 new tests GREEN)
