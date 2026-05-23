@@ -1249,3 +1249,106 @@ node node_modules/.bin/playwright test tests/workflow-editor/workflow-browser-su
 
 Expected: 22/22 tests pass.
 
+---
+date: 2026-05-23T08:30:10.563+01:00
+author: jonny
+status: directive
+---
+
+# User Directive: Reference Host Minimalism
+
+Keep the reference host minimal and easy to use. Move explanatory host chrome into documentation. Simplify the launch/header area. Remove the editable authoring API base from the main host flow. Give the mounted editor enough vertical space to own the screen rather than stacking tabs underneath it.
+
+**Why:** User request for better UX focus on the editor, not the host chrome.
+
+---
+---
+date: 2026-05-23T08:30:10+01:00
+author: isabelle
+status: implemented
+area: workflow-editor-ux
+---
+
+# Decision: Workflow Editor Tabbed Layout Redesign
+
+Restructured the workflow editor to use a tabbed layout with Canvas as the primary tab. The main editing workspace (outline + canvas + inspector) is now the "Canvas" tab, alongside Validation, Preview, Simulation, and Help tabs.
+
+## What Changed
+
+- Canvas tab is now default and primary, giving the editing surface full vertical expansion
+- Removed fixed 280px height constraint on confidence panels
+- Tab bar: Canvas | Validation | Preview | Simulation | Help
+- Confidence tools (validation, preview, simulation) are now tab-accessible rather than always-visible
+
+## Why
+
+User feedback indicated the editing surface itself was too small. By making the editor a tab itself rather than nesting tabs underneath, the workspace can expand vertically as needed without constraints.
+
+## Impact
+
+- Editor workspace gains full vertical height
+- Outline, graph, and inspector get more breathing room
+- Authors land in the Canvas (workspace) first, access tools via tabs
+- Clean build, accessibility structure preserved
+
+---
+---
+date: 2026-05-23T08:30:10.563+01:00
+author: mabel
+status: implemented
+scope: documentation
+related_files:
+  - docs/guides/workflow-editor-composition.md
+---
+
+# Decision: Host Philosophy — Keep the Reference Shell Minimal
+
+Move all explanatory host content into user-guides documentation. Simplify the reference shell to a thin, focused interface for workflow selection and editor mounting. Remove dynamic authoring API configuration from the UI.
+
+## Why
+
+The reference shell was teaching two concepts: how to mount the editor (operational), and why hosts should stay thin (philosophical). This made the UI cluttered. The shell serves mounting and selection; documentation teaches philosophy.
+
+## What Changed
+
+**Removed:** Hero section, explanatory text, editable API field, integration snippet card, launch form  
+**Kept:** Workflow selection dropdown, minimal topbar, full-screen editor, URL parameter handling  
+**Moved to docs:** Integration patterns, why hosts stay thin, building custom hosts (in `docs/guides/workflow-editor-composition.md`)
+
+## Impact
+
+- Reference shell is now a clean, focused UI for developers
+- Philosophy and patterns documented in guides
+- More screen real estate for the editor
+- Easier to keep sync: changes to philosophy update docs once, shell stays stable
+
+---
+---
+date: 2026-05-23T08:30:10.563+01:00
+author: tangy
+status: behavioral-proof-landed
+area: workflow-editor-ux
+---
+
+# Decision: Layout Professionalisation Behavioral Proof
+
+Landed behavioral test suite (`layout-professionalization.spec.ts`) proving the reference host will be cleaned up per user directive.
+
+## Five Proof Dimensions
+
+1. **Host chrome minimization** — Hero ≤15% viewport, explanatory prose removed, integration rail hidden
+2. **Simplified launch flow** — API base not exposed in UI, workflow selection compact
+3. **Editor surface prioritization** — Editor ≥80% viewport height, not a section within chrome
+4. **Keyboard/screen reader access** — Skip link, tab order within 5 tabs, keyboard shortcuts preserved
+5. **Editor functionality preserved** — Outline, graph/list, inspector, tabs, swim lanes all functional
+
+## Semantic Hooks for Implementation
+
+**Critical:** `.hero` max-height, remove prose, hide `.integration-rail`, hide API input, collapse/remove `.launch-card`, remove section headings, `.editor-frame` ≥80% viewport  
+**Optional:** `[data-prism-workflow-selector]` if selection visible  
+**Already present:** Skip link, outline, tabs, stage cards, graph/list toggle
+
+## Test Status
+
+Tests in `layout-professionalization.spec.ts` will fail until implementation lands. Validation gate covers 5 commands (build, Storybook, keyboard, planning walkthrough, layout proof).
+

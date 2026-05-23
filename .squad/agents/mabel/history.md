@@ -93,3 +93,29 @@ Defined practical GitHub issue structure, naming conventions, labels, milestones
 **Consequence:** Documentation now anchors E2E tests as enforcement mechanism; downstream developers see seam for plugging custom repository.
 
 **Basis:** Mabel background agent submission to Scribe inbox.
+
+---
+
+## 2026-05-23T07:42:49Z — Session Orchestration & Decisions Integration
+
+**Scribe orchestration completed:** All decisions merged to `.squad/decisions.md`; orchestration logs created.
+
+**Documentation delivered:**
+- `docs/guides/workflow-editor-composition.md` — Host composition patterns, simplest way, why hosts stay thin, configuration philosophy, building custom hosts
+- `docs/guides/README.md` — Guide navigation and index
+- `mabel-host-guidance-docs.md` — Decision merged to `.squad/decisions.md`
+
+**Team status:**
+- Isabelle: Tabbed layout redesign delivered; Canvas tab primary, confidence tools secondary
+- Tangy: Layout professionalization behavioral proof delivered (22 tests); awaiting shell implementation
+- Mabel: Host philosophy fully documented; reference shell now minimal and focused
+
+**Philosophy established:**
+- Documentation is source of truth for host patterns
+- Reference shell is implementation example, not tutorial
+- Thin shells, thick business logic (Prism principle)
+- Easier to keep in sync: philosophy updates docs, shell design stays stable
+
+**Decision:** Host is now production-ready for simple, focused editor mounting.
+
+---

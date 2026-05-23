@@ -162,3 +162,24 @@
 **Trade-Off:** Kept canvas persistent (graph/list) rather than tabbed; can add canvas tabs later without breaking infrastructure
 
 **Quality Gate:** ✅ Build clean, keyboard 7/7, validation 1/1
+
+---
+
+## 2026-05-23T07:42:49Z — Session Orchestration & Decisions Integration
+
+**Scribe orchestration completed:** All decisions merged to `.squad/decisions.md`; orchestration logs created.
+
+**Team status:**
+- Isabelle: Tabbed layout redesign delivered; awaiting test integration and validation
+- Tangy: Layout professionalization behavioral proof landed (22 tests); awaiting implementation integration
+- Mabel: Host philosophy documentation moved to guides; host minimization complete
+
+**Decisions merged:**
+1. User directive (host minimalism)
+2. Workflow editor tabbed layout redesign
+3. Host philosophy (keep reference shell minimal)
+4. Layout professionalisation behavioral proof
+
+**Next phase:** Full validation gate when all agents' work integrated; run 5 commands to verify end-to-end.
+
+---
