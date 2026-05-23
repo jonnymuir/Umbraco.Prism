@@ -119,3 +119,12 @@ Defined practical GitHub issue structure, naming conventions, labels, milestones
 **Decision:** Host is now production-ready for simple, focused editor mounting.
 
 ---
+
+## Session: Vinyl/Core Boundary Integration (2026-05-23T13:04:58.778000+00:00)
+
+All squad members deployed together to complete the vinyl/core boundary work. Architecture split successful:
+- Core remains reusable notification infrastructure
+- TestSite vinyl behavior is now opt-in
+- All 815 tests passing
+- 0 warnings in build/test lane
+

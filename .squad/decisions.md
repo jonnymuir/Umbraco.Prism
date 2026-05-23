@@ -2865,3 +2865,813 @@ If either proof starts failing:
    - Use `min-width: max-content` so its box expands to scene-frame content, or
    - Use `display: inline-block` or similar to size to content width, or
    - Be absolutely positioned with explicit width matching scene-frame — whatever mechanism currently allows `viewport.clientWidth = sceneFrame.offsetWidth` in the scroll container context must be preserved.
+
+---
+author: blathers
+date: 2026-05-23T13:51:28.022+01:00
+status: implemented
+area: notifications
+---
+
+# Decision: Vinyl/Core notification boundary — backend implementation
+
+## Context
+
+The vinyl demo features (`PrismVinylNotificationController`, `PrismVinylBackInStockRequest`,
+`LimitedEditionDropNotifier`) were embedded in `UmbracoPrism.Core`, making Core domain-specific.
+The TestSite had a duplicate `PrismContentPublishedHandler` that overlapped with Core's
+config-driven `PrismContentPublishedHandler`, risking double-fire on `ContentPublishedNotification`.
+
+Tom Nook, Brewster, and Tangy aligned on the split before implementation.
+
+## Decision
+
+### Moved out of Core → TestSite
+
+- `PrismVinylNotificationController` — vinyl-specific API endpoint, lives in `UmbracoPrism.TestSite.Controllers`
+- `PrismVinylBackInStockRequest` — vinyl-specific request model, lives in `UmbracoPrism.TestSite.Controllers.Models`
+- `LimitedEditionDropNotifier` — vinyl-specific background service, lives in `UmbracoPrism.TestSite.BackgroundServices`
+
+`LimitedEditionDropNotifier` is registered via `TestSiteComposer.builder.Services.AddHostedService<>()`,
+not PrismComposer, so it is absent from any downstream host that does not use the TestSite composer.
+
+### Deleted duplicate TestSite handler
+
+The old TestSite `PrismContentPublishedHandler` was deleted. Core's config-driven handler
+(`UmbracoPrism.Core.Notifications.PrismContentPublishedHandler`) is the single keeper.
+`Prism:Notifications:NotifiableContentTypes` in the TestSite `appsettings.json` is set to
+`vinylRecord` so the Core handler fires exactly once per vinyl publish.
+
+### TestSite `appsettings.json`
+
+Added:
+```json
+"Prism": {
+  "Notifications": {
+    "NotifiableContentTypes": "vinylRecord"
+  }
+}
+```
+
+### Security tests preserved
+
+The Phase1SecurityRegressionTests and PrismVinylNotificationSecurityTests that verified
+security properties of the vinyl controller and request model were updated to reference
+`UmbracoPrism.TestSite.Controllers` and `UmbracoPrism.TestSite.Controllers.Models`.
+These contracts remain tested and enforced.
+
+### Fixture ordering fix
+
+`WorkflowPatchServiceFailureTests` was using a direct assembly-path fixture locator
+instead of the shared `WorkflowAuthoringFixtureLocator`. This caused a test ordering
+race with `WorkflowAuthoringEndpointsTests` (which resets the fixture directory on
+factory init). Switched to `WorkflowAuthoringFixtureLocator.GetFixturesPath()` —
+the same source-tree-fallback-aware locator used by patch service and preview service tests.
+
+## Consequences
+
+- Core is now free of vinyl domain knowledge; downstream hosts that consume Core can use
+  the push notification infrastructure without pulling in vinyl-specific controllers.
+- Double-fire is impossible: the duplicate TestSite handler is gone; the Core handler fires
+  iff `vinylRecord` is in `NotifiableContentTypes`.
+- 815 backend tests pass, build is warning-clean.
+
+---
+date: 2026-05-23T13:51:28.022+01:00
+author: brewster
+status: proposed
+---
+
+# Vinyl / Notifications Boundary Decision
+
+## Context
+
+The codebase currently has vinyl-specific logic in Core that belongs in the TestSite, and a genuinely reusable notification mechanism in Core that is correct. There is also a duplicate `PrismContentPublishedHandler` — one in each project — that needs to be reconciled.
+
+---
+
+## Clear Findings
+
+### What is correctly in Core (keep as-is)
+
+These are reusable Prism platform primitives that any tenant application can consume:
+
+| File | Reason |
+|---|---|
+| `Services/IPrismNotificationService.cs` | Generic push notification contract: token registration, genre subscriptions, fan-out delivery |
+| `Services/PrismNotificationService.cs` | Firebase/FCM implementation of the above; domain-agnostic |
+| `Services/INotificationRateLimitService.cs` | Generic rate limiting for notification operations |
+| `Services/NotificationRateLimitService.cs` | Implementation |
+| `Persistence/PrismNotificationSubscriptionSchema.cs` | DB schema for per-user genre subscriptions |
+| `Persistence/CreatePrismNotificationSubscriptionsTable.cs` | Migration for the above |
+| `Controllers/PrismNotificationController.cs` | Mobile API for token registration and genre subscribe/unsubscribe — tenant-agnostic, works for any domain |
+| `Notifications/PrismContentPublishedHandler.cs` | Configurable handler driven by `Prism:Notifications:NotifiableContentTypes`; reads `prismTenantId` and `notificationGenre` properties from published content — this is the correct, generalised version |
+
+### What must move OUT of Core → TestSite
+
+| File | Why it does not belong in Core |
+|---|---|
+| `Controllers/PrismVinylNotificationController.cs` | Hardcodes Vinyl Vault business logic: "back-in-stock" concept, `🎵 Back in Stock:` message text, vinyl-specific routing (`umbraco/prism/vinyl`). This is a demo application endpoint, not a reusable platform API. |
+| `Controllers/Models/PrismVinylBackInStockRequest.cs` | Request model for the vinyl-specific endpoint; meaningless outside the TestSite domain |
+| `BackgroundServices/LimitedEditionDropNotifier.cs` | Hardcodes "Limited Edition Drop" concept, "Vinyl Vault" brand copy, and demo notification text. Its only caller is `PrismComposer.AddHostedService<LimitedEditionDropNotifier>()`. This is TestSite demo content, not a platform primitive. |
+
+### The duplicate handler problem
+
+There are **two** `PrismContentPublishedHandler` classes:
+
+- `UmbracoPrism.Core.Notifications.PrismContentPublishedHandler` — the correct version; configurable via `Prism:Notifications:NotifiableContentTypes`; reads `prismTenantId` from content property; registered in `PrismComposer`.
+- `UmbracoPrism.TestSite.PrismContentPublishedHandler` — an older, inferior version; hardcodes `vinylRecord` alias; uses `"default-tenant"` placeholder for tenantId (marked `// TODO`); registered again in `TestSiteComposer`.
+
+**Resolution:** Delete the TestSite duplicate. The Core handler already covers the vinyl record use case — an operator simply needs to add `vinylRecord` to `Prism:Notifications:NotifiableContentTypes` in appsettings. The Core handler's `prismTenantId` property lookup is the correct pattern; the TestSite version's `"default-tenant"` stub is broken by design.
+
+---
+
+## Recommended Boundary
+
+```
+Core (platform, reusable)
+├── IPrismNotificationService          ✅ keep
+├── PrismNotificationService           ✅ keep
+├── INotificationRateLimitService      ✅ keep
+├── NotificationRateLimitService       ✅ keep
+├── PrismNotificationSubscriptionSchema ✅ keep
+├── CreatePrismNotificationSubscriptionsTable ✅ keep
+├── PrismNotificationController        ✅ keep  (generic push registration API)
+└── Notifications/PrismContentPublishedHandler ✅ keep (configurable, not vinyl-specific)
+
+TestSite (business-domain / demo)
+├── VinylVaultContentTypes             ✅ already here
+├── VinylVaultSeeder                   ✅ already here
+├── Controllers/VinylNotificationController  ← MOVE from Core
+├── Controllers/Models/VinylBackInStockRequest ← MOVE from Core
+└── BackgroundServices/LimitedEditionDropNotifier ← MOVE from Core
+
+DELETE
+└── UmbracoPrism.TestSite.PrismContentPublishedHandler (duplicate, broken)
+```
+
+---
+
+## Concrete File Move Plan (for implementing agent)
+
+### 1. Move `PrismVinylNotificationController`
+- Source: `src/UmbracoPrism.Core/Controllers/PrismVinylNotificationController.cs`
+- Destination: `src/UmbracoPrism.TestSite/Controllers/VinylNotificationController.cs`
+- Namespace: change `UmbracoPrism.Core.Controllers` → `UmbracoPrism.TestSite.Controllers`
+- Class name: rename to `VinylNotificationController` (no `Prism` prefix needed in TestSite)
+- The `[Route("umbraco/prism/vinyl")]` route attribute stays the same
+- Dependency on `IPrismNotificationService` is fine — it's still in Core
+
+### 2. Move `PrismVinylBackInStockRequest`
+- Source: `src/UmbracoPrism.Core/Controllers/Models/PrismVinylBackInStockRequest.cs`
+- Destination: `src/UmbracoPrism.TestSite/Controllers/Models/VinylBackInStockRequest.cs`
+- Namespace: `UmbracoPrism.TestSite.Controllers.Models`
+- Class name: `VinylBackInStockRequest`
+- Update the using in the moved controller
+
+### 3. Move `LimitedEditionDropNotifier`
+- Source: `src/UmbracoPrism.Core/BackgroundServices/LimitedEditionDropNotifier.cs`
+- Destination: `src/UmbracoPrism.TestSite/BackgroundServices/LimitedEditionDropNotifier.cs`
+- Namespace: `UmbracoPrism.TestSite.BackgroundServices`
+- Remove `builder.Services.AddHostedService<LimitedEditionDropNotifier>()` from `PrismComposer.cs`
+- Add `builder.Services.AddHostedService<LimitedEditionDropNotifier>()` to `TestSiteComposer.cs` (with correct using)
+
+### 4. Delete the TestSite duplicate handler
+- Delete: `src/UmbracoPrism.TestSite/PrismContentPublishedHandler.cs`
+- Remove: `builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>()` from `TestSiteComposer.cs`
+- The Core handler registered in `PrismComposer` already handles this; add `vinylRecord` to `Prism:Notifications:NotifiableContentTypes` in TestSite appsettings
+
+### 5. Update Core Tests
+- `PrismVinylNotificationSecurityTests.cs` — tests `PrismVinylBackInStockRequest` which will move; this test should either move to a TestSite test project or be deleted if the property shape is now trivially obvious
+- No changes needed to `PrismContentPublishedHandlerTests.cs` or `PrismNotificationControllerTests.cs` — both test Core classes that stay in Core
+
+### 6. Remove now-unused Core classes
+After the moves, verify nothing in Core still references `PrismVinylNotificationController`, `PrismVinylBackInStockRequest`, or `LimitedEditionDropNotifier` (other than the files themselves being deleted).
+
+---
+
+## Impact Assessment
+
+- **No breaking API changes** — the routes (`umbraco/prism/vinyl/back-in-stock`, `umbraco/prism/push/*`) are unchanged
+- **No schema changes** — notification persistence stays in Core
+- **Tests:** One test file (`PrismVinylNotificationSecurityTests.cs`) needs to move or be deleted; all other tests unaffected
+- **Build:** TestSite already references Core, so the moved classes can still depend on `IPrismNotificationService`
+- **Risk:** Low — these are mechanical moves with no logic changes
+
+---
+
+## Collaborate With
+
+- **Blathers** if the test for `PrismVinylBackInStockRequest` (security property shape) is deemed worth keeping in a test project. Blathers owns Core test coverage boundaries.
+
+---
+date: 2026-05-23T13:51:28.022+01:00
+author: brewster
+status: inbox
+---
+
+# Decision: Vinyl Notification Boundary — TestSite vs Core
+
+## Context
+
+The Vinyl Vault demo functionality was incorrectly located in `UmbracoPrism.Core`. The agreed split
+(confirmed by Jonny Muir 2026-05-23) is:
+
+- **Core owns:** the config-driven `PrismContentPublishedHandler` (generic, content-type-agnostic)
+  and all notification infrastructure services
+- **TestSite owns:** vinyl-specific controllers, models, and background services
+
+A broken duplicate `PrismContentPublishedHandler` existed in the TestSite, hardcoded to `vinylRecord`
+with a placeholder `tenantId = "default-tenant"`.
+
+## Decision
+
+1. **Moved to TestSite** (namespace `UmbracoPrism.TestSite.*`):
+   - `Controllers/PrismVinylNotificationController.cs`
+   - `Controllers/Models/PrismVinylBackInStockRequest.cs`
+   - `BackgroundServices/LimitedEditionDropNotifier.cs`
+
+2. **Deleted from Core:**
+   - `Controllers/PrismVinylNotificationController.cs`
+   - `Controllers/Models/PrismVinylBackInStockRequest.cs`
+   - `BackgroundServices/LimitedEditionDropNotifier.cs`
+
+3. **Deleted from TestSite** (duplicate, broken):
+   - `PrismContentPublishedHandler.cs`
+
+4. **Core `PrismContentPublishedHandler` stays in Core** — it is config-driven via
+   `Prism:Notifications:NotifiableContentTypes`. TestSite opts `vinylRecord` in via
+   `appsettings.json`.
+
+5. **Registration changes:**
+   - `PrismComposer` no longer registers `LimitedEditionDropNotifier`
+   - `TestSiteComposer` now registers `LimitedEditionDropNotifier`
+   - `TestSiteComposer` no longer registers the duplicate `ContentPublishedNotification` handler
+
+6. **Test references updated** in `Core.Tests`:
+   - `PrismVinylNotificationSecurityTests` → uses `UmbracoPrism.TestSite.Controllers.Models`
+   - `Phase1SecurityRegressionTests` → uses `UmbracoPrism.TestSite.Controllers` types directly
+
+## Rationale
+
+Core must be a deployable library that does not assume vinyl-specific content types exist. The
+config-driven handler is the correct Core pattern: it fires for any content type listed in
+`Prism:Notifications:NotifiableContentTypes`. TestSite configures `vinylRecord` as a notifiable type,
+making it a genuine reference implementation without polluting the library.
+
+## Build & Test Status
+
+- `UmbracoPrism.Core` — build ✅ (0 warnings, 0 errors)
+- `UmbracoPrism.TestSite` — build ✅ (0 warnings, 0 errors)
+- `UmbracoPrism.Core.Tests` — 50 affected tests ✅ (vinyl, ContentPublished, Phase1 regression)
+
+### 2026-05-23T13:51:28.022+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** The vinyl functionality is test-site specific and should not live in core, while the notifications mechanism is core Prism functionality and should remain reusable for developers.
+**Why:** User request — captured for team memory
+
+### 2026-05-23T14:04:58.778+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Make sure changes are reflected in user guides and documentation, and keep the Prism setup/integration story simple because the docs prove how easy it is to extend Umbraco into an enterprise-ready portal for backend business applications.
+**Why:** User request — captured for team memory
+
+---
+author: mabel
+date: 2026-05-23T14:04:58+01:00
+status: implemented
+area: documentation
+---
+
+# Decision: Clarify Prism Core vs. Application Boundary in Public Documentation
+
+## Context
+
+The Umbraco Prism library is undergoing an architectural refactor to separate reusable Core infrastructure from application-specific extensions:
+
+**Core provides:**
+- Multi-tenant infrastructure (hostname resolution, branding, OIDC)
+- Notification service foundation (`IPrismNotificationService`)
+- Config-driven event handling (`PrismContentPublishedHandler`)
+- Subscription persistence and rate limiting
+- Workflow rendering and validation
+- Mobile app generation and push notifications
+
+**Applications extend with:**
+- Domain models (e.g., `PrismVinylBackInStockRequest`)
+- Business-specific notification handlers (e.g., `PrismVinylNotificationController`)
+- Workflow endpoints and state machines
+- Custom API routes
+
+The documentation needed to reflect this boundary clearly to reduce adoption friction. Developers should understand instantly:
+1. What the Core library provides (thin, reusable)
+2. What their application must implement (business logic)
+3. Why this design is good for enterprise (extensibility without complexity)
+
+## Decision
+
+Updated all high-priority public documentation to clarify the Core vs. Application boundary using consistent visual markers and language.
+
+### README.md Updates
+
+1. **"What You Get" section (line 97):**
+   - Added opening statement: "Prism is a **NuGet package** providing enterprise-ready multi-tenancy and extensibility for Umbraco. Below is what the **Core library** provides. The **TestSite** is a reference implementation showing how to extend Prism for a business domain (vinyl records)."
+   - Added `🔵 Core` markers to multi-tenant and mobile sections
+
+2. **New "Notification Infrastructure" section (line 158):**
+   - Explains Core's generic notification foundation (`IPrismNotificationService`, `PrismContentPublishedHandler`, subscription persistence, rate limiting)
+   - Explicitly mentions TestSite's `PrismVinylNotificationController` as an application-specific extension
+   - Added enterprise messaging: "You get the extensibility platform out of the box. Add your business logic without rebuilding the notification infrastructure."
+
+3. **Updated "Sample Projects" section (line 562):**
+   - Reframed `TestSite` as "Reference Umbraco v17 application. Shows a complete example of extending Prism for a business domain (vinyl record store)."
+   - Explicitly lists what TestSite demonstrates (OIDC, custom notification handler, workflows, tenant seeding)
+   - Added guidance: "Use this as a template for building your own application on top of Prism Core."
+   - Clarified `MockBusinessApp` as a minimal workflow API example
+
+4. **Enhanced "Architecture" section (line 276):**
+   - Reorganized into "Prism Core provides" and "Your application extends Prism with" subsections
+   - Added new "Notification layer" subsection showing Core components:
+     - `IPrismNotificationService` — Generic notifications
+     - `PrismContentPublishedHandler` — Config-driven event handling
+     - Subscription persistence and rate limiting
+   - Added "Your application extends Prism with:" subsection listing business-specific components
+   - Referenced `PrismVinylNotificationController` as concrete example
+
+5. **Updated "Features" section (line 247):**
+   - Split into "Prism Core provides" and "Your app extends with"
+   - Core section lists multi-tenant, mobile, notification, and infrastructure features
+   - App section lists workflows, business logic, custom handlers, domain models
+   - Messaging emphasizes "notification infrastructure" as Core feature, with extension point for custom handlers
+
+### New Documentation: extending-prism.md
+
+Created comprehensive guide (11.2 KB) for developers extending Prism with business-specific code.
+
+**Contents:**
+1. **Extension Model Overview** — Explains what Core provides vs. what apps add
+2. **Example: Vinyl Record Store** — Complete worked example showing:
+   - Domain model (`PrismVinylBackInStockRequest`)
+   - Notification controller (`PrismVinylNotificationController`)
+   - Event-triggered handlers (listening to content publish)
+3. **Best Practices** — Code patterns, testing, deployment
+4. **Extending Notifications** — How to add subscription filters, triggers, and leverage rate limiting
+5. **Extending Workflows** — Overview of Business App role
+6. **Testing** — Unit and integration patterns
+7. **Deployment Considerations** — Database migrations, secrets, monitoring
+
+**Design principle:** Show developers that extending Prism is straightforward and well-supported. TestSite is not magic—it's a clear template for their own code.
+
+### Updated Guides Navigation
+
+Added `extending-prism.md` to [docs/guides/README.md](../docs/guides/README.md) in the "Getting Started" section alongside workflow-setup.md.
+
+---
+
+## Alignment with User Directive
+
+The user emphasized: *"This library is showcasing how easy it is to extend Umbraco into an enterprise ready portal supporting backend business applications. The user guides are key to proving how simple it is, if it looks complex to setup / code against, that an opportunity for us to iterate."*
+
+These changes address this directly by:
+1. **Simplifying perception** — Clear boundary between "what comes out of the box" (Core) and "what you add" (your app)
+2. **Reducing adoption friction** — Developers see that Core is thin and focused; they're not inheriting bloated templates
+3. **Proving extensibility** — TestSite example shows real business logic (vinyl notifications) isn't complex—it's a straightforward extension of Core services
+4. **Enterprise language** — Messaging emphasizes multi-tenant, secure-by-default, extensible architecture
+
+---
+
+## Product Language
+
+Consistent phrasing adopted across all updated sections:
+- "🔵 **Prism Core**" — The NuGet package, reusable
+- "🟠 **Your Application**" / "Your Business App" — Where business logic lives
+- **TestSite** — "Reference implementation" and "worked example," not a library component
+- **Extension model** — Framed as "platform-agnostic," "thin core," "pluggable business logic"
+
+---
+
+## Files Changed
+
+- `README.md` — 5 major sections updated (~400 lines of new/revised content)
+- `docs/guides/README.md` — Added extending-prism.md to navigation
+- `docs/guides/extending-prism.md` — New guide (11.2 KB)
+
+---
+
+## Success Criteria
+
+✅ A developer reading the README understands exactly what Prism Core gives them.  
+✅ TestSite is clearly framed as a worked example, not part of the library.  
+✅ New extending-prism.md guide provides copy-paste examples for common extension patterns.  
+✅ Documentation emphasizes enterprise-ready extensibility, not complexity.  
+✅ No contradictions between README, architecture section, and sample projects description.
+
+---
+
+## Next Steps
+
+- **Squad review:** Tom Nook (Lead) or Jonny Muir for architectural alignment
+- **No code changes required** — This decision is documentation-only
+- **Future:** If TestSite adds more extension examples (e.g., custom workflow step types), update extending-prism.md
+
+---
+
+## Context References
+
+- **User request:** "Make sure whatever changes you do are reflected in the user guides and documentation... The user guides are key to proving how simple it is."
+- **Aligned refactor:** Core keeps notification infrastructure and config-driven event handling; TestSite keeps Vinyl-specific handlers and models.
+- **Design goal:** Make Prism feel simpler to adopt, not more complex. The split demonstrates a clean extension model.
+
+---
+author: tangy
+date: 2026-05-23T13:51:28.022+01:00
+status: proposed
+area: notifications-boundary
+---
+
+# Decision: vinylRecord Notification Boundary Regression Guards
+
+## Context
+
+A boundary refactor moved vinyl-record notification logic from a hardcoded TestSite handler (`UmbracoPrism.TestSite/PrismContentPublishedHandler`) into a general-purpose, config-driven Core handler (`UmbracoPrism.Core/Notifications/PrismContentPublishedHandler`). After the refactor, **both handlers remain registered** — the Core composer and the TestSite composer each add their own `ContentPublishedNotification` handler — creating a double-fire risk when `vinylRecord` content is published in the TestSite runtime.
+
+## What Was Missing
+
+The existing `PrismContentPublishedHandlerTests` only used `newsArticle` and `announcement` as configured content types. There were no tests:
+- Explicitly configuring `vinylRecord` in `Prism:Notifications:NotifiableContentTypes`
+- Proving the Core handler is silent when `vinylRecord` is absent from config (the primary double-fire guard)
+
+## Decision
+
+Added 4 targeted regression guards to `PrismContentPublishedHandlerTests.cs`:
+
+| Test | Purpose |
+|------|---------|
+| `Handle_VinylRecord_ConfigDriven_WithGenre_SendsToGenreSubscribers` | Proves Core handler routes to genre subscribers when `vinylRecord` is configured and genre is set |
+| `Handle_VinylRecord_ConfigDriven_WithoutGenre_SendsToAllMembers` | Proves Core handler falls back to all-members broadcast when genre is absent |
+| `Handle_VinylRecord_NotInConfig_CoreHandlerIsSilent_DoubleFirGuard` | **Primary double-fire guard**: Core handler is completely silent when `vinylRecord` is absent from config, so the TestSite handler remains the sole sender |
+| `Handle_EmptyNotifiableTypes_CoreHandlerIsSilent_ForAnyContentType` | Guard: empty `NotifiableContentTypes` config produces a fully inert Core handler |
+
+## Noted Risk (not fixed here)
+
+The double-fire risk is managed by keeping `vinylRecord` absent from `Prism:Notifications:NotifiableContentTypes` in the TestSite's appsettings. If a future operator adds `vinylRecord` to that config key while the TestSite handler is still registered, subscribers will receive two notifications per publish. The recommended long-term fix is to retire `TestSite/PrismContentPublishedHandler` and rely solely on the Core config-driven handler — but that is a separate task for Blathers (config docs) and whoever owns TestSite cleanup.
+
+## Validation
+
+```
+dotnet test UmbracoPrism.sln -c Release --filter "FullyQualifiedName~UmbracoPrism.Core.Tests"
+# Result: 815 passed, 0 failed, 0 skipped (was 811 before this session)
+```
+
+All 4 new guards: ✅ GREEN
+Full suite: ✅ 815/815 GREEN — no regressions introduced.
+
+## Green Lane Sign-off
+
+The branch is green enough to proceed to final check-in/merge for the core tests lane. The `storybook-tests` and `workflow-graph-visual` lanes require CI (headless Storybook server); no unrelated baseline failures observed locally. The double-fire architectural risk is documented above and flagged for a future cleanup task.
+
+---
+date: 2026-05-23T13:51:28.022+01:00
+author: tangy
+status: proposed
+---
+
+# Vinyl / Notifications Refactor — Validation Lane & Coverage Gap Analysis
+
+## Context
+
+Brewster has mapped the core-vs-testsite boundary (see `brewster-vinyl-boundary.md`). This document covers the validation surface, minimum green lane, targeted tests to add, and the missing coverage around notification reusability. Do not start implementation until both this and Brewster's boundary decision are merged.
+
+---
+
+## 1. Directly Affected Validation Surface
+
+The refactor touches these files that already have test coverage, or that create new coverage obligations:
+
+| File | Change | Existing coverage | Obligation |
+|---|---|---|---|
+| `Core/Notifications/PrismContentPublishedHandler.cs` | Stays in Core; no logic change | ✅ 10 tests in `PrismContentPublishedHandlerTests.cs` | All 10 must remain GREEN |
+| `Core/Controllers/PrismVinylNotificationController.cs` | Moves to TestSite | `PrismNotificationControllerTests.cs` covers this | Tests must be updated to import from new namespace / project |
+| `Core/Controllers/Models/PrismVinylBackInStockRequest.cs` | Moves to TestSite | `PrismVinylNotificationSecurityTests.cs` (1 test — property shape) | Test must move with the model or be deleted if shape is trivially obvious |
+| `Core/BackgroundServices/LimitedEditionDropNotifier.cs` | Moves to TestSite | ❌ Zero unit tests | See §3 below |
+| `TestSite/PrismContentPublishedHandler.cs` | Deleted | ❌ Zero tests | Deletion is safe; nothing to migrate |
+| `TestSiteComposer.cs` | `AddNotificationAsyncHandler` call removed | Implicit integration (no dedicated test) | No new obligation — deletion is the proof |
+| `Core.Tests/PrismVinylNotificationSecurityTests.cs` | Must move or be deleted | Itself | See §3 below |
+
+---
+
+## 2. Minimum Green Lane Before Merge
+
+Run these gates in order. All must be green before the PR is merged.
+
+### Gate 1 — Build (fast, no-skip)
+
+```bash
+dotnet build UmbracoPrism.sln -c Release
+```
+
+Any namespace import error from the moved classes will surface here. This is the first and cheapest signal.
+
+### Gate 2 — Core unit tests (currently 810/811 green)
+
+```bash
+dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+```
+
+**Baseline:** 810 pass, 1 fail (`PlanningWorkflowFixtureTests.Fixture_ParsesWithoutError` — pre-existing fixture-file lookup failure, unrelated to this refactor). That failure must not change status; it must remain the only failure. If the count drops below 810 after the refactor, something was broken.
+
+**Must stay green after refactor:**
+- All 10 tests in `PrismContentPublishedHandlerTests.cs`
+- All tests in `PrismNotificationServiceTests.cs` and `PrismNotificationControllerTests.cs`
+
+**Must be handled (not silently deleted):**
+- `PrismVinylNotificationSecurityTests.cs` — if `PrismVinylBackInStockRequest` moves to TestSite, this test must either move to a TestSite test project, or be replaced by a test in `Core.Tests` that asserts the model no longer exists in the Core assembly (a negative-shape test).
+
+### Gate 3 — Storybook / Playwright (unchanged scope)
+
+No client-side changes. Run the usual CI gates:
+
+```bash
+# In src/UmbracoPrism.Client
+npm run test-storybook:ci:all
+npm run test:playwright:workflow-graph-visual
+```
+
+These gates protect against incidental regressions from a build artefact issue. They should stay green without any change.
+
+---
+
+## 3. Targeted Tests to Add After the Split
+
+These tests do not exist today. They are necessary to give the refactor a proper behavioural proof.
+
+### 3a. Core handler handles `vinylRecord` when driven by config (contract test)
+
+**File:** `UmbracoPrism.Core.Tests/PrismContentPublishedHandlerTests.cs` (append to existing class)
+
+**What it proves:** The Core `PrismContentPublishedHandler` correctly processes a `vinylRecord` content item when `vinylRecord` is present in `Prism:Notifications:NotifiableContentTypes`. This is the exact scenario the deleted TestSite handler covered, now proven to be handled by Core.
+
+```csharp
+[Fact]
+public async Task Handle_VinylRecordWithGenre_WhenConfigured_SendsToGenreSubscribers()
+{
+    // Prism:Notifications:NotifiableContentTypes includes vinylRecord (as an operator would configure it)
+    var config = new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Prism:Notifications:NotifiableContentTypes"] = "vinylRecord"
+        })
+        .Build();
+
+    var serviceMock = new Mock<IPrismNotificationService>();
+    var handler = BuildHandler(config: config, serviceMock: serviceMock);
+
+    var content = CreateMockContent(
+        contentTypeAlias: "vinylRecord",
+        name: "Miles Davis - Kind of Blue",
+        tenantId: "vinyl-vault-tenant",
+        notificationGenre: "Jazz");
+
+    var notification = new ContentPublishedNotification(new[] { content }, new EventMessages());
+
+    await handler.HandleAsync(notification, CancellationToken.None);
+
+    serviceMock.Verify(s => s.SendNotificationToGenreSubscribersAsync(
+        "vinyl-vault-tenant", "Jazz", "Miles Davis - Kind of Blue", "New content has been published.", default),
+        Times.Once,
+        "Core handler must route vinylRecord to genre subscribers when configured");
+}
+```
+
+### 3b. No-duplicate-notification proof (regression guard against double-registration)
+
+**File:** `UmbracoPrism.Core.Tests/PrismContentPublishedHandlerTests.cs` (append)
+
+**What it proves:** The Core handler fires exactly once per published entity. This guards against the historical double-registration risk (both Core and TestSite handlers were registered in `ContentPublishedNotification`). After the delete of the TestSite handler, only the Core handler should fire.
+
+This is a unit-level assertion — at integration level, we cannot easily assert "only one handler was registered", but we CAN assert the Core handler sends exactly one notification per entity, so if the TestSite handler had fired too, the mock would detect two calls.
+
+```csharp
+[Fact]
+public async Task Handle_SingleVinylRecord_SendsExactlyOneNotification()
+{
+    var config = new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Prism:Notifications:NotifiableContentTypes"] = "vinylRecord"
+        })
+        .Build();
+
+    var serviceMock = new Mock<IPrismNotificationService>();
+    var handler = BuildHandler(config: config, serviceMock: serviceMock);
+
+    var content = CreateMockContent(
+        contentTypeAlias: "vinylRecord",
+        name: "Boards of Canada - Music Has the Right to Children",
+        tenantId: "vinyl-vault-tenant",
+        notificationGenre: "Electronic");
+
+    var notification = new ContentPublishedNotification(new[] { content }, new EventMessages());
+
+    await handler.HandleAsync(notification, CancellationToken.None);
+
+    serviceMock.Verify(s => s.SendNotificationToGenreSubscribersAsync(
+        It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+        Times.Once,
+        "exactly one notification must be dispatched per published entity");
+}
+```
+
+### 3c. `LimitedEditionDropNotifier` — basic unit test (currently zero coverage)
+
+**New file:** `UmbracoPrism.Core.Tests/LimitedEditionDropNotifierTests.cs` (after move, this should live in a TestSite test project; for now note it as a gap)
+
+**What it proves:** The notifier fires a notification to the correct genre when a limited-edition vinyl goes in-stock. Currently there are zero unit tests for this class. At minimum, one test must exist before the move is considered safe:
+
+- Given an `IContent` with `isLimitedEdition=true` and a genre value, the notifier calls `SendNotificationToGenreSubscribersAsync` once.
+- Given `isLimitedEdition=false`, the notifier does NOT send.
+
+This cannot be written until the class is inspected in detail by the implementing agent; the test obligation is recorded here so it is not forgotten.
+
+### 3d. `PrismVinylNotificationSecurityTests` — disposition
+
+**Current state:** One test in `PrismVinylNotificationSecurityTests.cs` asserts that `PrismVinylBackInStockRequest.TenantId` is null (i.e. the property does not exist — a security shape test). When the model moves to TestSite, the implementing agent must choose one of:
+
+- **Option A (preferred):** Move the test to a TestSite test project and update the `using` / assembly reference.
+- **Option B:** Replace with a negative-shape assertion in `Core.Tests` that verifies the model no longer exists in the `UmbracoPrism.Core` assembly at all.
+
+Do not silently delete this test — the security intent (TenantId must not be client-visible) must survive the move.
+
+---
+
+## 4. Missing Proof — Notification Reusability
+
+The following proof is absent from the current test suite and must be noted as a gap:
+
+### Gap 1 — No contract test proving `IPrismNotificationService` is free of TestSite concepts
+
+There is no test that asserts the `IPrismNotificationService` interface contains no reference to `vinylRecord`, `VinylVault`, or any TestSite-specific type. After the refactor, a simple reflection test in `PrismNotificationServiceTests.cs` could assert:
+
+- The interface is defined in `UmbracoPrism.Core.Services`
+- Its method signatures contain only primitive types (`string`, `CancellationToken`) — no TestSite models
+
+This is low-risk to add and high-value as a regression guard against future contamination.
+
+### Gap 2 — No test that `vinylRecord` is NOT in the Core notifiable-types default config
+
+The Core handler's default (when `Prism:Notifications:NotifiableContentTypes` is absent from config) is to notify nothing. After the refactor, `vinylRecord` will only appear in TestSite's `appsettings.json`. There is no test asserting this. A test should verify:
+
+- When an empty/absent config is supplied, zero notifications are sent regardless of content type alias.
+
+This is already partially covered by `Handle_NoConfiguredNotifiableTypes_DoesNotSend` in `PrismContentPublishedHandlerTests.cs` — but that test uses a generic `newsArticle` alias, not `vinylRecord`. Adding a `vinylRecord` variant makes the intent explicit.
+
+### Gap 3 — No proof the Core handler does not hardcode any content type alias
+
+The Core `PrismContentPublishedHandler` is claimed to be purely config-driven. There is no test asserting it contains zero hardcoded content-type aliases. A reflection-based assertion (or a code-review comment) would make this explicit. The existing tests cover the config-driven behaviour but do not falsify the possibility of hidden hardcodes.
+
+---
+
+## 5. Summary
+
+| Concern | Status | Action |
+|---|---|---|
+| Core handler covered | ✅ 10 tests exist | Run gate 2; must stay green |
+| TestSite handler deletion | ✅ No tests to migrate | Delete is safe |
+| `vinylRecord` via Core config | ❌ No test | Add 3a |
+| Double-notification guard | ❌ No test | Add 3b |
+| `LimitedEditionDropNotifier` | ❌ Zero tests | Add 3c during/after move |
+| `PrismVinylBackInStockRequest` shape test | ⚠️ Must move with model | Disposition per 3d |
+| `IPrismNotificationService` domain-free proof | ❌ No test | Add gap-1 (low effort) |
+| Core handler config-only proof | ⚠️ Implicit | Add gap-3 (optional but clear) |
+
+---
+
+## Collaborate With
+
+- **Brewster** — owns the file-move plan; this document is advisory, not prescriptive on implementation order
+- **Blathers** — if a TestSite test project is created to host moved tests, Blathers should be consulted on the test project setup
+
+---
+date: 2026-05-23T13:51:28.022+01:00
+author: tom-nook
+status: proposed
+---
+
+# Lead Decision: Vinyl belongs to TestSite; notifications remain Core
+
+## Context
+
+The current split is directionally right on notifications infrastructure and wrong on vinyl business behaviour. Core already contains reusable push registration, subscription, delivery, persistence, and a configurable content-published hook. It also still contains a vinyl-only controller, request model, and scheduled demo notifier that should not ship as framework surface area.
+
+This decision locks the boundary so implementation can proceed without more design churn.
+
+---
+
+## Decision
+
+### Keep in `UmbracoPrism.Core`
+
+These are reusable Prism capabilities and should remain framework-owned:
+
+- `src/UmbracoPrism.Core/Controllers/PrismNotificationController.cs`
+- `src/UmbracoPrism.Core/Services/IPrismNotificationService.cs`
+- `src/UmbracoPrism.Core/Services/PrismNotificationService.cs`
+- `src/UmbracoPrism.Core/Services/INotificationRateLimitService.cs`
+- `src/UmbracoPrism.Core/Services/NotificationRateLimitService.cs`
+- `src/UmbracoPrism.Core/Persistence/PrismNotificationSubscriptionSchema.cs`
+- `src/UmbracoPrism.Core/Persistence/CreatePrismNotificationSubscriptionsTable.cs`
+- `src/UmbracoPrism.Core/Notifications/PrismContentPublishedHandler.cs`
+
+### Move to `UmbracoPrism.TestSite`
+
+These are Vinyl Vault domain/demo concerns and must not remain in Core:
+
+- `src/UmbracoPrism.Core/Controllers/PrismVinylNotificationController.cs`
+- `src/UmbracoPrism.Core/Controllers/Models/PrismVinylBackInStockRequest.cs`
+- `src/UmbracoPrism.Core/BackgroundServices/LimitedEditionDropNotifier.cs`
+
+Recommended destinations:
+
+- `src/UmbracoPrism.TestSite/Controllers/VinylNotificationController.cs`
+- `src/UmbracoPrism.TestSite/Controllers/Models/VinylBackInStockRequest.cs`
+- `src/UmbracoPrism.TestSite/BackgroundServices/LimitedEditionDropNotifier.cs`
+
+### Delete from TestSite
+
+The duplicate publish handler in TestSite should be removed:
+
+- `src/UmbracoPrism.TestSite/PrismContentPublishedHandler.cs`
+
+Reason: the Core `PrismContentPublishedHandler` is already the better seam. It is config-driven, tenant-aware via content property, and reusable. The TestSite version hardcodes `vinylRecord` and a placeholder tenant and is not fit to keep.
+
+---
+
+## Boundary Rule
+
+Use this rule going forward:
+
+- **Core owns notification primitives**: token registration, subscriber storage, generic delivery, generic content hooks, rate limiting, tenant-safe dispatch.
+- **TestSite owns notification stories**: vinyl back-in-stock flows, limited-edition drops, Vinyl Vault copy, demo scheduling, demo routes, demo request models.
+
+If a type contains Vinyl Vault language, hardcoded demo copy, or a business event that only makes sense for the sample site, it belongs in TestSite.
+
+---
+
+## Implementation handoff
+
+### Brewster
+
+Own the Umbraco/TestSite move:
+
+1. Move the three vinyl-specific Core files into TestSite.
+2. Remove `builder.Services.AddHostedService<LimitedEditionDropNotifier>()` from `src/UmbracoPrism.Core/PrismComposer.cs`.
+3. Register the moved notifier from `src/UmbracoPrism.TestSite/TestSiteComposer.cs`.
+4. Delete `src/UmbracoPrism.TestSite/PrismContentPublishedHandler.cs`.
+5. Remove the duplicate `ContentPublishedNotification` registration from `TestSiteComposer`.
+6. Ensure TestSite config enables the Core handler for vinyl content via `Prism:Notifications:NotifiableContentTypes = vinylRecord`.
+
+### Blathers
+
+Own the Core-side cleanup and test boundary:
+
+1. Remove/update any Core references to the moved vinyl types.
+2. Move or replace `src/UmbracoPrism.Core.Tests/PrismVinylNotificationSecurityTests.cs`.
+3. Keep Core tests focused on domain-agnostic notification behaviour.
+4. Add at least one contract test proving Core `PrismContentPublishedHandler` handles `vinylRecord` only when config opts in.
+
+### Tangy
+
+Own the green lane and regression proof:
+
+1. Verify no double-send after deleting the duplicate TestSite handler.
+2. Verify vinyl publish still notifies correctly through the Core handler.
+3. Verify moved back-in-stock endpoint still works on the same route.
+4. Verify tenant scoping remains server-derived and no vinyl types remain referenced from Core assemblies/tests.
+
+### Tom Nook review gate
+
+Do not merge until:
+
+- Core no longer contains vinyl-specific controller/model/notifier types.
+- TestSite no longer contains a duplicate publish handler.
+- The route/API behaviour is preserved.
+- The solution is green apart from any documented pre-existing unrelated failure.
+
+---
+
+## Validation expectations
+
+Minimum implementation proof:
+
+1. `dotnet build UmbracoPrism.sln -c Release`
+2. `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests`
+3. Grep proof that Core no longer references:
+   - `PrismVinylNotificationController`
+   - `PrismVinylBackInStockRequest`
+   - `LimitedEditionDropNotifier`
+4. TestSite proof that publishing a configured `vinylRecord` still routes through the Core notification handler exactly once.
+
+---
+
+## Scope call
+
+This is a **clear refactor**, not a redesign of the notifications subsystem. Do not broaden scope into new abstractions unless the move exposes a hard blocker. The correct move is to tighten ownership, preserve behaviour, and land with explicit validation.

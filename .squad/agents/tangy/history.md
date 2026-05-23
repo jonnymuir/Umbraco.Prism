@@ -196,3 +196,12 @@ Isabelle implemented fixes for all 4 regressions identified in my comprehensive 
 - Testing methodology documented: measured DOM geometry is required for scroll/sizing bugs; visual snapshots supplementary only
 
 **Outcome:** Regression-proof testing methodology validated; Isabelle's implementation mathematically verified by proof suite.
+
+## Session: Vinyl/Core Boundary Integration (2026-05-23T13:04:58.778000+00:00)
+
+All squad members deployed together to complete the vinyl/core boundary work. Architecture split successful:
+- Core remains reusable notification infrastructure
+- TestSite vinyl behavior is now opt-in
+- All 815 tests passing
+- 0 warnings in build/test lane
+
