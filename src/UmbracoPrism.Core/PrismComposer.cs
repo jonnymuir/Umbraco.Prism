@@ -14,7 +14,6 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
-using UmbracoPrism.Core.BackgroundServices;
 using UmbracoPrism.Core.Extensions;
 
 namespace UmbracoPrism.Core;
@@ -48,8 +47,6 @@ public class PrismComposer : IComposer
         builder.Services.AddScoped<IPrismNotificationService, PrismNotificationService>();
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
-        builder.Services.AddHostedService<LimitedEditionDropNotifier>();
-
         // 2. Workflow Engine
         builder.AddPrismWorkflowEngine();
 

@@ -11,7 +11,7 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// </summary>
 public class WorkflowPatchServiceFailureTests
 {
-    private static readonly string FixturesPath = GetFixturesPath();
+    private static readonly string FixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
 
     private readonly WorkflowProjector _projector = new();
     private readonly WorkflowPatchService _sut;
@@ -202,8 +202,4 @@ public class WorkflowPatchServiceFailureTests
         };
     }
 
-    private static string GetFixturesPath() =>
-        Path.Combine(
-            Path.GetDirectoryName(typeof(WorkflowPatchServiceFailureTests).Assembly.Location)!,
-            "Workflow", "Authoring", "Fixtures");
 }

@@ -1,4 +1,4 @@
-namespace UmbracoPrism.Core.Controllers.Models;
+namespace UmbracoPrism.TestSite.Controllers.Models;
 
 /// <summary>
 /// Request model for back-in-stock vinyl notifications.
