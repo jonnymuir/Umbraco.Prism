@@ -1352,3 +1352,48 @@ Landed behavioral test suite (`layout-professionalization.spec.ts`) proving the 
 
 Tests in `layout-professionalization.spec.ts` will fail until implementation lands. Validation gate covers 5 commands (build, Storybook, keyboard, planning walkthrough, layout proof).
 
+
+---
+date: 2026-05-23T08:49:00+01:00
+author: isabelle
+status: implemented
+area: workflow-editor-ux
+---
+
+# Decision: Remove Unused State from Workflow Editor Shell
+
+**Date:** 2026-05-23  
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)  
+**Context:** TypeScript build failure cleanup after host-layout simplification
+
+## Decision
+
+Removed three unused state fields from `prism-workflow-editor-shell.ts`:
+
+1. `_draftApiBase` — was set but never read
+2. `_loadingOptions` — loading state never rendered
+3. `_optionsError` — error state never rendered
+
+## Rationale
+
+These fields were part of an earlier implementation that likely included UI for showing loading spinners and error messages during workflow option fetching. The host-layout simplification work removed those UI elements, leaving the state fields orphaned.
+
+The shell now:
+- Fetches workflow options silently in the background
+- Gracefully falls back to an empty list on error
+- Maintains the simplified UX without loading/error chrome
+
+## Impact
+
+- ✅ Build passes (no unused variable warnings)
+- ✅ Preserves simplified host-layout direction
+- ✅ No behavioral changes — the shell still fetches options and populates the selector
+- ✅ No test changes needed — all existing tests pass
+
+## Files Modified
+
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor-shell.ts`
+
+## Alternative Considered
+
+Could have added UI to show loading/error states, but that would contradict the layout-professionalisation decision to keep the shell minimal and focused on the editor itself.

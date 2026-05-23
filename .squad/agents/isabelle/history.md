@@ -183,3 +183,22 @@
 **Next phase:** Full validation gate when all agents' work integrated; run 5 commands to verify end-to-end.
 
 ---
+
+## 2026-05-23T08:48:31Z — TypeScript Build Failure Resolution
+
+**Issue:** Orphaned state fields in `prism-workflow-editor-shell.ts` causing build warnings after host-layout simplification.
+
+**Resolution:** Removed three unused state fields:
+1. `_draftApiBase` — never read
+2. `_loadingOptions` — never rendered
+3. `_optionsError` — never rendered
+
+**Outcome:** 
+- Build passes cleanly (no TypeScript warnings)
+- Workflow option loading behavior preserved (silent background fetch, graceful fallback)
+- Aligns with layout-professionalisation direction of minimal shell UX
+- All tests pass; no behavioral changes
+
+**Decision recorded:** `isabelle-build-fix-shell-state.md` → merged to decisions.md
+
+**Status:** ✅ Build restored to green; ready for next integration phase.
