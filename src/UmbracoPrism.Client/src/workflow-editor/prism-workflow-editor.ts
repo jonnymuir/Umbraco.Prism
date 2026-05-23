@@ -25,7 +25,11 @@ import './prism-step-inspector.js';
 import './prism-proposal-diff.js';
 import './prism-stage-preview.js';
 import './prism-workflow-simulation.js';
+import './prism-workflow-outline.js';
+import './prism-confidence-tabs.js';
+import './prism-help-panel.js';
 import type { PreviewSurface, PreviewSurfaceAvailability } from './prism-stage-preview.js';
+import type { ConfidenceTab } from './prism-confidence-tabs.js';
 import type {
   WorkflowSimulationHistoryEntry,
   WorkflowSimulationStopReason,
@@ -177,6 +181,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _projectedWorkflowPreview: ProjectWorkflowResult | null = null;
   @state() private _simulation: SimulationState | null = null;
   @state() private _simulationAnnouncement = '';
+  @state() private _activeConfidenceTab: ConfidenceTab = 'canvas';
 
   private _savedWorkflowSnapshot: AuthoredWorkflow | null = null;
   private _helpReturnTarget: HTMLElement | null = null;
@@ -997,6 +1002,20 @@ export class PrismWorkflowEditorElement extends LitElement {
     });
   }
 
+  private _handleOutlineStageSelected = (e: CustomEvent<{ stageKey: string }>) => {
+    this._applySelection({ kind: 'stage', stageKey: e.detail.stageKey }, this._workflow);
+    this._actionSelection = null;
+  };
+
+  private _handleOutlineTransitionSelected = (e: CustomEvent<{ transitionIndex: number }>) => {
+    this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
+    this._actionSelection = null;
+  };
+
+  private _handleConfidenceTabChanged = (e: CustomEvent<{ tab: ConfidenceTab }>) => {
+    this._activeConfidenceTab = e.detail.tab;
+  };
+
   private _copySelection() {
     const selectedAction = this._currentAction();
     if (selectedAction) {
@@ -1347,9 +1366,9 @@ export class PrismWorkflowEditorElement extends LitElement {
     `;
   }
 
-  private _renderValidationRail() {
+  private _renderValidationPanel() {
     if (!this._workflow) {
-      return nothing;
+      return html`<div class="validation-empty-panel">No workflow loaded</div>`;
     }
 
     const issues = this._validationIssues;
@@ -1357,19 +1376,19 @@ export class PrismWorkflowEditorElement extends LitElement {
     const warningCount = this._warningValidationIssues.length;
 
     return html`
-      <section class="validation-rail" aria-labelledby="workflow-validation-rail-title" data-prism-validation-rail>
-        <div class="validation-rail-header">
+      <section class="validation-panel" aria-labelledby="workflow-validation-panel-title" data-prism-validation-rail>
+        <div class="validation-panel-header">
           <div>
-            <h2 id="workflow-validation-rail-title" class="validation-rail-title">Validation and save</h2>
-            <p class="validation-rail-summary">${this._validationStatusSummary}</p>
+            <h2 id="workflow-validation-panel-title" class="validation-panel-title">Workflow validation</h2>
+            <p class="validation-panel-summary">${this._validationStatusSummary}</p>
           </div>
-          <div class="validation-rail-meta">
+          <div class="validation-panel-meta">
             <span class="validation-count validation-count-error" data-prism-validation-errors>${errorCount} errors</span>
             <span class="validation-count validation-count-warning" data-prism-validation-warnings>${warningCount} warnings</span>
           </div>
         </div>
 
-        <div class="validation-rail-save-status" data-prism-save-status>
+        <div class="validation-panel-save-status" data-prism-save-status>
           <span class="validation-save-label">Save status</span>
           <span>${this._saveStatusSummary}</span>
         </div>
@@ -1506,124 +1525,148 @@ export class PrismWorkflowEditorElement extends LitElement {
         ${this._loading ? html`<div class="loading-banner" role="status">Loading workflow…</div>` : nothing}
         ${this._error ? html`<div class="error-banner" role="alert">${this._error}</div>` : nothing}
 
-        <div class="editor-shell">
-          <!-- Left: graph + title bar -->
-          <div class="editor-left">
-            <div class="editor-header" role="none">
-              <h1 id="workflow-editor-title" class="editor-title">
-                ${this._workflow?.displayName ?? 'Workflow Editor'}
-              </h1>
-              <div class="editor-toolbar" role="toolbar" aria-label="Workflow editor tools">
-                <button
-                  class="toolbar-btn govuk-button"
-                  data-prism-save
-                  ?disabled=${!this._canSave}
-                  aria-keyshortcuts=${SAVE_SHORTCUT?.ariaKeys ?? nothing}
-                  @click=${this._handleSave}
-                >
-                  ${this._saveState === 'saving' ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  class="toolbar-btn govuk-button govuk-button--secondary"
-                  data-prism-undo
-                  ?disabled=${!this._canUndo}
-                  aria-keyshortcuts=${UNDO_SHORTCUT?.ariaKeys ?? nothing}
-                  @click=${this._undo}
-                >
-                  Undo
-                </button>
-                <button
-                  class="toolbar-btn govuk-button govuk-button--secondary"
-                  data-prism-redo
-                  ?disabled=${!this._canRedo}
-                  aria-keyshortcuts=${REDO_SHORTCUT?.ariaKeys ?? nothing}
-                  @click=${this._redo}
-                >
-                  Redo
-                </button>
-                <button
-                  class="toolbar-btn govuk-button govuk-button--secondary"
-                  data-prism-copy
-                  ?disabled=${!this._canCopy}
-                  aria-keyshortcuts=${COPY_SHORTCUT?.ariaKeys ?? nothing}
-                  @click=${() => this._copySelection()}
-                >
-                  Copy
-                </button>
-                <button
-                  class="toolbar-btn govuk-button govuk-button--secondary"
-                  data-prism-paste
-                  ?disabled=${!this._canPaste}
-                  aria-keyshortcuts=${PASTE_SHORTCUT?.ariaKeys ?? nothing}
-                  @click=${() => this._pasteClipboard()}
-                >
-                  Paste
-                </button>
-                <button
-                  class="toolbar-btn govuk-button govuk-button--secondary"
-                  data-prism-help
-                  aria-keyshortcuts=${HELP_SHORTCUT?.ariaKeys ?? nothing}
-                  @click=${(event: Event) => this._openShortcutGuide(event.currentTarget as HTMLElement)}
-                >
-                  Help
-                </button>
-                <button
-                  class="mode-toggle-btn govuk-button govuk-button--secondary"
-                  @click="${this._toggleGraphMode}"
-                  aria-label="${this._graphMode === 'graph' ? 'Switch to list view' : 'Switch to graph view'}"
-                >
-                  ${this._graphMode === 'graph' ? 'List view' : 'Graph view'}
-                </button>
-                <span class="clipboard-chip" data-prism-clipboard-state>${this._clipboardSummary}</span>
+        <!-- Tab-based navigation -->
+        <prism-confidence-tabs
+          class="editor-tabs"
+          active-tab="${this._activeConfidenceTab}"
+          error-count="${this._blockingValidationIssues.length}"
+          warning-count="${this._warningValidationIssues.length}"
+          @tab-changed=${this._handleConfidenceTabChanged}
+        >
+          <!-- Canvas tab: main workspace -->
+          <div slot="canvas" class="canvas-workspace">
+            <div class="editor-shell">
+              <!-- Left: outline -->
+              <prism-workflow-outline
+                class="editor-outline"
+                data-prism-workflow-outline
+                .workflow=${this._workflow}
+                .selectedStageKey=${this._selectedStageKey}
+                .selectedTransitionIndex=${this._selectedTransitionIndex}
+                @outline-stage-selected=${this._handleOutlineStageSelected}
+                @outline-transition-selected=${this._handleOutlineTransitionSelected}
+              ></prism-workflow-outline>
+
+              <!-- Center: graph/list + toolbar -->
+              <div class="editor-center">
+                <div class="editor-header" role="none">
+                  <h1 id="workflow-editor-title" class="editor-title">
+                    ${this._workflow?.displayName ?? 'Workflow Editor'}
+                  </h1>
+                  <div class="editor-toolbar" role="toolbar" aria-label="Workflow editor tools">
+                    <button
+                      class="toolbar-btn govuk-button"
+                      data-prism-save
+                      ?disabled=${!this._canSave}
+                      aria-keyshortcuts=${SAVE_SHORTCUT?.ariaKeys ?? nothing}
+                      @click=${this._handleSave}
+                    >
+                      ${this._saveState === 'saving' ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      class="toolbar-btn govuk-button govuk-button--secondary"
+                      data-prism-undo
+                      ?disabled=${!this._canUndo}
+                      aria-keyshortcuts=${UNDO_SHORTCUT?.ariaKeys ?? nothing}
+                      @click=${this._undo}
+                    >
+                      Undo
+                    </button>
+                    <button
+                      class="toolbar-btn govuk-button govuk-button--secondary"
+                      data-prism-redo
+                      ?disabled=${!this._canRedo}
+                      aria-keyshortcuts=${REDO_SHORTCUT?.ariaKeys ?? nothing}
+                      @click=${this._redo}
+                    >
+                      Redo
+                    </button>
+                    <button
+                      class="toolbar-btn govuk-button govuk-button--secondary"
+                      data-prism-copy
+                      ?disabled=${!this._canCopy}
+                      aria-keyshortcuts=${COPY_SHORTCUT?.ariaKeys ?? nothing}
+                      @click=${() => this._copySelection()}
+                    >
+                      Copy
+                    </button>
+                    <button
+                      class="toolbar-btn govuk-button govuk-button--secondary"
+                      data-prism-paste
+                      ?disabled=${!this._canPaste}
+                      aria-keyshortcuts=${PASTE_SHORTCUT?.ariaKeys ?? nothing}
+                      @click=${() => this._pasteClipboard()}
+                    >
+                      Paste
+                    </button>
+                    <button
+                      class="toolbar-btn govuk-button govuk-button--secondary"
+                      data-prism-help
+                      aria-keyshortcuts=${HELP_SHORTCUT?.ariaKeys ?? nothing}
+                      @click=${(event: Event) => this._openShortcutGuide(event.currentTarget as HTMLElement)}
+                    >
+                      Help
+                    </button>
+                    <button
+                      class="mode-toggle-btn govuk-button govuk-button--secondary"
+                      @click="${this._toggleGraphMode}"
+                      aria-label="${this._graphMode === 'graph' ? 'Switch to list view' : 'Switch to graph view'}"
+                    >
+                      ${this._graphMode === 'graph' ? 'List view' : 'Graph view'}
+                    </button>
+                    <span class="clipboard-chip" data-prism-clipboard-state>${this._clipboardSummary}</span>
+                  </div>
+                </div>
+                <div class="editor-statusbar" data-prism-history-status>
+                  <span class="status-chip">${this._dirtyStateSummary}</span>
+                  <span class="status-chip">${this._canUndo ? 'Undo ready' : 'Undo idle'}</span>
+                  <span class="status-chip">${this._canRedo ? 'Redo ready' : 'Redo idle'}</span>
+                  <span class="status-chip">${this._hasBlockingValidationIssues ? 'Save blocked' : 'Save ready'}</span>
+                  <span class="status-chip">Help F1</span>
+                  <span class="status-text">${this._historyStatusSummary}</span>
+                </div>
+                <div class="sr-only" role="status" aria-live="polite">${this._historyAnnouncement}</div>
+
+                <prism-workflow-graph
+                  class="graph-panel"
+                  .workflow=${this._workflow}
+                  .mode=${this._graphMode}
+                  .selectedStageKey=${this._selectedStageKey}
+                  .selectedTransitionIndex=${this._selectedTransitionIndex}
+                  .simulationCurrentStageKey=${this._simulationCurrentStage?.stageKey ?? null}
+                  .simulationPathStageKeys=${this._simulation?.history.map(entry => entry.stageKey) ?? []}
+                  .simulationPathTransitionIndices=${this._simulation?.pathTransitionIndices ?? []}
+                  @stage-selected="${this._handleStageSelected}"
+                  @transition-selected="${this._handleTransitionSelected}"
+                  @workflow-updated="${this._handleWorkflowUpdated}"
+                  @inspector-requested="${this._handleInspectorRequested}"
+                ></prism-workflow-graph>
+              </div>
+
+              <!-- Right: inspector -->
+              <div class="editor-right">
+                <prism-step-inspector
+                  class="inspector-panel"
+                  tabindex="0"
+                  .workflow=${this._workflow}
+                  selected-stage-key="${this._selectedStageKey ?? ''}"
+                  .selectedTransitionIndex=${this._selectedTransitionIndex}
+                  .selectedActionIndex=${this._selectedActionIndex}
+                  .actionCatalog=${this._actionCatalog}
+                  @workflow-updated=${this._handleWorkflowUpdated}
+                  @action-selected=${this._handleActionSelected}
+                ></prism-step-inspector>
               </div>
             </div>
-            <div class="editor-statusbar" data-prism-history-status>
-              <span class="status-chip">${this._dirtyStateSummary}</span>
-              <span class="status-chip">${this._canUndo ? 'Undo ready' : 'Undo idle'}</span>
-              <span class="status-chip">${this._canRedo ? 'Redo ready' : 'Redo idle'}</span>
-              <span class="status-chip">${this._hasBlockingValidationIssues ? 'Save blocked' : 'Save ready'}</span>
-              <span class="status-chip">Help F1</span>
-              <span class="status-text">${this._historyStatusSummary}</span>
-            </div>
-            <div class="sr-only" role="status" aria-live="polite">${this._historyAnnouncement}</div>
-
-            <prism-workflow-graph
-              class="graph-panel"
-              .workflow=${this._workflow}
-              .mode=${this._graphMode}
-              .selectedStageKey=${this._selectedStageKey}
-              .selectedTransitionIndex=${this._selectedTransitionIndex}
-              .simulationCurrentStageKey=${this._simulationCurrentStage?.stageKey ?? null}
-              .simulationPathStageKeys=${this._simulation?.history.map(entry => entry.stageKey) ?? []}
-              .simulationPathTransitionIndices=${this._simulation?.pathTransitionIndices ?? []}
-              @stage-selected="${this._handleStageSelected}"
-              @transition-selected="${this._handleTransitionSelected}"
-              @workflow-updated="${this._handleWorkflowUpdated}"
-              @inspector-requested="${this._handleInspectorRequested}"
-            ></prism-workflow-graph>
           </div>
 
-          <!-- Right: inspector -->
-          <div class="editor-right">
-            <prism-step-inspector
-              class="inspector-panel"
-              tabindex="0"
-              .workflow=${this._workflow}
-              selected-stage-key="${this._selectedStageKey ?? ''}"
-              .selectedTransitionIndex=${this._selectedTransitionIndex}
-              .selectedActionIndex=${this._selectedActionIndex}
-              .actionCatalog=${this._actionCatalog}
-              @workflow-updated=${this._handleWorkflowUpdated}
-              @action-selected=${this._handleActionSelected}
-            ></prism-step-inspector>
-          </div>
-        </div>
+          <!-- Other tabs -->
+          <div slot="validation">${this._renderValidationPanel()}</div>
+          <div slot="preview">${this._renderStagePreview()}</div>
+          <div slot="simulation">${this._renderSimulationPanel()}</div>
+          <prism-help-panel slot="help"></prism-help-panel>
+        </prism-confidence-tabs>
 
-        ${this._renderValidationRail()}
-        <div class="editor-confidence-panels">
-          ${this._renderStagePreview()}
-          ${this._renderSimulationPanel()}
-        </div>
         ${this._renderShortcutGuide()}
 
         <!-- Modal overlay for proposal diff -->
@@ -1670,7 +1713,8 @@ export class PrismWorkflowEditorElement extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: 100%;
+      min-height: 0;
       overflow: hidden;
       font-family: "GDS Transport", arial, sans-serif;
       font-size: 1rem;
@@ -1728,10 +1772,25 @@ export class PrismWorkflowEditorElement extends LitElement {
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     }
 
+    /* ---- Tabs ---- */
+
+    .editor-tabs {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .canvas-workspace {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
     /* ---- Shell ---- */
 
     .editor-shell {
-      display: flex;
+      display: grid;
+      grid-template-columns: 240px 1fr 380px;
       flex: 1;
       overflow: hidden;
       min-height: 0;
@@ -1739,7 +1798,13 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     /* ---- Left panel ---- */
 
-    .editor-left {
+    .editor-outline {
+      width: 240px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .editor-center {
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -1859,56 +1924,57 @@ export class PrismWorkflowEditorElement extends LitElement {
       overflow: hidden;
     }
 
+    /* ---- Confidence panel ---- */
+
+    .validation-panel {
+      padding: 1.5rem;
+      background: #ffffff;
+      display: grid;
+      gap: 1rem;
+      overflow-y: auto;
+      height: 100%;
+    }
+
     .inspector-panel {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
     }
 
-    .validation-rail {
-      padding: 1rem;
-      border-top: 2px solid #b1b4b6;
-      background: #ffffff;
-      display: grid;
-      gap: 0.875rem;
-    }
-
-    .editor-confidence-panels {
-      padding: 1rem;
-      border-top: 1px solid #d8dde3;
-      background: #f8fafc;
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    }
-
-    .validation-rail-header {
+    .validation-panel-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 1rem;
     }
 
-    .validation-rail-title {
+    .validation-panel-title {
       margin: 0;
-      font-size: 1rem;
+      font-size: 1.125rem;
       font-weight: 700;
     }
 
-    .validation-rail-summary,
+    .validation-panel-summary,
     .validation-empty,
-    .validation-rail-save-status {
+    .validation-empty-panel,
+    .validation-panel-save-status {
       margin: 0;
       color: #505a5f;
       font-size: 0.875rem;
       line-height: 1.5;
     }
 
-    .validation-rail-meta {
-      display: inline-flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+    .validation-empty-panel {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: #626a6e;
+    }
+
+    .validation-panel-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
     }
 
     .validation-count,
@@ -1935,7 +2001,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       color: #594100;
     }
 
-    .validation-rail-save-status {
+    .validation-panel-save-status {
       display: flex;
       gap: 0.75rem;
       align-items: center;
