@@ -222,3 +222,34 @@ Consolidated and finalized the scroll container behavioral proof. Three tests no
 - ✅ Vertical lanes scroll test: 1 GREEN, 1 skipped
 
 **Decision recorded:** Merged to `.squad/decisions.md` — "Graph-canvas as vertical scroll container" (2026-05-23T10:02:16Z)
+
+---
+
+## 2026-05-23T10:25:20Z — Independent Graph Scrolling Behavioral Contract & Test Plan
+
+**Spawn:** Directed to define behavioral contract for independent graph scrolling and propose minimum proof slices with test cases.
+
+**Context:**
+- User request: Independent scrolling, multi-lane workflows, mobile usability
+- Scope: Desktop + mobile contracts, accessibility expectations, test strategy
+
+**Outcome:** ✅ Comprehensive recommendation brief written and merged to decisions.md
+
+**Key Contributions:**
+- Behavioral contract for desktop: vertical+horizontal scroll, shell chrome anchored, keyboard navigation
+- Behavioral contract for mobile: stacked layout, collapsible drawers, touch pan, screen reader support
+- Minimum proof set: 3 implementation slices with specific test cases
+  - Slice 1 (desktop horizontal overflow): 3 tests, highest impact
+  - Slice 2 (mobile stacked layout): 2 tests, medium impact
+  - Slice 3 (focus-follows-scroll): 1 test, lower impact
+- Test validation commands ready (npm run build, playwright test)
+
+**Total Recommended Tests:** 6 new tests across 3 slices
+
+**Accessibility Expectations:**
+- Keyboard: Tab, arrow keys, Shift+arrows, Ctrl+Home/End
+- Touch: single-finger pan, double-tap, long-press
+- Screen reader: drawer state announcements, focus trap, scrollable region announcements
+
+**Deliverable:** `.squad/orchestration-log/2026-05-23T10-25-20Z-tangy.md`
+

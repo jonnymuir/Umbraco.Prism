@@ -104,3 +104,25 @@ The **"too broad" concern from 2026-05-19** is not a blocker; the three clusters
 **Direction now locked:** Phase 1 scope is clear (2–3 weeks, integration focus). Isabelle owns UX; Tangy owns behavioral proof; your strategic direction cascades to all three. Tangy's quality bar reinforces Phase 1 success criteria (E2E authoring on one screen, real-time validation, keyboard navigation, WCAG pass).
 
 **Status:** All squad metadata written; ready for merge.
+
+---
+
+## 2026-05-23T10:25:20Z — Independent Graph Scrolling Recommendation
+
+**Spawn:** Directed to recommend interaction model for independent graph scrolling.
+
+**Context:**
+- User request: "I want a way of somehow independently scrolling up and down the graph editor, but leaving other things in place... if we add many different lanes it doesn't allow to scroll left or right either... also iphone/small form factor."
+- Scope: Unblock multi-lane workflows + small-form-factor layouts
+
+**Outcome:** ✅ Recommendation brief written and merged to decisions.md
+
+**Decision Locked:** Proceed with MVP two-axis scroll (CSS-only, ~15 min) before Phase 2 mobile-optimized responsive stacking.
+
+**Cascade:**
+- Tangy: add horizontal scroll verification tests
+- Isabelle: confirm "Fit to Screen" button behavior post-scroll
+- Scribe: consolidated all recommendations to team decisions
+
+**Deliverable:** `.squad/orchestration-log/2026-05-23T10-25-20Z-tom-nook.md`
+

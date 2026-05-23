@@ -268,3 +268,29 @@ Moved scroll container from `.graph-viewport` to `.graph-canvas` so the workflow
 - ✅ Direct tests passed (workflow-editor-shell.spec.ts, vertical-lanes-switcher.spec.ts)
 
 **Decision recorded:** Merged to `.squad/decisions.md` — "Graph-canvas as vertical scroll container" (2026-05-23T10:02:16Z)
+
+---
+
+## 2026-05-23T10:25:20Z — Graph Scroll Layout Recommendation
+
+**Spawn:** Directed to diagnose current layout mechanics and recommend concrete container hierarchy for vertical/horizontal overflow and narrow viewports.
+
+**Context:**
+- User request: Independent graph scrolling, multi-lane support, small-form-factor layouts
+- Current state: Vertical scroll ✅, horizontal scroll ❌, narrow viewports ❌
+
+**Outcome:** ✅ Comprehensive recommendation brief written and merged to decisions.md
+
+**Key Contributions:**
+- Detailed root cause analysis of three failure modes
+- Recommended container hierarchy with CSS changes
+- Responsive pattern recommendations (auto-collapse on @media max-width: 1024px)
+- Accessibility planning: focus management for drawer pattern, keyboard shortcuts, screen reader announcements
+
+**Behavioral Hook Requests:**
+- Slice 1 (desktop): CSS change to `.graph-canvas { overflow: auto }`
+- Slice 2 (mobile): Media query + collapsible drawers with aria-expanded attributes
+- Slice 3 (UX refinement): Focus-follows-scroll JS logic + _ensureFocusedStageVisible()
+
+**Deliverable:** `.squad/orchestration-log/2026-05-23T10-25-20Z-isabelle.md`
+

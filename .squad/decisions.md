@@ -1791,3 +1791,232 @@ The graph canvas now scrolls vertically while the workflow editor shell chrome (
 
 - User request: "I want the graph-canvas div to scroll up and down while the rest of the screen stays anchored."
 - Related decisions: `editor-shell-cohesion`, `layout-professionalisation`, `browser-surface-reset`
+
+---
+author: tom-nook
+date: 2026-05-23T11:25:20.342+01:00
+status: recommendation
+area: workflow-editor-ux
+---
+
+# Graph Editor Scroll UX: Recommendation Brief
+
+## Problem Statement
+
+Independent vertical scrolling was added to the graph canvas (`.graph-canvas { overflow-y: auto }`), but the interaction model still breaks on small form factors (iPhone, small tablets):
+
+1. **Horizontal overflow not addressable:** Many lanes exceed viewport width. `.graph-viewport { overflow: visible }` doesn't scroll left/right. Lanes become unreachable.
+2. **Panels consume screen real estate:** Outline (240px) + Inspector (380px) leave ~100px on iPhone. Graph barely visible. Panels never collapse automatically.
+3. **No touch-friendly collapse/expand:** Users must manually toggle panels to free space. Mental load high; muscle memory poor on repeated edits.
+
+## Current Layout Structure
+
+```
+┌─────────────────────────────────────────┐
+│ Editor (flex column, height: 100%)      │
+├─────────────────────────────────────────┤
+│ Header + Tabs (fixed height)            │
+├─────────────────────────────────────────┤
+│ Editor Shell (display: grid)            │
+│  Outline (240px) │ Center │ Inspector   │
+│                  │ (flex) │ (380px)     │
+│                  │        │             │
+│   Canvas Workspace (flex column)       │
+│   ┌────────────────────────────────┐   │
+│   │ Toolbar + Title                │   │
+│   ├────────────────────────────────┤   │
+│   │ graph-canvas (overflow-y: auto)│   │
+│   │ ┌──────────────────────────────┤   │
+│   │ │ graph-viewport (overflow: visible) │
+│   │ │ ┌────────────────────────────┐│   │
+│   │ │ │ graph-scene (scaled)       ││   │
+│   │ │ │ Lane 1 │ Lane 2 │ Lane 3   ││   │
+│   │ │ │ (absolute positioned)      ││   │
+│   │ │ │                            ││   │
+│   │ │ └────────────────────────────┘│   │
+│   │ └──────────────────────────────┘   │
+│   └────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+## Recommendation: MVP Independent Two-Axis Graph Scroll
+
+**Proceed with MVP immediately: Enable horizontal scroll on `.graph-viewport` (CSS-only change).**
+
+- MVP solves the most pressing constraint (horizontal unreachability)
+- Avoids complex mobile breakpoints until we validate the graph interaction model works at all
+- Panels stay visible, so no surprise UX changes
+- High confidence: it's a CSS-only change, low regression risk
+
+**Decision: Locked Direction**
+
+The workflow editor graph will support independent two-axis scroll (MVP) before mobile-optimized panel stacking (Phase 2).
+
+---
+author: isabelle
+date: 2026-05-23T11:25:20.342+01:00
+status: recommendation
+decision_id: isabelle-graph-scroll-layout-recommendation
+scope: workflow-editor
+---
+
+# Graph Scroll Layout Recommendation
+
+## Diagnosis: Why Useful UI Moves Out of Reach
+
+Current container hierarchy (post-2026-05-23T10:02:16Z):
+
+1. **Vertical Scroll Issue (Multi-Stage Workflows):**
+   - ✅ Already fixed: `.graph-canvas` now owns `overflow-y: auto`
+   - Graph scrolls independently; outline, inspector, toolbar stay anchored
+
+2. **Horizontal Scroll Issue (Multi-Lane Workflows):**
+   - ❌ Not addressed: `.graph-canvas` only has `overflow-y: auto`, not `overflow-x`
+   - When workflow has 3+ role lanes (e.g., Applicant, Planning Officer, Legal, Finance), canvas bounds width exceeds viewport
+   - CSS currently: `.graph-canvas { overflow-y: auto; }` means horizontal content gets clipped without scrollability
+
+3. **Narrow Viewport Issue (iPhone, iPad Portrait):**
+   - ❌ Critical on mobile: Three-column layout (outline 240px + graph flex:1 + inspector 320px) forces graph to ~300-400px on iPhone
+   - Outline and inspector eat horizontal space, leaving graph too narrow for even a single 280px lane
+   - No responsive breakpoint collapses or reflows the three-column grid
+
+## Recommended Container Hierarchy
+
+### Minimum Viable Fix (Ship This First)
+
+**Change:** `.graph-canvas` should own both vertical **and** horizontal scroll.
+
+```css
+.graph-canvas {
+  flex: 1;
+  min-height: 0;
+  padding: 0 1rem 1rem;
+  overflow: auto;  /* was: overflow-y: auto */
+}
+```
+
+**Impact:**
+- Graph canvas scrolls freely in both directions
+- HUD toolbar stays anchored (flex-shrink: 0, not inside scroll container)
+- Outline and inspector stay anchored (not inside scroll container)
+- Works on touch devices (native pan gestures)
+
+### Follow-On Responsive Polish (Schedule Separately)
+
+1. Add `@media (max-width: 1024px)` breakpoint
+2. Auto-collapse outline and inspector
+3. Add floating drawer toggle buttons (bottom-left, bottom-right)
+4. Implement drawer overlay pattern with focus trap
+5. Add `inert` attribute to background when drawer open
+6. Update Storybook stories for narrow viewport testing
+7. Add Playwright tests for drawer interaction and focus management
+
+**Estimated Effort:** 2-3 days (drawer pattern, focus traps, mobile tests)
+
+## Decision
+
+**Recommend:**
+1. Ship minimum viable fix (overflow: auto) immediately
+2. Schedule responsive drawer pattern for next sprint
+3. Prioritize mobile QA on real devices (iPhone 12/13, iPad Pro)
+4. Add scroll bounds announcement to accessibility roadmap
+
+---
+author: tangy
+date: 2026-05-23T11:25:20.342+01:00
+status: recommendation
+area: workflow-editor-ux
+---
+
+# Recommendation: Independent Graph Scrolling — Desktop and Mobile Overflow Behavioral Contract
+
+## Behavioral Contract — Desktop (many lanes)
+
+### User-Observable Behavior
+
+**Given:** A workflow with 5+ role lanes (e.g., Applicant, Planning Officer, Team Lead, Finance, Public)
+
+**When:** The author opens the workflow in the graph workspace at viewport width 1280px
+
+**Then:**
+1. The `.graph-canvas` container scrolls BOTH vertically (already working) AND horizontally
+2. The shell chrome (outline, inspector, confidence tabs) remains anchored — only the graph scrolls
+3. Horizontal scrollbar appears when total lane width exceeds canvas viewport width
+4. Vertical scrollbar appears when total stage height exceeds canvas viewport height
+5. Mouse wheel scroll on canvas: vertical by default, horizontal with Shift modifier
+6. Two-finger trackpad scroll: natural bidirectional panning
+
+### CSS Change
+
+```css
+.graph-canvas {
+  flex: 1;
+  min-height: 0;
+  padding: 0 1rem 1rem;
+  overflow: auto; /* CHANGED: was overflow-y: auto */
+}
+```
+
+### Accessibility Expectations
+
+**Keyboard:**
+- Tab into `.graph-canvas` (already has `tabindex="0"` per Storybook axe requirement)
+- Arrow keys: move focus within graph (stage-to-stage navigation, already working)
+- Shift+Arrow keys: scroll the canvas viewport (up/down/left/right) without changing focus
+- Ctrl+Home: scroll canvas to top-left corner
+- Ctrl+End: scroll canvas to bottom-right corner
+
+## Minimum Proof Set (Recommended Implementation Order)
+
+### Slice 1: Desktop Horizontal Overflow (highest impact)
+
+**Implementation:**
+1. Change `.graph-canvas` from `overflow-y: auto` to `overflow: auto`
+2. Ensure `.graph-viewport` sizes to computed layout bounds (already does via inline `width` × `height`)
+3. Add canvas min-width/min-height constraints (800×400px)
+
+**Tests to add:**
+1. Desktop many lanes horizontal scroll
+2. Desktop bidirectional scroll independence
+3. Keyboard horizontal scroll
+
+**Expected outcome:** 3 new tests GREEN, existing tests unchanged
+
+### Slice 2: Mobile/Narrow Layout (medium impact)
+
+**Implementation:**
+1. Add `@media (max-width: 640px)` breakpoint to shell layout
+2. Change grid from `240px | 1fr | 380px` to stacked `100%`
+3. Make outline and inspector collapsible by default on mobile (expand via toggle)
+4. Canvas remains full-width, horizontal scroll via touch pan
+
+**Expected outcome:** 2 new tests GREEN, existing tests unchanged
+
+### Slice 3: Canvas Focus-Follows-Scroll (lower impact, usability refinement)
+
+**Expected outcome:** 1 new test GREEN, existing keyboard tests remain GREEN
+
+## Recommendation Summary
+
+**Implement in order:**
+1. **Slice 1** — desktop horizontal overflow (CSS change + 3 tests) — HIGHEST USER IMPACT
+2. **Slice 2** — mobile stacked layout (media query + 2 tests) — MEDIUM USER IMPACT
+3. **Slice 3** — focus-follows-scroll refinement (JS logic + 1 test) — LOWER USER IMPACT
+
+---
+author: jonny-muir
+date: 2026-05-23T11:25:20.342+01:00
+status: documented
+---
+
+# User Directive: Independent Graph Scrolling and Multi-Lane Support
+
+## Request (2026-05-23T11:25:20.342+01:00)
+
+**User:** Jonny Muir (via Copilot)
+
+**What:** Keep the workflow graph independently scrollable so supporting UI stays in reach, and account for both vertical stage overflow and horizontal lane overflow, including small-form-factor layouts.
+
+**Why:** User request — captured for team memory
+
+---
