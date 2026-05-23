@@ -112,6 +112,38 @@
 
 ## Recent Work (Last 3 Entries)
 
+#### 2026-05-23T09:17:57+01:00 — Vertical Lanes & Workflow Switching Fix
+
+✅ **IMPLEMENTED & BUILT**
+
+**User Request:** "The swimlanes are horizontal at the moment. It may be better if they were vertical... When I change workflow in the drop down at the top, only the planning application is ever shown, there is something wrong here."
+
+**Changes:**
+1. **Graph Layout:** Converted horizontal swimlanes (rows) to vertical lanes (columns)
+   - `RoleLane` type: `{rowIndex, y, height}` → `{columnIndex, x, width}`
+   - Stages now stack vertically within each role lane
+   - Lanes positioned horizontally (left-to-right: applicant, reviewer, etc.)
+   - Updated transition paths for vertical flow (bottom → top)
+   - Canvas bounds: width based on lane count, height based on max stages per lane
+
+2. **Workflow Switching:** Added reactive property watcher to `prism-workflow-editor`
+   - Added `willUpdate()` lifecycle to watch `workflowKey` changes
+   - Added `_lastLoadedWorkflowKey` field to track loaded workflow
+   - Workflow now reloads from API when dropdown selection changes
+
+**Impact:** 
+- Vertical space utilization improved (stages flow top-to-bottom per role)
+- Workflow dropdown correctly switches between workflows
+- Keyboard/screen-reader usability preserved
+
+**Trade-offs:** 
+- Wider canvas for multi-lane workflows (horizontal scrolling may be needed)
+- Transition paths primarily vertical (visual tuning may be needed)
+
+**Quality Gate:** ✅ TypeScript clean, ✅ Storybook build successful
+
+**Decision recorded:** `isabelle-vertical-lanes-and-switch-fix.md`
+
 #### 2026-05-23T08:30:10+01:00 — Layout Professionalisation: Tabbed Canvas
 
 ✅ **IMPLEMENTED & VERIFIED**
@@ -202,3 +234,14 @@
 **Decision recorded:** `isabelle-build-fix-shell-state.md` → merged to decisions.md
 
 **Status:** ✅ Build restored to green; ready for next integration phase.
+
+---
+date: 2026-05-23T09:20:56Z
+update: spawn-cohort-complete
+---
+
+## 2026-05-23 Spawn Completion
+
+Vertical swimlanes & workflow switching implementation completed. Side panels now collapsible with proper a11y semantics. Graph-only workspace chrome landed. All frontend validation gates pass (build, Storybook, keyboard tests green). Editor smoke blocked by external Aspire stack (localhost-auth ports occupied — out of scope for this iteration).
+
+**Semantic deliverables documented in Tangy's test hooks** — collapsible drawer contracts, workflow switching proof, canvas scrolling expectations. Ready for integration coordination.

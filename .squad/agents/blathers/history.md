@@ -46,48 +46,6 @@ Hosted the workflow editor inside MockBusinessApp with full authored persistence
 - Designer can reload and retain last explicit save state; runtime projection still driven by seed.
 - Reference host remains thin; authoring API owns persistence and republish logic.
 
-## 2026-05-18: Issue #70 Runtime Handler Registry Decision
-
-Decision formalized: **keep runtime handler registration in the reference app boundary**.
-
-### Key Points
-- Register workflow runtime handlers in `src/UmbracoPrism.MockBusinessApp/Services/WorkflowActions/`
-- Keep `BusinessAppWorkflowEngine` responsible for invoking in `OnExit` → `OnTransition` → `OnEntry` order
-- Reuse `BuiltInActionCatalogProvider` as registry catalog source
-- Avoid duplicating lists of action types and parameter schemas
-
-### Rationale
-- Generic `UmbracoPrism.WorkflowRuntime` package stays orchestration-focused
-- Handler implementations are host-specific business behaviour
-- Authoring catalog + runtime registry alignment prevents drift
-
-### Quality Gate Status
-Tangy has established quality gate for #70 covering runtime contracts, DI registration, catalog endpoint, and .NET tests. Ready for implementation phase.
-
-
-## 2026-05-19T18:16:08Z: Admin-Page Edit-Workflow Link — NEXT REVISION ASSIGNED
-
-**Issue:** Admin workflow definitions page shows "Edit workflow" link, but clicking the link does not reliably open the editor for that specific workflow definition.
-
-### Current Blocker
-Deep-link parameter mismatch between admin card URL (`workflow=planning-notification`) and editor shell initialization (`workflow-key=planning`).
-
-### Acceptance Criteria for Next Revision
-1. Admin card deep-link parameter must match editor shell's loaded workflow key exactly.
-2. Live test passes: `tests/workflow-gds-journey.spec.ts` (admin card click → correct editor session)
-3. File-shape test passes: `src/UmbracoPrism.Core.Tests/WorkflowShowcaseShortcutTests.cs`
-4. Client build: green
-
-**Scribe Note:** Tangy has evidence; Blathers owns implementation. When fixed, submit for re-review.
-
-**References:**
-- `.squad/log/2026-05-19T18-16-08Z-workflow-editor-selection-mismatch.md`
-- `.squad/decisions/inbox/tangy-edit-workflow-link-final.md`
-
-## Scribe Consolidation (2026-05-19T21:41:48.843Z)
-
-Decisions consolidated into team decisions log. Orchestration recorded.
-
 ## 2026-05-19: Workflow Publishing Implementation
 
 ### 2026-05-19T22:50:10.335+01:00 | Startup workflow publishing pipeline wired
@@ -180,3 +138,12 @@ Use community-enquiry instead of planning fixture for generic `WorkflowPatchServ
 - The same interaction bug was also the first failing assertion in the red `localhost-auth-playwright` lane, so the cancelled planning smoke was a rerun-worthy harness failure rather than a fresh runtime break.
 - Switched the walkthrough to keyboard activation (`focus()` + `press('Enter')`) for Send and Accept All, keeping the test aligned with the editor's accessible interaction model and avoiding pointer interception.
 - Verified `dotnet build UmbracoPrism.sln -c Release` and `cd src/UmbracoPrism.Client && npm run test:playwright:planning-smoke` both pass after the change.
+
+---
+date: 2026-05-23T09:20:56Z
+update: spawn-cohort-complete
+---
+
+## 2026-05-23 Spawn Completion
+
+Umbraco.Cms upgraded to 17.4.2 across all projects. User directive for warningless build achieved: 8 NuGet security warnings eliminated, 2 moderate severity CVEs patched (GHSA-2qjj-h6wp-c7h7, GHSA-vr9v-27gg-qgx4). All 811 core tests pass in Release configuration. Backward compatibility confirmed. Solution now clean for next iteration.
