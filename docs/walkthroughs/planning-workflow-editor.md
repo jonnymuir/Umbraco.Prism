@@ -22,7 +22,7 @@ The editor shell is a reference integration hosted in MockBusinessApp. It is com
 |---|---|
 | `<prism-workflow-editor-shell>` | Thin reference host: workflow picker, API base config, integration snippet |
 | `<prism-workflow-editor>` | Assembled editor: graph view, conversation pane, step inspector |
-| `<prism-workflow-graph>` | Visualises the workflow as a graph (default) or a navigable stage list |
+| `<prism-workflow-graph>` | Visualises the workflow as the role-first graph canvas and owns the editor scrolling surface |
 | `<prism-conversation-pane>` | Natural-language input thread with proposal diff inline |
 | `<prism-step-inspector>` | Sidebar showing the selected stage's fields and component tree |
 
@@ -87,20 +87,21 @@ Each operation (field or component in the tree) carries `data-prism-op-index="{n
 
 ---
 
-## Step 5 — Toggle to stage list view
+## Step 5 — Collapse the side panels and keep the canvas primary
 
-The mode-toggle button ("List view") is always visible in the toolbar. Clicking it switches `<prism-workflow-graph>` from graph mode (`role="application"` canvas) to linear mode (`role="listbox"` list of stage cards).
+The simplified editor lets authors collapse the outline and properties drawer without leaving the graph canvas. This keeps the graph as the main authoring surface while the surrounding chrome gets out of the way when extra room is needed.
 
-![Stage list view](../images/walkthroughs/planning-workflow-editor/05-stage-list-view.png)
+![Collapsed side panels with graph canvas primary](../images/walkthroughs/planning-workflow-editor/05-stage-list-view.png)
 
-In linear mode:
-- Each stage card has `role="option"` and is keyboard-focusable.
-- ArrowDown / ArrowUp navigate between stages (WCAG 2.1.1).
-- The toggle button gains `aria-pressed="true"` and its label switches to "Graph view" (WCAG 4.1.2).
+At this step the executable spec proves that:
+- The outline and properties drawer expose collapse/expand affordances with `aria-expanded` state.
+- Restoring the panels brings both drawers back without losing the canvas.
+- No `List view` toggle or `[data-prism-linear-table]` workspace is present.
+- The graph viewport (`.graph-viewport`) is the scrollable surface while browser-page scrolling stays at rest.
 
-The full keyboard contract is exercised by [`workflow-graph-keyboard.spec.ts`](../../src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts).
+The graph-first keyboard contract is exercised by [`workflow-graph-keyboard.spec.ts`](../../src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts).
 
-**Source:** [`prism-workflow-graph.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts)
+**Source:** [`prism-workflow-graph.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts), [`prism-workflow-editor.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts)
 
 ---
 

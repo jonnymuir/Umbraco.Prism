@@ -1,5 +1,5 @@
 using FluentAssertions;
-using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.TestSite.Controllers.Models;
 
 namespace UmbracoPrism.Core.Tests;
 

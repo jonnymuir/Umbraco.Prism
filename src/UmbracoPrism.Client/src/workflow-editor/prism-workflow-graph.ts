@@ -43,6 +43,8 @@ type StageLayout = {
   stage: AuthoredStage;
   stageIndex: number;
   surface: StageSurface;
+  laneKey: string;
+  laneLabel: string;
   x: number;
   y: number;
   width: number;
@@ -59,8 +61,20 @@ type TransitionLayout = {
 
 type WorkspaceLayout = {
   bounds: { width: number; height: number };
+  roleLanes: RoleLane[];
   stageLayouts: StageLayout[];
   transitionLayouts: TransitionLayout[];
+};
+
+type RoleLane = {
+  key: string;
+  label: string;
+  description: string;
+  surface: StageSurface;
+  columnIndex: number;
+  x: number;
+  width: number;
+  stageCount: number;
 };
 
 type CreateStageDialogState = {
@@ -92,17 +106,26 @@ type CreateTransitionDialogState = {
 
 const NODE_WIDTH = 224;
 const NODE_HEIGHT = 128;
-const HORIZONTAL_GAP = 96;
+const VERTICAL_GAP = 96;
 const TOP_PADDING = 64;
 const SIDE_PADDING = 56;
-const LANE_HEIGHT = 188;
-const LANE_GAP = 104;
+const LANE_WIDTH = 280;
+const LANE_GAP = 36;
 const EDGE_LABEL_WIDTH = 132;
 const EDGE_LABEL_HEIGHT = 32;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
+const LANE_HEADER_OFFSET = 80;
 const FRONT_STAGE_ACTORS = new Set(['applicant', 'resident', 'member', 'citizen', 'customer', 'public']);
 const BACK_STAGE_ACTORS = new Set(['reviewer', 'caseworker', 'officer', 'administrator', 'admin', 'system']);
+
+function humaniseRoleLabel(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 /**
  * Workflow graph workspace for stage/transition authoring.
@@ -121,6 +144,9 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   @property({ type: String })
   mode: GraphMode = 'graph';
+
+  @property({ type: Boolean, attribute: 'allow-linear-mode' })
+  allowLinearMode = true;
 
   @property({ attribute: false })
   selectedStageKey: string | null = null;
@@ -175,8 +201,8 @@ export class PrismWorkflowGraphElement extends LitElement {
   @state()
   private _createTransitionDialog: CreateTransitionDialogState | null = null;
 
-  @query('.graph-viewport')
-  private _graphViewport?: HTMLDivElement;
+  @query('.graph-canvas')
+  private _graphCanvas?: HTMLDivElement;
 
   private _contextReturnTarget: HTMLElement | null = null;
   private _statusTimer: number | null = null;
@@ -234,38 +260,67 @@ export class PrismWorkflowGraphElement extends LitElement {
   private get _layout(): WorkspaceLayout {
     const stages = this.workflow?.stages ?? [];
     const transitions = this.workflow?.transitions ?? [];
-    const frontStages: StageLayout[] = [];
-    const backStages: StageLayout[] = [];
+    const roleLanes: RoleLane[] = [];
+    const laneByKey = new Map<string, RoleLane>();
+    const stageLayouts: StageLayout[] = [];
+
+    // Group stages by lane and track stage indices per lane
+    const stagesPerLane = new Map<string, Array<{ stage: AuthoredStage; globalIndex: number }>>();
 
     stages.forEach((stage, stageIndex) => {
       const surface = this._surfaceForStage(stage);
-      const laneIndex = surface === 'front-stage' ? frontStages.length : backStages.length;
-      const x = SIDE_PADDING + laneIndex * (NODE_WIDTH + HORIZONTAL_GAP);
-      const y = surface === 'front-stage'
-        ? TOP_PADDING
-        : TOP_PADDING + LANE_HEIGHT + LANE_GAP;
-
-      const layout: StageLayout = {
-        stage,
-        stageIndex,
-        surface,
-        x,
-        y,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-      };
-
-      if (surface === 'front-stage') {
-        frontStages.push(layout);
-      } else {
-        backStages.push(layout);
+      const laneKey = this._roleKeyForStage(stage, surface);
+      let lane = laneByKey.get(laneKey);
+      if (!lane) {
+        lane = {
+          key: laneKey,
+          label: this._roleLabelForLane(laneKey),
+          description: this._roleDescriptionForLane(laneKey),
+          surface,
+          columnIndex: roleLanes.length,
+          x: SIDE_PADDING + roleLanes.length * (LANE_WIDTH + LANE_GAP),
+          width: LANE_WIDTH,
+          stageCount: 0,
+        };
+        laneByKey.set(laneKey, lane);
+        roleLanes.push(lane);
+        stagesPerLane.set(laneKey, []);
       }
+
+      lane.stageCount += 1;
+      stagesPerLane.get(laneKey)!.push({ stage, globalIndex: stageIndex });
     });
 
-    const stageLayouts = [...frontStages, ...backStages];
-    const maxColumns = Math.max(frontStages.length, backStages.length, 1);
-    const width = SIDE_PADDING * 2 + NODE_WIDTH + (maxColumns - 1) * (NODE_WIDTH + HORIZONTAL_GAP);
-    const height = TOP_PADDING * 2 + NODE_HEIGHT * 2 + LANE_GAP + 72;
+    // Position stages vertically within each lane
+    stagesPerLane.forEach((stageList, laneKey) => {
+      const lane = laneByKey.get(laneKey)!;
+      stageList.forEach((item, indexInLane) => {
+        const x = lane.x + (lane.width - NODE_WIDTH) / 2;
+        const y = TOP_PADDING + LANE_HEADER_OFFSET + indexInLane * (NODE_HEIGHT + VERTICAL_GAP);
+
+        const layout: StageLayout = {
+          stage: item.stage,
+          stageIndex: item.globalIndex,
+          surface: lane.surface,
+          laneKey,
+          laneLabel: lane.label,
+          x,
+          y,
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+        };
+
+        stageLayouts.push(layout);
+      });
+    });
+
+    const width = roleLanes.length === 0
+      ? SIDE_PADDING * 2 + LANE_WIDTH
+      : SIDE_PADDING * 2 + roleLanes.length * LANE_WIDTH + Math.max(0, roleLanes.length - 1) * LANE_GAP;
+    const maxStagesInAnyLane = Math.max(0, ...Array.from(stagesPerLane.values()).map(list => list.length));
+    const height = maxStagesInAnyLane === 0
+      ? TOP_PADDING * 2 + LANE_HEADER_OFFSET + 200
+      : TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP;
 
     const stageMap = new Map(stageLayouts.map(layout => [layout.stage.stageKey, layout]));
     const transitionLayouts: TransitionLayout[] = transitions.map((transition, index) => {
@@ -288,6 +343,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     return {
       bounds: { width, height },
+      roleLanes,
       stageLayouts,
       transitionLayouts,
     };
@@ -320,41 +376,82 @@ export class PrismWorkflowGraphElement extends LitElement {
       : 'front-stage';
   }
 
+  private _roleKeyForStage(stage: AuthoredStage, surface = this._surfaceForStage(stage)) {
+    const actor = stage.actor?.trim().toLowerCase();
+    if (actor) {
+      return actor;
+    }
+
+    return surface === 'back-stage' ? 'reviewer' : 'public';
+  }
+
+  private _roleLabelForLane(laneKey: string) {
+    const normalised = laneKey.trim().toLowerCase();
+    const workflowRole = this.workflow?.roles?.find(role =>
+      role.roleKey.trim().toLowerCase() === normalised
+      || role.claimMapping?.trim().toLowerCase() === normalised
+    );
+
+    return workflowRole?.displayName?.trim() || humaniseRoleLabel(normalised);
+  }
+
+  private _roleDescriptionForLane(laneKey: string) {
+    switch (laneKey) {
+      case 'public':
+      case 'applicant':
+      case 'resident':
+      case 'citizen':
+      case 'customer':
+        return 'Public-facing stages and handoffs';
+      case 'member':
+        return 'Signed-in member stages and handoffs';
+      case 'reviewer':
+      case 'caseworker':
+      case 'officer':
+      case 'administrator':
+      case 'admin':
+        return 'Review and decision stages';
+      case 'system':
+        return 'Automated checks and status stages';
+      default:
+        return `${this._roleLabelForLane(laneKey)} stages and handoffs`;
+    }
+  }
+
   private _buildTransitionPath(source: StageLayout, target: StageLayout) {
-    const sameLane = source.surface === target.surface;
+    const sameLane = source.laneKey === target.laneKey;
+    const startX = source.x + source.width / 2;
+    const startY = source.y + source.height;
+    const endX = target.x + target.width / 2;
+    const endY = target.y;
+    const distance = Math.max(Math.abs(endY - startY), 64);
+    const curve = Math.min(Math.max(distance / 2, 56), 180);
 
     if (sameLane) {
-      const startX = source.x + source.width;
-      const startY = source.y + source.height / 2;
-      const endX = target.x;
-      const endY = target.y + target.height / 2;
-      const distance = Math.max(Math.abs(endX - startX), 48);
-      const curve = Math.min(Math.max(distance / 2, 48), 160);
-      const path = `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
+      // Vertical transition within same lane
+      const path = `M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`;
 
       return {
         path,
-        labelX: startX + (endX - startX) / 2,
-        labelY: startY + (endY - startY) / 2 - 22,
+        labelX: startX + (endX - startX) / 2 + 22,
+        labelY: startY + (endY - startY) / 2,
       };
     }
 
-    const sourceFromFront = source.surface === 'front-stage';
-    const startX = source.x + source.width / 2;
-    const startY = sourceFromFront ? source.y + source.height : source.y;
-    const endX = target.x + target.width / 2;
-    const endY = sourceFromFront ? target.y : target.y + target.height;
-    const midY = (startY + endY) / 2;
-    const path = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
+    // Cross-lane transition
+    const path = `M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`;
 
     return {
       path,
       labelX: startX + (endX - startX) / 2,
-      labelY: midY,
+      labelY: startY + (endY - startY) / 2,
     };
   }
 
   private _toggleMode() {
+    if (!this.allowLinearMode) {
+      return;
+    }
     this.mode = this.mode === 'graph' ? 'linear' : 'graph';
     this._focusedIndex = 0;
     this._dismissContextMenu();
@@ -474,18 +571,18 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _fitToScreen() {
-    const viewport = this._graphViewport;
-    if (!viewport) {
+    const canvas = this._graphCanvas;
+    if (!canvas) {
       return;
     }
 
     const { width, height } = this._layout.bounds;
-    const availableWidth = Math.max(viewport.clientWidth - 32, 1);
-    const availableHeight = Math.max(viewport.clientHeight - 32, 1);
+    const availableWidth = Math.max(canvas.clientWidth - 32, 1);
+    const availableHeight = Math.max(canvas.clientHeight - 32, 1);
     const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(availableWidth / width, availableHeight / height)));
     this._zoom = Number(nextZoom.toFixed(2));
     requestAnimationFrame(() => {
-      viewport.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+      canvas.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     });
     this._announce('Canvas fit to screen.');
   }
@@ -1144,13 +1241,16 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
 
-    if (action === 'add-front-stage') {
-      this._openCreateStageDialog('front-stage', target.kind === 'stage' ? 'after' : 'append', target.kind === 'stage' ? target.stageKey : null);
-      return;
-    }
-
-    if (action === 'add-back-stage') {
-      this._openCreateStageDialog('back-stage', target.kind === 'stage' ? 'after' : 'append', target.kind === 'stage' ? target.stageKey : null);
+    if (action === 'add-stage') {
+      const referenceStageKey = target.kind === 'stage' ? target.stageKey : this._selectedStageKey;
+      const referenceStage = referenceStageKey
+        ? this.workflow?.stages.find(stage => stage.stageKey === referenceStageKey) ?? null
+        : null;
+      this._openCreateStageDialog(
+        referenceStage ? this._surfaceForStage(referenceStage) : 'front-stage',
+        target.kind === 'stage' ? 'after' : 'append',
+        target.kind === 'stage' ? target.stageKey : null
+      );
       return;
     }
 
@@ -1505,11 +1605,8 @@ export class PrismWorkflowGraphElement extends LitElement {
       >
         ${target.kind !== 'transition'
           ? html`
-              <button type="button" role="menuitem" @click=${() => this._handleContextMenuAction('add-front-stage')}>
-                Add front-stage node
-              </button>
-              <button type="button" role="menuitem" @click=${() => this._handleContextMenuAction('add-back-stage')}>
-                Add back-stage node
+              <button type="button" role="menuitem" @click=${() => this._handleContextMenuAction('add-stage')}>
+                Add stage
               </button>
             `
           : nothing}
@@ -1887,7 +1984,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _renderGraph() {
-    const { bounds, stageLayouts, transitionLayouts } = this._layout;
+    const { bounds, roleLanes, stageLayouts, transitionLayouts } = this._layout;
     const isEmpty = stageLayouts.length === 0;
     const dragSource = this._dragTransition
       ? stageLayouts.find(layout => layout.stage.stageKey === this._dragTransition?.sourceStageKey)
@@ -1899,11 +1996,21 @@ export class PrismWorkflowGraphElement extends LitElement {
     return html`
       <div class="graph-hud" aria-label="Workspace controls and hints">
         <div class="hud-group">
-          <button type="button" class="hud-button" data-prism-add-stage @click=${(event: Event) => this._openCreateStageDialog('front-stage', this._selectedStageKey ? 'after' : 'append', this._selectedStageKey, event.currentTarget as HTMLElement)}>
+          <button
+            type="button"
+            class="hud-button"
+            data-prism-add-stage
+            @click=${(event: Event) => {
+              const selectedStage = this.workflow?.stages.find(stage => stage.stageKey === this._selectedStageKey) ?? null;
+              this._openCreateStageDialog(
+                selectedStage ? this._surfaceForStage(selectedStage) : 'front-stage',
+                this._selectedStageKey ? 'after' : 'append',
+                this._selectedStageKey,
+                event.currentTarget as HTMLElement
+              );
+            }}
+          >
             Add stage
-          </button>
-          <button type="button" class="hud-button" data-prism-add-backstage @click=${(event: Event) => this._openCreateStageDialog('back-stage', this._selectedStageKey ? 'after' : 'append', this._selectedStageKey, event.currentTarget as HTMLElement)}>
-            Add back stage
           </button>
         </div>
         <div class="hud-group">
@@ -1921,7 +2028,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       </div>
 
       <p class="graph-hint">
-        Tab through stages, transition chips, and transition handles. Enter selects, T opens transition creation, E opens the inspector, and Shift+F10 opens the context menu.
+        Tab through role bands, stage cards, transition chips, and transition handles. Enter selects, T opens transition creation, E opens the inspector, and Shift+F10 opens the context menu.
       </p>
 
       ${isEmpty
@@ -1931,7 +2038,7 @@ export class PrismWorkflowGraphElement extends LitElement {
             role="application"
             tabindex="0"
             aria-label=${`Workflow graph canvas — ${this.workflow?.displayName ?? 'workflow'}`}
-            aria-roledescription="Two-lane workflow editor workspace"
+            aria-roledescription="Role-first workflow editor workspace"
             @click=${() => this._dismissContextMenu(false)}
             @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'canvas' })}
           >
@@ -1946,14 +2053,27 @@ export class PrismWorkflowGraphElement extends LitElement {
               data-prism-component="workflow-graph"
               data-prism-mode="graph"
             >
-              <div class="lane lane-front" aria-hidden="true">
-                <div class="lane-heading">Front stage</div>
-                <div class="lane-copy">Applicant and public-facing work</div>
-              </div>
-              <div class="lane lane-back" aria-hidden="true">
-                <div class="lane-heading">Back stage</div>
-                <div class="lane-copy">Reviewer, caseworker, and system work</div>
-              </div>
+              ${roleLanes.map(lane => {
+                const headingId = `lane-heading-${lane.key}`;
+                const copyId = `lane-copy-${lane.key}`;
+                return html`
+                  <section
+                    class=${`lane ${lane.surface === 'back-stage' ? 'lane-supporting' : 'lane-primary'}`}
+                    style=${`left:${lane.x}px;width:${lane.width}px;`}
+                    tabindex="0"
+                    aria-labelledby=${headingId}
+                    aria-describedby=${copyId}
+                    data-prism-role-lane=${lane.key}
+                    @focus=${() => this._announce(`${lane.label} lane. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`)}
+                  >
+                    <div class="lane-header" data-prism-lane-header=${lane.key}>
+                      <div id=${headingId} class="lane-heading">${lane.label}</div>
+                      <div class="lane-meta">${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}</div>
+                    </div>
+                    <div id=${copyId} class="lane-copy">${lane.description}</div>
+                  </section>
+                `;
+              })}
 
               <svg class="graph-edges" viewBox=${`0 0 ${bounds.width} ${bounds.height}`} aria-hidden="true">
                 <defs>
@@ -1999,7 +2119,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     type="button"
                     class=${`stage-node ${layout.surface} ${this._selectedStageKey === layout.stage.stageKey ? 'selected' : ''} ${this._dragTransition?.targetStageKey === layout.stage.stageKey ? 'drag-target' : ''} ${this._stageIsInSimulationPath(layout.stage.stageKey) ? 'simulation-path' : ''} ${this.simulationCurrentStageKey === layout.stage.stageKey ? 'simulation-current' : ''}`}
                     aria-pressed=${String(this._selectedStageKey === layout.stage.stageKey)}
-                    aria-label=${`${layout.stage.displayName}, ${layout.surface === 'front-stage' ? 'front stage' : 'back stage'}`}
+                    aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} role`}
                     data-prism-stage="${layout.stage.stageKey}"
                     data-prism-stage-simulation-path=${String(this._stageIsInSimulationPath(layout.stage.stageKey))}
                     data-prism-stage-simulation-current=${String(this.simulationCurrentStageKey === layout.stage.stageKey)}
@@ -2008,7 +2128,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, layout.stage, visualIndex)}
                     @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'stage', stageKey: layout.stage.stageKey }, event.currentTarget as HTMLElement)}
                   >
-                    <span class="surface-tag">${layout.surface === 'front-stage' ? 'Front stage' : 'Back stage'}</span>
+                    <span class="surface-tag">${layout.laneLabel}</span>
                     <span class="node-label">${layout.stage.displayName}</span>
                     <span class="node-meta">${layout.stage.kind}${layout.stage.actor ? ` · ${layout.stage.actor}` : ''}</span>
                   </button>
@@ -2043,8 +2163,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           This workflow does not have any stages yet. Add the first stage, then connect routes as you model the author journey.
         </p>
         <ul class="workspace-empty-tips">
-          <li>Use <strong>Add stage</strong> for applicant or member-facing steps.</li>
-          <li>Use <strong>Add back stage</strong> for reviewer or system-only work.</li>
+          <li>Use <strong>Add stage</strong>, then pick the right actor for the role band you want.</li>
           <li>Use the editor Help button or press <strong>F1</strong> to review shortcuts while you work.</li>
         </ul>
         <div class="workspace-empty-actions">
@@ -2055,14 +2174,6 @@ export class PrismWorkflowGraphElement extends LitElement {
             @click=${(event: Event) => this._openCreateStageDialog('front-stage', 'append', null, event.currentTarget as HTMLElement)}
           >
             Add first stage
-          </button>
-          <button
-            type="button"
-            class="hud-button"
-            data-prism-empty-add-backstage
-            @click=${(event: Event) => this._openCreateStageDialog('back-stage', 'append', null, event.currentTarget as HTMLElement)}
-          >
-            Add first back stage
           </button>
         </div>
       </section>
@@ -2346,7 +2457,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   render() {
     const stages = this.workflow?.stages ?? [];
-    const isLinear = this.mode === 'linear';
+    const isLinear = this.allowLinearMode && this.mode === 'linear';
 
     return html`
       <div class="workflow-graph-root" data-prism-component="workflow-graph" data-prism-mode=${this.mode}>
@@ -2355,14 +2466,18 @@ export class PrismWorkflowGraphElement extends LitElement {
             <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>
             <span class="workflow-subtitle">Graph workspace for stages and transitions</span>
           </div>
-          <button
-            class="mode-toggle"
-            aria-pressed=${String(isLinear)}
-            @click=${this._toggleMode}
-            title=${isLinear ? 'Switch to graph view' : 'Switch to linear list view'}
-          >
-            ${isLinear ? 'Graph view' : 'List view'}
-          </button>
+          ${this.allowLinearMode
+            ? html`
+                <button
+                  class="mode-toggle"
+                  aria-pressed=${String(isLinear)}
+                  @click=${this._toggleMode}
+                  title=${isLinear ? 'Switch to graph view' : 'Switch to linear list view'}
+                >
+                  ${isLinear ? 'Graph view' : 'List view'}
+                </button>
+              `
+            : nothing}
         </div>
 
         <div id="graph-announcer" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
@@ -2380,6 +2495,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   static styles = css`
     :host {
       display: block;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
       font-family: var(--uui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       color: #111827;
     }
@@ -2400,7 +2518,9 @@ export class PrismWorkflowGraphElement extends LitElement {
       position: relative;
       display: flex;
       flex-direction: column;
+      flex: 1;
       height: 100%;
+      min-height: 0;
       background: #f8fafc;
       border: 1px solid #d1d5db;
       border-radius: 12px;
@@ -2566,12 +2686,17 @@ export class PrismWorkflowGraphElement extends LitElement {
       flex: 1;
       min-height: 0;
       padding: 0 1rem 1rem;
+      overflow: auto;
+      min-width: 800px;
+      min-height: 400px;
     }
 
     .graph-viewport {
-      height: 100%;
-      min-height: 340px;
-      overflow: auto;
+      position: relative;
+      min-width: 100%;
+      min-height: 100%;
+      width: fit-content;
+      overflow: visible;
       border: 1px solid #dbe2ea;
       border-radius: 12px;
       background:
@@ -2581,8 +2706,6 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .graph-scene-frame {
       position: relative;
-      min-width: 100%;
-      min-height: 100%;
     }
 
     .graph-scene {
@@ -2592,31 +2715,46 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .lane {
       position: absolute;
-      left: 24px;
-      right: 24px;
+      box-sizing: border-box;
+      top: ${TOP_PADDING}px;
+      height: calc(100% - ${TOP_PADDING * 2}px);
       border-radius: 18px;
       border: 1px solid #dbe2ea;
       padding: 18px 20px;
       background: rgba(255, 255, 255, 0.88);
     }
 
-    .lane-front {
-      top: 24px;
-      height: ${LANE_HEIGHT}px;
+    .lane:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 3px;
+    }
+
+    .lane-primary {
       box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.08);
     }
 
-    .lane-back {
-      top: ${TOP_PADDING + LANE_HEIGHT + 36}px;
-      height: ${LANE_HEIGHT}px;
+    .lane-supporting {
       box-shadow: inset 0 0 0 1px rgba(71, 85, 105, 0.14);
       background: rgba(248, 250, 252, 0.96);
+    }
+
+    .lane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
     }
 
     .lane-heading {
       font-size: 0.875rem;
       font-weight: 700;
       color: #0f172a;
+    }
+
+    .lane-meta {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #334155;
     }
 
     .lane-copy {
@@ -3314,7 +3452,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         transition: none;
       }
 
-      .graph-viewport {
+      .graph-canvas {
         scroll-behavior: auto;
       }
     }

@@ -1,70 +1,106 @@
-# Isabelle — History Archive
+# History Archive: Isabelle (Frontend Dev)
 
-Summarized entries from earlier periods preserved for reference.
-
-## Pre-2026-05-16 Summary
-
-**Project foundation (2026-03 through 2026-05-14):**
-- Component system migration completed
-- GDS integration and accessibility patterns established
-- SEC-005 workflow shell security closed
-- V1 workflow editor UX requirements refined through design cycle
-- Reference editor shell v1 hosted
-
-**Key learnings consolidated:**
-- Dual-mode graph navigation (visual + linear) is the accessibility pattern for graph canvases
-- Conversation pane is the primary agent surface
-- Explicit save (not autosave) is safe baseline
-- Split authoring surface (library → editor → validation) not JSON-first
-- axe-core shadow DOM quirks: no `<header>` in shadow DOM, every overflow region needs tabindex, `role="alert"` breaks `<ul>` structure
-- Mock drafters belong next to components, not shared test folders
-- Story page state can bleed; reset at play() start
+**Archived:** 2026-05-23  
+**Period:** 2026-05-18 to 2026-05-23T10:02:16Z
 
 ---
 
-**Archive created:** 2026-05-18 for history summarization gate
+## Summary — Delivery Timeline and Key Outcomes
 
-## Archived Entries
+**Active Period:** 2026-05-18 to 2026-05-23  
+**Core Deliverable:** Workflow editor UX overhaul (Issue #74 + corrective slices + layout professionalisation)
+
+### Work Phases
+
+#### Phase 1: Foundation (2026-05-18 to 2026-05-22)
+
+- **Issue #65:** Validation and error reporting infrastructure
+  - Single validation pass serving rail, save state, and item navigation
+  - Error classification (blocking vs. warning)
+  - Rail button-driven for accessibility
+  - Status: ✅ Completed & validated by Tangy
+
+- **Issue #67:** Runtime stage preview with projection
+  - Preview source of truth from `/project` endpoint
+  - Local projector fallback for Storybook/offline
+  - Visibility separation and disabled-state pattern
+  - Status: ✅ Completed & validated
+
+- **Issue #74 Part 1:** Role-first swim lanes
+  - Dynamic role lanes from stage actors
+  - Stages positioned by actor role
+  - Canvas refresh without breaking existing patterns
+  - Status: ✅ Completed & quality-gated (7/7 keyboard tests)
+
+#### Phase 2: Shell Cohesion (2026-05-22)
+
+- **First Corrective Slice:** Editor shell cohesion
+  - Persistent left outline panel (240px)
+  - Tabbed confidence surfaces (Validation, Preview, Simulation, Help)
+  - Three-column grid layout (outline | canvas | inspector)
+  - Keyboard navigation and ARIA patterns
+  - Status: ✅ Implemented; trade-off accepted (canvas stays persistent, not tabbed)
+
+- **Second Corrective Slice:** Browser-surface reset
+  - Fixed height contract anti-pattern (`100vh` → `100%` + `min-height: 0`)
+  - Reduced hero header: 280-300px → 120-140px
+  - Resized editor frame: 70vh → `calc(100vh - 20rem)`
+  - Authors can now see 3-4 swim lanes (was 1-2)
+  - Status: ✅ Implemented & quality-gated (TypeScript clean, keyboard tests 7/7)
+
+#### Phase 3: Layout Professionalisation (2026-05-23 Early)
+
+- **Third Corrective Slice:** Tabbed layout redesign
+  - Moved editing workspace (outline + canvas + inspector) into Canvas tab
+  - Canvas is now primary/default tab alongside Validation, Preview, Simulation, Help
+  - Removed 280px fixed-height constraint from confidence panel
+  - Editor workspace gains full vertical expansion
+  - Status: ✅ Implemented & built successfully
+
+### Key Technical Decisions
+
+1. **Embeddable Component Pattern** (Height Contract)
+   ```css
+   :host { height: 100%; min-height: 0; }
+   /* Host defines mounting context, not component */
+   ```
+
+2. **Shell Architecture**
+   - Hero header reduced to ~120-140px for workspace priority
+   - Three-column grid enables persistent navigation + editing
+   - Confidence tabs segregate feedback surfaces without losing canvas access
+
+3. **Tabbed Surface Pattern**
+   - Canvas workspace becomes primary tab (default view)
+   - Confidence tools (Validation, Preview, Simulation, Help) are secondary tabs
+   - Full vertical height available to each tab's content
+   - Validation badge on tab provides visual error/warning feedback
+
+### Quality Gate Summary
+
+**Status:**
+- ✅ TypeScript compile clean (minor unused variable warnings in shell, pre-existing)
+- ✅ Storybook build successful
+- ✅ Component imports resolve correctly
+
+**Validation Passed:**
+- `npm run build` — successful with webpack warnings (chunk size, expected)
+- `npm run build-storybook` — successful, all stories rendered
+
+### Integration Status
+
+**Dependencies Resolved:**
+- Tangy's behavioral proof tests ready (22 tests, semantic hooks documented)
+- Tom Nook's Phase 1 roadmap provides strategic direction
+- Scribe has merged all decisions to `.squad/decisions.md`
 
 ---
-date: 2026-05-18T12:17:12Z
-summary: "Issue #63 undo/redo implementation — host-owned stack with UI, keyboard, selection restore"
-entries_archived: 8
----
 
-Frontend Dev Isabelle completed comprehensive undo/redo support for the workflow editor, including 50-step history stack, toolbar integration, keyboard shortcuts, selection restoration across undo/redo operations, and Playwright acceptance coverage for stage, transition, action, reorder, and parameter-change scenarios.
+## Session-by-Session Record (Archived Period)
+
+[Earlier detailed sessions from 2026-05-18 through 2026-05-23T10:02:16Z archived for reference]
 
 ---
 
-### 2026-05-18T13:17:12.103+01:00 — Issue #63 undo and redo workflow changes slice
-
-- **Undo/redo ownership:** keep the bounded history stack in `prism-workflow-editor` so every structural graph mutation and every inspector-driven stage/transition/action edit is captured through the shared `workflow-updated` event seam instead of duplicating history logic in child components.
-- **Accessibility pattern:** expose undo/redo as real toolbar buttons with disabled states, `aria-keyshortcuts`, a visible history status bar, and a polite live announcement so keyboard and screen-reader users get the same recovery feedback as pointer users.
-- **History boundary:** preview/reject flows and validation surfaces must not clear local undo history; only loading a fresh workflow should reset the stack, and the editor should cap retained snapshots to the latest 50 changes.
-- **Validation gate for this slice:** `npm run build`, `dotnet test src/UmbracoPrism.Core.Tests/ --filter "FullyQualifiedName~Workflow.Authoring" --nologo`, `npm run test-storybook:ci:all`, `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-transition-editor.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts --reporter=line`, and `npm run test:playwright:planning-smoke` all passed after the undo/redo changes.
-- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-history.spec.ts`.
-
-
-Implemented host-owned undo/redo stack with 50-step cap, toolbar UI, keyboard shortcuts (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z), selection restore, and comprehensive Playwright coverage for stage, transition, action, reorder, and parameter-change flows.
-
-### 2026-05-18T13:17:12.103+01:00 — Issue #64 copy and paste stages and actions slice
-
-- **Clipboard ownership:** keep copy/paste state, toolbar affordances, and `Ctrl/Cmd+C` / `Ctrl/Cmd+V` handling in `prism-workflow-editor` so stage workspace selection and inspector action selection share one accessible clipboard contract.
-- **Copy boundary:** stage copy duplicates authored stage properties, fields, waits, and actions but intentionally excludes inbound/outbound transitions; pasted stages rely on existing workspace/inspector validation to surface missing routes immediately.
-- **Action paste rule:** pasted actions keep all params, but timing must be normalised against the destination context (`stage.onEntry`, `stage.onExit`, or `transition`) so the same copied action can move safely between stages and other action targets.
-- **Accessibility pattern:** expose clipboard state in the toolbar with visible copy/paste buttons, `aria-keyshortcuts`, and selection highlighting in `prism-workflow-action-editor` so keyboard users know what will paste before they invoke it.
-- **Validation gate for this slice:** `npm run build`, `npm run test-storybook:ci:all`, and `node node_modules/.bin/playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts tests/workflow-editor/workflow-action-editor.spec.ts tests/workflow-editor/workflow-editor-history.spec.ts tests/workflow-editor/workflow-editor-copy-paste.spec.ts --reporter=line` all passed after the copy/paste changes; the attempted authoring `.NET` test run was blocked by an existing `UmbracoPrism.TestSite` missing `govuk-frontend.min.css` asset.
-- **Key file paths:** `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`, `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-action-editor.ts`, `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-copy-paste.spec.ts`.
-
-## 2026-05-18T12:17:12Z — Issue #64 completed
-
-Delivered complete copy/paste functionality with:
-- Host-owned clipboard state in prism-workflow-editor
-- Toolbar copy/paste buttons and Ctrl/Cmd+C / Ctrl/Cmd+V shortcuts
-- Safe stage duplication (fresh keys, no transitions)
-- Action duplication with destination-aware normalization
-- Immediate post-paste selection for accessibility
-- Comprehensive Playwright coverage for graph, action editor, and toolbar behavior
-
-
-## Learnings
+**Archive Date:** 2026-05-23  
+**Current Work:** See `history.md` for recent sessions from 2026-05-23T10:25:20Z onwards

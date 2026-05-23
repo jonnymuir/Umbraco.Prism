@@ -28,6 +28,31 @@ Umbraco v17 architecture, routing patterns, and workflow integration specialist.
 
 ---
 
+## 2026-05-23T13:51:28+01:00 — Vinyl/Core Boundary Split
+
+**Task:** Move vinyl-specific notification behaviour out of Core and into TestSite; delete the broken duplicate TestSite `PrismContentPublishedHandler`.
+
+**Files moved to TestSite (`UmbracoPrism.TestSite.*`):**
+- `Controllers/PrismVinylNotificationController.cs`
+- `Controllers/Models/PrismVinylBackInStockRequest.cs`
+- `BackgroundServices/LimitedEditionDropNotifier.cs`
+
+**Deleted:**
+- Core: above three files (originals)
+- TestSite: `PrismContentPublishedHandler.cs` (duplicate, hardcoded alias, broken tenant)
+
+**Wiring changes:**
+- `PrismComposer`: removed `AddHostedService<LimitedEditionDropNotifier>()` and its using
+- `TestSiteComposer`: added `AddHostedService<LimitedEditionDropNotifier>()`, removed duplicate `ContentPublishedNotification` handler registration
+
+**Config:** `appsettings.json` now opts `vinylRecord` into `Prism:Notifications:NotifiableContentTypes`
+
+**Tests updated (Core.Tests):** `PrismVinylNotificationSecurityTests` and `Phase1SecurityRegressionTests` now reference `UmbracoPrism.TestSite.Controllers.*` namespaces; 50 affected tests pass.
+
+**Decision filed:** `.squad/decisions/inbox/brewster-vinyl-implementation.md`
+
+---
+
 ## 2026-05-16T13:20:33 | Workflow Editor V1 — Umbraco Integration
 
 **Editor hosting:** Hybrid model — v17 backoffice section (`prism-workflow-editor`) wrapping Lit/Web Component
@@ -122,3 +147,12 @@ The admin-page edit-workflow slice has been re-reviewed and rejected by Tangy. T
 ## Scribe Consolidation (2026-05-19T21:41:48.843Z)
 
 Decisions consolidated into team decisions log. Orchestration recorded.
+
+## Session: Vinyl/Core Boundary Integration (2026-05-23T13:04:58.778000+00:00)
+
+All squad members deployed together to complete the vinyl/core boundary work. Architecture split successful:
+- Core remains reusable notification infrastructure
+- TestSite vinyl behavior is now opt-in
+- All 815 tests passing
+- 0 warnings in build/test lane
+

@@ -4,6 +4,7 @@ import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW } from './fixtures/index.js';
 import { STUB_ACTION_CATALOG, type AuthoredWorkflow } from './types.js';
+import { draftProposal } from './workflow-authoring-mock-drafter.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
 
 /**
@@ -210,14 +211,15 @@ export const PlanningWorkflow: Story = {
     // Graph panel is rendered
     const graph = root.querySelector('prism-workflow-graph');
     await expect(graph).not.toBeNull();
+    await expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-lane]').length ?? 0).toBeGreaterThan(0);
 
     // Inspector panel is rendered
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();
 
-    // Conversation pane is rendered
+    // Embedded conversation pane is intentionally not rendered
     const conversation = root.querySelector('prism-conversation-pane');
-    await expect(conversation).not.toBeNull();
+    await expect(conversation).toBeNull();
 
     // Modal is NOT open by default
     const backdrop = root.querySelector('.modal-backdrop');
@@ -239,7 +241,7 @@ export const WithStageSelected: Story = {
     await expect(inspector).not.toBeNull();
 
     const graphCanvas = within(graph!.shadowRoot as unknown as HTMLElement);
-    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, front stage' }) as HTMLButtonElement;
+    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant role' }) as HTMLButtonElement;
     declarationStage.click();
 
     await waitFor(() =>
@@ -261,16 +263,19 @@ export const ModalOpen: Story = {
     const el = makeEditor();
     requestAnimationFrame(async () => {
       await el.updateComplete;
-      // Fire an nl-request that matches the V1 canned prompt
-      el.shadowRoot
-        ?.querySelector('prism-conversation-pane')
-        ?.dispatchEvent(
-          new CustomEvent('nl-request', {
-            detail: { text: 'insert ID&V before submission' },
-            bubbles: true,
-            composed: true,
-          })
-        );
+      const proposal = draftProposal('insert ID&V before submission', PLANNING_WORKFLOW);
+      if (!proposal) {
+        return;
+      }
+
+      const storyEditor = el as unknown as {
+        _proposal: typeof proposal | null;
+        _modalOpen: boolean;
+        requestUpdate(): void;
+      };
+      storyEditor._proposal = proposal;
+      storyEditor._modalOpen = true;
+      storyEditor.requestUpdate();
     });
     return el;
   },

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Services;
 
-namespace UmbracoPrism.Core.BackgroundServices;
+namespace UmbracoPrism.TestSite.BackgroundServices;
 
 /// <summary>
 /// Background scheduled task that simulates limited edition vinyl drop notifications.
@@ -35,7 +35,7 @@ public class LimitedEditionDropNotifier : BackgroundService
         try
         {
             var intervalMinutes = _configuration.GetValue<int>(IntervalConfigKey, 60);
-            
+
             if (intervalMinutes <= 0)
             {
                 _logger.LogInformation(

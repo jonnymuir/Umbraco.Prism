@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using UmbracoPrism.Core.Controllers.Models;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.TestSite.Controllers.Models;
 
-namespace UmbracoPrism.Core.Controllers;
+namespace UmbracoPrism.TestSite.Controllers;
 
 /// <summary>
 /// API endpoints for triggering vinyl-related notifications (back-in-stock alerts).

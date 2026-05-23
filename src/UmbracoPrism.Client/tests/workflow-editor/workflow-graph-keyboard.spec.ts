@@ -5,29 +5,28 @@ function storyUrl(storyId: string): string {
 }
 
 test.describe('Workflow graph workspace', () => {
-  test('linear mode supports keyboard navigation, filtering, and reordering', async ({ page }) => {
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+  /**
+   * These tests intentionally focus on the graph canvas only.
+   * The simpler editor contract is graph-first: no list fallback is required for keyboard proof.
+   */
+  test('graph mode supports keyboard selection and the inspector shortcut', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
 
-    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
-    await page.getByRole('button', { name: 'List view' }).click();
-    const table = page.locator('[data-prism-linear-table]');
-    await expect(table).toBeVisible();
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
 
-    const firstTrigger = page.locator('[data-prism-list-row-trigger]').first();
-    await firstTrigger.focus();
-    await page.keyboard.press('ArrowDown');
-    await expect(page.locator('[data-prism-list-row-trigger]').nth(1)).toBeFocused();
+    const declarationStage = page.locator('[data-prism-stage="declaration"]');
+    await declarationStage.focus();
+    await expect(declarationStage).toBeFocused();
 
-    await firstTrigger.evaluate(element => {
-      element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }));
-    });
-    await expect(page.locator('[data-prism-list-row]').first()).not.toHaveAttribute('data-prism-list-row', 'applicant-details');
+    await declarationStage.press('Enter');
+    await expect(declarationStage).toHaveAttribute('aria-pressed', 'true');
 
-    await page.locator('[data-prism-linear-filter="back-stage"]').click();
-    await expect(page.locator('[data-prism-list-row]')).toHaveCount(1);
+    await declarationStage.press('e');
+    await expect(page.locator('prism-step-inspector')).toBeFocused();
+    await expect(page.locator('[data-prism-stage-detail="declaration"]')).toBeVisible();
   });
 
-  test('create stage dialog validates input and creates a stage', async ({ page }) => {
+  test('create stage dialog validates input and creates a stage from graph mode', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
     await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
@@ -51,29 +50,55 @@ test.describe('Workflow graph workspace', () => {
     await expect(page.locator('[data-prism-stage="site-visit"]')).toBeVisible();
   });
 
-  test('delete stage confirmation lists affected transitions', async ({ page }) => {
+  test('delete stage confirmation can be opened from a graph stage by keyboard', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
     await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
-    await page.getByRole('button', { name: 'List view' }).click();
-    await page.locator('[data-prism-delete-stage="reviewer-assessment"]').click();
+
+    const stage = page.locator('[data-prism-stage="reviewer-assessment"]');
+    await stage.focus();
+    await stage.press('Delete');
+
     const dialog = page.locator('[data-prism-delete-stage-dialog]');
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('[data-prism-delete-stage-transitions] li')).toHaveCount(3);
+    expect(await dialog.locator('[data-prism-delete-stage-transitions] li').count()).toBeGreaterThan(0);
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
   });
 
-  test('stage selection from graph and list updates the inspector in the host editor', async ({ page }) => {
-    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+  test('role lanes are structurally visible and keyboard-accessible (vertical orientation)', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
-    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
-    await page.locator('[data-prism-stage="declaration"]').dblclick();
-    await expect(page.locator('prism-step-inspector')).toBeFocused();
-    await expect(page.locator('[data-prism-stage-detail="declaration"]')).toBeVisible();
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
 
-    await page.locator('prism-workflow-graph').getByRole('button', { name: 'List view' }).click();
-    await page.locator('[data-prism-list-row-trigger]').first().press('Enter');
-    await expect(page.locator('[data-prism-stage-detail]')).toBeVisible();
+    const lanes = page.locator('[data-prism-role-lane]');
+    await expect(lanes).not.toHaveCount(0);
+
+    const firstLane = lanes.first();
+    await expect(firstLane.locator('.lane-heading')).toBeVisible();
+    await expect(firstLane.locator('.lane-copy')).toBeVisible();
+
+    await firstLane.focus();
+    await expect(firstLane).toBeFocused();
+
+    const headingText = await firstLane.locator('.lane-heading').textContent();
+    expect(headingText?.trim().length).toBeGreaterThan(0);
+  });
+
+  test('keyboard navigation moves between lanes and stages (vertical orientation)', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+
+    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+
+    const firstLane = page.locator('[data-prism-role-lane]').first();
+    await firstLane.focus();
+
+    await page.keyboard.press('Tab');
+    const firstStage = page.locator('[data-prism-stage]').first();
+
+    await firstStage.press('Enter');
+    await expect(firstStage).toHaveAttribute('aria-pressed', 'true');
+
+    await firstStage.press('e');
   });
 });

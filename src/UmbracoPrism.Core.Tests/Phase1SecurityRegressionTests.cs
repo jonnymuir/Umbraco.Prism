@@ -41,6 +41,7 @@ using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.TestSite.Controllers;
+using UmbracoPrism.TestSite.Controllers.Models;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -220,7 +221,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         // Strategy: We can't fully test without the fix in place, but we document
         // the requirement and verify the controller has SOME authorization.
 
-        var hasAuthorizeAttribute = HasAuthorizeAttribute<Controllers.PrismVinylNotificationController>();
+        var hasAuthorizeAttribute = HasAuthorizeAttribute<PrismVinylNotificationController>();
 
         hasAuthorizeAttribute.Should().BeTrue(
             "because PrismVinylNotificationController must require authentication");
@@ -239,7 +240,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         // and changed the controller to use prismContext.CurrentTenant.Id
 
         // This test verifies the FIX is in place
-        var requestModelHasTenantId = typeof(Controllers.Models.PrismVinylBackInStockRequest)
+        var requestModelHasTenantId = typeof(PrismVinylBackInStockRequest)
             .GetProperty("TenantId") != null;
 
         requestModelHasTenantId.Should().BeFalse(
@@ -967,7 +968,7 @@ public class Phase1SecurityRegressionTests : IDisposable
     [Fact]
     public void PrismVinylNotificationController_HasIgnoreAntiforgeryTokenAttribute()
     {
-        var attr = typeof(Controllers.PrismVinylNotificationController)
+        var attr = typeof(PrismVinylNotificationController)
             .GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute), inherit: false);
         attr.Should().NotBeEmpty("PrismVinylNotificationController must carry [IgnoreAntiforgeryToken] (SEC-PT2-009)");
     }
