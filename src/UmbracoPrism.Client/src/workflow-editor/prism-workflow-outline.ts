@@ -214,7 +214,7 @@ export class PrismWorkflowOutline extends LitElement {
     }
 
     .outline-stage-button-selected .outline-stage-meta {
-      color: rgba(255, 255, 255, 0.85);
+      color: #ffffff;
     }
 
     .outline-stage-title {

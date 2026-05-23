@@ -96,7 +96,9 @@ Then:
 
 ## What You Get
 
-### Multi-Tenant Web — One Instance, Hundreds of Brands
+Prism is a **NuGet package** providing enterprise-ready multi-tenancy and extensibility for Umbraco. Below is what the **Core library** provides. The **TestSite** is a reference implementation showing how to extend Prism for a business domain (vinyl records).
+
+### Multi-Tenant Web — One Instance, Hundreds of Brands (🔵 Core)
 
 Serve distinct branded portals from one Umbraco instance. Runtime branding, domain resolution, tenant isolation.
 
@@ -129,7 +131,7 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
 
 → [Umbraco Setup Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md)
 
-### Produce Mobile — Generate Apps from Backoffice
+### Produce Mobile — Generate Apps from Backoffice (🔵 Core)
 
 Turn tenant settings into iOS/Android apps. No complex native coding, just click **Produce Mobile**.
 
@@ -148,6 +150,20 @@ npm run bootstrap:ios
 ```
 
 → [Mobile Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/PUSH_SETUP.md) | [Biometric Auth](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/biometric-setup.md)
+
+### Notification Infrastructure — Extend for Your Business Logic (🔵 Core)
+
+Prism provides a foundation for sending notifications. The Core library includes:
+- **Generic notification service** (`IPrismNotificationService`) — Send to members, genre subscribers, or broadcast
+- **Config-driven event handling** — `PrismContentPublishedHandler` automatically triggers notifications when content is published
+- **Subscription persistence** — Built-in database schema and queries for tracking member notification preferences
+- **Rate limiting** — Prevent notification spam with automatic throttling
+
+Your app extends this with **business-specific handlers** and **domain models**. For example, the TestSite demo includes a `PrismVinylNotificationController` that triggers "back-in-stock" alerts when a vinyl record is republished.
+
+**Why this design matters for enterprise:** You get the extensibility platform out of the box. Add your business logic without rebuilding the notification infrastructure.
+
+→ [Notifications Architecture](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/design/notifications-architecture.md) | [Notifications API Reference](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/notifications-design.md)
 
 ---
 
@@ -211,24 +227,21 @@ In backoffice:
 
 ## Features
 
-**Multi-tenant web:**
-- Domain-based tenant resolution
-- Live CSS variable branding
-- Per-tenant OIDC (any provider: Entra ID, Keycloak, etc.)
-- Tenant isolation policies
-- Downstream API auth
+**Prism Core provides:**
+- Multi-tenant web domain resolution and branding
+- Per-tenant OIDC integration (any provider: Entra ID, Keycloak, etc.)
+- Tenant isolation policies and secure secret management
+- Notification infrastructure (event-triggered, subscription-based, rate-limited)
+- iOS/Android app generation from backoffice settings
+- Biometric login for mobile (Face ID, fingerprint)
+- Push notifications (FCM/APNs) from Umbraco events or custom triggers
+- Offline-ready layouts for mobile
 
-**Mobile:**
-- iOS/Android generation from backoffice
-- Biometric login (Face ID, fingerprint)
-- Push notifications (FCM/APNs)
-- Offline-ready layouts
-
-**Infrastructure:**
-- Azure Key Vault secrets at runtime
-- Zero local Member records
-- Managed Identity support
-- Admin-only backoffice policies
+**Your app extends with:**
+- Workflow definitions and state machines
+- Custom business logic and validation
+- Application-specific notification handlers
+- Domain models and business processes
 
 → [Full Documentation](https://github.com/jonnymuir/Umbraco.Prism/tree/main/docs)
 
@@ -257,6 +270,8 @@ In backoffice:
 
 ## Architecture
 
+**Prism Core provides:**
+
 **Runtime layer:**
 * `PrismTenantMiddleware` — resolves hostname to tenant
 * `IPrismContext` — scoped service with tenant/theme data
@@ -267,12 +282,24 @@ In backoffice:
 * `SecretVaultService` — Azure Key Vault (Managed Identity in prod, Azure CLI local)
 * Downstream flow — propagate tenant identity to APIs
 
+**Notification layer:**
+* `IPrismNotificationService` — Generic notifications API (send to members, subscribers, or broadcast)
+* `PrismContentPublishedHandler` — Config-driven event handler for Umbraco publish events
+* Subscription persistence — Database schema for managing notification preferences
+* Rate limiting — Automatic throttling to prevent spam
+
 **Secret Management:**
 * **Entra ID tenants (production):** Secrets stored in Azure Key Vault, referenced by `SecretKeyName`
 * **Generic OIDC tenants (production):** Secrets stored in Azure Key Vault, referenced by `OidcClientSecretProvider = "azure-key-vault"` plus `OidcClientSecretReference`
 * **Local dev demo (Keycloak):** Repo-owned secret uses `OidcClientSecretProvider = "inline"` only for the seeded `localhost` tenant path
 * **Management API/UI:** Responses expose `HasOidcClientSecret` and `OidcClientSecretProvider`, never the raw secret or reference value
 * All confidential-client flows fail closed if a secret cannot be resolved at runtime
+
+**Your application extends Prism with:**
+* Business-specific notification handlers (see `PrismVinylNotificationController` in TestSite)
+* Workflow endpoints and state machines
+* Domain models and validation logic
+* Custom API routes for your business processes
 
 → [Secret Management Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md) | [Architecture Docs](https://github.com/jonnymuir/Umbraco.Prism/tree/main/docs)
 
@@ -530,9 +557,15 @@ public async Task<string> GetMemberDataAsync()
 
 ### Sample Projects
 
-**`UmbracoPrism.TestSite`** — Reference Umbraco v17 site. Shows OIDC setup, tenant branding, downstream API calls. Pre-configured tenant definitions for local auth.
+**`UmbracoPrism.TestSite`** — Reference Umbraco v17 application. Shows a complete example of extending Prism for a business domain (vinyl record store). Includes:
+- OIDC setup and tenant branding
+- Custom notification handler for "back-in-stock" alerts
+- Workflow demonstration (member submission → staff review)
+- Pre-configured tenant definitions for local development
 
-**`UmbracoPrism.MockBackOffice`** — Minimal API. Shows `AddPrismAuthentication` and multi-tenant data isolation.
+Use this as a template for building your own application on top of Prism Core.
+
+**`UmbracoPrism.MockBusinessApp`** — Minimal workflow API. Shows how to implement the notification and workflow endpoints that Prism calls. Demonstrates `AddPrismAuthentication` and multi-tenant data isolation for backend services.
 
 → See [Local Authentication Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md#local-authentication-walkthrough)
 

@@ -176,7 +176,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function stubFetchFor(element: PrismWorkflowEditorShellElement): void {
   const originalFetch = window.fetch;
 
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const stubbedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = input instanceof Request ? input : undefined;
     const urlString = typeof input === 'string'
       ? input
@@ -219,9 +219,13 @@ function stubFetchFor(element: PrismWorkflowEditorShellElement): void {
     return originalFetch(input, init);
   };
 
+  window.fetch = stubbedFetch;
+
   const observer = new MutationObserver(() => {
     if (!document.contains(element)) {
-      window.fetch = originalFetch;
+      if (window.fetch === stubbedFetch) {
+        window.fetch = originalFetch;
+      }
       observer.disconnect();
     }
   });
