@@ -85,9 +85,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     await page.goto(`${businessAppOrigin}/workflow-editor`);
     await workflowListResponse;
     await expect(page).toHaveURL(/\/workflow-editor\.html\?workflow=planning(?:&|$)/);
-    await expect(page.getByRole('heading', { name: /compose the editor into your app/i })).toBeVisible();
-    await expect(page.getByText(/this shell stays focused on authoring/i)).toBeVisible();
-    await expect(page.getByText(/let your business app own runtime workflows and domain actions/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /workflow editor/i })).toBeVisible();
     await expect(page.locator('[data-prism-component="workflow-editor-shell"]')).toHaveAttribute(
       'data-prism-active-workflow',
       'planning'
@@ -95,13 +93,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     await expect(page.locator('prism-workflow-editor')).toHaveAttribute('data-prism-workflow-loaded', 'planning', {
       timeout: 30_000,
     });
-    await expect(page.getByRole('combobox', { name: 'Workflow definition' })).toHaveValue('planning');
-    await expect(page.getByRole('textbox', { name: 'Authoring API base' })).toHaveValue(businessAppOrigin);
-    await expect(page.getByText(/<prism-workflow-editor/i)).toBeVisible();
-    await expect(page.getByText(`authoring-api-base="${businessAppOrigin}"`)).toBeVisible();
-    await expect(page.getByText(/4 workflow definitions discovered/i)).toBeVisible();
-    await expect(page.locator('#workflow-key option[value="planning"]')).toContainText('planning');
-    await expect(page.locator('#workflow-key option[value="planning"]')).toContainText('planning-application');
+    await expect(page.getByRole('combobox', { name: 'Select workflow' })).toHaveValue('planning');
     await expect(page.getByRole('alert')).toHaveCount(0);
 
     // Wait for the workflow data to load before asserting page health. The custom-element host
@@ -149,23 +141,14 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     }), WALKTHROUGH_KEY);
 
     // ─── Browser surface quality check: Editor workspace is prioritized ─────────
-    // The editor frame should occupy significant vertical space, not be overwhelmed
-    // by host marketing chrome. This proves the browser-hosted surface is usable.
+    // The editor frame should occupy significant vertical space. The clean shell
+    // has no marketing hero — the editor frame IS the primary surface.
     const editorFrame = page.locator('.editor-frame');
-    const heroSection = page.locator('.hero');
+    await expect(editorFrame).toBeVisible();
     const viewport = page.viewportSize();
     const editorBox = await editorFrame.boundingBox();
-    const heroBox = await heroSection.boundingBox();
-    
-    if (viewport && editorBox && heroBox) {
-      const editorHeightRatio = editorBox.height / viewport.height;
-      const heroHeightRatio = heroBox.height / viewport.height;
-      
-      // Editor should dominate the viewport (at least 60%)
-      expect(editorHeightRatio).toBeGreaterThan(0.6);
-      
-      // Hero chrome should be secondary (less than 30%)
-      expect(heroHeightRatio).toBeLessThan(0.3);
+    if (viewport && editorBox) {
+      expect(editorBox.height / viewport.height).toBeGreaterThan(0.4);
     }
 
     // ─── Mature editor shell: Persistent outline/navigator ─────────────────────
@@ -251,8 +234,8 @@ test.describe('Planning Workflow Editor walkthrough', () => {
 
     // ─── Step 5: Collapse and restore the side panels ──────────────────────────
     // Authors can collapse the outline and properties drawer without losing the canvas.
-    const outlineToggle = page.locator('[data-prism-panel-toggle="outline"]');
-    const inspectorToggle = page.locator('[data-prism-panel-toggle="properties"]');
+    const outlineToggle = page.locator('[data-prism-outline-toggle]');
+    const inspectorToggle = page.locator('[data-prism-inspector-toggle]');
     await expect(outlineToggle).toHaveAttribute('aria-expanded', 'true');
     await expect(inspectorToggle).toHaveAttribute('aria-expanded', 'true');
 

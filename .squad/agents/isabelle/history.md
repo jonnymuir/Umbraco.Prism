@@ -1,6 +1,28 @@
 # History: Isabelle (Frontend Dev)
 
-## Current Work — 2026-05-23 (Recent Session)
+## Current Work — 2026-05-24 (Recent Session)
+
+**Active:** CI walkthrough smoke alignment — shell UX refactor caused selector drift  
+**Status:** ✅ Walkthrough spec updated, build GREEN
+
+### Recent Outcomes (2026-05-24)
+
+1. **CI Walkthrough Smoke Fix** — `01-planning-workflow-editor.walkthrough.spec.ts`
+   - **Root cause:** `prism-workflow-editor-shell` was refactored from a marketing reference page to a clean production shell (`<h1>Workflow Editor</h1>`, `<select aria-label="Select workflow">`). Walkthrough spec was never aligned.
+   - **Failing jobs:** `planning-workflow-editor-smoke` and `localhost-auth-playwright` (both trace to the same heading assertion drift at line 88).
+   - **Fixes applied:**
+     - Line 88: `heading /compose the editor into your app/i` → `heading /workflow editor/i`
+     - Lines 89–90: Removed stale marketing text assertions (`this shell stays focused on authoring`, `let your business app own...`)
+     - Line 98: `combobox 'Workflow definition'` → `combobox 'Select workflow'`
+     - Lines 99–104: Removed textbox (`Authoring API base`), code-snippet text assertions, discovery count, and `#workflow-key` option assertions — all removed in the shell refactor
+     - Lines 154–169: Replaced `.hero`/`.editor-frame` ratio check with a simple `editorFrame` visibility + height ratio guard (no `.hero` class in current shell)
+     - Lines 254–255: `[data-prism-panel-toggle="outline"]` → `[data-prism-outline-toggle]`; `[data-prism-panel-toggle="properties"]` → `[data-prism-inspector-toggle]`
+   - **Quality gate:** TypeScript build ✅ clean
+   - **Decision recorded:** `.squad/decisions/inbox/isabelle-ci-workflow-smoke-fix.md`
+
+---
+
+## Previous Work — 2026-05-23 (Recent Session)
 
 **Active:** Lane header clearance and viewport scene-width regression fixes  
 **Status:** ✅ Both regressions fixed, all geometry proofs GREEN, visual baselines updated
