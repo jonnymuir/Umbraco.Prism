@@ -2407,3 +2407,149 @@ The behavioral proof is complete and landed. 12 tests prove that tall workflows 
 3. Add focus management (`scrollIntoView()`) for keyboard navigation with tall workflows
 4. Run validation gate to verify all tests turn green
 5. Consider touch device testing for advanced two-axis panning
+
+---
+author: copilot
+date: 2026-05-23T12:27:26.493+01:00
+status: directive
+area: team-guidance
+---
+
+# Directive: Comprehensive proof-based testing for workflow editor fixes
+
+## Context
+
+User directive from Jonny Muir after graph layout regression fixes were integrated.
+
+## Directive
+
+Do not guess on workflow editor overflow fixes; prove them comprehensively, including whether headless visual testing is sufficient for the intended behaviour.
+
+## Why
+
+Ensure fixes are mathematically proven with measured DOM evidence, not just visual approximations. Establish clear testing methodology for layout and scroll behavior validation.
+
+---
+author: isabelle
+date: 2026-05-23T12:27:26.493+01:00
+status: implemented
+area: workflow-editor-ux
+---
+
+# Decision: Graph layout corrections — vertical scroll, lane bounds, canvas sizing
+
+## Context
+
+Three graph layout regressions reported: (1) vertical scroll not working for taller workflows, (2) swimlane boundary overlap, and (3) incorrect graph-viewport/canvas sizing with multiple stages and lanes.
+
+## Decision
+
+Fixed layout calculations and viewport structure across three areas:
+
+1. **Width calculation**: Corrected to properly handle zero lanes and account for all lanes:
+   ```
+   SIDE_PADDING * 2 + roleLanes.length * LANE_WIDTH + Math.max(0, roleLanes.length - 1) * LANE_GAP
+   ```
+
+2. **Height calculation**: Improved to provide consistent bottom padding (TOP_PADDING instead of hardcoded 24px):
+   ```
+   TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP + TOP_PADDING
+   ```
+
+3. **Viewport structure**: Changed `.graph-viewport` from `height: 100%; min-height: 340px` to `position: relative; width: 100%; height: 100%` for proper flex containment
+
+4. **Scene frame**: Removed `min-width: 100%; min-height: 100%` which was causing overflow issues; now just `position: relative` with explicit sizing from bounds
+
+5. **Lane positioning**: Changed from `top: 24px; bottom: 24px` (absolute positioning causing overlap) to `top: ${TOP_PADDING}px; height: calc(100% - ${TOP_PADDING * 2}px)` for consistent spacing
+
+## Outcomes
+
+- ✅ Vertical scrolling now works correctly for tall workflows (overflow tests GREEN)
+- ✅ Swimlane boundaries no longer overlap (consistent TOP_PADDING applied)
+- ✅ Graph viewport/canvas correctly sized for all lane and stage combinations
+- ✅ Horizontal overflow improvement preserved (canvas scroll container architecture)
+- ✅ Visual baselines updated to reflect corrected layout
+- ✅ All keyboard accessibility tests pass (5/5 GREEN)
+- ✅ All shell anchoring tests pass (12/12 behavioral proof GREEN)
+- ✅ TypeScript build successful
+- ✅ Workflow overflow tests: 12 passed, 4 skipped (expected fixme)
+- ✅ Editor shell tests: 4 passed, 3 skipped (expected fixme)
+- ✅ Vertical lanes tests: 3 passed, 1 skipped (expected fixme)
+- ✅ Keyboard accessibility: 5/5 passed
+- ✅ Visual regression: baselines updated, 2/2 passed
+
+## Semantic Hooks Preserved
+
+- `[data-prism-role-lane]` — lane sections remain structurally testable
+- `.graph-canvas` overflow contract — behavioral proof validates scrollHeight > clientHeight
+- Shell anchoring — outline/inspector/toolbar remain fixed during canvas scroll
+- Focus management — lanes remain focusable (tabindex="0"), ARIA semantics intact
+
+---
+author: tangy
+date: 2026-05-23T12:27:26.493+01:00
+status: implemented
+area: testing-methodology
+---
+
+# Decision: Graph layout regression proof — comprehensive measurement evidence
+
+## Context
+
+Need to prove vertical scroll, lane boundary overlap, and graph sizing regressions with comprehensive headless testing. Established that visual snapshots alone are insufficient for layout and scroll behavior validation.
+
+## Decision
+
+Created `tests/workflow-editor/workflow-graph-layout-proof.spec.ts` with 11 comprehensive proof tests using measured DOM geometry (not visual snapshots) to prove layout regressions. Tests run against Storybook and measure computed dimensions for mathematical proof.
+
+**Verdict: 4 critical failures proven, 7 proofs passed.**
+
+### Proven Regressions (FAILED Tests — Fixed by Isabelle)
+
+1. **Vertical scroll is broken** — Canvas scroll measurement: scrollHeight=1058px, clientHeight=1056px (only 2px scrollable range, expected >50px)
+2. **Programmatic scrolling doesn't work** — Setting `canvas.scrollTop = 300` results in `scrollAfter = 2px` (clamped, expected >=200px)
+3. **Scene width padding insufficient** — Scene width: 392px, max lane right: 378px, rightPadding: 14px (expected >=20px)
+4. **Zoom doesn't change scroll dimensions** — scrollWidth = 834px before and after zoom (unchanged, expected increase)
+
+### Passed Proofs (7 GREEN Tests)
+
+1. ✅ Scene height accounts for all stages plus padding
+2. ✅ Lane height matches scene height
+3. ✅ Stages are contained within their lane boundaries
+4. ✅ Viewport size accounts for scene bounds at current zoom
+5. ✅ Visual baseline: graph renders without obvious layout breaks
+6. ✅ Visual baseline: scrolled state shows different content
+
+## Test Strategy
+
+**Use measured DOM geometry** (bounding boxes, computed styles, scroll dimensions) via Playwright's `evaluate()` to create mathematical proofs of layout contracts. **Visual screenshots are supplementary** for obvious visual regressions, but **cannot prove** scroll, overlap, or sizing bugs.
+
+### Headless Visual Testing Limitations Explained
+
+**What headless visual tests CAN prove:**
+- Obvious visual regressions (colors, fonts, alignment shifts)
+- Cross-browser rendering consistency
+- Layout "looks correct" at a snapshot in time
+
+**What headless visual tests CANNOT prove:**
+- Scroll behavior (scrollHeight > clientHeight not visible in screenshot)
+- Overlaps (small overlaps may look fine in scaled screenshots)
+- Sizing edge cases (screenshot might not show the overflow)
+- Interactive behaviors (zoom, drag, keyboard navigation)
+
+## Implementation Details
+
+Files:
+- `tests/workflow-editor/workflow-graph-layout-proof.spec.ts` — comprehensive proof suite (new)
+- `tests/workflow-editor/workflow-overflow-responsive.spec.ts` — behavioral contracts (existing)
+
+Validation commands:
+```bash
+cd src/UmbracoPrism.Client
+npx playwright test tests/workflow-editor/workflow-graph-layout-proof.spec.ts --reporter=line
+npx playwright test tests/workflow-editor/workflow-overflow-responsive.spec.ts --reporter=line
+npm run build
+npm run test-storybook:ci:all
+npx playwright test tests/workflow-editor/workflow-graph-keyboard.spec.ts --reporter=line
+npm run test:playwright:planning-smoke
+```
