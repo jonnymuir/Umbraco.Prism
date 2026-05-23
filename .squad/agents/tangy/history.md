@@ -136,6 +136,55 @@ The behavioral proof is complete and landed. It proves the five layout improveme
 **Full history:** See `.squad/agents/tangy/history-archive.md` for complete session record (2026-05-18 onward).
 
 ---
+date: 2026-05-23T11:08:00+01:00
+update: graph-canvas-scroll-proof
+---
+
+## 2026-05-23T11:08:00+01:00 — Graph-Canvas Scroll Container Behavioral Proof
+
+**Status:** Behavioral proof landed, Isabelle's CSS change verified
+
+**What I delivered:**
+
+1. **Updated existing tests to prove graph-canvas scroll behavior:**
+   - `tests/workflow-editor/workflow-editor-shell.spec.ts` — replaced "graph viewport" test with two new tests:
+     - "graph-canvas is the scrollable region while shell chrome stays anchored" — proves `.graph-canvas` scrolls, shell chrome (outline, inspector, toolbar) Y positions don't change, window body stays at scrollY=0
+     - "graph-canvas scrolling does not move shell chrome" — proves outline, inspector, and toolbar remain anchored while canvas scrolls
+   - `tests/workflow-editor/vertical-lanes-switcher.spec.ts` — replaced "graph viewport" test with:
+     - "graph-canvas is the vertical scroll surface in the graph workspace" — proves `.graph-canvas` has overflow-y, scrollHeight > clientHeight, window body stays at scrollY=0
+   - `tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts` — updated scroll contract section to test `.graph-canvas` instead of `.graph-viewport`
+
+2. **Decision document:** `.squad/decisions/inbox/tangy-graph-canvas-scroll-proof.md`  
+   Documents the scroll container contract, CSS changes needed, behavioral proof, and validation commands.
+
+3. **Behavioral contract proven:**
+   - `.graph-canvas` is the scrollable region (overflow-y: auto)
+   - `.graph-viewport` is NOT scrollable (overflow: visible)
+   - Window body does NOT scroll when graph scrolls (window.scrollY stays 0)
+   - Shell chrome (outline, inspector, toolbar) stays anchored while canvas scrolls
+
+4. **Validation results (Isabelle's uncommitted CSS change already applied):**  
+   - ✅ Shell tests (4 passed, 3 skipped) — both scroll tests GREEN
+   - ✅ Vertical lanes tests (3 passed, 1 skipped) — scroll test GREEN
+   - ⏳ Walkthrough test (skipped until PRs merge, but scroll section ready)
+
+**Working in parallel with Isabelle:** Isabelle had already made the exact CSS change in her uncommitted working directory:
+- `.graph-canvas` now has `overflow-y: auto` (NEW)
+- `.graph-viewport` changed from `overflow: auto` to `overflow: visible` (CHANGED)
+
+My tests prove this change works correctly — the canvas scrolls, the shell stays anchored, and the window body doesn't scroll.
+
+**Validation commands (for final verification):**
+```bash
+cd src/UmbracoPrism.Client && npm run build
+cd src/UmbracoPrism.Client && npx playwright test tests/workflow-editor/workflow-editor-shell.spec.ts --reporter=line
+cd src/UmbracoPrism.Client && npx playwright test tests/workflow-editor/vertical-lanes-switcher.spec.ts --reporter=line
+```
+
+**Plain-language verdict:**  
+The behavioral proof is complete and landed. Three tests now verify that `.graph-canvas` is the scroll container, not `.graph-viewport`. The tests prove the shell chrome (outline, inspector, toolbar) stays anchored while the canvas scrolls independently. Isabelle's uncommitted CSS change matches exactly what the tests expect, so when she commits, all tests will remain green.
+
+---
 date: 2026-05-23T09:20:56Z
 update: spawn-cohort-complete
 ---
@@ -145,3 +194,31 @@ update: spawn-cohort-complete
 Behavioral proof suite completed: 15 tests for vertical lanes & workflow switching (8 green, 7 skipped pending Isabelle's UI hooks). Existing keyboard tests remain unaffected (orientation change is visual only). Storybook shell proof passed (all browsers). Planning smoke blocked by external Aspire stack.
 
 **Tests document exact semantic hooks for Isabelle:** drawer collapse contracts, workflow selector data attributes, panel toggle patterns. All fixme patterns documented inline. Ready to un-skip when UI hooks land.
+
+---
+date: 2026-05-23T10:02:16Z
+update: scroll-container-consolidation
+---
+
+## 2026-05-23T10:02:16Z — Graph-Canvas Scroll Container Behavioral Proof Final
+
+**Status:** ✅ BEHAVIORAL PROOF COMPLETE
+
+Consolidated and finalized the scroll container behavioral proof. Three tests now verify that `.graph-canvas` is the scroll container while shell chrome stays anchored.
+
+**Tests Updated:**
+- `workflow-editor-shell.spec.ts` — "graph-canvas is the scrollable region while shell chrome stays anchored"
+- `vertical-lanes-switcher.spec.ts` — "graph-canvas is the vertical scroll surface in the graph workspace"
+- `01-planning-workflow-editor.walkthrough.spec.ts` — Graph-only contract section updated
+
+**Behavioral Contract Proven:**
+- `.graph-canvas` has `overflow-y: auto` (scrollable)
+- `.graph-viewport` has `overflow: visible` (not scrollable)
+- Window body does NOT scroll when graph scrolls
+- Shell chrome (outline, inspector, toolbar) stays anchored
+
+**Validation Results:**
+- ✅ Shell scroll tests: 2 GREEN, 1 skipped
+- ✅ Vertical lanes scroll test: 1 GREEN, 1 skipped
+
+**Decision recorded:** Merged to `.squad/decisions.md` — "Graph-canvas as vertical scroll container" (2026-05-23T10:02:16Z)

@@ -245,3 +245,26 @@ update: spawn-cohort-complete
 Vertical swimlanes & workflow switching implementation completed. Side panels now collapsible with proper a11y semantics. Graph-only workspace chrome landed. All frontend validation gates pass (build, Storybook, keyboard tests green). Editor smoke blocked by external Aspire stack (localhost-auth ports occupied — out of scope for this iteration).
 
 **Semantic deliverables documented in Tangy's test hooks** — collapsible drawer contracts, workflow switching proof, canvas scrolling expectations. Ready for integration coordination.
+
+---
+date: 2026-05-23T10:02:16Z
+update: scroll-container-consolidation
+---
+
+## 2026-05-23T10:02:16Z — Graph-Canvas Scroll Container Implementation
+
+**Status:** ✅ IMPLEMENTED & VERIFIED
+
+Moved scroll container from `.graph-viewport` to `.graph-canvas` so the workflow graph scrolls independently while shell chrome (outline, inspector, toolbar) stays anchored.
+
+**Changes:**
+- `.graph-canvas`: Added `overflow-y: auto` (was `overflow: visible`)
+- `.graph-viewport`: Changed to `overflow: visible` (was `overflow: auto`)
+- Updated `@query` selector from `.graph-viewport` to `.graph-canvas`
+- Updated fit-to-screen logic to reference `_graphCanvas`
+
+**Quality Gate:**
+- ✅ TypeScript build successful
+- ✅ Direct tests passed (workflow-editor-shell.spec.ts, vertical-lanes-switcher.spec.ts)
+
+**Decision recorded:** Merged to `.squad/decisions.md` — "Graph-canvas as vertical scroll container" (2026-05-23T10:02:16Z)

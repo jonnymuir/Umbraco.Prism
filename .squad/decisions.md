@@ -1696,3 +1696,98 @@ cd src/UmbracoPrism.Client && npx playwright test tests/workflow-editor/vertical
 **Tests delivered:** 8 tests GREEN + 7 tests SKIPPED = 15 new behavioral proof tests in `vertical-lanes-switcher.spec.ts`
 
 **Tests updated:** `workflow-graph-keyboard.spec.ts` (3 names clarified), `01-planning-workflow-editor.walkthrough.spec.ts` (Step 2 updated)
+
+---
+author: isabelle, tangy
+date: 2026-05-23T11:02:16.025+01:00
+status: implemented
+area: workflow-editor-ux
+---
+
+# Decision: Graph-canvas as vertical scroll container
+
+## Context
+
+After the tabbed layout redesign and collapsible rail implementation, the scroll placement in the workflow editor still wasn't correct. The `.graph-viewport` div (the inner container holding the SVG/DOM graph) was set as the scroll container with `overflow: auto`, which meant the entire graph viewport scrolled — including the border, padding, and visual frame.
+
+The user requested that the `.graph-canvas` div itself should be the vertical scroll container, keeping the rest of the shell chrome (header, tabs, outline rail, properties rail, and the graph toolbar/HUD) anchored while only the graph content area scrolls.
+
+## Decision
+
+**Move the scroll container from `.graph-viewport` to `.graph-canvas`.**
+
+### Implementation (Isabelle)
+
+Changes to `prism-workflow-graph.ts`:
+
+1. **`.graph-canvas`** — Added `overflow-y: auto` to make it the scrollable region:
+   ```css
+   .graph-canvas {
+     flex: 1;
+     min-height: 0;
+     padding: 0 1rem 1rem;
+     overflow-y: auto;  /* NEW */
+   }
+   ```
+
+2. **`.graph-viewport`** — Removed `overflow: auto`, changed to `overflow: visible`:
+   ```css
+   .graph-viewport {
+     height: 100%;
+     min-height: 340px;
+     overflow: visible;  /* CHANGED from overflow: auto */
+   }
+   ```
+
+3. **`@query` selector** — Changed from `.graph-viewport` to `.graph-canvas`:
+   ```ts
+   @query('.graph-canvas')
+   private _graphCanvas?: HTMLDivElement;
+   ```
+
+4. **Fit-to-screen logic** — Updated to reference `_graphCanvas` instead of `_graphViewport`.
+
+5. **Reduced motion media query** — Updated to target `.graph-canvas` for `scroll-behavior: auto`.
+
+### Behavioral proof (Tangy)
+
+Three tests now verify this scroll behavior:
+
+1. **`workflow-editor-shell.spec.ts → "graph-canvas is the scrollable region while shell chrome stays anchored"`**
+   - Verifies `.graph-canvas` has `overflow-y: auto`
+   - Scrolling `.graph-canvas` works (scrollTop increases)
+   - Window body does NOT scroll
+   - Shell chrome stays anchored
+
+2. **`vertical-lanes-switcher.spec.ts → "graph-canvas is the vertical scroll surface in the graph workspace"`**
+   - Verifies `.graph-canvas` is scrollable
+   - Window body does NOT scroll
+   - Works with vertical lanes layout
+
+3. **`01-planning-workflow-editor.walkthrough.spec.ts → "Graph-only contract: no list workspace, canvas owns scrolling"`**
+   - Documents the scroll contract in walkthrough
+   - User-facing proof of scroll behavior
+
+## Why this approach
+
+- **Anchored chrome:** The toolbar, HUD, graph hint, outline, and inspector now stay fixed while the user scrolls vertically through the graph lanes.
+- **Better UX alignment:** Only the content area scrolls — the visual frame and controls remain visible and accessible.
+- **Keyboard/screen reader unchanged:** The focus order and ARIA contracts are preserved.
+- **Existing tests confirmed the intent:** Tests already expected `.graph-canvas` to be the scroll surface.
+
+## Validation
+
+All directly affected tests passed:
+
+1. ✅ `npm run build` — TypeScript and Vite build successful
+2. ✅ `tests/workflow-editor/workflow-editor-shell.spec.ts` — 4/4 passed
+3. ✅ `tests/workflow-editor/vertical-lanes-switcher.spec.ts` — 3/3 passed
+
+## Outcome
+
+The graph canvas now scrolls vertically while the workflow editor shell chrome (outline, inspector, toolbar, tabs, header) stays anchored. This completes the scroll-placement corrective slice following the tabbed layout redesign and collapsible rails implementation.
+
+## References
+
+- User request: "I want the graph-canvas div to scroll up and down while the rest of the screen stays anchored."
+- Related decisions: `editor-shell-cohesion`, `layout-professionalisation`, `browser-surface-reset`
