@@ -165,7 +165,6 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _toastMessage: string | null = null;
   @state() private _loading = false;
   @state() private _error: string | null = null;
-  @state() private _graphMode: 'graph' | 'linear' = 'graph';
   @state() private _actionCatalog: ActionCatalogEntry[] = [];
   @state() private _undoHistory: WorkflowHistoryEntry[] = [];
   @state() private _redoHistory: WorkflowHistoryEntry[] = [];
@@ -182,11 +181,15 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _simulation: SimulationState | null = null;
   @state() private _simulationAnnouncement = '';
   @state() private _activeConfidenceTab: ConfidenceTab = 'canvas';
+  @state() private _outlineCollapsed = false;
+  @state() private _inspectorCollapsed = false;
 
   private _savedWorkflowSnapshot: AuthoredWorkflow | null = null;
   private _helpReturnTarget: HTMLElement | null = null;
   private _stagePreviewTimer: number | null = null;
   private _stagePreviewRequestId = 0;
+  private _lastLoadedWorkflowKey: string | null = null;
+  private _workflowLoadRequestId = 0;
 
   connectedCallback() {
     super.connectedCallback();
@@ -197,14 +200,28 @@ export class PrismWorkflowEditorElement extends LitElement {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const keyParam = params.get('workflow');
-      if (keyParam) this.workflowKey = keyParam;
+      if (keyParam && !this.hasAttribute('workflow-key')) {
+        this.workflowKey = keyParam;
+      }
     }
 
     void this._loadActionCatalog();
 
     if (this.initialWorkflow) {
       this._initialiseEditorState(this.initialWorkflow);
+      this._lastLoadedWorkflowKey = this.workflowKey;
     } else {
+      void this._loadWorkflow();
+    }
+  }
+
+  willUpdate(changedProperties: Map<string, unknown>) {
+    // Watch for workflow key changes and reload
+    if (
+      changedProperties.has('workflowKey') &&
+      this.workflowKey !== this._lastLoadedWorkflowKey &&
+      !this.initialWorkflow
+    ) {
       void this._loadWorkflow();
     }
   }
@@ -216,18 +233,28 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private async _loadWorkflow() {
+    const requestId = ++this._workflowLoadRequestId;
     this._loading = true;
     this._error = null;
     this._reflectWorkflowLoadedState();
+    this._lastLoadedWorkflowKey = this.workflowKey;
     try {
       const workflow = await fetchWorkflow(this.workflowKey, this._resolvedAuthoringApiBase);
+      if (requestId !== this._workflowLoadRequestId) {
+        return;
+      }
       this._initialiseEditorState(workflow);
     } catch (err) {
+      if (requestId !== this._workflowLoadRequestId) {
+        return;
+      }
       this._error = err instanceof Error ? err.message : String(err);
       this._workflow = null;
       this._reflectWorkflowLoadedState();
     } finally {
-      this._loading = false;
+      if (requestId === this._workflowLoadRequestId) {
+        this._loading = false;
+      }
     }
   }
 
@@ -997,6 +1024,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private _handleInspectorRequested() {
+    this._inspectorCollapsed = false;
     requestAnimationFrame(() => {
       this.shadowRoot?.querySelector<HTMLElement>('prism-step-inspector')?.focus();
     });
@@ -1183,12 +1211,9 @@ export class PrismWorkflowEditorElement extends LitElement {
     }, 5000);
   }
 
-  private _toggleGraphMode() {
-    this._graphMode = this._graphMode === 'graph' ? 'linear' : 'graph';
-  }
-
   private _focusInspectorForValidationIssue(issue: WorkflowValidationIssue) {
     const actionLocation = issue.location.kind === 'action' ? issue.location : null;
+    this._inspectorCollapsed = false;
     requestAnimationFrame(() => {
       const inspector = this.shadowRoot?.querySelector<HTMLElement>('prism-step-inspector');
       inspector?.focus();
@@ -1510,6 +1535,14 @@ export class PrismWorkflowEditorElement extends LitElement {
     `;
   }
 
+  private _toggleOutlineCollapsed = () => {
+    this._outlineCollapsed = !this._outlineCollapsed;
+  };
+
+  private _toggleInspectorCollapsed = () => {
+    this._inspectorCollapsed = !this._inspectorCollapsed;
+  };
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -1535,19 +1568,55 @@ export class PrismWorkflowEditorElement extends LitElement {
         >
           <!-- Canvas tab: main workspace -->
           <div slot="canvas" class="canvas-workspace">
-            <div class="editor-shell">
+            <div
+              class="editor-shell"
+              style=${`--outline-width:${this._outlineCollapsed ? '3.5rem' : '240px'};--inspector-width:${this._inspectorCollapsed ? '3.5rem' : '380px'};`}
+            >
               <!-- Left: outline -->
-              <prism-workflow-outline
-                class="editor-outline"
-                data-prism-workflow-outline
-                .workflow=${this._workflow}
-                .selectedStageKey=${this._selectedStageKey}
-                .selectedTransitionIndex=${this._selectedTransitionIndex}
-                @outline-stage-selected=${this._handleOutlineStageSelected}
-                @outline-transition-selected=${this._handleOutlineTransitionSelected}
-              ></prism-workflow-outline>
+              <section class=${`editor-outline-shell ${this._outlineCollapsed ? 'panel-collapsed' : ''}`}>
+                <div class="panel-header">
+                  <div class="panel-header-copy">
+                    <h2 class="panel-title">Outline</h2>
+                    ${this._outlineCollapsed
+                      ? nothing
+                      : html`
+                          <p class="panel-subtitle">
+                            ${(this._workflow?.stages.length ?? 0)} ${(this._workflow?.stages.length ?? 0) === 1 ? 'stage' : 'stages'}
+                          </p>
+                        `}
+                  </div>
+                  <button
+                    type="button"
+                    class="panel-toggle"
+                    data-prism-outline-toggle
+                    aria-controls="workflow-editor-outline-panel"
+                    aria-expanded=${String(!this._outlineCollapsed)}
+                    aria-label=${this._outlineCollapsed ? 'Expand outline panel' : 'Collapse outline panel'}
+                    @click=${this._toggleOutlineCollapsed}
+                  >
+                    <span aria-hidden="true">${this._outlineCollapsed ? '⟩' : '⟨'}</span>
+                    <span class="sr-only">${this._outlineCollapsed ? 'Expand outline' : 'Collapse outline'}</span>
+                  </button>
+                </div>
+                <div
+                  id="workflow-editor-outline-panel"
+                  class="panel-body"
+                  ?hidden=${this._outlineCollapsed}
+                >
+                  <prism-workflow-outline
+                    class="editor-outline"
+                    data-prism-workflow-outline
+                    .workflow=${this._workflow}
+                    .selectedStageKey=${this._selectedStageKey}
+                    .selectedTransitionIndex=${this._selectedTransitionIndex}
+                    .showHeader=${false}
+                    @outline-stage-selected=${this._handleOutlineStageSelected}
+                    @outline-transition-selected=${this._handleOutlineTransitionSelected}
+                  ></prism-workflow-outline>
+                </div>
+              </section>
 
-              <!-- Center: graph/list + toolbar -->
+              <!-- Center: graph workspace + toolbar -->
               <div class="editor-center">
                 <div class="editor-header" role="none">
                   <h1 id="workflow-editor-title" class="editor-title">
@@ -1607,13 +1676,6 @@ export class PrismWorkflowEditorElement extends LitElement {
                     >
                       Help
                     </button>
-                    <button
-                      class="mode-toggle-btn govuk-button govuk-button--secondary"
-                      @click="${this._toggleGraphMode}"
-                      aria-label="${this._graphMode === 'graph' ? 'Switch to list view' : 'Switch to graph view'}"
-                    >
-                      ${this._graphMode === 'graph' ? 'List view' : 'Graph view'}
-                    </button>
                     <span class="clipboard-chip" data-prism-clipboard-state>${this._clipboardSummary}</span>
                   </div>
                 </div>
@@ -1630,7 +1692,8 @@ export class PrismWorkflowEditorElement extends LitElement {
                 <prism-workflow-graph
                   class="graph-panel"
                   .workflow=${this._workflow}
-                  .mode=${this._graphMode}
+                  mode="graph"
+                  .allowLinearMode=${false}
                   .selectedStageKey=${this._selectedStageKey}
                   .selectedTransitionIndex=${this._selectedTransitionIndex}
                   .simulationCurrentStageKey=${this._simulationCurrentStage?.stageKey ?? null}
@@ -1644,19 +1707,45 @@ export class PrismWorkflowEditorElement extends LitElement {
               </div>
 
               <!-- Right: inspector -->
-              <div class="editor-right">
-                <prism-step-inspector
-                  class="inspector-panel"
-                  tabindex="0"
-                  .workflow=${this._workflow}
-                  selected-stage-key="${this._selectedStageKey ?? ''}"
-                  .selectedTransitionIndex=${this._selectedTransitionIndex}
-                  .selectedActionIndex=${this._selectedActionIndex}
-                  .actionCatalog=${this._actionCatalog}
-                  @workflow-updated=${this._handleWorkflowUpdated}
-                  @action-selected=${this._handleActionSelected}
-                ></prism-step-inspector>
-              </div>
+              <section class=${`editor-right ${this._inspectorCollapsed ? 'panel-collapsed' : ''}`}>
+                <div class="panel-header">
+                  <div class="panel-header-copy">
+                    <h2 class="panel-title">Properties</h2>
+                    ${this._inspectorCollapsed
+                      ? nothing
+                      : html`<p class="panel-subtitle">Selected stage or transition details</p>`}
+                  </div>
+                  <button
+                    type="button"
+                    class="panel-toggle"
+                    data-prism-inspector-toggle
+                    aria-controls="workflow-editor-inspector-panel"
+                    aria-expanded=${String(!this._inspectorCollapsed)}
+                    aria-label=${this._inspectorCollapsed ? 'Expand properties drawer' : 'Collapse properties drawer'}
+                    @click=${this._toggleInspectorCollapsed}
+                  >
+                    <span aria-hidden="true">${this._inspectorCollapsed ? '⟨' : '⟩'}</span>
+                    <span class="sr-only">${this._inspectorCollapsed ? 'Expand properties drawer' : 'Collapse properties drawer'}</span>
+                  </button>
+                </div>
+                <div
+                  id="workflow-editor-inspector-panel"
+                  class="panel-body"
+                  ?hidden=${this._inspectorCollapsed}
+                >
+                  <prism-step-inspector
+                    class="inspector-panel"
+                    tabindex="0"
+                    .workflow=${this._workflow}
+                    selected-stage-key="${this._selectedStageKey ?? ''}"
+                    .selectedTransitionIndex=${this._selectedTransitionIndex}
+                    .selectedActionIndex=${this._selectedActionIndex}
+                    .actionCatalog=${this._actionCatalog}
+                    @workflow-updated=${this._handleWorkflowUpdated}
+                    @action-selected=${this._handleActionSelected}
+                  ></prism-step-inspector>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -1790,7 +1879,7 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     .editor-shell {
       display: grid;
-      grid-template-columns: 240px 1fr 380px;
+      grid-template-columns: var(--outline-width, 240px) 1fr var(--inspector-width, 380px);
       flex: 1;
       overflow: hidden;
       min-height: 0;
@@ -1798,10 +1887,103 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     /* ---- Left panel ---- */
 
-    .editor-outline {
-      width: 240px;
-      flex-shrink: 0;
+    .editor-outline-shell,
+    .editor-right {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
+      background: #fff;
+    }
+
+    .editor-outline-shell {
+      border-right: 2px solid #b1b4b6;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.875rem 0.875rem 0.75rem;
+      border-bottom: 1px solid #d8dde3;
+      background: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .panel-header-copy {
+      min-width: 0;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0b0c0c;
+    }
+
+    .panel-subtitle {
+      margin: 0.25rem 0 0;
+      font-size: 0.8125rem;
+      color: #505a5f;
+      line-height: 1.4;
+    }
+
+    .panel-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      min-width: 2.25rem;
+      min-height: 2.25rem;
+      border: 1px solid #b1b4b6;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #0b0c0c;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .panel-toggle:hover {
+      background: #f3f2f1;
+    }
+
+    .panel-toggle:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 2px;
+    }
+
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-collapsed .panel-header {
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 0.5rem;
+      min-height: 100%;
+      border-bottom: none;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+
+    .panel-collapsed .panel-header-copy {
+      display: contents;
+    }
+
+    .panel-collapsed .panel-title {
+      font-size: 0.875rem;
+    }
+
+    .panel-collapsed .panel-toggle {
+      transform: rotate(180deg);
+    }
+
+    .editor-outline {
+      height: 100%;
     }
 
     .editor-center {
@@ -1915,13 +2097,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     /* ---- Right panel ---- */
 
     .editor-right {
-      width: 380px;
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
       border-left: 2px solid #b1b4b6;
-      background: #fff;
-      overflow: hidden;
     }
 
     /* ---- Confidence panel ---- */
@@ -1937,7 +2113,7 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     .inspector-panel {
       flex: 1;
-      overflow-y: auto;
+      overflow: hidden;
       min-height: 0;
     }
 
@@ -2198,6 +2374,65 @@ export class PrismWorkflowEditorElement extends LitElement {
     @media (max-width: 960px) {
       .shortcut-item {
         grid-template-columns: 1fr;
+      }
+    }
+
+    /* Responsive: Narrow viewports (tablets, small laptops) */
+    @media (max-width: 1024px) {
+      .editor-shell {
+        grid-template-columns: var(--outline-width, 240px) 1fr var(--inspector-width, 320px);
+      }
+
+      .editor-header {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch;
+      }
+
+      .editor-toolbar {
+        flex-wrap: wrap;
+      }
+    }
+
+    /* Responsive: Mobile/narrow screens */
+    @media (max-width: 640px) {
+      .editor-shell {
+        grid-template-columns: var(--outline-width, 3.5rem) 1fr var(--inspector-width, 3.5rem);
+      }
+
+      .panel-collapsed {
+        min-width: 3.5rem;
+      }
+
+      .panel-collapsed .panel-body {
+        display: none;
+      }
+
+      .panel-collapsed .panel-header-copy {
+        display: none;
+      }
+
+      .panel-toggle {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        min-height: 8rem;
+      }
+
+      .editor-header {
+        padding: 0.625rem 0.875rem;
+      }
+
+      .editor-title {
+        font-size: 1.125rem;
+      }
+
+      .editor-toolbar {
+        gap: 0.375rem;
+      }
+
+      .toolbar-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
       }
     }
   `;

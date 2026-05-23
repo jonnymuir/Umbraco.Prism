@@ -19,10 +19,14 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   authoringApiBase = '';
 
   @state() private _draftWorkflowKey = 'planning';
-  @state() private _draftApiBase = '';
   @state() private _workflowOptions: WorkflowAuthoringSummary[] = [];
-  @state() private _loadingOptions = false;
-  @state() private _optionsError: string | null = null;
+
+  protected updated(changed: Map<string, unknown>): void {
+    if (changed.has('workflowKey')) {
+      this._draftWorkflowKey = this.workflowKey;
+      this._syncUrlToWorkflow();
+    }
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -36,7 +40,6 @@ export class PrismWorkflowEditorShellElement extends LitElement {
     }
 
     this._draftWorkflowKey = this.workflowKey;
-    this._draftApiBase = this._resolvedAuthoringApiBase;
     void this._loadWorkflowOptions();
   }
 
@@ -45,9 +48,6 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   }
 
   private async _loadWorkflowOptions(): Promise<void> {
-    this._loadingOptions = true;
-    this._optionsError = null;
-
     try {
       const options = await listWorkflows(this._resolvedAuthoringApiBase);
       this._workflowOptions = options;
@@ -58,10 +58,17 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       }
     } catch (error) {
       this._workflowOptions = [];
-      this._optionsError = error instanceof Error ? error.message : String(error);
-    } finally {
-      this._loadingOptions = false;
     }
+  }
+
+  private _syncUrlToWorkflow(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('workflow', this.workflowKey);
+    window.history.replaceState({}, '', url);
   }
 
   private _renderWorkflowOptions() {
@@ -135,7 +142,9 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   static styles = css`
     :host {
       display: block;
+      height: 100vh;
       min-height: 100vh;
+      overflow: hidden;
       color: #0b0c0c;
       background: #f3f2f1;
       font-family: "GDS Transport", arial, sans-serif;
@@ -163,7 +172,9 @@ export class PrismWorkflowEditorShellElement extends LitElement {
     .shell {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
     }
 
     .topbar {
@@ -219,6 +230,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       flex: 1;
       padding: 1.5rem 2rem;
       min-height: 0;
+      overflow: hidden;
     }
 
     .editor-frame {

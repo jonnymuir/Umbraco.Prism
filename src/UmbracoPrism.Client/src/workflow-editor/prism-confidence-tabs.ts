@@ -14,6 +14,8 @@ export class PrismConfidenceTabs extends LitElement {
   @property({ type: Number, attribute: 'warning-count' })
   warningCount = 0;
 
+  private static readonly _tabs: ConfidenceTab[] = ['canvas', 'validation', 'preview', 'simulation', 'help'];
+
   private _handleTabClick(tab: ConfidenceTab) {
     if (this.activeTab !== tab) {
       this.dispatchEvent(
@@ -23,6 +25,50 @@ export class PrismConfidenceTabs extends LitElement {
           composed: true,
         })
       );
+    }
+  }
+
+  private _moveTabFocus(currentTab: ConfidenceTab, direction: -1 | 1) {
+    const tabs = PrismConfidenceTabs._tabs;
+    const currentIndex = tabs.indexOf(currentTab);
+    const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+    const nextTab = tabs[nextIndex];
+    this._handleTabClick(nextTab);
+    requestAnimationFrame(() => {
+      this.shadowRoot
+        ?.querySelector<HTMLButtonElement>(`#confidence-tab-${nextTab}`)
+        ?.focus();
+    });
+  }
+
+  private _handleTabKeydown(event: KeyboardEvent, tab: ConfidenceTab) {
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        event.preventDefault();
+        this._moveTabFocus(tab, 1);
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        event.preventDefault();
+        this._moveTabFocus(tab, -1);
+        break;
+      case 'Home':
+        event.preventDefault();
+        this._handleTabClick('canvas');
+        requestAnimationFrame(() => {
+          this.shadowRoot?.querySelector<HTMLButtonElement>('#confidence-tab-canvas')?.focus();
+        });
+        break;
+      case 'End':
+        event.preventDefault();
+        this._handleTabClick('help');
+        requestAnimationFrame(() => {
+          this.shadowRoot?.querySelector<HTMLButtonElement>('#confidence-tab-help')?.focus();
+        });
+        break;
+      default:
+        break;
     }
   }
 
@@ -40,8 +86,10 @@ export class PrismConfidenceTabs extends LitElement {
         aria-selected="${isActive}"
         aria-controls="confidence-panel-${tab}"
         id="confidence-tab-${tab}"
+        tabindex=${isActive ? '0' : '-1'}
         data-prism-confidence-tab="${tab}"
         @click=${() => this._handleTabClick(tab)}
+        @keydown=${(event: KeyboardEvent) => this._handleTabKeydown(event, tab)}
       >
         <span class="tab-label">${label}</span>
         ${badgeHtml}
@@ -65,9 +113,10 @@ export class PrismConfidenceTabs extends LitElement {
         <div class="tab-panel-container">
           <div
             id="confidence-panel-canvas"
-            class="tab-panel ${this.activeTab === 'canvas' ? 'tab-panel-active' : ''}"
+            class="tab-panel tab-panel-canvas ${this.activeTab === 'canvas' ? 'tab-panel-active' : ''}"
             role="tabpanel"
             aria-labelledby="confidence-tab-canvas"
+            data-prism-confidence-panel="canvas"
             ?hidden=${this.activeTab !== 'canvas'}
           >
             <slot name="canvas"></slot>
@@ -78,6 +127,7 @@ export class PrismConfidenceTabs extends LitElement {
             class="tab-panel ${this.activeTab === 'validation' ? 'tab-panel-active' : ''}"
             role="tabpanel"
             aria-labelledby="confidence-tab-validation"
+            data-prism-confidence-panel="validation"
             ?hidden=${this.activeTab !== 'validation'}
           >
             <slot name="validation"></slot>
@@ -88,6 +138,7 @@ export class PrismConfidenceTabs extends LitElement {
             class="tab-panel ${this.activeTab === 'preview' ? 'tab-panel-active' : ''}"
             role="tabpanel"
             aria-labelledby="confidence-tab-preview"
+            data-prism-confidence-panel="preview"
             ?hidden=${this.activeTab !== 'preview'}
           >
             <slot name="preview"></slot>
@@ -98,6 +149,7 @@ export class PrismConfidenceTabs extends LitElement {
             class="tab-panel ${this.activeTab === 'simulation' ? 'tab-panel-active' : ''}"
             role="tabpanel"
             aria-labelledby="confidence-tab-simulation"
+            data-prism-confidence-panel="simulation"
             ?hidden=${this.activeTab !== 'simulation'}
           >
             <slot name="simulation"></slot>
@@ -108,6 +160,7 @@ export class PrismConfidenceTabs extends LitElement {
             class="tab-panel ${this.activeTab === 'help' ? 'tab-panel-active' : ''}"
             role="tabpanel"
             aria-labelledby="confidence-tab-help"
+            data-prism-confidence-panel="help"
             ?hidden=${this.activeTab !== 'help'}
           >
             <slot name="help"></slot>
@@ -209,6 +262,10 @@ export class PrismConfidenceTabs extends LitElement {
       height: 100%;
       overflow-y: auto;
       display: none;
+    }
+
+    .tab-panel-canvas {
+      overflow: hidden;
     }
 
     .tab-panel-active {

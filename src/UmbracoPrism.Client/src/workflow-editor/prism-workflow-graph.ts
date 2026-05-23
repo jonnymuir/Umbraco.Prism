@@ -71,9 +71,9 @@ type RoleLane = {
   label: string;
   description: string;
   surface: StageSurface;
-  rowIndex: number;
-  y: number;
-  height: number;
+  columnIndex: number;
+  x: number;
+  width: number;
   stageCount: number;
 };
 
@@ -106,16 +106,16 @@ type CreateTransitionDialogState = {
 
 const NODE_WIDTH = 224;
 const NODE_HEIGHT = 128;
-const HORIZONTAL_GAP = 96;
+const VERTICAL_GAP = 96;
 const TOP_PADDING = 64;
 const SIDE_PADDING = 56;
-const LANE_HEIGHT = 176;
+const LANE_WIDTH = 280;
 const LANE_GAP = 36;
 const EDGE_LABEL_WIDTH = 132;
 const EDGE_LABEL_HEIGHT = 32;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
-const LANE_HEADER_OFFSET = 44;
+const LANE_HEADER_OFFSET = 80;
 const FRONT_STAGE_ACTORS = new Set(['applicant', 'resident', 'member', 'citizen', 'customer', 'public']);
 const BACK_STAGE_ACTORS = new Set(['reviewer', 'caseworker', 'officer', 'administrator', 'admin', 'system']);
 
@@ -144,6 +144,9 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   @property({ type: String })
   mode: GraphMode = 'graph';
+
+  @property({ type: Boolean, attribute: 'allow-linear-mode' })
+  allowLinearMode = true;
 
   @property({ attribute: false })
   selectedStageKey: string | null = null;
@@ -198,8 +201,8 @@ export class PrismWorkflowGraphElement extends LitElement {
   @state()
   private _createTransitionDialog: CreateTransitionDialogState | null = null;
 
-  @query('.graph-viewport')
-  private _graphViewport?: HTMLDivElement;
+  @query('.graph-canvas')
+  private _graphCanvas?: HTMLDivElement;
 
   private _contextReturnTarget: HTMLElement | null = null;
   private _statusTimer: number | null = null;
@@ -261,6 +264,9 @@ export class PrismWorkflowGraphElement extends LitElement {
     const laneByKey = new Map<string, RoleLane>();
     const stageLayouts: StageLayout[] = [];
 
+    // Group stages by lane and track stage indices per lane
+    const stagesPerLane = new Map<string, Array<{ stage: AuthoredStage; globalIndex: number }>>();
+
     stages.forEach((stage, stageIndex) => {
       const surface = this._surfaceForStage(stage);
       const laneKey = this._roleKeyForStage(stage, surface);
@@ -271,36 +277,50 @@ export class PrismWorkflowGraphElement extends LitElement {
           label: this._roleLabelForLane(laneKey),
           description: this._roleDescriptionForLane(laneKey),
           surface,
-          rowIndex: roleLanes.length,
-          y: TOP_PADDING + roleLanes.length * (LANE_HEIGHT + LANE_GAP),
-          height: LANE_HEIGHT,
+          columnIndex: roleLanes.length,
+          x: SIDE_PADDING + roleLanes.length * (LANE_WIDTH + LANE_GAP),
+          width: LANE_WIDTH,
           stageCount: 0,
         };
         laneByKey.set(laneKey, lane);
         roleLanes.push(lane);
+        stagesPerLane.set(laneKey, []);
       }
 
       lane.stageCount += 1;
-      const x = SIDE_PADDING + stageIndex * (NODE_WIDTH + HORIZONTAL_GAP);
-      const y = lane.y + LANE_HEADER_OFFSET;
-
-      const layout: StageLayout = {
-        stage,
-        stageIndex,
-        surface,
-        laneKey,
-        laneLabel: lane.label,
-        x,
-        y,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-      };
-
-      stageLayouts.push(layout);
+      stagesPerLane.get(laneKey)!.push({ stage, globalIndex: stageIndex });
     });
 
-    const width = SIDE_PADDING * 2 + NODE_WIDTH + Math.max(0, stages.length - 1) * (NODE_WIDTH + HORIZONTAL_GAP);
-    const height = TOP_PADDING * 2 + roleLanes.length * LANE_HEIGHT + Math.max(0, roleLanes.length - 1) * LANE_GAP + 24;
+    // Position stages vertically within each lane
+    stagesPerLane.forEach((stageList, laneKey) => {
+      const lane = laneByKey.get(laneKey)!;
+      stageList.forEach((item, indexInLane) => {
+        const x = lane.x + (lane.width - NODE_WIDTH) / 2;
+        const y = TOP_PADDING + LANE_HEADER_OFFSET + indexInLane * (NODE_HEIGHT + VERTICAL_GAP);
+
+        const layout: StageLayout = {
+          stage: item.stage,
+          stageIndex: item.globalIndex,
+          surface: lane.surface,
+          laneKey,
+          laneLabel: lane.label,
+          x,
+          y,
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+        };
+
+        stageLayouts.push(layout);
+      });
+    });
+
+    const width = roleLanes.length === 0
+      ? SIDE_PADDING * 2 + LANE_WIDTH
+      : SIDE_PADDING * 2 + roleLanes.length * LANE_WIDTH + Math.max(0, roleLanes.length - 1) * LANE_GAP;
+    const maxStagesInAnyLane = Math.max(0, ...Array.from(stagesPerLane.values()).map(list => list.length));
+    const height = maxStagesInAnyLane === 0
+      ? TOP_PADDING * 2 + LANE_HEADER_OFFSET + 200
+      : TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP;
 
     const stageMap = new Map(stageLayouts.map(layout => [layout.stage.stageKey, layout]));
     const transitionLayouts: TransitionLayout[] = transitions.map((transition, index) => {
@@ -400,24 +420,26 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private _buildTransitionPath(source: StageLayout, target: StageLayout) {
     const sameLane = source.laneKey === target.laneKey;
-    const startX = source.x + source.width;
-    const startY = source.y + source.height / 2;
-    const endX = target.x;
-    const endY = target.y + target.height / 2;
-    const distance = Math.max(Math.abs(endX - startX), 64);
+    const startX = source.x + source.width / 2;
+    const startY = source.y + source.height;
+    const endX = target.x + target.width / 2;
+    const endY = target.y;
+    const distance = Math.max(Math.abs(endY - startY), 64);
     const curve = Math.min(Math.max(distance / 2, 56), 180);
 
     if (sameLane) {
-      const path = `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
+      // Vertical transition within same lane
+      const path = `M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`;
 
       return {
         path,
-        labelX: startX + (endX - startX) / 2,
-        labelY: startY + (endY - startY) / 2 - 22,
+        labelX: startX + (endX - startX) / 2 + 22,
+        labelY: startY + (endY - startY) / 2,
       };
     }
 
-    const path = `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
+    // Cross-lane transition
+    const path = `M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`;
 
     return {
       path,
@@ -427,6 +449,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _toggleMode() {
+    if (!this.allowLinearMode) {
+      return;
+    }
     this.mode = this.mode === 'graph' ? 'linear' : 'graph';
     this._focusedIndex = 0;
     this._dismissContextMenu();
@@ -546,18 +571,18 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _fitToScreen() {
-    const viewport = this._graphViewport;
-    if (!viewport) {
+    const canvas = this._graphCanvas;
+    if (!canvas) {
       return;
     }
 
     const { width, height } = this._layout.bounds;
-    const availableWidth = Math.max(viewport.clientWidth - 32, 1);
-    const availableHeight = Math.max(viewport.clientHeight - 32, 1);
+    const availableWidth = Math.max(canvas.clientWidth - 32, 1);
+    const availableHeight = Math.max(canvas.clientHeight - 32, 1);
     const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(availableWidth / width, availableHeight / height)));
     this._zoom = Number(nextZoom.toFixed(2));
     requestAnimationFrame(() => {
-      viewport.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+      canvas.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     });
     this._announce('Canvas fit to screen.');
   }
@@ -2034,14 +2059,14 @@ export class PrismWorkflowGraphElement extends LitElement {
                 return html`
                   <section
                     class=${`lane ${lane.surface === 'back-stage' ? 'lane-supporting' : 'lane-primary'}`}
-                    style=${`top:${lane.y}px;height:${lane.height}px;`}
+                    style=${`left:${lane.x}px;width:${lane.width}px;`}
                     tabindex="0"
                     aria-labelledby=${headingId}
                     aria-describedby=${copyId}
                     data-prism-role-lane=${lane.key}
                     @focus=${() => this._announce(`${lane.label} lane. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`)}
                   >
-                    <div class="lane-header">
+                    <div class="lane-header" data-prism-lane-header=${lane.key}>
                       <div id=${headingId} class="lane-heading">${lane.label}</div>
                       <div class="lane-meta">${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}</div>
                     </div>
@@ -2432,7 +2457,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   render() {
     const stages = this.workflow?.stages ?? [];
-    const isLinear = this.mode === 'linear';
+    const isLinear = this.allowLinearMode && this.mode === 'linear';
 
     return html`
       <div class="workflow-graph-root" data-prism-component="workflow-graph" data-prism-mode=${this.mode}>
@@ -2441,14 +2466,18 @@ export class PrismWorkflowGraphElement extends LitElement {
             <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>
             <span class="workflow-subtitle">Graph workspace for stages and transitions</span>
           </div>
-          <button
-            class="mode-toggle"
-            aria-pressed=${String(isLinear)}
-            @click=${this._toggleMode}
-            title=${isLinear ? 'Switch to graph view' : 'Switch to linear list view'}
-          >
-            ${isLinear ? 'Graph view' : 'List view'}
-          </button>
+          ${this.allowLinearMode
+            ? html`
+                <button
+                  class="mode-toggle"
+                  aria-pressed=${String(isLinear)}
+                  @click=${this._toggleMode}
+                  title=${isLinear ? 'Switch to graph view' : 'Switch to linear list view'}
+                >
+                  ${isLinear ? 'Graph view' : 'List view'}
+                </button>
+              `
+            : nothing}
         </div>
 
         <div id="graph-announcer" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
@@ -2466,6 +2495,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   static styles = css`
     :host {
       display: block;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
       font-family: var(--uui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       color: #111827;
     }
@@ -2486,7 +2518,9 @@ export class PrismWorkflowGraphElement extends LitElement {
       position: relative;
       display: flex;
       flex-direction: column;
+      flex: 1;
       height: 100%;
+      min-height: 0;
       background: #f8fafc;
       border: 1px solid #d1d5db;
       border-radius: 12px;
@@ -2652,12 +2686,17 @@ export class PrismWorkflowGraphElement extends LitElement {
       flex: 1;
       min-height: 0;
       padding: 0 1rem 1rem;
+      overflow: auto;
+      min-width: 800px;
+      min-height: 400px;
     }
 
     .graph-viewport {
-      height: 100%;
-      min-height: 340px;
-      overflow: auto;
+      position: relative;
+      min-width: 100%;
+      min-height: 100%;
+      width: fit-content;
+      overflow: visible;
       border: 1px solid #dbe2ea;
       border-radius: 12px;
       background:
@@ -2667,8 +2706,6 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .graph-scene-frame {
       position: relative;
-      min-width: 100%;
-      min-height: 100%;
     }
 
     .graph-scene {
@@ -2678,8 +2715,9 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .lane {
       position: absolute;
-      left: 24px;
-      right: 24px;
+      box-sizing: border-box;
+      top: ${TOP_PADDING}px;
+      height: calc(100% - ${TOP_PADDING * 2}px);
       border-radius: 18px;
       border: 1px solid #dbe2ea;
       padding: 18px 20px;
@@ -3414,7 +3452,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         transition: none;
       }
 
-      .graph-viewport {
+      .graph-canvas {
         scroll-behavior: auto;
       }
     }

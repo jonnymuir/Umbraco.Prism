@@ -7,6 +7,9 @@ export class PrismWorkflowOutline extends LitElement {
   @property({ type: Object })
   workflow: AuthoredWorkflow | null = null;
 
+  @property({ type: Boolean, attribute: 'show-header' })
+  showHeader = true;
+
   @property({ attribute: 'selected-stage-key' })
   selectedStageKey: string | null = null;
 
@@ -65,10 +68,14 @@ export class PrismWorkflowOutline extends LitElement {
 
     return html`
       <nav class="outline-root" aria-label="Workflow structure outline">
-        <div class="outline-header">
-          <h2 class="outline-title">Outline</h2>
-          <p class="outline-subtitle">${stages.length} ${stages.length === 1 ? 'stage' : 'stages'}</p>
-        </div>
+        ${this.showHeader
+          ? html`
+              <div class="outline-header">
+                <h2 class="outline-title">Outline</h2>
+                <p class="outline-subtitle">${stages.length} ${stages.length === 1 ? 'stage' : 'stages'}</p>
+              </div>
+            `
+          : nothing}
 
         <ol class="outline-stage-list">
           ${stages.map((stage) => {
