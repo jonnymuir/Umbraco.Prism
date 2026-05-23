@@ -317,4 +317,162 @@ public class PrismContentPublishedHandlerTests
 
         await act.Should().NotThrowAsync("exceptions must never break the publish pipeline");
     }
+
+    // ------------------------------------------------------------------ vinylRecord Boundary Regression Guards
+
+    /// <summary>
+    /// Regression guard: when vinylRecord is explicitly listed in NotifiableContentTypes,
+    /// the Core config-driven handler must route to genre subscribers (genre present).
+    /// This proves the boundary refactor preserved the send-to-genre path for vinyl content.
+    /// </summary>
+    [Fact]
+    public async Task Handle_VinylRecord_ConfigDriven_WithGenre_SendsToGenreSubscribers()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Prism:Notifications:NotifiableContentTypes"] = "vinylRecord"
+            })
+            .Build();
+
+        var serviceMock = new Mock<IPrismNotificationService>();
+        var handler = BuildHandler(config: config, serviceMock: serviceMock);
+
+        var content = CreateMockContent(
+            contentTypeAlias: "vinylRecord",
+            name: "Kind of Blue",
+            tenantId: "tenant-vinyl",
+            notificationGenre: "jazz");
+
+        var notification = new ContentPublishedNotification(
+            new[] { content },
+            new EventMessages());
+
+        await handler.HandleAsync(notification, CancellationToken.None);
+
+        serviceMock.Verify(s => s.SendNotificationToGenreSubscribersAsync(
+            "tenant-vinyl", "jazz", "Kind of Blue", "New content has been published.", default), Times.Once);
+
+        serviceMock.Verify(s => s.SendNotificationToAllMembersAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Regression guard: when vinylRecord is in config but has no genre,
+    /// the Core handler must fall back to all-members broadcast.
+    /// </summary>
+    [Fact]
+    public async Task Handle_VinylRecord_ConfigDriven_WithoutGenre_SendsToAllMembers()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Prism:Notifications:NotifiableContentTypes"] = "vinylRecord"
+            })
+            .Build();
+
+        var serviceMock = new Mock<IPrismNotificationService>();
+        var handler = BuildHandler(config: config, serviceMock: serviceMock);
+
+        var content = CreateMockContent(
+            contentTypeAlias: "vinylRecord",
+            name: "Rumours",
+            tenantId: "tenant-vinyl",
+            notificationGenre: null);
+
+        var notification = new ContentPublishedNotification(
+            new[] { content },
+            new EventMessages());
+
+        await handler.HandleAsync(notification, CancellationToken.None);
+
+        serviceMock.Verify(s => s.SendNotificationToAllMembersAsync(
+            "tenant-vinyl", "Rumours", "New content has been published.", default), Times.Once);
+
+        serviceMock.Verify(s => s.SendNotificationToGenreSubscribersAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Double-fire prevention guard: when vinylRecord is NOT in NotifiableContentTypes,
+    /// the Core handler must remain completely silent — allowing the TestSite handler
+    /// (if registered) to be the sole sender. This prevents double notifications
+    /// when both composers are active in the TestSite runtime.
+    /// </summary>
+    [Fact]
+    public async Task Handle_VinylRecord_NotInConfig_CoreHandlerIsSilent_DoubleFirGuard()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Prism:Notifications:NotifiableContentTypes"] = "newsArticle,announcement"
+                // vinylRecord deliberately absent — TestSite handler owns this type
+            })
+            .Build();
+
+        var serviceMock = new Mock<IPrismNotificationService>();
+        var handler = BuildHandler(config: config, serviceMock: serviceMock);
+
+        var content = CreateMockContent(
+            contentTypeAlias: "vinylRecord",
+            name: "Abbey Road",
+            tenantId: "tenant-vinyl",
+            notificationGenre: "rock");
+
+        var notification = new ContentPublishedNotification(
+            new[] { content },
+            new EventMessages());
+
+        await handler.HandleAsync(notification, CancellationToken.None);
+
+        serviceMock.Verify(s => s.SendNotificationToGenreSubscribersAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "Core handler must not fire for vinylRecord when it is absent from NotifiableContentTypes — prevents double-fire with TestSite handler");
+
+        serviceMock.Verify(s => s.SendNotificationToAllMembersAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "Core handler must not fire for vinylRecord when it is absent from NotifiableContentTypes — prevents double-fire with TestSite handler");
+    }
+
+    /// <summary>
+    /// Double-fire prevention guard: config with empty NotifiableContentTypes means
+    /// the Core handler is entirely inert — regardless of content type published.
+    /// </summary>
+    [Fact]
+    public async Task Handle_EmptyNotifiableTypes_CoreHandlerIsSilent_ForAnyContentType()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Prism:Notifications:NotifiableContentTypes"] = ""
+            })
+            .Build();
+
+        var serviceMock = new Mock<IPrismNotificationService>();
+        var handler = BuildHandler(config: config, serviceMock: serviceMock);
+
+        var content = CreateMockContent(
+            contentTypeAlias: "vinylRecord",
+            name: "Nevermind",
+            tenantId: "tenant-vinyl",
+            notificationGenre: "grunge");
+
+        var notification = new ContentPublishedNotification(
+            new[] { content },
+            new EventMessages());
+
+        await handler.HandleAsync(notification, CancellationToken.None);
+
+        serviceMock.Verify(s => s.SendNotificationToGenreSubscribersAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "Empty config must produce a fully inert Core handler");
+
+        serviceMock.Verify(s => s.SendNotificationToAllMembersAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "Empty config must produce a fully inert Core handler");
+    }
 }
