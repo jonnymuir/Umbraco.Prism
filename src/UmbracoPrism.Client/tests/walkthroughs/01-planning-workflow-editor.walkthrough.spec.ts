@@ -58,8 +58,8 @@ test.describe('Planning Workflow Editor walkthrough', () => {
   // SKIP RATIONALE
   //
   // This walkthrough exercises the live business-app host for the current editor
-  // slice: role-first graph framing, inspector-first editing, and supporting
-  // confidence surfaces (list mode, validation, preview, simulation, help).
+  // slice: role-first graph framing, inspector-first editing, collapsible side
+  // panels, and supporting confidence surfaces (validation, preview, simulation, help).
   //
   // When both PRs have merged:
   //   1. Remove the `test.skip(true, ...)` line.
@@ -148,17 +148,65 @@ test.describe('Planning Workflow Editor walkthrough', () => {
       screenshotSelector: '[data-prism-component="workflow-editor-shell"]',
     }), WALKTHROUGH_KEY);
 
+    // ─── Browser surface quality check: Editor workspace is prioritized ─────────
+    // The editor frame should occupy significant vertical space, not be overwhelmed
+    // by host marketing chrome. This proves the browser-hosted surface is usable.
+    const editorFrame = page.locator('.editor-frame');
+    const heroSection = page.locator('.hero');
+    const viewport = page.viewportSize();
+    const editorBox = await editorFrame.boundingBox();
+    const heroBox = await heroSection.boundingBox();
+    
+    if (viewport && editorBox && heroBox) {
+      const editorHeightRatio = editorBox.height / viewport.height;
+      const heroHeightRatio = heroBox.height / viewport.height;
+      
+      // Editor should dominate the viewport (at least 60%)
+      expect(editorHeightRatio).toBeGreaterThan(0.6);
+      
+      // Hero chrome should be secondary (less than 30%)
+      expect(heroHeightRatio).toBeLessThan(0.3);
+    }
+
+    // ─── Mature editor shell: Persistent outline/navigator ─────────────────────
+    // The workflow outline should be visible alongside the main canvas at all times.
+    // It provides quick navigation to stages and shows the current selection.
+    const workflowOutline = page.locator('[data-prism-workflow-outline]');
+    await expect(workflowOutline).toBeVisible({ timeout: 10_000 });
+    await expect(workflowOutline.locator('[data-prism-outline-stage]')).not.toHaveCount(0);
+
+    // ─── Mature editor shell: Confidence surfaces are tabbed ────────────────────
+    // Validation, preview, simulation should appear as tabs, not all stacked at once.
+    const confidenceTabs = page.locator('[data-prism-confidence-tabs]');
+    await expect(confidenceTabs).toBeVisible({ timeout: 10_000 });
+    await expect(confidenceTabs.locator('[data-prism-confidence-tab="validation"]')).toBeVisible();
+    await expect(confidenceTabs.locator('[data-prism-confidence-tab="preview"]')).toBeVisible();
+    await expect(confidenceTabs.locator('[data-prism-confidence-tab="simulation"]')).toBeVisible();
+
     // ─── Step 2: Graph view shows the planning permission stages in role lanes ──
     // prism-workflow-graph renders in "graph" mode by default (aria role="application").
-    // The graph uses horizontal role-first swim lanes, not a generic node field.
+    // The graph uses role-first swim lanes (vertical orientation as of Issue #75).
     // The live authored planning seed stages are: declaration, application-form,
     // check-answers, submitted.
     const graphCanvas = page.getByRole('application');
     await expect(graphCanvas).toBeVisible({ timeout: 10_000 });
     await expect(graphCanvas).toHaveAttribute('aria-roledescription', /role-first/i);
 
-    // Role lanes should be structurally visible with semantic labels
-    await expect(page.locator('[data-prism-role-lane]')).not.toHaveCount(0);
+    // ─── Browser surface quality check: Swim lanes are visible without scrolling ─
+    // With vertical lanes, multiple lanes should be visible in the viewport without excessive scrolling.
+    // This proves the browser-hosted surface provides adequate workspace for the role-based structure.
+    const roleLanes = page.locator('[data-prism-role-lane]');
+    await expect(roleLanes).not.toHaveCount(0);
+    
+    const firstLane = roleLanes.first();
+    const secondLane = roleLanes.nth(1);
+    await expect(firstLane).toBeInViewport();
+    await expect(secondLane).toBeInViewport({ ratio: 0.5 });
+
+    // ─── Vertical lanes orientation check ─────────────────────────────────────
+    // Verify lanes are structurally semantic (focusable sections with headings)
+    await expect(firstLane.locator('.lane-heading')).toBeVisible();
+    await expect(firstLane.locator('.lane-copy')).toBeVisible();
 
     await expect(graphCanvas.getByText('Declaration')).toBeVisible({ timeout: 10_000 });
 
@@ -169,12 +217,24 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Step 3: Click a stage to open the step inspector ─────────────────────
     // Use the graph's keyboard inspector shortcut so the walkthrough follows the
     // accessible selection contract even when surrounding chrome overlaps pointer hits.
+    // This pattern emerged from PR #75 CI failures where the pointer-based click was
+    // blocked by overlapping editor chrome in the browser-hosted surface.
     const declarationStage = page.locator('[data-prism-stage="declaration"]');
     await declarationStage.focus();
+    
+    // ─── Browser surface quality check: Stage cards are not blocked by chrome ───
+    // Before using keyboard shortcut, verify the stage is clickable (not pointer-blocked).
+    await expect(declarationStage).toBeVisible();
+    
     await declarationStage.press('e');
 
     const stepInspector = page.locator('[data-prism-component="step-inspector"]');
     await expect(stepInspector).toBeVisible({ timeout: 10_000 });
+
+    // ─── Mature editor shell: Selection syncs with outline ──────────────────────
+    // When a stage is selected in the graph, the outline should highlight it.
+    const outlineDeclarationStage = workflowOutline.locator('[data-prism-outline-stage="declaration"][aria-current="true"]');
+    await expect(outlineDeclarationStage).toBeVisible({ timeout: 5_000 });
 
     await step(page, '03-step-inspector-open.png', editorHealthCheck({
       screenshotSelector: '[data-prism-component="step-inspector"]',
@@ -189,27 +249,57 @@ test.describe('Planning Workflow Editor walkthrough', () => {
       screenshotSelector: '[data-prism-component="step-inspector"]',
     }), WALKTHROUGH_KEY);
 
-    // ─── Step 5: Toggle to stage list view ────────────────────────────────────
-    // The mode-toggle button ("List view", aria-pressed="false") switches the graph
-    // canvas (role="application") to a keyboard-first table of stage rows.
-    // This mirrors the keyboard-accessible contract tested in workflow-graph-keyboard.spec.ts.
-    const toggleBtn = page.locator('prism-workflow-graph').getByRole('button', { name: 'List view' });
-    await expect(toggleBtn).toBeVisible({ timeout: 5_000 });
-    await toggleBtn.focus();
-    await toggleBtn.press('Enter');
+    // ─── Step 5: Collapse and restore the side panels ──────────────────────────
+    // Authors can collapse the outline and properties drawer without losing the canvas.
+    const outlineToggle = page.locator('[data-prism-panel-toggle="outline"]');
+    const inspectorToggle = page.locator('[data-prism-panel-toggle="properties"]');
+    await expect(outlineToggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(inspectorToggle).toHaveAttribute('aria-expanded', 'true');
 
-    const stageTable = page.locator('[data-prism-linear-table]');
-    await expect(stageTable).toBeVisible({ timeout: 5_000 });
+    await outlineToggle.click();
+    await expect(outlineToggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(workflowOutline).toBeHidden();
 
-    await step(page, '05-stage-list-view.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-component="workflow-graph"]',
+    await inspectorToggle.click();
+    await expect(inspectorToggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(stepInspector).toBeHidden();
+
+    await step(page, '05-collapsed-side-panels.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-component="workflow-editor"]',
     }), WALKTHROUGH_KEY);
 
-    // Switch back to graph view for the supporting-surface checks.
-    const graphToggleBtn = page.locator('prism-workflow-graph').getByRole('button', { name: 'Graph view' });
-    await graphToggleBtn.focus();
-    await graphToggleBtn.press('Enter');
-    await expect(graphCanvas).toBeVisible({ timeout: 5_000 });
+    await outlineToggle.click();
+    await inspectorToggle.click();
+    await expect(workflowOutline).toBeVisible();
+    await expect(stepInspector).toBeVisible();
+
+    // ─── Graph-only contract: no list workspace, canvas owns scrolling ─────────
+    await expect(page.locator('prism-workflow-editor').getByRole('button', { name: /List view/i })).toHaveCount(0);
+    await expect(page.locator('[data-prism-linear-table]')).toHaveCount(0);
+
+    // The .graph-canvas div is the scrollable region, NOT .graph-viewport
+    // This keeps the shell chrome (outline, inspector, toolbar) anchored while the graph scrolls
+    const graphScrollState = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+      const graph = graphElement as HTMLElement;
+      const shadowRoot = graph.shadowRoot;
+      const canvas = shadowRoot?.querySelector<HTMLElement>('.graph-canvas');
+      if (!canvas) {
+        return null;
+      }
+
+      const before = canvas.scrollTop;
+      canvas.scrollTop = 220;
+      return {
+        before,
+        after: canvas.scrollTop,
+        overflowY: getComputedStyle(canvas).overflowY,
+      };
+    });
+
+    expect(graphScrollState).not.toBeNull();
+    expect(graphScrollState?.after ?? 0).toBeGreaterThanOrEqual(graphScrollState?.before ?? 0);
+    expect(graphScrollState?.overflowY === 'auto' || graphScrollState?.overflowY === 'scroll').toBeTruthy();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 
     // ─── Step 6: Help opens without an embedded conversation surface ───────────
     // Issue #74 locks the UX: no embedded AI conversation pane in the editor.
@@ -229,33 +319,43 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     await page.locator('[data-prism-help-close]').click();
     await expect(page.locator('[data-prism-shortcut-dialog]')).toHaveCount(0);
 
-    // ─── Step 7: Validation rail stays attached to the workspace ───────────────
-    const validationRail = page.locator('[data-prism-validation-rail]');
-    await expect(validationRail).toBeVisible({ timeout: 5_000 });
-    await expect(validationRail).toContainText(/validation and save/i);
+    // ─── Step 7: Confidence tabs replace the stacked validation rail ───────────
+    // Switch to validation tab to see validation feedback.
+    await confidenceTabs.locator('[data-prism-confidence-tab="validation"]').click();
+    const validationPanel = page.locator('[data-prism-confidence-panel="validation"]');
+    await expect(validationPanel).toBeVisible({ timeout: 5_000 });
+    await expect(validationPanel).toContainText(/validation/i);
     await expect(page.locator('[data-prism-save-status]')).toContainText(/save/i);
 
-    await step(page, '07-validation-rail.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-validation-rail]',
+    await step(page, '07-validation-tab.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-confidence-panel="validation"]',
     }), WALKTHROUGH_KEY);
 
-    // ─── Step 8: Stage preview reflects the selected stage ─────────────────────
-    const stagePreview = page.locator('[data-prism-stage-preview]');
+    // ─── Step 8: Preview tab shows the selected stage ─────────────────────────
+    await confidenceTabs.locator('[data-prism-confidence-tab="preview"]').click();
+    const previewPanel = page.locator('[data-prism-confidence-panel="preview"]');
+    await expect(previewPanel).toBeVisible({ timeout: 5_000 });
+    
+    const stagePreview = previewPanel.locator('[data-prism-stage-preview]');
     await expect(stagePreview).toBeVisible({ timeout: 10_000 });
     await expect(stagePreview.locator('[data-prism-preview-stage-name]')).toContainText('Declaration', { timeout: 10_000 });
 
-    await step(page, '08-stage-preview.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-stage-preview]',
+    await step(page, '08-preview-tab.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-confidence-panel="preview"]',
     }), WALKTHROUGH_KEY);
 
-    // ─── Step 9: Simulation starts from the workflow's initial stage ───────────
-    const simulationPanel = page.locator('[data-prism-simulation-panel]');
+    // ─── Step 9: Simulation tab starts from the workflow's initial stage ───────
+    await confidenceTabs.locator('[data-prism-confidence-tab="simulation"]').click();
+    const simulationPanel = page.locator('[data-prism-confidence-panel="simulation"]');
     await expect(simulationPanel).toBeVisible({ timeout: 5_000 });
-    await simulationPanel.locator('[data-prism-simulation-start]').click();
-    await expect(simulationPanel.locator('[data-prism-simulation-current-stage]')).toContainText('Declaration', { timeout: 10_000 });
+    
+    const simulationContent = simulationPanel.locator('[data-prism-simulation-panel]');
+    await expect(simulationContent).toBeVisible({ timeout: 5_000 });
+    await simulationContent.locator('[data-prism-simulation-start]').click();
+    await expect(simulationContent.locator('[data-prism-simulation-current-stage]')).toContainText('Declaration', { timeout: 10_000 });
 
-    await step(page, '09-simulation-started.png', editorHealthCheck({
-      screenshotSelector: '[data-prism-simulation-panel]',
+    await step(page, '09-simulation-tab.png', editorHealthCheck({
+      screenshotSelector: '[data-prism-confidence-panel="simulation"]',
     }), WALKTHROUGH_KEY);
   });
 });

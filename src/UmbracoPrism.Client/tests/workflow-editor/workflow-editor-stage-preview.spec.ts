@@ -31,6 +31,9 @@ test.describe('Workflow editor stage preview', () => {
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
     await page.locator('[data-prism-stage="declaration"]').dblclick();
 
+    // Switch to Preview tab to see the preview panel
+    await page.locator('[data-prism-tab="preview"]').click();
+
     const preview = page.locator('[data-prism-stage-preview]');
     await expect(preview).toBeVisible();
     await expect(preview.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration');
@@ -52,6 +55,9 @@ test.describe('Workflow editor stage preview', () => {
 
     await slowProjectPreview(page, 400);
     await page.locator('[data-prism-stage="declaration"]').dblclick();
+
+    // Switch to Preview tab to see the preview panel
+    await page.locator('[data-prism-tab="preview"]').click();
 
     await expect(page.locator('[data-prism-preview-loading]')).toContainText('Rendering preview');
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration');
