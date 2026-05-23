@@ -205,3 +205,23 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - All 815 tests passing
 - 0 warnings in build/test lane
 
+
+## Session: CI Lane Recovery — Storybook, Smoke, Marketplace (2026-05-23)
+
+**Task:** Fix three failing CI lanes on `main` introduced by the role-first swim-lane refactor (`d5e76ca0`).
+
+**Root causes identified:**
+1. `storybook-tests`: AXE color-contrast violation — `rgba(255,255,255,0.85)` on `#1d70b8` = 4.19:1 (< WCAG AA 4.5:1). Affected all editor-host stories because Storybook's DOM is not fully reset between stories, leaving the selected-stage element visible.
+2. `storybook-tests`: Shell stories fetch race — `stubFetchFor`'s MutationObserver cleanup fired after the next story had already replaced `window.fetch` with its stub, restoring the real (un-stubbed) fetch and causing NetworkError for `NarrowViewportTablet` and `NarrowViewportMobile`.
+3. `planning-workflow-editor-smoke` / `localhost-auth-playwright`: Walkthrough spec had stale selectors — `aria-current="true"` should be `aria-current="location"` (as emitted by `prism-workflow-outline`); heading regex wrong; validation/preview/simulation assertions targeting removed attributes.
+4. `marketplace-description`: `MARKETPLACE.md` was out of date; regenerated via `npm run generate:marketplace`.
+
+**Fixes shipped (commit `25a72d5`):**
+- `prism-workflow-outline.ts`: `.outline-stage-button-selected .outline-stage-meta { color: #ffffff }` (was `rgba(255,255,255,0.85)`)
+- `prism-workflow-editor-shell.stories.ts`: Captured `stubbedFetch` reference; MutationObserver now guards `if (window.fetch === stubbedFetch)` before restoring
+- `01-planning-workflow-editor.walkthrough.spec.ts`: `aria-current="location"`, heading `/workflow editor/i`, updated selector targets
+- `MARKETPLACE.md`: Regenerated
+
+**Test strategy notes:**
+- Color-contrast AXE rules run across the full DOM — CSS semitransparency composited on a blue background can silently fail WCAG AA
+- Global `window.fetch` stubs in Storybook require identity-guarded cleanup; MutationObservers fire as microtasks after the next story's stub is installed
