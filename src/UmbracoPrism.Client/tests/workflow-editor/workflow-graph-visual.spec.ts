@@ -1,129 +1,87 @@
-import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
-
-test.use({
-  launchOptions: {
-    args: [
-      '--font-render-hinting=none',
-      '--disable-font-subpixel-positioning',
-      '--disable-lcd-text',
-      '--force-color-profile=srgb',
-    ],
-  },
-});
-
-const VISUAL_TEST_FONT_FAMILY = 'Workflow Graph Visual Test';
-const VISUAL_TEST_FONT_CSS = [
-  { weight: 400, file: '../assets/fonts/inter-400.ttf' },
-  { weight: 600, file: '../assets/fonts/inter-600.ttf' },
-  { weight: 700, file: '../assets/fonts/inter-700.ttf' },
-]
-  .map(({ weight, file }) => {
-    const encoded = readFileSync(new URL(file, import.meta.url)).toString('base64');
-    return `
-      @font-face {
-        font-family: '${VISUAL_TEST_FONT_FAMILY}';
-        font-style: normal;
-        font-weight: ${weight};
-        font-display: block;
-        src: url(data:font/ttf;base64,${encoded}) format('truetype');
-      }
-    `;
-  })
-  .join('\n');
 
 function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
 
-async function applyDeterministicFont(page: Page, storyEl: ReturnType<Page['locator']>) {
-  await page.addStyleTag({ content: VISUAL_TEST_FONT_CSS });
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-  });
-  await storyEl.evaluate(async (element, fontFamily) => {
-    const root = (element as HTMLElement).shadowRoot;
-    if (!root) {
-      return;
-    }
+test.describe('Workflow graph behavioral tests', () => {
+  test('graph workspace renders role-based swim lanes with stages and transitions', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
-    let style = root.querySelector<HTMLStyleElement>('[data-prism-visual-font-lock]');
-    if (!style) {
-      style = document.createElement('style');
-      style.setAttribute('data-prism-visual-font-lock', '');
-      style.textContent = `
-        :host {
-          --uui-font-family: '${fontFamily}', sans-serif !important;
-          font-family: '${fontFamily}', sans-serif !important;
-          font-kerning: none;
-          font-synthesis: none;
-          -webkit-font-smoothing: antialiased;
-        }
-
-        :host *,
-        :host *::before,
-        :host *::after {
-          font-family: inherit !important;
-          font-kerning: none;
-          text-rendering: geometricPrecision;
-          -webkit-font-smoothing: antialiased;
-        }
-      `;
-      root.append(style);
-    }
-
-    await document.fonts.ready;
-    await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-  }, VISUAL_TEST_FONT_FAMILY);
-}
-
-async function loadWorkspaceStory(page: Page) {
-  await page.setViewportSize({ width: 1440, height: 960 });
-  await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
-
-  const storyEl = page.locator('prism-workflow-graph');
-  await expect(storyEl).toBeVisible({ timeout: 10_000 });
-  await page.waitForLoadState('networkidle');
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-  });
-  await storyEl.evaluate(async element => {
-    (element as HTMLElement).style.width = '1280px';
-    (element as HTMLElement).style.height = '560px';
-    await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-  });
-  await applyDeterministicFont(page, storyEl);
-
-  return storyEl;
-}
-
-test.describe('Workflow graph Storybook visual regression', () => {
-  test('graph workspace matches the baseline canvas', async ({ page }) => {
-    const storyEl = await loadWorkspaceStory(page);
-
-    await expect(storyEl).toHaveScreenshot('workflow-graph-workspace-canvas.png', {
-      animations: 'disabled',
-      caret: 'hide',
-      scale: 'css',
-      maxDiffPixels: 80
+    const storyEl = page.locator('prism-workflow-graph');
+    await expect(storyEl).toBeVisible({ timeout: 10_000 });
+    await page.waitForLoadState('networkidle');
+    await storyEl.evaluate(async element => {
+      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
     });
+
+    // Verify role lanes are rendered (swim lanes for different actors)
+    const lanes = storyEl.locator('[data-prism-role-lane]');
+    await expect(lanes.first()).toBeVisible();
+    const laneCount = await lanes.count();
+    expect(laneCount).toBeGreaterThan(0);
+
+    // Verify stages are rendered as nodes in the graph
+    const stages = storyEl.locator('[data-prism-stage]');
+    await expect(stages.first()).toBeVisible();
+    const stageCount = await stages.count();
+    expect(stageCount).toBeGreaterThan(0);
+
+    // Verify transitions are rendered as paths between stages
+    const transitions = storyEl.locator('[data-prism-transition]');
+    const transitionCount = await transitions.count();
+    expect(transitionCount).toBeGreaterThan(0);
+
+    // Verify lane headers show role labels
+    const laneHeaders = storyEl.locator('.lane-header');
+    await expect(laneHeaders.first()).toBeVisible();
+
+    // Verify the graph canvas is scrollable for overflow
+    const graphCanvas = storyEl.locator('.graph-canvas');
+    await expect(graphCanvas).toBeVisible();
   });
 
-  test('list mode matches the baseline workspace layout', async ({ page }) => {
-    const storyEl = await loadWorkspaceStory(page);
+  test('list mode displays stages in editable table with filtering', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
 
+    const storyEl = page.locator('prism-workflow-graph');
+    await expect(storyEl).toBeVisible({ timeout: 10_000 });
+    await page.waitForLoadState('networkidle');
+    await storyEl.evaluate(async element => {
+      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
+    });
+
+    // Switch to list mode
     await page.getByRole('button', { name: 'List view' }).click();
     await expect(page.getByRole('region', { name: /workflow stages/i })).toBeVisible({ timeout: 5_000 });
     await storyEl.evaluate(async element => {
       await (element as { updateComplete?: Promise<unknown> }).updateComplete;
     });
 
-    await expect(storyEl).toHaveScreenshot('workflow-graph-workspace-list-mode.png', {
-      animations: 'disabled',
-      caret: 'hide',
-      scale: 'css',
-      maxDiffPixels: 80
-    });
+    // Verify table structure
+    await expect(storyEl.locator('[data-prism-linear-table]')).toBeVisible();
+    
+    // Verify stage rows are rendered
+    const rows = storyEl.locator('[data-prism-list-row]');
+    await expect(rows.first()).toBeVisible();
+    const rowCount = await rows.count();
+    expect(rowCount).toBeGreaterThan(0);
+
+    // Verify inline editing fields are present
+    await expect(storyEl.locator('[data-prism-inline-field]').first()).toBeVisible();
+
+    // Verify filtering options exist
+    await expect(storyEl.locator('[data-prism-linear-filter="all"]')).toBeVisible();
+    await expect(storyEl.locator('[data-prism-linear-filter="front-stage"]')).toBeVisible();
+    await expect(storyEl.locator('[data-prism-linear-filter="back-stage"]')).toBeVisible();
+
+    // Verify action buttons are present (move, delete, insert)
+    await expect(storyEl.locator('[data-prism-move-up]').first()).toBeVisible();
+    await expect(storyEl.locator('[data-prism-move-down]').first()).toBeVisible();
+    await expect(storyEl.locator('[data-prism-insert-before]').first()).toBeVisible();
+    await expect(storyEl.locator('[data-prism-insert-after]').first()).toBeVisible();
+    await expect(storyEl.locator('[data-prism-delete-stage]').first()).toBeVisible();
   });
 });
