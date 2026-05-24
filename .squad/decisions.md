@@ -796,8 +796,6 @@ These are open for Phase 1 design:
 **Target merge:** `.squad/decisions.md` after squad review (2026-05-22 or 2026-05-23)
 
 ---
-
----
 date: 2026-05-22T21:09:11.381+01:00
 author: Isabelle
 status: implemented
@@ -899,8 +897,6 @@ No ARIA changes needed — purely layout fix. Benefits:
 - Reference shell demonstrates pragmatic host chrome sizing
 
 ---
-
----
 date: 2026-05-22T21:09:11.381+01:00
 author: Isabelle
 status: testing_checklist
@@ -993,8 +989,6 @@ These were NOT changed by this slice and should still work:
 - **Date:** ___________
 - **Browser(s):** Chrome, Firefox, Safari
 - **Result:** PASS / FAIL / NEEDS FOLLOW-UP
-
----
 
 ---
 author: Tangy (Tester)
@@ -1141,8 +1135,6 @@ The new browser-surface spec will initially fail (expected) until Isabelle's imp
 **Behavioral hooks documented inline** — no ambiguity on what needs to be implemented.
 
 **Quality bar:** The browser-surface spec proves the editor is actually usable in a browser-hosted environment, not just theoretically correct in Storybook isolation.
-
----
 
 ---
 date: 2026-05-22T21:09:11.381+01:00
@@ -3873,8 +3865,6 @@ The clean shell is the intended production surface. The walkthrough should test 
 Tests are the executable counterpart of the intended UX. When UX changes intentionally, tests must follow in the same commit. This was the exception — the spec was not updated when the shell was refactored.
 
 ---
-
----
 timestamp: 2026-05-23T14:36:30.529+01:00
 category: documentation
 status: completed
@@ -4089,8 +4079,6 @@ always be derived from reading the component source, not assumed.
 for the actual emitted value. The `prism-workflow-outline` component uses `"location"`.
 
 ---
-
----
 date: 2026-05-23T14:04:58.778+01:00
 author: tom-nook
 branch: squad/74-role-first-swim-lanes
@@ -4152,6 +4140,136 @@ Not committed:
 ## Merge Outcome
 
 PR opened from `squad/74-role-first-swim-lanes` → `main`, squash-or-merge as appropriate. All team-relevant changes documented in decisions.md via Scribe's inbox merge (commit 4ebdb23).
+### 2026-05-24T09:16:04.052+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Prefer behaviour-focused tests over implementation mirrors; if list mode is gone, tests should stop asserting it.
+**Why:** User request — captured for team memory
+
 
 ---
+date: 2026-05-24T10:27:00+01:00
+author: isabelle
+status: proposed
+area: testing
+confidence: high
+---
 
+# Replace pixel-perfect visual regression with behavioral assertions for workflow graph
+
+## Decision
+
+Replaced screenshot-based visual regression tests in `workflow-graph-visual.spec.ts` with behavioral assertions that verify user-facing functionality instead of pixel-perfect rendering.
+
+## Context
+
+### The Problem
+
+Visual regression tests using Playwright's `toHaveScreenshot()` were failing on CI (Linux) despite passing locally (Darwin) with pixel differences:
+- Graph canvas: 1,732 pixels different (0.01 ratio), threshold was 80 pixels
+- List mode: 11,214 pixels different (0.02 ratio), threshold was 80 pixels
+
+Even with deterministic font setup (embedded Inter TTF + antialiasing controls), platform rendering differences persisted. The previous fix removed `{platform}` from the path template but kept Darwin-generated baselines, which didn't match Linux rendering.
+
+### Root Cause
+
+Cross-platform font rendering differences are unavoidable even with embedded fonts and aggressive antialiasing controls. Fighting platform differences with visual snapshots creates maintenance burden.
+
+## What Changed
+
+### Before (Visual Regression)
+- `toHaveScreenshot()` for graph canvas and list mode
+- Deterministic font setup with embedded TTF fonts
+- Platform-specific baselines that drift
+- Tests verified "what it looks like" down to the pixel
+
+### After (Behavioral Assertions)
+- Explicit assertions for user-visible elements and behaviors
+- Graph workspace test verifies: role lanes exist, stages rendered, transitions drawn, lane headers visible, canvas scrollable
+- List mode test verifies: table structure, editable rows, inline fields, filtering options (all/front-stage/back-stage), action buttons (move up/down, insert before/after, delete)
+- Tests verify "what users can DO" (view structure, edit, filter, reorder)
+
+### Files Modified
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts`: converted from screenshot assertions to behavioral assertions
+- Removed: `workflow-graph-workspace-canvas.png`, `workflow-graph-workspace-list-mode.png`
+- Removed: deterministic font setup, `applyDeterministicFont()`, `loadWorkspaceStory()` helpers
+
+## Why This Matters
+
+1. **Cross-platform stability**: Behavioral tests pass identically on Darwin and Linux without platform-specific baselines
+2. **Maintenance reduction**: No need to regenerate baselines when unrelated CSS changes slightly shift pixels
+3. **Better signal**: Tests fail when actual user behaviors break, not when rendering engine antialiasing differs by 0.01%
+4. **Alignment with test discipline**: "Test behaviors not implementation mirrors" — pixel snapshots are the ultimate implementation mirror
+
+## User Clarification
+
+The user suspected "list mode" might be obsolete. **It is NOT obsolete.** List mode (linear mode) is a real user behavior:
+- Displays stages in an editable table (vs. graph swim lanes)
+- Supports inline editing of stage properties
+- Offers filtering by surface (all/front-stage/back-stage)
+- Provides reordering controls (move up/down)
+- Essential for workflows with many stages where tabular view is clearer
+
+## Coordination
+
+- **Tangy** uses layout proof tests (measured DOM geometry) for precise positioning validation — those tests remain unchanged
+- This change only affects the Storybook visual lane, which now uses behavioral assertions instead of screenshots
+
+## Outcome
+
+Tests pass locally and should pass on CI. No platform-specific drift. Clear failure signal when user-facing behaviors break.
+
+
+# Decision: Remove Platform-Specific Visual Baselines
+
+**Date:** 2026-05-24  
+**Author:** Isabelle (Frontend Dev)  
+**Status:** Implemented
+
+## Context
+
+CI visual regression tests were failing in run 26356125863:
+- `graph workspace matches the baseline canvas` ❌
+- `list mode matches the baseline workspace layout` ❌
+
+Investigation revealed:
+1. `playwright.config.ts` was using `{platform}` in the screenshot path template
+2. Only `darwin/` (macOS) baselines existed; no Linux baselines were generated
+3. CI runs on `ubuntu-latest` (Linux), expected baselines at `linux/...`
+4. Tests use deterministic fonts (Inter TTF embedded) to ensure cross-platform consistency
+
+## Decision
+
+**Removed platform-specific paths from `playwright.config.ts`**
+
+Changed:
+```diff
+- pathTemplate: '{testDir}/__screenshots__{/projectName}/{platform}/{testFilePath}/{arg}{ext}'
++ pathTemplate: '{testDir}/__screenshots__{/projectName}/{testFilePath}/{arg}{ext}'
+```
+
+Deleted `tests/__screenshots__/darwin/` directory.
+
+## Rationale
+
+1. **Deterministic fonts eliminate platform rendering differences** — Tests load Inter TTF files inline with antialiasing controls, font hinting disabled, sRGB color profile forced
+2. **Single baseline set is maintainable** — No need to generate/maintain separate baselines per platform
+3. **List mode is a real user behavior** — Not obsolete; clicking "List view" toggles linear table layout with inline editing, filters, and reordering controls
+4. **Both tests are behavioral contracts** — They verify:
+   - Graph workspace: Role-based swim lanes render correctly with stage cards positioned by lane assignment
+   - List mode: Linear table view shows all stages with inline editing, actor/type columns, and action buttons
+
+## Verification
+
+✅ TypeScript build clean  
+✅ Storybook accessibility: 33/33 passed, 165 tests, 0 violations  
+✅ Visual regression: 2/2 passed (graph workspace + list mode)  
+
+Both baselines now at `tests/__screenshots__/workflow-editor/workflow-graph-visual.spec.ts/`:
+- `workflow-graph-workspace-canvas.png` (115.9 KB)
+- `workflow-graph-workspace-list-mode.png` (94.4 KB)
+
+## Impact
+
+- CI will use same baselines as local development
+- No platform-specific maintenance burden
+- Visual tests remain behavioral (UI layout contract), not implementation mirrors
