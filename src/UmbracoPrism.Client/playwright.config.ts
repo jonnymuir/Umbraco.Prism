@@ -7,7 +7,7 @@ export default defineConfig({
   retries: 1,
   expect: {
     toHaveScreenshot: {
-      pathTemplate: '{testDir}/__screenshots__{/projectName}/{platform}/{testFilePath}/{arg}{ext}'
+      pathTemplate: '{testDir}/__screenshots__{/projectName}/{testFilePath}/{arg}{ext}'
     }
   },
   use: {

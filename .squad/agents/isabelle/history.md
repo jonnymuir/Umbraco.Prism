@@ -2,10 +2,21 @@
 
 ## Current Work — 2026-05-24 (Recent Session)
 
-**Active:** CI test drift resolution — walkthrough heading + visual regression alignment  
-**Status:** ✅ All fixes committed, quality gate GREEN
+**Active:** CI visual regression platform baseline fix  
+**Status:** ✅ Fixed, all quality gates GREEN
 
 ### Recent Outcomes (2026-05-24)
+
+1. **CI Visual Regression Platform Baseline Fix** (2026-05-24T09:16:04Z)
+   - **Root cause:** `playwright.config.ts` used `{platform}` in screenshot path template; only darwin baselines existed; CI runs on Linux and expected `linux/...` baselines
+   - **User assumption correction:** List mode is NOT obsolete — it's a real user behavior (linear table view with inline editing, filters, reordering)
+   - **Fix applied:** Removed `{platform}` from path template since deterministic fonts (embedded Inter TTF + antialiasing controls) eliminate platform rendering differences
+   - **Deleted:** `tests/__screenshots__/darwin/` directory
+   - **Both tests are behavioral:** Graph workspace verifies role-based swim lane layout; list mode verifies linear table editing surface
+   - **Quality gate:** TypeScript build ✅, Storybook CI 33/33 ✅ (165 tests, 0 violations), visual regression 2/2 ✅
+   - **Decision recorded:** `.squad/decisions/inbox/isabelle-visual-baseline-platform-fix.md`
+   - **CI context:** Run 26356125863 failing on main (storybook-tests visual lane)
+   - **Learnings:** Platform-specific baselines add maintenance burden; deterministic font setup enables single baseline set across platforms
 
 1. **CI Test Drift Resolution** — Complete E2E walkthrough + visual regression alignment (2026-05-24T08:47:46Z)
    - **Root cause:** Two separate drift issues from recent shell/graph refactors

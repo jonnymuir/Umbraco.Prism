@@ -1,0 +1,94 @@
+SCRIBE HEALTH REPORT
+====================
+
+Session: 2026-05-24T07:40:25.066+01:00
+Task: Decision inbox merge + team history update
+
+PRE-CHECK MEASUREMENTS
+======================
+- decisions.md size: 166,820 bytes
+- decisions/inbox/ files: 7
+- Archive threshold check: 166,820 >= 51,200 bytes (ARCHIVE ENTRIES >7 DAYS)
+- Oldest decision in decisions.md: 2026-05-22 (2 days old)
+- Action: No archival needed (no entries >7 days old)
+
+DECISIONS ARCHIVAL [HARD GATE]
+==============================
+Status: SKIPPED (no entries >7 days old)
+
+DECISION INBOX MERGE
+====================
+Inbox files processed: 7
+Inbox files deleted: 7
+Duplicate check: PASS (no duplicate titles found in decisions.md)
+
+Files merged:
+  1. blathers-ci-apply-regression.md
+  2. isabelle-ci-ui-regression.md
+  3. isabelle-ci-workflow-smoke-fix.md
+  4. mabel-marketplace-sync.md
+  5. tangy-ci-contracts.md
+  6. tangy-ci-fix-lane.md
+  7. tom-nook-final-merge.md
+
+ORCHESTRATION LOGS WRITTEN
+===========================
+- .squad/orchestration-log/2026-05-24T07:40:25Z-isabelle.md
+- .squad/orchestration-log/2026-05-24T07:40:25Z-blathers.md
+- .squad/orchestration-log/2026-05-24T07:40:25Z-tangy.md
+
+SESSION LOG WRITTEN
+===================
+- .squad/log/2026-05-24T07:40:25Z-ci-red-run-resolution.md
+
+AGENT HISTORY UPDATES
+=====================
+Updated:
+  - .squad/agents/isabelle/history.md
+  - .squad/agents/blathers/history.md
+  - .squad/agents/tangy/history.md
+
+HISTORY SUMMARIZATION [HARD GATE]
+==================================
+Files checked: 11
+Files requiring summarization: 1
+
+tangy/history.md:
+  - Size before: 17,238 bytes (EXCEEDED 15,360 threshold)
+  - Size after: 738 bytes (SUMMARIZED)
+  - Archive created: .squad/agents/tangy/history-archive.md (16,867 bytes)
+  - Method: Archived entries pre-2026-05-24, kept summary + current session
+
+GIT COMMIT
+==========
+Status: COMMITTED
+Commit: 43e66de
+Message: squad: Merge decision inbox and update team history
+Files staged: 12 changed, 720 insertions(+), 1016 deletions(-)
+
+Staged files:
+  - .squad/decisions.md (MODIFIED)
+  - .squad/agents/blathers/history.md (MODIFIED)
+  - .squad/agents/isabelle/history.md (MODIFIED)
+  - .squad/agents/tangy/history.md (MODIFIED)
+  - .squad/agents/tangy/history-archive.md (MODIFIED)
+  - .squad/decisions/inbox/*.md (7 x DELETED)
+
+DECISIONS.MD METRICS
+====================
+Before: 166,820 bytes
+After:  189,622 bytes
+Inbox merged: +22,802 bytes
+Net growth: 13.7%
+
+SUMMARY
+=======
+✅ All tasks completed successfully
+✅ No archival needed (no stale entries)
+✅ 7 inbox files merged, no duplicates
+✅ 3 agent history files updated
+✅ 1 history file summarized (tangy)
+✅ 3 orchestration logs written
+✅ 1 session log written
+✅ Git commit staged and applied
+

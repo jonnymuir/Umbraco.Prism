@@ -78,27 +78,23 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
   });
 
-  test('signed-in member can still call the mock business app API after the whole stack restarts', async ({ page }) => {
+  test('signed-in member stays signed in across a full restart', async ({ page }) => {
     await signIn(page);
     await appHost.restart();
     
-    // Verify the user is still signed in after restart before attempting API call
+    // After restart, verify member is still authenticated
     await expectSignedInHome(page);
     
+    // Verify persistent session allows protected API calls
     await callBusinessAppApi(page);
-  });
-
-  test('signed-in member can sign out cleanly', async ({ page }) => {
-    await signIn(page);
+    
+    // Verify clean sign-out still works after restart
     await signOut(page);
     await expectSignedOutHome(page);
   });
 
-  test('signed-in member stays signed in across a full restart and can still sign out', async ({ page }) => {
+  test('signed-in member can sign out cleanly', async ({ page }) => {
     await signIn(page);
-    await appHost.restart();
-
-    await expectSignedInHome(page);
     await signOut(page);
     await expectSignedOutHome(page);
   });
