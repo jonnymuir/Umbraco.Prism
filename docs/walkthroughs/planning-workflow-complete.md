@@ -38,7 +38,7 @@ Navigate to `/workflow-editor` in MockBusinessApp. The editor shell loads with t
 ![Workflow editor loaded with planning workflow](../images/walkthroughs/apply-for-planning-permission-complete/01-editor-loaded.png)
 
 **What to verify:**
-- Shell heading: "Compose the editor into your app with one element and one API base"
+- Shell heading: "Workflow Editor"
 - Workflow picker shows "planning" selected
 - Editor loads without errors
 - `data-prism-workflow-loaded` attribute present on `<prism-workflow-editor>`

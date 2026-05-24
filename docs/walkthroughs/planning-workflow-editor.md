@@ -35,7 +35,7 @@ Navigate to `/workflow-editor`. MockBusinessApp redirects this to `/workflow-edi
 ![Workflow editor reference shell loaded](../images/walkthroughs/planning-workflow-editor/01-workflow-editor-loaded.png)
 
 The shell hero displays:
-- **Heading:** "Compose the editor into your app with one element and one API base."
+- **Heading:** "Workflow Editor"
 - **Intro:** The shell stays focused on authoring — workflow selection, editor mounting, and API wiring. Runtime cases, approvals, and business processing remain in the downstream business app.
 - **Launch card:** A workflow picker (pre-selected to `planning`) and an authoring API base URL field pointing at MockBusinessApp's origin.
 - **Integration snippet:** The minimal `<prism-workflow-editor>` element and `authoring-api-base` attribute needed to embed the editor in any downstream app.

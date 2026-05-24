@@ -2,12 +2,25 @@
 
 ## Current Work — 2026-05-24 (Recent Session)
 
-**Active:** CI walkthrough smoke alignment — shell UX refactor caused selector drift  
-**Status:** ✅ Walkthrough spec updated, build GREEN
+**Active:** CI test drift resolution — walkthrough heading + visual regression alignment  
+**Status:** ✅ All fixes committed, quality gate GREEN
 
 ### Recent Outcomes (2026-05-24)
 
-1. **CI Walkthrough Smoke Fix** — `01-planning-workflow-editor.walkthrough.spec.ts`
+1. **CI Test Drift Resolution** — Complete E2E walkthrough + visual regression alignment (2026-05-24T08:47:46Z)
+   - **Root cause:** Two separate drift issues from recent shell/graph refactors
+   - **Issue 1: Walkthrough heading mismatch** — `planning-workflow-complete.walkthrough.spec.ts` expected `/compose the editor into your app/i` but shell now renders `<h1>Workflow Editor</h1>`
+   - **Issue 2: Visual regression baselines outdated** — Lane header clearance work (LANE_HEADER_OFFSET 44→80) on 2026-05-23 changed graph layout, baselines never committed
+   - **Fixes applied:**
+     - Lines 53, 67, 109: Changed heading assertion from `/compose the editor into your app/i` → `/workflow editor/i` (same fix already applied to `01-planning-workflow-editor.walkthrough.spec.ts`)
+     - Regenerated visual baselines: `workflow-graph-workspace-list-mode.png` updated to reflect new lane header spacing
+     - Canvas baseline unchanged (already correct in repo)
+   - **Quality gate:** TypeScript build ✅, Storybook CI 33/33 ✅, keyboard spec 5/5 ✅, visual regression 2/2 ✅
+   - **Decision recorded:** `.squad/decisions/inbox/isabelle-ci-ui-regression.md`
+   - **CI context:** Run 26334757189 failing on main (storybook-tests visual mismatch + localhost-auth-playwright heading assertion)
+   - **Learnings:** Visual baselines regenerated locally must be committed immediately; drift accumulates when baselines lag behind layout changes
+
+2. **CI Walkthrough Smoke Fix** — `01-planning-workflow-editor.walkthrough.spec.ts` (earlier 2026-05-24 session)
    - **Root cause:** `prism-workflow-editor-shell` was refactored from a marketing reference page to a clean production shell (`<h1>Workflow Editor</h1>`, `<select aria-label="Select workflow">`). Walkthrough spec was never aligned.
    - **Failing jobs:** `planning-workflow-editor-smoke` and `localhost-auth-playwright` (both trace to the same heading assertion drift at line 88).
    - **Fixes applied:**
