@@ -132,3 +132,8 @@ See `history-archive.md` for full session-by-session record.
 - `isabelle-lane-header-scene-width.md` (header+viewport fixes, 2026-05-23T13:24:52Z)
 
 **Team coordination:** Tangy provided measured proof tests that mathematically validate both fixes. This is the methodology shift from visual snapshots to measured DOM geometry for layout regressions.
+
+## 2026-05-24 — CI Red Run Resolution
+
+Fixed workflow editor UI regression: walkthrough heading drift alignment + visual baseline regeneration. Local client validation passed. Decisions logged: `isabelle-ci-ui-regression.md`, `isabelle-ci-workflow-smoke-fix.md`.
+

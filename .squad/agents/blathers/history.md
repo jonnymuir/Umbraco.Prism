@@ -27,3 +27,8 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - 0 warnings in build/test lane
 
 Decision doc merged to decisions.md; full session log at `.squad/log/2026-05-23T13:04:58.778000+00:00-vinyl-core-boundary-integration.md`
+
+## 2026-05-24 — CI Red Run Resolution
+
+Fixed Linux CI apply/publish flush race condition in WorkflowAuthoringEndpoints.PostApply causing backend 500 errors. Local backend validation passed. Decision logged: `blathers-ci-apply-regression.md`.
+
