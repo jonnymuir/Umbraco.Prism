@@ -50,7 +50,7 @@ test.describe('Planning workflow complete E2E', () => {
 
     await step(page, '01-editor-loaded.png', {
       url: /workflow-editor\.html/,
-      heading: /compose the editor into your app/i,
+      heading: /workflow editor/i,
       screenshotSelector: '[data-prism-component="workflow-editor-shell"]',
     }, WALKTHROUGH_KEY);
 
@@ -64,7 +64,7 @@ test.describe('Planning workflow complete E2E', () => {
 
     await step(page, '02-editor-graph.png', {
       url: /workflow-editor\.html/,
-      heading: /compose the editor into your app/i,
+      heading: /workflow editor/i,
       screenshotSelector: '[data-prism-component="workflow-graph"]',
     }, WALKTHROUGH_KEY);
 
@@ -106,7 +106,7 @@ test.describe('Planning workflow complete E2E', () => {
 
     await step(page, '03-editor-published.png', {
       url: /workflow-editor\.html/,
-      heading: /compose the editor into your app/i,
+      heading: /workflow editor/i,
       screenshotSelector: '[data-prism-component="workflow-editor-shell"]',
     }, WALKTHROUGH_KEY);
 
