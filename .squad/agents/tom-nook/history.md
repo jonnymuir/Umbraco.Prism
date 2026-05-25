@@ -162,3 +162,17 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 
 **Result:** Local main now synced with origin/main; CI pipeline fully configured.
 
+## Learnings
+
+### 2026-05-25T09:32:35.455+01:00 — Concurrent lanes backlog slicing
+
+- Reviewed the open backlog first (#28, #63, #73) to avoid creating overlap.
+- Split the concurrent multi-lane redesign into seven ordered issues: cleanup/projection contract first, then lane model, editor UX, join gateways, concurrent engine behaviour, history clarity, and showcase/test evolution.
+- Kept each issue framed in product language with acceptance criteria, explicit sequence, and a standing requirement to keep behavioural tests green.
+
+## 2026-05-25 (09:32:35 UTC) — Concurrent Lanes Redesign Sequenced
+
+- Issues #81–#87 created per concurrent multi-lane redesign plan
+- Orchestration log recorded
+- Tangy executing parallel behavioural track (#78–#80)
+- Squad ready for coordinated execution

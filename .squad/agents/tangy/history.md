@@ -17,3 +17,13 @@ Validated failing client contracts and tightened affected test expectations. Con
 
 For detailed earlier work, see `history-archive.md`.
 
+## Learnings
+
+- 2026-05-25T09:32:35.455+01:00 — For the concurrent multi-lane redesign, keep one straight-line workflow proof green as a control while adding new parallel-lane and join-gateway proofs. Slice the work into editor contracts, showcase-story evolution, and live walkthrough proof so the behavioural gate can move forward without losing demo clarity.
+
+## 2026-05-25 (09:32:35 UTC) — Behavioural Test Track for Concurrent Lanes
+
+- Issues #78–#80 created for editor, showcase, and walkthrough coverage
+- Orchestration log recorded
+- Tom Nook executing parallel redesign sequence (#81–#87)
+- Coordinated squad execution ready
