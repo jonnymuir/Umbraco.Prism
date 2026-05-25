@@ -210,3 +210,19 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - When user feedback collapses adjacent backlog slices into one product track, keep the earliest issue open and explicitly absorb the follower issues rather than leaving three "active" stories behind.
 - Update the canonical design doc and the surviving issue in the same pass so the implementation order, agent boundaries, and green gates stay aligned.
 - For gateway work specifically, the visual model, join waiting story, and deterministic parallel runtime are now one delivery contract, not separate starts.
+
+## 2026-05-25T14:34:44.680Z — Merged Gateway Slice Orchestration
+
+**Spawn:** tom-nook background agent  
+**Task:** Merge issues #83, #84, and #85 into one gateway/runtime track  
+**Outcome:** ✅ Complete
+
+- Consolidated #83, #84, #85 under #83 as canonical live issue
+- Closed #84, #85 as absorbed
+- Updated canonical design doc describing merged slice
+- Wrote implementation contract: Isabelle (editor) → Blathers (runtime) → Tangy (testing)
+- All three work items on same branch; one product story in backlog
+
+**Decision recorded:** `.squad/decisions.md` (2026-05-25T15:34:44.680+01:00)  
+**Orchestration log:** `.squad/orchestration-log/2026-05-25T14-34-44-tom-nook.md`  
+**Coordinate:** Session orchestration with Isabelle, Blathers, Tangy for merged slice delivery

@@ -94,3 +94,36 @@ Created a unified behavioural test slice spanning backend authoring contracts, e
 - When running the full `tests/workflow-editor/` directory together, Playwright hangs (pre-existing issue with a blocking test in another spec file). Individual spec files run cleanly. This is not caused by my work.
 - Build was clean despite earlier session reporting pre-existing `WorkflowRuntimeEngine.cs` errors; those errors resolved by the time the final build ran (Blathers had fixed the WIP stubs).
 
+
+## 2026-05-25T14:34:44.680Z — Merged Gateway Behavioral Test Slice
+
+**Spawn:** tangy background agent  
+**Task:** Pin merged gateway behavioral tests (#83/#84/#85)  
+**Outcome:** ✅ Complete
+
+### Test Coverage
+
+| Surface | Passed | Skipped | Notes |
+|---------|--------|---------|-------|
+| Backend authoring (xUnit) | 129 | 3 | WaitingCopy, RequiredLanes, deterministic release deferred |
+| Gateway editor (Playwright) | 7 | 1 | Gateway creation/routing/lane ownership verified |
+| Parallel lanes (Playwright) | 6 | 3 | Multi-lane cursor semantics verified; join release deferred |
+
+### Test Decisions
+
+1. **Skipped tests document future contracts** — Deferred semantics (#84 WaitingCopy, #85 join release) written with explicit skip reasons
+2. **Lane column selectors use `[data-prism-role-lane]`** — Semantic unit for parallel-lane tests
+3. **Each gateway has exactly one lane owner** — Single-owner invariant tested in both gateway and parallel-lanes specs
+4. **Stage/gateway node separation is hard** — `[data-prism-stage][data-prism-gateway]` must always return 0 elements
+5. **Pre-existing full-suite hang not addressed** — Individual specs run cleanly; full directory hang deferred to future investigation
+
+### Cross-Layer Coverage
+
+✅ Projection fidelity (stages → published states)  
+✅ Assignment-driven lane derivation  
+✅ Graph path highlighting (single-cursor flows)  
+✅ Validation rail contracts  
+✅ Stage-to-stage backward compatibility  
+✅ Keyboard navigation (stages + gateways)  
+
+**Orchestration log:** `.squad/orchestration-log/2026-05-25T14-34-44-tangy.md`

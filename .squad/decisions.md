@@ -4857,3 +4857,280 @@ Gateways should become visible, selectable, lane-owned items in the editor so au
 The .NET workflow suite is green on this branch via `dotnet test UmbracoPrism.sln`.
 
 The targeted workflow editor Playwright suite is **not fully green yet** on this branch: `workflow-editor-history.spec.ts` and `workflow-editor-simulation.spec.ts` currently fail because the expected history/simulation controls are not visible in the current editor surface. Returning those tests to green is a prerequisite for landing the gateway representation slice, and they must remain green as the UI changes.
+
+---
+date: 2026-05-25T15:34:44.680+01:00
+author: tom-nook
+status: archived
+area: workflow-gateway-merge
+---
+
+# Decision: Merge issues #83, #84, and #85 into one gateway/runtime track
+
+## Context
+
+Jonny asked to stop treating issues #83, #84, and #85 as independently executable slices. The previous split made the editor gateway model, join waiting model, and concurrent runtime model look separable when they now need to move as one product track.
+
+## Decision
+
+Use **#83** as the single live umbrella for the merged slice.
+
+- **#83** becomes the active gateway/runtime track
+- **#84** and **#85** are absorbed into **#83** and should be closed as no-longer-independent work items
+- the canonical design doc must describe the merged slice explicitly
+- the GitHub backlog must show one implementation story, not three separate starts
+
+## Implementation contract
+
+1. **Isabelle** locks the visible gateway model first: gateway rendering, lane readability, inspector affordances, and invalid-link prevention.
+2. **Blathers** lands the join-gateway projection/runtime contract next: waiting-stage replacement, clean projection, and runtime semantics.
+3. **Tangy** spans the slice with behavioural proof, then closes on race-order and regression coverage once concurrent execution is real.
+
+## Must stay green
+
+- `dotnet test UmbracoPrism.sln`
+- workflow authoring serialization/schema/publish tests
+- workflow editor visual, keyboard, preview, history, simulation, and walkthrough coverage
+
+## Rationale
+
+This keeps one plain product story: authors see gateways, joins own waiting, and runtime executes the same model safely. It avoids shipping a visible gateway UX that still depends on an older waiting-stage/runtime story.
+
+---
+date: 2026-05-25T15:34:44.680+01:00
+author: jonnymuir
+status: directive
+area: governance
+---
+
+# Directive: Merge issues #83, #84, and #85 into one implementation slice and start immediately
+
+## What
+
+Merge the three open gateway/runtime issues into one consolidated slice under issue #83.
+
+## Why
+
+The separate issue tracking created artificial independence boundaries. The editor gateway model, join waiting model, and concurrent runtime model are tightly coupled and must move as one track to ship coherent product value. Treating them separately delays team coordination and locks decisions into separate PRs when they should be one.
+
+## Action
+
+- Isabelle: Front-end gateway editing UX + lane rendering
+- Blathers: Back-end projection and runtime join/split semantics
+- Tangy: Behavioral test coverage across all three concerns
+
+Target: All work merged into #83 branch; #84 and #85 closed as absorbed.
+
+---
+date: 2026-05-25T15:23:06.241+01:00
+author: jonnymuir
+status: directive
+area: governance
+---
+
+# Directive: Model workflows as staged workflow with split/join gateways
+
+## What
+
+Define the workflow runtime and authoring model as:
+
+- **Stages**: Places where work happens (forms, reviews, confirmations, system steps)
+- **Transition gateways**: Diamond-shaped routing nodes with names/descriptions that branch to many stages/gateways, can wait for multiple incoming cursors, and surface waiting information to users
+
+Transitions may connect stage→gateway, gateway→stage, or gateway→gateway.
+
+## Why
+
+User request for stronger UX coherence. The visible gateway model creates friction if gateways remain read-only ornaments. Authors need first-class gateway creation, naming, and waiting visibility.
+
+## Acceptance
+
+- #83 locks gateway visual model and editing affordances
+- #84 replaces waiting-stage runtime semantics with join-gateway ownership
+- #85 implements multi-cursor join release rules
+
+---
+date: 2026-05-25T15:23:06.241+01:00
+author: tangy
+status: archived
+area: workflow-testing
+---
+
+# Decision: Merged Slice #83/#84/#85 — Multi-Lane Gateway Behavioural Contracts
+
+## Context
+
+Issues #83 (gateway editor UX), #84 (join gateway waiting copy), and #85 (parallel lane runtime safety) were merged into one behavioural test slice at Jonny's request. The goal was to pin the behavioural contracts across all three surfaces before #84 and #85 implementation is complete.
+
+## Decisions
+
+### 1. Skipped tests document future contracts explicitly
+
+Where the model doesn't yet support a behaviour (#84 WaitingCopy on gateway, #85 RequiredLanes/deterministic release), tests are written with `[Fact(Skip = "...")]` / `test.skip(...)` with an explicit reason. This keeps the contract visible and runnable once implementation lands — it doesn't remove the expectation, just defers the assertion.
+
+### 2. Lane column selectors use `[data-prism-role-lane]` as semantic unit
+
+Parallel-lane Playwright tests treat lane column containers as the semantic unit. Stage nodes are DOM children of these containers; gateway nodes are graph siblings (they carry `data-prism-lane` attribute but are NOT nested inside `[data-prism-role-lane]`). Tests assert lane column count stability after interactions, not node nesting.
+
+### 3. Each gateway is owned by exactly one lane
+
+The invariant "a gateway has exactly one `data-prism-lane` value, never a comma-separated list" is enshrined as a live test in both the gateway spec and the parallel-lanes spec. This pins the single-owner contract regardless of rendering changes.
+
+### 4. Stage/gateway node separation is a hard invariant
+
+The compound selector `[data-prism-stage][data-prism-gateway]` must always return 0 elements. This is tested as a live assertion in `workflow-parallel-lanes.spec.ts`. Authors must be able to distinguish stage nodes (action-bearing) from gateway nodes (routing) at a glance.
+
+### 5. Pre-existing full-suite Playwright hang is not addressed here
+
+Running the full `tests/workflow-editor/` directory together causes Playwright to hang (pre-existing issue in another spec). Individual spec files run cleanly and consistently. No action taken — this is Tangy's test suite issue to investigate separately.
+
+---
+
+## Test counts (post-merge)
+
+| Surface | Passed | Skipped |
+|---------|--------|---------|
+| Backend authoring (xUnit) | 129 | 3 |
+| Gateway editor (Playwright) | 7 | 1 |
+| Parallel lanes (Playwright) | 6 | 3 |
+
+All live tests green. All skips have explicit rationale pointing to #84 or #85.
+
+---
+date: 2026-05-25T15:23:06.241+01:00
+author: isabelle
+status: archived
+area: workflow-editor
+---
+
+# Decision: Merged Gateway Slice — Editor-Only fromGateway/toGateway Fields
+
+## Context
+
+Issues #83 (gateway read-only scaffolding), #84 (editable gateway metadata), and #85 (join gateway waiting information) were merged into a single frontend-only authoring slice. The implementation adds full gateway editing to the inspector and a create-gateway dialog to the graph workspace, without touching backend execution semantics.
+
+## Decision: `fromGateway` and `toGateway` are editor-only annotations
+
+`AuthoredTransition` now carries two optional fields:
+
+```typescript
+fromGateway?: string; // gateway key when this transition departs from a gateway
+toGateway?: string;   // gateway key when this transition arrives at a gateway
+```
+
+**These fields are NOT sent to the backend runtime today.** The C# `AuthoredTransition` model does not yet include them. They are consumed only by the graph layout renderer to compute explicit gateway routing (instead of the anchor-stage heuristic) and by the inspector when updating gateway key references.
+
+## What must happen before these fields become load-bearing
+
+1. **Backend contract alignment:** Add `FromGateway` and `ToGateway` nullable string fields to the C# `AuthoredTransition` record and all serialisation/deserialisation paths.
+2. **Validation:** Backend validation should check that `fromGateway`/`toGateway` values reference real gateway keys in the same workflow.
+3. **Preview/simulation alignment:** Preview and simulation engines may need to be gateway-aware if routing semantics change. Current runtime remains stage-driven; these fields are purely cosmetic to it.
+4. **Publish pipeline:** Strip or preserve the fields on publish — decision deferred to the backend team.
+
+## What is safe to ship now
+
+- All gateway editing UI (inspector form, create dialog, delete action)
+- Key rename propagation across `fromGateway`/`toGateway` references within the editor
+- Visual routing in the graph using explicit gateway fields when present
+- Join gateway waiting information editing
+
+## Affected files
+
+- `src/UmbracoPrism.Client/src/workflow-editor/types.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`
+
+---
+date: 2026-05-25T15:23:06.241+01:00
+author: isabelle
+status: archived
+area: workflow-editor-ux
+---
+
+# Decision: Gateway UX Clarification — Staged Model with Diamond Gateways
+
+## Context
+
+User clarification on the intended authoring model. Gateways were becoming visible but were still treated as read-only ornaments attached to stage-to-stage routing, not as first-class nodes.
+
+## Decision
+
+Treat the authored workflow as two distinct node types:
+
+- **Stages** are action-bearing nodes where forms, review steps, confirmations, and other work live.
+- **Transition gateways** are distinct **diamond** routing nodes with their own **name** and **description**.
+- **Transitions** may connect **stage → gateway**, **gateway → stage**, or **gateway → gateway**.
+- **Join gateways** own the waiting story, including waiting copy and runtime-facing information about what is still outstanding.
+
+## Required UX implications
+
+For the workflow editor to feel correct, the next gateway UX must let authors:
+
+1. create a stage or gateway directly from the canvas without awkward placeholder stages
+2. connect stages and gateways with clear, readable branch and merge lines
+3. inspect and edit gateway name, description, lane owner, and waiting information
+4. understand which lane owns each node and which incoming paths a join is waiting on
+5. do the above with keyboard-accessible creation, selection, inspection, and focus feedback
+
+## Why
+
+If we leave gateways as read-only markers anchored near stage-to-stage links, authors will still have to think in the old stage-only model. That is good enough for a temporary representation slice, but it is not the UX the user just described and should not be treated as the target design for #83.
+
+---
+date: 2026-05-25T15:23:06.241+01:00
+author: blathers
+status: archived
+area: workflow-runtime
+---
+
+# Decision: Multi-Cursor Split/Join Gateway Runtime (Issues #83–#85)
+
+## Context
+
+Issues #83, #84, and #85 were merged into one implementation slice covering:
+- #83: Split/join gateway routing in the runtime engine
+- #84: Join-gateway-owned waiting info (not a fake stage)
+- #85: Independent multi-lane cursor execution
+
+## Decisions Made
+
+### 1. Backward-compatible cursor model
+
+`WorkflowInstanceState.Cursors = []` is treated as "legacy single-cursor mode". All existing engine paths remain unchanged. Multi-cursor mode activates only when at least one cursor is present. `CurrentState` on `WorkflowInstanceState` always mirrors the key returned by `FirstActiveStageCursorKey(Cursors)` so that callers written before multi-cursor support see no regression.
+
+### 2. Split gateway auto-follow
+
+The engine follows **all** outgoing transitions from a split gateway automatically (no user action required). The `Action` value on split transitions is by convention `"split-auto"`, but the engine fans out on any outgoing transition from a split gateway regardless of action value. This keeps the authored model expressive without requiring runtime special-casing of specific action strings.
+
+### 3. Join gateway waiting envelope sourced from gateway definition
+
+The join waiting envelope (`ResponseState = "defer"`, `StepType = "status-timeline"`) is built from `WorkflowGatewayDefinition.WaitingContent` / `WaitingExpectedSeconds` / `WaitingPollIntervalMs`. No fake stage is created. This was the key contract from issue #84 — the join gateway is the source of truth for its own waiting UX.
+
+### 4. JoinArrivals not surfaced in runtime contract
+
+`WorkflowInstanceState.JoinArrivals` is an internal bookkeeping dictionary (gateway key → list of arrived cursor IDs). It is intentionally not included in the public `IWorkflowRuntimeEngine` interface return types and is not shown to callers. It is persisted as part of instance state so that join convergence survives round-trips.
+
+### 5. Schema validation codes
+
+Three new codes enforce join gateway completeness at authoring time:
+- **PROJ137** — join gateway must define `waitingInfo`
+- **PROJ138** — join gateway must have at least one `requiredIncomingLane`
+- **PROJ139** — each `requiredIncomingLane` must reference a defined lane key
+
+These are validated by `AuthoredWorkflowSchemaValidator` before projection, meaning invalid join gateways never reach the runtime.
+
+### 6. RequiredIncomingLanes emitted in sorted order
+
+The projector emits `RequiredIncomingLanes` in ordinal sort order to preserve the determinism invariant that a given authored workflow always produces the same published JSON byte-for-byte.
+
+## Files Changed
+
+- `AuthoredGateway.cs` — added `Description`, `WaitingInfo`, `RequiredIncomingLanes`
+- `WorkflowDefinitionFile.cs` — `WorkflowGatewayDefinition` extended with matching published fields
+- `WorkflowProjector.cs` — gateway-targeted transitions accepted; new fields emitted
+- `AuthoredWorkflowSchemaValidator.cs` — PROJ137/138/139 added
+- `WorkflowCursor.cs` — NEW: per-lane cursor record
+- `WorkflowInstanceState.cs` — `Cursors` + `JoinArrivals` added
+- `WorkflowRuntimeEngine.cs` — split/join gateway dispatch, multi-cursor advance, join waiting envelope
+- `WorkflowGatewayProjectionTests.cs` — NEW: 10 projection tests
+- `WorkflowJoinGatewayEngineTests.cs` — NEW: 7 engine behaviour tests

@@ -49,3 +49,43 @@ Fixed Linux CI apply/publish flush race condition in WorkflowAuthoringEndpoints.
 
 **Status:** ✓ Manifest processed, ready for next cycle
 
+
+## 2026-05-25T14:34:44.680Z — Merged Gateway Runtime Slice Implementation
+
+**Spawn:** blathers background agent  
+**Task:** Build merged gateway runtime slice (#83/#84/#85)  
+**Outcome:** ✅ Complete (PR #89 open)
+
+### Deliverables
+
+- `WorkflowCursor.cs` — Per-lane cursor records
+- Extended `WorkflowInstanceState.cs` with `Cursors` and `JoinArrivals` bookkeeping
+- Split/join gateway dispatch in `WorkflowRuntimeEngine.cs`
+- Schema validation codes PROJ137, PROJ138, PROJ139 for join gateway completeness
+- Join waiting envelope sourced from `WorkflowGatewayDefinition.WaitingContent` (not fake stages)
+- Backward-compatible cursor model: legacy single-cursor workflows show no regression
+- `RequiredIncomingLanes` emitted in sorted order for deterministic publish output
+
+### Quality Gate
+
+✅ All 851 tests passing  
+✅ Backend authoring: 129 passed, 3 skipped (deferred semantics)  
+✅ Workflow serialization/schema/publish: green  
+✅ `dotnet test UmbracoPrism.sln`: green  
+✅ Branch clean; PR #89 ready for review  
+
+### Files Modified
+
+- `AuthoredGateway.cs` — `Description`, `WaitingInfo`, `RequiredIncomingLanes`
+- `WorkflowDefinitionFile.cs` — published gateway fields
+- `WorkflowProjector.cs` — gateway-targeted transitions
+- `AuthoredWorkflowSchemaValidator.cs` — PROJ137/138/139
+- `WorkflowCursor.cs`, `WorkflowInstanceState.cs`, `WorkflowRuntimeEngine.cs` — NEW/extended
+- Test files: 17 new tests (gateway projection + engine behavior)
+
+### Cross-Layer Coordination
+
+- Isabelle's editor-only fields NOT yet in C# model (deferred for later alignment)
+- Backend publish pipeline decision deferred (strip or preserve on publish)
+
+**Orchestration log:** `.squad/orchestration-log/2026-05-25T14-34-44-blathers.md`

@@ -124,3 +124,42 @@ Executed Scribe workflow for Tom Nook backlog sequencing batch:
 **Status:** ✅ Orchestration COMPLETE; branch assessment logged and decisions merged.
 
 **Basis:** Spawn manifest from tom-nook and tangy agents; Scribe charter pattern (inbox merge, agent history coordination).
+
+## 2026-05-25T14:34:44.680Z — Merged Gateway Slice Orchestration
+
+**Spawn:** scribe self-dispatch  
+**Task:** Process spawn manifest for merged gateway track (tom-nook, isabelle, blathers, tangy)  
+**Outcome:** ✅ Complete
+
+### Tasks Executed
+
+1. **PRE-CHECK** — decisions.md: 224,999 bytes (>51200), 8 inbox files
+2. **DECISIONS ARCHIVE** — No entries older than 7 days; no archival action needed
+3. **DECISION INBOX MERGE** — 8 files merged into decisions.md; inbox deleted
+4. **ORCHESTRATION LOGS** — 4 logs written (tom-nook, isabelle, blathers, tangy)
+5. **SESSION LOG** — Merged gateway slice summary written
+6. **CROSS-AGENT HISTORY** — Updates appended to all 4 agent history files
+7. **HISTORY SUMMARIZATION** — Isabelle history.md flagged for summarization (16,841 bytes, >15360)
+8. **GIT COMMIT** — Staged .squad/ artifacts; prepared for commit
+
+### Decisions Consolidated
+
+- **Multi-Cursor Split/Join Gateway Runtime** — Blathers' runtime contract
+- **Gateway UX Clarification** — User directive (stages vs. gateways)
+- **Editor-Only fromGateway/toGateway Fields** — Isabelle's frontend contract
+- **Multi-Lane Gateway Behavioral Contracts** — Tangy's test matrix
+- **Merge issues #83, #84, #85** — Tom Nook's consolidation decision
+
+### Files Created
+
+- `.squad/orchestration-log/2026-05-25T14-34-44-{tom-nook,isabelle,blathers,tangy}.md` (4 files)
+- `.squad/log/2026-05-25T14-34-44-merged-gateway-slice.md` (1 file)
+
+### Quality Gate
+
+✅ Decisions.md merged and deduplicated  
+✅ All agent history updated  
+✅ Orchestration logs complete  
+✅ Session log recorded  
+
+**Note:** Isabelle history.md requires summarization (16,841 bytes); recommend archive in next cycle.
