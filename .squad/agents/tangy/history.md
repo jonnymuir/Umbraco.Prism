@@ -65,3 +65,32 @@ Established 7 behavioural contracts for gateway UI representation slice:
 
 **Decision:** Tests written as guardrails; Isabelle will implement visual rendering in same slice.
 
+---
+
+## 2026-05-26 — Merged Slice #83/#84/#85: Multi-Lane Gateway Behavioural Contracts
+
+**Branch:** `squad/83-84-85-multi-lane-gateway-tests`
+
+**Issues covered:** #83 (gateway editor UX), #84 (join gateway waiting copy), #85 (parallel lane runtime safety)
+
+### What was done
+
+Created a unified behavioural test slice spanning backend authoring contracts, editor UX contracts, and parallel-lane runtime safety contracts. All tests are safe guardrails — green now where implementation exists, skipped where it awaits #84/#85 delivery.
+
+**Files created/modified:**
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/MultiLaneGatewayContractTests.cs` — 17 backend xUnit facts (14 live, 3 skipped)
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-parallel-lanes.spec.ts` — 9 Playwright contracts (6 live, 3 skipped)
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-gateways.spec.ts` — extended from 5 to 8 tests (7 live, 1 skipped)
+
+**Final test counts:**
+- Backend authoring suite: **129 passed, 3 skipped** (was 106 before this slice)
+- Gateway editor Playwright: **7 passed, 1 skipped**
+- Parallel lanes Playwright: **6 passed, 3 skipped**
+
+### Learnings
+
+- `[data-prism-role-lane]` column containers hold stage nodes (`[data-prism-stage]`) but gateway nodes (`[data-prism-gateway]`) are graph siblings — they carry `data-prism-lane` as an attribute for lane attribution but are NOT DOM children of the lane columns. Tests that drill into lane columns must not assume gateways are nested inside them.
+- Gateway-representation Storybook story may have lane columns where some contain only gateways (no stages). Playwright assertions after clicking a node should check lane column count stability — not require every lane to have stages inside.
+- When running the full `tests/workflow-editor/` directory together, Playwright hangs (pre-existing issue with a blocking test in another spec file). Individual spec files run cleanly. This is not caused by my work.
+- Build was clean despite earlier session reporting pre-existing `WorkflowRuntimeEngine.cs` errors; those errors resolved by the time the final build ran (Blathers had fixed the WIP stubs).
+
