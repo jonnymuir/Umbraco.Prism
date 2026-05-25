@@ -86,7 +86,8 @@ public class WorkflowGatewayProjectionTests
 
         var gw = result.File.Metadata!.Gateways!.First(g => g.Key == "join-reviews");
         gw.RequiredIncomingLanes.Should().NotBeNull();
-        gw.RequiredIncomingLanes!.Should().ContainInOrder("finance", "planning",
+        gw.RequiredIncomingLanes!.Should().ContainInOrder(
+            new[] { "finance", "planning" },
             "required incoming lanes must be emitted in sorted order");
     }
 

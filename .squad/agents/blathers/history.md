@@ -7,7 +7,7 @@ Backend Developer specializing in core infrastructure and pipeline design.
 - Core notification infrastructure remains reusable and stable
 - TestSite vinyl behavior now opt-in (configuration-driven)
 
-**Status:** All 815 backend tests passing; 0 build warnings
+**Status:** All 851 backend tests passing; 0 build warnings
 
 ## Key Learnings
 
@@ -35,6 +35,9 @@ Fixed Linux CI apply/publish flush race condition in WorkflowAuthoringEndpoints.
 ## Learnings
 
 - 2026-05-25T12:49:20.153+01:00 — For multi-lane workflow slices, land workflow-level lane and gateway metadata first, then project effective actor/role assignment back onto published state metadata so current runtime behaviour stays stable while later issues add split/join execution.
+- Multi-cursor join pattern: `Cursors = []` means single-cursor legacy mode; `Cursors` populated means multi-cursor. Keep `CurrentState` in sync with `FirstActiveStageCursorKey()` on every save so legacy callers never see a cursor-only state key.
+- FluentAssertions `ContainInOrder` overload: pass expected values as `IEnumerable<T>`, and reason string as the second argument. Passing the reason as a trailing string in the params-array treats it as an additional expected element.
+- PROJ137/138/139: any pre-existing test using a Join gateway must now also provide `WaitingInfo` and `RequiredIncomingLanes`; the schema validator enforces these from the authoring layer upward.
 
 ## [2026-05-25T12:00:03Z] Scribe: Spawn Manifest Processing
 

@@ -112,7 +112,13 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     GatewayKey = "fan-in",
                     DisplayName = "Fan in",
                     Kind = GatewayKind.Join,
-                    LaneKey = "applicant"
+                    LaneKey = "applicant",
+                    WaitingInfo = new WaitingMetadata
+                    {
+                        Content = "Waiting for all lanes to complete.",
+                        ExpectedWaitSeconds = 60
+                    },
+                    RequiredIncomingLanes = ["applicant"]
                 }
             ],
             Stages =
