@@ -163,3 +163,15 @@ Fixed workflow editor UI regression: walkthrough heading drift alignment + visua
 ## Learnings
 
 - 2026-05-25T09:54:48.365+01:00 — For workflow surface cleanup, derive lane meaning from actor and role gates, not a parallel `editorSurface` flag. Strip UI-only surface hints before project/publish requests, and when validation links jump to an issue from the Validation tab, switch back to Canvas so the inspector target is actually visible.
+- 2026-05-25T12:49:20.153+01:00 — When moving the workflow editor from coarse front/back language to named lanes, keep the authored contract assignment-driven: expose one lane-owner input, derive list filters from the actual lane keys present, and keep graph/list labels on lane names rather than surface buckets.
+
+## [2026-05-25T12:00:03Z] Scribe: Spawn Manifest Processing
+
+**Activity:**
+- Orchestration log written
+- Decisions inbox merged (9 files processed)
+- Cross-agent updates logged
+- Session log recorded
+
+**Status:** ✓ Manifest processed, ready for next cycle
+

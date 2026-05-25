@@ -32,3 +32,17 @@ Decision doc merged to decisions.md; full session log at `.squad/log/2026-05-23T
 
 Fixed Linux CI apply/publish flush race condition in WorkflowAuthoringEndpoints.PostApply causing backend 500 errors. Local backend validation passed. Decision logged: `blathers-ci-apply-regression.md`.
 
+## Learnings
+
+- 2026-05-25T12:49:20.153+01:00 — For multi-lane workflow slices, land workflow-level lane and gateway metadata first, then project effective actor/role assignment back onto published state metadata so current runtime behaviour stays stable while later issues add split/join execution.
+
+## [2026-05-25T12:00:03Z] Scribe: Spawn Manifest Processing
+
+**Activity:**
+- Orchestration log written
+- Decisions inbox merged (9 files processed)
+- Cross-agent updates logged
+- Session log recorded
+
+**Status:** ✓ Manifest processed, ready for next cycle
+

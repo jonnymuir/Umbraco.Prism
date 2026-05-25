@@ -4379,3 +4379,294 @@ This cleanup preserves current linear workflow behaviour and the four showcase w
 - `.squad/skills/workflow-assignment-source-of-truth/SKILL.md`
 - `src/UmbracoPrism.Client/src/workflow-editor/workflow-stage-assignment.ts`
 - `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts`
+
+
+---
+author: blathers
+date: 2026-05-25T12:49:20.153+01:00
+status: proposed
+area: workflow-runtime-model
+issue: 82
+---
+
+# Decision: Land named lane ownership as metadata before multi-cursor execution
+
+## Context
+
+Issue #82 needs stages and gateways to belong to named lanes, but the current runtime still executes a single active state. Jumping straight to executable split/join behaviour in this slice would change the runtime contract and overlap with later issues in the sequence.
+
+## Decision
+
+For this slice:
+
+- add first-class authored `lanes` and `gateways`
+- let stages reference a `laneKey`
+- preserve lane and gateway ownership in published workflow metadata
+- project effective actor/role assignment from the owning lane back onto published stage and gateway metadata
+- leave runtime execution semantics unchanged for now
+
+## Consequences
+
+- Existing workflows stay valid because lanes are optional for stages and absent workflows still project exactly as before.
+- Future editor/runtime issues can build split/join topology and multi-cursor behaviour on top of stable lane ownership metadata instead of inventing a second ownership model.
+- Gateway definitions are now part of the authored and published contract, but they are descriptive metadata until later execution slices consume them.
+
+---
+author: isabelle
+date: 2026-05-25T12:49:20.153+01:00
+status: proposed
+area: workflow-editor
+---
+
+# Decision: Issue #82 editor slice uses lane-owner editing as the source of truth
+
+## Context
+
+Issue #82 needs Prism to move from broad journey/operations language toward named lanes. The design doc says lane ownership comes from authored assignment data, not from a second editor-only flag, and the user asked for a safe client-side slice without jumping ahead to split/join runtime behaviour.
+
+## Decision
+
+For the editor slice:
+
+1. Author lane ownership through a single **lane owner** field in the inspector, create-stage dialog, and list workspace.
+2. Keep authored assignment source-of-truth in `actor` + `roleGates`; the editor derives those from the lane owner value instead of introducing a new surface enum or publish-time lane flag.
+3. Replace linear-workspace front/back filters with dynamic filters generated from the actual lane keys in the workflow.
+4. Add gateway-ready authored typing on the client so later split/join work can carry the same assignment model, but defer visible gateway authoring UX and execution semantics to later issues.
+
+## Why
+
+- This keeps the editor aligned with the canonical multi-lane design and with issue #81's assignment cleanup.
+- It lands a meaningful authoring improvement now without inventing speculative runtime payload fields.
+- It removes user-facing front/back special cases from the edited workflow surface while preserving compatible stage styling and existing single-lane behaviour.
+
+# Isabelle decision — issue #81 workflow surface cleanup
+
+- Date: 2026-05-25T09:54:48.365+01:00
+- Issue: #81
+- Scope: workflow-editor assignment and projection contract
+
+## Decision
+
+Treat actor and role gates as the only authoring source of truth for workflow assignment. The client should derive lane presentation from that assignment data, stop persisting `editorSurface`, and strip any legacy surface hint before project/publish requests. Validation issue links should return authors to the Canvas tab before focusing the affected inspector target.
+
+## Why
+
+Issue #81 is about removing duplicate surface rules before lane redesign. Keeping a second stored surface flag lets the editor drift away from the authored assignment contract, while hidden validation jumps make the contract harder for authors to trust during review.
+
+## Consequence
+
+Later lane work can reorganise visual groupings without changing the authored/runtime payload shape, and authors still get a reliable jump-to-item flow from validation findings.
+
+---
+date: 2026-05-25T11:48:05.065+01:00
+author: Mabel
+related: Issue #81
+status: Complete
+---
+
+# Issue #81 — Documentation Updates for Assignment-Driven Lane Logic
+
+## Summary
+
+Issue #81 removes duplicate front-stage/back-stage surface logic from the workflow editor and makes lane assignment driven entirely by `actor` and `roleGates` fields. The `editorSurface` field is stripped before publishing.
+
+This decision documents the documentation updates made to reflect the shipped behaviour.
+
+## Changes Made
+
+### 1. `docs/design/workflow-editor-v1/01-authoring-ux.md` — Section 7.4
+
+**Before:**
+```
+Graph view shows these as role-first horizontal bands, 
+with front-stage and back-stage placement still expressed 
+through the owning role and supporting styling.
+```
+
+**After:**
+```
+Lane placement (front vs back stage) is **derived from the stage's 
+actor and role-gate assignment**, not a separate editable field. 
+Authors set the actor and role gates, and the editor displays stages 
+in the appropriate lane visually.
+```
+
+**Rationale:** Clarifies that front/back-stage is a **derived visual grouping**, not an authored field. Authors interact only with `actor` and `roleGates`.
+
+### 2. `docs/design/workflow-editor-v1/README.md` — Section 4.1
+
+**Added paragraph after authoring model definition:**
+```
+**Stage assignment and lane grouping:** Each stage has an assigned 
+actor (e.g. "applicant", "reviewer") and optional role gates 
+(e.g. "admin-approval"). The editor derives visual lane grouping 
+automatically: stages with public-facing actors (applicant, resident, 
+member) appear in the front-stage lane; stages with reviewer/officer/system 
+actors or role gates appear in the back-stage lane. Authors do not 
+manage a separate surface field; the lanes are determined by the 
+assignment data.
+```
+
+**Rationale:** Explicitly documents the lane-derivation logic so future developers understand the system is assignment-driven, not surface-driven.
+
+### 3. `docs/design/workflow-editor-v1/02-runtime-projection.md` — Section 7
+
+**Added to projection rules:**
+```
+- UI-only fields (such as temporary editor surface hints) are 
+  stripped before projection, leaving only the authored assignment 
+  data (actor, roleGates) that drives runtime behaviour
+```
+
+**Rationale:** Documents the published contract: the runtime receives only `actor` and `roleGates`, not temporary UI fields.
+
+## What Was NOT Changed
+
+- **Walkthrough docs** — Already refer to "back-stage surfaces" and "back-stage actors" in the runtime context, which is correct and unchanged
+- **Umbraco integration doc** — References to "authoring surface" and "editor surface" refer to the authoring environment as a whole, not to a field; correct as written
+- **Reference workflow contract** — Similarly correct; no changes needed
+
+## Verification
+
+1. No contradictions remain between design docs and shipped code
+2. Lane assignment logic is now clearly documented as `actor` + `roleGates` → lane placement
+3. Authors understand they do not manage a surface field
+4. The projection contract is clear: UI-only fields are stripped
+
+## Key Principle Reinforced
+
+**Assignment-driven lane meaning:** 
+- Authors edit `actor` and `roleGates`
+- The editor derives visual lane placement from that assignment
+- The runtime receives only the assignment data
+- No separate surface enum leaks into the published definition
+
+This clean separation means lane redesigns (e.g., adding new actor roles or changing role-gate behaviour) only require changes to the assignment interpretation logic, not mutation of published workflows.
+
+# Tangy decision — issue #81 behavioural tests
+
+- Date: 2026-05-25T09:54:48.365+01:00
+- Issue: #81
+- Scope: workflow-editor behavioural contracts
+
+## Decision
+
+For the workflow surface cleanup, keep behavioural coverage anchored to author-visible contracts instead of internal surface enums. Preview tests should assert the selected stage, read-only runtime copy, and assignment language; lane/list tests should assert visible lane labels and role-first navigation rather than exact `front-stage` / `back-stage` implementation details.
+
+## Why
+
+Issue #81 removes duplicate surface rules before later lane work. Internal surface naming and decomposition can legitimately move during that cleanup, but authors still care about the same outcomes: which lane they are in, what the preview shows, and whether the editor remains navigable.
+
+## Consequence
+
+Future UI refactors can simplify or merge surface plumbing without forcing noisy test rewrites, while regressions that change author-visible guidance should still fail fast.
+
+# Tangy decision — PR #88 quality gate
+
+- Date: 2026-05-25T11:55:20.362+01:00
+- PR: #88
+- Issue: #81
+- Scope: behavioural quality gate for workflow surface cleanup
+
+## Decision
+
+**Approved pending remaining CI lanes.** All focused Playwright validation passed. Behavioural contracts stayed honest: preview tests use semantic navigation (role, tab selectors), validation jump tests prove return-to-Canvas before inspector focus, lane tests assert visible labels instead of internal surface enums. Coordinator should merge automatically once storybook-tests, core-tests, planning-smoke, and localhost-auth finish green.
+
+## Why
+
+Issue #81 removes duplicate surface rules. The test changes align with the behavioural-contract philosophy:
+- Lane count changed from exact `toHaveCount(3)` to flexible `toBeGreaterThan(1)` — allows future lane refactors without false positives
+- Filter buttons now assert visible labels ("Journey lanes", "Operations lanes") instead of data attributes with internal enum names
+- Preview navigation extracts a helper that uses `getByRole('button')` and `getByRole('tab')` — semantic, not positional
+- Validation jump tests explicitly switch back to Canvas tab before focusing inspector targets — matches the "jump to item" contract
+
+Local validation evidence from PR description was re-run during review:
+- ✅ Build
+- ✅ workflow-editor-stage-preview.spec.ts (2 passed)
+- ✅ workflow-editor-validation.spec.ts (1 passed)
+- ✅ vertical-lanes-switcher.spec.ts (3 passed, 1 skipped)
+- ✅ workflow-graph-visual.spec.ts (2 passed)
+
+## Consequence
+
+Future lane redesign (#82–#87) can reorganise surfaces without forcing noisy test rewrites, while author-visible regressions (wrong lane label, broken validation jumps, missing preview data) still fail fast.
+
+# Tom Nook decision — issue #81 landing and push
+
+- Date: 2026-05-25T11:48:05.065+01:00
+- Issue: #81
+- Scope: landing procedure, docs alignment, and branch hygiene
+
+## Decision
+
+Land issue #81 on a dedicated `squad/81-clean-up-duplicate-workflow-surface-rules` branch, not directly on `main`. Ship the assignment source-of-truth cleanup with the updated design/docs notes and behavioural proof so CI and review see the contract change as one slice.
+
+## Why
+
+The repository branch policy now requires feature branches for substantive code changes, and this slice changes both editor behaviour and the authored/runtime contract story. Keeping code, tests, and documentation together prevents later lane work from reintroducing duplicate surface rules by accident.
+
+## Consequence
+
+The pushed branch is ready for coordinator review and CI as a single issue-focused unit. Future lane work can branch from a clean contract instead of inheriting stale editor-only surface metadata.
+
+---
+date: 2026-05-25T12:01:09.927+01:00
+author: Tom Nook
+related: Issues #81-#87
+status: Proposed
+---
+
+# Multi-lane workflow engine design source of truth
+
+## Decision
+
+Lock the full concurrent workflow behaviour in one plain-language design document:
+
+- `docs/design/workflow-multi-lane-engine.md`
+
+That document is now the canonical source for:
+
+- lane ownership
+- independent cursors
+- split gateways
+- join gateways
+- deterministic convergence
+- waiting-info ownership
+- clean runtime contract boundaries
+- history semantics
+- mapping to issues #81-#87
+
+## Why
+
+The repo already had the issue sequence and several partial design notes, but not one clear document that described the whole move from the current single-path engine to the lane-based engine. Without that source of truth, the implementation slices risk drifting or reintroducing old waiting-stage assumptions.
+
+## Consequences
+
+- The new document should be the first place the squad checks when implementing #82-#87.
+- Older docs that still talk in front-stage/back-stage or waiting-stage terms remain useful as current-state background, but should be treated as partial for the concurrent redesign.
+- `docs/design/README.md` and `docs/design/workflow-editor-v1/README.md` now point readers at the canonical design.
+
+# Tom Nook decision — PR #88 review
+
+- Date: 2026-05-25T11:55:20.362+01:00
+- PR: #88
+- Issue: #81
+- Scope: technical readiness, scope correctness, and merge call
+
+## Decision
+
+**Approved and landed.** PR #88 is correctly scoped to issue #81: it removes the duplicated `editorSurface` story from the authored contract, centralises lane derivation in one helper, strips legacy surface hints before project/publish payloads leave the editor, and updates docs plus behavioural tests to match. The coordinator was right to let it merge once the required gates were green.
+
+## Why
+
+The branch lines up across the whole slice:
+- code now derives lane meaning from `actor` and `roleGates` instead of a second surface field
+- preview/project/publish requests are sanitised before hitting runtime-facing APIs
+- Playwright coverage asserts visible lane and assignment language instead of internal surface enums
+- design notes now describe assignment as the source of truth, which keeps later lane work (#82–#87) on one contract
+
+One CI lane (`localhost-auth-playwright`) was still running at merge time, but this PR does not change auth behaviour and the repository allowed the merge after the required checks had passed.
+
+## Consequence
+
+Issue #81 is now landed on `main` with the contract cleanup, test proof, and design notes moving together. Future lane and gateway work can build on the cleaned assignment contract instead of carrying forward stale UI-only surface metadata.
