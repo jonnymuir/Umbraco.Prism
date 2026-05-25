@@ -73,9 +73,9 @@ test.describe('Workflow graph behavioral tests', () => {
     await expect(storyEl.locator('[data-prism-inline-field]').first()).toBeVisible();
 
     // Verify filtering options exist
-    await expect(storyEl.locator('[data-prism-linear-filter="all"]')).toBeVisible();
-    await expect(storyEl.locator('[data-prism-linear-filter="front-stage"]')).toBeVisible();
-    await expect(storyEl.locator('[data-prism-linear-filter="back-stage"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'All stages' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Journey lanes' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Operations lanes' })).toBeVisible();
 
     // Verify action buttons are present (move, delete, insert)
     await expect(storyEl.locator('[data-prism-move-up]').first()).toBeVisible();

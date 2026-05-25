@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, svg } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import type { AuthoredStage, AuthoredTransition, AuthoredWorkflow, EditorActor, EditorStageType } from './types.js';
 import { editorActorToActor, editorStageTypeToStageKind } from './types.js';
+import { stageLaneDescription, stageLaneKey, stageLaneLabel, stageSurface, type StageSurface } from './workflow-stage-assignment.js';
 import {
   defaultTransitionAction,
   defaultTransitionTarget,
@@ -14,7 +15,6 @@ import {
 import { workflowDeadEndStages, workflowUnreachableStages } from './workflow-validation.js';
 
 export type GraphMode = 'graph' | 'linear';
-type StageSurface = 'front-stage' | 'back-stage';
 type LinearFilter = 'all' | StageSurface;
 type SelectionKind = 'stage' | 'transition';
 
@@ -116,16 +116,14 @@ const EDGE_LABEL_HEIGHT = 32;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
 const LANE_HEADER_OFFSET = 80;
-const FRONT_STAGE_ACTORS = new Set(['applicant', 'resident', 'member', 'citizen', 'customer', 'public']);
-const BACK_STAGE_ACTORS = new Set(['reviewer', 'caseworker', 'officer', 'administrator', 'admin', 'system']);
-
-function humaniseRoleLabel(value: string): string {
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
+const SURFACE_LABELS: Record<StageSurface, string> = {
+  'front-stage': 'Journey lane',
+  'back-stage': 'Operations lane',
+};
+const SURFACE_FILTER_LABELS: Record<StageSurface, string> = {
+  'front-stage': 'Journey lanes',
+  'back-stage': 'Operations lanes',
+};
 
 /**
  * Workflow graph workspace for stage/transition authoring.
@@ -350,72 +348,19 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _surfaceForStage(stage: AuthoredStage): StageSurface {
-    if (stage.editorSurface) {
-      return stage.editorSurface;
-    }
-
-    if ((stage.roleGates?.length ?? 0) > 0) {
-      return 'back-stage';
-    }
-
-    const actor = stage.actor?.trim().toLowerCase();
-    if (!actor) {
-      return 'front-stage';
-    }
-
-    if (BACK_STAGE_ACTORS.has(actor)) {
-      return 'back-stage';
-    }
-
-    if (FRONT_STAGE_ACTORS.has(actor)) {
-      return 'front-stage';
-    }
-
-    return actor.includes('review') || actor.includes('case') || actor.includes('system')
-      ? 'back-stage'
-      : 'front-stage';
+    return stageSurface(stage);
   }
 
   private _roleKeyForStage(stage: AuthoredStage, surface = this._surfaceForStage(stage)) {
-    const actor = stage.actor?.trim().toLowerCase();
-    if (actor) {
-      return actor;
-    }
-
-    return surface === 'back-stage' ? 'reviewer' : 'public';
+    return stageLaneKey(stage) || (surface === 'back-stage' ? 'reviewer' : 'public');
   }
 
   private _roleLabelForLane(laneKey: string) {
-    const normalised = laneKey.trim().toLowerCase();
-    const workflowRole = this.workflow?.roles?.find(role =>
-      role.roleKey.trim().toLowerCase() === normalised
-      || role.claimMapping?.trim().toLowerCase() === normalised
-    );
-
-    return workflowRole?.displayName?.trim() || humaniseRoleLabel(normalised);
+    return stageLaneLabel(this.workflow, laneKey);
   }
 
   private _roleDescriptionForLane(laneKey: string) {
-    switch (laneKey) {
-      case 'public':
-      case 'applicant':
-      case 'resident':
-      case 'citizen':
-      case 'customer':
-        return 'Public-facing stages and handoffs';
-      case 'member':
-        return 'Signed-in member stages and handoffs';
-      case 'reviewer':
-      case 'caseworker':
-      case 'officer':
-      case 'administrator':
-      case 'admin':
-        return 'Review and decision stages';
-      case 'system':
-        return 'Automated checks and status stages';
-      default:
-        return `${this._roleLabelForLane(laneKey)} stages and handoffs`;
-    }
+    return stageLaneDescription(this.workflow, laneKey);
   }
 
   private _buildTransitionPath(source: StageLayout, target: StageLayout) {
@@ -625,7 +570,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._announce(
       filter === 'all'
         ? 'Showing all stages in the list workspace.'
-        : `Showing ${filter === 'front-stage' ? 'front-stage' : 'back-stage'} rows only.`
+        : `Showing ${SURFACE_FILTER_LABELS[filter]} only.`
     );
     this._focusLinearRow(0);
   }
@@ -952,16 +897,12 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     const actor = editorActorToActor(dialog.actor);
-    const surface = dialog.actor === 'reviewer' || dialog.actor === 'system'
-      ? 'back-stage'
-      : 'front-stage';
     const newStage: AuthoredStage = {
       stageKey,
       displayName: title,
       description: undefined,
       kind: editorStageTypeToStageKind(dialog.stageType),
       actor,
-      editorSurface: surface,
       actions: [],
       fields: [],
       roleGates: dialog.actor === 'reviewer' ? ['reviewer'] : [],
@@ -2203,7 +2144,7 @@ export class PrismWorkflowGraphElement extends LitElement {
               data-prism-linear-filter="front-stage"
               @click=${() => this._setLinearFilter('front-stage')}
             >
-              Front stage
+              Journey lanes
             </button>
             <button
               type="button"
@@ -2212,7 +2153,7 @@ export class PrismWorkflowGraphElement extends LitElement {
               data-prism-linear-filter="back-stage"
               @click=${() => this._setLinearFilter('back-stage')}
             >
-              Back stage
+              Operations lanes
             </button>
           </div>
           <div class="hud-group">
@@ -2230,7 +2171,7 @@ export class PrismWorkflowGraphElement extends LitElement {
               data-prism-list-add-backstage
               @click=${(event: Event) => this._openCreateStageDialog('back-stage', this._selectedStageKey ? 'after' : 'append', this._selectedStageKey, event.currentTarget as HTMLElement)}
             >
-              Add back stage
+              Add operations stage
             </button>
           </div>
         </div>
@@ -2388,7 +2329,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                             </div>
                           </td>
                           <td>
-                            <span class="badge">${surface === 'front-stage' ? 'Front stage' : 'Back stage'}</span>
+                            <span class="badge">${SURFACE_LABELS[surface]}</span>
                           </td>
                           <td>
                             <div class="row-actions">

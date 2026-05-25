@@ -38,6 +38,7 @@ Use this when validating workflow-editor work that claims to surface workflow er
 - Missing action parameters may be warnings, but they still need workflow-friendly language and field-level feedback in the inspector.
 - Do not credit save blocking until the main editor affordance is visibly disabled or otherwise prevented when blocking errors exist, and the focused spec proves it.
 - Messages should talk about stages, transitions, and actions, not raw JSON paths or schema internals.
+- When workflow surface cleanup is in flight, keep Playwright selectors and assertions on user-facing affordances (tab roles, visible lane labels, assignment copy) rather than internal surface enums such as `front-stage`, `back-stage`, or retired preview-surface toggles.
 
 ## Anti-Patterns
 
@@ -45,3 +46,4 @@ Use this when validating workflow-editor work that claims to surface workflow er
 - Treating graph-only routing warnings as the requested validation rail
 - Relying on server diagnostics alone when the acceptance criteria require editor-native guidance
 - Counting existing graph/action tests as sufficient without a dedicated validation/error-reporting behavioural contract
+- Locking behavioural tests to internal surface names or exact lane decomposition when the user-facing contract is only that the correct journey/operations guidance remains visible

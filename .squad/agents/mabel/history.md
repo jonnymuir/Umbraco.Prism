@@ -128,3 +128,23 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - All 815 tests passing
 - 0 warnings in build/test lane
 
+---
+
+## 2026-05-25T11:48:05.065+01:00 | Issue #81 Documentation Updates
+
+**Task:** Audit and update design docs to reflect issue #81's assignment-driven lane logic (removed duplicate front-stage/back-stage surface enum; lanes now derived from `actor` and `roleGates`).
+
+**Changes Made:**
+1. **01-authoring-ux.md § 7.4** — Clarified that front/back-stage placement is **derived** from actor and role gates, not a separate authored field
+2. **README.md § 4.1** — Added explicit paragraph documenting lane-derivation logic (actor + roleGates → visual lane placement)
+3. **02-runtime-projection.md § 7** — Documented that UI-only fields (editorSurface) are stripped before projection, leaving only assignment data
+
+**Verification:**
+- Confirmed code stripping editorSurface before serialization (`workflow-authoring-client.ts`)
+- No contradictions between design docs and shipped behaviour
+- Walkthrough and integration docs already use correct runtime surface terminology
+
+**Deliverable:** `.squad/decisions/inbox/mabel-issue-81-docs.md` — Complete record of changes and rationale.
+
+**Key Finding:** Assignment-driven lane logic is a clean seam for future lane redesigns (new actors, role gates) without mutating published workflows.
+

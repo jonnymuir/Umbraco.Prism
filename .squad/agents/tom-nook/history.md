@@ -148,3 +148,36 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 
 **Outcome:** Cleared triage queue; roadmap priorities reaffirmed for current sprint + V1+ pipeline.
 
+## 2026-05-25T07:47:41Z — Landing Local Main Commit
+
+**Task:** Land local main commit to origin/main
+
+**Outcome:** ✅ Completed
+
+**Summary:**
+- Published the local main commit via PR #77
+- Added missing `all` aggregate workflow check in `squad-ci.yml` to satisfy branch protection rules
+- Merged PR #77 to main
+- Synced local main with origin/main
+
+**Result:** Local main now synced with origin/main; CI pipeline fully configured.
+
+## Learnings
+
+### 2026-05-25T09:32:35.455+01:00 — Concurrent lanes backlog slicing
+
+- Reviewed the open backlog first (#28, #63, #73) to avoid creating overlap.
+- Split the concurrent multi-lane redesign into seven ordered issues: cleanup/projection contract first, then lane model, editor UX, join gateways, concurrent engine behaviour, history clarity, and showcase/test evolution.
+- Kept each issue framed in product language with acceptance criteria, explicit sequence, and a standing requirement to keep behavioural tests green.
+
+## 2026-05-25 (09:32:35 UTC) — Concurrent Lanes Redesign Sequenced
+
+- Issues #81–#87 created per concurrent multi-lane redesign plan
+- Orchestration log recorded
+- Tangy executing parallel behavioural track (#78–#80)
+- Squad ready for coordinated execution
+
+### 2026-05-25T11:48:05.065+01:00 — Issue #81 landing discipline
+
+- When issue work is sitting uncommitted on `main`, branch it before landing; the repo now treats feature-branch + PR workflow as mandatory for code changes.
+- For workflow lane cleanup, ship the shared assignment helper, projection sanitiser, docs, and behavioural proof together so the source-of-truth change is explicit across code and design notes.

@@ -15,6 +15,7 @@ import {
   editorStageTypeToStageKind,
   stageKindToEditorStageType,
 } from './types.js';
+import { stageLaneKey, stageLaneLabel } from './workflow-stage-assignment.js';
 import {
   describeTransitionCondition,
   parseTransitionCondition,
@@ -141,21 +142,6 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _stageLabel(stageKey: string) {
     return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
-  }
-
-  private _surfaceForStage(stage: AuthoredStage) {
-    if (stage.editorSurface) {
-      return stage.editorSurface;
-    }
-
-    if ((stage.roleGates?.length ?? 0) > 0) {
-      return 'back-stage';
-    }
-
-    const actor = stage.actor?.trim().toLowerCase() ?? '';
-    return actor.includes('review') || actor.includes('case') || actor.includes('system')
-      ? 'back-stage'
-      : 'front-stage';
   }
 
   private _selectedStageOutgoing(stage: AuthoredStage) {
@@ -317,7 +303,6 @@ export class PrismStepInspectorElement extends LitElement {
     const nextStage: AuthoredStage = {
       ...stage,
       actor,
-      editorSurface: nextActor === 'reviewer' || nextActor === 'system' ? 'back-stage' : 'front-stage',
       roleGates: nextActor === 'reviewer' ? ['reviewer'] : [],
     };
 
@@ -618,9 +603,11 @@ export class PrismStepInspectorElement extends LitElement {
     const fields = stage.fields ?? [];
     const actions = stage.actions ?? [];
     const outgoing = this._selectedStageOutgoing(stage);
-    const surface = this._surfaceForStage(stage);
     const stageType = stageKindToEditorStageType(stage.kind);
     const actor = actorToEditorActor(stage.actor);
+    const laneKey = stageLaneKey(stage);
+    const laneLabel = stageLaneLabel(this.workflow, laneKey);
+    const laneEyebrow = `${laneLabel} lane`;
     const unreachable = this.workflow
       ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
       : false;
@@ -648,7 +635,7 @@ export class PrismStepInspectorElement extends LitElement {
       >
         <div class="inspector-header">
           <div>
-            <p class="eyebrow">${surface === 'front-stage' ? 'Front stage' : 'Back stage'}</p>
+            <p class="eyebrow">${laneEyebrow}</p>
             <h2 id="inspector-stage-title" class="stage-title">${stage.displayName}</h2>
           </div>
           <span class="stage-kind-badge">${STAGE_TYPE_OPTIONS.find(option => option.value === stageType)?.label ?? stage.kind}</span>

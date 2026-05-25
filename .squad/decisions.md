@@ -4273,3 +4273,109 @@ Both baselines now at `tests/__screenshots__/workflow-editor/workflow-graph-visu
 - CI will use same baselines as local development
 - No platform-specific maintenance burden
 - Visual tests remain behavioral (UI layout contract), not implementation mirrors
+---
+author: tangy
+date: 2026-05-25T09:32:35.455+01:00
+status: proposed
+area: workflow-testing
+---
+
+# Decision: Slice concurrent-lane proof into editor, showcase, and live-walkthrough tracks
+
+## Context
+
+The current behavioural coverage proves four showcase workflows, editor shell switching, one branch simulation, and several straight-line walkthroughs. It does not yet give a clean migration path for the move from linear waiting stages to concurrent lanes with join gateways.
+
+If we change all of that in one step, we risk losing the green behavioural gate and losing the simple showcase stories that currently make the product easy to demo.
+
+## Decision
+
+Track the redesign in three linked slices:
+
+1. **Editor behavioural contract** — prove that authors can see parallel lanes, understand join conditions, and trust simulation/validation.
+2. **Showcase workflow evolution** — redesign the four showcase workflows so each one demonstrates a clear user-visible parallel-work story.
+3. **Live walkthrough proof** — prove that public/member/admin journeys show honest progress before, during, and after the join.
+
+Keep one simple straight-line workflow proof in place as a control until the concurrent slices are green.
+
+## Consequences
+
+- We can add concurrent coverage without breaking the existing four-workflow catalogue all at once.
+- Demo clarity stays high because each issue is written in product language and tied to visible proof.
+- The team gets an explicit rule for keeping the behavioural gate green during the transition: add the concurrent proof first, then retire linear-only assumptions.
+
+---
+author: tom-nook
+date: 2026-05-25T09:32:35.455+01:00
+status: proposed
+area: concurrent-multi-lane-workflows
+---
+
+# Decision: sequence the concurrent multi-lane redesign as seven delivery slices
+
+## Context
+
+Jonny asked for the redundant workflow surface logic to be removed and for the rest of the transition redesign to be turned into a safe, ordered backlog. The redesign introduces lane-owned stages and gateways, replaces waiting stages with join gateways, and requires careful editor UX plus preserved behavioural proof across the four showcase workflows.
+
+The open backlog did not already contain clean matches for these slices. The only open issues were #28 (biometric auth pen-test checklist), #63 (editor undo/redo), and #73 (AI proposal editing), so new issues were needed.
+
+## Decision
+
+Create and order the redesign as the following GitHub issues:
+
+1. #81 — Clean up duplicate workflow surface rules before lane work
+2. #82 — Let workflow stages and gateways belong to named lanes
+3. #83 — Make lane transitions and gateways easy to read in the editor
+4. #84 — Replace waiting stages with lane join gateways
+5. #85 — Run parallel lanes safely without one lane overwriting another
+6. #86 — Keep workflow history clear when people and systems act in parallel
+7. #87 — Evolve the four showcase workflows and behavioural tests for lane-based flow
+
+## Why this order
+
+- Start with cleanup so the Umbraco-facing projection contract stays clean before engine changes begin.
+- Lock the lane/gateway language next so editor and runtime work share the same model.
+- Set the editor’s visual language before deeper behaviour changes so transitions and joins stay understandable.
+- Land join gateway semantics before full concurrent execution so the waiting-story replacement is explicit.
+- Add history clarity after the concurrent engine slice so behavioural proof matches real runtime behaviour.
+- Finish by evolving the four showcase workflows and behavioural tests to prove the shipped story end to end.
+
+## Guardrails
+
+- Use plain product language in titles and bodies.
+- Keep issues small enough to land one slice at a time.
+- Keep behavioural tests green throughout the sequence.
+- Avoid implementation-mirror framing; describe the user-visible intent and safety bar instead.
+
+---
+author: Tom Nook
+date: 2026-05-25T11:48:05.065+01:00
+status: implemented
+area: workflow-assignment-contract
+---
+
+# Decision: Issue #81 workflow assignment contract cleanup
+
+## Context
+
+Issue #81 removes duplicate workflow surface rules before the concurrent-lane redesign. The working slice already replaced stored `editorSurface` hints with shared assignment derivation, updated preview and inspector language, and tightened behavioural tests around visible lane and assignment copy.
+
+## Decision
+
+- Treat `actor` and `roleGates` as the only authored source of truth for assignment and lane meaning.
+- Remove `editorSurface` from the authored stage contract and strip any legacy value before preview, project, or publish requests.
+- Keep the projected Umbraco-facing runtime contract clean: assignment data stays, editor-only surface metadata does not.
+- Keep behavioural coverage pinned to author-visible outcomes (lane labels, assignment copy, validation jumps) rather than internal `front-stage` / `back-stage` plumbing.
+- When a validation issue is opened from a non-canvas tab, return the author to Canvas before focusing the affected inspector target.
+
+## Outcome
+
+This cleanup preserves current linear workflow behaviour and the four showcase workflows while making later lane work safer. The lane presentation can now evolve without changing the authored payload or the runtime projection contract.
+
+## References
+
+- `.squad/decisions/inbox/isabelle-surface-cleanup.md`
+- `.squad/decisions/inbox/tangy-issue-81-tests.md`
+- `.squad/skills/workflow-assignment-source-of-truth/SKILL.md`
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-stage-assignment.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts`

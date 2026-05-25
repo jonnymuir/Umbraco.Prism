@@ -131,6 +131,7 @@ A simple shape looks like this:
 - **Stages** describe the journey step.
 - **Transitions** describe the allowed route out of a stage.
 - **Typed actions** describe runtime work.
+- Stage assignment is authored through `actor` and `roleGates`; editor-only lane or surface hints must not be stored in the authored file or projected runtime file.
 - Every typed action has a stable `type` and serialisable `params`.
 - The editor can validate the shape of `params` without knowing how the handler works internally.
 - The runtime can execute the action by resolving `type` to a handler.
@@ -141,6 +142,7 @@ This gives us a clean answer to the original design question:
 
 - **Design time** is responsible for listing available action types and their parameter requirements.
 - **Runtime** is responsible for executing those actions.
+- **Projection** keeps the Umbraco-facing contract clean by carrying authored assignment data forward without leaking editor-only surface metadata.
 
 ---
 
@@ -302,6 +304,7 @@ So the editor-friendly workflow definition is projected into that runtime shape.
 - stage views project to Prism component trees
 - shell choice still comes from the existing component-based inference rules
 - typed actions stay attached as workflow metadata for the business app runtime to execute
+- UI-only fields (such as temporary editor surface hints) are stripped before projection, leaving only the authored assignment data (actor, roleGates) that drives runtime behaviour
 
 We should avoid making authors think in low-level Prism terms such as inferred shell metadata unless they are debugging compatibility.
 

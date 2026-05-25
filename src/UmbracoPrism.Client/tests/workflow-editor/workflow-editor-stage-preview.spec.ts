@@ -4,6 +4,14 @@ function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
 
+async function openPreviewForDeclaration(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: /Declaration, Applicant role/i }).dblclick();
+  const previewTab = page.getByRole('tab', { name: 'Preview' });
+  await expect(previewTab).toBeVisible();
+  await previewTab.click();
+  await expect(previewTab).toHaveAttribute('aria-selected', 'true');
+}
+
 async function slowProjectPreview(page: import('@playwright/test').Page, delayMs: number) {
   await page.evaluate(delay => {
     const originalFetch = window.fetch.bind(window);
@@ -29,12 +37,10 @@ test.describe('Workflow editor stage preview', () => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
 
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
-    await page.locator('[data-prism-stage="declaration"]').dblclick();
-
-    // Switch to Preview tab to see the preview panel
-    await page.locator('[data-prism-tab="preview"]').click();
+    await openPreviewForDeclaration(page);
 
     const preview = page.locator('[data-prism-stage-preview]');
+    await expect(page.getByRole('heading', { name: 'Stage preview' })).toBeVisible();
     await expect(preview).toBeVisible();
     await expect(preview.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration');
     await expect(preview.locator('[data-prism-preview-shell]')).toContainText('Question shell');
@@ -44,34 +50,30 @@ test.describe('Workflow editor stage preview', () => {
     await expect(preview.locator('.govuk-input').first()).toBeDisabled();
     await expect(preview.locator('.govuk-textarea').first()).toBeDisabled();
     await expect(preview.locator('[data-prism-preview-action="continue"]')).toBeDisabled();
-    await expect(preview.locator('[data-prism-preview-surface="public"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(preview.locator('[data-prism-preview-surface="member"]')).toBeEnabled();
-    await expect(preview.locator('[data-prism-preview-surface="back-stage"]')).toBeDisabled();
+    await expect(preview.locator('[data-prism-preview-assignment]')).toContainText('Assigned to Applicant');
+    await expect(preview.locator('[data-prism-preview-selector]')).toHaveCount(0);
   });
 
   test('updates the preview when stage edits change the projected runtime and exposes loading feedback', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
 
-    await slowProjectPreview(page, 400);
-    await page.locator('[data-prism-stage="declaration"]').dblclick();
-
-    // Switch to Preview tab to see the preview panel
-    await page.locator('[data-prism-tab="preview"]').click();
+    await slowProjectPreview(page, 1_500);
+    await openPreviewForDeclaration(page);
 
     await expect(page.locator('[data-prism-preview-loading]')).toContainText('Rendering preview');
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration');
 
-    const titleInput = page.locator('[data-prism-stage-title]');
+    await page.getByRole('tab', { name: 'Canvas' }).click();
+    const titleInput = page.getByLabel('Title');
     await titleInput.fill('Declaration preview');
     await titleInput.press('Tab');
+    await page.getByLabel('Actor').selectOption('reviewer');
+    await page.getByRole('tab', { name: 'Preview' }).click();
 
     await expect(page.locator('[data-prism-preview-loading]')).toContainText('Updating preview');
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration preview');
-
-    await page.locator('[data-prism-stage-actor]').selectOption('reviewer');
-    await expect(page.locator('[data-prism-preview-surface="back-stage"]')).toBeEnabled();
-    await expect(page.locator('[data-prism-preview-surface="back-stage"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('[data-prism-preview-surface-panel="back-stage"]')).toBeVisible();
+    await expect(page.locator('[data-prism-preview-assignment]')).toContainText('Assigned to Reviewer');
+    await expect(page.locator('[data-prism-preview-surface-panel]')).toBeVisible();
   });
 });

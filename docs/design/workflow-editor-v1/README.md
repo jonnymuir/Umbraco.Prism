@@ -119,6 +119,8 @@ Everything else supports that relationship.
 
 Authors work with a workflow model that talks in workflow language: stages, actors, handoffs, actions, and views. The editor should not force authors to design directly in `WorkflowDefinitionFile` terms.
 
+**Stage assignment and lane grouping:** Each stage has an assigned actor (e.g. "applicant", "reviewer") and optional role gates (e.g. "admin-approval"). The editor derives visual lane grouping automatically: stages with public-facing actors (applicant, resident, member) appear in the front-stage lane; stages with reviewer/officer/system actors or role gates appear in the back-stage lane. Authors do not manage a separate surface field; the lanes are determined by the assignment data.
+
 The published runtime definition is still important, but it is a generated artifact and an advanced debug surface, not the primary mental model.
 
 ### 4.2 Action model

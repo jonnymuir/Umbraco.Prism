@@ -59,9 +59,15 @@ test.describe('Workflow editor validation rail', () => {
       'Stage “Site visit” is unreachable from the workflow start. Add or retarget a transition so authors can get there.'
     );
 
+    const validationTab = page.getByRole('tab', { name: 'Validation' });
+    await expect(validationTab).toBeVisible();
+    await validationTab.click();
+    await expect(validationTab).toHaveAttribute('aria-selected', 'true');
     await page.locator('[data-prism-validation-issue="stage-unreachable-site-visit"]').click();
     await expect(page.locator('[data-prism-stage-detail="site-visit"]')).toBeVisible();
 
+    await validationTab.click();
+    await expect(validationTab).toHaveAttribute('aria-selected', 'true');
     await page.locator('[data-prism-validation-issue*="declaration-action-0-formDefinitionId"]').click();
     await expect(page.locator('[data-prism-stage-detail="declaration"]')).toBeVisible();
     await expect(actionInput).toBeFocused();

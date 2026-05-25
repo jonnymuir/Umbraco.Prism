@@ -17,7 +17,6 @@ type WorkflowSeed = {
     displayName: string;
     actor?: AuthoredStage['actor'];
     kind?: AuthoredStage['kind'];
-    editorSurface?: AuthoredStage['editorSurface'];
     roleGates?: string[];
   }>;
   transitionActions: string[];
@@ -37,7 +36,6 @@ function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
       displayName: stageSeed.displayName,
       actor: stageSeed.actor ?? baseStage.actor,
       kind: stageSeed.kind ?? baseStage.kind,
-      editorSurface: stageSeed.editorSurface,
       roleGates: stageSeed.roleGates ?? [],
     };
   });
@@ -71,7 +69,6 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
         displayName: 'Review enquiry',
         actor: 'reviewer',
         kind: 'TaskList',
-        editorSurface: 'back-stage',
         roleGates: ['reviewer'],
       },
       {
@@ -79,7 +76,6 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
         displayName: 'Enquiry closed',
         actor: 'reviewer',
         kind: 'Confirmation',
-        editorSurface: 'back-stage',
         roleGates: ['reviewer'],
       },
     ],
@@ -97,7 +93,6 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
         displayName: 'Review response pack',
         actor: 'reviewer',
         kind: 'TaskList',
-        editorSurface: 'back-stage',
         roleGates: ['reviewer'],
       },
       {
@@ -105,7 +100,6 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
         displayName: 'Response sent',
         actor: 'system',
         kind: 'Confirmation',
-        editorSurface: 'back-stage',
         roleGates: ['reviewer'],
       },
     ],
@@ -123,7 +117,6 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
         displayName: 'Review payment',
         actor: 'reviewer',
         kind: 'TaskList',
-        editorSurface: 'back-stage',
         roleGates: ['reviewer'],
       },
       {
@@ -131,7 +124,6 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
         displayName: 'Payment received',
         actor: 'system',
         kind: 'Confirmation',
-        editorSurface: 'back-stage',
         roleGates: ['reviewer'],
       },
     ],
