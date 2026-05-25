@@ -4669,4 +4669,191 @@ One CI lane (`localhost-auth-playwright`) was still running at merge time, but t
 
 ## Consequence
 
-Issue #81 is now landed on `main` with the contract cleanup, test proof, and design notes moving together. Future lane and gateway work can build on the cleaned assignment contract instead of carrying forward stale UI-only surface metadata.
+Issue #81 is now landed on `main` with the contract cleanup, test proof, and design notes moving together. Future lane and gateway work can build on the cleaned assignment contract instead of carrying forward stale UI-only surface metadata.---
+author: isabelle
+date: 2026-05-25T14:17:36.055+01:00
+status: proposed
+area: workflow-editor-ux
+---
+
+# Decision: Editor-only gateway UI should attach to existing branch and merge stages
+
+## Context
+
+Issue #83 needs split and join gateways to become readable, lane-owned editor objects now, while the existing workflow execution path remains stage-driven until later engine slices land. The authored model already carries gateway metadata, but the executable transitions still connect stages directly.
+
+## Decision
+
+Render gateway nodes by **binding each authored gateway to the nearest matching branch or merge stage in the same lane**, then draw the visual branch or merge lines through that gateway node.
+
+- Split gateways attach to authored stages with multiple outbound transitions.
+- Join gateways attach to authored stages with multiple inbound transitions.
+- Transition chips and arrows keep representing the existing executable transitions, but their visual path can route through the gateway node.
+- Gateway inspector content is read-only in this slice: title, split/join kind, lane owner, and related route count.
+
+## Why
+
+This gives authors a clear visual language for fan-out and merge intent without forcing preview, simulation, publish, or runtime to understand executable gateway nodes yet. It also keeps the assignment contract honest: gateways are lane-owned, but the runtime guardrails stay pinned to the current stage-to-stage path until #84 and #85.
+
+## Consequences
+
+- The graph can show lane-owned split/join intent immediately.
+- Existing stage preview and straight-line execution semantics remain unchanged.
+- The cut is intentionally narrower than a full gateway authoring experience: no gateway editing flow, no outline entries yet, and no runtime execution changes.
+
+---
+date: 2026-05-25T14:17:36.055+01:00
+author: Tangy
+context: Issue #82 baseline validation for named lanes editor slice
+status: proposed
+---
+
+# Gateway Representation Behavioural Guardrails
+
+## Decision
+
+Before adding gateway visual representation to the workflow editor for the multi-lane engine, the following behavioural contracts must remain green:
+
+1. **Straight-line workflow execution** — The planning workflow fixture must continue to project correctly and execute through its linear path without regression.
+
+2. **Stage-to-state projection fidelity** — The `PublishAsync_PlanningFixture_ProjectsStagesTransitionsAndActions` backend test proves that authored stages map to published runtime states with correct assignment and action data. Gateway representation work must not break this projection contract.
+
+3. **Assignment-driven lane derivation** — Lane meaning must continue to derive from `actor` and `roleGates` data, not from separate UI-only surface hints. The `workflow-assignment-source-of-truth` skill applies.
+
+4. **Graph path highlighting for single-cursor flows** — The current graph workspace highlights the active path during simulation. When gateways become visual nodes, this highlighting contract must extend to include gateway nodes in the path.
+
+5. **Validation rail contract** — The validation rail must continue to surface unreachable stages, orphaned stages, and missing action parameters. When gateways are added, validation must also detect unreachable gateways, orphaned gateways, and unsatisfiable join conditions.
+
+## Current Test Status (2026-05-25T14:17:36.055+01:00)
+
+### ✅ Green
+- Build: TypeScript compilation clean
+- Backend workflow authoring tests: 106 passed
+- Graph keyboard navigation: 5 passed
+- Action editor: 2 passed (1 flaky timeout - pre-existing)
+- Validation rail: 1 passed
+- Planning smoke (localhost auth): 1 passed
+
+### ❌ Red (Pre-existing, not blocking #82)
+- Simulation tests: 2 failed (tests don't switch to Simulation tab before clicking start button)
+
+## Rationale
+
+The multi-lane engine design introduces split and join gateways as first-class workflow elements. These must be represented in the editor graph workspace without breaking the existing single-path workflow contracts that protect planning application and community enquiry flows.
+
+The above five contracts guard the most fragile cross-layer dependencies:
+- Backend projection (workflow authoring → runtime state)
+- Editor rendering (authored stages → graph nodes)
+- Validation diagnostics (authored structure → error messages)
+- Simulation path highlighting (runtime execution → visual feedback)
+
+If any of these contracts break during gateway representation work, the editor will lose trust for existing straight-line workflows even though the runtime continues to support them.
+
+## Acceptance Criteria for Gateway Work
+
+When split/join gateways are added to the editor:
+
+1. All green tests listed above remain green
+2. New gateway nodes appear in the graph workspace with semantic selectors (`data-prism-gateway`, `role=button` or similar)
+3. Keyboard navigation includes gateway nodes in the tab order
+4. Validation rail reports gateway-specific issues (unreachable, orphaned, unsatisfiable joins)
+5. Simulation path highlighting includes gateway nodes
+6. Backend projection tests extend to cover gateway → runtime-token projection
+
+## Related
+
+- `.squad/skills/workflow-validation-quality-gate/SKILL.md`
+- `.squad/skills/workflow-assignment-source-of-truth/SKILL.md`
+- `docs/design/workflow-multi-lane-engine.md`
+
+---
+date: 2026-05-25T14:17:36.055+01:00
+author: tangy
+scope: issue-83
+status: active
+---
+
+# Gateway Representation Behavioral Tests (Issue #83)
+
+## Context
+
+Issue #83 requires editor-only gateway representation while keeping current stage-to-stage execution intact. This is slice 3 of the multi-lane redesign — gateways become visible in the editor before runtime execution changes.
+
+## Decision
+
+Created `workflow-editor-gateways.spec.ts` with 7 behavioral contracts:
+
+1. **Split gateways** are visually distinct from stages
+2. **Join gateways** are visually distinct from stages
+3. **Gateways show lane ownership** clearly via `data-prism-lane` attribute
+4. **Inspector integration** — selecting a gateway opens gateway-specific inspector content
+5. **Transition direction** — split fan-out and join merge are visible in the graph
+6. **No-gateway workflows** continue to render correctly (backward compatibility)
+7. **List mode** includes gateways alongside stages
+
+## Test Strategy
+
+- Tests written to **pass with zero gateways** (current baseline)
+- Tests will **prove gateway UI** when Isabelle implements the rendering
+- Tests **avoid execution semantics** (no assertions on runtime join/split behavior)
+- Tests **stay on visible affordances** (data attributes, inspector content, lane labels)
+- All existing tests remain green (graph keyboard, action editor, validation rail, stage preview)
+
+## Quality Gate
+
+- ✅ Build: Green
+- ✅ Backend workflow authoring: 106 passed
+- ✅ New gateway tests: 7 passed (zero gateway baseline)
+- ✅ Graph visual/keyboard: Green
+- ✅ Action editor: Green
+- ✅ Validation rail: Green
+- ✅ Stage preview: Green
+- ⚠️ Simulation tests: Pre-existing failures (don't switch to Simulation tab)
+- ⏸️ Planning smoke: Requires Aspire (not needed for this slice)
+
+## Guardrails for Isabelle
+
+When implementing #83, preserve these contracts:
+
+1. Straight-line workflow execution in planning fixture
+2. Stage-to-state projection fidelity
+3. Assignment-driven lane derivation
+4. Graph path highlighting for single-cursor flows
+5. Validation rail contract for unreachable stages
+
+## Files
+
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-gateways.spec.ts` (new)
+- `src/UmbracoPrism.Client/src/workflow-editor/types.ts` (already has `AuthoredGateway`, `GatewayKind`)
+- Design doc: `docs/design/workflow-multi-lane-engine.md` (section: "Safest next behavioural slice after #82")
+
+# Tom Nook — Gateway lane slice decision
+
+- **Date:** 2026-05-25T14:17:36.055+01:00
+- **Issue context:** #82 → #84
+- **Branch:** `squad/82-named-lanes-editor-slice`
+
+## Decision
+
+After #82, the safest next behavioural slice is **editor representation only** for split and join gateways.
+
+Gateways should become visible, selectable, lane-owned items in the editor so authors can read branch and merge intent clearly. The current executable workflow path must remain stage-to-stage until the later slices for lane-owned joins and concurrent runtime behaviour land.
+
+## Implement next
+
+- Render split and join gateways as distinct lane-owned items in the editor.
+- Show gateway title, kind, and owning lane in the inspector.
+- Make branch and merge direction readable across lanes.
+- Keep current preview, simulation, publish, and runtime behaviour stage-driven.
+
+## Defer
+
+- Replacing waiting-stage runtime behaviour with join-gateway runtime behaviour (#84).
+- Independent cursors, deterministic join release, and concurrency bookkeeping (#85).
+- Any requirement that existing workflows must route through executable gateways before current end-to-end behaviour is preserved.
+
+## Quality gate
+
+The .NET workflow suite is green on this branch via `dotnet test UmbracoPrism.sln`.
+
+The targeted workflow editor Playwright suite is **not fully green yet** on this branch: `workflow-editor-history.spec.ts` and `workflow-editor-simulation.spec.ts` currently fail because the expected history/simulation controls are not visible in the current editor surface. Returning those tests to green is a prerequisite for landing the gateway representation slice, and they must remain green as the UI changes.

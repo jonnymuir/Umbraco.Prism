@@ -48,3 +48,20 @@ For detailed earlier work, see `history-archive.md`.
 **CI status at review:**
 - ✅ marketplace-description, test, all
 - ⏳ storybook-tests, core-tests, planning-workflow-editor-smoke, localhost-auth-playwright (in progress)
+
+---
+**2026-05-25 · Issue #83 · Gateway Behaviour Tests**
+
+Established 7 behavioural contracts for gateway UI representation slice:
+1. Split gateways visually distinct from stages
+2. Join gateways visually distinct from stages
+3. Gateways show lane ownership via data-prism-lane
+4. Inspector integration for gateway-specific content
+5. Transition direction visible in graph
+6. Backward compatibility for no-gateway workflows
+7. List mode includes gateways alongside stages
+
+**Test Status:** All 7 new gateway tests passing (baseline). 106 backend authoring tests passing. Existing green suite maintained.
+
+**Decision:** Tests written as guardrails; Isabelle will implement visual rendering in same slice.
+
