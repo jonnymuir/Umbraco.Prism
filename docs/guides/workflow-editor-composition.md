@@ -68,8 +68,9 @@ These settings should be fixed in your authoring API and documented for develope
 - **Forms engine components** — What form fields and layouts does your system support?
 - **Stage types** — What stage types (form, review, decision, waiting, etc.) are available?
 - **Role definitions** — What actor roles exist in your system?
+- **Assignment model** — Which `actor` and `roleGates` combinations should appear as journey or operations lanes in your host?
 
-Example: If your system supports 5 stage types, document them in your API reference or setup guide. Don't expose a "stage type selector" in the editor UI for undefined types.
+Example: If your system supports 5 stage types, document them in your API reference or setup guide. Don't expose a "stage type selector" in the editor UI for undefined types. Likewise, if you want journey/operations labels in your host, derive them from the authored assignment fields in one place instead of persisting a second surface flag.
 
 ### Configuration That Can Stay in the UI (Minimal)
 
@@ -90,7 +91,7 @@ Keep these concerns out of the editor shell entirely:
 - Feature flags or A/B testing toggles
 - Analytics or monitoring settings
 
-These belong in your application configuration, not the editor host.
+These belong in your application configuration, not the editor host. Preview and publish calls should receive the authored workflow contract only; keep editor-only lane hints out of those payloads.
 
 ---
 

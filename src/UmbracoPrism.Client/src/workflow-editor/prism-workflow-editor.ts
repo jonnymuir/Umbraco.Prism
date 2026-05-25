@@ -1,7 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
-  actorToEditorActor,
   type ActionCatalogEntry,
   type AuthoredAction,
   type AuthoredStage,
@@ -28,7 +27,6 @@ import './prism-workflow-simulation.js';
 import './prism-workflow-outline.js';
 import './prism-confidence-tabs.js';
 import './prism-help-panel.js';
-import type { PreviewSurface, PreviewSurfaceAvailability } from './prism-stage-preview.js';
 import type { ConfidenceTab } from './prism-confidence-tabs.js';
 import type {
   WorkflowSimulationHistoryEntry,
@@ -174,7 +172,6 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _saveState: SaveState = 'idle';
   @state() private _saveMessage: string | null = null;
   @state() private _helpOpen = false;
-  @state() private _previewSurface: PreviewSurface = 'public';
   @state() private _stagePreviewState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private _stagePreviewError: string | null = null;
   @state() private _projectedWorkflowPreview: ProjectWorkflowResult | null = null;
@@ -505,32 +502,6 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._syncStagePreview();
   }
 
-  private _isBackStage(stage: AuthoredStage): boolean {
-    if (stage.editorSurface) {
-      return stage.editorSurface === 'back-stage';
-    }
-
-    const actor = actorToEditorActor(stage.actor);
-    return actor === 'reviewer' || actor === 'system';
-  }
-
-  private _previewSurfaceAvailability(stage: AuthoredStage): PreviewSurfaceAvailability {
-    const backStage = this._isBackStage(stage);
-    return {
-      public: !backStage,
-      member: !backStage,
-      'back-stage': backStage,
-    };
-  }
-
-  private _defaultPreviewSurface(stage: AuthoredStage): PreviewSurface {
-    if (this._isBackStage(stage)) {
-      return 'back-stage';
-    }
-
-    return actorToEditorActor(stage.actor) === 'member' ? 'member' : 'public';
-  }
-
   private _clearStagePreviewTimer() {
     if (this._stagePreviewTimer !== null && typeof window !== 'undefined') {
       window.clearTimeout(this._stagePreviewTimer);
@@ -547,11 +518,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._stagePreviewError = null;
       this._projectedWorkflowPreview = null;
       return;
-    }
-
-    const availableViews = this._previewSurfaceAvailability(selectedStage);
-    if (!availableViews[this._previewSurface]) {
-      this._previewSurface = this._defaultPreviewSurface(selectedStage);
     }
 
     if (typeof window === 'undefined') {
@@ -1239,6 +1205,9 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
+    this._activeConfidenceTab = 'canvas';
+    this._inspectorCollapsed = false;
+
     if (issue.location.kind === 'stage') {
       this._applySelection({ kind: 'stage', stageKey: issue.location.stageKey }, this._workflow);
       this._actionSelection = null;
@@ -1287,20 +1256,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._saveMessage = error instanceof Error ? error.message : 'Save failed.';
       this._showToast(this._saveMessage);
     }
-  }
-
-  private _handlePreviewSurfaceSelected(e: CustomEvent<{ surface: PreviewSurface }>) {
-    const selectedStage = this._selectedStage;
-    if (!selectedStage) {
-      return;
-    }
-
-    const availableViews = this._previewSurfaceAvailability(selectedStage);
-    if (!availableViews[e.detail.surface]) {
-      return;
-    }
-
-    this._previewSurface = e.detail.surface;
   }
 
   private _startSimulation() {
@@ -1517,10 +1472,6 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   private _renderStagePreview() {
     const selectedStage = this._selectedStage;
-    const availableViews = selectedStage
-      ? this._previewSurfaceAvailability(selectedStage)
-      : { public: false, member: false, 'back-stage': false };
-
     return html`
       <prism-stage-preview
         .stage=${selectedStage}
@@ -1528,9 +1479,6 @@ export class PrismWorkflowEditorElement extends LitElement {
         .outgoingTransitions=${this._previewedTransitions}
         .previewState=${this._stagePreviewState}
         .errorMessage=${this._stagePreviewError ?? ''}
-        .selectedView=${this._previewSurface}
-        .availableViews=${availableViews}
-        @preview-surface-selected=${this._handlePreviewSurfaceSelected}
       ></prism-stage-preview>
     `;
   }

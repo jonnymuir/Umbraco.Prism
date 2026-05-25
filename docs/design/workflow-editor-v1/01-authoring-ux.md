@@ -61,9 +61,9 @@ V1 does **not** make raw JSON the main authoring surface. JSON can remain an adv
 
 ## 5. The V1 editor workspace
 
-The V1 editor is a single workspace with five persistent areas.
+The V1 editor is a single workspace with persistent structure, editing, and review surfaces.
 
-For the first role-first delivery slice, the main workspace stays on one screen: the graph/list workspace on the left, the inspector on the right, and the confidence surfaces below. That keeps the role-first framing visible while validation, preview, and simulation remain close at hand instead of becoming separate tabs.
+For the current role-first delivery slice, the main workspace stays on one screen: outline on the left, graph/list canvas in the middle, inspector on the right, and tabbed confidence surfaces underneath. That keeps the role-first framing visible while Canvas, Validation, Preview, Simulation, and Help stay close at hand.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -73,9 +73,7 @@ For the first role-first delivery slice, the main workspace stays on one screen:
 │ outline       │ stages, transitions, actions  │ selected item       │
 │               │                               │ details             │
 ├───────────────┴───────────────────────────────┴─────────────────────┤
-│ Validation and activity rail                                          │
-├─────────────────────────────────────────────────────────────────────┤
-│ Preview and simulation panel                                          │
+│ Confidence tabs: Canvas • Validation • Preview • Simulation • Help │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -122,7 +120,7 @@ Authors can switch between:
 - **Graph view** for visual editing of stages and transitions
 - **List view** for accessible, compact, detail-friendly editing
 
-Both views edit the same model. In the first role-first slice, graph view uses horizontal role bands so authors read the workflow as responsibilities and handoffs rather than a generic node field.
+Both views edit the same model. In the first role-first slice, graph view uses role-first lanes so authors read the workflow as responsibilities and handoffs rather than a generic node field.
 
 ### 5.4 Inspector
 
@@ -132,15 +130,15 @@ If the author selects a stage, the inspector shows stage details. If the author 
 
 The inspector is the only persistent right-side detail surface. AI conversation stays outside the editor so the workspace remains clearly about authoring.
 
-### 5.5 Validation and activity rail
+### 5.5 Tabbed confidence surfaces
 
-This rail shows:
+The bottom confidence strip keeps the review tools in one predictable place. It provides tabs for:
 
-- validation errors
-- warnings
-- affected items
-- proposal activity
-- save status
+- **Canvas** — returns focus to the main authoring workspace
+- **Validation** — errors, warnings, affected items, proposal activity, and save status
+- **Preview** — read-only runtime projection for the current stage
+- **Simulation** — path-walking through the authored flow
+- **Help** — shortcut and editing guidance
 
 Messages are written in workflow language, for example:
 
@@ -148,9 +146,7 @@ Messages are written in workflow language, for example:
 - “Submit action is missing a target stage.”
 - “ID verification action needs a provider.”
 
-### 5.6 Preview and simulation panel
-
-This panel lets authors preview the current stage or simulate a full path through the workflow without leaving the editor.
+Validation links should take the author back to the Canvas tab before focusing the affected stage, transition, or action so the jump target is never hidden behind another tab.
 
 ---
 
@@ -182,7 +178,7 @@ Each stage can define:
 - stage title
 - short description
 - actor or owning role
-- front-stage or back-stage placement
+- optional role gates for reviewer or back-stage access
 - stage type such as form, review, decision, waiting, confirmation, or system work
 - actions that run in the stage
 - outbound transitions
@@ -210,12 +206,12 @@ When a stage is selected, the inspector should make common changes easy:
 
 ### 7.4 Front stage and back stage
 
-The editor must clearly distinguish:
+The editor must clearly distinguish work based on who is assigned:
 
-- **Front stage** — public or member-facing work
-- **Back stage** — reviewer, caseworker, or system work
+- **Front stage** — public or member-facing work (actors like applicant, resident, citizen, member)
+- **Back stage** — reviewer, caseworker, or system work (actors like reviewer, officer, caseworker, or stages with role gates)
 
-Graph view shows these as role-first horizontal bands, with front-stage and back-stage placement still expressed through the owning role and supporting styling. List view shows the same distinction as a field and filter.
+Lane placement (front vs back stage) is **derived from the stage's actor and role-gate assignment**, not a separate editable or stored field. Authors set the actor and role gates, and the editor displays stages in the appropriate lane visually. Graph view shows these as role-first lanes with visual distinction through lane labels and styling. List view shows the same distinction as a filter.
 
 ---
 

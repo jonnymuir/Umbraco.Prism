@@ -33,8 +33,6 @@ export interface AuthoredStage {
   kind: StageKind;
   /** Actor/persona for this stage (informational). */
   actor?: string;
-  /** Optional editor-only lane hint for the graph workspace. */
-  editorSurface?: 'front-stage' | 'back-stage';
   /** Typed stage actions from the authoring catalog. */
   actions?: AuthoredAction[];
   /** Fields collected at this stage — matches C# AuthoredStage.Fields. */

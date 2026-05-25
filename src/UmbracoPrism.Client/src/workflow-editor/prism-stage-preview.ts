@@ -12,27 +12,21 @@ import type {
   ProjectedWorkflowState,
   ProjectedWorkflowTransition,
 } from './workflow-runtime-projection.js';
+import { humaniseAssignmentLabel } from './workflow-stage-assignment.js';
 
-export type PreviewSurface = 'public' | 'member' | 'back-stage';
-export type PreviewSurfaceAvailability = Record<PreviewSurface, boolean>;
+function assignmentCopy(projectedState: ProjectedWorkflowState): string {
+  const roleGates = projectedState.metadata?.roleGates?.filter(Boolean) ?? [];
+  if (roleGates.length > 0) {
+    return `Assigned to ${roleGates.map(humaniseAssignmentLabel).join(', ')}.`;
+  }
 
-const SURFACE_LABELS: Record<PreviewSurface, string> = {
-  public: 'Public',
-  member: 'Member',
-  'back-stage': 'Back-stage',
-};
+  const actor = projectedState.metadata?.actor?.trim();
+  if (actor) {
+    return `Assigned to ${humaniseAssignmentLabel(actor)}.`;
+  }
 
-const SURFACE_COPY: Record<PreviewSurface, string> = {
-  public: 'Public service page',
-  member: 'Member account page',
-  'back-stage': 'Back-stage caseworker page',
-};
-
-const EMPTY_AVAILABILITY: PreviewSurfaceAvailability = {
-  public: false,
-  member: false,
-  'back-stage': false,
-};
+  return 'Assignment comes from the workflow definition.';
+}
 
 @customElement('prism-stage-preview')
 export class PrismStagePreviewElement extends LitElement {
@@ -50,24 +44,6 @@ export class PrismStagePreviewElement extends LitElement {
 
   @property({ type: String })
   errorMessage = '';
-
-  @property({ type: String })
-  selectedView: PreviewSurface = 'public';
-
-  @property({ attribute: false })
-  availableViews: PreviewSurfaceAvailability = EMPTY_AVAILABILITY;
-
-  private _selectSurface(surface: PreviewSurface) {
-    if (!this.availableViews[surface]) {
-      return;
-    }
-
-    this.dispatchEvent(new CustomEvent<{ surface: PreviewSurface }>('preview-surface-selected', {
-      detail: { surface },
-      bubbles: true,
-      composed: true,
-    }));
-  }
 
   render() {
     const stage = this.stage;
@@ -87,20 +63,6 @@ export class PrismStagePreviewElement extends LitElement {
             </p>
           </div>
 
-          <div class="preview-selector" role="group" aria-label="Preview surface" data-prism-preview-selector>
-            ${(['public', 'member', 'back-stage'] as PreviewSurface[]).map(surface => html`
-              <button
-                type="button"
-                class="preview-selector-button"
-                data-prism-preview-surface=${surface}
-                aria-pressed=${String(this.selectedView === surface)}
-                ?disabled=${!this.availableViews[surface]}
-                @click=${() => this._selectSurface(surface)}
-              >
-                ${SURFACE_LABELS[surface]}
-              </button>
-            `)}
-          </div>
         </div>
 
         ${!stage
@@ -137,15 +99,13 @@ export class PrismStagePreviewElement extends LitElement {
   private _renderPreviewSurface(projectedState: ProjectedWorkflowState): TemplateResult {
     const shellLabel = shellLabelFor(projectedState);
     const formsEngine = projectedState.metadata?.actions?.some(action => action.type.startsWith('forms.'));
+    const previewAssignment = assignmentCopy(projectedState);
 
     return html`
-      <article
-        class=${`preview-surface preview-surface--${this.selectedView}`}
-        data-prism-preview-surface-panel=${this.selectedView}
-      >
+      <article class="preview-surface" data-prism-preview-surface-panel>
         <div class="preview-surface-header">
           <div>
-            <p class="preview-surface-copy">${SURFACE_COPY[this.selectedView]}</p>
+            <p class="preview-surface-copy" data-prism-preview-assignment>${previewAssignment}</p>
             <h3 class="preview-stage-name" data-prism-preview-stage-name>${projectedState.displayName}</h3>
             ${projectedState.metadata?.description
               ? html`<p class="preview-stage-description">${projectedState.metadata.description}</p>`
@@ -447,41 +407,6 @@ export class PrismStagePreviewElement extends LitElement {
       line-height: 1.5;
     }
 
-    .preview-selector {
-      display: inline-flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      justify-content: flex-end;
-    }
-
-    .preview-selector-button {
-      border: 1px solid #1d70b8;
-      border-radius: 999px;
-      background: #ffffff;
-      color: #1d70b8;
-      padding: 0.35rem 0.8rem;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .preview-selector-button[aria-pressed="true"] {
-      background: #1d70b8;
-      color: #ffffff;
-    }
-
-    .preview-selector-button[disabled] {
-      border-color: #b1b4b6;
-      color: #6f777b;
-      cursor: not-allowed;
-      opacity: 0.75;
-    }
-
-    .preview-selector-button:focus-visible {
-      outline: 3px solid #ffdd00;
-      outline-offset: 2px;
-    }
-
     .preview-empty,
     .preview-error,
     .preview-loading {
@@ -514,18 +439,6 @@ export class PrismStagePreviewElement extends LitElement {
       overflow: hidden;
     }
 
-    .preview-surface--public .preview-surface-header {
-      background: #eef4fb;
-    }
-
-    .preview-surface--member .preview-surface-header {
-      background: #edf7f5;
-    }
-
-    .preview-surface--back-stage .preview-surface-header {
-      background: #fdf1f2;
-    }
-
     .preview-surface-header {
       display: flex;
       justify-content: space-between;
@@ -533,6 +446,7 @@ export class PrismStagePreviewElement extends LitElement {
       align-items: start;
       padding: 1rem;
       border-bottom: 1px solid #d8dde3;
+      background: #eef4fb;
     }
 
     .preview-stage-name {
@@ -620,7 +534,6 @@ export class PrismStagePreviewElement extends LitElement {
         flex-direction: column;
       }
 
-      .preview-selector,
       .preview-meta {
         justify-content: flex-start;
       }

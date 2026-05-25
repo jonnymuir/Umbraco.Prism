@@ -159,3 +159,7 @@ See `history-archive.md` for full session-by-session record.
 
 Fixed workflow editor UI regression: walkthrough heading drift alignment + visual baseline regeneration. Local client validation passed. Decisions logged: `isabelle-ci-ui-regression.md`, `isabelle-ci-workflow-smoke-fix.md`.
 
+
+## Learnings
+
+- 2026-05-25T09:54:48.365+01:00 — For workflow surface cleanup, derive lane meaning from actor and role gates, not a parallel `editorSurface` flag. Strip UI-only surface hints before project/publish requests, and when validation links jump to an issue from the Validation tab, switch back to Canvas so the inspector target is actually visible.

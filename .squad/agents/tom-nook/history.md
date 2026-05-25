@@ -176,3 +176,8 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - Orchestration log recorded
 - Tangy executing parallel behavioural track (#78–#80)
 - Squad ready for coordinated execution
+
+### 2026-05-25T11:48:05.065+01:00 — Issue #81 landing discipline
+
+- When issue work is sitting uncommitted on `main`, branch it before landing; the repo now treats feature-branch + PR workflow as mandatory for code changes.
+- For workflow lane cleanup, ship the shared assignment helper, projection sanitiser, docs, and behavioural proof together so the source-of-truth change is explicit across code and design notes.

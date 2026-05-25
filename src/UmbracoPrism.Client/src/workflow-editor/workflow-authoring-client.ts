@@ -22,6 +22,18 @@ import type {
 import { STUB_ACTION_CATALOG } from './types.js';
 import { projectWorkflowLocally, type ProjectWorkflowResult } from './workflow-runtime-projection.js';
 
+function stripLegacyStageSurface<T extends AuthoredStage>(stage: T): T {
+  const { editorSurface: _editorSurface, ...rest } = stage as T & { editorSurface?: 'front-stage' | 'back-stage' };
+  return rest as T;
+}
+
+function serialiseWorkflow(workflow: AuthoredWorkflow): AuthoredWorkflow {
+  return {
+    ...workflow,
+    stages: workflow.stages.map(stage => stripLegacyStageSurface(stage)),
+  };
+}
+
 export type WorkflowAuthoringSummary = {
   workflowKey: string;
   id: string;
@@ -121,20 +133,12 @@ function normaliseAction(raw: Record<string, unknown>): AuthoredAction {
 }
 
 function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
-  const editorSurface =
-    raw.editorSurface === 'front-stage' || raw.editorSurface === 'back-stage'
-      ? raw.editorSurface
-      : raw.surface === 'front-stage' || raw.surface === 'back-stage'
-        ? raw.surface
-        : undefined;
-
   return {
     stageKey: String(raw.stageKey ?? raw.key ?? ''),
     displayName: String(raw.displayName ?? raw.title ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
     kind: mapStageKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined),
     actor: typeof raw.actor === 'string' ? raw.actor : undefined,
-    editorSurface,
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
       : [],
@@ -358,12 +362,13 @@ export async function publishWorkflow(
   workflow: AuthoredWorkflow,
   apiBase?: string
 ): Promise<void> {
+  const payload = serialiseWorkflow(workflow);
   const res = await fetch(
     url(`/api/workflow-authoring/workflows/${encodeURIComponent(key)}/publish`, apiBase),
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(workflow),
+      body: JSON.stringify(payload),
     }
   );
   if (!res.ok)
@@ -376,13 +381,14 @@ export async function projectWorkflow(
   apiBase?: string,
   options?: { signal?: AbortSignal }
 ): Promise<ProjectWorkflowResult> {
+  const requestBody = serialiseWorkflow(workflow);
   try {
     const res = await fetch(
       url(`/api/workflow-authoring/workflows/${encodeURIComponent(key)}/project`, apiBase),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(workflow),
+        body: JSON.stringify(requestBody),
         signal: options?.signal,
       }
     );
@@ -401,7 +407,7 @@ export async function projectWorkflow(
     }
   }
 
-  return projectWorkflowLocally(workflow);
+  return projectWorkflowLocally(requestBody);
 }
 
 function isProjectWorkflowResult(value: unknown): value is ProjectWorkflowResult {

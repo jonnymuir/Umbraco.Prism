@@ -4346,3 +4346,36 @@ Create and order the redesign as the following GitHub issues:
 - Keep issues small enough to land one slice at a time.
 - Keep behavioural tests green throughout the sequence.
 - Avoid implementation-mirror framing; describe the user-visible intent and safety bar instead.
+
+---
+author: Tom Nook
+date: 2026-05-25T11:48:05.065+01:00
+status: implemented
+area: workflow-assignment-contract
+---
+
+# Decision: Issue #81 workflow assignment contract cleanup
+
+## Context
+
+Issue #81 removes duplicate workflow surface rules before the concurrent-lane redesign. The working slice already replaced stored `editorSurface` hints with shared assignment derivation, updated preview and inspector language, and tightened behavioural tests around visible lane and assignment copy.
+
+## Decision
+
+- Treat `actor` and `roleGates` as the only authored source of truth for assignment and lane meaning.
+- Remove `editorSurface` from the authored stage contract and strip any legacy value before preview, project, or publish requests.
+- Keep the projected Umbraco-facing runtime contract clean: assignment data stays, editor-only surface metadata does not.
+- Keep behavioural coverage pinned to author-visible outcomes (lane labels, assignment copy, validation jumps) rather than internal `front-stage` / `back-stage` plumbing.
+- When a validation issue is opened from a non-canvas tab, return the author to Canvas before focusing the affected inspector target.
+
+## Outcome
+
+This cleanup preserves current linear workflow behaviour and the four showcase workflows while making later lane work safer. The lane presentation can now evolve without changing the authored payload or the runtime projection contract.
+
+## References
+
+- `.squad/decisions/inbox/isabelle-surface-cleanup.md`
+- `.squad/decisions/inbox/tangy-issue-81-tests.md`
+- `.squad/skills/workflow-assignment-source-of-truth/SKILL.md`
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-stage-assignment.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts`
