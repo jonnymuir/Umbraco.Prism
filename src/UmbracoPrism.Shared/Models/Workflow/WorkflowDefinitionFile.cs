@@ -101,6 +101,12 @@ public record WorkflowDefinitionMetadata
     public string? SchemaVersion { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowLaneDefinition>? Lanes { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowGatewayDefinition>? Gateways { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, string>? Tags { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -121,6 +127,36 @@ public record WorkflowHandoffDefinition
     public string? ActorChange { get; init; }
 }
 
+/// <summary>Preserved authored-lane metadata.</summary>
+public record WorkflowLaneDefinition
+{
+    public string Key { get; init; } = "";
+
+    public string DisplayName { get; init; } = "";
+
+    public string? Actor { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RoleGates { get; init; }
+}
+
+/// <summary>Preserved authored-gateway metadata.</summary>
+public record WorkflowGatewayDefinition
+{
+    public string Key { get; init; } = "";
+
+    public string DisplayName { get; init; } = "";
+
+    public string GatewayType { get; init; } = "";
+
+    public string LaneKey { get; init; } = "";
+
+    public string? Actor { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RoleGates { get; init; }
+}
+
 /// <summary>Preserved authored-state metadata.</summary>
 public record WorkflowStateMetadata
 {
@@ -129,6 +165,8 @@ public record WorkflowStateMetadata
     public string? StageType { get; init; }
 
     public string? Actor { get; init; }
+
+    public string? LaneKey { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? RoleGates { get; init; }

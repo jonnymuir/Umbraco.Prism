@@ -72,10 +72,10 @@ test.describe('Workflow graph behavioral tests', () => {
     // Verify inline editing fields are present
     await expect(storyEl.locator('[data-prism-inline-field]').first()).toBeVisible();
 
-    // Verify filtering options exist
+    // Verify lane filtering options exist
     await expect(page.getByRole('button', { name: 'All stages' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Journey lanes' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Operations lanes' })).toBeVisible();
+    const filterCount = await storyEl.locator('[data-prism-linear-filter]').count();
+    expect(filterCount).toBeGreaterThan(1);
 
     // Verify action buttons are present (move, delete, insert)
     await expect(storyEl.locator('[data-prism-move-up]').first()).toBeVisible();

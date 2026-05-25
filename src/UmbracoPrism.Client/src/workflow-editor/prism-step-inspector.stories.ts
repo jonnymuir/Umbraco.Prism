@@ -90,9 +90,9 @@ export const EditableStage: Story = {
     title.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
 
-    const actor = root.querySelector<HTMLSelectElement>('[data-prism-stage-actor]')!;
-    actor.value = 'member';
-    actor.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    const lane = root.querySelector<HTMLInputElement>('[data-prism-stage-lane]')!;
+    lane.value = 'member';
+    lane.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
 
     const stageType = root.querySelector<HTMLSelectElement>('[data-prism-stage-type]')!;

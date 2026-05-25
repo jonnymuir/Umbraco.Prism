@@ -13,7 +13,11 @@ Use this when the workflow editor has accumulated both authored assignment data 
 ## Patterns
 
 - Treat `actor` and `roleGates` as the authored source of truth for lane assignment.
+- When named lanes become first-class, keep shared assignment on workflow-level lane definitions and let stages/gateways reference the lane by key.
+- Project effective assignment back onto published state/gateway metadata so current runtime consumers stay assignment-driven even before multi-lane execution lands.
 - Derive editor lane labels, descriptions, and styling from that assignment data in one shared helper.
+- Prefer one author-facing **lane owner** control over separate actor/surface toggles, then translate that value back into `actor` and `roleGates` in one shared helper.
+- Generate list filters and similar navigation affordances from the lane keys actually present in the workflow instead of hard-coding journey/operations buckets.
 - Ignore or strip legacy surface hints on the way back to preview/project/publish APIs so the runtime contract stays clean.
 - If validation links originate in a non-canvas tool tab, switch back to Canvas before focusing the selected inspector target.
 - Keep behavioural tests pinned to visible assignment copy and navigation outcomes, not internal surface enum names.

@@ -92,9 +92,47 @@ public class AuthoredWorkflowSchemaValidationTests
         var defs = document.RootElement.GetProperty("$defs");
 
         defs.TryGetProperty("stage", out _).Should().BeTrue();
+        defs.TryGetProperty("lane", out _).Should().BeTrue();
+        defs.TryGetProperty("gateway", out _).Should().BeTrue();
         defs.TryGetProperty("transition", out _).Should().BeTrue();
         defs.TryGetProperty("action", out _).Should().BeTrue();
         defs.TryGetProperty("parameterSchema", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Project_WithUnknownStageLane_ReturnsValidationError()
+    {
+        var baseline = BuildValidWorkflow();
+        var workflow = baseline with
+        {
+            Stages =
+            [
+                baseline.Stages[0] with
+                {
+                    LaneKey = "missing-lane"
+                }
+            ]
+        };
+
+        var result = _projector.Project(workflow);
+
+        result.HasErrors.Should().BeTrue();
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ129");
+    }
+
+    [Fact]
+    public void Project_WithGatewayAndLane_PreservesLaneOwnedMetadata()
+    {
+        var result = _projector.Project(BuildValidWorkflow());
+
+        result.HasErrors.Should().BeFalse();
+        result.File.Metadata!.Lanes.Should().ContainSingle(lane => lane.Key == "applicant" && lane.Actor == "applicant");
+        result.File.Metadata.Gateways.Should().ContainSingle(gateway =>
+            gateway.Key == "review-split"
+            && gateway.LaneKey == "applicant"
+            && gateway.Actor == "applicant");
+        result.File.States.Should().ContainSingle(state => state.StateKey == "details")
+            .Which.Metadata!.LaneKey.Should().Be("applicant");
     }
 
     private static AuthoredWorkflow BuildValidWorkflow() => new()
@@ -102,6 +140,25 @@ public class AuthoredWorkflowSchemaValidationTests
         DefinitionKey = "schema-validation",
         DisplayName = "Schema Validation",
         InitialStageKey = "details",
+        Lanes =
+        [
+            new AuthoredLane
+            {
+                Key = "applicant",
+                DisplayName = "Applicant lane",
+                Actor = "applicant"
+            }
+        ],
+        Gateways =
+        [
+            new AuthoredGateway
+            {
+                GatewayKey = "review-split",
+                DisplayName = "Review split",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant"
+            }
+        ],
         Stages =
         [
             new AuthoredStage
@@ -109,6 +166,7 @@ public class AuthoredWorkflowSchemaValidationTests
                 StageKey = "details",
                 DisplayName = "Details",
                 Kind = StageKind.Question,
+                LaneKey = "applicant",
                 Actions =
                 [
                     new AuthoredAction

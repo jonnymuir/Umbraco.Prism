@@ -5,7 +5,7 @@ function storyUrl(storyId: string): string {
 }
 
 async function openPreviewForDeclaration(page: import('@playwright/test').Page) {
-  await page.getByRole('button', { name: /Declaration, Applicant role/i }).dblclick();
+  await page.getByRole('button', { name: /Declaration, Applicant lane/i }).dblclick();
   const previewTab = page.getByRole('tab', { name: 'Preview' });
   await expect(previewTab).toBeVisible();
   await previewTab.click();
@@ -68,7 +68,9 @@ test.describe('Workflow editor stage preview', () => {
     const titleInput = page.getByLabel('Title');
     await titleInput.fill('Declaration preview');
     await titleInput.press('Tab');
-    await page.getByLabel('Actor').selectOption('reviewer');
+    const laneInput = page.locator('[data-prism-stage-lane]');
+    await laneInput.fill('reviewer');
+    await laneInput.press('Tab');
     await page.getByRole('tab', { name: 'Preview' }).click();
 
     await expect(page.locator('[data-prism-preview-loading]')).toContainText('Updating preview');

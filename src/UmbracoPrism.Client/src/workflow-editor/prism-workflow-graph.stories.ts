@@ -24,7 +24,7 @@ function makeElement(args: StoryArgs): PrismWorkflowGraphElement {
   return el;
 }
 
-function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, actor: string, type: string) {
+function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, lane: string, type: string) {
   const nameInput = root.querySelector<HTMLInputElement>('[data-prism-create-stage-title]')!;
   nameInput.value = name;
   nameInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
@@ -33,9 +33,9 @@ function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, acto
   keyInput.value = key;
   keyInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 
-  const actorSelect = root.querySelector<HTMLSelectElement>('[data-prism-create-stage-actor]')!;
-  actorSelect.value = actor;
-  actorSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+  const laneInput = root.querySelector<HTMLInputElement>('[data-prism-create-stage-lane]')!;
+  laneInput.value = lane;
+  laneInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 
   const typeSelect = root.querySelector<HTMLSelectElement>('[data-prism-create-stage-type]')!;
   typeSelect.value = type;
@@ -202,11 +202,11 @@ export const LinearMode: Story = {
 
     await expect(root.querySelector('[data-prism-linear-table]')).not.toBeNull();
 
-    root.querySelector<HTMLButtonElement>('[data-prism-linear-filter="back-stage"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-prism-linear-filter="reviewer"]')!.click();
     await el.updateComplete;
     await expect(root.querySelectorAll('[data-prism-list-row]').length).toBe(1);
 
-    root.querySelector<HTMLButtonElement>('[data-prism-linear-filter="all"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-prism-linear-filter="__all__"]')!.click();
     await el.updateComplete;
 
     const titleInput = root.querySelector<HTMLInputElement>('[data-prism-list-row="applicant-details"] [data-prism-inline-field="displayName"]')!;

@@ -83,6 +83,7 @@ public sealed class WorkflowPreviewService : IWorkflowPreviewService
         if (original.DisplayName != patched.DisplayName) changes.Add("displayName");
         if (original.Kind        != patched.Kind)        changes.Add("kind");
         if (original.Actor       != patched.Actor)       changes.Add("actor");
+        if (original.LaneKey     != patched.LaneKey)     changes.Add("laneKey");
 
         var origFields    = original.Fields.ToDictionary(f => f.Key, StringComparer.Ordinal);
         var patchedFields = patched.Fields.ToDictionary(f => f.Key, StringComparer.Ordinal);

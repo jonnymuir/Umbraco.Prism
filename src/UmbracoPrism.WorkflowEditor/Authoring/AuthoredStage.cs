@@ -76,6 +76,10 @@ public record AuthoredStage
     [JsonPropertyName("actor")]
     public string? Actor { get; init; }
 
+    /// <summary>Optional named lane that owns this stage.</summary>
+    [JsonPropertyName("laneKey")]
+    public string? LaneKey { get; init; }
+
     /// <summary>Typed actions that run when the workflow enters or exits this stage.</summary>
     [JsonPropertyName("actions")]
     public IReadOnlyList<AuthoredAction> Actions { get; init; } = [];

@@ -6,16 +6,18 @@ import type {
   AuthoredStage,
   AuthoredTransition,
   AuthoredWorkflow,
-  EditorActor,
   EditorStageType,
 } from './types.js';
 import {
-  actorToEditorActor,
-  editorActorToActor,
   editorStageTypeToStageKind,
   stageKindToEditorStageType,
 } from './types.js';
-import { stageLaneKey, stageLaneLabel } from './workflow-stage-assignment.js';
+import {
+  applyLaneToStage,
+  stageLaneKey,
+  stageLaneLabel,
+  workflowLaneOptions,
+} from './workflow-stage-assignment.js';
 import {
   describeTransitionCondition,
   parseTransitionCondition,
@@ -41,13 +43,6 @@ const STAGE_TYPE_OPTIONS: Array<{ value: EditorStageType; label: string }> = [
   { value: 'waiting', label: 'Waiting' },
   { value: 'confirmation', label: 'Confirmation' },
   { value: 'system-work', label: 'System work' },
-];
-
-const ACTOR_OPTIONS: Array<{ value: EditorActor; label: string }> = [
-  { value: 'public', label: 'Public' },
-  { value: 'member', label: 'Member' },
-  { value: 'reviewer', label: 'Reviewer' },
-  { value: 'system', label: 'System' },
 ];
 
 type GraphSelectionDetail = {
@@ -292,22 +287,17 @@ export class PrismStepInspectorElement extends LitElement {
     this._announce(`${stage.displayName} description updated.`);
   }
 
-  private _updateStageActor(event: Event) {
+  private _updateStageLane(event: Event) {
     const stage = this._selectedStage;
     if (!stage) {
       return;
     }
 
-    const nextActor = (event.currentTarget as HTMLSelectElement).value as EditorActor;
-    const actor = editorActorToActor(nextActor);
-    const nextStage: AuthoredStage = {
-      ...stage,
-      actor,
-      roleGates: nextActor === 'reviewer' ? ['reviewer'] : [],
-    };
+    const laneKey = (event.currentTarget as HTMLInputElement).value;
+    const nextStage = applyLaneToStage(stage, laneKey);
 
     this._replaceSelectedStage(nextStage);
-    this._announce(`${stage.displayName} actor updated.`);
+    this._announce(`${stage.displayName} lane updated.`);
   }
 
   private _updateStageType(event: Event) {
@@ -604,10 +594,10 @@ export class PrismStepInspectorElement extends LitElement {
     const actions = stage.actions ?? [];
     const outgoing = this._selectedStageOutgoing(stage);
     const stageType = stageKindToEditorStageType(stage.kind);
-    const actor = actorToEditorActor(stage.actor);
     const laneKey = stageLaneKey(stage);
     const laneLabel = stageLaneLabel(this.workflow, laneKey);
     const laneEyebrow = `${laneLabel} lane`;
+    const laneOptionsId = `stage-lane-options-${stage.stageKey}`;
     const unreachable = this.workflow
       ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
       : false;
@@ -687,12 +677,26 @@ export class PrismStepInspectorElement extends LitElement {
                 : nothing}
             </label>
             <label class="field-block">
-              <span class="field-label">Actor</span>
-              <select class="field-control" data-prism-stage-actor @change=${this._updateStageActor}>
-                ${ACTOR_OPTIONS.map(option => html`
-                  <option value=${option.value} ?selected=${actor === option.value}>${option.label}</option>
+              <span class="field-label-row">
+                <span class="field-label">Lane owner</span>
+                <prism-inline-help
+                  label="Lane owner help"
+                  message="Use the lane key that owns this work, for example applicant, reviewer, finance, or planning-officer. The editor keeps actor and role-gate assignment aligned from this lane value."
+                ></prism-inline-help>
+              </span>
+              <input
+                class="field-control"
+                data-prism-stage-lane
+                .value=${laneKey}
+                list=${laneOptionsId}
+                placeholder="planning-officer"
+                @change=${this._updateStageLane}
+              />
+              <datalist id=${laneOptionsId}>
+                ${workflowLaneOptions(this.workflow).map(option => html`
+                  <option value=${option}>${stageLaneLabel(this.workflow, option)}</option>
                 `)}
-              </select>
+              </datalist>
             </label>
             <label class="field-block">
               <span class="field-label">Type</span>

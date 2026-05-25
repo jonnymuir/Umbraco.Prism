@@ -13,6 +13,8 @@ Keep it simple: this design has three main parts — a **workflow editor**, a **
 
 Projection, Umbraco hosting, validation, and future Copilot or MCP workflows still matter. In this design set they are treated as supporting seams behind the editor, not as extra top-level products.
 
+> **Multi-lane note:** This V1 set is now partial on concurrent lane behaviour. For the canonical design covering lane ownership, independent cursors, split gateways, join gateways, deterministic convergence, and history semantics, use [`../workflow-multi-lane-engine.md`](../workflow-multi-lane-engine.md).
+
 ---
 
 ## 1. Simple framing

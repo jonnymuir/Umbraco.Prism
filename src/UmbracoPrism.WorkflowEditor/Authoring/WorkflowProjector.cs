@@ -66,6 +66,8 @@ public sealed class WorkflowProjector : IWorkflowProjector
         Validate(authored, diagnostics);
 
         // 2. Normalise — sort everything into canonical order before emitting
+        var lanesByKey = authored.Lanes.ToDictionary(lane => lane.Key, StringComparer.Ordinal);
+
         var normalisedStages = authored.Stages
             .OrderBy(s => s.StageKey, StringComparer.Ordinal)
             .ToList();
@@ -78,7 +80,7 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
         // 3. Emit
         var states = normalisedStages
-            .Select(s => EmitStage(authored, s, diagnostics))
+            .Select(s => EmitStage(authored, s, diagnostics, lanesByKey))
             .ToList();
 
         var transitions = normalisedTransitions
@@ -161,7 +163,8 @@ public sealed class WorkflowProjector : IWorkflowProjector
     private static StepDefinition EmitStage(
         AuthoredWorkflow authored,
         AuthoredStage stage,
-        List<ProjectionDiagnostic> diagnostics)
+        List<ProjectionDiagnostic> diagnostics,
+        IReadOnlyDictionary<string, AuthoredLane> lanesByKey)
     {
         var components = EmitComponents(authored, stage, diagnostics);
 
@@ -170,7 +173,7 @@ public sealed class WorkflowProjector : IWorkflowProjector
             StateKey = stage.StageKey,
             DisplayName = stage.DisplayName,
             Components = components,
-            Metadata = EmitStateMetadata(stage)
+            Metadata = EmitStateMetadata(stage, lanesByKey)
         };
     }
 
@@ -273,6 +276,40 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
     private static WorkflowDefinitionMetadata? EmitWorkflowMetadata(AuthoredWorkflow authored)
     {
+        var lanes = authored.Lanes.Count == 0
+            ? null
+            : authored.Lanes
+                .OrderBy(lane => lane.Key, StringComparer.Ordinal)
+                .Select(lane => new WorkflowLaneDefinition
+                {
+                    Key = lane.Key,
+                    DisplayName = lane.DisplayName,
+                    Actor = lane.Actor,
+                    RoleGates = lane.RoleGates.Count == 0 ? null : lane.RoleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray()
+                })
+                .ToArray();
+
+        var lanesByKey = authored.Lanes.ToDictionary(lane => lane.Key, StringComparer.Ordinal);
+
+        var gateways = authored.Gateways.Count == 0
+            ? null
+            : authored.Gateways
+                .OrderBy(gateway => gateway.GatewayKey, StringComparer.Ordinal)
+                .Select(gateway =>
+                {
+                    var assignment = ResolveAssignment(gateway.LaneKey, gateway.Actor, gateway.RoleGates, lanesByKey);
+                    return new WorkflowGatewayDefinition
+                    {
+                        Key = gateway.GatewayKey,
+                        DisplayName = gateway.DisplayName,
+                        GatewayType = gateway.Kind.ToString(),
+                        LaneKey = gateway.LaneKey,
+                        Actor = assignment.Actor,
+                        RoleGates = assignment.RoleGates
+                    };
+                })
+                .ToArray();
+
         var handoffs = authored.Handoffs.Count == 0
             ? null
             : authored.Handoffs
@@ -295,6 +332,8 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
         if (string.IsNullOrWhiteSpace(authored.Description)
             && string.IsNullOrWhiteSpace(authored.SchemaVersion)
+            && lanes is null
+            && gateways is null
             && handoffs is null
             && tags is null)
         {
@@ -309,19 +348,24 @@ public sealed class WorkflowProjector : IWorkflowProjector
             AuthoredWorkflowId = authored.Id,
             Description = authored.Description,
             SchemaVersion = authored.SchemaVersion,
+            Lanes = lanes,
+            Gateways = gateways,
             Tags = tags,
             Handoffs = handoffs
         };
     }
 
-    private static WorkflowStateMetadata? EmitStateMetadata(AuthoredStage stage)
+    private static WorkflowStateMetadata? EmitStateMetadata(
+        AuthoredStage stage,
+        IReadOnlyDictionary<string, AuthoredLane> lanesByKey)
     {
         var actions = EmitActions(stage.Actions);
-        var roleGates = stage.RoleGates.Count == 0 ? null : stage.RoleGates.ToArray();
+        var assignment = ResolveAssignment(stage.LaneKey, stage.Actor, stage.RoleGates, lanesByKey);
 
         if (string.IsNullOrWhiteSpace(stage.Description)
-            && string.IsNullOrWhiteSpace(stage.Actor)
-            && roleGates is null
+            && string.IsNullOrWhiteSpace(assignment.Actor)
+            && string.IsNullOrWhiteSpace(stage.LaneKey)
+            && assignment.RoleGates is null
             && actions is null)
         {
             return new WorkflowStateMetadata
@@ -334,10 +378,34 @@ public sealed class WorkflowProjector : IWorkflowProjector
         {
             Description = stage.Description,
             StageType = stage.Kind.ToString(),
-            Actor = stage.Actor,
-            RoleGates = roleGates,
+            Actor = assignment.Actor,
+            LaneKey = stage.LaneKey,
+            RoleGates = assignment.RoleGates,
             Actions = actions
         };
+    }
+
+    private static (string? Actor, string[]? RoleGates) ResolveAssignment(
+        string? laneKey,
+        string? actor,
+        IReadOnlyList<string> roleGates,
+        IReadOnlyDictionary<string, AuthoredLane> lanesByKey)
+    {
+        if (!string.IsNullOrWhiteSpace(laneKey) && lanesByKey.TryGetValue(laneKey, out var lane))
+        {
+            var effectiveActor = !string.IsNullOrWhiteSpace(actor) ? actor : lane.Actor;
+            var effectiveRoleGates = roleGates.Count > 0
+                ? roleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray()
+                : lane.RoleGates.Count > 0
+                    ? lane.RoleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray()
+                    : null;
+
+            return (effectiveActor, effectiveRoleGates);
+        }
+
+        return (
+            actor,
+            roleGates.Count == 0 ? null : roleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray());
     }
 
     private static WorkflowTransitionMetadata? EmitTransitionMetadata(AuthoredTransition transition)

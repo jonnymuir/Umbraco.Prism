@@ -1,8 +1,16 @@
 import { LitElement, css, html, nothing, svg } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import type { AuthoredStage, AuthoredTransition, AuthoredWorkflow, EditorActor, EditorStageType } from './types.js';
-import { editorActorToActor, editorStageTypeToStageKind } from './types.js';
-import { stageLaneDescription, stageLaneKey, stageLaneLabel, stageSurface, type StageSurface } from './workflow-stage-assignment.js';
+import type { AuthoredStage, AuthoredTransition, AuthoredWorkflow, EditorStageType } from './types.js';
+import { editorStageTypeToStageKind } from './types.js';
+import {
+  applyLaneToStage,
+  stageLaneDescription,
+  stageLaneKey,
+  stageLaneLabel,
+  stageSurface,
+  type StageSurface,
+  workflowLaneOptions,
+} from './workflow-stage-assignment.js';
 import {
   defaultTransitionAction,
   defaultTransitionTarget,
@@ -15,7 +23,7 @@ import {
 import { workflowDeadEndStages, workflowUnreachableStages } from './workflow-validation.js';
 
 export type GraphMode = 'graph' | 'linear';
-type LinearFilter = 'all' | StageSurface;
+type LinearFilter = '__all__' | string;
 type SelectionKind = 'stage' | 'transition';
 
 type GraphSelectionDetail = {
@@ -83,7 +91,7 @@ type CreateStageDialogState = {
   referenceStageKey: string | null;
   title: string;
   stageKey: string;
-  actor: EditorActor;
+  laneKey: string;
   stageType: EditorStageType;
   keyTouched: boolean;
   error: string | null;
@@ -116,14 +124,7 @@ const EDGE_LABEL_HEIGHT = 32;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
 const LANE_HEADER_OFFSET = 80;
-const SURFACE_LABELS: Record<StageSurface, string> = {
-  'front-stage': 'Journey lane',
-  'back-stage': 'Operations lane',
-};
-const SURFACE_FILTER_LABELS: Record<StageSurface, string> = {
-  'front-stage': 'Journey lanes',
-  'back-stage': 'Operations lanes',
-};
+const ALL_LANES_FILTER: LinearFilter = '__all__';
 
 /**
  * Workflow graph workspace for stage/transition authoring.
@@ -177,7 +178,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _contextMenu: ContextMenuState | null = null;
 
   @state()
-  private _linearFilter: LinearFilter = 'all';
+  private _linearFilter: LinearFilter = ALL_LANES_FILTER;
 
   @state()
   private _draggedLinearStageKey: string | null = null;
@@ -363,6 +364,10 @@ export class PrismWorkflowGraphElement extends LitElement {
     return stageLaneDescription(this.workflow, laneKey);
   }
 
+  private _availableLaneKeys() {
+    return workflowLaneOptions(this.workflow);
+  }
+
   private _buildTransitionPath(source: StageLayout, target: StageLayout) {
     const sameLane = source.laneKey === target.laneKey;
     const startX = source.x + source.width / 2;
@@ -534,7 +539,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private _visibleLinearStages(stages: AuthoredStage[] = this.workflow?.stages ?? []) {
     return stages.filter(stage =>
-      this._linearFilter === 'all' || this._surfaceForStage(stage) === this._linearFilter
+      this._linearFilter === ALL_LANES_FILTER || stageLaneKey(stage) === this._linearFilter
     );
   }
 
@@ -568,16 +573,16 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._linearFilter = filter;
     this._focusedIndex = 0;
     this._announce(
-      filter === 'all'
+      filter === ALL_LANES_FILTER
         ? 'Showing all stages in the list workspace.'
-        : `Showing ${SURFACE_FILTER_LABELS[filter]} only.`
+        : `Showing ${this._roleLabelForLane(filter)} lane only.`
     );
     this._focusLinearRow(0);
   }
 
   private _commitStageField(
     stageKey: string,
-    field: 'stageKey' | 'displayName' | 'actor' | 'kind',
+    field: 'stageKey' | 'displayName' | 'lane' | 'kind',
     value: string
   ) {
     if (!this.workflow) {
@@ -590,8 +595,8 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     const currentStage = this.workflow.stages[stageIndex];
-    const currentValue = field === 'actor'
-      ? currentStage.actor ?? ''
+    const currentValue = field === 'lane'
+      ? stageLaneKey(currentStage)
       : String(currentStage[field] ?? '');
     if (value === currentValue) {
       return;
@@ -641,12 +646,9 @@ export class PrismWorkflowGraphElement extends LitElement {
         ? trimmed
         : this._dragOverLinearStageKey;
       announcement = `Stage key updated to ${trimmed}.`;
-    } else if (field === 'actor') {
-      nextStages[stageIndex] = {
-        ...currentStage,
-        actor: value.trim() ? value.trim() : undefined,
-      };
-      announcement = `${currentStage.displayName} actor updated.`;
+    } else if (field === 'lane') {
+      nextStages[stageIndex] = applyLaneToStage(currentStage, value);
+      announcement = `${currentStage.displayName} lane updated.`;
     } else if (field === 'kind') {
       nextStages[stageIndex] = {
         ...currentStage,
@@ -699,7 +701,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     return this._makeUniqueStageKey(slug);
   }
 
-  private _defaultActorForSurface(surface: StageSurface): EditorActor {
+  private _defaultLaneForSurface(surface: StageSurface) {
     return surface === 'back-stage' ? 'reviewer' : 'public';
   }
 
@@ -814,15 +816,19 @@ export class PrismWorkflowGraphElement extends LitElement {
     referenceStageKey: string | null,
     returnTarget?: HTMLElement | null
   ) {
-    const baseTitle = surfaceHint === 'back-stage' ? 'Review stage' : 'New stage';
+    const referenceStage = referenceStageKey
+      ? this.workflow?.stages.find(stage => stage.stageKey === referenceStageKey) ?? null
+      : null;
+    const defaultLaneKey = referenceStage ? stageLaneKey(referenceStage) : this._defaultLaneForSurface(surfaceHint);
+    const baseTitle = 'New stage';
     this._dialogReturnTarget = returnTarget ?? this._contextReturnTarget ?? null;
     this._createStageDialog = {
       surfaceHint,
       position,
       referenceStageKey,
       title: baseTitle,
-      stageKey: this._slugifyStageKey(baseTitle, surfaceHint === 'back-stage' ? 'review-stage' : 'new-stage'),
-      actor: this._defaultActorForSurface(surfaceHint),
+      stageKey: this._slugifyStageKey(baseTitle, 'new-stage'),
+      laneKey: defaultLaneKey,
       stageType: 'form',
       keyTouched: false,
       error: null,
@@ -845,10 +851,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       title: value,
       stageKey: this._createStageDialog.keyTouched
         ? this._createStageDialog.stageKey
-        : this._slugifyStageKey(
-            value,
-            this._createStageDialog.surfaceHint === 'back-stage' ? 'review-stage' : 'new-stage'
-          ),
+        : this._slugifyStageKey(value, 'new-stage'),
       error: null,
     };
   }
@@ -862,6 +865,28 @@ export class PrismWorkflowGraphElement extends LitElement {
       ...this._createStageDialog,
       stageKey: value,
       keyTouched: true,
+      error: null,
+    };
+  }
+
+  private _updateCreateStageLane(value: string) {
+    if (!this._createStageDialog) {
+      return;
+    }
+
+    const previewStage = applyLaneToStage({
+      stageKey: '',
+      displayName: '',
+      kind: 'Question',
+      roleGates: [],
+      actions: [],
+      fields: [],
+    }, value);
+
+    this._createStageDialog = {
+      ...this._createStageDialog,
+      laneKey: value,
+      surfaceHint: stageSurface(previewStage),
       error: null,
     };
   }
@@ -896,19 +921,17 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
 
-    const actor = editorActorToActor(dialog.actor);
-    const newStage: AuthoredStage = {
+    const newStage = applyLaneToStage({
       stageKey,
       displayName: title,
       description: undefined,
       kind: editorStageTypeToStageKind(dialog.stageType),
-      actor,
       actions: [],
       fields: [],
-      roleGates: dialog.actor === 'reviewer' ? ['reviewer'] : [],
+      roleGates: [],
       waiting: dialog.stageType === 'waiting' ? { allowDefer: false } : undefined,
       editorComment: 'Created from the graph workspace.',
-    };
+    }, dialog.laneKey);
 
     const stages = [...this.workflow.stages];
     let insertIndex = stages.length;
@@ -1347,7 +1370,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _handleInlineEditorCommit(
     event: Event,
     stageKey: string,
-    field: 'stageKey' | 'displayName' | 'actor' | 'kind'
+    field: 'stageKey' | 'displayName' | 'lane' | 'kind'
   ) {
     const value = (event.currentTarget as HTMLInputElement | HTMLSelectElement).value;
     this._commitStageField(stageKey, field, value);
@@ -1465,8 +1488,8 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
 
-    if (this.mode === 'linear' && this._linearFilter !== 'all' && this._surfaceForStage(stage) !== this._linearFilter) {
-      this._linearFilter = 'all';
+    if (this.mode === 'linear' && this._linearFilter !== ALL_LANES_FILTER && stageLaneKey(stage) !== this._linearFilter) {
+      this._linearFilter = ALL_LANES_FILTER;
     }
 
     const visibleStages = this.mode === 'linear'
@@ -1646,7 +1669,7 @@ export class PrismWorkflowGraphElement extends LitElement {
             </div>
           </div>
           <p id="create-stage-dialog-copy" class="dialog-copy">
-            Name the stage, pick a key, actor, and type, then continue editing in the inspector.
+            Name the stage, choose its key, lane owner, and type, then continue editing in the inspector.
           </p>
           ${dialog.error ? html`<p class="dialog-error" data-prism-create-stage-error>${dialog.error}</p>` : nothing}
           <div class="dialog-grid">
@@ -1669,22 +1692,20 @@ export class PrismWorkflowGraphElement extends LitElement {
               />
             </label>
             <label class="dialog-field">
-              <span class="dialog-label">Actor</span>
-              <select
+              <span class="dialog-label">Lane owner</span>
+              <input
                 class="dialog-control"
-                data-prism-create-stage-actor
-                @change=${(event: Event) => {
-                  const actor = (event.currentTarget as HTMLSelectElement).value as EditorActor;
-                  this._createStageDialog = this._createStageDialog
-                    ? { ...this._createStageDialog, actor, surfaceHint: actor === 'reviewer' || actor === 'system' ? 'back-stage' : 'front-stage' }
-                    : null;
-                }}
-              >
-                <option value="public" ?selected=${dialog.actor === 'public'}>Public</option>
-                <option value="member" ?selected=${dialog.actor === 'member'}>Member</option>
-                <option value="reviewer" ?selected=${dialog.actor === 'reviewer'}>Reviewer</option>
-                <option value="system" ?selected=${dialog.actor === 'system'}>System</option>
-              </select>
+                data-prism-create-stage-lane
+                .value=${dialog.laneKey}
+                list="create-stage-lane-options"
+                placeholder="planning-officer"
+                @input=${(event: Event) => this._updateCreateStageLane((event.currentTarget as HTMLInputElement).value)}
+              />
+              <datalist id="create-stage-lane-options">
+                ${this._availableLaneKeys().map(option => html`
+                  <option value=${option}>${this._roleLabelForLane(option)}</option>
+                `)}
+              </datalist>
             </label>
             <label class="dialog-field">
               <span class="dialog-label">Type</span>
@@ -2060,7 +2081,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     type="button"
                     class=${`stage-node ${layout.surface} ${this._selectedStageKey === layout.stage.stageKey ? 'selected' : ''} ${this._dragTransition?.targetStageKey === layout.stage.stageKey ? 'drag-target' : ''} ${this._stageIsInSimulationPath(layout.stage.stageKey) ? 'simulation-path' : ''} ${this.simulationCurrentStageKey === layout.stage.stageKey ? 'simulation-current' : ''}`}
                     aria-pressed=${String(this._selectedStageKey === layout.stage.stageKey)}
-                    aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} role`}
+                    aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} lane`}
                     data-prism-stage="${layout.stage.stageKey}"
                     data-prism-stage-simulation-path=${String(this._stageIsInSimulationPath(layout.stage.stageKey))}
                     data-prism-stage-simulation-current=${String(this.simulationCurrentStageKey === layout.stage.stageKey)}
@@ -2071,7 +2092,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                   >
                     <span class="surface-tag">${layout.laneLabel}</span>
                     <span class="node-label">${layout.stage.displayName}</span>
-                    <span class="node-meta">${layout.stage.kind}${layout.stage.actor ? ` · ${layout.stage.actor}` : ''}</span>
+                    <span class="node-meta">${layout.stage.kind} · ${layout.laneLabel} lane</span>
                   </button>
                   <button
                     type="button"
@@ -2104,7 +2125,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           This workflow does not have any stages yet. Add the first stage, then connect routes as you model the author journey.
         </p>
         <ul class="workspace-empty-tips">
-          <li>Use <strong>Add stage</strong>, then pick the right actor for the role band you want.</li>
+          <li>Use <strong>Add stage</strong>, then name the lane owner that should own the work.</li>
           <li>Use the editor Help button or press <strong>F1</strong> to review shortcuts while you work.</li>
         </ul>
         <div class="workspace-empty-actions">
@@ -2123,6 +2144,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private _renderLinear(stages: AuthoredStage[]) {
     const visibleStages = this._visibleLinearStages(stages);
+    const laneFilters = this._availableLaneKeys();
 
     return html`
       <section class="linear-workspace" aria-label="Workflow stages — list workspace">
@@ -2130,31 +2152,24 @@ export class PrismWorkflowGraphElement extends LitElement {
           <div class="hud-group">
             <button
               type="button"
-              class=${`hud-button ${this._linearFilter === 'all' ? 'filter-active' : ''}`}
-              aria-pressed=${String(this._linearFilter === 'all')}
-              data-prism-linear-filter="all"
-              @click=${() => this._setLinearFilter('all')}
+              class=${`hud-button ${this._linearFilter === ALL_LANES_FILTER ? 'filter-active' : ''}`}
+              aria-pressed=${String(this._linearFilter === ALL_LANES_FILTER)}
+              data-prism-linear-filter=${ALL_LANES_FILTER}
+              @click=${() => this._setLinearFilter(ALL_LANES_FILTER)}
             >
               All stages
             </button>
-            <button
-              type="button"
-              class=${`hud-button ${this._linearFilter === 'front-stage' ? 'filter-active' : ''}`}
-              aria-pressed=${String(this._linearFilter === 'front-stage')}
-              data-prism-linear-filter="front-stage"
-              @click=${() => this._setLinearFilter('front-stage')}
-            >
-              Journey lanes
-            </button>
-            <button
-              type="button"
-              class=${`hud-button ${this._linearFilter === 'back-stage' ? 'filter-active' : ''}`}
-              aria-pressed=${String(this._linearFilter === 'back-stage')}
-              data-prism-linear-filter="back-stage"
-              @click=${() => this._setLinearFilter('back-stage')}
-            >
-              Operations lanes
-            </button>
+            ${laneFilters.map(laneKey => html`
+              <button
+                type="button"
+                class=${`hud-button ${this._linearFilter === laneKey ? 'filter-active' : ''}`}
+                aria-pressed=${String(this._linearFilter === laneKey)}
+                data-prism-linear-filter=${laneKey}
+                @click=${() => this._setLinearFilter(laneKey)}
+              >
+                ${this._roleLabelForLane(laneKey)} lane
+              </button>
+            `)}
           </div>
           <div class="hud-group">
             <button
@@ -2164,14 +2179,6 @@ export class PrismWorkflowGraphElement extends LitElement {
               @click=${(event: Event) => this._openCreateStageDialog('front-stage', this._selectedStageKey ? 'after' : 'append', this._selectedStageKey, event.currentTarget as HTMLElement)}
             >
               Add stage
-            </button>
-            <button
-              type="button"
-              class="hud-button"
-              data-prism-list-add-backstage
-              @click=${(event: Event) => this._openCreateStageDialog('back-stage', this._selectedStageKey ? 'after' : 'append', this._selectedStageKey, event.currentTarget as HTMLElement)}
-            >
-              Add operations stage
             </button>
           </div>
         </div>
@@ -2190,7 +2197,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                       <th scope="col">Row</th>
                       <th scope="col">Stage key</th>
                       <th scope="col">Title</th>
-                      <th scope="col">Actor</th>
+                      <th scope="col">Lane owner</th>
                       <th scope="col">Type</th>
                       <th scope="col">Action count</th>
                       <th scope="col">Outbound transitions</th>
@@ -2268,14 +2275,14 @@ export class PrismWorkflowGraphElement extends LitElement {
                             />
                           </td>
                           <td>
-                            <label class="sr-only" for=${`${inputIdBase}-actor`}>Stage actor</label>
+                            <label class="sr-only" for=${`${inputIdBase}-lane`}>Stage lane owner</label>
                             <input
-                              id=${`${inputIdBase}-actor`}
+                              id=${`${inputIdBase}-lane`}
                               class="table-input"
-                              data-prism-inline-field="actor"
-                              .value=${stage.actor ?? ''}
+                              data-prism-inline-field="lane"
+                              .value=${stageLaneKey(stage)}
                               placeholder="applicant"
-                              @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'actor')}
+                              @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'lane')}
                               @keydown=${this._handleInlineEditorKeydown}
                             />
                           </td>
@@ -2329,7 +2336,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                             </div>
                           </td>
                           <td>
-                            <span class="badge">${SURFACE_LABELS[surface]}</span>
+                            <span class="badge">${this._roleLabelForLane(stageLaneKey(stage))}</span>
                           </td>
                           <td>
                             <div class="row-actions">

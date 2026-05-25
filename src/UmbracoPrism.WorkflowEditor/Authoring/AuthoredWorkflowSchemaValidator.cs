@@ -31,6 +31,8 @@ public static class AuthoredWorkflowSchemaValidator
             diagnostics.Add(Error("PROJ103", "At least one stage is required.", null));
 
         var schemaByKey = BuildSchemaMap(authored.ParameterSchemas, diagnostics);
+        var lanesByKey = BuildLaneMap(authored.Lanes, diagnostics);
+        var gatewayKeys = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var stage in authored.Stages)
         {
@@ -46,6 +48,19 @@ public static class AuthoredWorkflowSchemaValidator
                     $"Stage '{stage.StageKey}' of type '{stage.Kind}' must define waiting metadata.", stage.StageKey));
             }
 
+            if (!string.IsNullOrWhiteSpace(stage.LaneKey))
+            {
+                if (!lanesByKey.TryGetValue(stage.LaneKey, out var lane))
+                {
+                    diagnostics.Add(Error("PROJ129",
+                        $"Stage '{stage.StageKey}' references unknown lane '{stage.LaneKey}'.", stage.StageKey));
+                }
+                else
+                {
+                    ValidateAssignmentCompatibility(stage.StageKey, "Stage", stage.Actor, stage.RoleGates, lane, diagnostics);
+                }
+            }
+
             ValidateActions(
                 stage.Actions,
                 stage.StageKey,
@@ -54,6 +69,42 @@ public static class AuthoredWorkflowSchemaValidator
                 schemaByKey,
                 catalogByType,
                 diagnostics);
+        }
+
+        foreach (var gateway in authored.Gateways)
+        {
+            if (string.IsNullOrWhiteSpace(gateway.GatewayKey))
+            {
+                diagnostics.Add(Error("PROJ130", "Gateway key is required.", null));
+                continue;
+            }
+
+            if (!gatewayKeys.Add(gateway.GatewayKey))
+            {
+                diagnostics.Add(Error("PROJ131", $"Duplicate gateway key '{gateway.GatewayKey}'.", gateway.GatewayKey));
+            }
+
+            if (string.IsNullOrWhiteSpace(gateway.DisplayName))
+            {
+                diagnostics.Add(Error("PROJ132",
+                    $"Gateway '{gateway.GatewayKey}' must define a title.", gateway.GatewayKey));
+            }
+
+            if (string.IsNullOrWhiteSpace(gateway.LaneKey))
+            {
+                diagnostics.Add(Error("PROJ133",
+                    $"Gateway '{gateway.GatewayKey}' must reference a lane.", gateway.GatewayKey));
+                continue;
+            }
+
+            if (!lanesByKey.TryGetValue(gateway.LaneKey, out var lane))
+            {
+                diagnostics.Add(Error("PROJ134",
+                    $"Gateway '{gateway.GatewayKey}' references unknown lane '{gateway.LaneKey}'.", gateway.GatewayKey));
+                continue;
+            }
+
+            ValidateAssignmentCompatibility(gateway.GatewayKey, "Gateway", gateway.Actor, gateway.RoleGates, lane, diagnostics);
         }
 
         foreach (var transition in authored.Transitions)
@@ -86,6 +137,29 @@ public static class AuthoredWorkflowSchemaValidator
                 catalogByType,
                 diagnostics);
         }
+    }
+
+    private static Dictionary<string, AuthoredLane> BuildLaneMap(
+        IReadOnlyList<AuthoredLane> lanes,
+        List<ProjectionDiagnostic> diagnostics)
+    {
+        var map = new Dictionary<string, AuthoredLane>(StringComparer.Ordinal);
+
+        foreach (var lane in lanes)
+        {
+            if (string.IsNullOrWhiteSpace(lane.Key))
+            {
+                diagnostics.Add(Error("PROJ127", "Lane key is required.", null));
+                continue;
+            }
+
+            if (!map.TryAdd(lane.Key, lane))
+            {
+                diagnostics.Add(Error("PROJ128", $"Duplicate lane key '{lane.Key}'.", lane.Key));
+            }
+        }
+
+        return map;
     }
 
     private static Dictionary<string, AuthoredParameterSchema> BuildSchemaMap(
@@ -259,6 +333,36 @@ public static class AuthoredWorkflowSchemaValidator
         ("stage", ActionTiming.OnExit) => ActionCatalogScopes.StageOnExit,
         _ => ActionCatalogScopes.Transition
     };
+
+    private static void ValidateAssignmentCompatibility(
+        string ownerKey,
+        string ownerKind,
+        string? actor,
+        IReadOnlyList<string> roleGates,
+        AuthoredLane lane,
+        List<ProjectionDiagnostic> diagnostics)
+    {
+        if (!string.IsNullOrWhiteSpace(actor)
+            && !string.IsNullOrWhiteSpace(lane.Actor)
+            && !string.Equals(actor, lane.Actor, StringComparison.Ordinal))
+        {
+            diagnostics.Add(Error(
+                "PROJ135",
+                $"{ownerKind} '{ownerKey}' actor '{actor}' does not match lane '{lane.Key}' actor '{lane.Actor}'.",
+                ownerKey));
+        }
+
+        if (roleGates.Count > 0
+            && lane.RoleGates.Count > 0
+            && !roleGates.OrderBy(role => role, StringComparer.Ordinal)
+                .SequenceEqual(lane.RoleGates.OrderBy(role => role, StringComparer.Ordinal), StringComparer.Ordinal))
+        {
+            diagnostics.Add(Error(
+                "PROJ136",
+                $"{ownerKind} '{ownerKey}' role gates do not match lane '{lane.Key}'.",
+                ownerKey));
+        }
+    }
 
     private static void ValidateParameterObject(
         JsonObject? parameters,

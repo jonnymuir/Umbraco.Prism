@@ -75,7 +75,7 @@ test.describe('Workflow editor undo and redo', () => {
     await expect(createStageDialog).toBeVisible();
     await createStageDialog.locator('[data-prism-create-stage-title]').fill('Site visit');
     await createStageDialog.locator('[data-prism-create-stage-key]').fill('site-visit');
-    await createStageDialog.locator('[data-prism-create-stage-actor]').selectOption('reviewer');
+    await createStageDialog.locator('[data-prism-create-stage-lane]').fill('reviewer');
     await createStageDialog.locator('[data-prism-create-stage-type]').selectOption('review');
     await createStageDialog.getByRole('button', { name: 'Create stage' }).click();
     await expect(createStageDialog).toBeHidden();

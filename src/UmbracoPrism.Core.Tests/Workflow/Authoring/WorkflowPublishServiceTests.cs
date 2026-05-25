@@ -80,6 +80,85 @@ public sealed class WorkflowPublishServiceTests : IDisposable
             .Which.Metadata!.Actions.Should().ContainSingle(action => action.Type == "forms.save");
     }
 
+    [Fact]
+    public async Task PublishAsync_WithNamedLanesAndGateways_PreservesLaneOwnershipMetadata()
+    {
+        var workflow = new AuthoredWorkflow
+        {
+            DefinitionKey = "lane-owned-workflow",
+            DisplayName = "Lane Owned Workflow",
+            InitialStageKey = "draft",
+            Lanes =
+            [
+                new AuthoredLane
+                {
+                    Key = "applicant",
+                    DisplayName = "Applicant lane",
+                    Actor = "applicant",
+                    RoleGates = ["submitter"]
+                }
+            ],
+            Gateways =
+            [
+                new AuthoredGateway
+                {
+                    GatewayKey = "fan-out",
+                    DisplayName = "Fan out",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant"
+                },
+                new AuthoredGateway
+                {
+                    GatewayKey = "fan-in",
+                    DisplayName = "Fan in",
+                    Kind = GatewayKind.Join,
+                    LaneKey = "applicant"
+                }
+            ],
+            Stages =
+            [
+                new AuthoredStage
+                {
+                    StageKey = "draft",
+                    DisplayName = "Draft",
+                    Kind = StageKind.Question,
+                    LaneKey = "applicant"
+                },
+                new AuthoredStage
+                {
+                    StageKey = "done",
+                    DisplayName = "Done",
+                    Kind = StageKind.Confirmation,
+                    LaneKey = "applicant"
+                }
+            ],
+            Transitions =
+            [
+                new AuthoredTransition
+                {
+                    FromStage = "draft",
+                    ToStage = "done",
+                    Action = "submit"
+                }
+            ]
+        };
+
+        var result = await _sut.PublishAsync(workflow);
+
+        result.HasErrors.Should().BeFalse();
+        result.File.Metadata!.Lanes.Should().ContainSingle(lane => lane.Key == "applicant" && lane.Actor == "applicant");
+        result.File.Metadata.Gateways.Should().HaveCount(2);
+        result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-out" && gateway.GatewayType == "Split");
+        result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-in" && gateway.GatewayType == "Join");
+
+        var stateMetadata = result.File.States.Single(state => state.StateKey == "draft").Metadata;
+        stateMetadata.Should().NotBeNull();
+        stateMetadata!.StageType.Should().Be("Question");
+        stateMetadata.Actor.Should().Be("applicant");
+        stateMetadata.LaneKey.Should().Be("applicant");
+        stateMetadata.RoleGates.Should().Equal("submitter");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_publishedPath))

@@ -181,3 +181,20 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 
 - When issue work is sitting uncommitted on `main`, branch it before landing; the repo now treats feature-branch + PR workflow as mandatory for code changes.
 - For workflow lane cleanup, ship the shared assignment helper, projection sanitiser, docs, and behavioural proof together so the source-of-truth change is explicit across code and design notes.
+
+### 2026-05-25T12:01:09.927+01:00 — Canonical multi-lane design lock
+
+- When a redesign is being delivered in slices, keep one plain-language design document that explains the end-state behaviour across all slices.
+- Put issue sequencing beside the behavioural model so implementation tickets do not become the only place where the whole story lives.
+- Mark older design docs as partial when they still describe the current shipped model but no longer define the target behaviour.
+
+### 2026-05-25T11:55:20.362+01:00 — PR #88 merge-readiness check
+
+- For contract-cleanup PRs, approve only when the shared helper, payload sanitiser, docs, and behavioural tests all tell the same story about the new source of truth.
+- A long-running non-authored lane can stay non-blocking when the repository permits merge and the touched scope is clearly unrelated, but call that out explicitly in the decision record.
+
+### 2026-05-25T14:17:36.055+01:00 — Gateway representation before runtime behaviour
+
+- After lanes and gateway metadata exist, the safest next slice is to make gateways visible and selectable in the editor before changing runtime execution semantics.
+- Keep preview, simulation, publish, and current end-to-end workflow behaviour stage-driven until join replacement and concurrent cursor rules are implemented in their own slices.
+- Treat existing workflow editor simulation/history specs as pinned regression gates; if they are already red on the branch, getting them back to green is a prerequisite rather than optional cleanup.

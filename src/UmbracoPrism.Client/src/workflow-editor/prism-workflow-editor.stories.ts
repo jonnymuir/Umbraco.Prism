@@ -237,7 +237,7 @@ export const WithStageSelected: Story = {
     await expect(inspector).not.toBeNull();
 
     const graphCanvas = within(graph!.shadowRoot as unknown as HTMLElement);
-    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant role' }) as HTMLButtonElement;
+    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant lane' }) as HTMLButtonElement;
     declarationStage.click();
 
     await waitFor(() =>

@@ -58,6 +58,14 @@ public record AuthoredWorkflow
     [JsonPropertyName("transitions")]
     public IReadOnlyList<AuthoredTransition> Transitions { get; init; } = [];
 
+    /// <summary>Named lanes used to share assignment data across stages and gateways.</summary>
+    [JsonPropertyName("lanes")]
+    public IReadOnlyList<AuthoredLane> Lanes { get; init; } = [];
+
+    /// <summary>Gateway definitions reserved for future multi-lane execution slices.</summary>
+    [JsonPropertyName("gateways")]
+    public IReadOnlyList<AuthoredGateway> Gateways { get; init; } = [];
+
     /// <summary>Named handoff boundaries between stages, used as agent insertion points.</summary>
     [JsonPropertyName("handoffs")]
     public IReadOnlyList<AuthoredHandoff> Handoffs { get; init; } = [];

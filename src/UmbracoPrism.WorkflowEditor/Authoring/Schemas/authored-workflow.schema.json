@@ -51,6 +51,18 @@
         "$ref": "#/$defs/transition"
       }
     },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/lane"
+      }
+    },
+    "gateways": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gateway"
+      }
+    },
     "handoffs": {
       "type": "array",
       "items": {
@@ -82,6 +94,7 @@
         "title": { "type": "string" },
         "description": { "type": ["string", "null"] },
         "actor": { "type": ["string", "null"] },
+        "laneKey": { "type": ["string", "null"] },
         "type": {
           "type": "string",
           "enum": ["Question", "CheckAnswers", "Confirmation", "TaskList", "Waiting", "StatusTimeline"]
@@ -123,6 +136,37 @@
         },
         "requiresRole": {
           "type": ["string", "null"]
+        }
+      }
+    },
+    "lane": {
+      "type": "object",
+      "required": ["key", "title"],
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "actor": { "type": ["string", "null"] },
+        "roleGates": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "required": ["key", "title", "type", "laneKey"],
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["Split", "Join"]
+        },
+        "laneKey": { "type": "string" },
+        "actor": { "type": ["string", "null"] },
+        "roleGates": {
+          "type": "array",
+          "items": { "type": "string" }
         }
       }
     },

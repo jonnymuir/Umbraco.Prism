@@ -11,11 +11,13 @@ import type {
   ActionCatalogEntry,
   AuthoredAction,
   AuthoredField,
+  AuthoredGateway,
   AuthoredParameterDefinition,
   AuthoredStage,
   AuthoredTransition,
   AuthoredWorkflow,
   FieldKind,
+  GatewayKind,
   ProposalEnvelope,
   StageKind,
 } from './types.js';
@@ -105,6 +107,16 @@ function mapFieldKind(raw: string | undefined): FieldKind {
   }
 }
 
+function mapGatewayKind(raw: string | undefined): GatewayKind {
+  switch (raw) {
+    case 'Join':
+      return 'Join';
+    case 'Split':
+    default:
+      return 'Split';
+  }
+}
+
 function normaliseField(raw: Record<string, unknown>): AuthoredField {
   return {
     fieldKey: String(raw.fieldKey ?? raw.key ?? ''),
@@ -149,6 +161,19 @@ function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
   };
 }
 
+function normaliseGateway(raw: Record<string, unknown>): AuthoredGateway {
+  return {
+    gatewayKey: String(raw.gatewayKey ?? raw.key ?? ''),
+    displayName: String(raw.displayName ?? raw.title ?? ''),
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+    kind: mapGatewayKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined),
+    actor: typeof raw.actor === 'string' ? raw.actor : undefined,
+    roleGates: Array.isArray(raw.roleGates) ? raw.roleGates.map(value => String(value)) : [],
+    waiting: typeof raw.waiting === 'object' && raw.waiting !== null ? (raw.waiting as AuthoredGateway['waiting']) : undefined,
+    editorComment: typeof raw.editorComment === 'string' ? raw.editorComment : undefined,
+  };
+}
+
 function normaliseTransition(raw: Record<string, unknown>): AuthoredTransition {
   const firstCondition =
     Array.isArray(raw.conditions) && raw.conditions.length > 0 && typeof raw.conditions[0] === 'object' && raw.conditions[0] !== null
@@ -184,6 +209,9 @@ function normaliseWorkflow(raw: Record<string, unknown>): AuthoredWorkflow {
     stages: Array.isArray(raw.stages) ? raw.stages.map(stage => normaliseStage(stage as Record<string, unknown>)) : [],
     transitions: Array.isArray(raw.transitions)
       ? raw.transitions.map(transition => normaliseTransition(transition as Record<string, unknown>))
+      : [],
+    gateways: Array.isArray(raw.gateways)
+      ? raw.gateways.map(gateway => normaliseGateway(gateway as Record<string, unknown>))
       : [],
     authorNote: typeof raw.authorNote === 'string' ? raw.authorNote : undefined,
   };

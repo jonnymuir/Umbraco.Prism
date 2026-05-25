@@ -33,10 +33,16 @@ public class AuthoredWorkflowSerializationTests
         restored.InitialStageKey.Should().Be(original.InitialStageKey);
         restored.Description.Should().Be(original.Description);
         restored.SchemaVersion.Should().Be(original.SchemaVersion);
+        restored.Lanes.Should().ContainSingle();
+        restored.Lanes[0].Key.Should().Be("applicant");
+        restored.Gateways.Should().ContainSingle();
+        restored.Gateways[0].GatewayKey.Should().Be("review-split");
+        restored.Gateways[0].LaneKey.Should().Be("applicant");
 
         restored.Stages.Should().HaveCount(2);
         restored.Stages[0].StageKey.Should().Be("details");
         restored.Stages[0].DisplayName.Should().Be("Your details");
+        restored.Stages[0].LaneKey.Should().Be("applicant");
         restored.Stages[0].Actions.Should().ContainSingle();
         restored.Stages[0].Actions[0].Type.Should().Be("forms.load");
         restored.Stages[0].Actions[0].Timing.Should().Be(ActionTiming.OnEntry);
@@ -76,12 +82,15 @@ public class AuthoredWorkflowSerializationTests
 
         var root = document.RootElement;
         root.TryGetProperty("parameterSchemas", out _).Should().BeTrue();
+        root.TryGetProperty("lanes", out _).Should().BeTrue();
+        root.TryGetProperty("gateways", out _).Should().BeTrue();
 
         var stage = root.GetProperty("stages")[0];
         stage.TryGetProperty("key", out _).Should().BeTrue();
         stage.TryGetProperty("title", out _).Should().BeTrue();
         stage.TryGetProperty("type", out _).Should().BeTrue();
         stage.TryGetProperty("actions", out _).Should().BeTrue();
+        stage.TryGetProperty("laneKey", out _).Should().BeTrue();
 
         var transition = root.GetProperty("transitions")[0];
         transition.TryGetProperty("source", out _).Should().BeTrue();
@@ -181,6 +190,25 @@ public class AuthoredWorkflowSerializationTests
         SchemaVersion = "1.0",
         InitialStageKey = "details",
         InstancePolicy = "single",
+        Lanes =
+        [
+            new AuthoredLane
+            {
+                Key = "applicant",
+                DisplayName = "Applicant lane",
+                Actor = "applicant"
+            }
+        ],
+        Gateways =
+        [
+            new AuthoredGateway
+            {
+                GatewayKey = "review-split",
+                DisplayName = "Review split",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant"
+            }
+        ],
         Stages =
         [
             new AuthoredStage
@@ -188,6 +216,7 @@ public class AuthoredWorkflowSerializationTests
                 StageKey = "details",
                 DisplayName = "Your details",
                 Kind = StageKind.Question,
+                LaneKey = "applicant",
                 Actions =
                 [
                     new AuthoredAction
@@ -216,7 +245,8 @@ public class AuthoredWorkflowSerializationTests
             {
                 StageKey = "done",
                 DisplayName = "Complete",
-                Kind = StageKind.Confirmation
+                Kind = StageKind.Confirmation,
+                LaneKey = "applicant"
             }
         ],
         Transitions =

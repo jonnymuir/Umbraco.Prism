@@ -17,6 +17,7 @@ export interface AuthoredWorkflow {
   initialStageKey: string;
   stages: AuthoredStage[];
   transitions: AuthoredTransition[];
+  gateways?: AuthoredGateway[];
   /** Client-side convenience — not present in C# AuthoredWorkflow; guard all accesses. */
   roles?: AuthoredRole[];
   authorNote?: string;
@@ -42,6 +43,17 @@ export interface AuthoredStage {
   editorComment?: string;
 }
 
+export interface AuthoredGateway {
+  gatewayKey: string;
+  displayName: string;
+  description?: string;
+  kind: GatewayKind;
+  actor?: string;
+  roleGates: string[];
+  waiting?: WaitingMetadata;
+  editorComment?: string;
+}
+
 export type StageKind =
   | 'Question'
   | 'CheckAnswers'
@@ -49,6 +61,8 @@ export type StageKind =
   | 'TaskList'
   | 'Waiting'
   | 'StatusTimeline';
+
+export type GatewayKind = 'Split' | 'Join';
 
 export type EditorStageType =
   | 'form'
