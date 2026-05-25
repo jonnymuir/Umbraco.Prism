@@ -1,3 +1,316 @@
+
+---
+author: tom-nook
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-gateway-redo
+---
+
+# Decision: Gateway-only redo contract
+
+## Authoritative model
+
+The corrected model is now explicit and non-negotiable:
+
+- only stages and gateways
+- gateways are the only way to transition
+- gateways are diamond/diagonal in shape
+- waiting belongs on join gateways
+
+## PR verdict
+
+PR #89 should be **superseded**, not updated in place as if it were merely polishing the same design. It contains useful partial work, but the current PR shape still teaches a hybrid model through rounded gateway cards, transition-first editing, stage-first routing seams, and surviving waiting-stage concepts.
+
+## Team contract
+
+### Isabelle
+
+- Redo the editor so authors see only stages and diamond gateways as workflow nodes.
+- Make gateways the visible routing object in canvas, list, and inspector flows.
+- Remove direct stage-to-stage authoring and any styling that makes gateways read like stage cards.
+
+### Blathers
+
+- Redo the authored/runtime contract so gateway-only routing is real, not an editor-only illusion.
+- Keep waiting metadata on join gateways only.
+- Salvage runtime work only where it still fits the corrected model.
+
+### Tangy
+
+- Rewrite the quality gate around the corrected model, especially editor readability.
+- Fail the slice if the product can still be read as boxes plus arrows with decorative gateway badges.
+- Prove join waiting and parallel-lane safety against the gateway-only model.
+
+## Review gate
+
+Do not call the redo ready until the design doc, decision record, editor visuals, authored schema, runtime narrative, and behavioural proof all tell the same story.
+
+---
+
+---
+author: blathers
+date: 2026-05-25T16:48:28.029+01:00
+status: implemented
+area: workflow-authoring
+---
+
+# Decision: Gateway-only authored routing and runtime alignment
+
+## Context
+
+The corrected workflow model rejects the hybrid shape where transitions are stage-shaped in some places and gateway-shaped in others. The backend/runtime contract must match the editor's intended visual model: stages are work nodes, gateways are routing nodes, and join gateways own waiting state.
+
+## Decision
+
+- Canonical authored transitions use `source`, `target`, and `trigger` so the same edge shape works for stage and gateway nodes.
+- Backend validation rejects direct stage-to-stage transitions (`PROJ141`) and stage-level waiting (`PROJ140`).
+- Join gateway metadata now carries the full waiting contract needed by the runtime, including defer affordance fields.
+- Reference authored workflows and fixtures now route through explicit gateways, including pass-through gateways for linear flows.
+
+## Frontend coordination
+
+The current workflow editor client still carries hybrid assumptions that need follow-up alignment:
+
+- `src/UmbracoPrism.Client/src/workflow-editor/types.ts` still models transitions as `fromStage` / `toStage` with editor-only `fromGateway` / `toGateway` shims, and still allows stage-level `waiting`.
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts` normalises gateway waiting as `waiting` instead of backend `waitingInfo`, and still maps transitions back to stage-only field names.
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-gateway-representation.ts` infers gateway visuals from direct stage-to-stage fan-out/convergence; it should switch to first-class authored gateway nodes instead of heuristics.
+
+## Consequence
+
+Backend/runtime publishing is now aligned to the corrected gateway-only contract, but the editor TypeScript surface should be updated in a dedicated frontend slice so the visual model, client model, and backend model all match cleanly.
+
+---
+
+---
+author: isabelle
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-editor
+---
+
+# Decision: Gateway-first editor surface in the client
+
+## Context
+
+The editor correction requires authors to understand gateways as the routing objects between stages. The current transport model still stores stage-to-stage transitions with optional `fromGateway` and `toGateway` fields, so the client must present a gateway-first UI without pretending the backend already has first-class stage↔gateway edges.
+
+## Decision
+
+- When a workflow contains gateways, the editor should treat gateways as the primary routing affordance.
+- Render gateways as diamond routing points, remove transition chips and stage route handles from the gateway-first canvas, and move waiting copy ownership onto join gateways.
+- Prefer explicit `fromGateway` and `toGateway` bindings when placing and describing gateways so the editor reflects the authored route shape instead of guessing from topology alone.
+
+## Backend gap to close
+
+The current contract still lacks first-class authored edges whose endpoints can be either a stage or a gateway. That means the client can bind and visualise stage → gateway → stage paths through `fromGateway` and `toGateway`, but it cannot honestly author standalone gateway legs such as join → stage or gateway → gateway without carrying a hidden stage-to-stage transport record underneath. A future backend contract should promote route endpoints to first-class stage/gateway references, or introduce explicit gateway-edge records, before the editor can become fully gateway-only without compromise.
+
+---
+
+---
+author: tangy
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-editor-tests
+---
+
+# Decision: Gateway-only behavioural proof replaces hybrid transition proof
+
+## Context
+
+The workflow model has been clarified in plain language:
+
+- only stages and gateways exist
+- a gateway is the only way to transition
+- the editor should read visually as stage → gateway → stage/gateway
+- gateways are diamond routing points
+- waiting belongs on join gateways
+
+The older behavioural proof still taught a hybrid model where authors edited transition chips, opened transition dialogs, and treated waiting as a stage type.
+
+## Decision
+
+Replace those proofs with gateway-first behavioural contracts.
+
+### Frontend contracts
+
+- Graph proof now checks that the canvas reads as stage → gateway → next node.
+- Gateway proof checks product-facing gateway language, join-owned waiting copy, and list-mode gateway rows.
+- Validation proof now expects gateway language when a stage cannot be reached.
+- Transition-editor proof is rewritten away from transition-chip editing and toward gateway-first routing expectations.
+
+### Backend contracts
+
+- Authoring contracts now treat join-gateway waiting metadata as the correct source of waiting copy.
+- Validation contracts now expect direct stage-to-stage routing and waiting-stage modelling to be rejected in the corrected model.
+
+## Why this matters
+
+If the tests keep passing a hybrid model, the implementation can look polished while still teaching the wrong mental model. These contracts intentionally hold the line on product language and visual reading so Isabelle and Blathers can finish the correction against a stable quality gate.
+
+---
+
+### 2026-05-25T16:48:28.029+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Redo the implementation with gateway-only transitions in mind and pay very careful attention to how the workflow editor looks.
+**Why:** User request — captured for team memory
+
+---
+
+---
+author: tom-nook
+date: 2026-05-25T16:39:24.354+01:00
+status: proposed
+area: workflow-editor-gateway-model
+---
+
+# Decision: PR #89 is blocked by gateway model mismatch
+
+## Context
+
+The intended model has now been restated plainly by the user:
+
+- only stages and gateways
+- gateways are the mechanism that transitions between stages
+- gateway nodes should read visually as diagonal/diamond routing nodes
+
+I reviewed the actual implementation on `squad/82-named-lanes-editor-slice`, including the editor graph, inspector, authored types, projector/runtime seams, and PR #89 summary.
+
+## Findings
+
+### 1. The implementation is still a hybrid model, not a stages-and-gateways model
+
+The editor still treats **transitions as first-class editable objects**:
+
+- graph edge chips are selectable buttons with labels
+- the inspector has a full **Transition** panel with route editing, target-stage selection, conditions, and delete
+- keyboard and context-menu flows still revolve around "create transition", "edit transition", and "delete transition"
+
+That is a valid transitional seam, but it is not the user's stated model where gateways are the routing mechanism between stages.
+
+### 2. Waiting stages still exist as authored stage types
+
+The authored and editor model still allows:
+
+- `Waiting`
+- `StatusTimeline`
+- `TaskList`
+
+as stage kinds/types. The projector and simulator still preserve waiting-stage behaviour.
+
+That directly diverges from the clarified intent that the model should only expose **stages** and **gateways**, with waiting owned by join gateways rather than by a dedicated waiting-stage concept.
+
+### 3. Gateway visuals do not match the intended language
+
+The graph renders gateways as rounded rectangular buttons with dashed borders and `border-radius: 28px`.
+
+That means the current implementation does **not** present gateways as diagonal/diamond routing nodes, even though the design doc says "diamond transition gateways" and the user has explicitly repeated that requirement.
+
+### 4. Runtime/editor wording is still partly stage-driven
+
+Although runtime work has started for split/join behaviour, several seams still speak in state/stage-first terms:
+
+- transitions remain `FromStage` / `ToStage`
+- simulator logic still stops on `waiting-stage`
+- published workflow definitions still centre `States` plus `Transitions`, with gateways added as metadata
+
+This can be an acceptable internal implementation path, but it is not ready to present as if it already matches the intended authored design.
+
+## Decision
+
+**PR #89 should be treated as blocked pending correction.**
+
+It has useful partial work in it, but it should not be represented as satisfying the intended gateway design until the authoring model, visuals, and editing affordances all tell the same story.
+
+## Correction contract for the next pass
+
+1. **Author-facing model**
+   - Present only **stages** and **gateways** as workflow nodes.
+   - Treat gateways as the routing mechanism between stages; transitions should become supporting plumbing, not the primary authored object.
+
+2. **Visual language**
+   - Render every gateway as a clear **diamond/diagonal node**.
+   - Remove the rounded-card gateway styling that reads like another stage variant.
+
+3. **Inspector/editor behaviour**
+   - Make gateway editing about split/join routing intent.
+   - Stop centring the UX on transition chips and transition inspector flows as if edges are the authored concept.
+
+4. **Waiting semantics**
+   - Remove waiting-stage dependence from the intended concurrent model.
+   - Keep waiting copy and status on **join gateways** only.
+
+5. **Review gate**
+   - Do not mark the slice ready until graph, inspector, authored schema, simulation/runtime narrative, and behavioural tests all align on the same plain-language model.
+
+---
+
+---
+author: tangy
+date: 2026-05-25T16:39:24.354+01:00
+status: proposed
+area: workflow-editor-ux
+---
+
+# Decision: Gateway mismatch review
+
+## Context
+
+The current workflow editor implementation was reviewed against the agreed workflow model in `docs/design/workflow-multi-lane-engine.md`. That design says authors should understand the graph as stages plus **diamond transition gateways**, with gateways acting as the structural branch/merge points between stages.
+
+## Finding
+
+The current editor is **not yet aligned** with that model from a user point of view.
+
+It still presents **transitions as first-class editable objects**:
+
+- graph routes have selectable transition chips with labels
+- the inspector has a full transition editing mode
+- list mode reports outbound transitions and offers "Add transition"
+- creation flow is "Create transition," not "connect through gateway"
+
+At the same time, gateways behave like **attached annotations** rather than the actual transition points:
+
+- gateway positions are derived heuristically from stage branching/merging
+- transitions remain stage-to-stage in the authored contract
+- gateway routing text tells authors to use the transition inspector to connect routes
+
+The rendered gateway shape is also not aligned with the design language: current gateway nodes are rounded dashed cards, not clear diamond nodes.
+
+## Minimum correction
+
+Before this can be considered aligned, the editor needs one behavioural correction:
+
+**Make gateways the only visible/editable routing object between stages.**
+
+Concretely, that means:
+
+1. Render gateways as obvious diamond nodes.
+2. Stop teaching transitions as separate user-facing entities in graph, list mode, and inspector.
+3. Make route creation/editing flow through gateway connections so authors understand the model as:
+   - stage → gateway
+   - gateway → stage
+   - gateway → gateway
+
+## Why this is the minimum
+
+Without that correction, users can still successfully read the editor as "boxes plus arrows plus some extra gateway badges." That is a different mental model from the intended one, and it will keep causing design confusion even if the underlying runtime work continues.
+
+---
+
+### 2026-05-25T16:39:24.354+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** A gateway is the only way to transition.
+**Why:** User request — captured for team memory
+
+---
+
+### 2026-05-25T16:39:24.354+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** There should only be stages and gateways; a gateway is the way to transition between stages and should be diagonal in shape. The current implementation does not meet that intended design.
+**Why:** User request — captured for team memory
+
+---
+
 # Squad Decisions
 
 ---
@@ -5134,3 +5447,65 @@ The projector emits `RequiredIncomingLanes` in ordinal sort order to preserve th
 - `WorkflowRuntimeEngine.cs` — split/join gateway dispatch, multi-cursor advance, join waiting envelope
 - `WorkflowGatewayProjectionTests.cs` — NEW: 10 projection tests
 - `WorkflowJoinGatewayEngineTests.cs` — NEW: 7 engine behaviour tests
+
+---
+author: tom-nook
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-gateway-redo
+---
+
+# Decision: Supersede PR #89 with a gateway-only redo contract
+
+## Context
+
+Jonny rejected the current implementation shape and clarified the authoritative model in plain language:
+
+- only stages and gateways
+- gateways are the only way to transition
+- gateways are diamond/diagonal in shape
+- waiting belongs on join gateways
+
+I reviewed `docs/design/workflow-multi-lane-engine.md`, the decision inbox directives, PR #89, and the current editor/authoring/runtime seams on `squad/82-named-lanes-editor-slice`.
+
+## Findings
+
+The current branch is still a hybrid:
+
+- the editor renders gateways as rounded dashed cards rather than diamond routing nodes
+- the editor still teaches "Add transition" / "Edit transition" as the main routing flow
+- authored transitions remain stage-first with gateway endpoints treated as editor-only visual hints
+- waiting-stage types and waiting-stage sample content still exist alongside join-gateway waiting
+
+That means PR #89 contains useful partial work, but its current shape does not satisfy the corrected model and should not be treated as the vehicle that lands the redo unchanged.
+
+## Decision
+
+**Supersede PR #89. Do not update it in place as if the current shape is still acceptable.**
+
+Use PR #89 as a reference/source of salvageable backend work only. The redo should land under a fresh contract that explicitly replaces the hybrid stage-plus-transition mental model with the gateway-only model above.
+
+## Correction contract
+
+### Isabelle
+
+- Make the canvas, list, and inspector read as **stages plus diamond gateways only**.
+- Remove transition-first authoring language and flows; gateways must be the visible routing object.
+- Block direct stage → stage authoring and make gateway ownership/waiting easy to read.
+
+### Blathers
+
+- Align the authored schema and projection contract with gateway-only routing rather than stage-first transitions with editor-only gateway hints.
+- Remove waiting-stage dependence from the target model and keep waiting on join gateways only.
+- Keep any runtime concurrency work only where it still supports the corrected author-facing model.
+
+### Tangy
+
+- Re-baseline behavioural proof around the corrected mental model: diamond gateways, gateway-only routing, join-owned waiting, and no cross-lane overwrite.
+- Treat any surviving transition-first UX, stage-to-stage authoring seam, or waiting-stage dependency as a failed gate.
+
+## PR handling
+
+- Leave PR #89 unmerged in its current form.
+- Open a replacement redo PR/branch from the corrected contract, reusing only the parts that still fit after review.
+- Make the replacement PR explicitly say that PR #89 was superseded because the model and editor language were wrong, not merely incomplete.

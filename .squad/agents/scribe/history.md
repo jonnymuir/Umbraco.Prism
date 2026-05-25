@@ -125,6 +125,49 @@ Executed Scribe workflow for Tom Nook backlog sequencing batch:
 
 **Basis:** Spawn manifest from tom-nook and tangy agents; Scribe charter pattern (inbox merge, agent history coordination).
 
+## 2026-05-25T16:48:28Z — Gateway-Only Redo: Orchestration & Decision Merge
+
+**Spawn:** scribe self-dispatch  
+**Task:** Process spawn manifest for gateway-only redo cycle  
+**Outcome:** ✅ Complete
+
+### Tasks Executed
+
+1. **PRE-CHECK** — decisions.md: 241,650 bytes (>51200), 11 inbox files
+2. **DECISIONS ARCHIVE** — No entries older than 7 days; no archival action needed
+3. **DECISION INBOX MERGE** — 11 files merged into decisions.md; 255,493 bytes final; inbox deleted
+4. **ORCHESTRATION LOGS** — 4 logs written (tom-nook, blathers, isabelle, tangy)
+5. **SESSION LOG** — Gateway-only redo summary written
+6. **CROSS-AGENT HISTORY** — Updates appended to all 4 agent history files
+7. **GIT COMMIT** — Staged .squad/ artifacts
+
+### Decisions Consolidated
+
+- **Tom Nook:** PR #89 blocked (hybrid model); gateway-only redo contract locked
+- **Blathers:** Gateway-only authored/runtime alignment; backend validation realigned
+- **Isabelle:** Gateway-first editor surface; diamond rendering; join-owned waiting
+- **Tangy:** Hybrid proof replaced with gateway-only behavioral contracts
+- **Copilot directives:** User intent captured (3 entries, all 2026-05-25)
+
+### Files Created/Modified
+
+- `.squad/decisions.md` — 11 entries merged (newest-first order)
+- `.squad/orchestration-log/2026-05-25T15-48-28-{tom-nook,blathers,isabelle,tangy}.md` (4 files)
+- `.squad/log/2026-05-25T15-48-28-gateway-only-redo.md` (1 file)
+- `.squad/agents/{agent}/history.md` — Updates appended (4 files)
+
+### Quality Gate
+
+✅ Decisions.md merged and deduplicated  
+✅ All agent history updated  
+✅ Orchestration logs complete  
+✅ Session log recorded  
+✅ No entries required archival (all <7 days old)
+
+**Note:** Isabelle history.md at 15,400 bytes (approaching threshold); if next cycle adds 960+ bytes, recommend summarization.
+
+---
+
 ## 2026-05-25T14:34:44.680Z — Merged Gateway Slice Orchestration
 
 **Spawn:** scribe self-dispatch  

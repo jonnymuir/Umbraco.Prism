@@ -1,5 +1,49 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-25T16:48:28Z — Gateway-Only Redo: Editor UX Rebuild
+
+**Spawn:** isabelle background agent  
+**Task:** Rebuild gateway-only editor UX  
+**Outcome:** ✅ Complete
+
+### Deliverables
+
+**Decision: Gateway-first editor surface in the client** (2026-05-25T16:48:28.029+01:00)
+
+- Canvas now reads: stage → gateway → next node (no direct stage-to-stage edges)
+- Gateway shapes: diamond/diagonal nodes (remove rounded cards)
+- Transition editor flows redirected through gateway routing
+- Remove transition chips and stage route handles from gateway-first canvas
+- Move waiting copy ownership onto join gateways
+- Prefer explicit `fromGateway`/`toGateway` bindings over topology heuristics
+
+### Visual Model Changes
+
+- Outline + confidence-tabs preserved from prior slice
+- Canvas topology visually reads as gateway-first routing
+- List mode: gateway-first node representation (stages + gateways, no transitions)
+- Inspector: gateway creation/editing centered on split/join routing intent
+
+### Backend Gap Identified
+
+Current contract lacks first-class stage↔gateway edges. Client can bind stage→gateway→stage through `fromGateway`/`toGateway`, but cannot author gateway→gateway or join→stage without hidden stage-to-stage transport underneath.
+
+→ **Future work:** Backend should promote route endpoints to first-class stage/gateway references, or introduce explicit gateway-edge records.
+
+### Validation Gate
+
+Editor passes targeted tests checking canvas topology, diamond rendering, waiting copy attribution, and visual language unmistakably gateway-first.
+
+### Orchestration Log
+
+Written to `.squad/orchestration-log/2026-05-25T15-48-28-isabelle.md`
+
+### Frontend TypeScript Alignment (Follow-up)
+
+Dedicated slice needed to unify client transport model with backend gateway-only contract. Current assumptions in `types.ts`, `workflow-authoring-client.ts` remain hybrid.
+
+---
+
 ## 2026-05-25T14:34:44.680Z — Merged Gateway Editor Slice Implementation
 
 **Spawn:** isabelle background agent  
@@ -61,6 +105,8 @@ See `history-archive.md` for detailed per-session records (2026-05-19 through 20
 ---
 
 ## Learnings
+
+- 2026-05-25T16:48:28.029+01:00 — For gateway-first editor work, derive visual bindings from explicit route fields (`fromGateway`/`toGateway`) before heuristics, then hide route chips and stage handles once gateways exist so the canvas reads as stage → gateway → stage.
 
 - 2026-05-25T15:23:06.241+01:00 — Treat #83's current gateway UI as partial scaffolding only: stages stay action-bearing work nodes, while diamond transition gateways must become named, editable routing nodes with lane-owned waiting info and accessible branch/merge authoring.
 - 2026-05-25T14:17:36.055+01:00 — For editor-only gateway slices, bind split and join nodes to existing stage-to-stage branch and merge points in the graph so authors can see lane-owned gateways without changing preview, simulation, publish, or runtime execution semantics.

@@ -38,6 +38,38 @@ Fixed Linux CI apply/publish flush race condition in WorkflowAuthoringEndpoints.
 - Multi-cursor join pattern: `Cursors = []` means single-cursor legacy mode; `Cursors` populated means multi-cursor. Keep `CurrentState` in sync with `FirstActiveStageCursorKey()` on every save so legacy callers never see a cursor-only state key.
 - FluentAssertions `ContainInOrder` overload: pass expected values as `IEnumerable<T>`, and reason string as the second argument. Passing the reason as a trailing string in the params-array treats it as an additional expected element.
 - PROJ137/138/139: any pre-existing test using a Join gateway must now also provide `WaitingInfo` and `RequiredIncomingLanes`; the schema validator enforces these from the authoring layer upward.
+- 2026-05-25T16:48:28.029+01:00 — Gateway-only authoring means canonical transitions use node-level source/target/trigger across stages and gateways; direct stage-to-stage links and stage-level waiting are invalid, and join gateways own waiting/defer metadata.
+
+## 2026-05-25T16:48:28Z — Gateway-Only Redo: Runtime & Authored Model Alignment
+
+**Task:** Rebuild gateway-only runtime model; realign backend/runtime contract  
+**Status:** ✅ Complete
+
+### Decision: Gateway-only authored routing and runtime alignment
+
+- Canonical transitions now use `source`, `target`, `trigger` (uniform for stage and gateway nodes)
+- Backend validation rejects direct stage-to-stage transitions (`PROJ141`) and stage-level waiting (`PROJ140`)
+- Join gateway metadata carries full waiting contract + defer affordance
+- Reference workflows and fixtures now route through explicit gateways (including pass-through gateways for linear flows)
+
+### Frontend Coordination Gap (Deferred)
+
+Current workflow editor client still carries hybrid assumptions:
+- `types.ts` models transitions as `fromStage`/`toStage` with shims; still allows stage-level waiting
+- `workflow-authoring-client.ts` normalizes gateway waiting incorrectly
+- `workflow-gateway-representation.ts` infers gateway visuals heuristically (should use first-class authored gateways)
+
+→ Documented for Isabelle/dedicated frontend alignment slice
+
+### Orchestration Log
+
+Written to `.squad/orchestration-log/2026-05-25T15-48-28-blathers.md`
+
+### Backend Validation Status
+
+All backend publishing and validation now aligned to gateway-only contract. Ready for frontend UX layer.
+
+---
 
 ## [2026-05-25T12:00:03Z] Scribe: Spawn Manifest Processing
 

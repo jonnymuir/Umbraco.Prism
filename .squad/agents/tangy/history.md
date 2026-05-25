@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-05-25T16:48:28Z — Gateway-Only Redo: Behavioural Proof Rewrite
+
+**Task:** Rewrite gateway-only behavioural proof; replace hybrid transition-first tests  
+**Outcome:** ✅ Complete
+
+### Decisions
+
+1. **Gateway mismatch review** (2026-05-25T16:39:24.354+01:00)
+   - Current editor not aligned: transitions still first-class objects
+   - Gateways behave as attached annotations, not primary routing
+   - Gateway visuals (rounded dashed cards) not aligned to design
+   - Minimum correction: make gateways only visible/editable routing object
+
+2. **Gateway-only behavioural proof replaces hybrid transition proof** (2026-05-25T16:48:28.029+01:00)
+   - Frontend contracts rewritten: graph, gateway, validation, transition-editor all gateway-first
+   - Backend contracts updated: authoring, validation now gateway-only language
+   - Tests intentionally hold the line on product language and visual reading
+   - Quality gate now fails hybrid models (boxes + arrows + badges)
+
+### Test Contracts Updated
+
+**Frontend:**
+- Graph proof: canvas reads stage → gateway → next node
+- Gateway proof: gateway language, join-owned waiting, list-mode gateway rows
+- Validation proof: gateway language for unreachable stages
+- Transition editor: redirected from chip-editing to gateway-first routing
+
+**Backend:**
+- Authoring: join-gateway waiting as correct source
+- Validation: reject direct stage-to-stage and stage-level waiting
+
+### Quality Gate Enforcement
+
+Tests now intentionally fail any:
+- Hybrid model presentation (boxes plus arrows plus badges)
+- Transition chips as user-facing primary objects
+- Rounded-card gateway visuals
+- Stage-level waiting constructs
+
+### Orchestration Log
+
+Written to `.squad/orchestration-log/2026-05-25T15-48-28-tangy.md`
+
+### Coordination
+
+Tangy's tests now hold the corrected model stable while Isabelle and Blathers complete frontend/backend alignment.
+
+---
+
 ## 2026-05-23T13:24:52Z — Lane Header Clearance & Viewport Background Width Proof Tests (Final Validation)
 
 
@@ -19,11 +68,13 @@ For detailed earlier work, see `history-archive.md`.
 
 ## Learnings
 
+- 2026-05-25T16:48:28.029+01:00 — When the product model changes from "transitions plus gateways" to "stages plus gateways," rewrite the behavioural proof around what authors can see and edit: geometry that reads stage → gateway → next node, diamond routing cues, gateway-owned waiting copy, and validation language that points authors back to gateways instead of generic routes.
 - 2026-05-25T09:32:35.455+01:00 — For the concurrent multi-lane redesign, keep one straight-line workflow proof green as a control while adding new parallel-lane and join-gateway proofs. Slice the work into editor contracts, showcase-story evolution, and live walkthrough proof so the behavioural gate can move forward without losing demo clarity.
 - 2026-05-25T09:54:48.365+01:00 — When workflow surface rules are being collapsed, keep Playwright contracts on user-facing language: tab roles, visible lane labels, and assignment copy. Avoid asserting internal surface enums or exact lane counts that can change during cleanup without changing author-visible behaviour.
 - 2026-05-25T11:55:20.362+01:00 — PR #88 review: behavioural contracts stayed honest through surface cleanup. Preview tests use semantic navigation (role, tab selectors) instead of raw data attributes. Validation jump tests prove return-to-Canvas before inspector focus. Lane tests assert visible labels ("Journey lanes", "Operations lanes") rather than internal surface enums. All focused validation green; approved pending Storybook/CI lanes.
 - 2026-05-25T14:17:36.055+01:00 — Issue #82 baseline validation: Build green, backend workflow authoring tests green (106 passed after clean rebuild), key Playwright tests green (graph keyboard, action editor, validation rail, planning smoke). Simulation tests failing (pre-existing issue: tests don't switch to Simulation tab before clicking start button). End-to-end behavioural contracts: planning workflow projection, straight-line stage progression, assignment-driven lane ownership, validation rail with jump-to-item, graph keyboard navigation, inspector field feedback. Gateway representation work must preserve: (1) straight-line workflow execution in planning fixture, (2) stage-to-state projection fidelity, (3) assignment-driven lane derivation, (4) graph path highlighting for single-cursor flows, (5) validation rail contract for unreachable stages.
 - 2026-05-25T14:17:36.055+01:00 — Issue #83 gateway representation tests: Created 7 behavioral contracts for editor-only gateway visibility (split/join visual distinction, lane ownership, inspector integration, graph/list mode rendering). Tests written to pass with zero gateways (current baseline) and prove gateway UI when Isabelle implements #83. All tests green on empty fixture, all existing tests remain green (graph visual/keyboard, action editor, validation rail, stage preview). Backend authoring tests: 106 passed. This slice keeps execution contract stage-driven while making gateway intent visible in the editor.
+- 2026-05-25T16:39:24.354+01:00 — UX review: the current editor still teaches “stages, transitions, and gateways,” not “stages and gateways.” Rounded gateway cards, selectable transition chips, transition-first dialogs/inspector copy, and heuristic gateway anchoring make gateways feel optional decoration rather than the actual transition points between stages.
 
 ## 2026-05-25 (09:32:35 UTC) — Behavioural Test Track for Concurrent Lanes
 

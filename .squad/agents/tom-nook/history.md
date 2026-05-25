@@ -25,6 +25,33 @@ Decision routing: Future work on #58, #59, #60, #61, #63, #65, #67, #68 treats #
 
 **Basis:** Tom Nook background agent (branch hygiene specialist).
 
+## 2026-05-25T16:48:28Z — Gateway-Only Redo: Design Contract Lock
+
+**Task:** Lock corrected gateway contract; rule on PR #89; write team redo directives  
+**Status:** ✅ Complete
+
+### Decisions Locked
+
+1. **PR #89 is blocked by gateway model mismatch**
+   - Current implementation still hybrid: transitions first-class; waiting-stages survive; gateway visuals still rounded cards
+   - User intent plainly restated: only stages and gateways; gateways sole transition mechanism; diamond shapes; waiting on join gateways
+   - Verdict: PR blocked pending full model correction
+
+2. **Gateway-only redo contract**
+   - Authoritative model locked in `decisions.md`
+   - Team contracts specified (Isabelle: editor; Blathers: runtime; Tangy: tests)
+   - Review gate: all surfaces (design doc, decisions, visuals, schema, runtime narrative, tests) must align on same model
+
+### Orchestration Log
+
+Written to `.squad/orchestration-log/2026-05-25T15-48-28-tom-nook.md`
+
+### Coordination
+
+User directive (2026-05-25T16:39:24 and 2026-05-25T16:48:28) captured in decisions.md. Team now moving to execution phase with locked contract.
+
+---
+
 ## 2026-05-21 — Merge-Readiness Assessment: squad/55-workflow-schema-foundation (Final)
 
 **Status:** 🟡 **Logically ready, not procedurally clean**
@@ -163,6 +190,18 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 **Result:** Local main now synced with origin/main; CI pipeline fully configured.
 
 ## Learnings
+
+### 2026-05-25T16:48:28.029+01:00 — Gateway-only means editor-first clarity
+
+- When the user restates the model as "only stages and gateways" and says to watch how the editor looks, treat any stage-to-stage seam or rounded gateway card as a blocker, not as harmless implementation detail.
+- A correction pass should update the canonical design doc, decision record, and team contract together so nobody can keep building against the rejected hybrid model.
+- If an open PR already claims the old hybrid slice is the delivery vehicle, supersede it rather than patching the narrative in place; otherwise review and handoff stay ambiguous.
+
+### 2026-05-25T16:39:24.354+01:00 — Design intent beats transitional seams
+
+- When the implementation introduces gateways but still keeps transitions and waiting stages as first-class authoring concepts, treat that as a partial migration rather than acceptance of the target model.
+- A gateway slice is not merge-ready if the canvas still presents rounded gateway nodes, stage-type waiting semantics, or transition editing as the main routing mechanism after the design has been clarified to "stages + diamond gateways".
+- For PR review, block until the editor, inspector, authored schema, and simulation/runtime story all describe the same plain-language model instead of a hybrid of old and new abstractions.
 
 ### 2026-05-25T09:32:35.455+01:00 — Concurrent lanes backlog slicing
 
