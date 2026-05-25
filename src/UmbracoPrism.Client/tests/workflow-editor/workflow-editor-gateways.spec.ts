@@ -1,247 +1,149 @@
 import { expect, test } from '@playwright/test';
 
-/**
- * Behavioral tests for gateway representation in the workflow editor (Issue #83).
- * 
- * Scope: Editor-only gateway visibility, lane ownership, and visual distinction.
- * Out of scope: Runtime execution, join token bookkeeping, parallel cursor execution.
- * 
- * These tests prove the authored gateways are visible and understandable in the editor
- * while preserving the current stage-to-stage workflow execution contract.
- */
+function graphStoryUrl(): string {
+  return '/iframe.html?id=workflow-editor-workflow-graph--gateway-representation&viewMode=story';
+}
 
-function storyUrl(storyId: string): string {
-  return `/iframe.html?id=${storyId}&viewMode=story`;
+function editorStoryUrl(): string {
+  return '/iframe.html?id=workflow-editor-editor-host--gateway-representation&viewMode=story';
 }
 
 test.describe('Workflow editor gateway representation', () => {
-  test('split gateways are visually distinct from stages in the graph', async ({ page }) => {
+  test('renders split and join gateways as lane-owned graph nodes', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+    await page.goto(graphStoryUrl());
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
 
-    // If the workflow has split gateways, they should be rendered distinctly from stages
-    const splitGateways = storyEl.locator('[data-prism-gateway-kind="Split"]');
-    const splitCount = await splitGateways.count();
-    
-    if (splitCount > 0) {
-      // Split gateways should be visible
-      await expect(splitGateways.first()).toBeVisible();
-      
-      // Split gateways should have visual distinction (not styled as regular stages)
-      const firstSplit = splitGateways.first();
-      const firstSplitClass = await firstSplit.getAttribute('class');
-      expect(firstSplitClass).toBeTruthy();
-      expect(firstSplitClass).not.toContain('stage-node'); // Gateways are not stages
-    } else {
-      // No split gateways in the current fixture — test passes as trivially true
-      expect(splitCount).toBe(0);
-    }
+    const splitGateway = storyEl.locator('[data-prism-gateway-kind="Split"][data-prism-gateway="review-split"]');
+    const joinGateway = storyEl.locator('[data-prism-gateway-kind="Join"][data-prism-gateway="decision-join"]');
+
+    await expect(splitGateway).toBeVisible();
+    await expect(joinGateway).toBeVisible();
+    await expect(splitGateway).toHaveAttribute('data-prism-lane', 'public');
+    await expect(joinGateway).toHaveAttribute('data-prism-lane', 'public');
+    await expect(splitGateway).toContainText('Review split');
+    await expect(joinGateway).toContainText('Decision join');
   });
 
-  test('join gateways are visually distinct from stages in the graph', async ({ page }) => {
+  test('styles branch and merge routes distinctly while preserving executable transitions', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+    await page.goto(graphStoryUrl());
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
 
-    // If the workflow has join gateways, they should be rendered distinctly from stages
-    const joinGateways = storyEl.locator('[data-prism-gateway-kind="Join"]');
-    const joinCount = await joinGateways.count();
-    
-    if (joinCount > 0) {
-      // Join gateways should be visible
-      await expect(joinGateways.first()).toBeVisible();
-      
-      // Join gateways should have visual distinction
-      const firstJoin = joinGateways.first();
-      const firstJoinClass = await firstJoin.getAttribute('class');
-      expect(firstJoinClass).toBeTruthy();
-      expect(firstJoinClass).not.toContain('stage-node'); // Gateways are not stages
-    } else {
-      // No join gateways in the current fixture — test passes as trivially true
-      expect(joinCount).toBe(0);
-    }
+    await expect(storyEl.locator('.edge-path[data-prism-transition-from="review-split"]')).toHaveCount(2);
+    await expect(storyEl.locator('.edge-path[data-prism-transition-to="decision-join"]')).toHaveCount(2);
+    await expect(storyEl.locator('.edge-path.branch-path')).toHaveCount(2);
+    await expect(storyEl.locator('.edge-path.merge-path')).toHaveCount(2);
+    await expect(storyEl.locator('[data-prism-stage="draft"]')).toBeVisible();
+    await expect(storyEl.locator('[data-prism-stage="decision-confirmed"]')).toBeVisible();
   });
 
-  test('gateways show lane ownership clearly in the graph', async ({ page }) => {
+  test('supports keyboard selection for gateway nodes', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+    await page.goto(graphStoryUrl());
 
-    const storyEl = page.locator('prism-workflow-graph');
-    await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
-
-    // If gateways exist, they should clearly belong to a lane
-    const gateways = storyEl.locator('[data-prism-gateway]');
-    const gatewayCount = await gateways.count();
-    
-    if (gatewayCount > 0) {
-      // Each gateway should have a lane attribute or be positioned within a lane
-      for (let i = 0; i < Math.min(gatewayCount, 3); i++) {
-        const gateway = gateways.nth(i);
-        const laneAttr = await gateway.getAttribute('data-prism-lane');
-        
-        // Gateway must declare its lane ownership
-        expect(laneAttr).toBeTruthy();
-        expect(laneAttr).not.toBe('');
-      }
-    } else {
-      // No gateways yet — test passes
-      expect(gatewayCount).toBe(0);
-    }
+    const splitGateway = page.locator('[data-prism-gateway="review-split"]');
+    await splitGateway.focus();
+    await expect(splitGateway).toBeFocused();
+    await splitGateway.press('Enter');
+    await expect(splitGateway).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('selecting a gateway opens the inspector with gateway details', async ({ page }) => {
+  test('shows gateway details in the inspector without turning preview into gateway runtime', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+    await page.goto(editorStoryUrl());
 
-    const storyEl = page.locator('prism-workflow-graph');
-    await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
 
-    const gateways = storyEl.locator('[data-prism-gateway]');
-    const gatewayCount = await gateways.count();
-    
-    if (gatewayCount > 0) {
-      // Click the first gateway
-      await gateways.first().click();
-      await page.waitForTimeout(500); // Wait for selection to propagate
+    const splitGateway = page.locator('[data-prism-gateway="review-split"]');
+    await splitGateway.click();
+    await splitGateway.press('e');
 
-      // Inspector should open and show gateway-specific content
-      const inspector = page.locator('prism-step-inspector');
-      await expect(inspector).toBeVisible();
-      
-      // Inspector should indicate it's showing a gateway (not a stage)
-      const inspectorHeading = inspector.locator('[data-prism-inspector-heading]');
-      const headingText = await inspectorHeading.textContent();
-      
-      // Gateway inspector should not show stage-specific affordances
-      const stageKindField = inspector.locator('[data-prism-field="kind"]');
-      const stageKindVisible = await stageKindField.isVisible().catch(() => false);
-      
-      // If stage kind field is visible, it should be for gateways specifically
-      if (stageKindVisible) {
-        // Gateway kinds are "Split" or "Join", not stage kinds like "Question"
-        const kindValue = await stageKindField.textContent();
-        const isGatewayKind = kindValue?.includes('Split') || kindValue?.includes('Join');
-        expect(isGatewayKind).toBe(true);
-      }
-    } else {
-      // No gateways to select yet — test passes as not applicable
-      expect(gatewayCount).toBe(0);
-    }
+    const inspector = page.locator('prism-step-inspector');
+    await expect(inspector).toBeVisible();
+    await expect(inspector.locator('[data-prism-inspector-kind="gateway"]')).toBeVisible();
+    await expect(inspector.locator('[data-prism-inspector-heading]')).toHaveText('Review split');
+    await expect(inspector.locator('[data-prism-field="kind"]')).toContainText('Split gateway');
+    await expect(page.getByRole('tab', { name: 'Canvas' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-prism-preview-stage-name]')).toHaveCount(0);
   });
 
-  test('transitions from/to gateways show clear branch and merge direction', async ({ page }) => {
+  test('surfaces gateways in list mode as gateway rows', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+    await page.goto(graphStoryUrl());
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
 
-    // If split gateways exist, their outbound transitions should be visible
-    const splitGateways = storyEl.locator('[data-prism-gateway-kind="Split"]');
-    const splitCount = await splitGateways.count();
-    
-    if (splitCount > 0) {
-      const firstSplit = splitGateways.first();
-      const splitKey = await firstSplit.getAttribute('data-prism-gateway');
-      
-      // Transitions from this split should be rendered
-      const outboundTransitions = storyEl.locator(`[data-prism-transition-from="${splitKey}"]`);
-      const outboundCount = await outboundTransitions.count();
-      
-      // A split should have more than one outbound path
-      expect(outboundCount).toBeGreaterThan(0);
-      
-      // Each outbound transition should be visible as a path
-      if (outboundCount > 0) {
-        await expect(outboundTransitions.first()).toBeVisible();
-      }
-    } else {
-      // No splits yet — test passes as not applicable
-      expect(splitCount).toBe(0);
-    }
-  });
-
-  test('workflow with no gateways continues to render stages and transitions correctly', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
-
-    const storyEl = page.locator('prism-workflow-graph');
-    await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
-
-    // Stages should still render correctly
-    const stages = storyEl.locator('[data-prism-stage]');
-    const stageCount = await stages.count();
-    expect(stageCount).toBeGreaterThan(0);
-    await expect(stages.first()).toBeVisible();
-
-    // Transitions should still render correctly
-    const transitions = storyEl.locator('[data-prism-transition]');
-    const transitionCount = await transitions.count();
-    expect(transitionCount).toBeGreaterThan(0);
-
-    // Lane headers should still be visible
-    const laneHeaders = storyEl.locator('.lane-header');
-    await expect(laneHeaders.first()).toBeVisible();
-  });
-
-  test('gateways appear in list mode alongside stages', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
-
-    const storyEl = page.locator('prism-workflow-graph');
-    await expect(storyEl).toBeVisible({ timeout: 10_000 });
-    await page.waitForLoadState('networkidle');
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
-
-    // Switch to list mode
     await page.getByRole('button', { name: 'List view' }).click();
-    await expect(page.getByRole('region', { name: /workflow stages/i })).toBeVisible({ timeout: 5_000 });
-    await storyEl.evaluate(async element => {
-      await (element as { updateComplete?: Promise<unknown> }).updateComplete;
-    });
+    await expect(storyEl.locator('[data-prism-list-row][data-prism-row-type="gateway"]')).toHaveCount(2);
+  });
 
-    // If gateways exist in the workflow, they should appear in the list
-    const listRows = storyEl.locator('[data-prism-list-row]');
-    const rowCount = await listRows.count();
-    expect(rowCount).toBeGreaterThan(0);
+  // ─── #84: Join gateways carry waiting information ─────────────────────────
 
-    // Check if any rows are gateway rows (not stage rows)
-    const gatewayRows = storyEl.locator('[data-prism-list-row][data-prism-row-type="gateway"]');
-    const gatewayRowCount = await gatewayRows.count();
-    
-    // If gatewayRowCount > 0, gateways are in the list
-    // If gatewayRowCount === 0, no gateways exist yet (acceptable for current fixture)
-    expect(gatewayRowCount).toBeGreaterThanOrEqual(0);
+  test('join gateway inspector shows gateway kind as Join — not a stage type', async ({ page }) => {
+    // Join gateways are routing nodes, not action-bearing stages. The inspector must
+    // communicate this clearly so authors understand the join holds waiting information,
+    // not user-facing form content.
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(editorStoryUrl());
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+
+    const joinGateway = page.locator('[data-prism-gateway="decision-join"]');
+    await joinGateway.click();
+    await joinGateway.press('e');
+
+    const inspector = page.locator('prism-step-inspector');
+    await expect(inspector).toBeVisible();
+    await expect(inspector.locator('[data-prism-inspector-kind="gateway"]')).toBeVisible();
+    await expect(inspector.locator('[data-prism-field="kind"]')).toContainText('Join gateway',
+      { timeout: 5_000 });
+  });
+
+  test('split gateway inspector does not show a waiting copy field', async ({ page }) => {
+    // Waiting information belongs to join gateways only. A split gateway routes — it does
+    // not wait. The inspector must not show a waiting copy field for split gateways.
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(editorStoryUrl());
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+
+    const splitGateway = page.locator('[data-prism-gateway="review-split"]');
+    await splitGateway.click();
+    await splitGateway.press('e');
+
+    const inspector = page.locator('prism-step-inspector');
+    await expect(inspector).toBeVisible();
+    await expect(inspector.locator('[data-prism-inspector-kind="gateway"]')).toBeVisible();
+
+    // A split gateway routes — it must not expose waiting copy fields to authors
+    await expect(inspector.locator('[data-prism-field="waitingCopy"]')).toHaveCount(0,
+      { timeout: 3_000 });
+    await expect(inspector.locator('[data-prism-field="waitingInstructions"]')).toHaveCount(0,
+      { timeout: 3_000 });
+  });
+
+  // ─── #84 pending: join gateway waiting copy field (needs Blathers implementation) ──
+
+  test.skip('join gateway inspector shows a waiting copy field for authors to fill in', async ({ page }) => {
+    // When #84 lands: the inspector for a join gateway must show a "Waiting copy" field
+    // so authors can write the message users see while their lane waits for other lanes.
+    // This keeps the waiting story on the gateway, not on a fake placeholder stage.
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(editorStoryUrl());
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+
+    const joinGateway = page.locator('[data-prism-gateway="decision-join"]');
+    await joinGateway.click();
+    await joinGateway.press('e');
+
+    const inspector = page.locator('prism-step-inspector');
+    await expect(inspector.locator('[data-prism-field="waitingCopy"]')).toBeVisible();
   });
 });

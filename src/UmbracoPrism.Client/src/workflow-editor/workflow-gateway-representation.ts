@@ -1,0 +1,95 @@
+import type { AuthoredGateway, AuthoredWorkflow } from './types.js';
+import { normaliseLaneKey, stageLaneKey } from './workflow-stage-assignment.js';
+
+export interface GatewayBinding {
+  gateway: AuthoredGateway;
+  laneKey: string;
+  anchorStageKey: string | null;
+  relatedTransitionIndices: number[];
+}
+
+function shiftCandidate(
+  candidatesByLane: Map<string, string[]>,
+  laneKey: string
+): string | null {
+  const direct = candidatesByLane.get(laneKey);
+  if (direct && direct.length > 0) {
+    return direct.shift() ?? null;
+  }
+
+  for (const candidates of candidatesByLane.values()) {
+    if (candidates.length > 0) {
+      return candidates.shift() ?? null;
+    }
+  }
+
+  return null;
+}
+
+export function gatewayLaneKey(gateway: AuthoredGateway): string {
+  return normaliseLaneKey(gateway.laneKey) || stageLaneKey(gateway);
+}
+
+export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' | 'transitions' | 'gateways'>): GatewayBinding[] {
+  const stageByKey = new Map(workflow.stages.map(stage => [stage.stageKey, stage]));
+  const outgoingByStage = new Map<string, number[]>();
+  const incomingByStage = new Map<string, number[]>();
+
+  workflow.transitions.forEach((transition, index) => {
+    outgoingByStage.set(transition.fromStage, [...(outgoingByStage.get(transition.fromStage) ?? []), index]);
+    incomingByStage.set(transition.toStage, [...(incomingByStage.get(transition.toStage) ?? []), index]);
+  });
+
+  const splitCandidatesByLane = new Map<string, string[]>();
+  const joinCandidatesByLane = new Map<string, string[]>();
+
+  workflow.stages.forEach(stage => {
+    const stageKey = stage.stageKey;
+    const laneKey = stageLaneKey(stage);
+    const outgoing = outgoingByStage.get(stageKey) ?? [];
+    const incoming = incomingByStage.get(stageKey) ?? [];
+
+    if (outgoing.length > 1) {
+      const targetLanes = new Set(
+        outgoing
+          .map(index => stageByKey.get(workflow.transitions[index].toStage))
+          .filter(Boolean)
+          .map(target => stageLaneKey(target!))
+      );
+      if (targetLanes.size > 1 || outgoing.length > 1) {
+        splitCandidatesByLane.set(laneKey, [...(splitCandidatesByLane.get(laneKey) ?? []), stageKey]);
+      }
+    }
+
+    if (incoming.length > 1) {
+      const sourceLanes = new Set(
+        incoming
+          .map(index => stageByKey.get(workflow.transitions[index].fromStage))
+          .filter(Boolean)
+          .map(source => stageLaneKey(source!))
+      );
+      if (sourceLanes.size > 1 || incoming.length > 1) {
+        joinCandidatesByLane.set(laneKey, [...(joinCandidatesByLane.get(laneKey) ?? []), stageKey]);
+      }
+    }
+  });
+
+  return (workflow.gateways ?? []).map(gateway => {
+    const laneKey = gatewayLaneKey(gateway);
+    const anchorStageKey = gateway.kind === 'Split'
+      ? shiftCandidate(splitCandidatesByLane, laneKey)
+      : shiftCandidate(joinCandidatesByLane, laneKey);
+
+    return {
+      gateway,
+      laneKey,
+      anchorStageKey,
+      relatedTransitionIndices:
+        anchorStageKey === null
+          ? []
+          : gateway.kind === 'Split'
+            ? (outgoingByStage.get(anchorStageKey) ?? [])
+            : (incomingByStage.get(anchorStageKey) ?? []),
+    };
+  });
+}

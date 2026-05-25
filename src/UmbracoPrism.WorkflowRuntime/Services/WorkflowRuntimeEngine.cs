@@ -267,6 +267,37 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             return validationEnvelope;
         }
 
+        // Check if the target is a gateway rather than a plain stage.
+        var nextGateway = FindGateway(definition, transition.ToState);
+        if (nextGateway != null)
+        {
+            return string.Equals(nextGateway.GatewayType, "Split", StringComparison.Ordinal)
+                ? HandleSplitGatewayAdvance(instance, definition, transition, nextGateway, fieldValues)
+                : HandleJoinGatewayAdvance(instance, definition, transition, nextGateway, fieldValues);
+        }
+
+        // Regular stage transition (single- or multi-cursor).
+        if (instance.Cursors.Count > 0)
+        {
+            // Multi-cursor: advance only the cursor currently at this stage.
+            var sourceCursor = instance.Cursors.FirstOrDefault(c => c.CurrentNodeKey == instance.CurrentState && !c.IsAtGateway);
+            var updatedCursors = MoveCursor(instance.Cursors, sourceCursor?.CursorId, transition.ToState, isAtGateway: false);
+            var primaryState = FirstActiveStageCursorKey(updatedCursors) ?? transition.ToState;
+            var updatedMulti = instance with
+            {
+                CurrentState = primaryState,
+                Cursors = updatedCursors,
+                StateVersion = instance.StateVersion + 1,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                FieldValues = Merge(instance.FieldValues, fieldValues)
+            };
+            SaveInstance(updatedMulti);
+            Logger.LogInformation(
+                "Multi-cursor advance instance {Id}: cursor {CursorId} → {To}",
+                instanceId, sourceCursor?.CursorId ?? "(none)", transition.ToState);
+            return BuildEnvelope(updatedMulti, definition);
+        }
+
         var updated = instance with
         {
             CurrentState = transition.ToState,
@@ -379,6 +410,24 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition)
     {
+        // In multi-cursor mode the CurrentState already reflects the first active stage cursor.
+        // If all remaining cursors are at join gateways (waiting), show the join waiting information
+        // for the owning lane rather than looking for a stage.
+        if (instance.Cursors.Count > 0)
+        {
+            var stageCursors = instance.Cursors.Where(c => !c.IsAtGateway).ToList();
+            if (stageCursors.Count == 0)
+            {
+                // All active cursors are at join gateways — show the first join's waiting info.
+                var joinCursor = instance.Cursors.First(c => c.IsAtGateway);
+                var joinGateway = FindGateway(definition, joinCursor.CurrentNodeKey);
+                if (joinGateway != null)
+                {
+                    return BuildJoinWaitingEnvelope(instance, definition, joinGateway);
+                }
+            }
+        }
+
         var state = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
         if (state == null)
         {
@@ -815,6 +864,286 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             ? $"{prefix}{raw}"
             : raw;
     }
+
+    // ─── Gateway helpers ──────────────────────────────────────────────────────
+
+    private static WorkflowGatewayDefinition? FindGateway(WorkflowDefinitionFile definition, string nodeKey) =>
+        definition.Metadata?.Gateways?.FirstOrDefault(g =>
+            string.Equals(g.Key, nodeKey, StringComparison.Ordinal));
+
+    private WorkflowResponseEnvelope HandleSplitGatewayAdvance(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowTransitionFile arrivingTransition,
+        WorkflowGatewayDefinition splitGateway,
+        Dictionary<string, object?>? fieldValues)
+    {
+        // Find all outgoing branches from the split gateway.
+        // Split gateway transitions carry the action "split-auto" by convention or any action
+        // — we follow ALL outgoing transitions from the gateway deterministically.
+        var outgoing = definition.Transitions
+            .Where(t => string.Equals(t.FromState, splitGateway.Key, StringComparison.Ordinal))
+            .OrderBy(t => t.ToState, StringComparer.Ordinal)
+            .ToList();
+
+        if (outgoing.Count == 0)
+        {
+            return ErrorEnvelope(
+                $"Split gateway '{splitGateway.Key}' has no outgoing transitions.",
+                "GATEWAY_NO_OUTGOING");
+        }
+
+        // Identify the cursor being advanced (if we are already in multi-cursor mode).
+        var sourceCursorId = instance.Cursors
+            .FirstOrDefault(c => c.CurrentNodeKey == instance.CurrentState && !c.IsAtGateway)?.CursorId;
+
+        // Remove the arriving cursor (or primary state in single-cursor mode) and fan out.
+        var remainingCursors = sourceCursorId != null
+            ? instance.Cursors.Where(c => c.CursorId != sourceCursorId).ToList()
+            : new List<WorkflowCursor>();
+
+        var newCursors = outgoing.Select(t =>
+        {
+            var targetGateway = FindGateway(definition, t.ToState);
+            var targetLaneKey = targetGateway?.LaneKey
+                                ?? definition.States.FirstOrDefault(s => s.StateKey == t.ToState)?.Metadata?.LaneKey
+                                ?? splitGateway.LaneKey;
+
+            return new WorkflowCursor
+            {
+                CursorId = Guid.NewGuid().ToString(),
+                LaneKey = targetLaneKey,
+                CurrentNodeKey = t.ToState,
+                IsAtGateway = targetGateway != null
+            };
+        }).ToList();
+
+        var allCursors = remainingCursors.Concat(newCursors).ToArray();
+        var primaryState = FirstActiveStageCursorKey(allCursors) ?? newCursors[0].CurrentNodeKey;
+
+        var updated = instance with
+        {
+            CurrentState = primaryState,
+            Cursors = allCursors,
+            StateVersion = instance.StateVersion + 1,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            FieldValues = Merge(instance.FieldValues, fieldValues)
+        };
+
+        SaveInstance(updated);
+        Logger.LogInformation(
+            "Split gateway '{Gateway}': instance {Id} fanned out to {Count} cursors.",
+            splitGateway.Key, instance.InstanceId, newCursors.Count);
+
+        return BuildEnvelope(updated, definition);
+    }
+
+    private WorkflowResponseEnvelope HandleJoinGatewayAdvance(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowTransitionFile arrivingTransition,
+        WorkflowGatewayDefinition joinGateway,
+        Dictionary<string, object?>? fieldValues)
+    {
+        var gatewayKey = joinGateway.Key;
+        var requiredLanes = joinGateway.RequiredIncomingLanes ?? [];
+
+        // Identify the arriving cursor.
+        var arrivingCursor = instance.Cursors.Count > 0
+            ? instance.Cursors.FirstOrDefault(c => c.CurrentNodeKey == instance.CurrentState && !c.IsAtGateway)
+            : new WorkflowCursor
+            {
+                CursorId = Guid.NewGuid().ToString(),
+                LaneKey = joinGateway.LaneKey,
+                CurrentNodeKey = instance.CurrentState,
+                IsAtGateway = false
+            };
+
+        var arrivingCursorId = arrivingCursor?.CursorId ?? Guid.NewGuid().ToString();
+        var arrivingLaneKey = arrivingCursor?.LaneKey ?? joinGateway.LaneKey;
+
+        // Record arrival in join token bookkeeping.
+        var existingArrivals = instance.JoinArrivals.TryGetValue(gatewayKey, out var existing)
+            ? existing.ToList()
+            : new List<string>();
+
+        if (!existingArrivals.Contains(arrivingCursorId))
+            existingArrivals.Add(arrivingCursorId);
+
+        // Move the arriving cursor to the join gateway.
+        var cursorsAfterArrival = instance.Cursors.Count > 0
+            ? MoveCursor(instance.Cursors, arrivingCursor?.CursorId, gatewayKey, isAtGateway: true)
+            : [new WorkflowCursor { CursorId = arrivingCursorId, LaneKey = arrivingLaneKey, CurrentNodeKey = gatewayKey, IsAtGateway = true }];
+
+        var updatedArrivals = new Dictionary<string, IReadOnlyList<string>>(instance.JoinArrivals)
+        {
+            [gatewayKey] = existingArrivals
+        };
+
+        // Check if all required lanes have a cursor at this gateway.
+        // A lane is "arrived" when at least one of its cursors is in the join arrivals list.
+        var arrivedCursorIds = new HashSet<string>(existingArrivals, StringComparer.Ordinal);
+        var arrivedLanes = cursorsAfterArrival
+            .Where(c => c.IsAtGateway && string.Equals(c.CurrentNodeKey, gatewayKey, StringComparison.Ordinal)
+                                      && arrivedCursorIds.Contains(c.CursorId))
+            .Select(c => c.LaneKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var allRequiredArrived = requiredLanes.Count == 0 || requiredLanes.All(l => arrivedLanes.Contains(l));
+
+        if (!allRequiredArrived)
+        {
+            // Waiting — record arrival but do not release.
+            var waitingInstance = instance with
+            {
+                CurrentState = FirstActiveStageCursorKey(cursorsAfterArrival) ?? gatewayKey,
+                Cursors = cursorsAfterArrival,
+                JoinArrivals = updatedArrivals,
+                StateVersion = instance.StateVersion + 1,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                FieldValues = Merge(instance.FieldValues, fieldValues)
+            };
+
+            SaveInstance(waitingInstance);
+            Logger.LogInformation(
+                "Join gateway '{Gateway}': instance {Id} waiting ({Arrived}/{Required} lanes).",
+                gatewayKey, instance.InstanceId, arrivedLanes.Count, requiredLanes.Count);
+
+            return BuildJoinWaitingEnvelope(waitingInstance, definition, joinGateway);
+        }
+
+        // All required lanes arrived — release the join.
+        var outgoing = definition.Transitions
+            .Where(t => string.Equals(t.FromState, gatewayKey, StringComparison.Ordinal))
+            .OrderBy(t => t.ToState, StringComparer.Ordinal)
+            .ToList();
+
+        if (outgoing.Count == 0)
+        {
+            return ErrorEnvelope(
+                $"Join gateway '{gatewayKey}' has no outgoing transitions.",
+                "GATEWAY_NO_OUTGOING");
+        }
+
+        // Remove all cursors that were held at this join and create the release cursor(s).
+        var cursorsWithoutJoin = cursorsAfterArrival
+            .Where(c => !(c.IsAtGateway && string.Equals(c.CurrentNodeKey, gatewayKey, StringComparison.Ordinal)))
+            .ToList();
+
+        var releaseCursors = outgoing.Select(t =>
+        {
+            var targetGateway = FindGateway(definition, t.ToState);
+            return new WorkflowCursor
+            {
+                CursorId = Guid.NewGuid().ToString(),
+                LaneKey = targetGateway?.LaneKey
+                          ?? definition.States.FirstOrDefault(s => s.StateKey == t.ToState)?.Metadata?.LaneKey
+                          ?? joinGateway.LaneKey,
+                CurrentNodeKey = t.ToState,
+                IsAtGateway = targetGateway != null
+            };
+        }).ToList();
+
+        var releasedCursors = cursorsWithoutJoin.Concat(releaseCursors).ToArray();
+
+        // Clean up join arrivals for this gateway.
+        var cleanedArrivals = new Dictionary<string, IReadOnlyList<string>>(updatedArrivals);
+        cleanedArrivals.Remove(gatewayKey);
+
+        var primaryStateAfterRelease = FirstActiveStageCursorKey(releasedCursors) ?? outgoing[0].ToState;
+
+        var releasedInstance = instance with
+        {
+            CurrentState = primaryStateAfterRelease,
+            Cursors = releasedCursors,
+            JoinArrivals = cleanedArrivals,
+            StateVersion = instance.StateVersion + 1,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            FieldValues = Merge(instance.FieldValues, fieldValues)
+        };
+
+        SaveInstance(releasedInstance);
+        Logger.LogInformation(
+            "Join gateway '{Gateway}': instance {Id} released. All {Count} required lanes arrived.",
+            gatewayKey, instance.InstanceId, requiredLanes.Count);
+
+        return BuildEnvelope(releasedInstance, definition);
+    }
+
+    private WorkflowResponseEnvelope BuildJoinWaitingEnvelope(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowGatewayDefinition joinGateway)
+    {
+        var waitingContent = joinGateway.WaitingContent
+                             ?? "Please wait while other parts of this workflow are completed.";
+        var pollMs = joinGateway.WaitingPollIntervalMs > 0 ? joinGateway.WaitingPollIntervalMs : 3000;
+        var expectedSeconds = joinGateway.WaitingExpectedSeconds > 0 ? joinGateway.WaitingExpectedSeconds : 30;
+
+        var waitingArrivals = instance.JoinArrivals.TryGetValue(joinGateway.Key, out var arr) ? arr : [];
+        var requiredLanes = joinGateway.RequiredIncomingLanes ?? [];
+        var pendingLanes = requiredLanes
+            .Where(l => instance.Cursors.All(c =>
+                !(c.IsAtGateway
+                  && string.Equals(c.CurrentNodeKey, joinGateway.Key, StringComparison.Ordinal)
+                  && string.Equals(c.LaneKey, l, StringComparison.Ordinal))))
+            .ToArray();
+
+        var statusContent = pendingLanes.Length > 0
+            ? $"{waitingContent} Waiting for: {string.Join(", ", pendingLanes)}."
+            : waitingContent;
+
+        var render = new StepContent
+        {
+            StepType = "status-timeline",
+            StateDisplayName = joinGateway.DisplayName,
+            Components =
+            [
+                new PrismComponentRenderPayload
+                {
+                    Type = "waiting",
+                    Content = statusContent,
+                    ExpectedWaitSeconds = expectedSeconds,
+                    PollIntervalMs = pollMs,
+                    AllowDefer = true
+                }
+            ],
+            AvailableActions = Array.Empty<WorkflowAction>()
+        };
+
+        return new WorkflowResponseEnvelope
+        {
+            InstanceId = instance.InstanceId,
+            ResponseState = "defer",
+            StateVersion = instance.StateVersion,
+            CorrelationId = instance.InstanceId,
+            ServerTimeUtc = DateTimeOffset.UtcNow,
+            PollAfterMs = pollMs,
+            Render = render,
+            InstancePolicy = definition.InstancePolicy
+        };
+    }
+
+    private static IReadOnlyList<WorkflowCursor> MoveCursor(
+        IReadOnlyList<WorkflowCursor> cursors,
+        string? cursorId,
+        string newNodeKey,
+        bool isAtGateway)
+    {
+        if (cursorId == null)
+            return cursors;
+
+        return cursors
+            .Select(c => c.CursorId == cursorId
+                ? c with { CurrentNodeKey = newNodeKey, IsAtGateway = isAtGateway }
+                : c)
+            .ToArray();
+    }
+
+    private static string? FirstActiveStageCursorKey(IReadOnlyList<WorkflowCursor> cursors) =>
+        cursors.FirstOrDefault(c => !c.IsAtGateway)?.CurrentNodeKey;
+
+    // ─── end Gateway helpers ──────────────────────────────────────────────────
 
     private static string LookupKey(string tenantId, string userId, string workflowKey) =>
         $"{tenantId}:{userId}:{workflowKey}";

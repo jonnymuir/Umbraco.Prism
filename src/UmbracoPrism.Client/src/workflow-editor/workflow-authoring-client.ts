@@ -167,6 +167,7 @@ function normaliseGateway(raw: Record<string, unknown>): AuthoredGateway {
     displayName: String(raw.displayName ?? raw.title ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
     kind: mapGatewayKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined),
+    laneKey: typeof raw.laneKey === 'string' ? raw.laneKey : undefined,
     actor: typeof raw.actor === 'string' ? raw.actor : undefined,
     roleGates: Array.isArray(raw.roleGates) ? raw.roleGates.map(value => String(value)) : [],
     waiting: typeof raw.waiting === 'object' && raw.waiting !== null ? (raw.waiting as AuthoredGateway['waiting']) : undefined,

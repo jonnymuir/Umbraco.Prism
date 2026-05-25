@@ -105,6 +105,33 @@ public static class AuthoredWorkflowSchemaValidator
             }
 
             ValidateAssignmentCompatibility(gateway.GatewayKey, "Gateway", gateway.Actor, gateway.RoleGates, lane, diagnostics);
+
+            if (gateway.Kind == GatewayKind.Join)
+            {
+                if (gateway.WaitingInfo is null)
+                {
+                    diagnostics.Add(Error("PROJ137",
+                        $"Join gateway '{gateway.GatewayKey}' must define waitingInfo.", gateway.GatewayKey));
+                }
+
+                if (gateway.RequiredIncomingLanes.Count == 0)
+                {
+                    diagnostics.Add(Error("PROJ138",
+                        $"Join gateway '{gateway.GatewayKey}' must define at least one requiredIncomingLane.", gateway.GatewayKey));
+                }
+                else
+                {
+                    foreach (var requiredLane in gateway.RequiredIncomingLanes)
+                    {
+                        if (!lanesByKey.ContainsKey(requiredLane))
+                        {
+                            diagnostics.Add(Error("PROJ139",
+                                $"Join gateway '{gateway.GatewayKey}' requiredIncomingLane '{requiredLane}' references an unknown lane.",
+                                gateway.GatewayKey));
+                        }
+                    }
+                }
+            }
         }
 
         foreach (var transition in authored.Transitions)

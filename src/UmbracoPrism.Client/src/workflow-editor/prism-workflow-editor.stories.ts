@@ -165,6 +165,80 @@ function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
   return workflow;
 }
 
+function makeGatewayWorkflow(): AuthoredWorkflow {
+  return {
+    ...PLANNING_WORKFLOW,
+    displayName: 'Planning Application Gateway Draft',
+    initialStageKey: 'draft',
+    stages: [
+      {
+        stageKey: 'draft',
+        displayName: 'Draft submission',
+        description: 'Capture the initial applicant draft before review starts.',
+        kind: 'Question',
+        actor: 'applicant',
+        actions: [],
+        fields: [],
+        roleGates: [],
+      },
+      {
+        stageKey: 'applicant-amendments',
+        displayName: 'Applicant amendments',
+        description: 'Applicant lane work after the split.',
+        kind: 'Question',
+        actor: 'applicant',
+        actions: [],
+        fields: [],
+        roleGates: [],
+      },
+      {
+        stageKey: 'reviewer-assessment',
+        displayName: 'Reviewer assessment',
+        description: 'Reviewer lane work after the split.',
+        kind: 'Question',
+        actor: 'reviewer',
+        actions: [],
+        fields: [],
+        roleGates: ['reviewer'],
+      },
+      {
+        stageKey: 'decision-confirmed',
+        displayName: 'Decision confirmed',
+        description: 'The merged path continues here for the authored executable route.',
+        kind: 'Confirmation',
+        actor: 'applicant',
+        actions: [],
+        fields: [],
+        roleGates: [],
+      },
+    ],
+    transitions: [
+      { fromStage: 'draft', toStage: 'applicant-amendments', action: 'continue applicant branch', actions: [] },
+      { fromStage: 'draft', toStage: 'reviewer-assessment', action: 'start reviewer branch', actions: [] },
+      { fromStage: 'applicant-amendments', toStage: 'decision-confirmed', action: 'complete applicant branch', actions: [] },
+      { fromStage: 'reviewer-assessment', toStage: 'decision-confirmed', action: 'approve decision', requiresRole: 'reviewer', actions: [] },
+    ],
+    gateways: [
+      {
+        gatewayKey: 'review-split',
+        displayName: 'Review split',
+        kind: 'Split',
+        laneKey: 'applicant',
+        actor: 'applicant',
+        roleGates: [],
+      },
+      {
+        gatewayKey: 'decision-join',
+        displayName: 'Decision join',
+        kind: 'Join',
+        laneKey: 'applicant',
+        actor: 'applicant',
+        roleGates: [],
+      },
+    ],
+  };
+}
+
 const meta: Meta = {
   title: 'Workflow Editor/Editor Host',
   component: 'prism-workflow-editor',
@@ -320,4 +394,9 @@ export const SimulationBranches: Story = {
 export const SimulationBlockers: Story = {
   name: 'Simulation Blockers',
   render: () => makeEditor(makeSimulationBlockerWorkflow()),
+};
+
+export const GatewayRepresentation: Story = {
+  name: 'Gateway Representation',
+  render: () => makeEditor(makeGatewayWorkflow()),
 };

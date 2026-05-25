@@ -13,6 +13,78 @@ const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ],
 };
 
+const GATEWAY_WORKFLOW: AuthoredWorkflow = {
+  ...STUB_WORKFLOW,
+  displayName: 'Planning Permission Gateway Draft',
+  initialStageKey: 'draft',
+  stages: [
+    {
+      stageKey: 'draft',
+      displayName: 'Draft submission',
+      description: 'Capture the initial applicant draft before review starts.',
+      kind: 'Question',
+      actor: 'public',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+    {
+      stageKey: 'applicant-amendments',
+      displayName: 'Applicant amendments',
+      description: 'Applicant lane work after the split.',
+      kind: 'Question',
+      actor: 'public',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+    {
+      stageKey: 'reviewer-assessment',
+      displayName: 'Reviewer assessment',
+      description: 'Reviewer lane work after the split.',
+      kind: 'Question',
+      actor: 'reviewer',
+      actions: [],
+      fields: [],
+      roleGates: ['reviewer'],
+    },
+    {
+      stageKey: 'decision-confirmed',
+      displayName: 'Decision confirmed',
+      description: 'The merged path continues here for the authored executable route.',
+      kind: 'Confirmation',
+      actor: 'public',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+  ],
+  transitions: [
+    { fromStage: 'draft', toStage: 'applicant-amendments', action: 'continue applicant branch', actions: [] },
+    { fromStage: 'draft', toStage: 'reviewer-assessment', action: 'start reviewer branch', actions: [] },
+    { fromStage: 'applicant-amendments', toStage: 'decision-confirmed', action: 'complete applicant branch', actions: [] },
+    { fromStage: 'reviewer-assessment', toStage: 'decision-confirmed', action: 'approve decision', requiresRole: 'reviewer', actions: [] },
+  ],
+  gateways: [
+    {
+      gatewayKey: 'review-split',
+      displayName: 'Review split',
+      kind: 'Split',
+      laneKey: 'public',
+      actor: 'public',
+      roleGates: [],
+    },
+    {
+      gatewayKey: 'decision-join',
+      displayName: 'Decision join',
+      kind: 'Join',
+      laneKey: 'public',
+      actor: 'public',
+      roleGates: [],
+    },
+  ],
+};
+
 type StoryArgs = {
   workflow: AuthoredWorkflow | null;
 };
@@ -225,5 +297,19 @@ export const LinearMode: Story = {
     await el.updateComplete;
 
     await expect(root.querySelectorAll('[data-prism-list-row]').length).toBe(WORKSPACE_WORKFLOW.stages.length + 1);
+  },
+};
+
+export const GatewayRepresentation: Story = {
+  args: { workflow: GATEWAY_WORKFLOW },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 140));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(2);
+    await expect(root.querySelector('[data-prism-gateway-kind="Split"]')).not.toBeNull();
+    await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
   },
 };

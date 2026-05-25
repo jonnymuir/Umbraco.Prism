@@ -157,8 +157,8 @@ V1 is centred on six editable concepts.
 | Concept | What the author edits | Why it matters |
 | --- | --- | --- |
 | Workflow | name, key, summary, actors, top-level settings | defines the overall workflow |
-| Gateway | key, title, split/join kind, owning lane | shows where lanes branch or converge without pretending the gateway is a normal stage |
-| Stage | key, title, purpose, actor, stage type, actions | defines a unit of work or waiting |
+| Gateway | key, title, description, split/join kind, owning lane, waiting summary | shows where lanes branch or converge without pretending the gateway is a normal stage |
+| Stage | key, title, purpose, actor, stage type, actions | defines a unit of work |
 | Transition | source, target, trigger, conditions, guards | defines how the workflow moves |
 | Action | action type, timing, behaviour | defines what happens in or between stages |
 | Parameters | structured values for actions and forms | defines the exact behaviour |
@@ -180,7 +180,7 @@ Each stage can define:
 - short description
 - actor or owning role
 - optional role gates for reviewer or back-stage access
-- stage type such as form, review, decision, waiting, confirmation, or system work
+- stage type such as form, review, decision, confirmation, or system work
 - actions that run in the stage
 - outbound transitions
 
@@ -218,14 +218,14 @@ Lane placement (front vs back stage) is **derived from the stage's actor and rol
 
 ## 8. Transition editing
 
-Transitions define how the workflow moves from one stage to another.
+Transitions define how the workflow moves between stages and gateways.
 
 ### 8.1 What a transition contains
 
 A transition can define:
 
-- source stage
-- target stage
+- source stage or gateway
+- target stage or gateway
 - trigger or action label
 - optional condition or guard
 - optional role requirement
@@ -235,7 +235,7 @@ A transition can define:
 
 In V1, authors can:
 
-- create a transition between stages
+- create a transition between stages or gateways
 - rename the transition label
 - change the target
 - add simple conditions or guards
@@ -257,11 +257,13 @@ V1 list view should show the same information in a compact table.
 
 ### 8.4 Gateway representation in the next lane slice
 
-For the next post-#82 behaviour slice, split and join gateways should be represented as **lane-owned gateway nodes**, not as ordinary stages and not as hidden engine metadata.
+For the next post-#82 behaviour slice, split and join gateways should be represented as **lane-owned diamond gateway nodes**, not as ordinary stages and not as hidden engine metadata.
 
 - A **split gateway** sits in the lane that owns the branch point and visually fans transitions out to other lane paths.
 - A **join gateway** sits in the lane that owns the merge point and visually gathers inbound lane paths before the next lane-owned step.
-- Gateway cards should stay structurally small: title, split/join kind, and owning lane.
+- Gateway cards should show the gateway name, description, split/join kind, and owning lane.
+- Join gateways should also surface the waiting summary authors expect the runtime user to see while other lanes are still arriving.
+- Authors should be able to connect stages to gateways, gateways to stages, and gateways to other gateways without inventing fake placeholder stages.
 - Selecting a gateway should open gateway details in the inspector, but preview, simulation, and publish should keep following the existing stage-to-stage executable path until the later engine slices land.
 - Editing rules should stop authors from creating confusing gateway-only routes before join semantics are implemented.
 

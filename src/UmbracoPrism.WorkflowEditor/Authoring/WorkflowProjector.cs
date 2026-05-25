@@ -140,19 +140,26 @@ public sealed class WorkflowProjector : IWorkflowProjector
                 $"InitialStageKey '{authored.InitialStageKey}' does not reference any defined stage.", null));
         }
 
+        // Transitions may target either stages or gateways — both are valid graph nodes.
+        var gatewayKeys = new HashSet<string>(
+            authored.Gateways.Select(g => g.GatewayKey), StringComparer.Ordinal);
+
+        var validNodeKeys = new HashSet<string>(stageKeys, StringComparer.Ordinal);
+        validNodeKeys.UnionWith(gatewayKeys);
+
         foreach (var transition in authored.Transitions)
         {
-            if (!stageKeys.Contains(transition.FromStage))
+            if (!string.IsNullOrWhiteSpace(transition.FromStage) && !validNodeKeys.Contains(transition.FromStage))
             {
                 diagnostics.Add(Warning("PROJ004",
-                    $"Transition FromStage '{transition.FromStage}' does not reference a defined stage.",
+                    $"Transition source '{transition.FromStage}' does not reference a defined stage or gateway.",
                     transition.FromStage));
             }
 
-            if (!stageKeys.Contains(transition.ToStage))
+            if (!string.IsNullOrWhiteSpace(transition.ToStage) && !validNodeKeys.Contains(transition.ToStage))
             {
                 diagnostics.Add(Warning("PROJ004",
-                    $"Transition ToStage '{transition.ToStage}' does not reference a defined stage.",
+                    $"Transition target '{transition.ToStage}' does not reference a defined stage or gateway.",
                     transition.ToStage));
             }
         }
@@ -298,14 +305,22 @@ public sealed class WorkflowProjector : IWorkflowProjector
                 .Select(gateway =>
                 {
                     var assignment = ResolveAssignment(gateway.LaneKey, gateway.Actor, gateway.RoleGates, lanesByKey);
+                    var waitingInfo = gateway.WaitingInfo;
                     return new WorkflowGatewayDefinition
                     {
                         Key = gateway.GatewayKey,
                         DisplayName = gateway.DisplayName,
+                        Description = gateway.Description,
                         GatewayType = gateway.Kind.ToString(),
                         LaneKey = gateway.LaneKey,
                         Actor = assignment.Actor,
-                        RoleGates = assignment.RoleGates
+                        RoleGates = assignment.RoleGates,
+                        WaitingContent = waitingInfo?.Content,
+                        WaitingExpectedSeconds = waitingInfo?.ExpectedWaitSeconds ?? 0,
+                        WaitingPollIntervalMs = waitingInfo?.PollIntervalMs ?? 0,
+                        RequiredIncomingLanes = gateway.RequiredIncomingLanes.Count == 0
+                            ? null
+                            : gateway.RequiredIncomingLanes.OrderBy(l => l, StringComparer.Ordinal).ToArray()
                     };
                 })
                 .ToArray();

@@ -1,6 +1,12 @@
 import { LitElement, css, html, nothing, svg } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import type { AuthoredStage, AuthoredTransition, AuthoredWorkflow, EditorStageType } from './types.js';
+import type {
+  AuthoredGateway,
+  AuthoredStage,
+  AuthoredTransition,
+  AuthoredWorkflow,
+  EditorStageType,
+} from './types.js';
 import { editorStageTypeToStageKind } from './types.js';
 import {
   applyLaneToStage,
@@ -21,15 +27,21 @@ import {
   type TransitionConditionMode,
 } from './workflow-transition-editing.js';
 import { workflowDeadEndStages, workflowUnreachableStages } from './workflow-validation.js';
+import {
+  deriveGatewayBindings,
+  gatewayLaneKey,
+  type GatewayBinding,
+} from './workflow-gateway-representation.js';
 
 export type GraphMode = 'graph' | 'linear';
 type LinearFilter = '__all__' | string;
-type SelectionKind = 'stage' | 'transition';
+type SelectionKind = 'stage' | 'transition' | 'gateway';
 
 type GraphSelectionDetail = {
   kind: SelectionKind;
   stageKey?: string;
   transitionIndex?: number;
+  gatewayKey?: string;
 };
 
 type WorkflowUpdatedDetail = {
@@ -59,18 +71,35 @@ type StageLayout = {
   height: number;
 };
 
+type GatewayLayout = {
+  gateway: AuthoredGateway;
+  binding: GatewayBinding;
+  surface: StageSurface;
+  laneKey: string;
+  laneLabel: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 type TransitionLayout = {
   transition: AuthoredTransition;
   index: number;
   path: string;
   labelX: number;
   labelY: number;
+  visualFromKey: string;
+  visualToKey: string;
+  branch: boolean;
+  merge: boolean;
 };
 
 type WorkspaceLayout = {
   bounds: { width: number; height: number };
   roleLanes: RoleLane[];
   stageLayouts: StageLayout[];
+  gatewayLayouts: GatewayLayout[];
   transitionLayouts: TransitionLayout[];
 };
 
@@ -112,6 +141,15 @@ type CreateTransitionDialogState = {
   error: string | null;
 };
 
+type CreateGatewayDialogState = {
+  title: string;
+  gatewayKey: string;
+  kind: 'Split' | 'Join';
+  laneKey: string;
+  keyTouched: boolean;
+  error: string | null;
+};
+
 const NODE_WIDTH = 224;
 const NODE_HEIGHT = 128;
 const VERTICAL_GAP = 96;
@@ -121,6 +159,8 @@ const LANE_WIDTH = 280;
 const LANE_GAP = 36;
 const EDGE_LABEL_WIDTH = 132;
 const EDGE_LABEL_HEIGHT = 32;
+const GATEWAY_SIZE = 104;
+const GATEWAY_OFFSET = 28;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
 const LANE_HEADER_OFFSET = 80;
@@ -154,6 +194,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   selectedTransitionIndex: number | null = null;
 
   @property({ attribute: false })
+  selectedGatewayKey: string | null = null;
+
+  @property({ attribute: false })
   simulationCurrentStageKey: string | null = null;
 
   @property({ attribute: false })
@@ -167,6 +210,9 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   @state()
   private _selectedTransitionIndex: number | null = null;
+
+  @state()
+  private _selectedGatewayKey: string | null = null;
 
   @state()
   private _focusedIndex = 0;
@@ -200,6 +246,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   @state()
   private _createTransitionDialog: CreateTransitionDialogState | null = null;
 
+  @state()
+  private _createGatewayDialog: CreateGatewayDialogState | null = null;
+
   @query('.graph-canvas')
   private _graphCanvas?: HTMLDivElement;
 
@@ -232,8 +281,13 @@ export class PrismWorkflowGraphElement extends LitElement {
       this._selectedTransitionIndex = this.selectedTransitionIndex ?? null;
     }
 
+    if (changed.has('selectedGatewayKey')) {
+      this._selectedGatewayKey = this.selectedGatewayKey ?? null;
+    }
+
     const stages = this.workflow?.stages ?? [];
     const transitions = this.workflow?.transitions ?? [];
+    const gateways = this.workflow?.gateways ?? [];
     const focusableStages = this.mode === 'linear'
       ? this._visibleLinearStages(stages)
       : stages;
@@ -249,6 +303,10 @@ export class PrismWorkflowGraphElement extends LitElement {
       this._selectedTransitionIndex = null;
     }
 
+    if (this._selectedGatewayKey && !gateways.some(gateway => gateway.gatewayKey === this._selectedGatewayKey)) {
+      this._selectedGatewayKey = null;
+    }
+
     if (focusableStages.length === 0) {
       this._focusedIndex = 0;
     } else if (this._focusedIndex >= focusableStages.length) {
@@ -259,16 +317,16 @@ export class PrismWorkflowGraphElement extends LitElement {
   private get _layout(): WorkspaceLayout {
     const stages = this.workflow?.stages ?? [];
     const transitions = this.workflow?.transitions ?? [];
+    const gateways = this.workflow?.gateways ?? [];
     const roleLanes: RoleLane[] = [];
     const laneByKey = new Map<string, RoleLane>();
     const stageLayouts: StageLayout[] = [];
+    const gatewayLayouts: GatewayLayout[] = [];
 
     // Group stages by lane and track stage indices per lane
     const stagesPerLane = new Map<string, Array<{ stage: AuthoredStage; globalIndex: number }>>();
 
-    stages.forEach((stage, stageIndex) => {
-      const surface = this._surfaceForStage(stage);
-      const laneKey = this._roleKeyForStage(stage, surface);
+    const ensureLane = (laneKey: string, surface: StageSurface) => {
       let lane = laneByKey.get(laneKey);
       if (!lane) {
         lane = {
@@ -283,11 +341,26 @@ export class PrismWorkflowGraphElement extends LitElement {
         };
         laneByKey.set(laneKey, lane);
         roleLanes.push(lane);
+      }
+
+      if (!stagesPerLane.has(laneKey)) {
         stagesPerLane.set(laneKey, []);
       }
 
+      return lane;
+    };
+
+    stages.forEach((stage, stageIndex) => {
+      const surface = this._surfaceForStage(stage);
+      const laneKey = this._roleKeyForStage(stage, surface);
+      const lane = ensureLane(laneKey, surface);
       lane.stageCount += 1;
       stagesPerLane.get(laneKey)!.push({ stage, globalIndex: stageIndex });
+    });
+
+    gateways.forEach(gateway => {
+      const surface = this._surfaceForGateway(gateway);
+      ensureLane(this._laneKeyForGateway(gateway), surface);
     });
 
     // Position stages vertically within each lane
@@ -313,15 +386,66 @@ export class PrismWorkflowGraphElement extends LitElement {
       });
     });
 
+    const stageMap = new Map(stageLayouts.map(layout => [layout.stage.stageKey, layout]));
+    const gatewayBindings = this.workflow ? deriveGatewayBindings(this.workflow) : [];
+    const usedFallbackSlotsByLane = new Map<string, number>();
+
+    gatewayBindings.forEach(binding => {
+      const lane = laneByKey.get(binding.laneKey);
+      if (!lane) {
+        return;
+      }
+
+      const anchorStage = binding.anchorStageKey ? stageMap.get(binding.anchorStageKey) ?? null : null;
+      const fallbackIndex = usedFallbackSlotsByLane.get(binding.laneKey) ?? 0;
+      const x = lane.x + (lane.width - GATEWAY_SIZE) / 2;
+      let y = TOP_PADDING + LANE_HEADER_OFFSET + fallbackIndex * (GATEWAY_SIZE + GATEWAY_OFFSET);
+
+      if (anchorStage) {
+        y = binding.gateway.kind === 'Split'
+          ? anchorStage.y + anchorStage.height + GATEWAY_OFFSET
+          : Math.max(TOP_PADDING + LANE_HEADER_OFFSET, anchorStage.y - GATEWAY_SIZE - GATEWAY_OFFSET);
+      } else {
+        usedFallbackSlotsByLane.set(binding.laneKey, fallbackIndex + 1);
+      }
+
+      gatewayLayouts.push({
+        gateway: binding.gateway,
+        binding,
+        surface: this._surfaceForGateway(binding.gateway),
+        laneKey: binding.laneKey,
+        laneLabel: this._roleLabelForLane(binding.laneKey),
+        x,
+        y,
+        width: GATEWAY_SIZE,
+        height: GATEWAY_SIZE,
+      });
+    });
+
     const width = roleLanes.length === 0
       ? SIDE_PADDING * 2 + LANE_WIDTH
       : SIDE_PADDING * 2 + roleLanes.length * LANE_WIDTH + Math.max(0, roleLanes.length - 1) * LANE_GAP;
-    const maxStagesInAnyLane = Math.max(0, ...Array.from(stagesPerLane.values()).map(list => list.length));
-    const height = maxStagesInAnyLane === 0
-      ? TOP_PADDING * 2 + LANE_HEADER_OFFSET + 200
-      : TOP_PADDING * 2 + LANE_HEADER_OFFSET + maxStagesInAnyLane * NODE_HEIGHT + Math.max(0, maxStagesInAnyLane - 1) * VERTICAL_GAP;
+    const contentBottom = Math.max(
+      TOP_PADDING + LANE_HEADER_OFFSET + 200,
+      ...stageLayouts.map(layout => layout.y + layout.height),
+      ...gatewayLayouts.map(layout => layout.y + layout.height)
+    );
+    const height = contentBottom + TOP_PADDING;
 
-    const stageMap = new Map(stageLayouts.map(layout => [layout.stage.stageKey, layout]));
+    const splitGatewayByAnchorStage = new Map<string, GatewayLayout>();
+    const joinGatewayByAnchorStage = new Map<string, GatewayLayout>();
+    gatewayLayouts.forEach(layout => {
+      if (layout.binding.anchorStageKey) {
+        if (layout.gateway.kind === 'Split') {
+          splitGatewayByAnchorStage.set(layout.binding.anchorStageKey, layout);
+        } else {
+          joinGatewayByAnchorStage.set(layout.binding.anchorStageKey, layout);
+        }
+      }
+    });
+
+    const gatewayLayoutByKey = new Map(gatewayLayouts.map(gl => [gl.gateway.gatewayKey, gl]));
+
     const transitionLayouts: TransitionLayout[] = transitions.map((transition, index) => {
       const source = stageMap.get(transition.fromStage);
       const target = stageMap.get(transition.toStage);
@@ -333,17 +457,43 @@ export class PrismWorkflowGraphElement extends LitElement {
           path: '',
           labelX: 0,
           labelY: 0,
+          visualFromKey: transition.fromGateway ?? transition.fromStage,
+          visualToKey: transition.toGateway ?? transition.toStage,
+          branch: false,
+          merge: false,
         };
       }
 
-      const { path, labelX, labelY } = this._buildTransitionPath(source, target);
-      return { transition, index, path, labelX, labelY };
+      // Explicit gateway routing: author has set fromGateway/toGateway directly.
+      const explicitFromGateway = transition.fromGateway ? gatewayLayoutByKey.get(transition.fromGateway) ?? null : null;
+      const explicitToGateway = transition.toGateway ? gatewayLayoutByKey.get(transition.toGateway) ?? null : null;
+
+      // Heuristic routing: derive from anchor-stage topology when no explicit gateway is set.
+      const sourceGateway = explicitFromGateway ?? (splitGatewayByAnchorStage.get(transition.fromStage) ?? null);
+      const targetGateway = explicitToGateway ?? (joinGatewayByAnchorStage.get(transition.toStage) ?? null);
+      const viaPoints = [
+        ...(sourceGateway && sourceGateway.gateway.kind === 'Split' ? [this._gatewayPoint(sourceGateway)] : []),
+        ...(targetGateway && targetGateway.gateway.kind === 'Join' ? [this._gatewayPoint(targetGateway)] : []),
+      ];
+      const { path, labelX, labelY } = this._buildTransitionPath(source, target, viaPoints);
+      return {
+        transition,
+        index,
+        path,
+        labelX,
+        labelY,
+        visualFromKey: sourceGateway?.gateway.gatewayKey ?? transition.fromStage,
+        visualToKey: targetGateway?.gateway.gatewayKey ?? transition.toStage,
+        branch: Boolean(sourceGateway?.gateway.kind === 'Split'),
+        merge: Boolean(targetGateway?.gateway.kind === 'Join'),
+      };
     });
 
     return {
       bounds: { width, height },
       roleLanes,
       stageLayouts,
+      gatewayLayouts,
       transitionLayouts,
     };
   }
@@ -352,8 +502,16 @@ export class PrismWorkflowGraphElement extends LitElement {
     return stageSurface(stage);
   }
 
+  private _surfaceForGateway(gateway: AuthoredGateway): StageSurface {
+    return stageSurface(gateway);
+  }
+
   private _roleKeyForStage(stage: AuthoredStage, surface = this._surfaceForStage(stage)) {
     return stageLaneKey(stage) || (surface === 'back-stage' ? 'reviewer' : 'public');
+  }
+
+  private _laneKeyForGateway(gateway: AuthoredGateway) {
+    return gatewayLaneKey(gateway) || 'public';
   }
 
   private _roleLabelForLane(laneKey: string) {
@@ -368,32 +526,40 @@ export class PrismWorkflowGraphElement extends LitElement {
     return workflowLaneOptions(this.workflow);
   }
 
-  private _buildTransitionPath(source: StageLayout, target: StageLayout) {
+  private _gatewayPoint(gatewayLayout: GatewayLayout) {
+    return {
+      x: gatewayLayout.x + gatewayLayout.width / 2,
+      y: gatewayLayout.y + gatewayLayout.height / 2,
+    };
+  }
+
+  private _buildTransitionPath(
+    source: StageLayout,
+    target: StageLayout,
+    viaPoints: Array<{ x: number; y: number }> = []
+  ) {
     const sameLane = source.laneKey === target.laneKey;
     const startX = source.x + source.width / 2;
     const startY = source.y + source.height;
     const endX = target.x + target.width / 2;
     const endY = target.y;
-    const distance = Math.max(Math.abs(endY - startY), 64);
-    const curve = Math.min(Math.max(distance / 2, 56), 180);
+    const points = [{ x: startX, y: startY }, ...viaPoints, { x: endX, y: endY }];
+    let path = `M ${points[0].x} ${points[0].y}`;
 
-    if (sameLane) {
-      // Vertical transition within same lane
-      const path = `M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`;
-
-      return {
-        path,
-        labelX: startX + (endX - startX) / 2 + 22,
-        labelY: startY + (endY - startY) / 2,
-      };
+    for (let index = 1; index < points.length; index += 1) {
+      const previous = points[index - 1];
+      const current = points[index];
+      const verticalDirection = current.y >= previous.y ? 1 : -1;
+      const distance = Math.max(Math.abs(current.y - previous.y), Math.abs(current.x - previous.x), 64);
+      const curve = Math.min(Math.max(distance / 2, 56), 180);
+      path += ` C ${previous.x} ${previous.y + curve * verticalDirection}, ${current.x} ${current.y - curve * verticalDirection}, ${current.x} ${current.y}`;
     }
 
-    // Cross-lane transition
-    const path = `M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`;
+    const labelBias = sameLane && viaPoints.length === 0 ? 22 : 0;
 
     return {
       path,
-      labelX: startX + (endX - startX) / 2,
+      labelX: startX + (endX - startX) / 2 + labelBias,
       labelY: startY + (endY - startY) / 2,
     };
   }
@@ -422,6 +588,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _selectStage(stageKey: string, options?: { openInspector?: boolean; focusIndex?: number }) {
     this._selectedStageKey = stageKey;
     this._selectedTransitionIndex = null;
+    this._selectedGatewayKey = null;
 
     if (typeof options?.focusIndex === 'number') {
       this._focusedIndex = options.focusIndex;
@@ -442,6 +609,31 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
   }
 
+  private _selectGateway(gatewayKey: string, options?: { openInspector?: boolean }) {
+    const gateway = this.workflow?.gateways?.find(candidate => candidate.gatewayKey === gatewayKey);
+    if (!gateway) {
+      return;
+    }
+
+    this._selectedGatewayKey = gatewayKey;
+    this._selectedStageKey = null;
+    this._selectedTransitionIndex = null;
+
+    this.dispatchEvent(
+      new CustomEvent<{ gatewayKey: string }>('gateway-selected', {
+        detail: { gatewayKey },
+        bubbles: true,
+        composed: true,
+      })
+    );
+    this._emitSelectionChange({ kind: 'gateway', gatewayKey });
+    this._announce(`Gateway “${gateway.displayName}” selected. ${gateway.kind} gateway in ${this._roleLabelForLane(this._laneKeyForGateway(gateway))} lane.`);
+
+    if (options?.openInspector) {
+      this._requestInspector({ kind: 'gateway', gatewayKey });
+    }
+  }
+
   private _selectTransition(index: number, options?: { openInspector?: boolean }) {
     const transition = this.workflow?.transitions[index];
     if (!transition) {
@@ -450,6 +642,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     this._selectedTransitionIndex = index;
     this._selectedStageKey = null;
+    this._selectedGatewayKey = null;
 
     this.dispatchEvent(
       new CustomEvent<{ transitionIndex: number }>('transition-selected', {
@@ -540,6 +733,12 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _visibleLinearStages(stages: AuthoredStage[] = this.workflow?.stages ?? []) {
     return stages.filter(stage =>
       this._linearFilter === ALL_LANES_FILTER || stageLaneKey(stage) === this._linearFilter
+    );
+  }
+
+  private _visibleLinearGateways(gateways: AuthoredGateway[] = this.workflow?.gateways ?? []) {
+    return gateways.filter(gateway =>
+      this._linearFilter === ALL_LANES_FILTER || this._laneKeyForGateway(gateway) === this._linearFilter
     );
   }
 
@@ -958,6 +1157,78 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._closeCreateStageDialog();
   }
 
+  private _openCreateGatewayDialog(returnTarget?: HTMLElement | null) {
+    if (!this.workflow) {
+      return;
+    }
+    this._dialogReturnTarget = returnTarget ?? null;
+    const defaultLane = workflowLaneOptions(this.workflow)[0] ?? 'public';
+    this._createGatewayDialog = {
+      title: '',
+      gatewayKey: '',
+      kind: 'Split',
+      laneKey: defaultLane,
+      keyTouched: false,
+      error: null,
+    };
+    requestAnimationFrame(() => {
+      this.shadowRoot?.querySelector<HTMLInputElement>('[data-prism-create-gateway-title]')?.focus();
+    });
+  }
+
+  private _closeCreateGatewayDialog() {
+    this._createGatewayDialog = null;
+    this._dialogReturnTarget?.focus();
+    this._dialogReturnTarget = null;
+  }
+
+  private _submitCreateGateway() {
+    if (!this.workflow || !this._createGatewayDialog) {
+      return;
+    }
+
+    const dialog = this._createGatewayDialog;
+    const title = dialog.title.trim();
+    const key = dialog.gatewayKey.trim();
+
+    if (!title) {
+      this._createGatewayDialog = { ...dialog, error: 'Gateway name is required.' };
+      return;
+    }
+
+    if (!key) {
+      this._createGatewayDialog = { ...dialog, error: 'Gateway key is required.' };
+      return;
+    }
+
+    const usedKeys = [
+      ...this.workflow.stages.map(s => s.stageKey),
+      ...(this.workflow.gateways ?? []).map(g => g.gatewayKey),
+    ];
+    if (usedKeys.includes(key)) {
+      this._createGatewayDialog = { ...dialog, error: 'Gateway key must be unique across all stages and gateways.' };
+      return;
+    }
+
+    const newGateway: AuthoredGateway = {
+      gatewayKey: key,
+      displayName: title,
+      kind: dialog.kind,
+      laneKey: dialog.laneKey,
+      actor: dialog.laneKey,
+      roleGates: [],
+    };
+
+    const workflow: AuthoredWorkflow = {
+      ...this.workflow,
+      gateways: [...(this.workflow.gateways ?? []), newGateway],
+    };
+
+    this._emitWorkflowUpdated(workflow, { kind: 'gateway', gatewayKey: newGateway.gatewayKey });
+    this._announce(`${title} ${dialog.kind} gateway created.`);
+    this._closeCreateGatewayDialog();
+  }
+
   private _openDeleteStageDialog(stageKey: string, returnTarget?: HTMLElement | null) {
     if (!this.workflow) {
       return;
@@ -1244,34 +1515,45 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
   }
 
-  private _handleGraphNodeKeydown(event: KeyboardEvent, stage: AuthoredStage, index: number) {
+  private _handleGraphNodeKeydown(
+    event: KeyboardEvent,
+    node: { kind: 'stage'; stage: AuthoredStage; index: number } | { kind: 'gateway'; gateway: AuthoredGateway }
+  ) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      this._selectStage(stage.stageKey, { focusIndex: index });
+      if (node.kind === 'stage') {
+        this._selectStage(node.stage.stageKey, { focusIndex: node.index });
+      } else {
+        this._selectGateway(node.gateway.gatewayKey);
+      }
       return;
     }
 
     if (event.key.toLowerCase() === 'e') {
       event.preventDefault();
-      this._selectStage(stage.stageKey, { openInspector: true, focusIndex: index });
+      if (node.kind === 'stage') {
+        this._selectStage(node.stage.stageKey, { openInspector: true, focusIndex: node.index });
+      } else {
+        this._selectGateway(node.gateway.gatewayKey, { openInspector: true });
+      }
       return;
     }
 
-    if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (node.kind === 'stage' && (event.key === 'Delete' || event.key === 'Backspace')) {
       event.preventDefault();
-      this._openDeleteStageDialog(stage.stageKey, event.currentTarget as HTMLElement);
+      this._openDeleteStageDialog(node.stage.stageKey, event.currentTarget as HTMLElement);
       return;
     }
 
-    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+    if (node.kind === 'stage' && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
       event.preventDefault();
-      this._openContextMenuFromKeyboard({ kind: 'stage', stageKey: stage.stageKey }, event.currentTarget as HTMLElement);
+      this._openContextMenuFromKeyboard({ kind: 'stage', stageKey: node.stage.stageKey }, event.currentTarget as HTMLElement);
       return;
     }
 
-    if (event.key.toLowerCase() === 't') {
+    if (node.kind === 'stage' && event.key.toLowerCase() === 't') {
       event.preventDefault();
-      this._openCreateTransitionFromStage(stage.stageKey, event.currentTarget as HTMLElement);
+      this._openCreateTransitionFromStage(node.stage.stageKey, event.currentTarget as HTMLElement);
     }
   }
 
@@ -1945,9 +2227,115 @@ export class PrismWorkflowGraphElement extends LitElement {
     `;
   }
 
+  private _renderCreateGatewayDialog() {
+    const dialog = this._createGatewayDialog;
+    if (!dialog) {
+      return nothing;
+    }
+
+    return html`
+      <div class="dialog-backdrop" role="presentation">
+        <div
+          class="dialog-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-gateway-dialog-title"
+          aria-describedby="create-gateway-dialog-copy"
+          data-prism-create-gateway-dialog
+          @keydown=${(event: KeyboardEvent) => this._handleDialogKeydown(event, () => this._closeCreateGatewayDialog())}
+        >
+          <div class="dialog-header">
+            <div>
+              <p class="dialog-eyebrow">Gateway creation</p>
+              <h2 id="create-gateway-dialog-title" class="dialog-title">Add gateway</h2>
+            </div>
+          </div>
+          <p id="create-gateway-dialog-copy" class="dialog-copy">
+            Add a Split or Join gateway to the workspace. Continue editing in the inspector after creation.
+          </p>
+          ${dialog.error ? html`<p class="dialog-error" data-prism-create-gateway-error>${dialog.error}</p>` : nothing}
+          <div class="dialog-grid">
+            <label class="dialog-field">
+              <span class="dialog-label">Name</span>
+              <input
+                class="dialog-control"
+                data-prism-create-gateway-title
+                .value=${dialog.title}
+                @input=${(event: Event) => {
+                  const title = (event.currentTarget as HTMLInputElement).value;
+                  const gatewayKey = dialog.keyTouched
+                    ? dialog.gatewayKey
+                    : title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                  this._createGatewayDialog = this._createGatewayDialog
+                    ? { ...this._createGatewayDialog, title, gatewayKey, error: null }
+                    : null;
+                }}
+              />
+            </label>
+            <label class="dialog-field">
+              <span class="dialog-label">Key</span>
+              <input
+                class="dialog-control"
+                data-prism-create-gateway-key
+                .value=${dialog.gatewayKey}
+                @input=${(event: Event) => {
+                  const gatewayKey = (event.currentTarget as HTMLInputElement).value;
+                  this._createGatewayDialog = this._createGatewayDialog
+                    ? { ...this._createGatewayDialog, gatewayKey, keyTouched: true, error: null }
+                    : null;
+                }}
+              />
+            </label>
+            <label class="dialog-field">
+              <span class="dialog-label">Kind</span>
+              <select
+                class="dialog-control"
+                data-prism-create-gateway-kind
+                @change=${(event: Event) => {
+                  const kind = (event.currentTarget as HTMLSelectElement).value as 'Split' | 'Join';
+                  this._createGatewayDialog = this._createGatewayDialog
+                    ? { ...this._createGatewayDialog, kind }
+                    : null;
+                }}
+              >
+                <option value="Split" ?selected=${dialog.kind === 'Split'}>Split — branches into multiple paths</option>
+                <option value="Join" ?selected=${dialog.kind === 'Join'}>Join — converges multiple paths</option>
+              </select>
+            </label>
+            <label class="dialog-field">
+              <span class="dialog-label">Lane owner</span>
+              <input
+                class="dialog-control"
+                data-prism-create-gateway-lane
+                .value=${dialog.laneKey}
+                list="create-gateway-lane-options"
+                placeholder="public"
+                @input=${(event: Event) => {
+                  const laneKey = (event.currentTarget as HTMLInputElement).value;
+                  this._createGatewayDialog = this._createGatewayDialog
+                    ? { ...this._createGatewayDialog, laneKey }
+                    : null;
+                }}
+              />
+              <datalist id="create-gateway-lane-options">
+                ${this._availableLaneKeys().map(option => html`
+                  <option value=${option}>${this._roleLabelForLane(option)}</option>
+                `)}
+              </datalist>
+            </label>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="dialog-button secondary" @click=${this._closeCreateGatewayDialog}>Cancel</button>
+            <button type="button" class="dialog-button primary" data-prism-create-gateway-submit @click=${this._submitCreateGateway}>Create gateway</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   private _renderGraph() {
-    const { bounds, roleLanes, stageLayouts, transitionLayouts } = this._layout;
-    const isEmpty = stageLayouts.length === 0;
+    const { bounds, roleLanes, stageLayouts, gatewayLayouts, transitionLayouts } = this._layout;
+    const isEmpty = stageLayouts.length === 0 && gatewayLayouts.length === 0;
     const dragSource = this._dragTransition
       ? stageLayouts.find(layout => layout.stage.stageKey === this._dragTransition?.sourceStageKey)
       : null;
@@ -1973,6 +2361,14 @@ export class PrismWorkflowGraphElement extends LitElement {
             }}
           >
             Add stage
+          </button>
+          <button
+            type="button"
+            class="hud-button"
+            data-prism-add-gateway
+            @click=${(event: Event) => this._openCreateGatewayDialog(event.currentTarget as HTMLElement)}
+          >
+            Add gateway
           </button>
         </div>
         <div class="hud-group">
@@ -2045,10 +2441,12 @@ export class PrismWorkflowGraphElement extends LitElement {
                 </defs>
                 ${transitionLayouts.map(layout => layout.path ? svg`
                   <path
-                    class=${`edge-path ${this._selectedTransitionIndex === layout.index ? 'selected' : ''} ${this._transitionIsInSimulationPath(layout.index) ? 'simulation-path' : ''}`}
+                    class=${`edge-path ${layout.branch ? 'branch-path' : ''} ${layout.merge ? 'merge-path' : ''} ${this._selectedTransitionIndex === layout.index ? 'selected' : ''} ${this._transitionIsInSimulationPath(layout.index) ? 'simulation-path' : ''}`}
                     d=${layout.path}
                     marker-end="url(#graph-arrow)"
                     data-prism-transition-path=${String(layout.index)}
+                    data-prism-transition-from=${layout.visualFromKey}
+                    data-prism-transition-to=${layout.visualToKey}
                     data-prism-transition-simulation-path=${String(this._transitionIsInSimulationPath(layout.index))}
                   ></path>
                 ` : nothing)}
@@ -2058,10 +2456,12 @@ export class PrismWorkflowGraphElement extends LitElement {
               ${transitionLayouts.map(layout => layout.path ? html`
                 <button
                   type="button"
-                  class=${`edge-chip ${this._selectedTransitionIndex === layout.index ? 'selected' : ''} ${this._transitionIsInSimulationPath(layout.index) ? 'simulation-path' : ''}`}
+                  class=${`edge-chip ${layout.branch ? 'branch-path' : ''} ${layout.merge ? 'merge-path' : ''} ${this._selectedTransitionIndex === layout.index ? 'selected' : ''} ${this._transitionIsInSimulationPath(layout.index) ? 'simulation-path' : ''}`}
                   style=${`left:${layout.labelX - EDGE_LABEL_WIDTH / 2}px;top:${layout.labelY - EDGE_LABEL_HEIGHT / 2}px;`}
                   aria-label=${`Transition ${layout.transition.action}, ${this._transitionDescriptor(layout.transition)}`}
                   data-prism-transition="${layout.index}"
+                  data-prism-transition-from=${layout.visualFromKey}
+                  data-prism-transition-to=${layout.visualToKey}
                   data-prism-transition-simulation-path=${String(this._transitionIsInSimulationPath(layout.index))}
                   @click=${() => this._selectTransition(layout.index)}
                   @dblclick=${() => this._selectTransition(layout.index, { openInspector: true })}
@@ -2071,6 +2471,31 @@ export class PrismWorkflowGraphElement extends LitElement {
                   ${layout.transition.action}
                 </button>
               ` : nothing)}
+
+              ${gatewayLayouts.map(layout => html`
+                <div
+                  class="gateway-node-shell"
+                  style=${`left:${layout.x}px;top:${layout.y}px;width:${layout.width}px;height:${layout.height}px;`}
+                >
+                  <button
+                    type="button"
+                    class=${`gateway-node ${layout.surface} kind-${layout.gateway.kind.toLowerCase()} ${this._selectedGatewayKey === layout.gateway.gatewayKey ? 'selected' : ''}`}
+                    aria-pressed=${String(this._selectedGatewayKey === layout.gateway.gatewayKey)}
+                    aria-label=${`${layout.gateway.displayName}, ${layout.gateway.kind} gateway, ${layout.laneLabel} lane`}
+                    data-prism-gateway=${layout.gateway.gatewayKey}
+                    data-prism-gateway-kind=${layout.gateway.kind}
+                    data-prism-lane=${layout.laneKey}
+                    @click=${() => this._selectGateway(layout.gateway.gatewayKey)}
+                    @dblclick=${() => this._selectGateway(layout.gateway.gatewayKey, { openInspector: true })}
+                    @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, { kind: 'gateway', gateway: layout.gateway })}
+                  >
+                    <span class="surface-tag">${layout.laneLabel}</span>
+                    <span class="gateway-kind-badge">${layout.gateway.kind} gateway</span>
+                    <span class="node-label">${layout.gateway.displayName}</span>
+                    <span class="node-meta">${layout.binding.relatedTransitionIndices.length} related route${layout.binding.relatedTransitionIndices.length === 1 ? '' : 's'}</span>
+                  </button>
+                </div>
+              `)}
 
               ${stageLayouts.map((layout, visualIndex) => html`
                 <div
@@ -2087,7 +2512,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     data-prism-stage-simulation-current=${String(this.simulationCurrentStageKey === layout.stage.stageKey)}
                     @click=${() => this._selectStage(layout.stage.stageKey, { focusIndex: visualIndex })}
                     @dblclick=${() => this._selectStage(layout.stage.stageKey, { openInspector: true, focusIndex: visualIndex })}
-                    @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, layout.stage, visualIndex)}
+                    @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, { kind: 'stage', stage: layout.stage, index: visualIndex })}
                     @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'stage', stageKey: layout.stage.stageKey }, event.currentTarget as HTMLElement)}
                   >
                     <span class="surface-tag">${layout.laneLabel}</span>
@@ -2144,7 +2569,9 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private _renderLinear(stages: AuthoredStage[]) {
     const visibleStages = this._visibleLinearStages(stages);
+    const visibleGateways = this._visibleLinearGateways();
     const laneFilters = this._availableLaneKeys();
+    const gatewayBindingsByKey = new Map(this._layout.gatewayLayouts.map(layout => [layout.gateway.gatewayKey, layout]));
 
     return html`
       <section class="linear-workspace" aria-label="Workflow stages — list workspace">
@@ -2187,7 +2614,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           Tab into the row controls. Arrow keys move between rows, Enter opens the inspector, Add transition opens routing creation, and Alt plus Arrow Up or Arrow Down reorders stages.
         </p>
 
-        ${visibleStages.length === 0
+        ${visibleStages.length === 0 && visibleGateways.length === 0
           ? this._renderWorkspaceEmptyState('linear')
           : html`
               <div class="linear-table-scroll" tabindex="0">
@@ -2395,6 +2822,48 @@ export class PrismWorkflowGraphElement extends LitElement {
                         </tr>
                       `;
                     })}
+                    ${visibleGateways.map((gateway, index) => {
+                      const binding = gatewayBindingsByKey.get(gateway.gatewayKey);
+                      const laneKey = this._laneKeyForGateway(gateway);
+                      const laneLabel = this._roleLabelForLane(laneKey);
+                      const isSelected = this._selectedGatewayKey === gateway.gatewayKey;
+                      const rowIndex = visibleStages.length + index + 1;
+                      return html`
+                        <tr
+                          class=${`stage-table-row gateway-table-row ${isSelected ? 'selected' : ''}`}
+                          data-prism-list-row=${gateway.gatewayKey}
+                          data-prism-row-type="gateway"
+                        >
+                          <td class="row-trigger-cell">
+                            <button
+                              type="button"
+                              class="row-trigger"
+                              aria-current=${isSelected ? 'true' : 'false'}
+                              aria-label=${`Open ${gateway.displayName} in the inspector`}
+                              @click=${() => this._selectGateway(gateway.gatewayKey, { openInspector: true })}
+                            >
+                              Row ${rowIndex}
+                            </button>
+                          </td>
+                          <td><span class="gateway-inline-key">${gateway.gatewayKey}</span></td>
+                          <td><strong>${gateway.displayName}</strong></td>
+                          <td>${laneKey}</td>
+                          <td><span class="badge gateway-badge-inline">${gateway.kind}</span></td>
+                          <td><span class="transition-empty">Editor only</span></td>
+                          <td>
+                            <div class="transition-summary">
+                              <span class="metric-pill">${binding?.binding.relatedTransitionIndices.length ?? 0}</span>
+                              <span class="transition-empty">
+                                ${gateway.kind === 'Split' ? 'Branch point' : 'Merge point'}
+                                ${binding?.binding.anchorStageKey ? ` near ${this._labelForStage(binding.binding.anchorStageKey)}` : ''}
+                              </span>
+                            </div>
+                          </td>
+                          <td><span class="badge gateway-badge-inline">${laneLabel}</span></td>
+                          <td><span class="transition-empty">Select to inspect</span></td>
+                        </tr>
+                      `;
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -2412,7 +2881,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         <div class="toolbar">
           <div class="toolbar-title-block">
             <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>
-            <span class="workflow-subtitle">Graph workspace for stages and transitions</span>
+            <span class="workflow-subtitle">Graph workspace for lane-owned stages, gateways, and transitions</span>
           </div>
           ${this.allowLinearMode
             ? html`
@@ -2436,6 +2905,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         ${this._renderCreateStageDialog()}
         ${this._renderDeleteStageDialog()}
         ${this._renderCreateTransitionDialog()}
+        ${this._renderCreateGatewayDialog()}
       </div>
     `;
   }
@@ -2539,6 +3009,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     .validation-link:focus-visible,
     .transition-link:focus-visible,
     .edge-chip:focus-visible,
+    .gateway-node:focus-visible,
     .stage-node:focus-visible,
     .row-trigger:focus-visible,
     .drag-handle:focus-visible,
@@ -2745,6 +3216,15 @@ export class PrismWorkflowGraphElement extends LitElement {
       opacity: 0.9;
     }
 
+    .edge-path.branch-path {
+      stroke: #7c3aed;
+      stroke-dasharray: 8 8;
+    }
+
+    .edge-path.merge-path {
+      stroke: #0f766e;
+    }
+
     .edge-chip {
       position: absolute;
       display: inline-flex;
@@ -2773,8 +3253,81 @@ export class PrismWorkflowGraphElement extends LitElement {
       color: #005a30;
     }
 
+    .edge-chip.branch-path {
+      border-color: #c4b5fd;
+      background: #f5f3ff;
+      color: #6d28d9;
+    }
+
+    .edge-chip.merge-path {
+      border-color: #99f6e4;
+      background: #f0fdfa;
+      color: #0f766e;
+    }
+
+    .edge-chip.branch-path.selected,
+    .edge-chip.merge-path.selected {
+      border-color: #1d4ed8;
+      color: #1d4ed8;
+    }
+
     .stage-node-shell {
       position: absolute;
+    }
+
+    .gateway-node-shell {
+      position: absolute;
+    }
+
+    .gateway-node {
+      position: relative;
+      display: flex;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.75rem;
+      appearance: none;
+      text-align: center;
+      border: 2px dashed #8b5cf6;
+      border-radius: 28px;
+      background: linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+      box-shadow: 0 10px 26px rgba(124, 58, 237, 0.12);
+      cursor: pointer;
+    }
+
+    .gateway-node.kind-join {
+      border-color: #0f766e;
+      background: linear-gradient(180deg, #ffffff 0%, #ecfeff 100%);
+      box-shadow: 0 10px 26px rgba(15, 118, 110, 0.12);
+    }
+
+    .gateway-node.selected {
+      border-style: solid;
+      border-color: #1d4ed8;
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18), 0 12px 28px rgba(29, 78, 216, 0.16);
+    }
+
+    .gateway-node .surface-tag {
+      align-self: center;
+    }
+
+    .gateway-kind-badge {
+      align-self: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: rgba(124, 58, 237, 0.12);
+      color: #6d28d9;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .gateway-node.kind-join .gateway-kind-badge {
+      background: rgba(15, 118, 110, 0.12);
+      color: #0f766e;
     }
 
     .stage-node {
@@ -2955,6 +3508,21 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     .stage-table-row.dragging {
       opacity: 0.72;
+    }
+
+    .gateway-table-row {
+      background: #faf5ff;
+    }
+
+    .gateway-inline-key {
+      font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, monospace;
+      font-size: 0.8125rem;
+      color: #5b21b6;
+    }
+
+    .gateway-badge-inline {
+      background: rgba(124, 58, 237, 0.12);
+      color: #6d28d9;
     }
 
     .row-trigger-cell {

@@ -140,13 +140,21 @@ public record WorkflowLaneDefinition
     public IReadOnlyList<string>? RoleGates { get; init; }
 }
 
-/// <summary>Preserved authored-gateway metadata.</summary>
+/// <summary>
+/// Preserved authored-gateway metadata — first-class routing/convergence node in the published runtime definition.
+/// Split gateways fan one cursor into many lane-owned cursors.
+/// Join gateways collect cursors from required lanes before releasing the next step.
+/// </summary>
 public record WorkflowGatewayDefinition
 {
     public string Key { get; init; } = "";
 
     public string DisplayName { get; init; } = "";
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
+    /// <summary>"Split" or "Join".</summary>
     public string GatewayType { get; init; } = "";
 
     public string LaneKey { get; init; } = "";
@@ -155,6 +163,22 @@ public record WorkflowGatewayDefinition
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? RoleGates { get; init; }
+
+    /// <summary>User-facing waiting copy shown by the owning lane while the join awaits other lanes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WaitingContent { get; init; }
+
+    /// <summary>Expected wait time in seconds for join-gateway waiting displays.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int WaitingExpectedSeconds { get; init; }
+
+    /// <summary>Client poll interval in milliseconds for join-gateway waiting displays.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int WaitingPollIntervalMs { get; init; }
+
+    /// <summary>Lane keys whose cursors must all arrive before this join gateway releases.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RequiredIncomingLanes { get; init; }
 }
 
 /// <summary>Preserved authored-state metadata.</summary>

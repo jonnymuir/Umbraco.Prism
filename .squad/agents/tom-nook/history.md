@@ -170,6 +170,12 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - Split the concurrent multi-lane redesign into seven ordered issues: cleanup/projection contract first, then lane model, editor UX, join gateways, concurrent engine behaviour, history clarity, and showcase/test evolution.
 - Kept each issue framed in product language with acceptance criteria, explicit sequence, and a standing requirement to keep behavioural tests green.
 
+### 2026-05-25T15:23:06.241+01:00 — Gateway model clarification
+
+- When users describe workflows as stages with actions and diamond transitions, treat that as a strong modelling signal: stages are work nodes, gateways are routing and wait nodes.
+- Put join waiting copy and runtime waiting status on the join gateway itself rather than on a separate waiting stage.
+- Keep the issue order unless the clarification changes delivery risk; in this case the sequence still works, but the UX and runtime intent for #83–#85 must be restated more plainly.
+
 ## 2026-05-25 (09:32:35 UTC) — Concurrent Lanes Redesign Sequenced
 
 - Issues #81–#87 created per concurrent multi-lane redesign plan
@@ -198,3 +204,9 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - After lanes and gateway metadata exist, the safest next slice is to make gateways visible and selectable in the editor before changing runtime execution semantics.
 - Keep preview, simulation, publish, and current end-to-end workflow behaviour stage-driven until join replacement and concurrent cursor rules are implemented in their own slices.
 - Treat existing workflow editor simulation/history specs as pinned regression gates; if they are already red on the branch, getting them back to green is a prerequisite rather than optional cleanup.
+
+### 2026-05-25T15:34:44.680+01:00 — Merging adjacent gateway/runtime slices
+
+- When user feedback collapses adjacent backlog slices into one product track, keep the earliest issue open and explicitly absorb the follower issues rather than leaving three "active" stories behind.
+- Update the canonical design doc and the surviving issue in the same pass so the implementation order, agent boundaries, and green gates stay aligned.
+- For gateway work specifically, the visual model, join waiting story, and deterministic parallel runtime are now one delivery contract, not separate starts.

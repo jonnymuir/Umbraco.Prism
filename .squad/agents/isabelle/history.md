@@ -162,6 +162,7 @@ Fixed workflow editor UI regression: walkthrough heading drift alignment + visua
 
 ## Learnings
 
+- 2026-05-25T15:23:06.241+01:00 — Treat #83's current gateway UI as partial scaffolding only: stages stay action-bearing work nodes, while diamond transition gateways must become named, editable routing nodes with lane-owned waiting info and accessible branch/merge authoring.
 - 2026-05-25T14:17:36.055+01:00 — For editor-only gateway slices, bind split and join nodes to existing stage-to-stage branch and merge points in the graph so authors can see lane-owned gateways without changing preview, simulation, publish, or runtime execution semantics.
 - 2026-05-25T09:54:48.365+01:00 — For workflow surface cleanup, derive lane meaning from actor and role gates, not a parallel `editorSurface` flag. Strip UI-only surface hints before project/publish requests, and when validation links jump to an issue from the Validation tab, switch back to Canvas so the inspector target is actually visible.
 - 2026-05-25T12:49:20.153+01:00 — When moving the workflow editor from coarse front/back language to named lanes, keep the authored contract assignment-driven: expose one lane-owner input, derive list filters from the actual lane keys present, and keep graph/list labels on lane names rather than surface buckets.
@@ -198,3 +199,35 @@ Implemented editor-only gateway representation slice:
 
 **Design Alignment:** Partial alignment with full-screen tabs proposal — kept canvas persistent, implemented tabbed confidence surfaces for validation/preview/simulation/help.
 
+
+---
+**2026-05-26 · Issues #83+#84+#85 merged · Full Gateway Authoring Slice**
+
+Implemented the merged frontend slice covering editable gateway metadata, join waiting information, and stage↔gateway↔gateway transition routing:
+
+**Inspector — gateway editing (prism-step-inspector.ts):**
+- Replaced read-only scaffolding with full editable form: name, key, lane owner, description, kind badge
+- Key edit propagates to all `fromGateway`/`toGateway` references across transitions
+- Key uniqueness validated against all stage keys AND gateway keys; error surfaced inline
+- Join gateways surface "Waiting information" section: waiting message, expected wait seconds, allow-defer checkbox, defer message
+- Delete gateway removes gateway and clears gateway references from transitions
+- `_gatewayKeyError` state resets on selection change
+
+**Graph workspace (prism-workflow-graph.ts):**
+- Added `CreateGatewayDialogState` type and `_createGatewayDialog` state
+- Added "Add gateway" button to HUD alongside "Add stage"
+- `_openCreateGatewayDialog`, `_closeCreateGatewayDialog`, `_submitCreateGateway` methods
+- `_renderCreateGatewayDialog()` with name/key/kind/lane fields, key auto-derives from title
+- `_layout` getter now builds `gatewayLayoutByKey` map; explicit `fromGateway`/`toGateway` on a transition takes priority over anchor-stage heuristic for visual routing and `visualFromKey`/`visualToKey`
+
+**Type system (types.ts):**
+- `AuthoredTransition` extended with `fromGateway?: string` and `toGateway?: string` (editor-only, JSDoc notes backend contract alignment deferred)
+
+**Test Results:** 7/7 gateway tests pass (1 pre-existing skip), build clean.
+
+**Decisions recorded:** `.squad/decisions/inbox/isabelle-merged-gateway-slice.md`
+
+**Learnings:**
+- When editing with `old_str`/`new_str` on very large files, always include the method signature in the boundary string to avoid accidentally consuming the opening line of the next method
+- Explicit `fromGateway`/`toGateway` fields must be editor-only until the backend C# model is updated; runtime semantics remain stage-driven
+- `AuthoredGateway.roleGates` is required (non-optional) — must always include `roleGates: []` when constructing new gateway objects

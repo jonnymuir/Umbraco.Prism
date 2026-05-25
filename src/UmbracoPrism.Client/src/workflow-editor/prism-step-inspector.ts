@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type {
   ActionCatalogEntry,
   AuthoredAction,
+  AuthoredGateway,
   AuthoredStage,
   AuthoredTransition,
   AuthoredWorkflow,
@@ -18,6 +19,7 @@ import {
   stageLaneLabel,
   workflowLaneOptions,
 } from './workflow-stage-assignment.js';
+import { deriveGatewayBindings, gatewayLaneKey } from './workflow-gateway-representation.js';
 import {
   describeTransitionCondition,
   parseTransitionCondition,
@@ -46,9 +48,10 @@ const STAGE_TYPE_OPTIONS: Array<{ value: EditorStageType; label: string }> = [
 ];
 
 type GraphSelectionDetail = {
-  kind: 'stage' | 'transition';
+  kind: 'stage' | 'transition' | 'gateway';
   stageKey?: string;
   transitionIndex?: number;
+  gatewayKey?: string;
 };
 
 type WorkflowUpdatedDetail = {
@@ -76,6 +79,9 @@ export class PrismStepInspectorElement extends LitElement {
   @property({ type: Number, attribute: false })
   selectedTransitionIndex: number | null = null;
 
+  @property({ type: String, attribute: 'selected-gateway-key' })
+  selectedGatewayKey: string | null = null;
+
   @property({ attribute: false })
   actionCatalog: ActionCatalogEntry[] = [];
 
@@ -101,9 +107,20 @@ export class PrismStepInspectorElement extends LitElement {
     return this.workflow.transitions[this.selectedTransitionIndex] ?? null;
   }
 
+  private get _selectedGateway(): AuthoredGateway | null {
+    if (!this.workflow || !this.selectedGatewayKey) {
+      return null;
+    }
+
+    return this.workflow.gateways?.find(gateway => gateway.gatewayKey === this.selectedGatewayKey) ?? null;
+  }
+
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('selectedStageKey')) {
       this._stageKeyError = null;
+    }
+    if (changed.has('selectedGatewayKey')) {
+      this._gatewayKeyError = null;
     }
   }
 
@@ -589,6 +606,348 @@ export class PrismStepInspectorElement extends LitElement {
     `;
   }
 
+  @state() private _gatewayKeyError: string | null = null;
+
+  private _replaceSelectedGateway(nextGateway: AuthoredGateway, previousGatewayKey = this._selectedGateway?.gatewayKey) {
+    if (!this.workflow || !previousGatewayKey) {
+      return;
+    }
+
+    const gatewayIndex = (this.workflow.gateways ?? []).findIndex(g => g.gatewayKey === previousGatewayKey);
+    if (gatewayIndex < 0) {
+      return;
+    }
+
+    const gateways = [...(this.workflow.gateways ?? [])];
+    gateways[gatewayIndex] = nextGateway;
+
+    let transitions = [...this.workflow.transitions];
+    if (nextGateway.gatewayKey !== previousGatewayKey) {
+      transitions = transitions.map(t => ({
+        ...t,
+        fromGateway: t.fromGateway === previousGatewayKey ? nextGateway.gatewayKey : t.fromGateway,
+        toGateway: t.toGateway === previousGatewayKey ? nextGateway.gatewayKey : t.toGateway,
+      }));
+    }
+
+    this._emitWorkflowUpdated(
+      { ...this.workflow, gateways, transitions },
+      { kind: 'gateway', gatewayKey: nextGateway.gatewayKey }
+    );
+  }
+
+  private _updateGatewayDisplayName(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway) return;
+    const nextName = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!nextName || nextName === gateway.displayName) return;
+    this._replaceSelectedGateway({ ...gateway, displayName: nextName });
+    this._announce(`${nextName} gateway name updated.`);
+  }
+
+  private _updateGatewayKey(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway || !this.workflow) return;
+    const nextKey = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!nextKey) {
+      this._gatewayKeyError = 'Gateway key is required.';
+      this._announce('Gateway key is required.');
+      return;
+    }
+
+    const allKeys = [
+      ...this.workflow.stages.map(s => s.stageKey),
+      ...(this.workflow.gateways ?? []).map(g => g.gatewayKey).filter(k => k !== gateway.gatewayKey),
+    ];
+    if (allKeys.includes(nextKey)) {
+      this._gatewayKeyError = 'Gateway key must be unique across stages and gateways.';
+      this._announce(`Key ${nextKey} is already in use.`);
+      return;
+    }
+
+    if (nextKey === gateway.gatewayKey) {
+      this._gatewayKeyError = null;
+      return;
+    }
+
+    this._gatewayKeyError = null;
+    this._replaceSelectedGateway({ ...gateway, gatewayKey: nextKey }, gateway.gatewayKey);
+    this._announce(`Gateway key updated to ${nextKey}.`);
+  }
+
+  private _updateGatewayLane(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway) return;
+    const laneKey = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!laneKey || laneKey === gatewayLaneKey(gateway)) return;
+    this._replaceSelectedGateway({ ...gateway, laneKey, actor: laneKey });
+    this._announce(`${gateway.displayName} lane updated to ${laneKey}.`);
+  }
+
+  private _updateGatewayDescription(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway) return;
+    const nextDesc = (event.currentTarget as HTMLTextAreaElement).value.trim();
+    if ((nextDesc || undefined) === (gateway.description?.trim() || undefined)) return;
+    this._replaceSelectedGateway({ ...gateway, description: nextDesc || undefined });
+    this._announce(`${gateway.displayName} description updated.`);
+  }
+
+  private _updateJoinWaitingContent(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway || gateway.kind !== 'Join') return;
+    const content = (event.currentTarget as HTMLTextAreaElement).value.trim() || undefined;
+    this._replaceSelectedGateway({ ...gateway, waiting: { ...gateway.waiting ?? { allowDefer: false }, content } });
+    this._announce(`${gateway.displayName} waiting message updated.`);
+  }
+
+  private _updateJoinWaitingExpectedSeconds(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway || gateway.kind !== 'Join') return;
+    const raw = (event.currentTarget as HTMLInputElement).value;
+    const expectedWaitSeconds = raw ? Number(raw) : undefined;
+    this._replaceSelectedGateway({ ...gateway, waiting: { ...gateway.waiting ?? { allowDefer: false }, expectedWaitSeconds } });
+    this._announce(`${gateway.displayName} expected wait updated.`);
+  }
+
+  private _updateJoinWaitingAllowDefer(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway || gateway.kind !== 'Join') return;
+    const allowDefer = (event.currentTarget as HTMLInputElement).checked;
+    const current = gateway.waiting ?? { allowDefer: false };
+    this._replaceSelectedGateway({
+      ...gateway,
+      waiting: { ...current, allowDefer, deferMessage: allowDefer ? current.deferMessage : undefined },
+    });
+    this._announce(allowDefer ? `${gateway.displayName} defer enabled.` : `${gateway.displayName} defer disabled.`);
+  }
+
+  private _updateJoinWaitingDeferMessage(event: Event) {
+    const gateway = this._selectedGateway;
+    if (!gateway || gateway.kind !== 'Join') return;
+    const deferMessage = (event.currentTarget as HTMLInputElement).value.trim() || undefined;
+    this._replaceSelectedGateway({ ...gateway, waiting: { ...gateway.waiting ?? { allowDefer: true }, deferMessage } });
+    this._announce(`${gateway.displayName} defer message updated.`);
+  }
+
+  private _deleteSelectedGateway() {
+    const gateway = this._selectedGateway;
+    if (!this.workflow || !gateway) return;
+    const gateways = (this.workflow.gateways ?? []).filter(g => g.gatewayKey !== gateway.gatewayKey);
+    const transitions = this.workflow.transitions.map(t => ({
+      ...t,
+      fromGateway: t.fromGateway === gateway.gatewayKey ? undefined : t.fromGateway,
+      toGateway: t.toGateway === gateway.gatewayKey ? undefined : t.toGateway,
+    }));
+    this._emitWorkflowUpdated({ ...this.workflow, gateways, transitions }, null);
+    this._announce(`${gateway.displayName} gateway deleted.`);
+  }
+
+  private _renderGateway(gateway: AuthoredGateway) {
+    const laneKey = gatewayLaneKey(gateway);
+    const laneLabel = stageLaneLabel(this.workflow, laneKey);
+    const binding = this.workflow
+      ? deriveGatewayBindings(this.workflow).find(candidate => candidate.gateway.gatewayKey === gateway.gatewayKey) ?? null
+      : null;
+    const laneOptionsId = `gateway-lane-options-${gateway.gatewayKey}`;
+    const waiting = gateway.waiting;
+    const isJoin = gateway.kind === 'Join';
+
+    return html`
+      <article
+        class="inspector-panel"
+        data-prism-gateway-detail="${gateway.gatewayKey}"
+        data-prism-inspector-kind="gateway"
+        aria-labelledby="inspector-gateway-title"
+      >
+        <div class="inspector-header">
+          <div>
+            <p class="eyebrow">${laneLabel} lane</p>
+            <h2 id="inspector-gateway-title" class="stage-title" data-prism-inspector-heading>${gateway.displayName}</h2>
+          </div>
+          <span class="stage-kind-badge transition-badge" data-prism-field="kind">${gateway.kind} gateway</span>
+        </div>
+
+        <section class="inspector-section" aria-labelledby="gateway-basics-heading">
+          <h3 id="gateway-basics-heading" class="section-heading">Gateway details</h3>
+          <div class="field-grid">
+            <label class="field-block">
+              <span class="field-label">Name</span>
+              <input
+                class="field-control"
+                data-prism-gateway-name
+                .value=${gateway.displayName}
+                @change=${this._updateGatewayDisplayName}
+              />
+            </label>
+            <label class="field-block">
+              <span class="field-label-row">
+                <span class="field-label">Key</span>
+                <prism-inline-help
+                  label="Gateway key help"
+                  message="A stable, unique identifier for this gateway. Must not clash with any stage key or other gateway key. Transition routing references this key."
+                ></prism-inline-help>
+              </span>
+              <input
+                class="field-control ${this._gatewayKeyError ? 'field-control-error' : ''}"
+                data-prism-gateway-key
+                aria-invalid=${String(Boolean(this._gatewayKeyError))}
+                .value=${gateway.gatewayKey}
+                @input=${() => { this._gatewayKeyError = null; }}
+                @change=${this._updateGatewayKey}
+              />
+              ${this._gatewayKeyError
+                ? html`<span class="field-error" data-prism-gateway-key-error>${this._gatewayKeyError}</span>`
+                : nothing}
+            </label>
+            <label class="field-block">
+              <span class="field-label-row">
+                <span class="field-label">Lane owner</span>
+                <prism-inline-help
+                  label="Lane owner help"
+                  message="The lane that owns this gateway. For a join gateway, the owning lane is where waiting information is shown to users."
+                ></prism-inline-help>
+              </span>
+              <input
+                class="field-control"
+                data-prism-gateway-lane
+                .value=${laneKey}
+                list=${laneOptionsId}
+                placeholder="applicant"
+                @change=${this._updateGatewayLane}
+              />
+              <datalist id=${laneOptionsId}>
+                ${workflowLaneOptions(this.workflow).map(option => html`
+                  <option value=${option}>${stageLaneLabel(this.workflow, option)}</option>
+                `)}
+              </datalist>
+            </label>
+          </div>
+          <label class="field-block field-block-full">
+            <span class="field-label">Description</span>
+            <textarea
+              class="field-control field-textarea"
+              data-prism-gateway-description
+              .value=${gateway.description ?? ''}
+              placeholder="Explain what this ${gateway.kind === 'Split' ? 'split' : 'join'} point does and why it exists."
+              @change=${this._updateGatewayDescription}
+            ></textarea>
+          </label>
+        </section>
+
+        <section class="inspector-section" aria-labelledby="gateway-routing-heading">
+          <h3 id="gateway-routing-heading" class="section-heading">Routing</h3>
+          <dl class="meta-list">
+            <div class="meta-row">
+              <dt>Kind</dt>
+              <dd>${isJoin ? 'Join — converges multiple lane paths' : 'Split — branches into multiple lane paths'}</dd>
+            </div>
+            <div class="meta-row">
+              <dt>Related routes</dt>
+              <dd>${binding?.relatedTransitionIndices.length ?? 0} transition${(binding?.relatedTransitionIndices.length ?? 0) === 1 ? '' : 's'}</dd>
+            </div>
+            ${binding?.anchorStageKey
+              ? html`
+                  <div class="meta-row">
+                    <dt>${isJoin ? 'Merge near' : 'Branches from'}</dt>
+                    <dd>${this._stageLabel(binding.anchorStageKey)}</dd>
+                  </div>
+                `
+              : nothing}
+          </dl>
+          <p class="action-summary gateway-routing-hint">
+            Use the transition inspector to set a transition's source or target to this gateway.
+            ${isJoin ? ' Join gateways wait for all required incoming paths before releasing.' : ' Split gateways create independent paths for each outgoing transition.'}
+          </p>
+        </section>
+
+        ${isJoin
+          ? html`
+              <section class="inspector-section" aria-labelledby="gateway-waiting-heading">
+                <div class="section-header-row">
+                  <h3 id="gateway-waiting-heading" class="section-heading">Waiting information</h3>
+                  <prism-inline-help
+                    label="Waiting information help"
+                    message="Join gateways own the waiting story for their lane. This message is shown to users in the owning lane while they wait for other lanes to arrive. Authors set it here rather than on a separate waiting stage."
+                  ></prism-inline-help>
+                </div>
+                <div class="field-grid">
+                  <label class="field-block field-block-full">
+                    <span class="field-label">Waiting message</span>
+                    <textarea
+                      class="field-control field-textarea"
+                      data-prism-gateway-waiting-content
+                      .value=${waiting?.content ?? ''}
+                      placeholder="Explain what users in this lane are waiting for, for example: Your application is under review by the planning team."
+                      @change=${this._updateJoinWaitingContent}
+                    ></textarea>
+                  </label>
+                  <label class="field-block">
+                    <span class="field-label-row">
+                      <span class="field-label">Expected wait (seconds)</span>
+                      <prism-inline-help
+                        label="Expected wait help"
+                        message="An approximate maximum wait in seconds. Used by the runtime to set a progress indicator. Leave blank if the wait is open-ended."
+                      ></prism-inline-help>
+                    </span>
+                    <input
+                      type="number"
+                      class="field-control"
+                      data-prism-gateway-waiting-seconds
+                      min="0"
+                      .value=${String(waiting?.expectedWaitSeconds ?? '')}
+                      placeholder="3600"
+                      @change=${this._updateJoinWaitingExpectedSeconds}
+                    />
+                  </label>
+                  <div class="field-block">
+                    <span class="field-label">Allow defer</span>
+                    <label class="checkbox-row">
+                      <input
+                        type="checkbox"
+                        data-prism-gateway-waiting-allow-defer
+                        ?checked=${waiting?.allowDefer ?? false}
+                        @change=${this._updateJoinWaitingAllowDefer}
+                      />
+                      <span>Users in this lane can defer the wait</span>
+                    </label>
+                  </div>
+                  ${waiting?.allowDefer
+                    ? html`
+                        <label class="field-block">
+                          <span class="field-label">Defer message</span>
+                          <input
+                            class="field-control"
+                            data-prism-gateway-waiting-defer-message
+                            .value=${waiting.deferMessage ?? ''}
+                            placeholder="You can return to this step when the other team has finished."
+                            @change=${this._updateJoinWaitingDeferMessage}
+                          />
+                        </label>
+                      `
+                    : nothing}
+                </div>
+              </section>
+            `
+          : nothing}
+
+        <section class="inspector-section" aria-labelledby="gateway-danger-heading">
+          <h3 id="gateway-danger-heading" class="section-heading">Actions</h3>
+          <div class="action-buttons">
+            <button
+              type="button"
+              class="icon-button danger-button"
+              data-prism-gateway-delete
+              @click=${this._deleteSelectedGateway}
+            >
+              Delete gateway
+            </button>
+          </div>
+        </section>
+      </article>
+    `;
+  }
+
   private _renderStage(stage: AuthoredStage) {
     const fields = stage.fields ?? [];
     const actions = stage.actions ?? [];
@@ -779,13 +1138,16 @@ export class PrismStepInspectorElement extends LitElement {
 
   render() {
     const transition = this._selectedTransition;
-    const stage = transition ? null : this._selectedStage;
+    const gateway = transition ? null : this._selectedGateway;
+    const stage = transition || gateway ? null : this._selectedStage;
 
     return html`
       <div class="step-inspector-root" data-prism-component="step-inspector" tabindex="0">
         <div id="inspector-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true">${this._statusMessage ?? ''}</div>
         ${transition
           ? this._renderTransition(transition)
+          : gateway
+            ? this._renderGateway(gateway)
           : stage
             ? this._renderStage(stage)
             : this._renderEmpty()}
@@ -1187,6 +1549,29 @@ export class PrismStepInspectorElement extends LitElement {
       .action-item {
         scroll-behavior: auto;
       }
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.375rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: #111827;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 1rem;
+      height: 1rem;
+      cursor: pointer;
+      accent-color: #1d4ed8;
+    }
+
+    .gateway-routing-hint {
+      margin-top: 0.5rem;
+      font-size: 0.8125rem;
+      color: #475569;
     }
   `;
 }

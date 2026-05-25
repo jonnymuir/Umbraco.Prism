@@ -1,7 +1,9 @@
 import type { AuthoredGateway, AuthoredStage, AuthoredWorkflow } from './types.js';
 
 export type StageSurface = 'front-stage' | 'back-stage';
-type LaneAssignedNode = Pick<AuthoredStage | AuthoredGateway, 'actor' | 'roleGates'>;
+type LaneAssignedNode = Pick<AuthoredStage | AuthoredGateway, 'actor' | 'roleGates'> & {
+  laneKey?: string;
+};
 
 const FRONT_STAGE_ACTORS = new Set(['applicant', 'resident', 'member', 'citizen', 'customer', 'public']);
 const BACK_STAGE_ACTORS = new Set(['reviewer', 'caseworker', 'officer', 'administrator', 'admin', 'system']);
@@ -42,6 +44,11 @@ export function stageSurface(stage: LaneAssignedNode): StageSurface {
 }
 
 export function stageLaneKey(stage: LaneAssignedNode): string {
+  const explicitLane = normaliseLaneKey(stage.laneKey);
+  if (explicitLane) {
+    return explicitLane;
+  }
+
   const gatedRole = stage.roleGates.find(value => value.trim());
   if (gatedRole) {
     return normaliseLaneKey(gatedRole);
@@ -95,7 +102,9 @@ export function applyLaneToStage(stage: AuthoredStage, laneKey: string): Authore
   };
 }
 
-export function workflowLaneOptions(workflow: Pick<AuthoredWorkflow, 'roles' | 'stages'> | null | undefined): string[] {
+export function workflowLaneOptions(
+  workflow: Pick<AuthoredWorkflow, 'roles' | 'stages' | 'gateways'> | null | undefined
+): string[] {
   const laneKeys = new Set<string>();
 
   workflow?.roles?.forEach(role => {
@@ -107,6 +116,13 @@ export function workflowLaneOptions(workflow: Pick<AuthoredWorkflow, 'roles' | '
 
   workflow?.stages?.forEach(stage => {
     const key = stageLaneKey(stage);
+    if (key) {
+      laneKeys.add(key);
+    }
+  });
+
+  workflow?.gateways?.forEach(gateway => {
+    const key = stageLaneKey(gateway);
     if (key) {
       laneKeys.add(key);
     }

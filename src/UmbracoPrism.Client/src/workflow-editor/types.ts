@@ -48,6 +48,7 @@ export interface AuthoredGateway {
   displayName: string;
   description?: string;
   kind: GatewayKind;
+  laneKey?: string;
   actor?: string;
   roleGates: string[];
   waiting?: WaitingMetadata;
@@ -166,6 +167,18 @@ export interface AuthoredTransition {
   requiresRole?: string;
   condition?: string;
   editorComment?: string;
+  /**
+   * Editor-only. When set, the visual source of this transition is a gateway
+   * rather than a stage. The backend still receives fromStage; the graph uses
+   * this field to draw the route correctly and to populate inspector dropdowns.
+   * Requires backend alignment before runtime semantics change (#84/#85).
+   */
+  fromGateway?: string;
+  /**
+   * Editor-only. When set, the visual target of this transition is a gateway.
+   * The backend still receives toStage; the graph routes visually through the gateway.
+   */
+  toGateway?: string;
 }
 
 // ---------------------------------------------------------------------------
