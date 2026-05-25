@@ -1,3 +1,320 @@
+---
+author: copilot
+date: 2026-05-25T21:57:06.676+01:00
+status: directive
+area: workflow-editor
+---
+
+# User Directive: Keep the workflow editor UI simple and clean
+
+## Directive
+
+- Keep the workflow editor UI simple and clean
+- Do not repeat validation warnings on the Canvas tab when they already appear on the Validation tab
+- Fix stage/gateway alignment
+- Design the canvas so stages and gateways can slot cleanly when:
+  - A stage links to one or more gateways in the same or different lanes
+  - Gateways can link onward to stages or other gateways
+
+## Captured by
+
+Jonny Muir (user request)
+
+---
+
+---
+
+---
+**By:** Jonny Muir (via Copilot)
+**What:** Keep the workflow editor UI simple and clean; do not repeat validation warnings on the Canvas tab when they already appear on the Validation tab; fix stage/gateway alignment; design the canvas so stages and gateways can slot cleanly when a stage links to one or more gateways in the same or different lanes and gateways can link onward to stages or other gateways.
+**Why:** User request — captured for team memory
+
+---
+---
+author: isabelle
+date: 2026-05-25T21:57:06.676+01:00
+status: proposed
+area: workflow-editor-canvas
+---
+
+# Decision: Keep the workflow canvas clean by separating validation from layout and adopting slot-based routing
+
+## Context
+
+The current workflow editor now reads more gateway-first, but the canvas is still doing two jobs at once: it repeats validation warnings that already belong on the Validation tab, and it positions stages/gateways with simple anchor offsets that break down once a lane needs multiple adjacent gateways or cross-lane routing. The attached screenshot shows the immediate symptom: the stage stack visually collides with a gateway because the layout does not reserve explicit connector space.
+
+## Decision
+
+- The Canvas tab should stay focused on authoring and reading topology. Validation detail belongs on the Validation tab.
+- The canvas layout should move from free vertical offsets to a **slot grid**:
+  - **content rows** for stages
+  - **connector rows** for gateways
+  - **lane columns** that can widen when a same-lane split needs multiple side-by-side gateways
+- A gateway must always sit in its own connector slot and never overlap a stage card.
+- Same-lane fan-out should widen the owning lane locally with sibling gateway slots.
+- Cross-lane fan-out should read as one outbound trunk from the source gateway, then clean branch lines into target lanes on shared connector rails.
+- Gateway-to-gateway and join cases should use shared routing rails and orthogonal elbows, not freeform curved lines between every node pair.
+
+## Immediate editor changes
+
+1. **Remove duplicate warning presentation from Canvas**
+   - Delete the routing warning banner from the graph workspace.
+   - Keep the Validation tab badge/count as the single warning source.
+   - If canvas awareness is still needed, use a quiet status line such as “3 validation issues — review in Validation” without listing issues again.
+
+2. **Fix stage/gateway overlap**
+   - Reserve a connector row between consecutive stage rows.
+   - Place split gateways only in the connector row below their source stage.
+   - Place join gateways only in the connector row above their destination stage.
+   - Do not allow stage cards to shift into a connector row that is already occupied.
+
+3. **Simplify what the canvas emphasises**
+   - Stage cards remain the main work nodes.
+   - Gateway diamonds remain small, centred routing nodes.
+   - Route labels should stay out of the main canvas unless selected/inspected; otherwise the graph becomes copy-heavy too early.
+
+## Layout rules
+
+### 1. Base grid
+
+- Each lane gets:
+  - a header area
+  - repeating **stage row**
+  - repeating **gateway row**
+- A simple default vertical rhythm is:
+  - row 1: stage
+  - row 2: gateway/connector
+  - row 3: stage
+  - row 4: gateway/connector
+
+### 2. Same-lane fan-out
+
+- If a stage leads to multiple gateways in the same lane, those gateways should sit side by side in the next connector row.
+- The lane widens by adding **sub-columns** inside that lane rather than pushing nodes into arbitrary coordinates.
+- The source stage remains centred over the group, with short vertical then diagonal/orthogonal branches to each gateway slot.
+- Downstream same-lane targets inherit the slot positions beneath their chosen gateway where possible, so the branch reads as a column.
+
+### 3. Cross-lane fan-out
+
+- Cross-lane branching should read as:
+  - stage
+  - one split gateway
+  - one short shared outbound trunk
+  - branch across into the destination lane(s)
+- Avoid drawing multiple long independent curves from the source stage.
+- Enter target lanes at a consistent connector row so the eye can scan left-to-right cleanly.
+
+### 4. Join gateways
+
+- A join gateway owns the convergence point.
+- Inbound lines should meet the join on reserved connector rails, then continue as one line to the next stage.
+- If the join is a waiting/sync concept, show that state on the join gateway only, not on the following stage.
+
+### 5. Gateway-to-gateway
+
+- Permit gateway → gateway visually, but route it through connector rails with elbows and shared trunks.
+- The canvas should privilege a few clean buses over many bespoke curves.
+- If a segment count becomes visually noisy, collapse route labels and only show the selected path strongly.
+
+## Interaction rules
+
+- Selecting a stage or gateway should highlight only its immediate inbound/outbound path.
+- Hover/focus can preview the local route set, but the default canvas should remain quiet.
+- Creating a new route should snap to valid next slots rather than allowing arbitrary placement.
+- Keyboard navigation should follow reading order: lane → stage → connector gateway → next stage.
+
+## Later sophistication pass
+
+Defer these until the slot grid is in place:
+
+- automatic lane compaction/rebalancing after large edits
+- advanced path-routing that minimises crossings globally
+- collapsible route bundles for dense concurrent graphs
+- route heatmaps / richer badges / inline rule summaries
+- gateway cluster authoring for complex parallel sync patterns
+
+## Consequence
+
+This keeps the Canvas tab clean, makes the gateway model legible, and gives the editor a deterministic placement system that can scale to same-lane fan-out, cross-lane branching, joins, and gateway-to-gateway routing without visual collisions.
+
+---
+---
+author: tom-nook
+date: 2026-05-25T22:04:00.819+01:00
+status: proposed
+area: workflow-editor-canvas
+---
+
+# Decision: Gateway-first canvas draws unique adjacency rails
+
+## Context
+
+Tangy's remaining layout failures were both in route drawing, not node placement:
+
+- same-lane routing choices could still stack on one shared stem
+- an applicant branch could still run through the join gateway body
+
+The row-band / slot-grid placement model was already the right foundation and should stay intact.
+
+## Decision
+
+- Keep node placement row-band / slot-grid based.
+- In gateway-first mode, draw one quiet orthogonal rail per **visual adjacency** (`stage → gateway`, `gateway → stage`) instead of redrawing the whole authored transition path for every branch.
+- Spread sibling exits and entries across node faces so parallel same-lane choices leave through separate slot corridors.
+- Make join branches stop at the join boundary, then draw one downstream trunk from the join to the released stage.
+
+## Consequence
+
+This keeps the canvas visually calm while fixing the two concrete readability faults. It also gives Tangy's geometry tests a durable contract: distinct same-source corridors, separate join trunk, and no route running through a gateway body.
+
+---
+---
+author: tangy
+date: 2026-05-25T22:04:00.819+01:00
+status: proposed
+area: workflow-editor-tests
+---
+
+# Decision: Canvas cleanup proof should measure slot readability, not shell screenshots
+
+## Context
+
+The canvas cleanup/layout pass needs a proof that stays honest to what authors see:
+
+- Validation detail belongs in the Validation surface, not repeated inside Canvas
+- Same-lane routing choices must not stack on top of each other
+- Cross-lane branch work must read as a branch row before the join and next stage
+- Stages and gateways must not overlap visually
+
+The older layout proof mixed shell-width assumptions, stale lane-count expectations, and screenshot baselines that no longer tell us whether the slot-based routing read is clean.
+
+## Decision
+
+- Use measured DOM geometry for the behavioural proof instead of screenshot-only checks.
+- Keep one same-lane fan-out story and one cross-lane fan-out story as the layout fixtures.
+- Fail the slice when same-lane sibling gateways overlap, when branch work collapses into the join row, or when Canvas repeats Validation detail copy.
+
+## Consequence
+
+Tangy's quality gate now points directly at the canvas behaviours Isabelle is meant to deliver, and it separates real canvas regressions from old screenshot churn.
+
+---
+---
+author: tom-nook
+date: 2026-05-25T21:57:06.676+01:00
+status: proposed
+area: workflow-editor-canvas-layout
+---
+
+# Decision: Canvas layout should use lane row-bands and local slots
+
+## Context
+
+The current graph layout is still lane-column based, but it places stages mainly by authored order and gateways as centered lane overlays. In practice that creates two immediate product problems:
+
+- Canvas repeats warning lists that already belong to the Validation tab
+- stages and gateways can visually sit on top of each other because gateway placement is treated as a post-process rather than as part of the main layout model
+
+The next canvas model also needs to stay readable when routing grows beyond one simple split:
+
+- stage → single gateway
+- stage → multiple gateways in the same lane
+- stage → gateways in different lanes
+- gateway → stage
+- gateway → gateway
+- join / and-style sync gateways
+
+## Decision
+
+Use a simple two-level layout model:
+
+1. **Lane columns remain the primary horizontal structure**
+   - each lane owns a vertical column
+   - cross-lane routing moves between columns, not through ad hoc absolute positioning
+
+2. **Row bands become the primary vertical structure**
+   - every step in the flow occupies a row band
+   - nodes that are part of the same fan-out or same convergence can share a row band
+   - downstream nodes move to later row bands only after the previous structural relationship is resolved
+
+3. **Each lane row-band gets one or more local slots**
+   - a normal stage usually takes the centre slot
+   - if a stage fans out to multiple gateways in the same lane, those gateways occupy sibling slots in the next row band
+   - widening happens at the row-band level for that lane section, not by changing the meaning of the whole lane
+
+4. **Links route through reserved corridors**
+   - first go out of the source node vertically
+   - then travel horizontally in row corridors between bands
+   - then enter the target vertically
+   - this keeps links legible and avoids drawing through cards or diamonds
+
+5. **Canvas does not own the validation list**
+   - the Validation tab remains the only place with the detailed issue list
+   - the Canvas may show only a compact status chip/banner such as “3 validation issues — review in Validation”
+
+## Practical reading model
+
+Authors should be able to read the canvas top-to-bottom like this:
+
+- stage
+- gateway row
+- branch row(s)
+- join row
+- next stage row
+
+That reading order matters more than preserving authored array order on screen.
+
+## Case handling
+
+### Stage → single gateway
+
+- place the gateway in the next row band, same lane, centre slot
+- route one short vertical link
+
+### Stage → multiple gateways in same lane
+
+- place the gateways in the next row band as sibling slots within the same lane
+- widen only that lane segment/row-band footprint
+- route from the stage into a short fan-out stem, then across to each gateway slot
+
+### Stage → gateways in different lanes
+
+- place target gateways in the next row band, each in its destination lane
+- use one branch stem from the stage, then send links across the corridor into each lane
+- do not duplicate the source stage or force fake spacer nodes
+
+### Gateway → stages and gateway → gateways
+
+- treat gateways as first-class source/target nodes in the same slot system
+- a gateway can release to one or more stages in the next row band
+- a gateway can also release to another gateway in the next row band when the structure needs another split/join decision
+
+### Join / and-style sync gateways
+
+- place the join in the row band where branches converge
+- all required incoming links terminate at the join
+- the released node sits in the next row band below the join
+- waiting copy and waiting status belong to the join only
+
+## What changes next
+
+1. Remove the canvas warning list and replace it with a compact validation status hint.
+2. Replace the current “stage stack + centred gateway overlay” layout with row-band planning before node placement.
+3. Introduce lane-local sibling slots for same-lane gateway fan-out.
+4. Route links through reserved vertical/horizontal corridors instead of freehand overlaps.
+5. Treat gateway → gateway and gateway → stage placement as normal cases in the layout contract, not special hacks.
+
+## What should wait
+
+- perfect auto-compaction and graph beautification
+- edge crossing minimisation beyond basic corridor rules
+- drag-to-rearrange arbitrary graph topology
+- runtime/schema cleanup needed for fully honest gateway-only transport
+- advanced visual bundling for very dense concurrent graphs
+
+## Why
+
+This keeps the canvas simple for the common case while giving us one layout rule that can grow with concurrency. It also stops the editor from teaching the wrong model through overlapping nodes, duplicated warnings, and gateway placement that feels accidental rather than structural.
 
 ---
 author: tom-nook

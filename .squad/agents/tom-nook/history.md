@@ -1,29 +1,18 @@
-## 2026-05-19: Swim-Lane UX Parent Issue
+## 2026-05-19 — 2026-05-21: Branch Hygiene and Merge-Readiness (Summarized)
 
-### 2026-05-19T22:54:23.812+01:00 | Issue #74 created: Locked workflow editor swim-lane UX direction
+**Period Summary:** Three days of branch assessment, merge-readiness verification, and orchestration for workflow schema foundation work. Full details archived.
 
-Orchestrated parent GitHub issue #74 capturing integrated UX decision: role-first swim lanes as main editing model, tabs as supporting views, accessibility baseline, atomic undo/redo from first usable slice.
+**Key Outcomes:**
+- ✅ Swim-lane UX direction locked via GitHub issue #74
+- ✅ Branch hygiene assessment completed for squad/55-workflow-schema-foundation
+- ⚠️ Merge-readiness verdict: logically ready, but working tree cleanup needed (169 uncommitted files across 3 clusters)
+- ✅ Decision infrastructure: decision registry merged and routing established
 
-Decision routing: Future work on #58, #59, #60, #61, #63, #65, #67, #68 treats #74 as UX source of truth.
+**Decisions (5):** Branch split recommendation, team swim-lane contracts, merge conditions for schema foundation
 
-**Scribe update:** Decision inbox merged 2026-05-19T22:00:07Z.
+**Archived Details:** See `history-archive.md` for full 2026-05-19 through 2026-05-21 session records.
 
-## 2026-05-19 — Branch Hygiene Assessment: squad/55-workflow-schema-foundation
-
-**Status:** ⚠️ Not ready to merge. Too broad. Recommend split.
-
-**Assessment Scope:** Branch carries 10 commits (squad/scribe orchestration, green) but 62 uncommitted files (3 distinct engineering clusters) and 35 untracked files.
-
-**Finding:** Three independent work streams are tangled:
-1. Reference Workflow Repository (Backend: Blathers + Tangy)
-2. Editor UX & Components (Frontend: Isabelle + Tangy)
-3. Design/Docs/CI (Mabel + cleanup)
-
-**Recommendation:** Split this into 3 focused branches immediately before check-in. Each branch should be independently testable and mergeable.
-
-**Deliverable:** Full assessment written to `.squad/decisions.md` via inbox merge.
-
-**Basis:** Tom Nook background agent (branch hygiene specialist).
+---
 
 ## 2026-05-25T16:48:28Z — Gateway-Only Redo: Design Contract Lock
 
@@ -191,6 +180,19 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 
 ## Learnings
 
+### 2026-05-25T22:04:00.819+01:00 — Canvas rails should follow visual adjacency, not full authored transitions
+
+- In the gateway-first graph, node placement can stay row-band / slot-grid while route drawing switches to unique adjacency rails (`stage → gateway`, `gateway → stage`) so shared trunks are drawn once instead of stacking identical segments.
+- Same-lane fan-out needs exit-slot offsets on the source node; otherwise sibling choices may sit in separate slots but still leave through one overdrawn vertical stem.
+- Join readability improves when incoming branches terminate at the join boundary and a single downstream trunk continues from the join to the next stage; this avoids rails crossing the join body.
+- Key files for this proof are `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts` and `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-layout-proof.spec.ts`.
+
+### 2026-05-25T21:57:06.676+01:00 — Slot lanes before drawing links
+
+- A canvas that centers every gateway in a lane and stacks stages by authored order will always break down once one stage fans out to multiple gateways or gateways start linking to gateways.
+- Keep validation ownership in the Validation tab; the Canvas may show a compact health/status hint, but not a second issue list, otherwise the same warning appears in two places and clutters the editor.
+- The simplest scalable mental model is a lane-local slot grid: place nodes into row bands first, then allocate same-row sibling slots within a lane, and only after placement route links through reserved corridors between bands.
+
 ### 2026-05-25T16:48:28.029+01:00 — Gateway-only means editor-first clarity
 
 - When the user restates the model as "only stages and gateways" and says to watch how the editor looks, treat any stage-to-stage seam or rounded gateway card as a blocker, not as harmless implementation detail.
@@ -265,3 +267,32 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 **Decision recorded:** `.squad/decisions.md` (2026-05-25T15:34:44.680+01:00)  
 **Orchestration log:** `.squad/orchestration-log/2026-05-25T14-34-44-tom-nook.md`  
 **Coordinate:** Session orchestration with Isabelle, Blathers, Tangy for merged slice delivery
+
+## 2026-05-25T21:04:00Z — Canvas Layout Geometry Gate Cleared
+
+**Task:** Revision owner for workflow editor canvas layout faults  
+**Outcome:** ✅ Complete
+
+### Canvas Layout Fixes
+
+- **Same-lane sibling overlap:** Fixed gateway routing choices stacking on shared stem
+- **Join-gateway branch overlap:** Fixed applicant branch running through join gateway body
+- **Geometry tests updated:** Now measure DOM slot readability instead of screenshot baselines
+- **Validation gate passed:** Client validation lanes confirmed
+
+### Decisions Documented
+
+- **Decision: Gateway-first canvas draws unique adjacency rails** (proposed)
+  - Keep node placement row-band / slot-grid based
+  - Draw orthogonal rails per visual adjacency (stage→gateway, gateway→stage)
+  - Spread sibling exits across node faces for separate corridors
+  - Join branches stop at join boundary; one downstream trunk to released stage
+
+### Next Actions
+
+- **Isabelle:** Implement canvas UX with orthogonal rails and slot grid
+- **Tangy:** Validate geometry against updated test suite
+- **Validation tab:** Ensure no warning duplication on Canvas tab
+
+**Orchestration log:** `.squad/orchestration-log/2026-05-25T21-04-00Z-tom-nook.md`  
+**Team coordination:** Multi-agent canvas layout fix session

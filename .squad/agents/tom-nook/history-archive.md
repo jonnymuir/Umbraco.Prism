@@ -263,4 +263,37 @@ Transformed workflow-editor design into dependency-ordered execution backlog:
 ## Scribe Consolidation (2026-05-19T21:41:48.843Z)
 
 Decisions consolidated into team decisions log. Orchestration recorded.
+---
+
+## 2026-05-19 — 2026-05-21: Full Session Archive
+
+The following entries have been moved from active history to archive during 2026-05-25 summarization.
+
+
+## 2026-05-19: Swim-Lane UX Parent Issue
+
+### 2026-05-19T22:54:23.812+01:00 | Issue #74 created: Locked workflow editor swim-lane UX direction
+
+Orchestrated parent GitHub issue #74 capturing integrated UX decision: role-first swim lanes as main editing model, tabs as supporting views, accessibility baseline, atomic undo/redo from first usable slice.
+
+Decision routing: Future work on #58, #59, #60, #61, #63, #65, #67, #68 treats #74 as UX source of truth.
+
+**Scribe update:** Decision inbox merged 2026-05-19T22:00:07Z.
+
+## 2026-05-19 — Branch Hygiene Assessment: squad/55-workflow-schema-foundation
+
+**Status:** ⚠️ Not ready to merge. Too broad. Recommend split.
+
+**Assessment Scope:** Branch carries 10 commits (squad/scribe orchestration, green) but 62 uncommitted files (3 distinct engineering clusters) and 35 untracked files.
+
+**Finding:** Three independent work streams are tangled:
+1. Reference Workflow Repository (Backend: Blathers + Tangy)
+2. Editor UX & Components (Frontend: Isabelle + Tangy)
+3. Design/Docs/CI (Mabel + cleanup)
+
+**Recommendation:** Split this into 3 focused branches immediately before check-in. Each branch should be independently testable and mergeable.
+
+**Deliverable:** Full assessment written to `.squad/decisions.md` via inbox merge.
+
+**Basis:** Tom Nook background agent (branch hygiene specialist).
 

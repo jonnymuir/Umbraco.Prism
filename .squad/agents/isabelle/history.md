@@ -102,11 +102,68 @@ Dedicated slice needed to unify client transport model with backend gateway-only
 
 See `history-archive.md` for detailed per-session records (2026-05-19 through 2026-05-24).
 
+## 2026-05-25T21:04:00Z — Canvas Layout Gate Cleared; Pending UX Implementation
+
+**Task:** Frontend UX implementation phase for canvas layout slot grid  
+**Status:** 🟡 Pending — awaiting implementation action
+
+### Handoff Summary
+
+Canvas layout geometry gate has been cleared by Tom Nook (revision owner) and Tangy (reviewer re-check):
+
+- ✅ Same-lane sibling overlap fixed in route drawing
+- ✅ Join-gateway branch overlap fixed in geometry
+- ✅ Geometry tests measure real DOM slot readability
+- ✅ Client validation lanes passed
+
+### Implementation Charter
+
+**Decision: Keep the workflow canvas clean by separating validation from layout** (proposed)
+
+- Canvas tab focused on authoring and reading topology only
+- Validation detail belongs on Validation tab (no warning duplication on Canvas)
+- Canvas layout moves to **slot grid**:
+  - Content rows for stages
+  - Connector rows for gateways
+  - Lane columns that widen for same-lane fan-out
+  - Cross-lane fan-out using shared connector rails
+
+**Decision: Gateway-first canvas draws unique adjacency rails** (proposed)
+
+- Node placement: row-band / slot-grid based (unchanged)
+- Route drawing: one orthogonal rail per visual adjacency
+- Same-lane exit/entry: spread across node faces for separate slot corridors
+- Join cases: branches stop at join boundary; one trunk downstream
+
+### Required Changes
+
+1. **Remove validation from Canvas tab** — Delete routing warning banner; use compact status line only
+2. **Fix stage/gateway overlap** — Reserve connector rows; prevent stage card shifts
+3. **Implement orthogonal rails** — Per-adjacency routes with clean elbows
+4. **Same-lane slot sizing** — Widen lane locally when multiple gateways in same lane
+5. **Cross-lane branching** — One shared trunk, then branch into target lane connector rows
+
+### Test Coverage Expectations
+
+Tangy will validate:
+- Same-lane sibling gateways do not overlap
+- Cross-lane branch work reads as branch row before join
+- Canvas does not repeat Validation tab warnings
+- Gateway-to-gateway and join routing follow connector rails
+
+**Team coordination:** Immediate handoff to Isabelle for UX implementation  
+**Decisions recorded:** `.squad/decisions.md` (5 canvas-related proposals)  
+**Orchestration log:** `.squad/orchestration-log/2026-05-25T21-04-00Z-tom-nook.md`, `.squad/orchestration-log/2026-05-25T21-04-00Z-tangy.md`
+
 ---
 
 ## Learnings
 
+- 2026-05-25T22:04:00.819+01:00 — For gateway-heavy workflow canvases, compute row-band ranks from the visual stage↔gateway graph, size each lane from its widest row-band slot set, and draw authored routes as orthogonal rails so same-lane sibling gateways widen cleanly while cross-lane fan-out shares a short trunk before branching.
+
 - 2026-05-25T16:48:28.029+01:00 — For gateway-first editor work, derive visual bindings from explicit route fields (`fromGateway`/`toGateway`) before heuristics, then hide route chips and stage handles once gateways exist so the canvas reads as stage → gateway → stage.
+
+- 2026-05-25T21:57:06.676+01:00 — For readable workflow canvases, use a slot grid instead of free placement: stages occupy content rows, gateways occupy connector rows between them, same-lane fan-out consumes extra lane columns, and cross-lane routes should travel on shared connector rails so joins and gateway-to-gateway links do not turn into spaghetti.
 
 - 2026-05-25T15:23:06.241+01:00 — Treat #83's current gateway UI as partial scaffolding only: stages stay action-bearing work nodes, while diamond transition gateways must become named, editable routing nodes with lane-owned waiting info and accessible branch/merge authoring.
 - 2026-05-25T14:17:36.055+01:00 — For editor-only gateway slices, bind split and join nodes to existing stage-to-stage branch and merge points in the graph so authors can see lane-owned gateways without changing preview, simulation, publish, or runtime execution semantics.

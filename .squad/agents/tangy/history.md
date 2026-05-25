@@ -68,6 +68,8 @@ For detailed earlier work, see `history-archive.md`.
 
 ## Learnings
 
+- 2026-05-25T22:04:00.819+01:00 — Reviewer follow-up validation for the canvas cleanup should stay narrow and geometry-led: `npm run build`, `npm run test-storybook:ci:all`, then the targeted Playwright trio `workflow-graph-layout-proof.spec.ts`, `workflow-transition-editor.spec.ts`, and `workflow-editor-gateways.spec.ts`. That set is enough to prove the two regressions are genuinely cleared: same-lane routing choices keep separate sibling slots, and the applicant branch stays above the join gateway instead of colliding with it.
+- 2026-05-25T22:04:00.819+01:00 — For canvas cleanup proofs, replace brittle shell screenshots with measured graph geometry. One same-lane fan-out fixture and one cross-lane fan-out fixture are enough to expose the real regressions: repeated validation detail on Canvas, sibling gateways stacked into one slot, and join/stage overlaps that make the route unreadable.
 - 2026-05-25T16:48:28.029+01:00 — When the product model changes from "transitions plus gateways" to "stages plus gateways," rewrite the behavioural proof around what authors can see and edit: geometry that reads stage → gateway → next node, diamond routing cues, gateway-owned waiting copy, and validation language that points authors back to gateways instead of generic routes.
 - 2026-05-25T09:32:35.455+01:00 — For the concurrent multi-lane redesign, keep one straight-line workflow proof green as a control while adding new parallel-lane and join-gateway proofs. Slice the work into editor contracts, showcase-story evolution, and live walkthrough proof so the behavioural gate can move forward without losing demo clarity.
 - 2026-05-25T09:54:48.365+01:00 — When workflow surface rules are being collapsed, keep Playwright contracts on user-facing language: tab roles, visible lane labels, and assignment copy. Avoid asserting internal surface enums or exact lane counts that can change during cleanup without changing author-visible behaviour.
@@ -178,3 +180,41 @@ Created a unified behavioural test slice spanning backend authoring contracts, e
 ✅ Keyboard navigation (stages + gateways)  
 
 **Orchestration log:** `.squad/orchestration-log/2026-05-25T14-34-44-tangy.md`
+
+## 2026-05-25T21:04:00Z — Canvas Layout Geometry Verification Complete
+
+**Task:** Reviewer re-check on canvas layout fixes  
+**Outcome:** ✅ Complete
+
+### Validation Results
+
+- ✅ Both reported failures no longer reproduce
+- ✅ Relevant client validation lanes passed
+- ✅ Geometry tests confirm real slot readability
+
+### Test Contract Updates
+
+**Decision: Canvas cleanup proof measures slot readability, not shell screenshots** (proposed)
+
+- Measured DOM geometry for behavioral proof instead of screenshot-only checks
+- Same-lane fan-out story: verify sibling gateways do not overlap
+- Cross-lane fan-out story: verify branch work reads as branch row before join
+- Fail conditions:
+  - Same-lane sibling gateways overlap
+  - Branch work collapses into join row
+  - Canvas repeats Validation detail copy
+
+### Quality Gate Enforcement
+
+- Geometry tests no longer depend on shell-width assumptions
+- Layout fixtures capture real canvas behaviours (not stale baselines)
+- Gateway readability is now provable, not just visual inspection
+
+### Pending Coverage
+
+- **Isabelle implementation:** Canvas UX with orthogonal rails and slot grid
+- **Validation tab parity:** Confirm Canvas tab no longer repeats validation warnings
+- **Join trunk routing:** One downstream trunk from join to released stage
+
+**Orchestration log:** `.squad/orchestration-log/2026-05-25T21-04-00Z-tangy.md`  
+**Team coordination:** Multi-agent canvas layout fix verification
