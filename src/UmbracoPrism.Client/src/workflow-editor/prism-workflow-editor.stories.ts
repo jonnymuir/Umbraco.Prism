@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import { expect, waitFor, within } from '@storybook/test';
 import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
-import { LEAVE_REQUEST_STARTER_WORKFLOW, PLANNING_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
+import { PLANNING_WORKFLOW } from './fixtures/index.js';
 import { STUB_ACTION_CATALOG, type AuthoredWorkflow } from './types.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
 
@@ -76,10 +76,10 @@ function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkfl
 }
 
 function makeEmptyWorkflow(): AuthoredWorkflow {
-  const workflow = cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
+  const workflow = JSON.parse(JSON.stringify(PLANNING_WORKFLOW)) as AuthoredWorkflow;
   return {
     ...workflow,
-    displayName: 'Leave Request',
+    displayName: 'Empty Workflow',
     initialStageKey: '',
     stages: [],
     transitions: [],
@@ -163,10 +163,6 @@ function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
       : transition
   );
   return workflow;
-}
-
-function makeGatewayWorkflow(): AuthoredWorkflow {
-  return cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
 }
 
 const meta: Meta = {
@@ -287,7 +283,6 @@ export const SimulationBlockers: Story = {
   render: () => makeEditor(makeSimulationBlockerWorkflow()),
 };
 
-export const GatewayRepresentation: Story = {
-  name: 'Gateway Representation',
-  render: () => makeEditor(makeGatewayWorkflow()),
-};
+// NOTE: `GatewayRepresentation` story removed in Slice 1.5 — it required the
+// LEAVE_REQUEST_STARTER_WORKFLOW fixture (gateway-shaped) which lives with the
+// Slice 5 canvas/slot-matrix work. Reinstate alongside that slice.
