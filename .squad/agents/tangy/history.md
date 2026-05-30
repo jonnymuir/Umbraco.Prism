@@ -219,3 +219,21 @@ Created a unified behavioural test slice spanning backend authoring contracts, e
 
 **Orchestration log:** `.squad/orchestration-log/2026-05-25T21-04-00Z-tangy.md`  
 **Team coordination:** Multi-agent canvas layout fix verification
+
+---
+
+## 2026-05-30 — Scope-Reset Session: Validation & Quality Assurance
+
+**Session:** workflow-editor-scope-reset  
+**Role:** Quality validation (cross-agent test verification, movement accessibility audit)
+
+**Outcomes:**
+- ✅ Slice 1/1.5/2 validation: all tests green (blathers 842, isabelle targeted Playwright)
+- ✅ Movement accessibility audit (documented in decisions.md)
+- ✅ Named lanes & horizontal layout validation
+- ⚠️ Slice 3a/3b split approved for parallel testing
+
+**Key Notes:**
+- 3 git stashes preserved on branch (untouched, pending Slice 5 canvas-slot-matrix)
+- Movement model accessibility guardrails in place
+- Ready for Slice 3 parallel testing (gateway-first binding + structure reordering)

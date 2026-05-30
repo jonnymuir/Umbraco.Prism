@@ -320,3 +320,23 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - A `vertical-lanes-switcher.spec.ts` exists, implying a vertical/horizontal toggle. With the mandate, vertical is the only mode — that spec/toggle is dead code by Jonny's rule.
 - `prism-workflow-graph.ts` is 4,560 lines. Any "simplify visuals" slice needs to be defended carefully: the file is large enough to hide both essential layout logic and dead orientation/proposal code paths in the same edit.
 
+
+---
+
+## 2026-05-30 — Scope-Reset Session: Slice 1/1.5/2 Complete
+
+**Session:** workflow-editor-scope-reset  
+**Role:** Coordinator (planning, audit, recovery sequencing)
+
+**Outcomes:**
+- ✅ 6-slice plan produced and validated by rubber-duck
+- ✅ Slice 1 backend deletions (blathers, commit 1e8bbcf, 842 tests green)
+- ✅ Slice 1 frontend deletions (isabelle, commit fc1acc5, Playwright green)
+- ✅ Slice 1.5 stories trim (isabelle, commit 5a45a37, PLANNING_WORKFLOW only)
+- ✅ Slice 2 conversation-pane sweep (isabelle, commit 32c872d, builds clean)
+
+**Key Notes:**
+- Identified and resolved HEAD-broken-without-Slice-2 issue in prior WIP
+- 3 git stashes preserved on branch (untouched): slice-3-gateway-only, slice-3-inspector, slice-5-canvas-slot
+- Decisions merged (12 inbox → decisions.md), 4 old entries archived
+- 7 new reusable skills documented for next work cycle

@@ -135,3 +135,22 @@ All backend publishing and validation now aligned to gateway-only contract. Read
 - The `/preview` endpoint composed both services: `previewService.Preview(...) with { PublishPreview = publishService.PreviewAsync(...) }`. Worth noting for any future "what does a save dry-run look like?" question — the answer post-slice is "call `IWorkflowPublishService.PreviewAsync` directly via /apply, no separate endpoint."
 - Pattern to watch: working tree arrived with ~50 unrelated pre-staged changes (Isabelle's TS work, Tom-Nook's docs, mock app, runtime engine). Had to use `git add` only on my four target paths and `git restore --staged` on three `prism-proposal-diff*` / `workflow-authoring-mock-drafter.ts` deletions that someone had pre-staged. The commit ended up cleanly 8 files / +1 / -431, exactly the backend slice.
 - Test count: 842 (was 851 in the gateway-runtime slice; the diff is preview tests + skipped deferred-semantics tests being removed elsewhere in the working tree). No regressions in my scope.
+
+---
+
+## 2026-05-30 — Scope-Reset Session: Slice 1 Backend Complete
+
+**Session:** workflow-editor-scope-reset  
+**Role:** Implementation (backend deletions)
+
+**Outcomes:**
+- ✅ Slice 1 backend deletions (5 files deleted, 3 files edited, commit 1e8bbcf)
+- ✅ Preview service removal (PreviewService.cs, endpoints, DTOs)
+- ✅ Dependency injection cleanup (ServiceRegistration.cs)
+- ✅ Full test suite green (842 tests pass, 0 warnings, 0 errors)
+
+**Key Notes:**
+- Slice 1 backend deletions complete and safe
+- All build/test checks passed
+- Frontend deletion by isabelle followed (Slice 1 frontend deletions)
+- 3 git stashes preserved on branch (untouched, pending Slice 3/5)
