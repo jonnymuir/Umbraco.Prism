@@ -1026,6 +1026,10 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _handleOutlineGatewaySelected = (e: CustomEvent<{ gatewayKey: string }>) => {
     this._applySelection({ kind: 'gateway', gatewayKey: e.detail.gatewayKey }, this._workflow);
     this._actionSelection = null;
+    const gateway = this._workflow?.gateways?.find(g => g.gatewayKey === e.detail.gatewayKey);
+    if (gateway) {
+      this._announceHistory(`Selected gateway ${gateway.displayName}`);
+    }
   };
 
   private _handleOutlineTransitionSelected = (e: CustomEvent<{ transitionIndex: number }>) => {

@@ -51,6 +51,11 @@ export class PrismWorkflowOutline extends LitElement {
     );
   }
 
+  private _gatewayLabel(gatewayKey: string | undefined | null): string {
+    if (!gatewayKey) return '';
+    return this.workflow?.gateways?.find(g => g.gatewayKey === gatewayKey)?.displayName ?? gatewayKey;
+  }
+
   private _stageOutboundTransitions(stageKey: string): { transition: AuthoredTransition; index: number }[] {
     if (!this.workflow) {
       return [];
@@ -156,26 +161,32 @@ export class PrismWorkflowOutline extends LitElement {
                   <span class="outline-stage-meta">${stage.actor}</span>
                 </button>
 
-                ${splitGateways.map(gateway => {
-                  const isGatewaySelected = this.selectedGatewayKey === gateway.gatewayKey;
-                  return html`
-                    <div class="outline-gateway-row">
-                      <button
-                        type="button"
-                        class="outline-gateway-button ${isGatewaySelected ? 'outline-gateway-button-selected' : ''}"
-                        @click=${() => this._handleGatewayClick(gateway.gatewayKey)}
-                        aria-current=${isGatewaySelected ? 'location' : nothing}
-                        data-prism-outline-gateway="${gateway.gatewayKey}"
-                      >
-                        <span class="outline-gateway-shape" aria-hidden="true"></span>
-                        <span class="outline-gateway-copy">
-                          <span class="outline-gateway-title">${gateway.displayName}</span>
-                          <span class="outline-gateway-meta">${gateway.kind} gateway</span>
-                        </span>
-                      </button>
-                    </div>
-                  `;
-                })}
+                ${splitGateways.length > 0
+                  ? html`
+                      <ul class="outline-gateway-list">
+                        ${splitGateways.map(gateway => {
+                          const isGatewaySelected = this.selectedGatewayKey === gateway.gatewayKey;
+                          return html`
+                            <li class="outline-gateway-item">
+                              <button
+                                type="button"
+                                class="outline-gateway-button ${isGatewaySelected ? 'outline-gateway-button-selected' : ''}"
+                                @click=${() => this._handleGatewayClick(gateway.gatewayKey)}
+                                aria-current=${isGatewaySelected ? 'location' : nothing}
+                                data-prism-outline-gateway="${gateway.gatewayKey}"
+                              >
+                                <span class="outline-gateway-shape" aria-hidden="true"></span>
+                                <span class="outline-gateway-copy">
+                                  <span class="outline-gateway-title">${gateway.displayName}</span>
+                                  <span class="outline-gateway-meta">${gateway.kind} gateway</span>
+                                </span>
+                              </button>
+                            </li>
+                          `;
+                        })}
+                      </ul>
+                    `
+                  : nothing}
 
                 ${transitions.length > 0
                   ? html`
@@ -194,8 +205,8 @@ export class PrismWorkflowOutline extends LitElement {
                               >
                                 <span class="outline-transition-label">${transition.action}</span>
                                 <span class="outline-transition-target">
-                                  ${transition.fromGateway ? `via ${transition.fromGateway} → ` : ''}
-                                  ${transition.toGateway ? `${transition.toGateway} → ` : ''}
+                                  ${transition.fromGateway ? `via ${this._gatewayLabel(transition.fromGateway)} → ` : ''}
+                                  ${transition.toGateway ? `${this._gatewayLabel(transition.toGateway)} → ` : ''}
                                   ${transition.toStage}
                                 </span>
                               </button>
@@ -356,9 +367,19 @@ export class PrismWorkflowOutline extends LitElement {
       background: #f8f8f8;
     }
 
-    .outline-gateway-row {
+    .outline-gateway-list {
+      list-style: none;
+      margin: 0;
       padding: 0 1rem 0.5rem;
       background: #f8f8fc;
+    }
+
+    .outline-gateway-item {
+      margin: 0;
+    }
+
+    .outline-gateway-item + .outline-gateway-item {
+      margin-top: 0.375rem;
     }
 
     .outline-gateway-button {
@@ -373,6 +394,12 @@ export class PrismWorkflowOutline extends LitElement {
       cursor: pointer;
       text-align: left;
       font: inherit;
+    }
+
+    .outline-gateway-button:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: -3px;
+      z-index: 1;
     }
 
     .outline-gateway-button-selected {

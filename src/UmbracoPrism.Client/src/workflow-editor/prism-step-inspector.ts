@@ -150,12 +150,24 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _routeDescriptor(transition: AuthoredTransition) {
-    return [
-      this._stageLabel(transition.fromStage),
-      transition.fromGateway ? this._gatewayLabel(transition.fromGateway) : null,
-      transition.toGateway ? this._gatewayLabel(transition.toGateway) : null,
-      this._stageLabel(transition.toStage),
-    ].filter(Boolean).join(' → ');
+    const fromStage = this._stageLabel(transition.fromStage);
+    const fromGateway = transition.fromGateway ? this._gatewayLabel(transition.fromGateway) : null;
+    const toGateway = transition.toGateway ? this._gatewayLabel(transition.toGateway) : null;
+    const toStage = this._stageLabel(transition.toStage);
+
+    const ariaParts = [`from ${fromStage}`];
+    if (fromGateway) ariaParts.push(`via split gateway ${fromGateway}`);
+    if (toGateway) ariaParts.push(`via join gateway ${toGateway}`);
+    ariaParts.push(`to ${toStage}`);
+    const ariaLabel = ariaParts.join(', ');
+
+    const visibleTokens = [fromStage, fromGateway, toGateway, toStage].filter((token): token is string => Boolean(token));
+    const arrow = html`<span aria-hidden="true"> → </span>`;
+    const visible = visibleTokens.map((token, index) =>
+      index === 0 ? html`<span>${token}</span>` : html`${arrow}<span>${token}</span>`
+    );
+
+    return html`<span aria-label=${ariaLabel}>${visible}</span>`;
   }
 
   private _availableJoinGatewaysForStage(stageKey: string) {
