@@ -1,8 +1,10 @@
 # 04 — Agentic support and test seam
 
+> **Status: Historical** — paused 2026-05-30 per scope-reset directive. The proposal-diff modal, conversation pane, and chat drafter described here were retired. Kept for design archaeology only.
+
 **Date:** 2026-05-16  
 **Author:** Tangy (Tester)  
-**Status:** Proposed  
+**Status:** Historical (paused 2026-05-30)
 
 ---
 

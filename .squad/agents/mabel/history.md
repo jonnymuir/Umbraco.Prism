@@ -2,6 +2,19 @@
 
 ## Latest Updates
 
+**2026-05-30 | Slice 8b — Docs sweep + delete obsolete manifest tests (scope-reset closeout)**
+- Closed the workflow editor scope-reset arc (Slices 1–8).
+- Banners added to historical design docs (04-agentic-surfaces, 03-umbraco-integration, README) and a narrower status note on 01-authoring-ux.
+- Rewrote `docs/walkthroughs/authoring-a-workflow.md` as an Umbraco integrator recipe: packages → DI + WorkflowAuthor policy → doctypes → route-hijack `PrismWorkflowPageController<T>` → Razor templates → **where to host the editor** (MockBusinessApp; not the backoffice; not TestSite) → open the editor.
+- Updated `planning-workflow-editor.md` to lead with vertical-lanes/slot-matrix language, explicitly state there is no in-editor chat/proposal-diff, and added a Definition tab step (Slice 6).
+- Extended `docs/guides/workflow-editor-composition.md` with: rewritten top callout (editor lives in your business app, not in the backoffice or TestSite), a **Read-only public viewer** subsection with a one-line Razor `@Html.Raw(workflowJson)` example for `<prism-workflow-graph read-only>`, a **Definition tab** pointer, and a **Visual testing** pointer.
+- Grep sweep across `docs/` + `README.md` for retired symbols (conversation pane, proposal diff, MockDrafter, prism-proposal-diff, IWorkflowPreviewService, StageKind.Waiting/StatusTimeline, App_Plugins/PrismWorkflowEditor, `/save`, body-side approver) — only stale survivor was the editor blurb in `docs/walkthroughs/README.md`, fixed. The lone `"waiting"` survivor in `workflow-setup.md` is the runtime forms-engine step type, not the retired editor stage kind — left alone.
+- Deleted `src/UmbracoPrism.Core.Tests/WorkflowEditorManifestTests.cs` — six tests asserting deleted `App_Plugins/PrismWorkflowEditor/*` files. Core tests now **860/860** (was 860/866 at Slice 8a baseline). `dotnet build` clean; `npm run build` clean.
+- Decision file: `.squad/decisions/inbox/mabel-slice8b-docs-sweep.md`. Scope-reset arc explicitly confirmed complete.
+- Learning: when scope reset retires whole features, banner the docs in place rather than delete — kept the design archaeology for 04-agentic-surfaces and 03-umbraco-integration so future decisions can see what was tried. Keep banners short and point at the new canonical doc.
+
+## Older Updates
+
 See history-archive.md for full history.
 
 **2026-05-17 | Workflow Editor V1 Doc Polish for Clarity & Terminology**

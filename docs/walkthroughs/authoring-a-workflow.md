@@ -1,161 +1,175 @@
-# Walkthrough — Authoring a Workflow in the Editor
+# Walkthrough — Wiring the Prism Workflow Editor into Your Umbraco App
 
-Build a workflow from an empty editor, keep the canvas readable, and verify each step against the proving tests.
+This walkthrough is for integrators starting from a working Umbraco v17 site. By the end, you will have:
 
-> **Prerequisites:** Run the client Storybook/test host or the local app host. This walkthrough uses the shared **Leave Request** starter journey that appears in stories, behavioural tests, and the editor help.
+- the Prism packages installed
+- the authoring API and editor services registered in DI
+- doctypes and templates that drive a workflow at runtime
+- a clear picture of **where** the editor itself runs — and where it does not
 
----
-
-## What this walkthrough proves
-
-The editor now treats lanes as **vertical service columns**:
-
-- each column belongs to one service owner
-- the workflow reads **top to bottom**
-- stages are the work cards
-- gateways are the only routing points between stages
-- same-level siblings in one lane expand **to the right**
-
-The proving tests for this walkthrough are:
-
-| What is proved | Test |
-|---|---|
-| Empty workflow guidance and first-step help | `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-help.spec.ts` |
-| Vertical lane columns, same-lane sibling slots, and no overlap | `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-layout-proof.spec.ts` |
-| Gateway-first routing behaviour and route readability | `src/UmbracoPrism.Client/tests/workflow-editor/workflow-transition-editor.spec.ts` |
-| General graph/list behaviour and accessible reorder contract | `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts` |
+The walkthrough does not cover the editor's UX. For that, see [Planning Workflow Editor](planning-workflow-editor.md).
 
 ---
 
-## The shared starter workflow
+## How the pieces fit
 
-The walkthrough and stories use a single small workflow:
+Prism splits cleanly into three projects:
 
-1. **Start request** in the applicant lane
-2. **Review split** gateway
-3. **Applicant amendments** and **Upload evidence** side by side in the applicant lane, plus **Reviewer assessment** in the reviewer lane
-4. **Decision join** gateway that owns the waiting copy
-5. **Decision confirmed** as the released next step
+| Project | What it does | Where it runs |
+|---|---|---|
+| `UmbracoPrism` (`UmbracoPrism.Core`) | Umbraco integration: route-hijacking controller, page model, member middleware, sanitiser, view helpers | Inside your Umbraco app |
+| `UmbracoPrism.WorkflowEditor` | Authoring API (`/api/workflow-authoring/*`) and the web-component bundle that authors load | Authoring API on the server; web components in a separate business app |
+| `UmbracoPrism.WorkflowRuntime` | The engine that advances cases through stages at runtime | Inside your business app (or your Umbraco app, if you co-host them) |
 
-This keeps the model honest to the editor contract: **stage -> gateway -> stage**, with gateway joins handling waiting semantics.
-
----
-
-## Step 1: Start from an empty workflow
-
-Open the empty workflow story or editor host and stay on the **Canvas** tab.
-
-You should see:
-
-- a simple empty-state message
-- a short checklist for getting started
-- one primary action: **Add first stage**
-
-Proof: `workflow-editor-help.spec.ts`
+**The editor is not mounted in the Umbraco backoffice.** Squad ships it as web components that a separate business app embeds. In this repo, `MockBusinessApp` is the reference authoring host, and `TestSite` is the reference Umbraco runtime. This boundary is deliberate: the Umbraco backoffice stays a content tool; the workflow editor stays a developer/operator tool in your app.
 
 ---
 
-## Step 2: Add the first stage
+## Step 1 — Install the packages
 
-Create the first stage in the lane that owns the opening work.
+Add the Prism packages to your Umbraco project:
 
-For the starter journey:
+- `UmbracoPrism` — published to NuGet today; covers the Core integration.
+- `UmbracoPrism.WorkflowEditor` — the authoring API and web-component bundle. Reference the project in-repo, or the package when published.
+- `UmbracoPrism.WorkflowRuntime` — the engine. Reference the project in-repo, or the package when published.
 
-- **Name:** `Start request`
-- **Key:** `start-request`
-- **Lane owner:** `applicant`
-- **Type:** `form`
-
-Expected result:
-
-- the new stage appears in the applicant column
-- the outline shows the applicant lane group
-- the inspector opens on the new stage
-
-Proof: `workflow-editor-help.spec.ts`
+If you only need the **read-only viewer** for a published workflow on a public page, you can stop at `UmbracoPrism`. The viewer is a single web component (`<prism-workflow-graph read-only>`) — see [Composing the Workflow Editor](../guides/workflow-editor-composition.md#read-only-public-viewer).
 
 ---
 
-## Step 3: Add the next work stages
+## Step 2 — Register Prism services and the WorkflowAuthor policy
 
-Add the next pieces of work before you add routing:
+In `Program.cs`, register Prism alongside Umbraco. The editor's authoring API is locked behind an authorization policy you own.
 
-- `Applicant amendments`
-- `Upload evidence`
-- `Reviewer assessment`
-- `Decision confirmed`
+```csharp
+using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.WorkflowEditor.Extensions;
+using UmbracoPrism.WorkflowRuntime.Extensions;
 
-Keep the columns simple:
+var builder = WebApplication.CreateBuilder(args);
 
-- applicant work stays in the applicant column
-- reviewer work goes in the reviewer column
-- the canvas should still read top to bottom
+builder.Services.AddPrismAuthentication(builder.Configuration);
 
-Proof: `workflow-graph-layout-proof.spec.ts`
+builder.Services.AddAuthorization(options =>
+{
+    // The editor's /api/workflow-authoring/* routes require this policy.
+    // Default: any authenticated principal. Tighten with your own claim or role gate.
+    options.AddPolicy(
+        WorkflowAuthoringPolicies.WorkflowAuthor,
+        policy => policy.RequireAuthenticatedUser());
+});
 
----
+// Register the authoring API and supporting services.
+builder.Services.AddPrismWorkflowEditor(
+    authoredWorkflowBasePath: "/path/to/authored",
+    publishedWorkflowBasePath: "/path/to/published");
 
-## Step 4: Add the routing gateways
+var app = builder.Build();
 
-Add the gateways that make the branching explicit:
+// Map the authoring routes (group: /api/workflow-authoring).
+app.MapPrismWorkflowEditor();
+```
 
-1. **Review split** in the applicant lane
-2. **Decision join** in the applicant lane
+Two things to know:
 
-Use the join gateway to carry the waiting explanation instead of adding a waiting stage.
-
-Expected result:
-
-- gateways render as diamonds, not stage cards
-- the canvas still reads as lane columns
-- the join owns the waiting copy
-
-Proof: `workflow-transition-editor.spec.ts`
-
----
-
-## Step 5: Add the routes
-
-Create the routes so the canvas shows the intended service shape:
-
-- `Start request -> Review split`
-- `Review split -> Applicant amendments`
-- `Review split -> Upload evidence`
-- `Review split -> Reviewer assessment`
-- each branch returns through `Decision join`
-- `Decision join -> Decision confirmed`
-
-Expected result:
-
-- same-lane sibling branches sit beside each other
-- cross-lane work stays readable
-- the next released step sits below the join
-
-Proof: `workflow-transition-editor.spec.ts` and `workflow-graph-layout-proof.spec.ts`
+1. The `WorkflowAuthor` policy is required. If you skip it, every authoring request returns a 500 at startup. That is by design — the editor never trusts an unauthenticated caller.
+2. The approver on every change is taken from the authenticated principal. The request body cannot set or spoof the approver. (Blathers' Slice 3c.)
 
 ---
 
-## Step 6: Use the confidence surfaces
+## Step 3 — Define your doctypes
 
-Before saving:
+Workflow runtime pages need three things from Umbraco: a doctype, a Razor template, and a member-aware identity. The reference doctypes in `MockBusinessApp` show one working shape — copy what fits, replace what does not.
 
-1. Use **Validation** for structural issues
-2. Use **Preview** to inspect the selected stage shape
-3. Use **Simulation** to confirm the happy path and waiting/release behaviour
+Two starting points:
 
-The canvas should stay quiet while these confidence surfaces carry the detail.
+- **A workflow hub** doctype that lists available workflows for a signed-in member.
+- **A workflow page** doctype that hosts a single stage's form. Route-hijack this one.
 
-Proof: `workflow-editor-help.spec.ts` and `workflow-graph-visual.spec.ts`
+You do not need to mirror the reference doctype names. The contract is the controller, not the schema.
 
 ---
 
-## Keeping the walkthrough current
+## Step 4 — Route-hijack the workflow page
 
-When the editor changes:
+Subclass `PrismWorkflowPageController<T>` for your workflow page doctype. The base class handles GET, POST, antiforgery, nonce binding, field collection, validation, and the post-redirect-get flow.
 
-1. update the shared starter workflow fixture first
-2. update the related story if the journey changes
-3. update the proving tests
-4. then update this walkthrough so each step still points at a live proof
+```csharp
+using UmbracoPrism.Core.Controllers;
+using UmbracoPrism.Core.Models.Workflow;
 
-That keeps the documentation, editor behaviour, and visual contract locked together.
+public class WorkflowPageController(
+    ILogger<RenderController> logger,
+    ICompositeViewEngine compositeViewEngine,
+    IUmbracoContextAccessor umbracoContextAccessor,
+    IBusinessAppWorkflowClient workflowClient,
+    IPublishedValueFallback publishedValueFallback,
+    IAntiforgery antiforgery,
+    IWorkflowStepNonceService nonceService,
+    IWorkflowFieldValidator fieldValidator)
+    : PrismWorkflowPageController<WorkflowViewModel>(
+        logger, compositeViewEngine, umbracoContextAccessor,
+        workflowClient, publishedValueFallback, antiforgery,
+        nonceService, fieldValidator)
+{
+    // Override to pre-populate fields from member claims, or to add custom dispatch.
+}
+```
+
+TestSite's `WorkflowPageController` is the reference. It pre-populates a few fields from claims; everything else is base-class behaviour.
+
+---
+
+## Step 5 — Add the Razor templates
+
+Each workflow page doctype needs a template that renders the current stage. TestSite has working examples — `workflowDemoPage.cshtml` and `workflowHub.cshtml` — that you can crib from. They use Prism's view helpers to render the stage shell, the field group, and the action buttons.
+
+Keep templates thin. The base controller has already done the work; the template just renders the view model.
+
+---
+
+## Step 6 — Decide where to host the editor
+
+The Prism workflow editor is shipped as web components. **Mount them in your business app, not in the Umbraco backoffice.**
+
+In this repo:
+
+- **MockBusinessApp** is the reference authoring host. It mounts `<prism-workflow-editor>` (or `<prism-workflow-editor-shell>`) on a normal page and points it at the authoring API.
+- **TestSite** is the reference Umbraco runtime. It does not host the editor.
+
+This split is the load-bearing boundary. The Umbraco backoffice stays for content; the editor stays in the place where your developers and operators already work. If you need to embed a *published* workflow as a read-only diagram on a public Umbraco page, use `<prism-workflow-graph read-only>` — see [Composing the Workflow Editor](../guides/workflow-editor-composition.md#read-only-public-viewer).
+
+A minimal mount in your business app:
+
+```html
+<prism-workflow-editor
+  workflow-key="planning"
+  authoring-api-base="https://your-umbraco-app/api/workflow-authoring">
+</prism-workflow-editor>
+```
+
+The element is keyboard-reachable and announces edits to a polite live region. Accessibility is on by default — you do not need to add screen-reader scaffolding.
+
+---
+
+## Step 7 — Open the editor and use it
+
+Once an author signs into your business app and loads the page that mounts `<prism-workflow-editor>`, they can:
+
+- pick a workflow
+- edit stages and gateways in the **Canvas** tab (vertical lanes, top-to-bottom flow)
+- read or edit the JSON in the **Definition** tab
+- check warnings in the **Validation** tab
+- save and publish through the authoring API
+
+For a tour of the editor itself — what each tab does, how the lanes read, how the keyboard reach works — see [Planning Workflow Editor](planning-workflow-editor.md).
+
+---
+
+## Related guides
+
+- **Editor composition and the read-only viewer:** [Composing the Workflow Editor](../guides/workflow-editor-composition.md)
+- **Component API (public elements, attributes, events):** [`src/UmbracoPrism.Client/src/workflow-editor/README.md`](../../src/UmbracoPrism.Client/src/workflow-editor/README.md)
+- **Editor visual test contract:** [`docs/testing/workflow-editor-visual-tests.md`](../testing/workflow-editor-visual-tests.md)
+- **Workflow setup deep-dive:** [Setting Up a Prism Workflow](../guides/workflow-setup.md)
+- **Reference workflow contract:** [Reference Workflow Contract](../guides/reference-workflow-contract.md)

@@ -1,5 +1,7 @@
 # Workflow editor design (V1)
 
+> **Status note (2026-05-30 scope reset):** Most of this doc still describes today's editor (vertical lanes, slot matrix, JSON Definition tab, keyboard-first authoring). The "AI help / proposal diff" framing in §15 and §16 was retired — there is no chat drafter, conversation pane, or proposal diff in the shipped editor. Kept for reference.
+
 **Author:** Isabelle (Frontend Dev and Accessibility Lead)  
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Status:** Draft  

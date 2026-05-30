@@ -1,8 +1,10 @@
 # Workflow Editor V1 — Umbraco Integration
 
+> **Status: Historical** — paused 2026-05-30 per scope-reset directive. The Umbraco backoffice mount described here (section, sidebar app, dashboard, `App_Plugins/PrismWorkflowEditor`) was retired in Slice 4. The editor now ships as web components consumed by a separate business app (MockBusinessApp is the reference). TestSite hosts the runtime only. Kept for design archaeology — see `docs/walkthroughs/authoring-a-workflow.md` and `docs/guides/workflow-editor-composition.md` for current integration guidance.
+
 **Date:** 2026-05-16  
 **Author:** Brewster (Umbraco Platform Specialist)  
-**Status:** Proposed  
+**Status:** Historical (paused 2026-05-30)  
 **Relates to:** `docs/design/workflow-editor-v1/README.md` (workflow editor / workflow engine / forms engine framing, Tom Nook)
 
 ---

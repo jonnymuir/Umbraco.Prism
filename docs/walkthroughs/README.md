@@ -34,10 +34,10 @@ How to use the development-only workflow admin panel to inspect, edit, and manag
 > **Note:** This walkthrough covers the **development harness** used to simulate the reviewer/operator role during testing. The admin panel is where you play the "reviewer" actor. For complete, end-to-end workflows showing how users submit and reviewers approve, see [Payment Demo](payment-demo.md), [Community Enquiry](community-enquiry.md), and [Information Request](information-request.md) — each demonstrates the full submission → review → outcome cycle from both user and operator perspectives. The Workflow Admin panel is the tool you use to complete those cycles in the local demo.
 
 ### [Authoring a Workflow](authoring-a-workflow.md)
-How to write a new workflow definition using the fluent builder API. Covers the polymorphic JSON model (`type` discriminator, `children[]`, `conditionalChildren`), loading seeds, hot reload, and client/server validation.
+How to wire the Prism Workflow Editor into your Umbraco app — NuGet packages, DI registration, doctypes, route hijacking, Razor templates, and where to host the editor. The integration recipe for integrators starting from scratch.
 
 ### [Planning Workflow Editor](planning-workflow-editor.md)
-How to use the natural-language workflow editor to inspect and modify a planning permission workflow definition. Covers the dual-mode graph/list view, stage inspector, NL change requests, proposal diffs, and the authoring API contract. *(Wave 1 — screenshots pending.)*
+A tour of the editor itself — the vertical-lanes canvas, stage inspector, validation rail, JSON Definition tab, and how authors save and publish a workflow. *(Wave 1 — screenshots pending.)*
 
 ### [Creating a Tenant](creating-a-tenant.md)
 How to add a new tenant in the Umbraco backoffice — host binding, OIDC authority, branding — and how `PrismTenantMiddleware` picks it up without a restart.

@@ -8,7 +8,7 @@ A developer-facing guide to using the workflow editor to inspect and modify the 
 
 ## Overview
 
-The Prism workflow editor gives developers and operators a browser-based surface for inspecting and iterating on a live workflow definition. The editor now focuses on graph-first workflow authoring, stage inspection, confidence checks, preview, simulation, and keyboard help while agent chat is handled by the external MCP client.
+The Prism workflow editor gives developers and operators a browser-based surface for inspecting and iterating on a live workflow definition. The editor is graph-first: stages and gateways sit in vertical lanes that read top to bottom, with same-level siblings sliding into a slot matrix to the right. Alongside the canvas, an editable JSON **Definition** tab keeps the same workflow in sync for power users, copy-paste, and quick diffs. AI assistance is handled by an external MCP client — there is no chat or proposal-diff surface inside the editor.
 
 | Who uses this | Use case |
 |---|---|
@@ -16,13 +16,13 @@ The Prism workflow editor gives developers and operators a browser-based surface
 | Operator / caseworker architect | Adjust stage order, add validation steps, or tune role assignments |
 | QA engineer | Inspect the current live definition before writing a journey test |
 
-The editor shell is a reference integration hosted in MockBusinessApp. It is composed of:
+The editor is mounted in MockBusinessApp — the reference business-app host. It is **not** mounted in the Umbraco backoffice; that boundary is deliberate. The editor is composed of:
 
 | Component | Role |
 |---|---|
 | `<prism-workflow-editor-shell>` | Thin reference host: workflow picker, API base config, integration snippet |
-| `<prism-workflow-editor>` | Assembled editor: graph view, outline, step inspector, confidence tabs |
-| `<prism-workflow-graph>` | Visualises the workflow as the role-first graph canvas and owns the editor scrolling surface |
+| `<prism-workflow-editor>` | Assembled editor: canvas, outline, step inspector, Definition tab, confidence tabs |
+| `<prism-workflow-graph>` | Renders the vertical-lanes canvas; doubles as a read-only viewer when `read-only` is set |
 | `<prism-step-inspector>` | Sidebar showing the selected stage's fields and component tree |
 
 ---
@@ -43,9 +43,9 @@ The editor loads with the workflow graph visible in visual (graph) mode. The `<p
 
 ---
 
-## Step 2 — Graph view shows the planning application stages
+## Step 2 — Canvas shows the planning application stages in vertical lanes
 
-`<prism-workflow-graph>` renders the workflow definition as a directed graph. Each stage is a node in the canvas; each permitted transition is an edge.
+`<prism-workflow-graph>` renders the workflow as vertical lane columns that read top to bottom. Each stage is a card in the lane that owns it; each gateway is a diamond; each transition is an arrow. Same-level siblings in one lane expand into a slot matrix to the right, so the canvas stays scannable as the workflow grows.
 
 ![Graph view — planning permission stages](../images/walkthroughs/planning-workflow-editor/02-graph-view-stages.png)
 
@@ -141,6 +141,16 @@ The preview surface exposes `data-prism-preview-stage-name` for the currently se
 The Simulation tab starts from the workflow's initial stage and lets authors inspect the currently modelled path through the planning workflow. This keeps behavioural checks close to the graph without adding chat UI to the editor shell.
 
 ![Simulation tab](../images/walkthroughs/planning-workflow-editor/09-simulation-tab.png)
+
+---
+
+## Step 10 — Open the Definition tab for the JSON view
+
+The Definition tab shows the same workflow as JSON. It stays in sync with the canvas in both directions — visual edits re-serialise the JSON, and valid JSON edits flow back through the same undo stack. Invalid JSON keeps the canvas on the last good state and surfaces the reason in a banner above the editor.
+
+Use the Definition tab when you want to copy a stage into another workflow, diff a change, or paste a small fix without hunting through the canvas. The author-facing label is "Definition" — JSON is the implementation detail.
+
+For the exact sync rules, lint behaviour, and test hooks, see [`src/UmbracoPrism.Client/src/workflow-editor/README.md`](../../src/UmbracoPrism.Client/src/workflow-editor/README.md).
 
 ---
 
