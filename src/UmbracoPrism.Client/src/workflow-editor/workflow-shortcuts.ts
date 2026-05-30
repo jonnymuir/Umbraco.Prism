@@ -68,7 +68,7 @@ export const WORKFLOW_SHORTCUT_GROUPS: WorkflowShortcutGroup[] = [
       {
         id: 'paste',
         command: 'Paste copied stage or action',
-        context: 'Selected stage or transition',
+        context: 'Selected stage or route',
         description: 'Pastes the current clipboard item into the selected destination.',
         labels: ['Ctrl/Cmd+V'],
         ariaKeys: 'Control+V Meta+V',
@@ -104,14 +104,6 @@ export const WORKFLOW_SHORTCUT_GROUPS: WorkflowShortcutGroup[] = [
         description: 'Moves into the inspector for deeper editing.',
         labels: ['E'],
         matchers: [{ key: 'e' }],
-      },
-      {
-        id: 'add-transition',
-        command: 'Create a route',
-        context: 'Focused stage in graph view',
-        description: 'Starts route authoring from the focused stage.',
-        labels: ['T'],
-        matchers: [{ key: 't' }],
       },
       {
         id: 'workspace-menu',

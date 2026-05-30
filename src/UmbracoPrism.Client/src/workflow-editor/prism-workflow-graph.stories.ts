@@ -277,6 +277,14 @@ export const DeleteConfirmation: Story = {
 
 export const GatewayRepresentation: Story = {
   args: { workflow: GATEWAY_WORKFLOW },
+  // MULTI_LANE_FAN_OUT canonical scenario (visual regression suite).
+  // Needs more vertical room than the default 560px story height so the
+  // full split → branch row → join fan-out renders inside the frame.
+  render: (args) => {
+    const el = makeElement(args);
+    el.style.cssText = 'display:block;height:1080px;';
+    return el;
+  },
   play: async ({ canvasElement }) => {
     await new Promise(resolve => setTimeout(resolve, 140));
     const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;

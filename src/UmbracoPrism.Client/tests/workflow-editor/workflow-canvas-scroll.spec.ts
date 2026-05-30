@@ -96,13 +96,10 @@ test.describe('Workflow canvas — scroll behaviour', () => {
     expect(after.scrollLeft, 'horizontal scroll position must update').toBeGreaterThan(before.scrollLeft);
   });
 
-  // KNOWN VISUAL BUG (flagged 2026-05-30 — Slice 7, Tangy):
-  // `[data-prism-lane-header]` currently renders with `position: static`,
-  // so vertical scroll drags the header strip out of view. The contract we
-  // want is sticky lane headers; this fixme keeps the regression visible
-  // until Isabelle restores it. See
-  // `.squad/decisions/inbox/tangy-slice7-visual-regression-strategy.md`.
-  test.fixme('LARGE_WORKFLOW: lane header strip stays sticky during vertical scroll', async ({ page }) => {
+  // Sticky lane headers (BUG-VR-1, fixed in Slice 7.5). The header must
+  // remain anchored at its initial viewport position while the canvas
+  // scrolls — see `.squad/decisions/inbox/isabelle-slice7-5-visual-bug-fixes.md`.
+  test('LARGE_WORKFLOW: lane header strip stays sticky during vertical scroll', async ({ page }) => {
     const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
     await gotoCanonicalScenario(page, scenario);
 

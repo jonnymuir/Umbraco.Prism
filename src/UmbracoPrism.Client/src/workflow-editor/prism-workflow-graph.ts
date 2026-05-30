@@ -2060,7 +2060,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       <p class="graph-hint">
         ${this.readOnly
           ? 'Tab through role bands and stage cards. Enter selects, arrow keys move between stages.'
-          : 'Tab through role bands, stage cards, transition chips, and transition handles. Enter selects, T opens transition creation, E opens the inspector, and Shift+F10 opens the context menu.'}
+          : 'Tab through role bands, stage cards, and gateway nodes. Enter selects a node, E opens the inspector to edit it (including a gateway\u2019s outgoing routes), and Shift+F10 opens the context menu.'}
       </p>
 
       ${isEmpty
@@ -2517,6 +2517,15 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .lane-header {
+      position: sticky;
+      /* Stick at the header's natural position (lane top + lane padding-top)
+         so its viewport position stays constant as the canvas scrolls. The
+         scrolling ancestor is .graph-canvas; the header floats above stage
+         cards and edges (which are siblings to .lane at the graph-viewport
+         level). */
+      top: ${TOP_PADDING + 18}px;
+      z-index: 5;
+      background: inherit;
       display: flex;
       align-items: center;
       justify-content: space-between;

@@ -1,5 +1,32 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-30T20:15:00+01:00 — Slice 7.5: Clear Tangy's three visual bugs from Slice 7
+
+**Session:** named-lanes editor — Slice 7.5 (pre-Slice 8 fix-it)
+**Role:** Implementation (TS/Lit frontend + Storybook + Playwright baseline regen)
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**Outcomes:**
+- ✅ **BUG-VR-2 (caption + dead shortcut copy)** — rewrote `.graph-hint` in `prism-workflow-graph.ts:2063` to: *"Tab through role bands, stage cards, and gateway nodes. Enter selects a node, E opens the inspector to edit it (including a gateway's outgoing routes), and Shift+F10 opens the context menu."* Removed the dead `add-transition` (`T = Create a route`) entry from `WORKFLOW_SHORTCUT_GROUPS` — it was unwired since Slice 3b.1 and surfaced only in the help dialog. Also retired the stale "Selected stage or transition" context on the paste shortcut → "Selected stage or route". No code referenced `add-transition` so removal is safe.
+- ✅ **BUG-VR-3 (MULTI_LANE_FAN_OUT story height)** — overrode `render` on the `GatewayRepresentation` story to set `height: 1080px` (was 560 from `makeElement`). Did NOT bump `makeElement`'s default — that would invalidate every layout-proof baseline outside Slice 7's suite. Regenerated only `MULTI-LANE-FAN-OUT.png` via `--update-snapshots tests/workflow-editor/workflow-canvas-arrows.spec.ts`; verified visually: full fan-out (start → split → 3-stage branch row → join → decision-confirmed) now renders inside the frame, plus the new caption is captured.
+- ✅ **BUG-VR-1 (sticky lane headers)** — gave `.lane-header` `position: sticky; top: ${TOP_PADDING + 18}px; z-index: 5; background: inherit;`. Crucial detail: the lane is `position: absolute; top: 64px;` with `padding: 18px 20px` — sticky `top` must equal the header's *natural* viewport offset (64 + 18 = 82) so initial bbox.top equals stuck bbox.top → Tangy's `moved <= 4` tolerance passes (measured: 0px drift after a 250px vertical scroll). Un-fixme'd `workflow-canvas-scroll.spec.ts` and updated the comment to point at Slice 7.5.
+
+**Verification (Chromium, viewport 1440×900):**
+- `tests/workflow-editor/` Playwright sweep: **88 passed**, 11 skipped (was 87/12 — the un-fixme'd lane-header sticky test now passes). 0 unexpected failures.
+- `npm run build`, `npm run build-storybook`, `dotnet build UmbracoPrism.sln` all clean.
+
+**Key notes / patterns to remember:**
+- **Sticky-inside-absolute trick:** when a sticky element's containing block is absolutely positioned with its own padding-top, the sticky `top:` value must equal `(containing block top in scroll-content coords) + (containing block padding-top)` for the element's viewport position to remain *invariant* through scrolling. If you set `top: 0` instead, the element jumps by exactly the containing block offset on first scroll — visually obvious AND fails any "header position unchanged" assertion.
+- **`background: inherit` on sticky strips:** keeps the strip visually merged with its lane/section without re-declaring per-variant colours. Works because the lane sets `background: rgba(…)` and inherit picks up the computed value verbatim.
+- **Per-story height overrides:** prefer overriding `render` (rather than adding a Storybook decorator wrapper) when a single canonical scenario needs a different element height — keeps the data-attribute contract identical and avoids invalidating other specs that already lean on the default `makeElement` element.
+- **Help/shortcut dialog hygiene:** any shortcut entry in `workflow-shortcuts.ts` is author-facing copy (rendered by the help dialog). Remove entries when their handler is gone — don't keep them around "for future reference".
+
+**Out of scope (left for later slices):**
+- Slice 8 docs / write-surface consolidation.
+- `prism-step-inspector.ts` still uses internal `'transition'` selection-kind names. Implementation only, not author-facing, and Slice 3b.2 is the existing parking lot for `WorkflowSelection` union collapse.
+
+---
+
 ## 2026-05-30T15:30:00+01:00 — Slice 3b.1: Gateway-First Route Editing + Closed TS StageKind
 
 **Session:** named-lanes editor — Slice 3b.1
