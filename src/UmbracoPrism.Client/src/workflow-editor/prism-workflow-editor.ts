@@ -23,6 +23,12 @@ import './prism-workflow-simulation.js';
 import './prism-workflow-outline.js';
 import './prism-confidence-tabs.js';
 import './prism-help-panel.js';
+import { serializeAuthoredWorkflow, authoredWorkflowJsonEquals } from './workflow-canonical-json.js';
+import {
+  coerceParsedAuthoredWorkflow,
+  lintAuthoredWorkflowDocument,
+  type DefinitionLint,
+} from './workflow-definition-lint.js';
 import type { ConfidenceTab } from './prism-confidence-tabs.js';
 import type {
   WorkflowSimulationHistoryEntry,
@@ -173,6 +179,14 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _activeConfidenceTab: ConfidenceTab = 'canvas';
   @state() private _outlineCollapsed = false;
   @state() private _inspectorCollapsed = false;
+  @state() private _definitionEditorLoaded = false;
+  @state() private _definitionText = '';
+  @state() private _definitionParseError: string | null = null;
+  @state() private _definitionSchemaIssues: DefinitionLint[] = [];
+  @state() private _definitionAnnouncement = '';
+  /** Canonical JSON of the workflow at the moment a Definition→Visual sync was committed. */
+  private _lastAppliedDefinitionCanonical = '';
+  private _definitionDebounceHandle: number | null = null;
 
   private _savedWorkflowSnapshot: AuthoredWorkflow | null = null;
   private _helpReturnTarget: HTMLElement | null = null;
@@ -222,6 +236,10 @@ export class PrismWorkflowEditorElement extends LitElement {
     ) {
       void this._loadWorkflow();
     }
+  }
+
+  updated(_changedProperties: Map<string, unknown>) {
+    this._refreshDefinitionTextFromWorkflow();
   }
 
   disconnectedCallback() {
@@ -274,6 +292,9 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._stagePreviewError = null;
     this._simulation = null;
     this._simulationAnnouncement = '';
+    this._lastAppliedDefinitionCanonical = '';
+    this._definitionParseError = null;
+    this._definitionSchemaIssues = [];
     this._applySelection(null, this._workflow);
     this._announceHistory('Workflow loaded. Undo history is ready for your next edit.');
   }
@@ -1016,7 +1037,157 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   private _handleConfidenceTabChanged = (e: CustomEvent<{ tab: ConfidenceTab }>) => {
     this._activeConfidenceTab = e.detail.tab;
+    if (e.detail.tab === 'definition') {
+      void this._ensureDefinitionEditorLoaded();
+    }
   };
+
+  // ---------------------------------------------------------------------------
+  // Definition tab — JSON twin-pane sync
+  // ---------------------------------------------------------------------------
+
+  private async _ensureDefinitionEditorLoaded() {
+    if (this._definitionEditorLoaded) {
+      return;
+    }
+    await import('./prism-definition-editor.js');
+    this._definitionEditorLoaded = true;
+  }
+
+  private _refreshDefinitionTextFromWorkflow() {
+    if (!this._workflow) {
+      if (this._definitionText !== '') {
+        this._definitionText = '';
+      }
+      if (this._definitionParseError !== null) {
+        this._definitionParseError = null;
+      }
+      if (this._definitionSchemaIssues.length > 0) {
+        this._definitionSchemaIssues = [];
+      }
+      this._lastAppliedDefinitionCanonical = '';
+      return;
+    }
+    const canonical = serializeAuthoredWorkflow(this._workflow);
+    if (canonical === this._lastAppliedDefinitionCanonical) {
+      return;
+    }
+    this._definitionText = canonical;
+    this._lastAppliedDefinitionCanonical = canonical;
+    if (this._definitionParseError !== null) {
+      this._definitionParseError = null;
+    }
+    if (this._definitionSchemaIssues.length > 0) {
+      this._definitionSchemaIssues = [];
+    }
+  }
+
+  private _handleDefinitionInput = (e: CustomEvent<{ value: string }>) => {
+    this._definitionText = e.detail.value;
+    if (this._definitionDebounceHandle !== null) {
+      window.clearTimeout(this._definitionDebounceHandle);
+    }
+    this._definitionDebounceHandle = window.setTimeout(() => {
+      this._definitionDebounceHandle = null;
+      this._tryApplyDefinitionText();
+    }, 250);
+  };
+
+  private _tryApplyDefinitionText() {
+    const source = this._definitionText;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this._definitionParseError = message;
+      this._definitionSchemaIssues = [];
+      return;
+    }
+
+    const issues = lintAuthoredWorkflowDocument(parsed, source);
+    if (issues.length > 0) {
+      this._definitionParseError = null;
+      this._definitionSchemaIssues = issues;
+      return;
+    }
+
+    const next = coerceParsedAuthoredWorkflow(parsed);
+    this._definitionParseError = null;
+    this._definitionSchemaIssues = [];
+
+    if (authoredWorkflowJsonEquals(this._workflow, next)) {
+      // No semantic change — just remember the text the user typed.
+      this._lastAppliedDefinitionCanonical = serializeAuthoredWorkflow(next);
+      return;
+    }
+
+    // Mark the canonical so the visual→definition sync doesn't echo this back.
+    this._lastAppliedDefinitionCanonical = serializeAuthoredWorkflow(next);
+    this._commitWorkflowUpdate(next, this._currentSelection());
+    const stageCount = next.stages.length;
+    const gatewayCount = next.gateways?.length ?? 0;
+    this._announceDefinition(
+      `Definition updated. ${stageCount} ${stageCount === 1 ? 'stage' : 'stages'}, ${gatewayCount} ${gatewayCount === 1 ? 'gateway' : 'gateways'}.`
+    );
+  }
+
+  private _announceDefinition(message: string) {
+    this._definitionAnnouncement = '';
+    requestAnimationFrame(() => {
+      this._definitionAnnouncement = message;
+    });
+  }
+
+  private _revertDefinitionText() {
+    if (!this._workflow) {
+      return;
+    }
+    if (this._definitionDebounceHandle !== null) {
+      window.clearTimeout(this._definitionDebounceHandle);
+      this._definitionDebounceHandle = null;
+    }
+    const canonical = serializeAuthoredWorkflow(this._workflow);
+    this._definitionText = canonical;
+    this._lastAppliedDefinitionCanonical = canonical;
+    this._definitionParseError = null;
+    this._definitionSchemaIssues = [];
+    this._announceDefinition('Definition reverted to the current workflow.');
+  }
+
+  private _applyDefinitionTextImmediately() {
+    if (this._definitionDebounceHandle !== null) {
+      window.clearTimeout(this._definitionDebounceHandle);
+      this._definitionDebounceHandle = null;
+    }
+    this._tryApplyDefinitionText();
+  }
+  // Public hook for tests/host: flush debounce and apply if valid.
+  applyDefinitionPending() { this._applyDefinitionTextImmediately(); }
+
+  private get _definitionHasIssues() {
+    return this._definitionParseError !== null || this._definitionSchemaIssues.length > 0;
+  }
+
+  private get _definitionDiagnostics() {
+    const out: Array<{ line: number; severity: 'error' | 'warning'; message: string }> = [];
+    if (this._definitionParseError) {
+      // Try to pull a "line N column M" hint out of JSON.parse errors.
+      const lineMatch = /line (\d+)/i.exec(this._definitionParseError);
+      out.push({
+        line: lineMatch ? Number(lineMatch[1]) : 1,
+        severity: 'error',
+        message: this._definitionParseError,
+      });
+    }
+    for (const issue of this._definitionSchemaIssues) {
+      if (issue.line) {
+        out.push({ line: issue.line, severity: 'error', message: issue.message });
+      }
+    }
+    return out;
+  }
+
 
   private _copySelection() {
     const selectedAction = this._currentAction();
@@ -1323,6 +1494,98 @@ export class PrismWorkflowEditorElement extends LitElement {
               </ol>
             `}
       </section>
+    `;
+  }
+
+  private _renderDefinitionPanel() {
+    if (!this._workflow) {
+      return html`<div class="definition-empty" data-prism-definition-empty>
+        Loading the workflow definition…
+      </div>`;
+    }
+
+    const banner = this._renderDefinitionBanner();
+    const stageCount = this._workflow.stages.length;
+    const gatewayCount = this._workflow.gateways?.length ?? 0;
+
+    return html`
+      <div class="definition-panel" data-prism-definition-panel>
+        <div class="definition-header">
+          <div class="definition-header-copy">
+            <h2 class="definition-title">Definition</h2>
+            <p class="definition-subtitle">
+              Power-user view of the authored workflow.
+              ${stageCount} ${stageCount === 1 ? 'stage' : 'stages'},
+              ${gatewayCount} ${gatewayCount === 1 ? 'gateway' : 'gateways'}.
+              Edits apply when valid (250&nbsp;ms after typing stops).
+            </p>
+          </div>
+        </div>
+        ${banner}
+        <div class="definition-editor-frame">
+          ${this._definitionEditorLoaded
+            ? html`
+                <prism-definition-editor
+                  data-prism-definition-editor
+                  .value=${this._definitionText}
+                  .diagnostics=${this._definitionDiagnostics}
+                  @definition-input=${this._handleDefinitionInput}
+                ></prism-definition-editor>
+              `
+            : html`<p class="definition-loading" role="status" data-prism-definition-tab-loading>
+                Preparing the JSON editor…
+              </p>`}
+        </div>
+        <div class="sr-only" role="status" aria-live="polite" data-prism-definition-announcement>
+          ${this._definitionAnnouncement}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderDefinitionBanner() {
+    if (!this._definitionHasIssues) {
+      return nothing;
+    }
+    const summary = this._definitionParseError
+      ? `JSON is not valid: ${this._definitionParseError}`
+      : this._definitionSchemaIssues[0]?.message ?? 'Definition does not match the workflow schema.';
+    const additional = !this._definitionParseError && this._definitionSchemaIssues.length > 1
+      ? html`<ul class="definition-banner-list">
+          ${this._definitionSchemaIssues.slice(1, 5).map(issue => html`<li>${issue.message}</li>`)}
+        </ul>`
+      : nothing;
+
+    return html`
+      <div
+        class="definition-banner"
+        role="alert"
+        data-prism-definition-banner
+      >
+        <p class="definition-banner-summary">
+          <strong>Definition can't be applied:</strong> ${summary}
+        </p>
+        ${additional}
+        <div class="definition-banner-actions">
+          <button
+            type="button"
+            class="govuk-button"
+            data-prism-definition-apply
+            disabled
+            aria-disabled="true"
+          >
+            Apply when valid
+          </button>
+          <button
+            type="button"
+            class="govuk-button govuk-button--secondary"
+            data-prism-definition-revert
+            @click=${this._revertDefinitionText}
+          >
+            Revert to current
+          </button>
+        </div>
+      </div>
     `;
   }
 
@@ -1659,6 +1922,7 @@ export class PrismWorkflowEditorElement extends LitElement {
           <div slot="validation">${this._renderValidationPanel()}</div>
           <div slot="preview">${this._renderStagePreview()}</div>
           <div slot="simulation">${this._renderSimulationPanel()}</div>
+          <div slot="definition">${this._renderDefinitionPanel()}</div>
           <prism-help-panel slot="help"></prism-help-panel>
         </prism-confidence-tabs>
 
@@ -2355,6 +2619,87 @@ export class PrismWorkflowEditorElement extends LitElement {
         padding: 0.5rem 0.75rem;
         font-size: 0.875rem;
       }
+    }
+
+    /* ---- Definition tab ---- */
+
+    .definition-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      background: #ffffff;
+    }
+
+    .definition-header {
+      padding: 1rem 1.25rem 0.75rem;
+      border-bottom: 1px solid #b1b4b6;
+    }
+
+    .definition-title {
+      margin: 0 0 0.25rem;
+      font-size: 1.125rem;
+      font-weight: 700;
+    }
+
+    .definition-subtitle {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #505a5f;
+    }
+
+    .definition-banner {
+      margin: 0.75rem 1.25rem;
+      padding: 0.875rem 1rem;
+      background: #fbeaec;
+      border-left: 4px solid #b10e1e;
+      color: #0b0c0c;
+      border-radius: 4px;
+    }
+
+    .definition-banner-summary {
+      margin: 0 0 0.5rem;
+      font-size: 0.9375rem;
+    }
+
+    .definition-banner-list {
+      margin: 0 0 0.5rem 1.25rem;
+      padding: 0;
+      font-size: 0.875rem;
+    }
+
+    .definition-banner-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .definition-banner-actions button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .definition-editor-frame {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 0 1.25rem 1.25rem;
+    }
+
+    .definition-editor-frame prism-definition-editor {
+      flex: 1;
+      min-height: 240px;
+      border: 1px solid #b1b4b6;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .definition-loading,
+    .definition-empty {
+      margin: 1rem 1.25rem;
+      font-size: 0.9375rem;
+      color: #505a5f;
     }
   `;
 }

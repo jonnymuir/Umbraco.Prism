@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
-export type ConfidenceTab = 'canvas' | 'validation' | 'preview' | 'simulation' | 'help';
+export type ConfidenceTab = 'canvas' | 'validation' | 'preview' | 'simulation' | 'definition' | 'help';
 
 /**
  * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
@@ -17,7 +17,7 @@ export class PrismConfidenceTabs extends LitElement {
   @property({ type: Number, attribute: 'warning-count' })
   warningCount = 0;
 
-  private static readonly _tabs: ConfidenceTab[] = ['canvas', 'validation', 'preview', 'simulation', 'help'];
+  private static readonly _tabs: ConfidenceTab[] = ['canvas', 'validation', 'preview', 'simulation', 'definition', 'help'];
 
   private _handleTabClick(tab: ConfidenceTab) {
     if (this.activeTab !== tab) {
@@ -110,6 +110,7 @@ export class PrismConfidenceTabs extends LitElement {
           ${this._renderTabButton('validation', 'Validation', validationBadge)}
           ${this._renderTabButton('preview', 'Preview')}
           ${this._renderTabButton('simulation', 'Simulation')}
+          ${this._renderTabButton('definition', 'Definition')}
           ${this._renderTabButton('help', 'Help')}
         </div>
 
@@ -156,6 +157,17 @@ export class PrismConfidenceTabs extends LitElement {
             ?hidden=${this.activeTab !== 'simulation'}
           >
             <slot name="simulation"></slot>
+          </div>
+
+          <div
+            id="confidence-panel-definition"
+            class="tab-panel tab-panel-definition ${this.activeTab === 'definition' ? 'tab-panel-active' : ''}"
+            role="tabpanel"
+            aria-labelledby="confidence-tab-definition"
+            data-prism-confidence-panel="definition"
+            ?hidden=${this.activeTab !== 'definition'}
+          >
+            <slot name="definition"></slot>
           </div>
 
           <div
@@ -269,6 +281,11 @@ export class PrismConfidenceTabs extends LitElement {
 
     .tab-panel-canvas {
       overflow: hidden;
+    }
+
+    .tab-panel-definition {
+      overflow: hidden;
+      padding: 0;
     }
 
     .tab-panel-active {

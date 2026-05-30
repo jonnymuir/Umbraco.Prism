@@ -40,6 +40,52 @@ Full authoring experience.
 |----------|------|-------|
 | `initialWorkflow` | `AuthoredWorkflow \| null` | If set, bypasses the API and uses this workflow directly. Designed for Storybook / fixtures. |
 
+**Definition tab — JSON twin-pane**
+
+Alongside Canvas / Validation / Preview / Simulation / Help, the editor
+exposes a **Definition** tab containing an editable JSON view of the current
+`AuthoredWorkflow`. Author-facing copy uses "Definition" — JSON is the
+implementation detail.
+
+* **Editor library:** [CodeMirror 6](https://codemirror.net/) (modules
+  `@codemirror/{state,view,commands,language,lang-json,lint}`). Chosen for
+  bundle size and clean shadow-DOM mounting over Monaco. Loaded **dynamically**
+  on first activation of the Definition tab, so authors who stay on Canvas
+  never download it. Static bundle stays ~335 KB; CodeMirror adds ~351 KB
+  only on-demand.
+* **Visual → Definition sync:** every visual edit (stage add/rename/move,
+  gateway add/edit, route change, undo, redo) re-serializes the workflow in
+  canonical form (top-level key order: `definitionKey`, `displayName`,
+  `version`, `schemaVersion`, `instancePolicy`, `initialStageKey`, `roles`,
+  `stages`, `gateways`, `transitions`; nested keys alphabetical; 2-space
+  indent) and pushes the new text into the editor.
+* **Definition → Visual sync:** typing is debounced by **250 ms**. On
+  settling:
+  - **Valid JSON + schema-clean** → coerced to `AuthoredWorkflow`, applied
+    through the host's normal commit path (so the change lands on the
+    document-level undo stack), and announced to a polite live region
+    ("Definition updated. N stages, M gateways.").
+  - **Invalid JSON or schema-violating** (e.g. retired `Waiting` /
+    `StatusTimeline` stage kind, unnamed gateway, duplicate keys) → a banner
+    above the editor explains why the definition can't be applied, with a
+    disabled **Apply when valid** button and an enabled **Revert to current**
+    button that rewinds the JSON to the workflow's current canonical
+    serialization. The visual pane stays on the last good state.
+* **Diagnostics:** parse errors and schema violations render as inline
+  CodeMirror lint markers on the offending lines.
+* **Document-level undo:** an applied Definition edit goes onto the same
+  history stack as visual edits — one Ctrl/Cmd-Z from the Canvas tab
+  reverses it, and the Definition tab re-renders the prior canonical text.
+  While the user is typing invalid or pending text, undo stays local to
+  CodeMirror's own history (intra-text).
+* **Read-only mode:** the underlying `<prism-definition-editor>` supports a
+  `read-only` flag (used by future host-level read-only mode). Currently not
+  exposed at the editor host level — that's Slice 8 territory.
+* **Test hooks:** `data-prism-confidence-tab="definition"`,
+  `data-prism-definition-panel`, `data-prism-definition-editor`,
+  `data-prism-definition-banner`, `data-prism-definition-apply`,
+  `data-prism-definition-revert`, `data-prism-definition-announcement`.
+
 **Data hooks (test selectors)** — see the JSDoc block at the top of
 `prism-workflow-editor.ts` for the full list. The most stable ones are
 `data-prism-save`, `data-prism-validation-rail`, `data-prism-toast`,
@@ -137,6 +183,7 @@ notice:
 * `<prism-workflow-outline>`
 * `<prism-workflow-action-editor>`
 * `<prism-inline-help>`
+* `<prism-definition-editor>` — JSON twin-pane for the Definition tab
 
 If a host needs functionality that one of these provides, raise a Squad
 decision — we'd rather promote a stable element than have callers reach past
