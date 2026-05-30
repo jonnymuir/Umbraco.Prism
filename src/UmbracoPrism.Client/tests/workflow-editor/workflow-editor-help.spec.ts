@@ -90,7 +90,7 @@ test.describe('Workflow editor help and shortcut reference', () => {
 
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('[data-prism-empty-state="graph"]')).toContainText('Start building your workflow');
-    await expect(page.locator('[data-prism-empty-state="graph"]')).toContainText('Use the editor Help button or press F1');
+    await expect(page.locator('[data-prism-empty-state="graph"]')).toContainText('Add the next stage before you branch');
     await page.locator('[data-prism-help]').click();
     await expect(page.locator('[data-prism-shortcut-dialog]')).toBeVisible();
   });

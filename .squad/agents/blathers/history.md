@@ -121,3 +121,17 @@ All backend publishing and validation now aligned to gateway-only contract. Read
 - Backend publish pipeline decision deferred (strip or preserve on publish)
 
 **Orchestration log:** `.squad/orchestration-log/2026-05-25T14-34-44-blathers.md`
+
+
+## 2026-05-30T11:15:00+01:00 — Slice 1 (backend): proposal preview removal
+
+**Task:** Delete preview path (`IWorkflowPreviewService`, `WorkflowPreviewService`, `PreviewResult`, `SemanticDiff`) and the `/workflows/{key}/preview` endpoint. Keep `PublishPreviewResult` / `PublishResult` / `ProposalEnvelope` — those are the save/apply protocol, not the diff preview.
+**Status:** ✅ Complete — commit 1e8bbcf on `squad/82-named-lanes-editor-slice`. Build 0W/0E; 842 Core tests green.
+
+### Learnings
+
+- The naming overlap between `PreviewResult` (semantic-diff preview, deleted) and `PublishPreviewResult` (publish dry-run, kept) is a real footgun. The directive's explicit "DO NOT DELETE" list was essential — a naive grep for `Preview` would have wiped the publish dry-run too.
+- The endpoint was the only consumer of `IWorkflowPreviewService` in production code; once the endpoint went, the DI registration in `WorkflowEditorServiceExtensions` (line 39, plus a docstring mention) was the only other backend touchpoint.
+- The `/preview` endpoint composed both services: `previewService.Preview(...) with { PublishPreview = publishService.PreviewAsync(...) }`. Worth noting for any future "what does a save dry-run look like?" question — the answer post-slice is "call `IWorkflowPublishService.PreviewAsync` directly via /apply, no separate endpoint."
+- Pattern to watch: working tree arrived with ~50 unrelated pre-staged changes (Isabelle's TS work, Tom-Nook's docs, mock app, runtime engine). Had to use `git add` only on my four target paths and `git restore --staged` on three `prism-proposal-diff*` / `workflow-authoring-mock-drafter.ts` deletions that someone had pre-staged. The commit ended up cleanly 8 files / +1 / -431, exactly the backend slice.
+- Test count: 842 (was 851 in the gateway-runtime slice; the diff is preview tests + skipped deferred-semantics tests being removed elsewhere in the working tree). No regressions in my scope.

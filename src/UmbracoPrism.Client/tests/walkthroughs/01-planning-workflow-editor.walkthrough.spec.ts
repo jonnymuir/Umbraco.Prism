@@ -284,11 +284,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     expect(graphScrollState?.overflowY === 'auto' || graphScrollState?.overflowY === 'scroll').toBeTruthy();
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 
-    // ─── Step 6: Help opens without an embedded conversation surface ───────────
-    // Issue #74 locks the UX: no embedded AI conversation pane in the editor.
-    // Supporting tabs for validation, preview, and simulation are allowed, but
-    // AI conversation stays external to preserve inspector focus.
-    await expect(page.locator('[data-prism-component="conversation-pane"]')).toHaveCount(0);
+    // ─── Step 6: Help opens from the editor chrome ─────────────────────────────
     const helpButton = page.locator('[data-prism-help]');
     await expect(helpButton).toBeVisible({ timeout: 5_000 });
     await helpButton.focus();

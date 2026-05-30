@@ -1,6 +1,6 @@
 # Walkthrough — Planning Workflow Editor
 
-A developer-facing guide to using the natural-language workflow editor to inspect and modify the planning application workflow definition in Umbraco.Prism.
+A developer-facing guide to using the workflow editor to inspect and modify the planning application workflow definition in Umbraco.Prism.
 
 > **Prerequisites:** Stack running via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Familiarity with the [Planning Notification](planning-notification.md) walkthrough is recommended so you understand the citizen-facing journey you are modifying.
 
@@ -8,11 +8,11 @@ A developer-facing guide to using the natural-language workflow editor to inspec
 
 ## Overview
 
-The Prism workflow editor gives developers and operators a browser-based surface for inspecting and iterating on a live workflow definition using natural language. Instead of editing JSON by hand, the author types a change request in plain English; an AI agent drafts a structured proposal; the diff is reviewed inline; and a single click applies the change and persists it via the authoring API.
+The Prism workflow editor gives developers and operators a browser-based surface for inspecting and iterating on a live workflow definition. The editor now focuses on graph-first workflow authoring, stage inspection, confidence checks, preview, simulation, and keyboard help while agent chat is handled by the external MCP client.
 
 | Who uses this | Use case |
 |---|---|
-| Developer | Iterate on a workflow definition without leaving the browser |
+| Developer | Inspect and tune a workflow definition in the browser |
 | Operator / caseworker architect | Adjust stage order, add validation steps, or tune role assignments |
 | QA engineer | Inspect the current live definition before writing a journey test |
 
@@ -21,9 +21,8 @@ The editor shell is a reference integration hosted in MockBusinessApp. It is com
 | Component | Role |
 |---|---|
 | `<prism-workflow-editor-shell>` | Thin reference host: workflow picker, API base config, integration snippet |
-| `<prism-workflow-editor>` | Assembled editor: graph view, conversation pane, step inspector |
+| `<prism-workflow-editor>` | Assembled editor: graph view, outline, step inspector, confidence tabs |
 | `<prism-workflow-graph>` | Visualises the workflow as the role-first graph canvas and owns the editor scrolling surface |
-| `<prism-conversation-pane>` | Natural-language input thread with proposal diff inline |
 | `<prism-step-inspector>` | Sidebar showing the selected stage's fields and component tree |
 
 ---
@@ -105,53 +104,43 @@ The graph-first keyboard contract is exercised by [`workflow-graph-keyboard.spec
 
 ---
 
-## Step 6 — Type a natural language change request
+## Step 6 — Open keyboard help
 
-`<prism-conversation-pane>` is the authoring input surface. The author types a change request in plain English and submits it via the Send button.
+The editor chrome includes a help affordance for keyboard shortcuts and graph navigation. Authors can open it from the toolbar without leaving the workflow canvas or changing the current stage selection.
 
-![Natural language change request typed](../images/walkthroughs/planning-workflow-editor/06-nl-request-typed.png)
+![Shortcut guide open](../images/walkthroughs/planning-workflow-editor/06-shortcut-guide.png)
 
-> **Example request used in this walkthrough:**
-> _"Add an identity verification step before submission."_
+The shortcut dialog carries `data-prism-shortcut-dialog`; the help button and close button expose accessible names and stable test hooks for the executable walkthrough.
 
-The conversation pane carries `data-prism-component="conversation-pane"`. The textarea has `data-prism-conversation-input` in shadow DOM. Playwright's `getByRole('textbox')` finds it by piercing the shadow root.
-
-**Source:** [`prism-conversation-pane.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-conversation-pane.ts)
+**Source:** [`prism-help-panel.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-help-panel.ts), [`prism-workflow-editor.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts)
 
 ---
 
-## Step 7 — Submit and receive a proposal diff
+## Step 7 — Review validation in the confidence tabs
 
-Clicking Send issues a `POST /api/workflow-authoring/workflows/planning/preview`. The V1 reference shell still uses the mock drafter, so the backend preview currently validates a canned "identity verification before submission" proposal envelope rather than a real model-generated draft.
+The Validation tab is the single place for detailed workflow validation feedback. The canvas stays focused on topology while the confidence panel presents any validation issues, save status, and supporting detail.
 
-![Proposal diff rendered in conversation thread](../images/walkthroughs/planning-workflow-editor/07-proposal-diff.png)
+![Validation tab](../images/walkthroughs/planning-workflow-editor/07-validation-tab.png)
 
-The proposal diff (`<prism-proposal-diff>`, `data-prism-component="proposal-diff"`) renders inline in the conversation thread. It shows:
-- The proposed change in a structured diff format (inserted/modified/deleted operations).
-- A validation summary: `pass` enables "Accept all"; `fail` disables it and explains why.
-- A "Reject" button that dismisses the proposal without applying it.
-
-**Source:** [`prism-proposal-diff.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-proposal-diff.ts), [`04-agentic-surfaces.md`](../design/workflow-editor-v1/04-agentic-surfaces.md)
+The validation panel carries `data-prism-confidence-panel="validation"`; the validation rail carries `data-prism-validation-rail`.
 
 ---
 
-## Step 8 — Accept the proposal
+## Step 8 — Preview the selected stage
 
-When validation status is `pass`, the "Accept all" button is enabled. Clicking it issues a `POST /api/workflow-authoring/workflows/planning/apply` with the updated workflow definition.
+The Preview tab shows how the selected stage will read in the downstream journey. Selecting a stage in the graph keeps the preview, outline, and inspector aligned around the same authored node.
 
-The Accept all button is accessible via `getByRole('button', { name: /accept all/i })` — Playwright's role query pierces shadow DOM.
+![Preview tab](../images/walkthroughs/planning-workflow-editor/08-preview-tab.png)
 
-**Validation fail path:** If the agent proposes a structurally invalid change (e.g. a duplicate stage key or an unreachable transition), validation status is `fail`. Accept all is rendered but disabled. The author must reject the proposal and refine their request. This path is exercised by the `planning-workflow-agent-loop.spec.ts` stub (currently skipped pending a `with-failing-proposal` Storybook story).
+The preview surface exposes `data-prism-preview-stage-name` for the currently selected stage.
 
 ---
 
-## Step 9 — Workflow graph reflects the applied change
+## Step 9 — Simulate the workflow path
 
-After the apply request completes, `<prism-workflow-graph>` re-renders with the updated definition returned by the API. The new identity-verification stage appears as a node in the graph before `submitted`.
+The Simulation tab starts from the workflow's initial stage and lets authors inspect the currently modelled path through the planning workflow. This keeps behavioural checks close to the graph without adding chat UI to the editor shell.
 
-![Workflow graph with identity-verification stage applied](../images/walkthroughs/planning-workflow-editor/09-proposal-applied.png)
-
-The graph reflects the canonical definition as persisted by Blathers' endpoint — not a local optimistic update. If the PATCH fails (e.g. a concurrent edit conflict), the graph stays unchanged and an error message appears in the conversation thread.
+![Simulation tab](../images/walkthroughs/planning-workflow-editor/09-simulation-tab.png)
 
 ---
 
@@ -176,7 +165,6 @@ The spec runs against the full Aspire stack (LiveAppHost) and writes PNGs to `do
 - **Executable spec:** This walkthrough is executed on every PR by [`01-planning-workflow-editor.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch).
 - **Shell component:** [`prism-workflow-editor-shell.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor-shell.ts)
 - **Keyboard contract tests:** [`workflow-graph-keyboard.spec.ts`](../../src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts)
-- **Agent-loop seam tests:** [`planning-workflow-agent-loop.spec.ts`](../../src/UmbracoPrism.Client/tests/agent-loop/planning-workflow-agent-loop.spec.ts)
 - **Fixture contract tests:** [`PlanningWorkflowFixtureTests.cs`](../../src/UmbracoPrism.Core.Tests/Workflow/Authoring/PlanningWorkflowFixtureTests.cs)
-- **Design doc:** [`01-authoring-ux.md`](../design/workflow-editor-v1/01-authoring-ux.md), [`04-agentic-surfaces.md`](../design/workflow-editor-v1/04-agentic-surfaces.md)
+- **Design doc:** [`01-authoring-ux.md`](../design/workflow-editor-v1/01-authoring-ux.md)
 - **Citizen-facing context:** [Planning Notification](planning-notification.md)

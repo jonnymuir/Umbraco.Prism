@@ -29,7 +29,7 @@ async function pressRedoShortcut(page: import('@playwright/test').Page) {
 }
 
 test.describe('Workflow editor undo and redo', () => {
-  test('toolbar buttons and keyboard shortcuts survive preview flows', async ({ page }) => {
+  test('toolbar buttons and keyboard shortcuts replay stage title edits', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
 
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
@@ -46,13 +46,6 @@ test.describe('Workflow editor undo and redo', () => {
     await expect(page.locator('[data-prism-history-status]')).toContainText('1 change available to undo');
     await expect(page.locator('[data-prism-undo]')).toBeEnabled();
     await expect(page.locator('[data-prism-redo]')).toBeDisabled();
-
-    await page.locator('[data-prism-conversation-input]').fill('insert ID&V before submission');
-    await page.locator('prism-conversation-pane').getByRole('button', { name: /send/i }).click();
-    await expect(page.locator('.modal-backdrop')).toBeVisible();
-    await page.getByRole('button', { name: 'Reject all proposed changes' }).click();
-    await expect(page.locator('.modal-backdrop')).toBeHidden();
-    await expect(page.locator('[data-prism-history-status]')).toContainText('1 change available to undo');
 
     await page.locator('[data-prism-undo]').click();
     await expect(page.locator('[data-prism-stage="declaration"]')).toContainText('Declaration');
@@ -94,7 +87,7 @@ test.describe('Workflow editor undo and redo', () => {
     await expect(createTransitionDialog).toBeVisible();
     await createTransitionDialog.locator('[data-prism-create-transition-target]').selectOption('application-form');
     await createTransitionDialog.locator('[data-prism-create-transition-label]').fill('return');
-    await createTransitionDialog.getByRole('button', { name: 'Create transition' }).click();
+    await createTransitionDialog.locator('[data-prism-create-transition-submit]').click();
 
     await expect(page.locator('[data-prism-transition-detail="submitted-return-application-form"]')).toBeVisible();
     await expect(page.locator('[data-prism-transition]')).toHaveCount(4);

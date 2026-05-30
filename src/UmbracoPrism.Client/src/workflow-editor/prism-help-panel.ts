@@ -35,11 +35,11 @@ export class PrismHelpPanel extends LitElement {
         <section class="help-section">
           <h3 class="help-section-title">Quick tips</h3>
           <ul class="tip-list">
-            <li>Use the <strong>Outline</strong> panel on the left to navigate between stages quickly.</li>
-            <li>Switch between <strong>Graph view</strong> and <strong>List view</strong> for different editing perspectives.</li>
-            <li><strong>Validation</strong> errors are shown inline and in this panel — fix critical errors before saving.</li>
-            <li>Use <strong>Preview</strong> to see how a stage will look at runtime across different surfaces.</li>
-            <li><strong>Simulation</strong> lets you walk through the workflow to test transitions and catch dead ends.</li>
+            <li>Each lane is one <strong>vertical service column</strong>. Read the workflow <strong>top to bottom</strong>.</li>
+            <li>Stages are the work cards. Gateways are the diamond routing points between them.</li>
+            <li>Use the <strong>Outline</strong> panel on the left to jump between lane columns and stages quickly.</li>
+            <li>Reorder stages in <strong>List view</strong> with <strong>Move up</strong>, <strong>Move down</strong>, or <strong>Alt + Arrow</strong>. The canvas keeps its automatic layout in this first pass.</li>
+            <li>Use the <strong>Validation</strong> tab for issues, the <strong>Preview</strong> tab for runtime shape, and <strong>Simulation</strong> to walk the route.</li>
             <li>All structural changes support <strong>Undo/Redo</strong> — experiment safely.</li>
           </ul>
         </section>
@@ -47,11 +47,11 @@ export class PrismHelpPanel extends LitElement {
         <section class="help-section">
           <h3 class="help-section-title">Getting started</h3>
           <ol class="guide-list">
-            <li>Create your first stage using the <strong>+ Add stage</strong> button in the graph.</li>
-            <li>Select the stage and use the <strong>Inspector</strong> panel (right side) to edit its details.</li>
-            <li>Add transitions between stages to define the workflow path.</li>
-            <li>Configure actions on stages to specify what happens at each step.</li>
-            <li>Use <strong>Validation</strong> to check for issues before saving.</li>
+            <li>Start on the <strong>Canvas</strong> tab and add the first stage for the lane that owns the work.</li>
+            <li>Add the next stage that should happen in the service flow, then open the <strong>Inspector</strong> to shape its details.</li>
+            <li>Add a <strong>routing gateway</strong> when the workflow needs to branch or wait for multiple paths to join.</li>
+            <li>Create routes so the canvas reads as <strong>stage → gateway → stage</strong> or <strong>gateway → gateway</strong>.</li>
+            <li>Check <strong>Validation</strong>, then use <strong>Preview</strong> and <strong>Simulation</strong> before saving.</li>
             <li>Save your workflow when ready — changes will be published to the runtime.</li>
           </ol>
         </section>

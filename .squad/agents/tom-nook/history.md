@@ -180,6 +180,19 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 
 ## Learnings
 
+### 2026-05-26T19:58:39.416+01:00 — Slot canvases need command-first movement, not free dragging
+
+- In a slot-based lane canvas, movement should change authored structure (stage sequence and lane assignment), not persist arbitrary x/y positions; the layout engine must stay in charge of placement.
+- Keep accessibility-first movement on explicit commands and the list workspace, then let drag act only as an optional shortcut to the same valid targets and the same underlying mutation.
+- Do not make numeric order fields the primary authoring UX for branching workflows: they leak implementation detail, imply a false single global sequence, and create avoidable validation/error states.
+
+### 2026-05-26T19:40:31.679+01:00 — Horizontal lane columns need selective ghost slots, not free add buttons
+
+- When the product mandate says lanes are horizontal columns, treat that as the fixed reading frame: role lanes own the horizontal structure, while flow depth moves downward inside each lane.
+- The simplest authoring model inside a lane is a slot matrix: one depth band at a time, with optional side-by-side sibling slots only where the local branch actually needs them.
+- Ghost create affordances should appear only in valid next slots near the selected node (below for continuation, beside siblings for same-lane fan-out, aligned in target lanes for cross-lane branching); if they are always visible everywhere, the canvas stops feeling simple.
+- Let the lane header own the role label. Node cards should not repeat the lane name in chips and meta copy, and the Canvas should not repeat Validation detail that already belongs in the Validation tab.
+
 ### 2026-05-25T22:04:00.819+01:00 — Canvas rails should follow visual adjacency, not full authored transitions
 
 - In the gateway-first graph, node placement can stay row-band / slot-grid while route drawing switches to unique adjacency rails (`stage → gateway`, `gateway → stage`) so shared trunks are drawn once instead of stacking identical segments.
@@ -296,3 +309,14 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 
 **Orchestration log:** `.squad/orchestration-log/2026-05-25T21-04-00Z-tom-nook.md`  
 **Team coordination:** Multi-agent canvas layout fix session
+
+### 2026-05-30T10:52:48+01:00 — Workflow editor scope reset audit
+
+- Conversation pane is genuinely gone from production code, tests, stories, and walkthroughs; the only surviving references are squad metadata (agent histories, skills, orchestration logs) and two design/walkthrough docs (`docs/design/workflow-editor-v1/01-authoring-ux.md`, `docs/walkthroughs/planning-notification.md`) that still mention it as if it were present. Mark those historical, don't re-excise the agent records.
+- Proposal-diff surface is wider than expected: a dedicated Lit element + story, ~70 lines of state and modal CSS inside `prism-workflow-editor.ts`, the `workflow-authoring-mock-drafter.ts` agent stub, `previewProposal`/`applyProposal` in the authoring client, four backend test fixtures, the preview endpoint, and a still-canonical-feeling design doc (`04-agentic-surfaces.md`). Removing the UI without trimming the doc and client APIs will leak the old narrative.
+- `ProposalEnvelope` is doing double duty: it is both the *agentic* diff narrative AND the actual server-side patch protocol. We can drop the UI and the preview endpoint while keeping the envelope as the save mechanism — but a future agent must be told this explicitly or they'll delete too much.
+- The schema validator already blocks `stage → stage` (PROJ141) and waiting-on-stage (PROJ140). The missing rule is `gateway → split-gateway` — gateways may transition to a stage or to a *join* gateway only. That is the one new validation rule needed to fully encode Jonny's mandate.
+- The transition object is still first-class in the inspector (`workflow-transition-editing.ts`, transition tab in step inspector, dedicated Playwright spec). With the gateway-only model, transitions should fade into "an edge between a gateway and its target" — authored via gateway routing affordances, not via a transition editor. The standalone transition-editor spec is a tell that the old model is still being maintained.
+- A `vertical-lanes-switcher.spec.ts` exists, implying a vertical/horizontal toggle. With the mandate, vertical is the only mode — that spec/toggle is dead code by Jonny's rule.
+- `prism-workflow-graph.ts` is 4,560 lines. Any "simplify visuals" slice needs to be defended carefully: the file is large enough to hide both essential layout logic and dead orientation/proposal code paths in the same edit.
+

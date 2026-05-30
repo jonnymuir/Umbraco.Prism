@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-05-25T15:34:44.680+01:00
+last_updated: 2026-05-25T16:48:28.029+01:00
 status: canonical
 ---
 
@@ -18,16 +18,18 @@ We now need a model where:
 - lanes are owned by roles
 - more than one lane can be active at the same time
 - one lane cannot overwrite another lane's progress
+- only stages and gateways appear as authored workflow nodes
 - stages remain the place where user-facing work and actions live
-- transition gateways become the place where branch, merge, and wait logic lives
-- waiting stages evolve into join gateways
+- transition gateways become the only way to route from one node to another
+- gateways read visually as diagonal/diamond routing nodes in the editor
+- waiting belongs on join gateways rather than on a stage type
 - joins release in a predictable way regardless of completion order
 - runtime and end-user metadata stays clean
 - history stays readable when people and systems act in parallel
 
 ## Plain-language model
 
-The workflow is still made of stages, transitions, and **diamond transition gateways**.
+The workflow is made of **stages** and **diamond transition gateways**.
 
 The model is simple:
 
@@ -35,6 +37,8 @@ The model is simple:
 - **Transition gateway** — a structural routing point with a name and description. A gateway can be a **split gateway** or a **join gateway**.
   - **Split gateway** — starts work in more than one lane.
   - **Join gateway** — waits for the required lanes, then releases the next step.
+
+Authors should understand routing as happening **through gateways**, not through bare stage-to-stage arrows. Links still exist in the graph, but the nodes authors reason about are stages and gateways.
 
 Each live workflow instance can now have more than one active **cursor** at the same time. A cursor is just the engine's way of saying "this lane is currently here".
 
@@ -72,18 +76,15 @@ When the engine reaches a split gateway:
 
 That means a fast lane and a slow lane can finish in different orders without corrupting the workflow.
 
-### 3. Transition links
-
-Transitions are no longer just "stage to stage".
+### 3. Routing links
 
 The authored graph should allow these structural links:
 
-- stage → stage
 - stage → gateway
 - gateway → stage
 - gateway → gateway
 
-The important rule is that simple linear workflows can stay simple, but richer workflows do not need fake stages just to express routing.
+Direct stage → stage links are not part of the target model. Even a simple linear hand-off should read as stage → gateway → stage, so the editor, schema, and runtime all teach one routing language.
 
 ### 4. Split gateways
 
@@ -203,13 +204,14 @@ Support and debugging should be able to answer:
 - stages remain where user-facing actions and forms are configured
 - published contracts stay clean and projection-driven
 - single-lane workflows remain valid
-- straight-line workflows should keep working without redesign
+- straight-line workflows should stay easy to author, but still route through gateways
 
 ### What changes
 
 - gateways become first-class authored nodes rather than hidden routing assumptions
+- gateways become the only authored routing nodes between stages
 - the engine moves from one active state to multiple lane-owned cursors when needed
-- waiting stages are replaced by join gateways
+- waiting stages are removed from the target model and replaced by join gateways
 - runtime convergence is explicit and deterministic
 - history becomes lane-aware
 
@@ -246,33 +248,52 @@ By the end of this slice, authors and runtime consumers should both see the same
 ### Internal sequence inside #83
 
 1. **Isabelle first** — lock the editor visual language and authoring rules:
-   - render split and join gateways as first-class diamond nodes
+   - render split and join gateways as unmistakable diamond/diagonal nodes rather than rounded stage-like cards
    - make lane ownership obvious on canvas and in inspector
+   - make gateways the only visible routing object between stages in graph, list, and inspector flows
    - support stage → gateway, gateway → stage, and gateway → gateway links
-   - prevent invalid links that would make the flow ambiguous or unsafe
+   - prevent direct stage → stage authoring and any other invalid links that would make the flow ambiguous or unsafe
 2. **Blathers second** — move the waiting story and projection contract onto join gateways:
-   - replace waiting-stage modelling with lane-owned join gateway metadata
+   - replace waiting-stage modelling and waiting-stage types with lane-owned join gateway metadata
    - keep published/runtime projection clean and assignment-driven
    - preserve the user-facing waiting story without exposing engine bookkeeping
+   - align authored/runtime contracts so gateways, not bare transitions, carry the routing story
 3. **Blathers + Tangy third** — make the runtime honour the same gateway model:
    - run more than one active lane safely at the same time
    - record arrivals per lane/cursor at joins
    - release deterministically with race-order coverage
+   - prove that join waiting is surfaced from the join gateway and nowhere else
 
 ### Implementation contract
 
 - **Isabelle owns**
-  - canvas rendering for split/join diamonds
-  - inspector editing for gateway name, description, lane, and waiting copy surfaces
-  - graph affordances, lane readability, and invalid-link prevention
+  - canvas rendering for split/join diamonds with clear diagonal shape language
+  - inspector and list editing that teaches gateways as the routing object instead of transitions
+  - graph affordances, lane readability, and invalid-link prevention including no direct stage → stage authoring
 - **Blathers owns**
-  - authored model and projection changes needed to replace waiting stages with join gateways
+  - authored model and projection changes needed to remove waiting stages from the target model and replace them with join gateways
   - runtime execution semantics for independent lane cursors
   - deterministic join bookkeeping and release behaviour
+  - routing contract changes needed so gateways are the only transition mechanism
 - **Tangy owns**
-  - behavioural proof for editor readability, publish/projection continuity, and race-order stability
+  - behavioural proof for editor readability, gateway-only routing, publish/projection continuity, and race-order stability
   - regression coverage proving one lane cannot overwrite or force-advance another
   - final green-gate confirmation for the merged slice
+
+### First movement slice for the slot canvas
+
+The first movement slice should stay simple and accessible:
+
+- lanes render as **vertical columns**
+- service flow reads **top to bottom** inside each lane column
+- if the same lane needs more than one node at the same level, those sibling nodes expand **to the right**
+- the graph canvas keeps its automatic slot layout
+- the list workspace is the authoritative place to reorder authored stages
+- authors move stages with explicit **Move up** and **Move down** actions
+- keyboard reorder uses **Alt + Arrow Up** and **Alt + Arrow Down**
+- focus stays on the moved row and a polite live announcement confirms the new position
+- freeform numeric order fields are not part of the product model
+- drag-to-slot can come later, but only after it matches the same behaviour and accessibility contract
 
 ### What must stay green
 
@@ -289,7 +310,7 @@ Pin the workflow contract while the merged gateway/runtime slice lands:
 - `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-simulation.spec.ts`
 - `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`
 
-The merged slice is only done when gateway authoring, gateway-backed waiting, and parallel-lane runtime behaviour all pass those gates together.
+The merged slice is only done when gateway authoring, gateway-backed waiting, gateway-only routing, and parallel-lane runtime behaviour all pass those gates together.
 
 ## What older docs now mean
 
@@ -305,4 +326,4 @@ They still describe useful current-state behaviour, but they include linear-flow
 
 ## Decision summary
 
-Prism should evolve into a lane-based workflow engine where stages carry user-facing work and actions, diamond transition gateways carry branch/merge/wait logic, split gateways create independent cursors, join gateways replace waiting stages, gateways can route to stages or other gateways, convergence is deterministic, waiting information belongs to the owning lane at the join gateway, the runtime contract stays clean, and history clearly separates actors from state changes.
+Prism should evolve into a lane-based workflow engine where stages carry user-facing work and actions, only stages and diamond gateways appear as authored nodes, gateways are the only routing mechanism between nodes, split gateways create independent cursors, join gateways own waiting semantics and replace waiting stages, convergence is deterministic, the runtime contract stays clean, and history clearly separates actors from state changes.

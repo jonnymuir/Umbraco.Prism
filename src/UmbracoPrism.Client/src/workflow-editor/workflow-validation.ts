@@ -156,7 +156,7 @@ function actionValidationIssues(
     location: { ...location, fieldKey },
     message: location.target === 'stage'
       ? `Stage “${parentLabel}” has an action that needs attention: “${baseLabel}” — ${normaliseValidationMessage(message)}`
-      : `Transition “${parentLabel}” has an action that needs attention: “${baseLabel}” — ${normaliseValidationMessage(message)}`,
+      : `Route “${parentLabel}” has an action that needs attention: “${baseLabel}” — ${normaliseValidationMessage(message)}`,
   }));
 
   const formFieldIssues = Object.entries(validation.formFieldErrors).flatMap(([fieldIndex, fieldErrors]) =>
@@ -177,7 +177,7 @@ function actionValidationIssues(
         },
         message: location.target === 'stage'
           ? `Stage “${parentLabel}” has a form action that needs attention: “${baseLabel}” — ${normaliseValidationMessage(message)}`
-          : `Transition “${parentLabel}” has a form action that needs attention: “${baseLabel}” — ${normaliseValidationMessage(message)}`,
+          : `Route “${parentLabel}” has a form action that needs attention: “${baseLabel}” — ${normaliseValidationMessage(message)}`,
       }];
     })
   );
@@ -206,7 +206,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     severity: 'error' as const,
     blocking: true,
     location: { kind: 'stage', stageKey: stage.stageKey } as const,
-    message: `Stage “${stage.displayName}” is orphaned. Connect it to the workflow with at least one transition.`,
+    message: `Stage “${stage.displayName}” is orphaned. Connect it through a gateway so authors can reach it.`,
   }));
 
   const unreachableIssues = workflowUnreachableStages(workflow).map(stage => ({
@@ -215,7 +215,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     severity: 'error' as const,
     blocking: true,
     location: { kind: 'stage', stageKey: stage.stageKey } as const,
-    message: `Stage “${stage.displayName}” is unreachable from the workflow start. Add or retarget a transition so authors can get there.`,
+    message: `Stage “${stage.displayName}” is unreachable from the workflow start. Add or retarget a route through a gateway so authors can get there.`,
   }));
 
   const deadEndIssues = workflowDeadEndStages(workflow).map(stage => ({
@@ -224,7 +224,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     severity: 'warning' as const,
     blocking: false,
     location: { kind: 'stage', stageKey: stage.stageKey } as const,
-    message: `Stage “${stage.displayName}” has no outbound transition yet.`,
+    message: `Stage “${stage.displayName}” has no outgoing route through a gateway yet.`,
   }));
 
   const missingStageTransitionIssues = workflowTransitionsWithMissingStages(workflow).map(({ transition, transitionIndex }) => {
@@ -240,8 +240,8 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
       blocking: true,
       location: { kind: 'transition', transitionIndex } as const,
       message: missingSource && missingTarget
-        ? `Transition “${transition.action}” is disconnected because both ends are missing. Reconnect it to existing stages before you save or simulate this workflow.`
-        : `Transition “${transition.action}” points to a missing ${direction} stage “${missingLabel}”. Reconnect it to an existing stage before you save or simulate this workflow.`,
+        ? `Route “${transition.action}” is disconnected because both ends are missing. Reconnect it to existing stages before you save or simulate this workflow.`
+        : `Route “${transition.action}” points to a missing ${direction} stage “${missingLabel}”. Reconnect it to an existing stage before you save or simulate this workflow.`,
     };
   });
 
