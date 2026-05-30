@@ -176,32 +176,6 @@ public static class WorkflowEditorEndpointExtensions
                 : await SaveAndPublishAsync(key, authored, store, publishService, ct);
         });
 
-        // ── POST /api/workflow-authoring/workflows/{key}/preview ──────────────
-
-        group.MapPost("/workflows/{key}/preview", async (
-            string key,
-            HttpContext ctx,
-            IAuthoredWorkflowStore store,
-            IWorkflowPatchService patchService,
-            IWorkflowPreviewService previewService,
-            IWorkflowPublishService publishService,
-            CancellationToken ct) =>
-        {
-            var envelope = await ReadBodyAsync<ProposalEnvelope>(ctx, ct);
-            if (envelope is null) return Results.BadRequest(new { error = "Request body must be a valid ProposalEnvelope." });
-
-            var original = await store.LoadAsync(key, ct);
-            if (original is null) return Results.NotFound(new { error = $"Workflow '{key}' not found." });
-
-            var patchResult = patchService.Apply(envelope, original);
-            if (patchResult.HasErrors)
-                return Results.Json(new { hasErrors = true, diagnostics = patchResult.Diagnostics }, WorkflowProjector.CanonicalOptions);
-
-            var preview = previewService.Preview(original, patchResult.Updated);
-            var publishPreview = await publishService.PreviewAsync(patchResult.Updated, ct);
-            return Results.Json(preview with { PublishPreview = publishPreview }, WorkflowProjector.CanonicalOptions);
-        });
-
         // ── POST /api/workflow-authoring/workflows/{key}/simulate ─────────────
 
         group.MapPost("/workflows/{key}/simulate", async (

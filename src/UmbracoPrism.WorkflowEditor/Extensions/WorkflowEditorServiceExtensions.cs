@@ -12,7 +12,7 @@ public static class WorkflowEditorServiceExtensions
     /// <summary>
     /// Registers the Prism Workflow Editor backend services:
     /// <see cref="IWorkflowProjector"/>, <see cref="IWorkflowPatchService"/>,
-    /// <see cref="IWorkflowPreviewService"/>, and default filesystem-backed persistence services
+    /// and default filesystem-backed persistence services
     /// pointing at <paramref name="authoredWorkflowBasePath"/>.
     /// Hosts can pre-register custom persistence implementations before calling this method.
     /// </summary>
@@ -36,7 +36,6 @@ public static class WorkflowEditorServiceExtensions
         services.AddSingleton<IActionCatalogSource>(sp => sp.GetRequiredService<BuiltInActionCatalogProvider>());
         services.AddSingleton<IWorkflowProjector, WorkflowProjector>();
         services.AddSingleton<IWorkflowPatchService, WorkflowPatchService>();
-        services.AddSingleton<IWorkflowPreviewService, WorkflowPreviewService>();
         services.AddSingleton<IWorkflowPublishService, WorkflowPublishService>();
         services.AddSingleton<IWorkflowSimulationService, WorkflowSimulationService>();
         return services;

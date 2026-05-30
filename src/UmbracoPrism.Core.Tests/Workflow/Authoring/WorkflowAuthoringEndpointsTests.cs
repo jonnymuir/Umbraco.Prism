@@ -336,35 +336,6 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
     }
 
     [Fact]
-    public async Task PostPreview_WithInvalidKey_ReturnsNotFound()
-    {
-        var envelope = BuildMinimalEnvelope("smoke-workflow-does-not-exist");
-        var json     = JsonSerializer.Serialize(envelope, WorkflowProjector.CanonicalOptions);
-
-        var response = await _client.PostAsync(
-            "/api/workflow-authoring/workflows/smoke-workflow-does-not-exist/preview",
-            new StringContent(json, Encoding.UTF8, "application/json"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task PostPreview_WithValidWorkflow_IncludesPublishPreview()
-    {
-        var envelope = BuildMinimalEnvelope("planning-application");
-        var json = JsonSerializer.Serialize(envelope, WorkflowProjector.CanonicalOptions);
-
-        var response = await _client.PostAsync(
-            "/api/workflow-authoring/workflows/planning/preview",
-            new StringContent(json, Encoding.UTF8, "application/json"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("publishPreview");
-        body.Should().Contain("currentPublishedChecksum");
-    }
-
-    [Fact]
     public async Task PostApply_WithMissingApprover_ReturnsBadRequest()
     {
         var body = JsonSerializer.Serialize(new
