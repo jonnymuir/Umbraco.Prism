@@ -278,3 +278,150 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
 }
 
 export const PLANNING_WORKFLOW: AuthoredWorkflow = normalisePlanningFixture(RAW);
+
+/**
+ * Returns a deep clone of an authored workflow so stories and fixtures can
+ * mutate a copy without bleeding state across renders. JSON-based because
+ * the authored model is pure data (no methods, no symbols).
+ */
+export function cloneAuthoredWorkflow<T extends AuthoredWorkflow>(workflow: T): T {
+  return JSON.parse(JSON.stringify(workflow)) as T;
+}
+
+/**
+ * Gateway-only starter workflow used by Slice 5 canvas slot-matrix stories
+ * and Playwright proofs. Every transition routes through a named gateway:
+ * a single `review-split` fans the applicant lane out into three branches
+ * (one of which crosses into the reviewer lane) and `decision-join` waits
+ * for every branch before releasing the decision-confirmed stage.
+ */
+export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
+  definitionKey: 'leave-request',
+  displayName: 'Leave Request',
+  version: 1,
+  schemaVersion: '1.0',
+  instancePolicy: 'multiple',
+  initialStageKey: 'start-request',
+  stages: [
+    {
+      stageKey: 'start-request',
+      displayName: 'Start request',
+      description: 'Collect the request details before the service branches into review work.',
+      kind: 'Question',
+      actor: 'applicant',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+    {
+      stageKey: 'applicant-amendments',
+      displayName: 'Applicant amendments',
+      description: 'Applicant updates the request when more detail is needed.',
+      kind: 'Question',
+      actor: 'applicant',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+    {
+      stageKey: 'upload-evidence',
+      displayName: 'Upload evidence',
+      description: 'Applicant provides the supporting documents for the request.',
+      kind: 'Question',
+      actor: 'applicant',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+    {
+      stageKey: 'reviewer-assessment',
+      displayName: 'Reviewer assessment',
+      description: 'Reviewer checks the request before the service can continue.',
+      kind: 'Question',
+      actor: 'reviewer',
+      actions: [],
+      fields: [],
+      roleGates: ['reviewer'],
+    },
+    {
+      stageKey: 'decision-confirmed',
+      displayName: 'Decision confirmed',
+      description: 'The shared path continues here once every branch is complete.',
+      kind: 'Confirmation',
+      actor: 'applicant',
+      actions: [],
+      fields: [],
+      roleGates: [],
+    },
+  ],
+  transitions: [
+    {
+      fromStage: 'start-request',
+      fromGateway: 'review-split',
+      toStage: 'applicant-amendments',
+      action: 'request amendments',
+      actions: [],
+    },
+    {
+      fromStage: 'start-request',
+      fromGateway: 'review-split',
+      toStage: 'upload-evidence',
+      action: 'upload evidence',
+      actions: [],
+    },
+    {
+      fromStage: 'start-request',
+      fromGateway: 'review-split',
+      toStage: 'reviewer-assessment',
+      action: 'send to reviewer',
+      actions: [],
+      requiresRole: 'reviewer',
+    },
+    {
+      fromStage: 'applicant-amendments',
+      toGateway: 'decision-join',
+      toStage: 'decision-confirmed',
+      action: 'finish amendments',
+      actions: [],
+    },
+    {
+      fromStage: 'upload-evidence',
+      toGateway: 'decision-join',
+      toStage: 'decision-confirmed',
+      action: 'evidence complete',
+      actions: [],
+    },
+    {
+      fromStage: 'reviewer-assessment',
+      toGateway: 'decision-join',
+      toStage: 'decision-confirmed',
+      action: 'confirm review',
+      actions: [],
+      requiresRole: 'reviewer',
+    },
+  ],
+  gateways: [
+    {
+      gatewayKey: 'review-split',
+      displayName: 'Review split',
+      description: 'Branch the request into the next pieces of work.',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      roleGates: [],
+    },
+    {
+      gatewayKey: 'decision-join',
+      displayName: 'Decision join',
+      description: 'Wait for every branch to complete before releasing the next step.',
+      kind: 'Join',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      roleGates: [],
+      waiting: {
+        allowDefer: false,
+        content: 'Waiting for amendments, supporting evidence, and reviewer assessment before the decision can continue.',
+      },
+    },
+  ],
+};

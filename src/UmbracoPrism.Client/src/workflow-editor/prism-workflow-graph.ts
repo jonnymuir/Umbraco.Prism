@@ -47,12 +47,18 @@ type ContextMenuState = ContextMenuTarget & {
   y: number;
 };
 
+type VisualNodeKind = 'stage' | 'gateway';
+
 type StageLayout = {
   stage: AuthoredStage;
   stageIndex: number;
   surface: StageSurface;
   laneKey: string;
   laneLabel: string;
+  // Row band the stage sits in. Bands flow top-to-bottom; stages live on
+  // even-rank bands and gateways on odd-rank bands so the canvas reads as
+  // stage → gateway → stage without crossing wires.
+  rowRank: number;
   x: number;
   y: number;
   width: number;
@@ -65,6 +71,7 @@ type GatewayLayout = {
   surface: StageSurface;
   laneKey: string;
   laneLabel: string;
+  rowRank: number;
   x: number;
   y: number;
   width: number;
@@ -83,12 +90,31 @@ type TransitionLayout = {
   merge: boolean;
 };
 
+/**
+ * Visual rail between two graph nodes (stage→gateway, gateway→stage, or a
+ * direct stage→stage hop when authors have not yet connected a gateway). Built
+ * from the adjacency graph rather than from raw transitions so each pair of
+ * nodes contributes exactly one rail even when multiple authored routes go via
+ * the same gateway. Provides selectors Slice 7 visual-regression can target:
+ *   data-prism-route-path / -from / -to / -simulation-path.
+ */
+type VisualRouteLayout = {
+  key: string;
+  path: string;
+  fromKey: string;
+  toKey: string;
+  branch: boolean;
+  merge: boolean;
+  simulationPath: boolean;
+};
+
 type WorkspaceLayout = {
   bounds: { width: number; height: number };
   roleLanes: RoleLane[];
   stageLayouts: StageLayout[];
   gatewayLayouts: GatewayLayout[];
   transitionLayouts: TransitionLayout[];
+  visualRouteLayouts: VisualRouteLayout[];
 };
 
 type RoleLane = {
@@ -130,15 +156,29 @@ type CreateGatewayDialogState = {
 
 const NODE_WIDTH = 224;
 const NODE_HEIGHT = 128;
-const VERTICAL_GAP = 96;
+// Vertical pitch between successive row bands. Each band centres a node
+// (stage or gateway) and the pitch must clear NODE_HEIGHT so adjacent rows do
+// not collide. Drives the trunk that gateways and routes follow.
+const ROW_BAND_PITCH = 152;
 const TOP_PADDING = 64;
 const SIDE_PADDING = 56;
+// Floor lane column width — lanes widen automatically when a row band needs
+// more horizontal space for sibling slots.
 const LANE_WIDTH = 280;
 const LANE_GAP = 36;
+// Horizontal padding inside a lane before slot columns start, so cards never
+// sit flush against the lane chrome.
+const LANE_INSET = 28;
+// Horizontal gap between sibling slot columns inside the same lane row band.
+// Used when a stage fans out to multiple same-lane gateways or vice versa.
+const SLOT_GAP = 56;
 const EDGE_LABEL_WIDTH = 132;
 const EDGE_LABEL_HEIGHT = 32;
 const GATEWAY_SIZE = 104;
-const GATEWAY_OFFSET = 28;
+// Trunk length below/above a gateway diamond before a rail bends sideways.
+// Keeps incoming branch rails terminating at the join's edge instead of
+// running through the join body.
+const GATEWAY_TRUNK = 36;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
 const LANE_HEADER_OFFSET = 80;
@@ -291,140 +331,391 @@ export class PrismWorkflowGraphElement extends LitElement {
   private get _layout(): WorkspaceLayout {
     const stages = this.workflow?.stages ?? [];
     const transitions = this.workflow?.transitions ?? [];
-    const gateways = this.workflow?.gateways ?? [];
+    const gatewayBindings = this.workflow ? deriveGatewayBindings(this.workflow) : [];
+
+    // 1. Lane entries: keep first-appearance order so the canvas reads left to
+    //    right in the order the author introduced lanes.
+    const stageEntries = stages.map((stage, stageIndex) => {
+      const surface = this._surfaceForStage(stage);
+      const laneKey = this._roleKeyForStage(stage, surface);
+      return {
+        id: `stage:${stage.stageKey}`,
+        stage,
+        stageIndex,
+        surface,
+        laneKey,
+        laneLabel: this._roleLabelForLane(laneKey),
+      };
+    });
+    const gatewayEntries = gatewayBindings.map(binding => {
+      const surface = this._surfaceForGateway(binding.gateway);
+      return {
+        id: `gateway:${binding.gateway.gatewayKey}`,
+        gateway: binding.gateway,
+        binding,
+        surface,
+        laneKey: binding.laneKey || this._laneKeyForGateway(binding.gateway),
+        laneLabel: this._roleLabelForLane(binding.laneKey || this._laneKeyForGateway(binding.gateway)),
+      };
+    });
+
+    const laneStateByKey = new Map<string, { surface: StageSurface; stageCount: number }>();
+    const laneOrder: string[] = [];
+    const ensureLane = (laneKey: string, surface: StageSurface, isStage: boolean) => {
+      const existing = laneStateByKey.get(laneKey);
+      if (existing) {
+        if (isStage) {
+          existing.stageCount += 1;
+        }
+        return;
+      }
+      laneStateByKey.set(laneKey, { surface, stageCount: isStage ? 1 : 0 });
+      laneOrder.push(laneKey);
+    };
+    stageEntries.forEach(entry => ensureLane(entry.laneKey, entry.surface, true));
+    gatewayEntries.forEach(entry => ensureLane(entry.laneKey, entry.surface, false));
+
+    // 2. Adjacency graph spanning stages and gateways. Each gateway is wired
+    //    to its anchor stage (split: stage→gateway, join: gateway→stage) so
+    //    the topological sort produces a stage → gateway → stage reading.
+    const nodeIds = [...stageEntries.map(entry => entry.id), ...gatewayEntries.map(entry => entry.id)];
+    const nodeKind = new Map<string, VisualNodeKind>();
+    const nodeOrder = new Map<string, number>();
+    const adjacency = new Map<string, Set<string>>();
+    const inDegree = new Map<string, number>();
+    const edgeTransitionIndices = new Map<string, Set<number>>();
+
+    nodeIds.forEach((id, index) => {
+      nodeKind.set(id, id.startsWith('gateway:') ? 'gateway' : 'stage');
+      nodeOrder.set(id, index);
+      inDegree.set(id, 0);
+    });
+
+    const addEdge = (fromId: string, toId: string, transitionIndex?: number | number[]) => {
+      if (fromId === toId || !nodeKind.has(fromId) || !nodeKind.has(toId)) {
+        return;
+      }
+      let outgoing = adjacency.get(fromId);
+      if (!outgoing) {
+        outgoing = new Set<string>();
+        adjacency.set(fromId, outgoing);
+      }
+      if (!outgoing.has(toId)) {
+        outgoing.add(toId);
+        inDegree.set(toId, (inDegree.get(toId) ?? 0) + 1);
+      }
+      const indices = transitionIndex === undefined
+        ? []
+        : Array.isArray(transitionIndex)
+          ? transitionIndex
+          : [transitionIndex];
+      if (indices.length > 0) {
+        const key = `${fromId}->${toId}`;
+        const existing = edgeTransitionIndices.get(key) ?? new Set<number>();
+        indices.forEach(index => existing.add(index));
+        edgeTransitionIndices.set(key, existing);
+      }
+    };
+
+    const splitGatewayKeyByAnchorStage = new Map<string, string>();
+    const joinGatewayKeyByAnchorStage = new Map<string, string>();
+
+    gatewayEntries.forEach(entry => {
+      const anchorStageKey = entry.binding.anchorStageKey;
+      if (!anchorStageKey) {
+        return;
+      }
+      const anchorStageId = `stage:${anchorStageKey}`;
+      if (entry.gateway.kind === 'Split') {
+        if (!splitGatewayKeyByAnchorStage.has(anchorStageKey)) {
+          splitGatewayKeyByAnchorStage.set(anchorStageKey, entry.gateway.gatewayKey);
+        }
+        addEdge(anchorStageId, entry.id, entry.binding.relatedTransitionIndices);
+      } else {
+        if (!joinGatewayKeyByAnchorStage.has(anchorStageKey)) {
+          joinGatewayKeyByAnchorStage.set(anchorStageKey, entry.gateway.gatewayKey);
+        }
+        addEdge(entry.id, anchorStageId, entry.binding.relatedTransitionIndices);
+      }
+    });
+
+    transitions.forEach((transition, index) => {
+      const sourceStageId = `stage:${transition.fromStage}`;
+      const targetStageId = `stage:${transition.toStage}`;
+      const sourceGatewayKey = transition.fromGateway ?? splitGatewayKeyByAnchorStage.get(transition.fromStage) ?? null;
+      const targetGatewayKey = transition.toGateway ?? joinGatewayKeyByAnchorStage.get(transition.toStage) ?? null;
+      const sourceGatewayId = sourceGatewayKey ? `gateway:${sourceGatewayKey}` : null;
+      const targetGatewayId = targetGatewayKey ? `gateway:${targetGatewayKey}` : null;
+
+      if (sourceGatewayId) {
+        addEdge(sourceStageId, sourceGatewayId, index);
+      }
+      const routedSourceId = sourceGatewayId ?? sourceStageId;
+      if (targetGatewayId) {
+        addEdge(routedSourceId, targetGatewayId, index);
+        addEdge(targetGatewayId, targetStageId, index);
+        return;
+      }
+      addEdge(routedSourceId, targetStageId, index);
+    });
+
+    // 3. Row-rank by Kahn topological sort. Stage parity = 0, gateway parity = 1;
+    //    parity adjustment guarantees stage → gateway → stage reading order
+    //    even when a stage with no incoming edges follows a gateway visually.
+    const ranks = new Map<string, number>();
+    nodeIds.forEach(id => {
+      ranks.set(id, nodeKind.get(id) === 'gateway' ? 1 : 0);
+    });
+
+    const queue = nodeIds
+      .filter(id => (inDegree.get(id) ?? 0) === 0)
+      .sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0));
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const currentRank = ranks.get(currentId) ?? 0;
+      const neighbours = adjacency.get(currentId);
+      if (!neighbours) {
+        continue;
+      }
+      [...neighbours]
+        .sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0))
+        .forEach(nextId => {
+          const step = nodeKind.get(currentId) === nodeKind.get(nextId) ? 2 : 1;
+          ranks.set(nextId, Math.max(ranks.get(nextId) ?? 0, currentRank + step));
+
+          const nextInDegree = (inDegree.get(nextId) ?? 0) - 1;
+          inDegree.set(nextId, nextInDegree);
+          if (nextInDegree === 0) {
+            queue.push(nextId);
+            queue.sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0));
+          }
+        });
+    }
+
+    nodeIds.forEach(id => {
+      const expectedParity = nodeKind.get(id) === 'gateway' ? 1 : 0;
+      let nextRank = ranks.get(id) ?? expectedParity;
+      if (nextRank % 2 !== expectedParity) {
+        nextRank += 1;
+      }
+      ranks.set(id, nextRank);
+    });
+
+    // 4. Bucket nodes by (lane, rowRank) so each band can size and centre
+    //    its slot columns. Same-lane fan-out widens the lane horizontally;
+    //    cross-lane fan-out keeps a single readable branch row.
+    type LaneRowItem =
+      | { id: string; kind: 'stage'; stageEntry: typeof stageEntries[number] }
+      | { id: string; kind: 'gateway'; gatewayEntry: typeof gatewayEntries[number] };
+
+    const nodesByLaneRow = new Map<string, Map<number, LaneRowItem[]>>();
+    const pushLaneRowItem = (laneKey: string, rowRank: number, item: LaneRowItem) => {
+      let rows = nodesByLaneRow.get(laneKey);
+      if (!rows) {
+        rows = new Map<number, LaneRowItem[]>();
+        nodesByLaneRow.set(laneKey, rows);
+      }
+      const rowItems = rows.get(rowRank) ?? [];
+      rowItems.push(item);
+      rows.set(rowRank, rowItems);
+    };
+    stageEntries.forEach(entry => {
+      pushLaneRowItem(entry.laneKey, ranks.get(entry.id) ?? 0, { id: entry.id, kind: 'stage', stageEntry: entry });
+    });
+    gatewayEntries.forEach(entry => {
+      pushLaneRowItem(entry.laneKey, ranks.get(entry.id) ?? 1, { id: entry.id, kind: 'gateway', gatewayEntry: entry });
+    });
+
+    // 5. Lane width = widest row band in that lane (LANE_INSET on either side
+    //    + slot content + SLOT_GAP between siblings). Lanes with only one slot
+    //    keep the floor width.
+    const laneWidthByKey = new Map<string, number>();
+    laneOrder.forEach(laneKey => {
+      const rows = nodesByLaneRow.get(laneKey);
+      let widestRow = LANE_WIDTH;
+      rows?.forEach(items => {
+        const contentWidth = items.reduce(
+          (sum, item) => sum + (item.kind === 'stage' ? NODE_WIDTH : GATEWAY_SIZE),
+          0
+        );
+        widestRow = Math.max(
+          widestRow,
+          LANE_INSET * 2 + contentWidth + Math.max(items.length - 1, 0) * SLOT_GAP
+        );
+      });
+      laneWidthByKey.set(laneKey, widestRow);
+    });
+
     const roleLanes: RoleLane[] = [];
     const laneByKey = new Map<string, RoleLane>();
+    let currentLaneX = SIDE_PADDING;
+    laneOrder.forEach((laneKey, columnIndex) => {
+      const laneState = laneStateByKey.get(laneKey)!;
+      const lane: RoleLane = {
+        key: laneKey,
+        label: this._roleLabelForLane(laneKey),
+        description: this._roleDescriptionForLane(laneKey),
+        surface: laneState.surface,
+        columnIndex,
+        x: currentLaneX,
+        width: laneWidthByKey.get(laneKey) ?? LANE_WIDTH,
+        stageCount: laneState.stageCount,
+      };
+      laneByKey.set(laneKey, lane);
+      roleLanes.push(lane);
+      currentLaneX += lane.width + LANE_GAP;
+    });
+
+    // 6. Place nodes inside their lane × row band. Slots within a band are
+    //    centred and laid left-to-right by node introduction order.
     const stageLayouts: StageLayout[] = [];
     const gatewayLayouts: GatewayLayout[] = [];
 
-    // Group stages by lane and track stage indices per lane
-    const stagesPerLane = new Map<string, Array<{ stage: AuthoredStage; globalIndex: number }>>();
-
-    const ensureLane = (laneKey: string, surface: StageSurface) => {
-      let lane = laneByKey.get(laneKey);
-      if (!lane) {
-        lane = {
-          key: laneKey,
-          label: this._roleLabelForLane(laneKey),
-          description: this._roleDescriptionForLane(laneKey),
-          surface,
-          columnIndex: roleLanes.length,
-          x: SIDE_PADDING + roleLanes.length * (LANE_WIDTH + LANE_GAP),
-          width: LANE_WIDTH,
-          stageCount: 0,
-        };
-        laneByKey.set(laneKey, lane);
-        roleLanes.push(lane);
+    laneOrder.forEach(laneKey => {
+      const lane = laneByKey.get(laneKey);
+      const rows = nodesByLaneRow.get(laneKey);
+      if (!lane || !rows) {
+        return;
       }
+      [...rows.entries()]
+        .sort((left, right) => left[0] - right[0])
+        .forEach(([rowRank, items]) => {
+          const orderedItems = [...items].sort(
+            (left, right) => (nodeOrder.get(left.id) ?? 0) - (nodeOrder.get(right.id) ?? 0)
+          );
+          const contentWidth = orderedItems.reduce(
+            (sum, item) => sum + (item.kind === 'stage' ? NODE_WIDTH : GATEWAY_SIZE),
+            0
+          );
+          const totalWidth = contentWidth + Math.max(orderedItems.length - 1, 0) * SLOT_GAP;
+          let cursorX = lane.x + (lane.width - totalWidth) / 2;
+          const bandCenter = this._rowBandCenter(rowRank);
 
-      if (!stagesPerLane.has(laneKey)) {
-        stagesPerLane.set(laneKey, []);
-      }
-
-      return lane;
-    };
-
-    stages.forEach((stage, stageIndex) => {
-      const surface = this._surfaceForStage(stage);
-      const laneKey = this._roleKeyForStage(stage, surface);
-      const lane = ensureLane(laneKey, surface);
-      lane.stageCount += 1;
-      stagesPerLane.get(laneKey)!.push({ stage, globalIndex: stageIndex });
-    });
-
-    gateways.forEach(gateway => {
-      const surface = this._surfaceForGateway(gateway);
-      ensureLane(this._laneKeyForGateway(gateway), surface);
-    });
-
-    // Position stages vertically within each lane
-    stagesPerLane.forEach((stageList, laneKey) => {
-      const lane = laneByKey.get(laneKey)!;
-      stageList.forEach((item, indexInLane) => {
-        const x = lane.x + (lane.width - NODE_WIDTH) / 2;
-        const y = TOP_PADDING + LANE_HEADER_OFFSET + indexInLane * (NODE_HEIGHT + VERTICAL_GAP);
-
-        const layout: StageLayout = {
-          stage: item.stage,
-          stageIndex: item.globalIndex,
-          surface: lane.surface,
-          laneKey,
-          laneLabel: lane.label,
-          x,
-          y,
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-        };
-
-        stageLayouts.push(layout);
-      });
+          orderedItems.forEach(item => {
+            const width = item.kind === 'stage' ? NODE_WIDTH : GATEWAY_SIZE;
+            const height = item.kind === 'stage' ? NODE_HEIGHT : GATEWAY_SIZE;
+            const y = bandCenter - height / 2;
+            if (item.kind === 'stage') {
+              stageLayouts.push({
+                stage: item.stageEntry.stage,
+                stageIndex: item.stageEntry.stageIndex,
+                surface: item.stageEntry.surface,
+                laneKey,
+                laneLabel: item.stageEntry.laneLabel,
+                rowRank,
+                x: cursorX,
+                y,
+                width,
+                height,
+              });
+            } else {
+              gatewayLayouts.push({
+                gateway: item.gatewayEntry.gateway,
+                binding: item.gatewayEntry.binding,
+                surface: item.gatewayEntry.surface,
+                laneKey,
+                laneLabel: item.gatewayEntry.laneLabel,
+                rowRank,
+                x: cursorX,
+                y,
+                width,
+                height,
+              });
+            }
+            cursorX += width + SLOT_GAP;
+          });
+        });
     });
 
     const stageMap = new Map(stageLayouts.map(layout => [layout.stage.stageKey, layout]));
-    const gatewayBindings = this.workflow ? deriveGatewayBindings(this.workflow) : [];
-    const usedFallbackSlotsByLane = new Map<string, number>();
-
-    gatewayBindings.forEach(binding => {
-      const lane = laneByKey.get(binding.laneKey);
-      if (!lane) {
+    const gatewayLayoutByKey = new Map(gatewayLayouts.map(layout => [layout.gateway.gatewayKey, layout]));
+    const layoutByNodeId = new Map<string, StageLayout | GatewayLayout>([
+      ...stageLayouts.map(layout => [`stage:${layout.stage.stageKey}`, layout] as const),
+      ...gatewayLayouts.map(layout => [`gateway:${layout.gateway.gatewayKey}`, layout] as const),
+    ]);
+    const splitLayoutByAnchorStage = new Map<string, GatewayLayout>();
+    const joinLayoutByAnchorStage = new Map<string, GatewayLayout>();
+    gatewayLayouts.forEach(layout => {
+      const anchorStageKey = layout.binding.anchorStageKey;
+      if (!anchorStageKey) {
         return;
       }
-
-      const anchorStage = binding.anchorStageKey ? stageMap.get(binding.anchorStageKey) ?? null : null;
-      const fallbackIndex = usedFallbackSlotsByLane.get(binding.laneKey) ?? 0;
-      const x = lane.x + (lane.width - GATEWAY_SIZE) / 2;
-      let y = TOP_PADDING + LANE_HEADER_OFFSET + fallbackIndex * (GATEWAY_SIZE + GATEWAY_OFFSET);
-
-      if (anchorStage) {
-        y = binding.gateway.kind === 'Split'
-          ? anchorStage.y + anchorStage.height + GATEWAY_OFFSET
-          : Math.max(TOP_PADDING + LANE_HEADER_OFFSET, anchorStage.y - GATEWAY_SIZE - GATEWAY_OFFSET);
-      } else {
-        usedFallbackSlotsByLane.set(binding.laneKey, fallbackIndex + 1);
+      if (layout.gateway.kind === 'Split') {
+        if (!splitLayoutByAnchorStage.has(anchorStageKey)) {
+          splitLayoutByAnchorStage.set(anchorStageKey, layout);
+        }
+      } else if (!joinLayoutByAnchorStage.has(anchorStageKey)) {
+        joinLayoutByAnchorStage.set(anchorStageKey, layout);
       }
+    });
 
-      gatewayLayouts.push({
-        gateway: binding.gateway,
-        binding,
-        surface: this._surfaceForGateway(binding.gateway),
-        laneKey: binding.laneKey,
-        laneLabel: this._roleLabelForLane(binding.laneKey),
-        x,
-        y,
-        width: GATEWAY_SIZE,
-        height: GATEWAY_SIZE,
+    // 7. Visual rails: one path per adjacency edge so each pair of nodes
+    //    contributes a single rail even when many transitions go via the same
+    //    gateway. Sibling outgoing/incoming edges use slot offsets so rails
+    //    leave/arrive on distinct corridors instead of stacking on one stem.
+    const outgoingByNode = new Map<string, string[]>();
+    const incomingByNode = new Map<string, string[]>();
+    const orderByLayout = (left: string, right: string) => {
+      const leftLayout = layoutByNodeId.get(left);
+      const rightLayout = layoutByNodeId.get(right);
+      if (!leftLayout || !rightLayout) {
+        return (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0);
+      }
+      if (leftLayout.rowRank !== rightLayout.rowRank) {
+        return leftLayout.rowRank - rightLayout.rowRank;
+      }
+      return this._layoutCenter(leftLayout).x - this._layoutCenter(rightLayout).x;
+    };
+    adjacency.forEach((targets, fromId) => {
+      const ordered = [...targets].sort(orderByLayout);
+      outgoingByNode.set(fromId, ordered);
+      ordered.forEach(targetId => {
+        incomingByNode.set(targetId, [...(incomingByNode.get(targetId) ?? []), fromId]);
+      });
+    });
+    incomingByNode.forEach((sources, targetId) => {
+      incomingByNode.set(targetId, [...sources].sort(orderByLayout));
+    });
+
+    const visualRouteLayouts: VisualRouteLayout[] = [];
+    outgoingByNode.forEach((targets, fromId) => {
+      const fromLayout = layoutByNodeId.get(fromId);
+      if (!fromLayout) {
+        return;
+      }
+      targets.forEach((toId, outgoingIndex) => {
+        const toLayout = layoutByNodeId.get(toId);
+        if (!toLayout) {
+          return;
+        }
+        const incomingSources = incomingByNode.get(toId) ?? [];
+        const incomingIndex = Math.max(0, incomingSources.indexOf(fromId));
+        const indices = edgeTransitionIndices.get(`${fromId}->${toId}`) ?? new Set<number>();
+        const path = this._buildVisualRoutePath(fromLayout, toLayout, {
+          outgoingIndex,
+          outgoingCount: targets.length,
+          incomingIndex,
+          incomingCount: incomingSources.length,
+        });
+        visualRouteLayouts.push({
+          key: `${fromId}->${toId}`,
+          path,
+          fromKey: fromId.replace(/^(stage|gateway):/, ''),
+          toKey: toId.replace(/^(stage|gateway):/, ''),
+          branch: 'gateway' in fromLayout && fromLayout.gateway.kind === 'Split',
+          merge: 'gateway' in toLayout && toLayout.gateway.kind === 'Join',
+          simulationPath: [...indices].some(index => this._transitionIsInSimulationPath(index)),
+        });
       });
     });
 
-    const width = roleLanes.length === 0
-      ? SIDE_PADDING * 2 + LANE_WIDTH
-      : SIDE_PADDING * 2 + roleLanes.length * LANE_WIDTH + Math.max(0, roleLanes.length - 1) * LANE_GAP;
-    const contentBottom = Math.max(
-      TOP_PADDING + LANE_HEADER_OFFSET + 200,
-      ...stageLayouts.map(layout => layout.y + layout.height),
-      ...gatewayLayouts.map(layout => layout.y + layout.height)
-    );
-    const height = contentBottom + TOP_PADDING;
-
-    const splitGatewayByAnchorStage = new Map<string, GatewayLayout>();
-    const joinGatewayByAnchorStage = new Map<string, GatewayLayout>();
-    gatewayLayouts.forEach(layout => {
-      if (layout.binding.anchorStageKey) {
-        if (layout.gateway.kind === 'Split') {
-          splitGatewayByAnchorStage.set(layout.binding.anchorStageKey, layout);
-        } else {
-          joinGatewayByAnchorStage.set(layout.binding.anchorStageKey, layout);
-        }
-      }
-    });
-
-    const gatewayLayoutByKey = new Map(gatewayLayouts.map(gl => [gl.gateway.gatewayKey, gl]));
-
+    // 8. Transition chips: keep one path per authored transition so the chip
+    //    label hovers along its route. Geometry follows the same slot rails.
     const transitionLayouts: TransitionLayout[] = transitions.map((transition, index) => {
-      const source = stageMap.get(transition.fromStage);
-      const target = stageMap.get(transition.toStage);
-
-      if (!source || !target) {
+      const sourceStage = stageMap.get(transition.fromStage);
+      const targetStage = stageMap.get(transition.toStage);
+      if (!sourceStage || !targetStage) {
         return {
           transition,
           index,
@@ -438,18 +729,24 @@ export class PrismWorkflowGraphElement extends LitElement {
         };
       }
 
-      // Explicit gateway routing: author has set fromGateway/toGateway directly.
-      const explicitFromGateway = transition.fromGateway ? gatewayLayoutByKey.get(transition.fromGateway) ?? null : null;
-      const explicitToGateway = transition.toGateway ? gatewayLayoutByKey.get(transition.toGateway) ?? null : null;
+      const sourceGateway = transition.fromGateway
+        ? gatewayLayoutByKey.get(transition.fromGateway) ?? null
+        : splitLayoutByAnchorStage.get(transition.fromStage) ?? null;
+      const targetGateway = transition.toGateway
+        ? gatewayLayoutByKey.get(transition.toGateway) ?? null
+        : joinLayoutByAnchorStage.get(transition.toStage) ?? null;
+      const routedNodes: Array<StageLayout | GatewayLayout> = [sourceStage];
+      if (sourceGateway && routedNodes[routedNodes.length - 1] !== sourceGateway) {
+        routedNodes.push(sourceGateway);
+      }
+      if (targetGateway && routedNodes[routedNodes.length - 1] !== targetGateway) {
+        routedNodes.push(targetGateway);
+      }
+      if (routedNodes[routedNodes.length - 1] !== targetStage) {
+        routedNodes.push(targetStage);
+      }
 
-      // Heuristic routing: derive from anchor-stage topology when no explicit gateway is set.
-      const sourceGateway = explicitFromGateway ?? (splitGatewayByAnchorStage.get(transition.fromStage) ?? null);
-      const targetGateway = explicitToGateway ?? (joinGatewayByAnchorStage.get(transition.toStage) ?? null);
-      const viaPoints = [
-        ...(sourceGateway && sourceGateway.gateway.kind === 'Split' ? [this._gatewayPoint(sourceGateway)] : []),
-        ...(targetGateway && targetGateway.gateway.kind === 'Join' ? [this._gatewayPoint(targetGateway)] : []),
-      ];
-      const { path, labelX, labelY } = this._buildTransitionPath(source, target, viaPoints);
+      const { path, labelX, labelY } = this._buildTransitionPath(routedNodes);
       return {
         transition,
         index,
@@ -463,12 +760,23 @@ export class PrismWorkflowGraphElement extends LitElement {
       };
     });
 
+    const width = roleLanes.length === 0
+      ? SIDE_PADDING * 2 + LANE_WIDTH
+      : currentLaneX - LANE_GAP + SIDE_PADDING;
+    const contentBottom = Math.max(
+      TOP_PADDING + LANE_HEADER_OFFSET + NODE_HEIGHT,
+      ...stageLayouts.map(layout => layout.y + layout.height),
+      ...gatewayLayouts.map(layout => layout.y + layout.height)
+    );
+    const height = contentBottom + TOP_PADDING;
+
     return {
       bounds: { width, height },
       roleLanes,
       stageLayouts,
       gatewayLayouts,
       transitionLayouts,
+      visualRouteLayouts,
     };
   }
 
@@ -500,41 +808,193 @@ export class PrismWorkflowGraphElement extends LitElement {
     return workflowLaneOptions(this.workflow);
   }
 
-  private _gatewayPoint(gatewayLayout: GatewayLayout) {
+  private _layoutCenter(layout: StageLayout | GatewayLayout) {
+    return { x: layout.x + layout.width / 2, y: layout.y + layout.height / 2 };
+  }
+
+  private _rowBandCenter(rowRank: number) {
+    return TOP_PADDING + LANE_HEADER_OFFSET + NODE_HEIGHT / 2 + rowRank * ROW_BAND_PITCH;
+  }
+
+  /**
+   * Distribute sibling rails across a node's face so multiple choices leave
+   * (or arrive) on distinct corridors. `maxSpread` keeps offsets within the
+   * node's painted width.
+   */
+  private _slotOffset(slotIndex: number, slotCount: number, maxSpread: number) {
+    if (slotCount <= 1) {
+      return 0;
+    }
+    const spread = Math.max(0, Math.min(maxSpread, (slotCount - 1) * 40));
+    if (spread === 0) {
+      return 0;
+    }
+    const start = -spread / 2;
+    const step = spread / (slotCount - 1);
+    return start + slotIndex * step;
+  }
+
+  // Gateway attachments hug the diamond's vertical tips so the rail can bend
+  // inside GATEWAY_TRUNK rather than crossing the diamond outline.
+  private _gatewayAttachmentInset(layout: GatewayLayout) {
+    return Math.max(14, layout.height * 0.18);
+  }
+
+  private _routeEntryPoint(layout: StageLayout | GatewayLayout, slotIndex: number, slotCount: number) {
+    if ('stage' in layout) {
+      const centre = this._layoutCenter(layout);
+      return {
+        x: centre.x + this._slotOffset(slotIndex, slotCount, Math.max(0, layout.width - 72)),
+        y: layout.y,
+      };
+    }
+    const centre = this._layoutCenter(layout);
     return {
-      x: gatewayLayout.x + gatewayLayout.width / 2,
-      y: gatewayLayout.y + gatewayLayout.height / 2,
+      x: centre.x + this._slotOffset(slotIndex, slotCount, layout.width * 0.34),
+      y: layout.y + this._gatewayAttachmentInset(layout),
     };
   }
 
-  private _buildTransitionPath(
-    source: StageLayout,
-    target: StageLayout,
-    viaPoints: Array<{ x: number; y: number }> = []
-  ) {
-    const sameLane = source.laneKey === target.laneKey;
-    const startX = source.x + source.width / 2;
-    const startY = source.y + source.height;
-    const endX = target.x + target.width / 2;
-    const endY = target.y;
-    const points = [{ x: startX, y: startY }, ...viaPoints, { x: endX, y: endY }];
-    let path = `M ${points[0].x} ${points[0].y}`;
+  private _routeExitPoint(layout: StageLayout | GatewayLayout, slotIndex: number, slotCount: number) {
+    if ('stage' in layout) {
+      const centre = this._layoutCenter(layout);
+      return {
+        x: centre.x + this._slotOffset(slotIndex, slotCount, Math.max(0, layout.width - 72)),
+        y: layout.y + layout.height,
+      };
+    }
+    const centre = this._layoutCenter(layout);
+    return {
+      x: centre.x + this._slotOffset(slotIndex, slotCount, layout.width * 0.34),
+      y: layout.y + layout.height - this._gatewayAttachmentInset(layout),
+    };
+  }
 
+  private _railY(start: { x: number; y: number }, end: { x: number; y: number }) {
+    if (Math.abs(start.x - end.x) < 4) {
+      return start.y + (end.y - start.y) / 2;
+    }
+    const verticalGap = Math.max(24, end.y - start.y);
+    return start.y + Math.min(72, Math.max(GATEWAY_TRUNK, verticalGap * 0.32));
+  }
+
+  private _pushRoutePoint(points: Array<{ x: number; y: number }>, point: { x: number; y: number }) {
+    const previous = points[points.length - 1];
+    if (previous && Math.abs(previous.x - point.x) < 0.5 && Math.abs(previous.y - point.y) < 0.5) {
+      return;
+    }
+    points.push(point);
+  }
+
+  private _normaliseRoutePoints(points: Array<{ x: number; y: number }>) {
+    const deduped = points.filter((point, index) => {
+      if (index === 0) {
+        return true;
+      }
+      const previous = points[index - 1];
+      return Math.abs(previous.x - point.x) >= 0.5 || Math.abs(previous.y - point.y) >= 0.5;
+    });
+    return deduped.filter((point, index, list) => {
+      if (index === 0 || index === list.length - 1) {
+        return true;
+      }
+      const previous = list[index - 1];
+      const next = list[index + 1];
+      const collinearX = Math.abs(previous.x - point.x) < 0.5 && Math.abs(point.x - next.x) < 0.5;
+      const collinearY = Math.abs(previous.y - point.y) < 0.5 && Math.abs(point.y - next.y) < 0.5;
+      return !(collinearX || collinearY);
+    });
+  }
+
+  private _pathFromPoints(points: Array<{ x: number; y: number }>) {
+    if (points.length === 0) {
+      return '';
+    }
+    return `M ${points[0].x} ${points[0].y}${points
+      .slice(1)
+      .map(point => ` L ${point.x} ${point.y}`)
+      .join('')}`;
+  }
+
+  private _labelPositionFromRoute(points: Array<{ x: number; y: number }>) {
+    if (points.length === 0) {
+      return { x: 0, y: 0 };
+    }
+    let best = { length: 0, x: points[0].x, y: points[0].y };
     for (let index = 1; index < points.length; index += 1) {
       const previous = points[index - 1];
       const current = points[index];
-      const verticalDirection = current.y >= previous.y ? 1 : -1;
-      const distance = Math.max(Math.abs(current.y - previous.y), Math.abs(current.x - previous.x), 64);
-      const curve = Math.min(Math.max(distance / 2, 56), 180);
-      path += ` C ${previous.x} ${previous.y + curve * verticalDirection}, ${current.x} ${current.y - curve * verticalDirection}, ${current.x} ${current.y}`;
+      const length = Math.abs(current.x - previous.x) + Math.abs(current.y - previous.y);
+      if (length < best.length) {
+        continue;
+      }
+      best = {
+        length,
+        x: previous.x + (current.x - previous.x) / 2,
+        y: previous.y + (current.y - previous.y) / 2,
+      };
     }
+    return { x: best.x, y: best.y };
+  }
 
-    const labelBias = sameLane && viaPoints.length === 0 ? 22 : 0;
+  /**
+   * Build a stage→gateway or gateway→stage rail using orthogonal segments and
+   * slot offsets so siblings leave the source on distinct corridors. The rail
+   * always exits the source vertically, takes one horizontal jog, and arrives
+   * vertically into the target — the lane-spine reading the slot-matrix design
+   * relies on.
+   */
+  private _buildVisualRoutePath(
+    from: StageLayout | GatewayLayout,
+    to: StageLayout | GatewayLayout,
+    options: {
+      outgoingIndex: number;
+      outgoingCount: number;
+      incomingIndex: number;
+      incomingCount: number;
+    }
+  ): string {
+    const start = this._routeExitPoint(from, options.outgoingIndex, options.outgoingCount);
+    const end = this._routeEntryPoint(to, options.incomingIndex, options.incomingCount);
+    const points: Array<{ x: number; y: number }> = [start];
+    const railY = this._railY(start, end);
+    this._pushRoutePoint(points, { x: start.x, y: railY });
+    this._pushRoutePoint(points, { x: end.x, y: railY });
+    this._pushRoutePoint(points, end);
+    return this._pathFromPoints(this._normaliseRoutePoints(points));
+  }
 
+  /**
+   * Build the transition-chip path through the routed nodes. Each segment uses
+   * the same orthogonal rail so the chip label can hover over a long, mostly-
+   * horizontal segment and never sit on top of a stage card.
+   */
+  private _buildTransitionPath(routeNodes: Array<StageLayout | GatewayLayout>) {
+    if (routeNodes.length < 2) {
+      return { path: '', labelX: 0, labelY: 0 };
+    }
+    const points: Array<{ x: number; y: number }> = [this._routeExitPoint(routeNodes[0], 0, 1)];
+    for (let index = 1; index < routeNodes.length; index += 1) {
+      const from = routeNodes[index - 1];
+      const to = routeNodes[index];
+      const currentPoint = points[points.length - 1] ?? this._routeExitPoint(from, 0, 1);
+      const targetPoint = this._routeEntryPoint(to, 0, 1);
+      const railY = this._railY(currentPoint, targetPoint);
+      this._pushRoutePoint(points, { x: currentPoint.x, y: railY });
+      this._pushRoutePoint(points, { x: targetPoint.x, y: railY });
+      this._pushRoutePoint(points, targetPoint);
+      // After arriving, queue the exit point of the just-visited node so the
+      // next segment leaves the node's bottom rather than its entry.
+      if (index < routeNodes.length - 1) {
+        this._pushRoutePoint(points, this._routeExitPoint(to, 0, 1));
+      }
+    }
+    const normalisedPoints = this._normaliseRoutePoints(points);
+    const label = this._labelPositionFromRoute(normalisedPoints);
     return {
-      path,
-      labelX: startX + (endX - startX) / 2 + labelBias,
-      labelY: startY + (endY - startY) / 2,
+      path: this._pathFromPoints(normalisedPoints),
+      labelX: label.x,
+      labelY: label.y,
     };
   }
 
@@ -1547,7 +2007,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _renderGraph() {
-    const { bounds, roleLanes, stageLayouts, gatewayLayouts, transitionLayouts } = this._layout;
+    const { bounds, roleLanes, stageLayouts, gatewayLayouts, transitionLayouts, visualRouteLayouts } = this._layout;
     const isEmpty = stageLayouts.length === 0 && gatewayLayouts.length === 0;
     const dragPath: string | null = null;
 
@@ -1636,6 +2096,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     aria-labelledby=${headingId}
                     aria-describedby=${copyId}
                     data-prism-role-lane=${lane.key}
+                    data-prism-lane-container=${lane.key}
                     @focus=${() => this._announce(`${lane.label} lane. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`)}
                   >
                     <div class="lane-header" data-prism-lane-header=${lane.key}>
@@ -1653,11 +2114,21 @@ export class PrismWorkflowGraphElement extends LitElement {
                     <path d="M0,0 L0,6 L9,3 z" fill="#6b7280"></path>
                   </marker>
                 </defs>
+                ${visualRouteLayouts.map(layout => layout.path ? svg`
+                  <path
+                    class=${`edge-path route-rail ${layout.simulationPath ? 'simulation-path' : ''}`}
+                    d=${layout.path}
+                    marker-end="url(#graph-arrow)"
+                    data-prism-route-path=${layout.key}
+                    data-prism-route-from=${layout.fromKey}
+                    data-prism-route-to=${layout.toKey}
+                    data-prism-route-simulation-path=${String(layout.simulationPath)}
+                  ></path>
+                ` : nothing)}
                 ${transitionLayouts.map(layout => layout.path ? svg`
                   <path
                     class=${`edge-path ${layout.branch ? 'branch-path' : ''} ${layout.merge ? 'merge-path' : ''} ${this._selectedTransitionIndex === layout.index ? 'selected' : ''} ${this._transitionIsInSimulationPath(layout.index) ? 'simulation-path' : ''}`}
                     d=${layout.path}
-                    marker-end="url(#graph-arrow)"
                     data-prism-transition-path=${String(layout.index)}
                     data-prism-transition-from=${layout.visualFromKey}
                     data-prism-transition-to=${layout.visualToKey}
@@ -1689,6 +2160,8 @@ export class PrismWorkflowGraphElement extends LitElement {
               ${gatewayLayouts.map(layout => html`
                 <div
                   class="gateway-node-shell"
+                  data-prism-gateway-node=${layout.gateway.gatewayKey}
+                  data-prism-row-rank=${String(layout.rowRank)}
                   style=${`left:${layout.x}px;top:${layout.y}px;width:${layout.width}px;height:${layout.height}px;`}
                 >
                   <button
@@ -1713,6 +2186,8 @@ export class PrismWorkflowGraphElement extends LitElement {
               ${stageLayouts.map((layout, visualIndex) => html`
                 <div
                   class="stage-node-shell"
+                  data-prism-stage-card=${layout.stage.stageKey}
+                  data-prism-row-rank=${String(layout.rowRank)}
                   style=${`left:${layout.x}px;top:${layout.y}px;width:${layout.width}px;height:${layout.height}px;`}
                 >
                   <button
@@ -1754,6 +2229,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           : html`
               <ul class="workspace-empty-tips">
                 <li>Use <strong>Add stage</strong>, then name the lane owner that should own the work.</li>
+                <li><strong>Add the next stage before you branch</strong> — gateways always connect existing stages, never empty space.</li>
                 <li>Use the editor Help button or press <strong>F1</strong> to review shortcuts while you work.</li>
               </ul>
               <div class="workspace-empty-actions">

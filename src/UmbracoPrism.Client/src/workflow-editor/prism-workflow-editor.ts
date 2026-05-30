@@ -1566,6 +1566,32 @@ export class PrismWorkflowEditorElement extends LitElement {
                   <span class="status-chip">Help F1</span>
                   <span class="status-text">${this._historyStatusSummary}</span>
                 </div>
+                ${(() => {
+                  const errorCount = this._blockingValidationIssues.length;
+                  const warningCount = this._warningValidationIssues.length;
+                  const total = errorCount + warningCount;
+                  if (total === 0) return nothing;
+                  const summary = errorCount > 0 && warningCount > 0
+                    ? `${errorCount} error${errorCount === 1 ? '' : 's'} and ${warningCount} warning${warningCount === 1 ? '' : 's'} need attention.`
+                    : errorCount > 0
+                      ? `${errorCount} validation error${errorCount === 1 ? '' : 's'} need attention.`
+                      : `${warningCount} validation warning${warningCount === 1 ? '' : 's'} need attention.`;
+                  return html`
+                    <div
+                      class=${`canvas-health-hint ${errorCount > 0 ? 'is-error' : 'is-warning'}`}
+                      data-prism-canvas-health-hint
+                      role="status"
+                    >
+                      <span class="canvas-health-summary">${summary}</span>
+                      <button
+                        type="button"
+                        class="canvas-health-action"
+                        data-prism-open-validation
+                        @click=${() => { this._activeConfidenceTab = 'validation'; }}
+                      >Open Validation</button>
+                    </div>
+                  `;
+                })()}
                 <div class="sr-only" role="status" aria-live="polite">${this._historyAnnouncement}</div>
 
                 <prism-workflow-graph
@@ -1948,6 +1974,47 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     .status-text {
       color: #505a5f;
+    }
+
+    .canvas-health-hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #b1b4b6;
+      font-size: 0.875rem;
+      flex-shrink: 0;
+    }
+
+    .canvas-health-hint.is-error {
+      background: #fef2f2;
+      color: #7a1f1f;
+    }
+
+    .canvas-health-hint.is-warning {
+      background: #fff7e6;
+      color: #594400;
+    }
+
+    .canvas-health-summary {
+      font-weight: 600;
+    }
+
+    .canvas-health-action {
+      margin-left: auto;
+      background: #ffffff;
+      border: 2px solid currentColor;
+      color: inherit;
+      font-weight: 700;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .canvas-health-action:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 2px;
     }
 
     .graph-panel {

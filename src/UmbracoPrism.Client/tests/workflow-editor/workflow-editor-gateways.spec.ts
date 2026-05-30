@@ -21,8 +21,8 @@ test.describe('Workflow editor gateway representation', () => {
 
     await expect(splitGateway).toBeVisible();
     await expect(joinGateway).toBeVisible();
-    await expect(splitGateway).toHaveAttribute('data-prism-lane', 'public');
-    await expect(joinGateway).toHaveAttribute('data-prism-lane', 'public');
+    await expect(splitGateway).toHaveAttribute('data-prism-lane', 'applicant');
+    await expect(joinGateway).toHaveAttribute('data-prism-lane', 'applicant');
     await expect(splitGateway).toContainText('Review split');
     await expect(joinGateway).toContainText('Decision join');
   });
@@ -34,11 +34,11 @@ test.describe('Workflow editor gateway representation', () => {
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
 
-    await expect(storyEl.locator('.edge-path[data-prism-transition-from="review-split"]')).toHaveCount(2);
-    await expect(storyEl.locator('.edge-path[data-prism-transition-to="decision-join"]')).toHaveCount(2);
-    await expect(storyEl.locator('.edge-path.branch-path')).toHaveCount(2);
-    await expect(storyEl.locator('.edge-path.merge-path')).toHaveCount(2);
-    await expect(storyEl.locator('[data-prism-stage="draft"]')).toBeVisible();
+    await expect(storyEl.locator('.edge-path[data-prism-transition-from="review-split"]')).toHaveCount(3);
+    await expect(storyEl.locator('.edge-path[data-prism-transition-to="decision-join"]')).toHaveCount(3);
+    await expect(storyEl.locator('.edge-path.branch-path')).toHaveCount(3);
+    await expect(storyEl.locator('.edge-path.merge-path')).toHaveCount(3);
+    await expect(storyEl.locator('[data-prism-stage="start-request"]')).toBeVisible();
     await expect(storyEl.locator('[data-prism-stage="decision-confirmed"]')).toBeVisible();
   });
 
@@ -72,15 +72,19 @@ test.describe('Workflow editor gateway representation', () => {
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveCount(0);
   });
 
-  test('surfaces gateways in list mode as gateway rows', async ({ page }) => {
+  test('surfaces gateways as gateway nodes in the canvas matrix', async ({ page }) => {
+    // Slice 4 retired the linear "List view" mode. Gateway visibility is now proved
+    // by the canvas slot-matrix rendering each authored gateway as a node with the
+    // Split/Join kind attached.
     await page.setViewportSize({ width: 1440, height: 960 });
     await page.goto(graphStoryUrl());
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
 
-    await page.getByRole('button', { name: 'List view' }).click();
-    await expect(storyEl.locator('[data-prism-list-row][data-prism-row-type="gateway"]')).toHaveCount(2);
+    await expect(storyEl.locator('[data-prism-gateway]')).toHaveCount(2);
+    await expect(storyEl.locator('[data-prism-gateway-kind="Split"]')).toHaveCount(1);
+    await expect(storyEl.locator('[data-prism-gateway-kind="Join"]')).toHaveCount(1);
   });
 
   // ─── #84: Join gateways carry waiting information ─────────────────────────

@@ -4,21 +4,30 @@ import './prism-workflow-graph.js';
 import type { PrismWorkflowGraphElement } from './prism-workflow-graph.js';
 import { STUB_WORKFLOW } from './types.js';
 import type { AuthoredWorkflow } from './types.js';
+import { LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
   transitions: [...STUB_WORKFLOW.transitions],
 };
 
-const GATEWAY_WORKFLOW: AuthoredWorkflow = {
+const GATEWAY_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
+
+/**
+ * Same-lane fan-out — `start-request` branches twice inside the applicant
+ * lane through two distinct split gateways. The lane should widen to host
+ * both sibling slots; siblings must not stack on top of each other.
+ */
+const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
-  displayName: 'Planning Permission Gateway Draft',
+  definitionKey: 'leave-request-same-lane-fan-out',
+  displayName: 'Leave Request — Same-Lane Fan-Out',
   initialStageKey: 'draft',
   stages: [
     {
       stageKey: 'draft',
       displayName: 'Draft submission',
-      description: 'Capture the initial applicant draft before review starts.',
+      description: 'Capture the initial applicant draft before routing starts.',
       kind: 'Question',
       actor: 'public',
       actions: [],
@@ -26,9 +35,9 @@ const GATEWAY_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'applicant-amendments',
-      displayName: 'Applicant amendments',
-      description: 'Applicant lane work after the split.',
+      stageKey: 'collect-evidence',
+      displayName: 'Collect evidence',
+      description: 'Gather the supporting evidence for the next decision.',
       kind: 'Question',
       actor: 'public',
       actions: [],
@@ -36,19 +45,19 @@ const GATEWAY_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'reviewer-assessment',
-      displayName: 'Reviewer assessment',
-      description: 'Reviewer lane work after the split.',
+      stageKey: 'book-site-visit',
+      displayName: 'Book site visit',
+      description: 'Arrange a site visit before the decision is confirmed.',
       kind: 'Question',
-      actor: 'reviewer',
+      actor: 'public',
       actions: [],
       fields: [],
-      roleGates: ['reviewer'],
+      roleGates: [],
     },
     {
-      stageKey: 'decision-confirmed',
-      displayName: 'Decision confirmed',
-      description: 'The merged path continues here for the authored executable route.',
+      stageKey: 'ready-to-decide',
+      displayName: 'Ready to decide',
+      description: 'The single public lane continues after both routes are complete.',
       kind: 'Confirmation',
       actor: 'public',
       actions: [],
@@ -57,23 +66,31 @@ const GATEWAY_WORKFLOW: AuthoredWorkflow = {
     },
   ],
   transitions: [
-    { fromStage: 'draft', toStage: 'applicant-amendments', action: 'continue applicant branch', actions: [] },
-    { fromStage: 'draft', toStage: 'reviewer-assessment', action: 'start reviewer branch', actions: [] },
-    { fromStage: 'applicant-amendments', toStage: 'decision-confirmed', action: 'complete applicant branch', actions: [] },
-    { fromStage: 'reviewer-assessment', toStage: 'decision-confirmed', action: 'approve decision', requiresRole: 'reviewer', actions: [] },
+    { fromStage: 'draft', fromGateway: 'evidence-route', toStage: 'collect-evidence', action: 'collect evidence', actions: [] },
+    { fromStage: 'draft', fromGateway: 'site-visit-route', toStage: 'book-site-visit', action: 'book site visit', actions: [] },
+    { fromStage: 'collect-evidence', toGateway: 'decision-ready', toStage: 'ready-to-decide', action: 'evidence complete', actions: [] },
+    { fromStage: 'book-site-visit', toGateway: 'decision-ready', toStage: 'ready-to-decide', action: 'site visit complete', actions: [] },
   ],
   gateways: [
     {
-      gatewayKey: 'review-split',
-      displayName: 'Review split',
+      gatewayKey: 'evidence-route',
+      displayName: 'Evidence route',
       kind: 'Split',
       laneKey: 'public',
       actor: 'public',
       roleGates: [],
     },
     {
-      gatewayKey: 'decision-join',
-      displayName: 'Decision join',
+      gatewayKey: 'site-visit-route',
+      displayName: 'Site visit route',
+      kind: 'Split',
+      laneKey: 'public',
+      actor: 'public',
+      roleGates: [],
+    },
+    {
+      gatewayKey: 'decision-ready',
+      displayName: 'Decision ready',
       kind: 'Join',
       laneKey: 'public',
       actor: 'public',
@@ -269,6 +286,19 @@ export const GatewayRepresentation: Story = {
     await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(2);
     await expect(root.querySelector('[data-prism-gateway-kind="Split"]')).not.toBeNull();
     await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
+  },
+};
+
+export const SameLaneFanOut: Story = {
+  args: { workflow: SAME_LANE_FAN_OUT_WORKFLOW },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 140));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(2);
+    await expect(root.querySelector('[data-prism-gateway="decision-ready"]')).not.toBeNull();
   },
 };
 
