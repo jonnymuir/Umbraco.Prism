@@ -2826,3 +2826,2098 @@ Each slice keeps the pinned behavioural test list (per multi-lane design doc) gr
 1. Should the **proposal envelope patch service** survive on the server as the save mechanism (today it's how all writes commit), or do we want regular save/PUT semantics too? Recommendation: keep `ProposalEnvelope` as the apply protocol but drop the `preview` endpoint and the agentic narrative.
 2. Should **simulation** stay in the tab set, or is it also out of scope for this reset? Recommendation: keep — it's how authors prove a gateway flow works.
 3. Single global gateway-out-degree rule on **splits**: do we cap fan-out at the number of lanes, or allow same-lane sibling gateways? Recommendation: allow same-lane siblings (matches Isabelle's slot-matrix decision).
+
+
+---
+
+# User Directive (from copilot-directive-20260530-no-backoffice-editor.md)
+
+### 2026-05-30: User directive — no Umbraco backoffice editor, now or in future
+**By:** Jonny Muir (via Copilot)
+**What:** The workflow editor must NOT be hosted inside the Umbraco backoffice — not now, not later. The TestSite App_Plugins dashboard and any "drop it into the back office" recipe should be deleted. Boundary: TestSite (Umbraco v17 runtime) consumes published workflows at runtime; MockBusinessApp is the reference back office that hosts the authoring editor; UmbracoPrism.WorkflowEditor is the componentised library both consume.
+**Why:** User request — captured for team memory. This supersedes Brewster's "mount the editor as a native v17 web component" DX recommendation. Reviewer findings that depended on the in-backoffice path are now moot.
+
+
+
+---
+
+# User Directive (from copilot-directive-20260530T132645Z.md)
+
+### 2026-05-30T13:26:45+01:00: User directive — JSON twin-pane + visual regression coverage
+**By:** Jonny Muir (via Copilot)
+**What:**
+1. Add a fourth top-level editor tab containing an editable JSON editor for the AuthoredWorkflow document. Visual editor and JSON tab must stay in sync bidirectionally — changes in either propagate to the other; validation diagnostics surface when JSON is invalid or contradicts the schema.
+2. Before declaring the editor done, plan and implement simple, high-signal visual tests covering: (a) items fit inside their lane, (b) stages and gateways render cleanly without text crashing or nodes overlapping, (c) horizontal and vertical scrolling behave well, (d) arrows between stages/gateways are intuitive and legible, (e) add/maintain ergonomics for the author.
+3. Continue using Opus 4.7 for serious design/implementation work this session.
+**Why:** User request — captured for team memory and slice planning.
+
+
+
+---
+
+# Decision/Review: blathers-slice3a-gateway-only-model.md
+
+---
+author: blathers
+date: 2026-05-30T12:35:00+01:00
+status: applied
+area: workflow-editor-authoring
+confidence: high
+commit: a251bcd
+branch: squad/82-named-lanes-editor-slice
+---
+
+# Decision: Slice 3a — gateway-only authoring model locked on the server
+
+Per Jonny's 2026-05-30T11:05 directive answers and Tom Nook's scope-reset plan, the C# authoring contract is now stages + gateways only. This drop summarises the new validator rules, the `AuthoredTransition` rename, and migration guidance for any remaining callers.
+
+## Validator rules now in force
+
+The schema validator (`AuthoredWorkflowSchemaValidator.Validate`) enforces the canonical model with three numbered rules in the PROJ14x band:
+
+| Code | Trigger | Message |
+|------|---------|---------|
+| **PROJ140** | Stage carries the retired `"Waiting"` / `"StatusTimeline"` type token (case-insensitive) **or** any stage-level `"waiting"` payload on disk. | `Stage '{key}' cannot author waiting state. Waiting belongs on join gateways.` |
+| **PROJ141** | `transition.source` and `transition.target` are both stage keys. | `Transition '{src}' → '{dst}' is invalid. Route through a gateway instead of linking stages directly.` |
+| **PROJ142** *(new)* | `transition.source` is a gateway key **and** `transition.target` is a gateway whose `Kind == Split`. | `Transition '{src}' → '{dst}' is invalid. Gateways may only transition to a stage or to a join gateway.` |
+
+PROJ140 fires at the **JSON boundary**, not the typed object boundary: the `StageKind` enum no longer has `Waiting` or `StatusTimeline` members (Jonny's directive), so anything authored against them is deserialised as `StageKind.Question` and the original raw token is preserved on `AuthoredStage.LegacyKindRaw` for the validator to inspect. This means:
+
+- In-process construction `new AuthoredStage { Kind = StageKind.Waiting }` will **fail to compile** — there is no such enum value anymore. This is intentional.
+- JSON documents on disk with `"type": "Waiting"` still parse (no `JsonException`), but are guaranteed to produce PROJ140 and block projection.
+
+## `AuthoredTransition` rename
+
+Field rename (Jonny's directive: triggers/conditions live on the source gateway's outgoing route; transitions are an emergent property of routing):
+
+| Old | New |
+|-----|-----|
+| `FromStage` | `Source` |
+| `ToStage` | `Target` |
+| `Action` | `Trigger` |
+
+Three migration shims live on `AuthoredTransition`, all `[JsonIgnore]` and `[Obsolete("Use Source/Target/Trigger. Removed in next major.", error: false)]`:
+
+- `string FromStage` → wraps `Source`
+- `string ToStage` → wraps `Target`
+- `string Action` → wraps `Trigger`
+
+JSON read-side shims (`[JsonPropertyName("fromStage")]`, `("toStage")`, `("action")`) **remain in place** for forward compatibility with older authored documents on disk. The JSON write side now emits `source`/`target`/`trigger`.
+
+## Migration guidance for callers
+
+If you maintain code that touches `AuthoredTransition`:
+
+1. **Rename property access.** `t.FromStage` → `t.Source`, `t.ToStage` → `t.Target`, `t.Action` → `t.Trigger`. The shims still work but produce `CS0618` warnings; treat them as breakage on next major.
+2. **Object initialisers:** `new AuthoredTransition { FromStage = "a", ToStage = "b", Action = "submit" }` keeps compiling (init-only shim setters) but will eventually disappear. Switch to `Source`/`Target`/`Trigger`.
+3. **JSON documents on disk:** no action required. The reader still accepts `"fromStage"`/`"toStage"`/`"action"` JSON properties. New documents will write the new names.
+4. **DO NOT touch `WorkflowTransitionFile.Action`** in `UmbracoPrism.Shared` — that is the *runtime* transition contract and keeps its existing field names. The rename only applies to the *authoring* type.
+5. **`AuthoredHandoff.FromStage`/`ToStage` are unrelated** — that record models cross-actor handoffs and was not renamed.
+
+## Drops on the floor
+
+- `WaitingMetadata` survives but is now **join-gateway-only** (`AuthoredGateway.WaitingInfo`). The `AuthoredStage.Waiting` property is gone.
+- `WorkflowProjector.EmitWaitingComponents` is deleted. `WaitingComponent` itself stays in the Shared runtime package and is still emitted via the join-gateway path; only the stage-level shell route is removed.
+- `EmitUnknownKind` (which warns PROJ005 and defaults to a fieldset) is the catch-all for any unexpected `StageKind` value at projection time. This effectively never fires post-slice because the enum is now closed, but the safety net stays.
+
+## Simulator behaviour
+
+`WorkflowSimulationService` walks through `Split` gateways transparently (one author "step" = stage → split → next stage) and pauses at `Join` gateways with `StopReason = "waiting-gateway"`. Tested in the new `WorkflowSimulationServiceTests.cs`.
+
+## Verification
+
+- `dotnet build UmbracoPrism.sln`: 0W / 0E
+- `dotnet test ... --filter ~UmbracoPrism.Core.Tests`: **845 passed**, 0 failed, 0 skipped
+- Grep for `StageKind.Waiting` / `StageKind.StatusTimeline` in `src/`: zero hits
+- Grep for `.FromStage` / `.ToStage` / `.Action` on `AuthoredTransition` outside the shim definitions: zero hits
+
+## Open follow-ups (not blocking this slice)
+
+- Frontend types in `src/UmbracoPrism.Client/src/workflow-editor/` (Isabelle's lane) still need the matching rename to drop `fromStage`/`toStage`/`action` on the TS side. Tracked in her concurrent inspector/outline slice (`stash@{1}` at directive-time, popped concurrently).
+- Authoring-fixture `Handoff` records still carry `FromStage`/`ToStage` (different type, intentional).
+- Removing the `[Obsolete]` shims is a "next major" task — coordinate with any downstream consumers before deletion.
+
+
+
+---
+
+# Decision/Review: isabelle-slice3b-gateway-first-inspector.md
+
+---
+author: isabelle
+date: 2026-05-30T12:35:00+01:00
+status: proposed
+area: workflow-editor-inspector
+commit: b03ee38
+---
+
+# Decision: Slice 3b — Gateway-first inspector and outline authoring
+
+## Context
+
+Per Jonny's 2026-05-30T11:05 scope-reset directive (answer #1): triggers
+and conditions are authored on the **source gateway's outgoing-route
+affordance**, not on the target stage and not via a separate transition
+inspector tab. `StageKind.Waiting` is deleted outright; join gateways own
+waiting copy. Same-lane fan-out has no cap (answer #3).
+
+Slice 3a (Blathers) locks the server model. Slice 3b (this slice) brings
+the client inspector + outline into alignment so authors can see and edit
+routes through the gateway lens.
+
+## Decision
+
+### `prism-step-inspector.ts`
+- Drop `Waiting` from `STAGE_TYPE_OPTIONS`. Stage kinds now: form, review,
+  decision, confirmation, system-work.
+- Add `_routeDescriptor(transition)` — composes the rail
+  `fromStage › splitGateway › joinGateway › toStage` (nulls skipped) as a
+  single readable line, rendered as a `gateway-routing-hint` summary and
+  used in live-region announcements.
+- Add `_availableSplitGatewaysForStage(stageKey)` /
+  `_availableJoinGatewaysForStage(stageKey)` — derived from
+  `deriveGatewayBindings(workflow)` so the choices are exactly the
+  gateways already bound to that stage's outgoing/incoming routes.
+- Add explicit `fromGateway` / `toGateway` `<select>` controls in
+  `_renderTransition`, plus `_updateTransitionFromGateway` /
+  `_updateTransitionToGateway` handlers that mutate the transition and
+  announce the change.
+
+### `prism-workflow-outline.ts`
+- Group rows by lane via `_laneGroups()` (lane key from `stageLaneKey` or
+  `stage.actor` fallback). Each lane is a `<section>` with heading.
+- Nest split-gateway rows under their anchor stage via
+  `_splitGatewaysForStage(stageKey)`.
+- Emit a dedicated `outline-gateway-selected` CustomEvent — gateways are
+  first-class selectable nodes in the outline alongside stages.
+
+### `workflow-gateway-representation.ts`
+- `deriveGatewayBindings` now builds `explicitSplitBindings` /
+  `explicitJoinBindings` from any transition that carries `fromGateway` or
+  `toGateway`, and prefers those over heuristic anchor inference.
+- Authors who set the route's gateway explicitly get a stable binding that
+  does not drift when topology around it changes.
+
+## Caveat — partial fit on directive answer #1
+
+The "standalone transition inspector **tab**" is gone — selection is
+driven by the outline/canvas, not a tab strip. However triggers and
+condition mode (always / event / guard) are still edited inside
+`_renderTransition` (the per-transition inspector panel), not inside the
+gateway inspector. The directive's stricter reading is that selecting a
+Split gateway should reveal its outgoing routes as a list, each editable
+inline.
+
+**Recommended follow-up (Slice 3b.1):** relocate the
+condition-mode/condition-value/action controls into the gateway inspector
+as a list of outgoing-route rows, so the authoring entry point is
+"selected gateway → its outgoing routes", consistent with answer #1.
+
+## Accessibility notes
+
+- New `<select>` controls reuse the `.field-control` /
+  `<label class="field-block">` pattern with `prism-inline-help` tooltips:
+  keyboard reach and labelling are native.
+- Both selectors trigger `_announce(...)` live-region messages naming the
+  gateway, so screen-reader users get audible confirmation of the route
+  rebind.
+- Outline gateway rows currently rely on visible text; a follow-up should
+  add explicit `aria-label`s naming the gateway kind (Split / Join) and
+  its anchor stage to disambiguate when multiple gateways share an
+  anchor.
+
+## Validation
+
+- `npm run build` (client): clean.
+- `npm run build-storybook`: clean.
+- Playwright `workflow-editor-history.spec.ts` +
+  `workflow-editor-stage-preview.spec.ts`: 5/5 green.
+- Files modified: exactly the 3 from the stash; no bleed.
+- Commit: **b03ee38**.
+
+## Coordination
+
+- Pairs with Blathers' Slice 3a (server model lock). At commit time Slice
+  3a was still unstaged WIP in the working tree — my commit did not stage
+  any of his files.
+- Follow-up 3b.1 (gateway-inspector route list) is the right place to
+  fully satisfy directive answer #1.
+
+
+
+---
+
+# Decision/Review: isabelle-slice3d-a11y-polish.md
+
+---
+author: isabelle
+date: 2026-05-30T15:30:00+01:00
+status: review
+area: workflow-editor
+confidence: high
+branch: squad/82-named-lanes-editor-slice
+head: f133146 (slice 3b.1) → slice 3d
+---
+
+# Decision — Slice 3d a11y polish on gateway-first inspector and outline
+
+## Summary
+
+Five surgical fixes against Tangy's editor-reset A11y review
+(`.squad/decisions/inbox/tangy-editor-reset-a11y-test-review.md`) plus the
+two Playwright regression locks Tangy asked for. No backend changes.
+
+## Fixes landed
+
+1. **SHOULD-FIX #1** — outline transition row resolves gateway keys to display
+   names via a local `_gatewayLabel` helper (mirrors the inspector pattern).
+2. **SHOULD-FIX #2** — `_routeDescriptor` returns structured Lit markup with
+   decorative `→` glyphs wrapped in `<span aria-hidden="true">` and a
+   structured `aria-label` of the form
+   `"from {Stage}, via split gateway {Name}, via join gateway {Name}, to {Stage}"`.
+   Visible text unchanged.
+3. **IMPROVE #5** — `.outline-gateway-button` picks up the same 3px `#ffdd00`
+   `:focus-visible` outline rule the stage and transition buttons use.
+4. **IMPROVE #4** — gateway selection from the outline now announces
+   `"Selected gateway {Name}"` via `_announceHistory` (the existing polite live
+   region at the editor host). No new announcer introduced.
+5. **IMPROVE #3** — **picked option (a)**: nested gateway rows. Moved the
+   gateway buttons from a sibling `<div class="outline-gateway-row">` into a
+   real `<ul class="outline-gateway-list">` / `<li class="outline-gateway-item">`
+   children of the stage `<li>`. **Why (a) over (b):** the DOM hierarchy now
+   matches the conceptual ownership ("gateway belongs to stage"), no visible
+   regression (the renamed CSS rules preserve the original padding/background),
+   and authors get the implicit "this group belongs here" cue without an extra
+   string of meta copy that would have made the outline noisier. Keyboard
+   nav semantics and the focus ring carry over unchanged.
+
+## Verifications
+
+- **WORTH-NOTING #6** — confirmed `Waiting`/`StatusTimeline` are gone from
+  `prism-workflow-graph.ts` (Slice 3b.1 closed this). Spec
+  `workflow-stage-type-options.spec.ts` exists and is green.
+- **Tangy new #1** — `workflow-editor-outline-a11y.spec.ts` proves an author
+  changing a join gateway on a `decision-join` incoming route is announced via
+  `#inspector-announcer`. Also asserts the current select option label is
+  `"Decision join"` (display name), proving the picker itself speaks domain
+  language.
+- **Tangy new #2** — same spec asserts the outline DOM for the Draft stage's
+  outgoing transition row contains `"Review split"` and not `\breview-split\b`.
+
+## Validation
+
+- `npm run build` ✅
+- `npm run build-storybook` ✅
+- Playwright (gateways, outline-a11y, history, shell, stage-type-options,
+  transition-editor) — **18 pass / 4 pre-existing skips**
+
+## Out of scope (untouched)
+
+- `WorkflowSelection` union collapse — Slice 4
+- Canvas slot-matrix, read-only graph mode, JSON twin-pane, workflow-json
+  attribute, visual regression — Slices 4–7
+- Backend
+- Known-broken specs `workflow-editor-validation.spec.ts` and
+  `workflow-editor-help.spec.ts` — Slice 5
+
+## One non-obvious finding for Slice 4+
+
+`_availableJoinGatewaysForStage` filters joins by `binding.anchorStageKey ===
+toStage` (with a lane fallback when anchor is null). Because a join binding's
+`anchorStageKey` is the post-join target stage, joins are only offerable on
+routes that *land* at that target. You cannot add a previously-unset join to
+a route by editing the source side. If Slice 4 wants "pick a join from any
+branch route", that filter needs to widen (e.g., lane-key compare regardless
+of anchor) or a separate "attach to existing join" affordance on the split
+gateway inspector. This is why my Slice 3d test for IMPROVE #4 drives the
+*clear* path rather than a no-op re-set.
+
+
+
+---
+
+# Decision/Review: isabelle-slice4-visual-lock-and-public-surface.md
+
+# Slice 4 — visual lock + public surface declaration
+
+**Author:** Isabelle (Frontend / a11y)
+**Branch:** `squad/82-named-lanes-editor-slice`
+**Status:** ready for Scribe
+
+## What changed
+
+### Public surface — ONLY three elements
+
+The workflow editor bundle now declares its public API. Hosts (TestSite Razor pages, reference shell, Storybook, future Razor recipes) may consume these and only these:
+
+1. `<prism-workflow-editor>` — full authoring surface.
+2. `<prism-workflow-editor-shell>` — host harness (workflow picker, API base wiring, URL sync).
+3. `<prism-workflow-graph>` — vertical-lanes graph. **New:** accepts `read-only` + `workflow-json` for declarative read-only viewer embeds with no JS wiring.
+
+Every other custom element under `src/UmbracoPrism.Client/src/workflow-editor/` is now tagged `@internal` in JSDoc (`prism-step-inspector`, `prism-confidence-tabs`, `prism-help-panel`, `prism-stage-preview`, `prism-workflow-simulation`, `prism-workflow-outline`, `prism-workflow-action-editor`, `prism-inline-help`). Future slices may move, merge, or rename them without notice — consumers must not import them.
+
+API reference: `src/UmbracoPrism.Client/src/workflow-editor/README.md` (new).
+
+### Constraints reaffirmed (no change of direction)
+
+- **No backoffice editor.** Ever. TestSite is runtime-only; `App_Plugins/PrismWorkflowEditor/` has been deleted from `UmbracoPrism.TestSite`. Brewster's "mount editor as v17 web component" recommendation remains permanently rejected.
+- **Vertical lanes.** Non-negotiable. No orientation switcher exists in the code; the `vertical-lanes-switcher.spec.ts` (misleadingly named — there was no switcher to test) has been deleted.
+- **No linear mode.** ~600 lines of `GraphMode`, `LinearFilter`, drag-reorder, inline editors, `_renderLinear`, `_renderValidationSummary`, and the entire `allow-linear-mode` attribute pathway have been removed from `prism-workflow-graph.ts`. Bundle dropped from 337KB to 311KB.
+
+## Breaking changes
+
+| Area | Change | Migration |
+|------|--------|-----------|
+| `<prism-workflow-graph>` | `mode` and `allow-linear-mode` attributes removed. | Hosts must not set them. The graph is vertical-lanes always. |
+| `<prism-workflow-editor>` | `WorkflowSelection` union narrowed to `{kind:'stage'\|'gateway'} \| null` (was also `'transition'`). | Transitions are auxiliary highlight state via `_selectedTransitionIndex`, not first-class selection. Consumers that listened to `selection-change` already get a transition-free union. |
+| `UmbracoPrism.TestSite` | `App_Plugins/PrismWorkflowEditor/` (umbraco-package.json, web-components host, README) deleted. | TestSite remains runtime-only — runs published workflows via the standard `UmbracoPrism.WorkflowEditor` recipe, no backoffice dashboard. |
+| Internal elements | Eight previously-undocumented elements now bear `@internal` JSDoc. | If a host imported them directly, raise a Squad decision to promote a stable element. |
+| Test suite | `tests/workflow-editor/vertical-lanes-switcher.spec.ts` deleted (asserted behaviour that never existed in the code). | None. |
+
+## New affordances
+
+- `<prism-workflow-graph read-only workflow-json='...'>` renders a published workflow as a navigable, zoomable, screen-reader-friendly graph with **zero authoring affordances**: no Add stage / Add gateway HUD buttons, no dialogs, no context menus, no `workflow-updated` event, `aria-roledescription` = "viewer". `data-prism-read-only` attribute on the host plus `[read-only]` selector available for CSS overrides.
+- `GraphReadOnly` Storybook story under `prism-workflow-graph.stories.ts` demonstrates the declarative HTML embed.
+
+## Explicitly deferred
+
+The following items were considered and intentionally not done in this slice:
+
+- **TestSite Razor recipe for embedding `<prism-workflow-graph read-only>`** (Brewster's runtime-embed recommendation, scoped down). The element is ready; the recipe / docs example belongs in the next docs-walkthrough slice.
+- **JSON twin-pane editor view** (Slice 6). Out of scope.
+- **Visual regression baselines** for the read-only viewer (Slice 7).
+- **Canvas slot-matrix refactor** (Slice 5).
+- **Composition guide overhaul** beyond the new header link (Slice 8 / docs walkthrough).
+- **Removing the `[data-prism-canvas-health-hint]` validation spec assertion** (`tests/workflow-editor/workflow-editor-validation.spec.ts:8`). The assertion is a pre-existing failure on baseline `e113bbb` (verified identical with retry pattern); it was not introduced by Slice 4 and fixing it requires deciding whether to re-introduce a discoverable "open Validation" affordance — out of scope for visual lock.
+
+## Validation
+
+- `npm run build` ✅ (workflow-editor.js: 312.65 kB)
+- `npm run build-storybook` ✅
+- `dotnet build UmbracoPrism.sln` ✅ (0 W / 0 E)
+- Targeted Playwright suite: green except for the one pre-existing baseline failure noted above.
+
+
+
+---
+
+# Decision/Review: isabelle-slice5-canvas-slot-matrix.md
+
+# Isabelle — Slice 5: canvas slot-matrix layout
+
+**Date:** 2026-05-30
+**Branch:** `squad/82-named-lanes-editor-slice`
+**Owner:** Isabelle (frontend / a11y)
+
+## What changed
+
+The workflow canvas now lays nodes out as a **slot matrix** instead of the
+ad-hoc per-lane stack the editor inherited from the linear-mode era.
+
+### Layout primitives (`prism-workflow-graph.ts`)
+
+- `ROW_BAND_PITCH = 152` — vertical pitch between adjacent rank bands
+- `LANE_INSET = 28` — left/right inset inside a lane column
+- `SLOT_GAP = 56` — horizontal gap between sibling slots inside a lane
+- `GATEWAY_TRUNK = 36` — vertical trunk above/below a gateway diamond
+
+### Node ranking
+
+A pure adjacency graph is built from the authored gateway+transition
+metadata, then a Kahn topological sort assigns row-ranks. A parity step
+keeps stages on **even** ranks and gateways on **odd** ranks so the canvas
+always reads `stage → gateway → stage` top-to-bottom. Lane width
+auto-widens to the widest row band so siblings sit in distinct slot
+columns rather than stacking.
+
+### Routing
+
+Routes are now orthogonal Manhattan rails rendered as
+`[data-prism-route-path]` SVG paths (new Slice 7 hook), with sibling
+outgoing rails leaving on distinct x-corridors via `_slotOffset`.
+Transition chip paths still carry the existing
+`data-prism-transition-from/-to/-path` selectors so the chip-label
+interaction model is unchanged.
+
+## Invariants enforced (Playwright)
+
+`tests/workflow-editor/workflow-graph-layout-proof.spec.ts`:
+
+1. Lanes render as **separate vertical columns** (right < next.left,
+   height > width).
+2. **Same-lane fan-out** widens the lane and gives each branch its own
+   slot column — sibling routes do not stack.
+3. **Cross-lane fan-out** keeps the branch row aligned (≤24px y-delta)
+   between lanes, with the join gateway sitting strictly below all
+   branch stages and above the next downstream stage.
+4. **No overlap** between any pair of nodes across both gateway-rep and
+   same-lane-fan-out stories.
+5. **Every node sits inside its lane** (within ±2px tolerance) — no
+   bleeding over lane boundaries.
+
+## Other changes
+
+- `LEAVE_REQUEST_STARTER_WORKFLOW` + `cloneAuthoredWorkflow()` added to
+  `fixtures/index.ts` and reused by the gateway story in both the graph
+  and editor-host story files. New `SAME_LANE_FAN_OUT_WORKFLOW` story
+  feeds the slot-matrix proof.
+- `[data-prism-canvas-health-hint]` strip lives below the editor
+  statusbar; surfaces validation issue counts and an
+  `[data-prism-open-validation]` button that switches the confidence
+  tab to Validation. (Required by the validation rail spec.)
+- Empty-state copy now includes "Add the next stage before you branch"
+  in the tips list.
+- Retired the orphan `list mode displays stages in editable table…` test
+  and the screenshot-baseline tests (Slice 4 retired list mode; visual
+  regression is owned by Slice 7).
+
+## Deferred
+
+- **Slice 7 visual regression** — full screenshot baselines.
+- **JSON twin-pane editor** — outside scope.
+- **Outline `Move up/down` / `Alt+Arrow`** — already preserved in
+  `prism-workflow-editor.ts` outline rail; untouched by this slice.
+
+## Recommendation
+
+`stash@{0}` (`slice-5-canvas-slot-matrix`) was used as a design
+reference and is now superseded by this commit. **Recommend dropping
+the stash** at next session start (`git stash drop stash@{0}`) once a
+human confirms the Slice 5 work is merged.
+
+— Isabelle
+
+
+
+---
+
+# Decision/Review: isabelle-slice6-definition-tab.md
+
+# Slice 6 — JSON twin-pane Definition tab
+
+**Author:** Isabelle (Frontend/a11y)
+**Branch:** `squad/82-named-lanes-editor-slice`
+**Status:** Landed.
+
+## What shipped
+
+A new top-level **Definition** tab in `<prism-workflow-editor>` containing an
+editable JSON view of the current `AuthoredWorkflow`, synced bidirectionally
+with the visual editor. Author-facing copy uses "Definition" — the word
+"JSON" only appears in subcopy ("Power-user view…").
+
+## Library choice — CodeMirror 6 (not Monaco)
+
+Picked **CodeMirror 6** over Monaco:
+
+| Concern | CodeMirror 6 | Monaco |
+|---------|-------------|--------|
+| Bundle size | ~351 KB minified across CM modules | ~1 MB+ |
+| Shadow-DOM mounting | Mounts cleanly into a host `<div>` inside Lit's shadow root | Historically fights shadow DOM (styles, focus, web worker placement) |
+| Keyboard a11y | Built-in `defaultKeymap` + `historyKeymap` + linter | Built-in |
+| Modularity | Cherry-pick only what we need | Monolithic |
+| Maintenance | Active | Active |
+
+CM6 is loaded **dynamically** from `prism-definition-editor-codemirror.ts`
+the first time the Definition tab is activated (`_handleConfidenceTabChanged`
+calls `import('./prism-definition-editor.js')`, which itself triggers the
+CodeMirror chunk). Authors who stay on Canvas pay zero extra bytes.
+
+## Bundle delta
+
+| File | Before Slice 6 | After Slice 6 | Notes |
+|------|---------------|---------------|-------|
+| `workflow-editor.js` (main) | 321 KB | **335 KB** | +14 KB for canonical serializer, lint, host wiring |
+| `prism-definition-editor-*.js` | — | 4 KB | Element shell, statically importable |
+| `prism-definition-editor-codemirror-*.js` | — | 351 KB | **Code-split**, lazy-loaded |
+
+**Synchronous load: 335 KB — well under the 600 KB Slice budget.** Total
+including lazy chunk = ~690 KB, but only paid by power users who open the
+Definition tab. This honours Jonny's "the JSON pane is for power users;
+default flow stays visual" preference.
+
+## Apply / debounce model
+
+* Typing fires `definition-input` with the new text.
+* The host debounces **250 ms** before parsing.
+* On settling:
+  - **JSON valid + schema-clean** → `coerceParsedAuthoredWorkflow` →
+    `_commitWorkflowUpdate` (lands on the document-level undo stack) → polite
+    live-region announcement ("Definition updated. N stages, M gateways.").
+  - **Parse error** → banner shows the error + disabled "Apply when valid" +
+    enabled "Revert to current"; visual pane stays on last good state.
+  - **Schema violation** (retired `Waiting`/`StatusTimeline` kind, unnamed
+    gateway, duplicate keys, missing required fields) → same banner UX with
+    a human-readable summary.
+
+Schema/lint mirrors PROJ140/141/142: retired stage kinds are *rejected* in
+the Definition pane (the visual side silently rewrites `Waiting → Question`
+with a warning marker; the Definition pane refuses to apply so authors see
+exactly what the server would reject).
+
+## Undo coordination
+
+The directive: one undo step from either pane reverses the last logical
+change.
+
+* While the JSON is **dirty but not applied** (mid-typing, or invalid),
+  Ctrl/Cmd-Z stays local to CodeMirror's internal history (CM6's `history()`
+  extension).
+* Once a valid debounce **applies**, the change goes through
+  `_commitWorkflowUpdate` → the same `_undoHistory` stack the visual side
+  uses. A Ctrl/Cmd-Z from the Canvas tab toolbar reverses the JSON-applied
+  change; the host's `updated()` lifecycle then re-pushes the prior canonical
+  text into the Definition pane.
+
+Verified by the Playwright spec `Document-level undo from the visual side
+reverses a Definition-applied JSON edit`.
+
+## Canonical serialization
+
+`workflow-canonical-json.ts` exposes `serializeAuthoredWorkflow(w)` →
+deterministic JSON with:
+
+* Top-level keys ordered: `definitionKey`, `displayName`, `version`,
+  `schemaVersion`, `instancePolicy`, `initialStageKey`, `authorNote`,
+  `roles`, `stages`, `gateways`, `transitions`.
+* All nested keys sorted alphabetically.
+* 2-space indent.
+
+This stability prevents spurious diffs when the visual side commits — the
+editor only overwrites the JSON text when the canonical actually changed.
+
+## A11y
+
+* Tab is reachable via the existing roving-tabindex tab harness (arrow keys
+  cycle Canvas → Validation → Preview → Simulation → Definition → Help).
+* CodeMirror is keyboard-only navigable by default; the editor host carries
+  `aria-label="Workflow definition JSON editor"` and
+  `data-prism-definition-editor-input` for tests.
+* Diagnostics meet 4.5:1 contrast on white (`#b10e1e` border + `#fbeaec`
+  background for errors; `#594d00` border + `#fff4d3` background for
+  warnings).
+* Apply / Revert buttons sit in tab order (standard `<button>`).
+* Live region (`aria-live="polite"`) announces "Definition updated. N
+  stages, M gateways." after each successful apply, and "Definition reverted
+  to the current workflow." after Revert.
+
+## Out of scope / deferred
+
+* **Read-only at the editor-host level** — `<prism-definition-editor>` has
+  a `read-only` flag wired in but `<prism-workflow-editor>` doesn't yet
+  surface read-only mode. Slice 8 territory.
+* **Full JSON-Schema-driven linting from `authored-workflow.schema.json`** —
+  the schema lives on the server. The Definition pane runs the same
+  hand-coded checks the editor uses elsewhere (retired kinds, named
+  gateways, required top-level fields, duplicate keys). If we ever want
+  hover-doc support, we'd bundle the schema and switch to a schema-aware
+  linter. Not needed for this slice.
+* **Auto-fix suggestions** — banner only revert/apply for now. "Auto-fix"
+  could come later if authors complain.
+* **Visual regression / screenshot coverage** — Slice 7.
+* **Docs walkthrough overhaul** — Slice 8.
+
+## Tests
+
+`tests/workflow-editor/workflow-editor-definition-tab.spec.ts` — 7
+behavioural Playwright tests, all green:
+
+1. Definition tab shows the current workflow as JSON
+2. JSON rename → debounce → visual pane updates + live-region announcement
+3. Parse-error JSON → banner + Apply disabled + visual unchanged
+4. Schema-invalid JSON (`Waiting` kind) → banner + Apply disabled
+5. Visual change → Definition tab reflects within one tick
+6. Document-level undo from Canvas reverses an applied JSON edit
+7. Definition tab is keyboard-reachable and CodeMirror accepts keyboard input
+
+Full workflow-editor regression sweep: 61 passed (+ 11 pre-existing skipped,
+1 flaky on history that recovered on retry — pre-existing flake, not new).
+
+## Files
+
+New:
+* `src/UmbracoPrism.Client/src/workflow-editor/prism-definition-editor.ts`
+* `src/UmbracoPrism.Client/src/workflow-editor/prism-definition-editor-codemirror.ts`
+* `src/UmbracoPrism.Client/src/workflow-editor/workflow-canonical-json.ts`
+* `src/UmbracoPrism.Client/src/workflow-editor/workflow-definition-lint.ts`
+* `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-definition-tab.spec.ts`
+
+Modified:
+* `prism-confidence-tabs.ts` — added `definition` tab slot + button
+* `prism-workflow-editor.ts` — Definition state, sync wiring, render, styles
+* `package.json` / `package-lock.json` — CodeMirror 6 deps
+* `src/UmbracoPrism.Client/src/workflow-editor/README.md` — Definition
+  tab documentation
+
+
+
+---
+
+# Decision/Review: isabelle-slice7-5-visual-bug-fixes.md
+
+# Slice 7.5 — Clear the three visual bugs Tangy flagged in Slice 7
+
+**By:** Isabelle
+**Date:** 2026-05-30
+**Branch:** `squad/82-named-lanes-editor-slice`
+**Scope:** Three small visual regressions Tangy filed against Slice 7's
+canonical baselines. Pure frontend; no backend changes.
+
+## Summary
+
+Resolved the three visual regressions Tangy flagged in
+`.squad/decisions/inbox/tangy-slice7-visual-regression-strategy.md`
+(BUG-VR-1/2/3) before Slice 8 ships, and un-fixme'd the one Playwright
+spec that was held back as the canary for sticky lane headers.
+
+## Fixes landed
+
+### BUG-VR-2 — Stale "transitions" caption + dead `T` shortcut entry
+
+- **Where:** `src/workflow-editor/prism-workflow-graph.ts` (`.graph-hint`),
+  `src/workflow-editor/workflow-shortcuts.ts` (`add-transition`, `paste`).
+- **Change:** Replaced the caption with gateway-first author language:
+  *"Tab through role bands, stage cards, and gateway nodes. Enter selects
+  a node, E opens the inspector to edit it (including a gateway's
+  outgoing routes), and Shift+F10 opens the context menu."* No `T`
+  shortcut is mentioned because there isn't one any more.
+- **Dead-code cleanup:** removed the `add-transition` (`T = Create a
+  route`) entry from `WORKFLOW_SHORTCUT_GROUPS`. It was un-wired since
+  Slice 3b.1 retired transition creation; it only surfaced (misleadingly)
+  in the help dialog. Also retired "Selected stage or transition" → "…or
+  route" on the paste shortcut context. `grep` confirms no production
+  code or test references `add-transition`.
+
+### BUG-VR-3 — `MULTI_LANE_FAN_OUT` story height clipped the baseline
+
+- **Where:** `src/workflow-editor/prism-workflow-graph.stories.ts` →
+  `GatewayRepresentation`.
+- **Change:** Overrode `render` for this single story to set
+  `height: 1080px` (default from `makeElement` is 560px). The full
+  fan-out (start → split → 3-stage branch row → join → decision-confirmed)
+  now renders inside frame.
+- **Why per-story override:** bumping `makeElement` globally would
+  invalidate every layout-proof baseline outside Slice 7's suite — Tangy
+  explicitly avoided that path in Slice 7. The visual-suite specs that
+  share this story (`workflow-graph-layout-proof.spec.ts`) only assert
+  numeric DOM geometry — no screenshots — and pass unchanged.
+- **Baseline regen:** ran
+  `npx playwright test tests/workflow-editor/workflow-canvas-arrows.spec.ts
+  --update-snapshots`. Only `MULTI-LANE-FAN-OUT.png` updated;
+  `SINGLE-LANE-LINEAR` and `SAME-LANE-FAN-OUT` were byte-identical and
+  not rewritten. The new baseline was reviewed visually before commit.
+
+### BUG-VR-1 — Sticky lane headers
+
+- **Where:** `src/workflow-editor/prism-workflow-graph.ts` → `.lane-header`
+  CSS, plus `tests/workflow-editor/workflow-canvas-scroll.spec.ts` to
+  un-fixme the spec.
+- **Change:** `position: sticky; top: ${TOP_PADDING + 18}px; z-index: 5;
+  background: inherit;`. The `+ 18` matches the lane's `padding-top` so
+  the header's viewport position is **invariant** through scrolling
+  (`bbox.top` before == `bbox.top` after; measured drift: 0px after a
+  250px vertical scroll, well inside Tangy's 4px tolerance).
+- **z-index 5** keeps the sticky strip above stage cards and the
+  `<svg class="graph-edges">` sibling, neither of which set z-index.
+- **`background: inherit`** keeps the strip visually merged with its
+  parent lane variant (primary vs supporting) without redeclaring
+  colours.
+
+## Why "sticky `top: TOP_PADDING + 18px`" and not "sticky `top: 0`"
+
+The lane is `position: absolute; top: 64px` inside `.graph-viewport`,
+with `padding: 18px 20px`. The header's natural offset from the scrolling
+ancestor (`.graph-canvas`) is therefore 82px. If sticky were `top: 0`,
+the header would *jump 82px up* on first scroll — visually jarring and
+breaks any "header position unchanged" assertion. Setting `top: 82px`
+keeps the header anchored at its own initial position, so scrolling
+content slides under a header that doesn't move. This is the UX the user
+called out ("horizontal and vertical scrolling works well") and the
+contract Tangy's spec measures.
+
+## Verification
+
+- `tests/workflow-editor/` Playwright sweep (Chromium, viewport 1440×900):
+  **88 passed, 11 skipped** (was 87/12; the un-fixme'd
+  `LARGE_WORKFLOW: lane header strip stays sticky during vertical scroll`
+  now passes). 0 unexpected failures.
+- `npm run build` ✅, `npm run build-storybook` ✅,
+  `dotnet build UmbracoPrism.sln` ✅ (0 warnings, 0 errors).
+- All three new baselines from Slice 7 still hold; only
+  `MULTI-LANE-FAN-OUT.png` was regenerated (intentional, BUG-VR-3).
+
+## Out of scope (deliberately not touched)
+
+- Slice 8 — docs / write-surface consolidation.
+- Any backend changes.
+- The 11 remaining `test.fixme` markers across `workflow-editor-shell`,
+  `workflow-overflow-responsive`, etc. — they target separate behavioural
+  hooks Isabelle has not yet built and are not part of Slice 7's contract.
+- Implementation-level `'transition'` identifiers inside `prism-step-inspector`
+  / wire-fields — already parked under Slice 3b.2 (`WorkflowSelection`
+  union collapse).
+
+
+
+---
+
+# Decision/Review: tangy-slice7-visual-regression-strategy.md
+
+# Slice 7 — Visual regression strategy + opening suite
+
+**By:** Tangy
+**Date:** 2026-05-30
+**Branch:** `squad/82-named-lanes-editor-slice`
+**Scope:** Visual test strategy for the workflow editor canvas + opening
+  implementation set.
+
+## Summary
+
+Landed the visual regression test strategy doc and the opening implementation
+set the user mandated on 2026-05-30 (`copilot-directive-20260530T132645Z.md`,
+concern 2). The suite covers the five user-named concerns with deliberately
+few, sharp tests — DOM geometry first, screenshots only where a human eye
+genuinely catches things geometry doesn't.
+
+## Deliverables landed
+
+- **Strategy doc:** `docs/testing/workflow-editor-visual-tests.md` — names
+  the five concerns, what is explicitly out of scope (cross-browser, pixel
+  styling), tooling, baseline management, flake budget (0%), the four
+  canonical scenarios, and the data-attribute contract the suite leans on.
+- **Implementation:** six new spec files under
+  `src/UmbracoPrism.Client/tests/workflow-editor/`:
+  - `workflow-canvas-lane-fit.spec.ts` (4 tests — one per scenario)
+  - `workflow-canvas-no-overlap.spec.ts` (4 tests)
+  - `workflow-canvas-text-fits.spec.ts` (4 tests)
+  - `workflow-canvas-scroll.spec.ts` (4 tests, one fixme — see below)
+  - `workflow-canvas-arrows.spec.ts` (4 DOM endpoint tests + 3 screenshot
+    baselines covering SINGLE_LANE_LINEAR, MULTI_LANE_FAN_OUT,
+    SAME_LANE_FAN_OUT — LARGE_WORKFLOW is covered by DOM scroll specs)
+  - `workflow-editor-ergonomics.spec.ts` (3 tests)
+- **Shared helpers:** `tests/workflow-editor/support/canvas-helpers.ts`
+  with the `CANONICAL_SCENARIOS` registry, `measureGraph()`, and
+  `gotoCanonicalScenario()`. Pinned `viewport: 1440x900` for all visual
+  specs.
+- **New canonical scenario:** `LargeWorkflow` story
+  (`workflow-editor-workflow-graph--large-workflow`) — synthetic
+  5-lane × 8-stage workflow used by scroll + invariant specs.
+- **Screenshot baselines:**
+  `tests/__screenshots__/workflow-editor/workflow-canvas-arrows.spec.ts/{SINGLE-LANE-LINEAR,MULTI-LANE-FAN-OUT,SAME-LANE-FAN-OUT}.png`,
+  each at 1440×900 with `animations: 'disabled'` and
+  `maxDiffPixelRatio: 0.02`.
+- **README:** `src/UmbracoPrism.Client/src/workflow-editor/README.md`
+  gained a Visual testing section pointing at the strategy doc and
+  listing the data-attribute contract.
+
+## Test count delta
+
+| Surface | Before | After | Delta |
+|---|---|---|---|
+| Visual specs (this slice) | 0 | 26 (25 passing + 1 fixme) | +26 |
+| Pre-existing workflow-editor specs (sampled) | green | green | 0 |
+
+The suite passes twice in a row with no flake. All screenshot specs use
+`animations: 'disabled'` and wait for `networkidle` before snapping.
+
+## Visual bugs flagged for follow-up
+
+These were discovered by running the new suite against current `HEAD`
+(3ca28a4) on `squad/82-named-lanes-editor-slice`. None of them blocks
+landing this slice; all should be fixed by **Isabelle** before Slice 8
+ships, because they directly contradict the user's mandate language.
+
+### 🟥 BUG-VR-1 — Lane headers are not sticky during vertical scroll
+
+**Where:** `prism-workflow-graph.ts`, `.lane-header` selector
+(`[data-prism-lane-header]`).
+
+**Evidence:** `workflow-canvas-scroll.spec.ts` →
+`LARGE_WORKFLOW: lane header strip stays sticky during vertical scroll`
+(currently `test.fixme`). Computed style is `position: static`; after
+a 250 px vertical scroll inside `.graph-canvas` the lane header drifts
+exactly 250 px out of view.
+
+**Why it matters:** The user explicitly called out scroll behaviour
+("horizontal and vertical scrolling works well"). Without sticky lane
+headers, an author scrolling a tall workflow loses track of which lane
+owns the work currently in view — that breaks the *primary* reason lanes
+exist as a reading device.
+
+**Suggested fix:** `position: sticky; top: 0; z-index: 2;` on
+`.lane-header` (inside `.graph-canvas`'s overflow context). When the
+fix lands, flip `test.fixme` → `test` in the scroll spec.
+
+### 🟧 BUG-VR-2 — Stale "transitions" language in the canvas instruction caption
+
+**Where:** Canvas help caption above the graph scene (visible in every
+canonical screenshot). Reads:
+
+> "Tab through role bands, stage cards, transition chips, and transition
+> handles. Enter selects, T opens transition creation, E opens the
+> inspector, and Shift+F10 opens the context menu."
+
+**Why it matters:** Slices 3a/3b/3c collapsed the editor to
+**stages + gateways** and explicitly retired user-facing "transitions"
+language. "T opens transition creation" is a keyboard hint that no
+longer matches what the editor does (gateways are the routing primitive
+now). This is a label-leak regression visible to every author who opens
+the canvas.
+
+**Suggested fix:** Update the caption to talk about *stages* and
+*gateways*. Cross-check `workflow-shortcuts.ts` for any remaining
+"T = transition" binding and either retire it or rename it to "G = new
+gateway" if a single-key shortcut for routing is still wanted.
+
+### 🟨 BUG-VR-3 — `MULTI_LANE_FAN_OUT` canonical layout starts below the fold in a 560 px story
+
+**Where:** `prism-workflow-graph.stories.ts` story height
+(`height:560px`) vs the `LEAVE_REQUEST_STARTER_WORKFLOW` shape.
+
+**Evidence:** `MULTI-LANE-FAN-OUT.png` baseline shows only the
+`start-request` stage and the top half of the `review-split` gateway —
+the reviewer lane is empty in the visible viewport because the
+reviewer-assessment stage sits below the fold.
+
+**Why it matters:** Authors opening the canonical "real workflow" story
+see only one stage on initial render. Not a runtime bug, but it makes
+both the demo and the screenshot baseline less informative.
+
+**Suggested fix (Isabelle or Tom Nook to route):** either bump the
+graph stories' default `height` to ~800 px, or rearrange the fixture so
+the first row of every lane is visible at 560 px. I deliberately did
+**not** edit the story height in this slice — it would invalidate
+every existing layout-proof baseline outside the new suite.
+
+## Data-attribute contract the visual suite now depends on
+
+| Attribute | Purpose |
+|---|---|
+| `data-prism-component="workflow-graph"` | Graph root marker |
+| `data-prism-mode="graph"` | Workspace mode |
+| `data-prism-read-only="true|false"` | Read-only viewer |
+| `data-prism-lane-container=<laneKey>` | Lane bounding box |
+| `data-prism-lane-header=<laneKey>` | Sticky-header scroll spec |
+| `data-prism-stage-card=<stageKey>` | Stage bounding box |
+| `data-prism-stage=<stageKey>` | Stage click target / label container |
+| `data-prism-gateway-node=<gatewayKey>` | Gateway bounding box |
+| `data-prism-gateway=<gatewayKey>` | Gateway click target / label container |
+| `data-prism-route-path=<key>` | SVG route path (endpoint assertion) |
+| `data-prism-route-from=<key>` / `data-prism-route-to=<key>` | Route endpoint mapping |
+
+Listed for the Scribe so the contract makes it into `decisions.md`.
+
+## What's intentionally *not* in this slice
+
+- Cross-browser (Firefox/WebKit) snapshots — Chromium only.
+- A screenshot baseline for `LARGE_WORKFLOW` — covered by DOM scroll
+  specs; a long thin scrollable image would dominate the baseline
+  budget for low signal.
+- Re-introduction of the retired Umbraco backoffice editor.
+- Any backend changes.
+- Fixes for BUG-VR-1/2/3 — those are flagged for Isabelle (or the
+  coordinator to route) before Slice 8.
+
+## Suggested coordinator routing
+
+1. Route **BUG-VR-1** (sticky lane headers) and **BUG-VR-2** (stale
+   transitions caption) to Isabelle as a small Slice 7.5 / pre-Slice 8
+   fix. Both are small, both directly improve author trust in the canvas.
+2. Route **BUG-VR-3** at the same time if you want the canonical
+   screenshot baseline to be more representative; otherwise it can wait.
+3. Once BUG-VR-1 lands, flip `test.fixme` → `test` in
+   `workflow-canvas-scroll.spec.ts`.
+
+
+
+---
+
+# Decision/Review: blathers-slice8a-write-surface-consolidation.md
+
+---
+author: blathers
+date: 2026-05-30T18:00:00+01:00
+status: proposed
+area: workflow-editor
+confidence: high
+scope: implementation
+branch: squad/82-named-lanes-editor-slice
+slice: 8a
+---
+
+# Slice 8a — Write surface consolidated + ProposalEnvelope relaxed
+
+Closes the two related backend findings from Tom Nook's editor-reset review
+(`tom-nook-editor-reset-review.md`, WORTH-NOTING items on the three write
+endpoints and the load-bearing agentic envelope).
+
+## Decision
+
+### Endpoint surface — three doors → two
+
+| Route | Status | Purpose |
+| --- | --- | --- |
+| `POST /api/workflow-authoring/workflows/{key}/publish` | **Kept (canonical direct save)** | Persist a complete `AuthoredWorkflow` and re-publish the runtime definition. Use this for whole-document saves from the editor or any non-agentic integrator. |
+| `POST /api/workflow-authoring/workflows/{key}/apply` | **Kept (envelope-mediated save)** | Apply a `ProposalEnvelope`'s `PatchOps` to the stored workflow, persist, re-publish, and write a provenance record. Use this when you need diff-shaped operations and an audit trail. |
+| `POST /api/workflow-authoring/workflows/{key}/save` | **Retired** | Used to be a behavioural alias for `/publish` — same handler, same code path. Removed in Slice 8a; callers must migrate to `/publish`. |
+
+The duplicate `/publish` route-header comment block that previously labelled
+both `/save` and `/publish` was also fixed.
+
+### `ProposalEnvelope` shape
+
+Required fields (unchanged):
+
+- `Id : Guid` — provenance audit
+- `CreatedAt : DateTimeOffset` — provenance audit
+- `TargetWorkflowId : string`
+- `Ops : IReadOnlyList<PatchOp>` — must be **non-empty** at `/apply` (new 400 case)
+
+Now optional:
+
+- `Agent : PatchAgent?` — when omitted, `/apply` synthesises
+  `new PatchAgent { Kind = "human-assisted", Identity = <authenticated principal> }`.
+- `Rationale : string?` — accepts `null` or empty.
+
+`PatchAgent.Kind` is no longer a closed vocabulary. The historical labels
+(`github-copilot`, `custom-agent`, `human-assisted`) still work but any
+non-blank string is accepted. The endpoint:
+
+- rejects whitespace-only `Kind` (when an agent is supplied) with 400,
+- continues to cross-stamp `Kind == "human-assisted"` against the calling
+  principal (this is the security guarantee from Slice 3c, preserved).
+
+### `/apply` validation order
+
+1. Safe workflow key (`^[a-zA-Z0-9_-]+$`) → 400.
+2. Parseable request body → 400.
+3. `envelope.ops` non-empty → 400 *(new in 8a)*.
+4. Authenticated approver resolvable → 401.
+5. Agent kind non-blank / cross-stamp match → 400.
+6. Workflow exists → 404.
+
+## Breaking changes for integrators
+
+- **`POST /api/workflow-authoring/workflows/{key}/save` is gone.** Integrators
+  must POST to `/publish` (same request body, same response shape). The
+  TypeScript SDK (`workflow-authoring-client.ts`) was already on `/publish`,
+  so no SDK rename is needed.
+- **`/apply` with empty `ops` now returns 400.** Previously this was a silent
+  no-op apply. Whole-document saves must move to `/publish`.
+
+## Additive (not breaking)
+
+- `ProposalEnvelope.Agent` and `Rationale` becoming nullable is wire-compatible
+  with every existing caller — payloads that still send them keep working.
+- `PatchAgent.Kind` accepting free-form strings is wire-compatible with the
+  three historical labels.
+
+## Deferred
+
+- `WorkflowPatchService` covert insert (Copper MEDIUM) — separate slice.
+- `WorkflowRuntimeEngine` join-arrival forgery (Copper MEDIUM) — separate slice.
+- Multi-tenant scoping — V1 is single-tenant by directive.
+- Docs refresh (`docs/walkthroughs/*`, `docs/guides/*`,
+  `docs/design/workflow-editor-v1/*`) — Mabel owns this in Slice 8b.
+
+## Validation
+
+- `dotnet build UmbracoPrism.sln -c Release` — clean (0 warnings, 0 errors).
+- `dotnet test … --filter FullyQualifiedName~UmbracoPrism.Core.Tests.Workflow.Authoring`
+  — 147/147 passed (143 prior + 4 new in `WorkflowAuthoringApplyRelaxationTests`).
+- Full Core suite: 860 passed / 6 pre-existing manifest failures unchanged
+  (`WorkflowEditorManifestTests.*` — missing `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/`
+  assets, unrelated to this slice).
+- `npm run build` in `src/UmbracoPrism.Client` — green (workflow-editor bundle
+  rebuilt).
+- Playwright editor specs not re-run — no frontend changes landed (the SDK
+  client was already targeting `/publish`).
+
+## Files touched
+
+```
+src/UmbracoPrism.WorkflowEditor/Authoring/ProposalEnvelope.cs                            (M)
+src/UmbracoPrism.WorkflowEditor/Extensions/WorkflowEditorEndpointExtensions.cs           (M)
+src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringEndpointsTests.cs        (M)
+src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringEndpointSecurityTests.cs (M)
+src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringApplyRelaxationTests.cs  (A)
+```
+
+
+
+---
+
+# Decision/Review: mabel-slice8b-docs-sweep.md
+
+---
+date: 2026-05-30T17:30:00+01:00
+agent: mabel
+area: workflow-editor
+branch: squad/82-named-lanes-editor-slice
+parent: copilot-directive-20260530T095311Z.md
+status: shipped — scope-reset arc closed
+---
+
+# Slice 8b — Documentation sweep + obsolete manifest tests deleted
+
+Closes out the workflow editor scope-reset sequence (Slices 1–8). Aligns all
+public docs with the post-reset reality and removes the last pre-reset test
+regressions left over from Slice 4.
+
+## What changed
+
+### Package 1 — Banners on historical design docs
+
+- **`docs/design/workflow-editor-v1/04-agentic-surfaces.md`** — added "Status:
+  Historical" banner. Whole doc subject (proposal-diff modal, conversation pane,
+  chat drafter) was retired. Content preserved for archaeology.
+- **`docs/design/workflow-editor-v1/03-umbraco-integration.md`** — added
+  "Status: Historical" banner. The Umbraco backoffice mount (section, sidebar
+  app, dashboard, `App_Plugins/PrismWorkflowEditor`) was retired in Slice 4.
+  Points readers at the new `authoring-a-workflow.md` and the composition
+  guide for current integration guidance.
+- **`docs/design/workflow-editor-v1/01-authoring-ux.md`** — added a narrower
+  "Status note" at the top calling out that the AI help / proposal diff
+  sections (§15, §16) are historical, while the rest of the doc still
+  describes today's editor.
+- **`docs/design/workflow-editor-v1/README.md`** — added a partly-historical
+  banner identifying Brewster's integration doc and Tangy's agentic doc as
+  retired, and reframed the authors list accordingly.
+
+### Package 2 — Walkthrough rewrite
+
+- **`docs/walkthroughs/authoring-a-workflow.md`** — fully rewritten as an
+  Umbraco integrator recipe. New order:
+  1. Packages (`UmbracoPrism`, `UmbracoPrism.WorkflowEditor`,
+     `UmbracoPrism.WorkflowRuntime`) — honest about which ship on NuGet today
+     vs which are in-repo references.
+  2. DI: `AddPrismWorkflowEditor(...)` + the **WorkflowAuthor** policy
+     (Blathers' Slice 3c — failure to register returns 500 at startup; approver
+     is bound to the authenticated principal and cannot be set in the body).
+  3. Doctypes (MockBusinessApp reference only — no schema prescription).
+  4. Route-hijack `PrismWorkflowPageController<T>` with TestSite's
+     `WorkflowPageController` as the worked example.
+  5. Razor templates (TestSite examples).
+  6. **Where to host the editor** — plain statement of the load-bearing
+     boundary: editor lives in the business app (MockBusinessApp is the
+     reference), never in the Umbraco backoffice or TestSite. Read-only
+     viewer is the only Razor-side mount.
+  7. Open and use the editor — pointer to `planning-workflow-editor.md`.
+- **`docs/walkthroughs/planning-workflow-editor.md`** — rewrote the overview
+  to lead with vertical-lanes + slot-matrix language and to state plainly
+  there is no chat / proposal-diff surface in the editor (external MCP
+  client). Renamed Step 2 from "Graph view" to "Canvas shows the planning
+  application stages in vertical lanes". Added **Step 10 — Open the
+  Definition tab for the JSON view**, describing bidirectional sync, invalid
+  JSON behaviour, and pointing at Isabelle's component README for sync rules.
+  Editor mount location explicitly re-asserted as MockBusinessApp / not in
+  the Umbraco backoffice.
+- **`docs/walkthroughs/README.md`** — rewrote the two walkthrough blurbs:
+  `authoring-a-workflow.md` is now described as the integrator recipe;
+  `planning-workflow-editor.md` is the editor tour. Removed "proposal diffs"
+  reference.
+
+### Package 3 — composition.md alignment + cross-cutting sweep
+
+- **`docs/guides/workflow-editor-composition.md`**:
+  - Rewrote the top callout. Old text said "editor is runtime-only — never
+    in the backoffice"; new text states that the editor lives in your
+    business app (MockBusinessApp is the reference), not in the Umbraco
+    backoffice and not in TestSite. Read-only viewer is the only public-page
+    embed.
+  - Added **Read-only public viewer** subsection with the `read-only` +
+    `workflow-json` attributes explained, plus a one-line Razor example
+    using `@Html.Raw(workflowJson)`. Explicit boundary reminder: the
+    authoring editor must not be mounted from Razor or the backoffice.
+  - Added **Definition tab (JSON view)** pointer (Slice 6) — bidirectional
+    sync description, points at Isabelle's component README for the
+    canonical rules.
+  - Added **Visual testing** pointer (Slice 7) linking to
+    `docs/testing/workflow-editor-visual-tests.md`.
+- **Grep sweep across `docs/` and `README.md`** for the directive's
+  retired-symbol list: `conversation pane`, `proposal diff`, `MockDrafter`,
+  `preview endpoint`, `prism-proposal-diff`, `IWorkflowPreviewService`,
+  `StageKind.Waiting`, `StageKind.StatusTimeline`,
+  `App_Plugins/PrismWorkflowEditor`, `/api/workflow-authoring/.../save`,
+  body-side `approver`. Only one stale survivor outside the design docs:
+  the editor walkthrough blurb in `docs/walkthroughs/README.md` — fixed
+  above. The lone `"waiting"` survivor in `docs/guides/workflow-setup.md`
+  is the **runtime forms-engine** step type (still alive), not the retired
+  editor stage kind — left in place.
+
+### Package 4 — Delete obsolete manifest tests
+
+- Deleted **`src/UmbracoPrism.Core.Tests/WorkflowEditorManifestTests.cs`**.
+  Six tests asserted the existence of
+  `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/` files that
+  Slice 4 deleted; they were the entire pre-reset backoffice-mount
+  regression surface. No companion fixtures to delete.
+- No other test file referenced `WorkflowEditorManifest`.
+
+## Verification
+
+- `dotnet build UmbracoPrism.sln -c Release` → 0 warnings, 0 errors.
+- `dotnet test UmbracoPrism.sln -c Release --filter
+  "FullyQualifiedName~UmbracoPrism.Core.Tests"` →
+  **Passed: 860, Failed: 0, Skipped: 0, Total: 860** (was 860/866 with 6
+  pre-existing failures at Slice 8a baseline).
+- `cd src/UmbracoPrism.Client && npm run build` → clean. Bundle sizes
+  unchanged (workflow-editor.js 334.87 kB; CodeMirror chunk 351.02 kB
+  on-demand).
+- Playwright editor specs not re-run (no code touches expected; Tangy's
+  Slice 7/7.5 baseline of 88 passed / 11 skipped stands).
+
+## Scope-reset arc — closed
+
+Slices 1 through 8 are complete. The workflow editor now:
+
+- ships as web components (3 public elements) consumed by a separate
+  business app (MockBusinessApp is the reference);
+- is **not** mounted in the Umbraco backoffice — that boundary is documented
+  in `authoring-a-workflow.md`, `planning-workflow-editor.md`,
+  `workflow-editor-composition.md`, and the component README;
+- exposes a read-only viewer (`<prism-workflow-graph read-only>`) for
+  public Razor pages, and only the viewer is acceptable as a Razor embed;
+- has a JSON Definition tab synced with the canvas (Slice 6);
+- has a visual regression suite covering canvas reading-level concerns
+  (Slice 7) plus follow-up fixes (Slice 7.5);
+- has a consolidated write surface (`/publish` canonical; `/save` retired;
+  approver derived from principal, Slices 3c + 8a);
+- has docs that lead with integration wiring, not editor UX (this slice).
+
+No further scope-reset work outstanding.
+
+## Files changed
+
+```
+M  docs/design/workflow-editor-v1/01-authoring-ux.md
+M  docs/design/workflow-editor-v1/03-umbraco-integration.md
+M  docs/design/workflow-editor-v1/04-agentic-surfaces.md
+M  docs/design/workflow-editor-v1/README.md
+M  docs/guides/workflow-editor-composition.md
+M  docs/walkthroughs/README.md
+M  docs/walkthroughs/authoring-a-workflow.md   (full rewrite)
+M  docs/walkthroughs/planning-workflow-editor.md
+D  src/UmbracoPrism.Core.Tests/WorkflowEditorManifestTests.cs
+```
+
+
+
+---
+
+# Decision/Review: isabelle-slice3b1-gateway-first-route-editing.md
+
+---
+author: isabelle
+date: 2026-05-30T15:30:00+01:00
+status: proposed
+area: workflow-editor-inspector, workflow-editor-client-wire
+---
+
+# Decision: Slice 3b.1 — Gateway-first route editing + closed TS stage-kind
+
+## Context
+
+Follows Slice 3b. Per the named-lanes editor brief and Jonny's
+scope-reset directive, transition editing is **only** allowed via the
+source gateway's outgoing-route panel; transition creation is removed
+from the canvas entirely (no drag-handle, no context-menu item, no `'t'`
+shortcut, no list-view row-action). In parallel, the TS `StageKind`
+enum is closed to four canonical values and the outbound transition
+wire payload is renamed to the canonical `source`/`target`/`trigger`
+shape that mirrors xstate/BPMN vocabulary.
+
+## Decision
+
+### Package A — Gateway-first route editing
+
+- **`prism-step-inspector.ts`**: deleted the standalone `transition`
+  selection branch (`_renderTransition`, `_availableSplitGatewaysForStage`,
+  eight `_updateTransition*` handlers, `_deleteSelectedTransition`,
+  `_updateSelectedTransitionActions`, the `transition` `render()`
+  branch, and the `selectedTransitionIndex` property). Added a new
+  outgoing-routes panel rendered inside `_renderGateway` via
+  `_renderGatewayOutgoingRoutes(gateway, binding)` →
+  `_renderRouteEditor(transition, transitionIndex)`. Each route row
+  carries `data-prism-route-index="${idx}"` on every input, so a single
+  set of `_updateRoute*` handlers reads the index from
+  `event.currentTarget`. New attribute conventions
+  (`data-prism-gateway-route`, `data-prism-route-target`,
+  `data-prism-route-label`, `data-prism-route-action`,
+  `data-prism-route-target-select`, `data-prism-route-to-gateway`,
+  `data-prism-route-role`, `data-prism-route-condition-mode`,
+  `data-prism-route-condition-value`, `data-prism-route-delete`,
+  `data-prism-route-descriptor`) replace the now-deleted
+  `data-prism-transition-*` family.
+
+- **`prism-workflow-graph.ts`**: deleted `CreateTransitionDialogState`,
+  `_dragTransition`, `_createTransitionDialog`,
+  `_openCreateTransitionDialog`, `_openCreateTransitionFromStage`,
+  `_closeCreateTransitionDialog`, `_submitCreateTransition`,
+  `_handleWindowPointerMove/Up`, `_startTransitionDrag`,
+  `_stageKeyAtClientPoint`, `_scenePointFromClient`,
+  `_renderCreateTransitionDialog`, the `transition-handle` button +
+  drag-target class, the `add-transition` context-menu item, the
+  keyboard `'t'` shortcut, the list-view "Add transition" row-action,
+  and the connected/disconnected pointer listeners. The list-view kind
+  `<select>` and create-stage dialog `<option>`s are trimmed to the
+  closed StageKind set (Question / CheckAnswers / Confirmation /
+  TaskList).
+
+- **`prism-workflow-editor.ts`**: dropped the inspector's
+  `selectedTransitionIndex` prop; added `selectedActionTransitionIndex`
+  plumbing so the route-scope action editor can disambiguate which
+  route owns the currently-selected action.
+
+- **`gateway-route-conditions.ts`**: extracted the route-condition
+  helpers (`parseTransitionCondition`, `serialiseTransitionCondition`,
+  `transitionQuickAction`, `TRANSITION_ACTION_OPTIONS`) into a focused
+  module shared by the new route editor.
+
+### Package B — Closed TS `StageKind`, JSON-boundary normaliser, wire rename
+
+- **`types.ts`**: `StageKind` is now exactly
+  `'Question' | 'CheckAnswers' | 'Confirmation' | 'TaskList'`.
+  `EditorStageType` mirrors the closure. `AuthoredStage` gains a
+  non-persisted `legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline'`
+  marker used purely to drive an editor diagnostic.
+
+- **`workflow-authoring-client.ts`**: `mapStageKind` returns
+  `{kind, legacyKindRewrittenFrom?}` and rewrites `Waiting`/
+  `StatusTimeline` to `Question`. `stripLegacyStageSurface` strips the
+  marker **and** the `waiting` payload when rewritten, so the C#
+  `AuthoredWorkflowSchemaValidator` (PROJ140) accepts the save.
+  Outbound transitions are now serialised by `serialiseTransition`
+  which emits `source`/`target`/`trigger` and drops `fromGateway`/
+  `toGateway`. Inbound `normaliseTransition` prefers the canonical
+  field names but falls back to the legacy `fromStage`/`toStage`/
+  `action` shape so older fixtures and the projection endpoint
+  continue to round-trip.
+
+- **`workflow-validation.ts`**: new `stage-legacy-kind-rewritten`
+  warning code surfaces in the inspector validation rail whenever the
+  normaliser had to rewrite a Waiting/StatusTimeline stage. Terminal
+  kinds set is now `['Confirmation']`.
+
+- **`workflow-runtime-projection.ts`** and `prism-stage-preview.ts`
+  `shellLabelFor` lose the `Waiting` / `StatusTimeline` switch arms.
+
+## ⚠️ Breaking change — outbound transition wire field rename
+
+Outbound transition JSON in the publish payload now uses the canonical
+names:
+
+| Before (legacy) | After (canonical) |
+|-----------------|-------------------|
+| `fromStage`     | `source`          |
+| `toStage`       | `target`          |
+| `action`        | `trigger`         |
+
+The C# `AuthoredTransition` record carries `[Obsolete]` setter shims
+that still accept the legacy names on **inbound** requests (Slice 3a),
+so any consumer that **only POSTs** to the publish endpoint with the
+legacy names will continue to work. Two consumer classes are at risk
+and should be audited:
+
+1. **Anyone parsing the publish *response* body** (or any other
+   endpoint that echoes back the authored shape) — they will see the
+   new field names.
+2. **Anyone replaying captured POST bodies** through a typed SDK — if
+   the SDK pins the legacy names, it will fail to deserialise the new
+   payload after a round-trip through this client.
+
+Suggested follow-up: emit a one-time changelog/migration note in the
+SDK README, and ensure the Slice 7 visual-regression baseline captures
+a publish payload that documents the new shape.
+
+## Deferred (not blocking commit)
+
+- **`WorkflowSelection` union collapse** in `prism-workflow-editor.ts`
+  — the editor still uses three parallel `@state` fields
+  (`_selectedStageKey`, `_selectedGatewayKey`,
+  `_selectedTransitionIndex`). Build and targeted Playwright are green
+  without the collapse since the inspector no longer consumes the
+  transition selection field; only the graph (edge highlight) and
+  outline (transition row highlight) still read it. Filed as a Slice
+  3b.2 polish item.
+- Canvas slot-matrix (Slice 5), read-only graph (Slice 4), JSON
+  twin-pane (Slice 6), visual-regression baseline (Slice 7), and a11y
+  polish #1–4 (Slice 3d) remain in their original slices.
+
+## Validation
+
+- `npx tsc --noEmit` ✅ 0 errors.
+- `npm run build` ✅ workflow-editor.js ~336 kB.
+- `npm run build-storybook` ✅.
+- `npx playwright test tests/workflow-editor/` — the targeted
+  inspector/gateway/route specs (gateway-route conditions, retired
+  stage types, four gateway specs, transition-editor Tangy #5,
+  history undo/redo) all pass. The 6 still-red specs in the
+  editor-only suite (copy-paste, help, simulation ×3, validation rail)
+  were verified failing on baseline `HEAD` without my changes — they
+  are pre-existing and out of scope for this slice. The
+  layout-professionalization / walkthrough / four-workflow-contract
+  failures require the Aspire/dotnet/Keycloak stack and remain
+  pre-existing.
+- `workflow-editor-history.spec.ts:61` was rewritten to exercise route
+  label edits + route deletion undo/redo on the new
+  `GatewayRepresentation` story, since transition creation is no
+  longer a canvas affordance.
+
+## New / changed tests
+
+- New: `tests/workflow-editor/workflow-stage-type-options.spec.ts`
+  (Tangy SHOULD-FIX #5) — asserts `Waiting`/`StatusTimeline` are not
+  offered as stage kinds in either the list-view or create-stage
+  dialog.
+- New: `tests/workflow-editor/workflow-transition-editor.spec.ts` is
+  Tangy #5 verbatim — drives route label, target, role, and condition
+  edits on the gateway-route panel and confirms a single atomic undo
+  per edit.
+- New story: `workflow-editor-editor-host--gateway-representation`
+  (inline `makeGatewayWorkflow()` fixture) provides the gateway-shaped
+  workflow used by the new specs.
+
+## Files of note
+
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-authoring-client.ts`
+  — normaliser, wire-rename serialisation, legacy-kind marker.
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts`
+  — gateway-route panel + `_updateRoute*` handlers + selector
+  conventions.
+- `src/UmbracoPrism.Client/src/workflow-editor/gateway-route-conditions.ts`
+  — new module split.
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts`
+  — transition-creation surface deleted.
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-validation.ts`
+  — `stage-legacy-kind-rewritten` diagnostic.
+
+
+
+---
+
+# Decision/Review: blathers-slice3c-security-hardening.md
+
+---
+date: 2026-05-30T13:30:00+01:00
+agent: blathers
+area: workflow-editor
+branch: squad/82-named-lanes-editor-slice
+parent: copper-editor-reset-security-review.md
+status: shipped — three CRITICAL/HIGH findings closed
+---
+
+# Slice 3c — Security hardening of `/api/workflow-authoring/*`
+
+Closes Copper's must-fix-before-merge items (#1, #2, #3) from the editor-reset security
+review. Multi-tenant scoping (#2 HIGH), `WorkflowPatchService` covert-insert (MEDIUM),
+and `WorkflowRuntimeEngine` join-arrival forgery (MEDIUM) are explicitly out of scope
+and deferred to follow-up slices.
+
+## What changed (server-side, integrator-facing)
+
+### 1. Authentication required on every authoring route
+
+- `WorkflowEditorEndpointExtensions.MapPrismWorkflowEditor` now calls
+  `.RequireAuthorization(WorkflowAuthoringPolicies.WorkflowAuthor)` on the
+  `/api/workflow-authoring` group.
+- A new constant `WorkflowAuthoringPolicies.WorkflowAuthor = "WorkflowAuthor"`
+  is exported from `UmbracoPrism.WorkflowEditor.Extensions` and **hosts must
+  register a policy by that name in DI**, otherwise every authoring request
+  returns 500 at startup. The MockBusinessApp wires it as
+  `policy => policy.RequireAuthenticatedUser()`; downstream apps tighten by
+  replacing that policy with their own claim/role gates.
+- The non-Development `/admin` 404 middleware in MockBusinessApp now also covers
+  `/api/workflow-authoring` — defence-in-depth so the reference app's authoring
+  surface is unreachable outside dev even if the policy somehow becomes
+  permissive.
+- The development CORS policy `WorkflowAuthoringDevCors` is tightened from
+  `AllowAnyOrigin` to a named-origin list defaulting to
+  `http://localhost:5173,http://127.0.0.1:5173` (overridable via
+  `PrismBusinessApp:WorkflowAuthoringDevOrigins`).
+
+### 2. Approver bound to the authenticated principal (BREAKING)
+
+- **`ApplyWorkflowRequest.Approver` is deleted.** The DTO now contains only
+  `Envelope`. Any caller still sending `{ envelope, approver }` will have the
+  body's `approver` silently ignored — System.Text.Json drops unknown
+  properties — and the persisted provenance will name the calling principal.
+- The `/apply` handler now resolves the approver from `HttpContext.User` via
+  the same claim ordering as `PrismIdentityExtensions.GetEmail`:
+  `preferred_username → email → name → Identity.Name`. If no usable claim is
+  present the handler returns 401 (this only fires if a custom policy admits
+  an anonymous principal — `RequireAuthenticatedUser` already rejects upstream).
+- When `envelope.Agent.Kind == "human-assisted"`, the handler cross-stamps
+  `envelope.Agent.Identity` against the resolved approver and returns 400 on
+  mismatch — closing the authorship-laundering path Copper called out. Agent
+  kinds `github-copilot` / `custom-agent` name the agent rather than the human
+  and are deliberately not cross-checked.
+
+### 3. Workflow keys validated, filesystem stores enforce containment
+
+- The `/save`, `/publish`, and `/apply` handlers validate the route `{key}`
+  against `^[a-zA-Z0-9_-]+$` and return 400 on rejection. `..%2Fevil`,
+  `foo/bar`, `foo.bar`, etc. never reach the store.
+- `FilesystemAuthoredWorkflowStore`, `FilesystemPublishedWorkflowStore`, and
+  `FilesystemWorkflowAuthoringProvenanceStore` each gained a private
+  `ResolveSafePath` helper that asserts
+  `Path.GetFullPath(combined).StartsWith(Path.GetFullPath(basePath))` and
+  throws `InvalidOperationException` on violation. This is defence-in-depth:
+  the endpoint sanitiser already rejects, but downstream consumers that
+  bypass `TryAddSingleton` and inject a key from a different source now still
+  get containment for free.
+
+## Regression test surface (net new)
+
+| File | Tests |
+|---|---|
+| `Workflow/Authoring/WorkflowAuthoringEndpointSecurityTests.cs` (new) | 13 tests covering unauthenticated → 401 (theory ×3), endpoint-layer path traversal on `/save` (theory ×5) + `/apply` + `/publish`, store-layer path traversal on all three filesystem stores, approver-from-claims (body `approver: bob` ignored, persisted approver = caller `alice`), and human-assisted agent identity mismatch → 400. |
+| `Workflow/Authoring/AuthoredWorkflowValidationTests.cs` | +1 test: `Project_StageWithBareWaitingPayloadOnly_ReportsProj140` — pins Tangy's bare-sentinel branch (waiting payload on a `Question`-typed stage, no retired `LegacyKindRaw`). |
+| `Workflow/Authoring/AuthoredWorkflowSerializationTests.cs` | +1 test: `AuthoredTransition_LegacyShimRoundTrip_FromStageToStageAction_ReadBackViaSourceTargetTrigger` — pins the obsolete-shim properties for as long as they remain. |
+
+The previous `PostApply_WithMissingApprover_ReturnsBadRequest` test was deleted
+(approver no longer comes from the body, so the case is no longer meaningful;
+unauthenticated callers now hit the broader 401 case).
+
+## Test infrastructure changes
+
+- `WorkflowAuthoringWebFactory` and `FourWorkflowReferenceContractTests.ReferenceWorkflowContractWebFactory`
+  install a header-driven `Test` authentication scheme (`X-Test-User`) as the
+  default authenticate/challenge scheme. Tests that omit the header land on
+  the policy challenge and receive 401, which is exactly the unauthenticated
+  case the new security tests need to assert.
+- Both auth-touching test classes share a single `WorkflowAuthoringFactoryCollection`
+  so they run serially through one factory instance, avoiding
+  `IOException: file in use` races on `Fixtures/planning.workflow.json` when
+  `WithWebHostBuilder` re-invokes `ConfigureWebHost`.
+- `ResetAuthoredFixturesDirectory` now skips File.Copy when the target already
+  exists (csproj `<Content Include>` mirrors the source on build), eliminating
+  the reset-vs-read race observed when multiple authoring test classes start
+  near-simultaneously. Per-process `EnsureFixturesInitialised` / `EnsureCleanPublishedDirectory` /
+  `EnsureCleanProvenanceDirectory` gates ensure the dir-reset side-effects fire
+  at most once per process.
+
+## Breaking changes — read this
+
+1. **`ApplyWorkflowRequest.Approver` removed.** Downstream callers — agents,
+   scripts, the editor UI — must stop sending `approver` in the request body.
+   No silent migration: it is simply ignored (no error), and the persisted
+   provenance will name the authenticated caller.
+2. **`/api/workflow-authoring/*` is now authenticated.** Hosts that wire
+   `MapPrismWorkflowEditor()` must register a `"WorkflowAuthor"` policy in DI
+   *before* `MapPrismWorkflowEditor()`, or the app will fail at startup with
+   `InvalidOperationException: The AuthorizationPolicy named: 'WorkflowAuthor' was not found.`
+3. **Dev CORS is now origin-restricted.** Editor host pages on a port other
+   than 5173 must override `PrismBusinessApp:WorkflowAuthoringDevOrigins` in
+   configuration. `AllowAnyOrigin` is gone.
+
+## Dashboard iframe interaction — known follow-up for Isabelle/Brewster
+
+The TestSite Umbraco dashboard mounts the editor as an iframe pointing at the
+BusinessApp origin (`https://localhost:7245/workflow-editor`). The editor JS
+inside the iframe then fetches `/api/workflow-authoring/*` on the BusinessApp
+origin. Before Slice 3c those calls were anonymous and worked from any context.
+
+**After Slice 3c, those fetches require an authenticated principal on the
+BusinessApp origin.** Since the user is authenticated to Umbraco/TestSite
+rather than directly to BusinessApp, the iframe inherits no auth context and
+the requests will return 401.
+
+This is integrator-facing and beyond a backend slice's reach. Options
+(deferred — not in this slice):
+
+- **Short-term:** the editor host page (`workflow-editor.html`) acquires a
+  Bearer token from the embedding Umbraco session and attaches it to every
+  fetch (e.g. via a postMessage handshake or a signed cookie issued by
+  TestSite that BusinessApp accepts via its JWT bearer events).
+- **Medium-term:** adopt Brewster's recommendation
+  (`brewster-editor-reset-umbraco-dx-review.md`, SHOULD-FIX #1) — render
+  `<prism-workflow-editor>` directly inside the Umbraco dashboard as a web
+  component, so the API calls are same-origin to Umbraco and inherit the
+  member cookie.
+
+I am flagging this for Squad to route; this slice intentionally trades the
+dashboard's anonymous-fetch convenience for correctness on the integrity axis.
+
+## Explicitly deferred (NOT in this slice)
+
+- **Multi-tenant scoping** (Copper HIGH #2). V1 is single-tenant; the
+  `IAuthoredWorkflowStore` contract has no tenant axis. Documented here.
+- **`WorkflowPatchService` covert insert** (`update-transition` doubling as
+  `insert-transition`, Copper MEDIUM). Separate slice.
+- **`WorkflowRuntimeEngine` join-arrival forgery** (Copper MEDIUM). Pre-existing
+  before the editor reset; separate slice.
+- **Endpoint info disclosure** — `savedPath` / `provenancePath` still echo
+  absolute server paths (Copper LOW). Acceptable for V1 dev; revisit when
+  hardening for prod hosting.
+- **`/save` vs `/publish` vs `/apply` consolidation** — Tom Nook's worth-noting,
+  separate slice.
+
+## Quality gate
+
+- `dotnet build UmbracoPrism.sln` — 0 warnings, 0 errors.
+- `dotnet test UmbracoPrism.sln -c Release` — **862 passed**, 0 failed
+  (was 845 baseline; net +17: 16 new behavioural tests + 1 removed
+  body-approver test + 2 Tangy regression tests).
+- Both `dotnet test` invocations re-run to confirm green-on-repeat — the
+  fixture-race flake is gone.
+
+
+
+---
+
+# Decision/Review: brewster-editor-reset-umbraco-dx-review.md
+
+---
+author: brewster
+date: 2026-05-30T13:00:00+01:00
+status: proposed
+area: workflow-editor
+confidence: high
+scope: review-only
+---
+
+# Workflow Editor Umbraco DX Review
+
+## DX verdict
+
+A competent Umbraco v17 integrator can stand the editor up — but only by following the *TestSite shape* almost exactly, because nothing in the codebase calls out the integrator-facing API as distinct from the demo wiring. The reset has materially improved things on the backend (single `AddPrismWorkflowEditor` + `MapPrismWorkflowEditor`, gateway-only model, clean route prefix), but the front-end story is still "embed an iframe pointing at the Business App" rather than "drop a web component into your backoffice", and there is no public/internal boundary on the Lit components. Net direction since the reset is positive on the backend, neutral on the front end — embedding the editor as an Umbraco-native web component, rather than an iframed app, is the next big DX cliff to climb.
+
+## DX findings
+
+### Backoffice integration
+
+- **SHOULD-FIX** — Editor mounted as an **iframe**, not a web component — `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/web-components/prism-workflow-editor-host.js:121-125` — The Umbraco v17 dashboard renders `<iframe src="https://localhost:7245/workflow-editor">`. — **An integrator now has to deploy MockBusinessApp (or a clone of it) as a *second* origin to host the editor, plus configure CORS, plus deal with iframe sandbox/cookies.** The v17 manifest is correct (Lit + `UmbLitElement`), so we are paying the v17 cost without taking the v17 win. — Render `<prism-workflow-editor workflow-key="…" authoring-api-base="…">` directly inside the dashboard element, importing the compiled bundle from `App_Plugins`. The iframe pattern stays as a fallback only.
+
+- **SHOULD-FIX** — Hard-coded dev host URL in the dashboard host — `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/web-components/prism-workflow-editor-host.js:13-16` — `getAuthoringBaseUrl()` defaults to `https://localhost:7245`. — Any integrator who is not Jonny has to edit JavaScript inside `App_Plugins` to point at their own API. — Read from a manifest `meta` value or an Umbraco-backed config endpoint instead of a literal in JS.
+
+- **SHOULD-FIX** — Backoffice manifest lives in the TestSite, not in a distributable — `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/umbraco-package.json` — Anyone consuming Prism gets the manifest only by copying TestSite. — Move the App_Plugins payload into `UmbracoPrism.WorkflowEditor` and ship it as a content file (e.g. `staticwebassets` or `App_Plugins/PrismWorkflowEditor` packed into the NuGet) so it lights up on `dotnet add package`.
+
+- **WORTH-NOTING** — The menu item set is **hardcoded** to `Planning Application` — `umbraco-package.json:39-46` — The `/api/workflow-authoring/workflows` endpoint already lists every authored workflow; the sidebar menu should be data-driven so adding a workflow in the editor adds a sidebar item, not require a manifest edit.
+
+- **WORTH-NOTING** — No `umbraco-package-schema.json` reference for the App_Plugins manifest — `umbraco-package.json:2` points to `../../umbraco-package-schema.json` which only exists in TestSite, not in the shipped product. Breaks IntelliSense for integrators outside this repo.
+
+### Test site / public-facing rendering
+
+- **SHOULD-FIX** — No example of rendering a **published, read-only authored workflow** in a public Razor view — `src/UmbracoPrism.TestSite/Views/` only contains runtime forms (`workflowPage.cshtml`, `workflowHub.cshtml`). — Integrators who want a "what does this workflow look like" public diagram (citizen-facing process map, a service-design page, etc.) have no recipe — they would have to discover that `<prism-workflow-graph>` exists, then realise its `workflow` prop is `attribute: false` and *cannot* be set from Razor markup. — Add a small route-hijacked Razor page (e.g. `workflowDiagramPage.cshtml`) that fetches the published JSON server-side and bootstraps `<prism-workflow-graph>` via inline JSON + a tiny init script.
+
+- **WORTH-NOTING** — `WorkflowHubController.ResolveWorkflowPageUrl` walks `_publishedContentQuery.ContentAtRoot().DescendantsOrSelf()` on every hub render — `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs:97-104` — Content-driven (good — no hardcoded routes), but a full-tree descendant scan per request scales poorly on larger Umbraco sites. Cache by `workflowKey` or replace with an `IPublishedContentCache` lookup keyed on a known root.
+
+- **WORTH-NOTING** — `ReferenceWorkflowRepository` is a **static** class hardcoding four workflows — `src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowRepository.cs:11-26` — Useful as a demo but it is the only thing showing an integrator the shape of "your own workflow store". The pattern an integrator should follow is `IAuthoredWorkflowStore`, not this static helper; that hand-off is undocumented.
+
+### Component public API
+
+- **SHOULD-FIX** — No public/internal distinction on the 11 `<prism-…>` custom elements — `src/UmbracoPrism.Client/src/workflow-editor/*.ts` defines `prism-workflow-editor-shell`, `prism-workflow-editor`, `prism-workflow-graph`, `prism-step-inspector`, `prism-confidence-tabs`, `prism-help-panel`, `prism-stage-preview`, `prism-workflow-simulation`, `prism-workflow-outline`, `prism-workflow-action-editor`, `prism-inline-help`. — Integrators don't know which are safe to consume directly. A future refactor will silently break consumers of internal elements. — Add a `README.md` under `src/UmbracoPrism.Client/src/workflow-editor/` declaring `prism-workflow-editor` (full editor), `prism-workflow-editor-shell` (host harness), and `prism-workflow-graph` (read-only viewer) as the public surface; mark every other class JSDoc with `@internal`.
+
+- **BLOCKER-FOR-READ-ONLY-USE** — `<prism-workflow-graph>` cannot be initialised from HTML alone — `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts:181` declares `workflow` with `attribute: false`. — Razor integrators cannot do `<prism-workflow-graph workflow='@Html.Raw(json)'>`. They need JS glue to assign the property. — Accept a JSON attribute (`workflow-json`) that internally parses to the typed model, in addition to the prop. Mirrors how Umbraco's own Lit elements expose data.
+
+- **WORTH-NOTING** — `<prism-workflow-editor>` wiring contract is reasonable (`workflow-key` + optional `authoring-api-base` + optional `approver-name`, no required event listeners) but the **self-fetch behaviour is the only mode** — `prism-workflow-editor.ts:140-156`. There is no "controlled" mode where a host supplies the workflow and intercepts saves. Limits embedding inside Umbraco where the host might want to gate saves through a property editor.
+
+- **WORTH-NOTING** — Element JSDoc references the wrong layout ("Left — graph; Right — inspector") and stage list inside `prism-workflow-editor.ts:125-138` — pre-reset language; the layout is now lane-columned vertical. Drift between code-comments and the post-reset visual contract.
+
+### Backend SDK / DI / endpoints
+
+- **SHOULD-FIX** — `IWorkflowPublishService.PreviewAsync` and `PublishPreviewResult` survive the reset — `src/UmbracoPrism.WorkflowEditor/Authoring/IWorkflowPublishService.cs:8`, `WorkflowPublishService.cs:12`, `PublishPreviewResult.cs:8` — The reset (`.squad/decisions.md` "Workflow editor scope reset") explicitly removes the preview endpoint, but the *interface* still publishes it. — Integrators registering a custom `IWorkflowPublishService` will be forced to implement a method that no caller invokes. Either delete `PreviewAsync` from the interface, or replace `PublishResult : PublishPreviewResult` inheritance with a plain record and drop the preview type.
+
+- **SHOULD-FIX** — `MapPrismWorkflowEditor` silently depends on a named CORS policy — `src/UmbracoPrism.WorkflowEditor/Extensions/WorkflowEditorEndpointExtensions.cs:43-46` requires a policy literally called `"WorkflowAuthoringDevCors"` in Development. — An integrator who calls `MapPrismWorkflowEditor()` without first calling `services.AddCors(opt => opt.AddPolicy("WorkflowAuthoringDevCors", …))` will get a runtime exception. The name is invisible from the public method signature. — Either own the policy from inside `AddPrismWorkflowEditor` (register a default policy), or accept the policy name as a parameter on `MapPrismWorkflowEditor(corsPolicyName: …)`.
+
+- **SHOULD-FIX** — `AddPrismWorkflowEditor(authoredWorkflowBasePath: string.Empty, …)` is a sentinel-driven API — `src/UmbracoPrism.MockBusinessApp/Program.cs:47` passes `string.Empty` because MBA pre-registers its own `IAuthoredWorkflowStore`. The empty path is then still passed into `FilesystemAuthoredWorkflowStore` via `TryAddSingleton`, which only no-ops because the registration is already there. — Confusing. Split into two overloads: `AddPrismWorkflowEditor()` (caller supplies `IAuthoredWorkflowStore` / `IPublishedWorkflowStore`) and `AddPrismWorkflowEditorFilesystemStores(authoredPath, publishedPath?)`.
+
+- **WORTH-NOTING** — `/apply` endpoint and the `ProposalEnvelope` apply protocol survive but are undocumented as the canonical save path — `WorkflowEditorEndpointExtensions.cs:202-249`. The decision log says "keep `ProposalEnvelope` as the apply protocol but drop the preview endpoint" — the code matches, but an integrator reading endpoint names will see both `/save` (POST whole workflow) and `/apply` (POST envelope) and have no idea which is the supported entry point.
+
+- **WORTH-NOTING** — Authoring endpoints are discoverable (`/api/workflow-authoring/...` group), but `MapPrismWorkflowEditor` is named "Editor" while the endpoints are named "WorkflowAuthoring" — `WorkflowEditorEndpointExtensions.cs:38`. Minor, but a `grep` for "Editor" misses the routes.
+
+### Documentation
+
+- **SHOULD-FIX** — `docs/walkthroughs/authoring-a-workflow.md` and `docs/walkthroughs/planning-workflow-editor.md` are **editor-UX walkthroughs**, not Umbraco integration recipes. — Neither mentions `AddPrismWorkflowEditor()`, `MapPrismWorkflowEditor()`, `App_Plugins/PrismWorkflowEditor/umbraco-package.json`, or `IAuthoredWorkflowStore`. An Umbraco v17 dev landing on these docs cannot extract "how do I host this in *my* site".
+
+- **SHOULD-FIX** — Step order in `authoring-a-workflow.md` is **editor-first**, not Umbraco-idiomatic. — A v17 integrator expects: (1) install package / NuGet, (2) compose `IUmbracoBuilder` and register services, (3) declare doctypes (`workflowPage`, `workflowHub`), (4) route-hijack with `PrismWorkflowPageController<T>`, (5) wire Razor views, (6) drop App_Plugins manifest, (7) finally open the editor. The current doc starts at step 7.
+
+- **WORTH-NOTING** — `planning-workflow-editor.md:11-13` still references the editor as something the *operator* uses inside MockBusinessApp's `/workflow-editor` URL, not inside the Umbraco backoffice section. The backoffice integration story is invisible to docs.
+
+- **WORTH-NOTING** — `planning-workflow-editor.md` mentions the "external MCP client" handling agent chat — post-reset the agentic surfaces are paused; this line will read as a current product feature to a fresh reader.
+
+### Cross-cutting Umbraco patterns
+
+- **SHOULD-FIX** — Workflow controllers don't pin to the `PrismMemberCookie` scheme — `src/UmbracoPrism.Core/Controllers/PrismWorkflowPageController.cs:87` and `WorkflowHubController.cs:42` both check `User.Identity?.IsAuthenticated` and redirect manually instead of using `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` (the pattern enforced by `BiometricController.cs:32`). — Works on TestSite because PrismMemberCookie is the de-facto default, but any integrator with a second auth scheme (multiple member apps, IdentityServer, etc.) will pick up the wrong principal silently and treat a backoffice/Identity user as the "member who submitted this workflow". — Add the explicit attribute or accept `authenticationScheme` as a constructor injection point.
+
+- **WORTH-NOTING** — `WorkflowHubController` correctly uses `IPublishedContent` discovery (`ContentAtRoot().DescendantsOrSelf().FirstOrDefault(...)`) to resolve workflow page URLs — no hardcoded routes ✅. Confirms the pattern works under arbitrary content trees.
+
+- **WORTH-NOTING** — CORS only "works" because the iframe origin and the API origin are the same MockBusinessApp host. If an integrator embeds the web component directly (the recommended fix above), MBA-style `AllowAnyOrigin` CORS becomes essential and there is no documented production CORS policy. Today the editor and the API silently share an origin.
+
+- **WORTH-NOTING** — `umbraco-package.json` sets `"allowPublicAccess": false` and the dashboard condition is scoped to `Umb.Section.PrismWorkflowEditor`. Good v17 hygiene — section-scoped, no public exposure.
+
+## Recipe smell test
+
+- **Embed the editor in a backoffice section** — **😐** — The manifest works and Umbraco v17 recognises it, but the dashboard hosts an iframe to a second .NET process. An integrator gets a *section*, not an *editor*, without standing up MockBusinessApp.
+- **Render a read-only published workflow in a public Razor view** — **💀** — `<prism-workflow-graph>`'s `workflow` is `attribute: false`, no `workflow-json` accessor; the only route-hijacked Razor surface (`workflowPage.cshtml`) renders runtime forms, not the authored graph. No existing recipe.
+- **Authorize a member to submit a workflow** — **❤️** — Works today via the `PrismMemberCookie`-backed default scheme, route-hijacked `WorkflowPageController` extending `PrismWorkflowPageController<T>`, with `_workflowClient` carrying the member's identity through. Add explicit `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]` and it becomes bulletproof.
+
+## Top-3 DX wins worth a slice
+
+1. **Mount the editor as a native v17 web component, not an iframe.** Ship the compiled `<prism-workflow-editor>` bundle inside `UmbracoPrism.WorkflowEditor` as static web assets; have the dashboard host import and render the element directly, with `authoring-api-base` resolved from configuration. Removes the need to deploy MockBusinessApp at all and turns the section from "iframed app" into "Umbraco section".
+2. **Expose a read-only `<prism-workflow-graph workflow-json="…">` and ship a Razor recipe.** One Razor partial that takes a published-workflow JSON blob and renders the graph read-only would unblock service-design, citizen-facing process pages, and "preview before publish" use cases. Coupled with declaring the three public elements (`-editor`, `-editor-shell`, `-graph`) in a `src/UmbracoPrism.Client/src/workflow-editor/README.md`.
+3. **Make the backend SDK self-contained.** Split `AddPrismWorkflowEditor` into store-providing vs filesystem-default overloads, fold the `WorkflowAuthoringDevCors` policy into `AddPrismWorkflowEditor` (with a `corsPolicyName` override), and prune `IWorkflowPublishService.PreviewAsync` + `PublishPreviewResult` to remove the post-reset dead surface. An integrator's `Program.cs` collapses to two lines: `services.AddPrismWorkflowEditor(store)` and `app.MapPrismWorkflowEditor()`.
+
+
+
+---
+
+# Decision/Review: copper-editor-reset-security-review.md
+
+---
+date: 2026-05-30T13:00:00+01:00
+agent: copper
+area: workflow-editor
+branch: squad/82-named-lanes-editor-slice
+head: a251bcd (was b03ee38 at task issue)
+scope: read-only security review
+status: open — findings to triage
+---
+
+# Workflow Editor Reset — Security Review (CIA + tenant isolation)
+
+## Threat posture summary
+
+The reset *reduced* attack surface (preview endpoint, conversation pane, mock drafter, IWorkflowPreviewService and SemanticDiff are gone) but *increased* the integrity risk on what remains. The single biggest issue is structural and pre-existing: `/api/workflow-authoring/*` runs **without authentication**, and `/apply` reads the approver identity from the request body (`ApplyWorkflowRequest.Approver`) rather than from `HttpContext.User`. Removing the preview step also removes the one place that semantic-diff inspection could have caught a spoofed approver/agent pairing before the publish hit disk. Schema validators now do more load-bearing work (PROJ140/141/142) and the `LegacyWaitingPayload` sentinel design is property-name-coupled in a way that any future legacy alias will silently bypass.
+
+Top-level CIA:
+- **C:** roughly unchanged; response body exposes absolute server paths.
+- **I:** **regressed.** Self-asserted authorship + no auth + path traversal in filesystem stores.
+- **A:** unchanged; validator cost bounded by `System.Text.Json` default depth (64).
+
+## Findings
+
+### Authoring endpoints (attack surface)
+
+- **CRITICAL — I — auth — `src/UmbracoPrism.WorkflowEditor/Extensions/WorkflowEditorEndpointExtensions.cs:34-44`, `src/UmbracoPrism.MockBusinessApp/Program.cs:139-140` — endpoints are unauthenticated.** `MapPrismWorkflowEditor` adds *no* `.RequireAuthorization()` on the group or any route; the only middleware added is `RequireCors("WorkflowAuthoringDevCors")` in Development, which is `AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()` (Program.cs:54-56). The non-Dev `/admin` 404 guard at Program.cs:107-118 does **not** match `/api/workflow-authoring`. The inline comment ("no auth required, Development CORS applied") confirms intent.  
+  **Exploit:** any browser session — including a third-party origin in Dev or an unauthenticated network attacker in any deployment that follows the reference wiring — can `POST /api/workflow-authoring/workflows/{key}/save` or `/publish` or `/apply` and overwrite any workflow. CSRF in Dev is trivial (no auth + AllowAnyOrigin).  
+  **Recommended action:** require an authenticated principal on the group (`group.RequireAuthorization("WorkflowAuthor")`); explicitly include `/api/workflow-authoring` in any non-Dev "admin paths off" middleware; tighten CORS to a named origin.
+
+- **HIGH — CI — tenant isolation — `WorkflowEditorEndpointExtensions.cs:85-107, 151-177, 203-242` — no tenant scoping on workflow keys.** Routes are `/workflows/{key}` with no tenant in the path or in the store contract; `IAuthoredWorkflowStore` is a global singleton. There is no concept of "this workflow belongs to tenant X" — keys are globally writable. The runtime engine *does* per-tenant scope its instance state via `LookupKey(tenantId, userId, workflowKey)` (`WorkflowRuntimeEngine.cs:1173-1174`), but the *definitions* are shared.  
+  **Exploit:** in a multi-tenant deployment, any caller (once auth is added) can read or overwrite another tenant's authored definitions.  
+  **Recommended action:** scope `IAuthoredWorkflowStore` by tenant (route prefix `/tenants/{tenantId}/workflows/{key}` or claim-derived); document that V1 is single-tenant only if that is the intended posture.
+
+- **HIGH — I — path traversal — `FilesystemAuthoredWorkflowStore.cs:36, 81, 110, 123`; `FilesystemPublishedWorkflowStore.cs:20, 32`; `FilesystemWorkflowAuthoringProvenanceStore.cs:19-20` — `{key}` flows into `Path.Combine` unsanitised.** No `Path.GetInvalidFileNameChars()` check; `Path.Combine(base, "../../etc/passwd.workflow.json")` escapes. MockBusinessApp dodges this only because it pre-registers `InMemoryAuthoredWorkflowStore` / `InMemoryWorkflowAuthoringProvenanceStore` and the `TryAddSingleton` factory in `WorkflowEditorServiceExtensions.cs:26-32` never fires. Downstream consumers that follow the documented `AddPrismWorkflowEditor(path)` pattern get the filesystem store as the default.  
+  **Exploit:** `POST /api/workflow-authoring/workflows/..%2F..%2Fseeds%2Fdemo/save` overwrites or reads workflow definitions outside the configured directory (subject to extension).  
+  **Recommended action:** validate `workflowKey` against `^[a-zA-Z0-9\-_]+$` at the endpoint layer (and again in the store as defence in depth). Refuse paths that resolve outside `Path.GetFullPath(basePath)`.
+
+- **LOW — C — info disclosure — `WorkflowEditorEndpointExtensions.cs:235-241, 286` — apply/save responses return absolute server paths.** `savedPath` and `provenancePath` are absolute filesystem paths echoed to the client.  
+  **Recommended action:** return store-relative tokens or omit; never echo `Path.GetFullPath` results.
+
+- **LOW — A — error handling — `WorkflowEditorEndpointExtensions.cs:249-253` — `ReadBodyAsync` swallows all exceptions and returns `default`.** Indistinguishable from "well-formed empty body". Acceptable today but masks parser-bomb signals and any future JSON exhaustion attacks.
+
+### Schema validation bypass
+
+- **MEDIUM — I — schema validation — `AuthoredStage.cs:146-153`, `AuthoredWorkflowSchemaValidator.cs:49-55` — `HasLegacyWaitingPayload` sentinel is property-name-coupled.** The sentinel fires only when JSON contains a non-null `"waiting"` property. `{ "waiting": null }` slips past (no payload carried, so not exploitable today), but more importantly the design assumes legacy payloads are *only ever* called `"waiting"`. Any future legacy alias or attacker-crafted alternate spelling (e.g. capitalised, snake_case via a custom naming policy) silently bypasses PROJ140.  
+  **Exploit (theoretical):** if a future shim ever accepts `"waitConfig"` or `"timeline"`, an authored stage carrying that payload would project to a Question stage with no diagnostic, smuggling waiting semantics back into stages.  
+  **Recommended action:** invert the rule. Reject any unknown top-level stage property at the JSON boundary (System.Text.Json `JsonExtensionData` capture, then validator flags non-empty extension data) instead of allow-listing legacy names.
+
+- **MEDIUM — I — patch surface — `WorkflowPatchService.cs:184-197` — `update-transition` doubles as `insert-transition`.** When no matching `(FromStage, ToStage, Action)` tuple is found, the patch service silently appends. There is no `insert-transition` op declared in `ProposalEnvelope.cs:14-21`, so this is the *only* way to add edges via the apply path. Defence in depth means the projector rejects PROJ141/142 violations, but the schema validator is now the only gate.  
+  **Recommended action:** require an explicit `insert-transition` op (or refuse the implicit-insert branch); rename the op or add a `requireExisting: true` flag.
+
+- **LOW — I — patch surface — `WorkflowPatchService.cs:208-220` — JSON-pointer `op.Path` segments aren't sanitised before becoming stage keys.** `parts[1]` is treated as a literal stage key. In-memory model so no filesystem concern, but the value is logged at `WorkflowEditorEndpointExtensions.cs:231-233` and the log line includes `envelopeId`, `approver`, and the resolved `savedPath` — attacker-controlled strings land in structured logs.  
+  **Recommended action:** clamp path tokens to the canonical key charset before resolution.
+
+- **LOW — A — validator cost — `AuthoredWorkflowSchemaValidator.cs:280-296, 421-522` — parameter validation is recursive over `definition.Properties` and `definition.Items`.** Bounded by `System.Text.Json` default `MaxDepth = 64`, so not currently exploitable. Worth keeping if the default depth is ever increased.
+
+### Provenance / integrity
+
+- **CRITICAL — CI — authorship — `ApplyWorkflowRequest.cs:6-9`, `WorkflowEditorEndpointExtensions.cs:213-233`, `FilesystemWorkflowAuthoringProvenanceStore.cs:27`, `InMemoryWorkflowAuthoringProvenanceStore.cs:13-22` — `approver` is self-asserted in the request body.** The apply endpoint takes `request.Approver` as the canonical "who published this" identity and writes it verbatim into provenance. There is no cross-check against `HttpContext.User`, claims, or any signed token. With the preview-stage agent loop gone, this is now the *only* identity binding on a publish.  
+  **Exploit:** any caller passes `{ "approver": "ceo@example.com" }` and the provenance record names that user as the publisher. Combined with finding #1 (no auth), this is authorship laundering at zero cost.  
+  **Recommended action:** delete `Approver` from the request DTO; derive from `HttpContext.User.GetEmail()` / `name`. Reject if unauthenticated. Cross-stamp `envelope.Agent` against the calling principal.
+
+- **LOW — I — provenance — `FilesystemWorkflowAuthoringProvenanceStore.cs:19-20` — provenance filenames embed unsanitised `workflowKey`.** Same path-traversal class as the authored store; also limits one provenance record per second per workflow (utcStamp granularity).  
+  **Recommended action:** sanitise `workflowKey`; include millisecond + GUID suffix.
+
+### Runtime gateway semantics
+
+- **MEDIUM — I — join arrival forgery — `WorkflowRuntimeEngine.cs:253-256, 974-985` — transition resolution ignores role gates.** `AdvanceAsync` selects `transition.RequiresRole == null` only, which means role-gated transitions never fire from this path *and* arriving cursors are not authenticated against the lane's `RoleGates`/`Actor`. A hostile actor with the ability to call `Advance` on any workflow instance can deposit an arrival at a join gateway, satisfying `arrivedLanes` for a lane they shouldn't own.  
+  **Exploit:** in a workflow that joins lanes A and B before releasing to a privileged stage, a caller authorised only for lane A can advance from "A complete" → join, then forge an arrival for lane B by spoofing a cursor on lane B (no per-cursor authorisation check exists in `HandleJoinGatewayAdvance`). Release proceeds.  
+  **Note:** likely pre-existing, not introduced by 3a. Calling out because Slice 3a is the first time the join-release semantics are load-bearing.  
+  **Recommended action:** at `HandleJoinGatewayAdvance` (and the matching split path), assert the calling principal is a member of `arrivingCursor.LaneKey`'s `RoleGates` / `Actor`; resurrect the role-gated transition lookup so `RequiresRole != null` is honoured.
+
+- **LOW — A — unbounded wait — `WorkflowRuntimeEngine.cs:1015-1035` — no timeout on join arrivals.** A hostile or stuck workflow can sit in `defer` indefinitely (`PollAfterMs` floor of 3000ms; no max wait). Not catastrophic but resource use grows with the number of stuck instances.  
+  **Recommended action:** require `WaitingExpectedSeconds` to have a hard ceiling enforced by the schema validator; consider a runtime-side `MaxWaitSeconds` that emits `WORKFLOW_TIMEOUT`.
+
+- **LOW — C — deferred message leakage — `WorkflowRuntimeEngine.cs:1100-1135` — `DeferMessage` is author-controlled text rendered to whoever is polling.** Renders via `PrismComponentRenderPayload.DeferMessage`; the front-end is Lit-templated (no `unsafeHTML` found in workflow-editor), so no XSS, but any author can place arbitrary content in front of any polling user, including users not in the lane that authored the message.  
+  **Recommended action:** treat `DeferMessage` as plain text only (current behaviour); ensure the consuming runtime UI does not switch to HTML rendering in future.
+
+### Leftovers from removed features
+
+- **INFO — none material.** `grep -r 'IWorkflowPreview|preview-proposal|ProposalDiff|SemanticDiff|MockDrafter|prism-proposal-diff'` across `src/` returned zero hits. DI graph and endpoint group are clean.  
+- **INFO — stale comment — `src/UmbracoPrism.MockBusinessApp/Program.cs:44`.** "AddPrismWorkflowEditor registers the projector, patch service, **preview service**, etc." — the preview service no longer exists. Cosmetic; no DI registration backing it.
+
+### Frontend injection / XSS
+
+- **INFO — no findings.** `prism-step-inspector.ts` and `prism-workflow-outline.ts` render every author-controlled string (display names, descriptions, lane keys, waiting copy, defer messages, validation messages) through Lit `html``` tagged templates with `${…}` interpolation — Lit escapes by default. Grep for `unsafeHTML | innerHTML | insertAdjacentHTML | document.write` across `src/UmbracoPrism.Client/src/workflow-editor/` returns zero hits.  
+- **INFO — `condition.expression`** (`prism-step-inspector.ts:689-692`) is bound to an `<input>`'s `.value` — DOM property assignment, not HTML. Safe.
+
+### Confidentiality of in-flight data
+
+- **LOW — C — wire payload — `ProposalEnvelope.cs:44-55`, `WorkflowEditorEndpointExtensions.cs:235-241` — apply response body echoes the full `updated` workflow plus absolute server paths.** The envelope itself carries no secrets (rationale text, op list, agent identity). The response, however, leaks absolute filesystem paths. Browser session storage in the editor host page (none found in `src/UmbracoPrism.Client/src/workflow-editor/`) would inherit any future leak.  
+  **Recommended action:** omit `savedPath` / `provenancePath` from the public response or replace with opaque IDs.
+
+## Verification strategy (regression tests to add)
+
+For each MEDIUM-or-higher finding:
+
+| Finding | Test |
+|---|---|
+| Unauthenticated endpoints | Integration test that hits each `/api/workflow-authoring/*` route with no `Authorization` header and asserts `401`. Add a second test asserting the routes are not exposed in `Environments.Production`. |
+| Tenant isolation | Test that a request authenticated as tenant A receives `404` (not `200`) when loading a workflow belonging to tenant B. |
+| Path traversal | Integration test posting `key = "..%2Fevil"` to `/save`, `/apply`, and `/publish`, asserting `400` and that no file is created outside the base directory. Repeat for the provenance store. |
+| Authorship spoofing | Integration test: authenticated as user "alice", POST `/apply` with `{ approver: "bob" }`, assert the persisted provenance record names "alice" (or the request is rejected). |
+| `update-transition` implicit insert | Unit test of `WorkflowPatchService`: `update-transition` with a non-existing tuple → expect explicit error, not silent append. |
+| Sentinel coverage | Author-time test that POSTs a stage carrying an unknown stage-level property (e.g. `"waitConfig"`) and asserts PROJ140-equivalent diagnostic fires. |
+| Join arrival forgery | Runtime test: principal authorised only for lane A drives a workflow whose join requires lanes {A, B}; assert the join does *not* release. |
+| Validator cost ceiling | Author-time test posting a parameter schema with deeply nested `properties` / `items`; assert refusal at a documented depth limit. |
+
+## Top-3 must-fix-before-merge
+
+1. **Add authentication + authorisation on `/api/workflow-authoring/*`.** Without it, every other finding here is reachable from an unauthenticated network position. `group.RequireAuthorization("WorkflowAuthor")` + extend the non-Dev `/admin` 404 middleware to cover `/api/workflow-authoring`.
+2. **Derive `approver` from `HttpContext.User`, not the request body.** Delete `ApplyWorkflowRequest.Approver`; stamp from claims. Cross-check `envelope.Agent.Identity` against the calling principal if `Agent.Kind == "human-assisted"`. Restores integrity of the provenance record.
+3. **Sanitise `{key}` route params.** Validate against `^[a-zA-Z0-9_-]+$` at the endpoint layer and assert `Path.GetFullPath(combined).StartsWith(Path.GetFullPath(basePath))` inside every filesystem store. Closes the path-traversal hole that survives `TryAddSingleton`-style overrides being skipped by downstream consumers.
+
+---
+
+Filed for Scribe pickup; no code modified.
+
+
+
+---
+
+# Decision/Review: tangy-editor-reset-a11y-test-review.md
+
+---
+author: tangy
+date: 2026-05-30T13:00:00+01:00
+status: review
+area: workflow-editor
+confidence: high
+branch: squad/82-named-lanes-editor-slice
+head: a251bcd (slice 3a) / b03ee38 (slice 3b)
+---
+
+# A11y & test-quality review — editor reset slices 1+1.5+2+3a+3b
+
+## Accessibility verdict
+
+Slice 3b's gateway-first inspector holds the WCAG line — but only just. The new
+`Leave through` / `Arrive through` selects are properly labelled, focusable, and
+the polite live region announces every change. The outline still nests gateways
+inside their anchor stage's `<li>` (good DOM hierarchy), and the help dialog's
+focus trap survives the proposal-modal removal. Two real gaps remain: the
+outline transition summary leaks gateway **keys** to screen readers instead of
+display names, and the new `_routeDescriptor` is a flat string joined with `→`
+glyphs with no semantic structure or `aria-label`, so a screen reader reads
+"Draft right-arrow Review split right-arrow Decision join right-arrow
+Confirmation" with no notion that the middle items are gateways. Net direction:
+**hold, with two targeted fixes for Isabelle in Slice 3b.1**.
+
+## A11y findings
+
+1. **SHOULD-FIX** — WCAG 1.3.1 (Info & Relationships), 2.4.6 (Headings & Labels) —
+   `prism-workflow-outline.ts:195-200` — Outline transition summary renders raw
+   gateway *keys* (`transition.fromGateway`, `transition.toGateway`) rather than
+   display names. A screen reader user hears identifiers like `review-split`
+   instead of "Review split". The inspector's `_routeDescriptor`
+   (`prism-step-inspector.ts:158-169`) correctly uses `_gatewayLabel(…)`. **Fix:**
+   reuse `_gatewayLabel` (or equivalent lookup) in the outline so the audible
+   text matches the visible domain language.
+
+2. **SHOULD-FIX** — WCAG 1.3.1 (Info & Relationships) — `prism-step-inspector.ts:162-168`
+   and `prism-step-inspector.ts:1224-1232` — `_routeDescriptor` joins
+   stage/gateway labels with the U+2192 arrow inside a single `<span>`. The
+   arrow is decorative and inconsistently announced; there is no `aria-label`
+   that says "from … via split gateway … via join gateway … to …". **What a
+   screen reader user experiences:** a run-on string with no signal that the
+   middle tokens are routing nodes, just four titles glued by an arrow char.
+   **Fix:** wrap the visible `→` in `<span aria-hidden="true">` and provide an
+   `aria-label` (or `<span class="sr-only">`) such as
+   `"from Draft, via split gateway Review split, via join gateway Decision join, to Confirmation"`.
+   Optionally upgrade the outgoing-routes list to a `<dl>`/structured layout so
+   each segment has a role.
+
+3. **IMPROVE** — WCAG 4.1.2 (Name, Role, Value) — `prism-workflow-outline.ts:120-215` —
+   Outline is `<nav>` + `<ol>` + `<li>` with no `role="treeitem"`/`aria-level`,
+   and gateway rows sit as a sibling `<div>` inside the stage's `<li>` rather
+   than as their own `<li>` child of a sub-list. This is *not* a violation — the
+   flat list passes — but a screen reader user has no auditory cue that a
+   gateway "belongs to" its anchor stage beyond reading order. **Fix:** either
+   move gateway buttons into a nested `<ul>` under the stage `<li>`, or add
+   visible+audible text like "Belongs to Application form" inside the gateway
+   row.
+
+4. **IMPROVE** — WCAG 4.1.3 (Status Messages) — `prism-workflow-outline.ts` and
+   `prism-workflow-editor.ts:991-994` — selecting a gateway from the outline
+   fires `outline-gateway-selected` but emits no announcement. Stage selection
+   has the same gap. The inspector announcer covers *edits*, not *selection
+   changes initiated from outline*. **Fix:** announce
+   `"Selected gateway Review split"` via the existing polite region when a
+   gateway is picked from the outline or graph.
+
+5. **IMPROVE** — WCAG 2.4.7 (Focus Visible) — `prism-workflow-outline.ts:321-325,
+   433-437` — Stage and transition buttons have a 3px `#ffdd00` focus ring, but
+   the new gateway button (`.outline-gateway-button`, lines 364-381) has **no**
+   `:focus-visible` rule. Falls back to UA default, which against the purple
+   border may be low-contrast. **Fix:** add the same yellow outline rule.
+
+6. **WORTH-NOTING (out of scope but flagged)** — `prism-workflow-graph.ts:2724`
+   still offers `'Waiting'` and `'StatusTimeline'` in the list-view "Stage type"
+   `<select>`. Picking either now produces a stage that fails PROJ140 on save.
+   Not strictly an a11y bug, but it routes assistive-tech users straight into a
+   silent validation trap. Isabelle should drop them from the option list as
+   part of Slice 3b.1.
+
+7. **PASS — explicitly confirmed:**
+   - F1 help dialog still traps focus (`prism-workflow-editor.ts:951-980,
+     1391-1399`). The `.modal-backdrop` CSS is preserved and the dialog uses
+     `role="dialog"` + `aria-modal="true"`; no `inert` regressions detected.
+   - List-workspace reorder (Move up / Move down + `Alt+ArrowUp/Down`) still
+     present at `prism-workflow-graph.ts:2614, 2797-2811` with polite live
+     announcements (`_announce` at line 1403). The list workspace remains the
+     canonical screen-reader-friendly structural editor.
+   - New gateway selects are keyboard-reachable via implicit `<label>` wrapping
+     (`prism-step-inspector.ts:613-642`); each `_announce(...)` call writes to
+     the polite region at line 1264.
+   - Tab order through Canvas / Validation / Preview / Simulation / Help tabs
+     not affected by the proposal-modal removal.
+
+## Test quality findings
+
+1. **BLOCKER** — `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-validation.spec.ts:48, 68`
+   — Spec asserts `[data-prism-canvas-health-hint]` and `[data-prism-open-validation]`
+   selectors that **do not exist anywhere in source** (grep returns zero hits).
+   Both tests in the file will fail the moment they run. The spec is
+   *actively misleading* — it looks like a coverage win but is a future-state
+   contract for Slice 5. **Behavioural assertion needed once Slice 5 lands:**
+   "Author sees a Canvas health hint and can jump from Canvas to Validation
+   without losing context." **Owner:** Tangy to skip-with-comment now; revisit
+   when Isabelle ships Slice 5 canvas-slot-matrix.
+
+2. **BLOCKER** — `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-help.spec.ts:93`
+   — Empty-state assertion expects copy `"Add the next stage before you branch"`
+   that does not exist in `prism-workflow-graph.ts:2545-2555` (the actual copy
+   is `"Add the first stage, then connect routes as you model the author
+   journey."`). Test will fail on the empty-workflow story. The other two tests
+   in the file are healthy. **Behavioural assertion needed:** "Empty workflow
+   prompts the author to add the first stage, then surfaces help."
+   **Owner:** Tangy (skip the one stale `test('empty workflows…')` block; keep
+   tests 1 and 2 live).
+
+3. **SHOULD-FIX** — `src/UmbracoPrism.Core.Tests/Workflow/Authoring/AuthoredWorkflowValidationTests.cs`
+   — `Project_WaitingStage_InGatewayOnlyModel_IsRejected` (line 260) bundles
+   *two* PROJ140 triggers: `"type": "Waiting"` AND a `"waiting": {…}` payload.
+   The validator (`AuthoredWorkflowSchemaValidator.cs:49-55`) has three
+   independent triggers: legacy kind `Waiting`, legacy kind `StatusTimeline`,
+   and the `HasLegacyWaitingPayload` JSON sentinel. **The sentinel-only path is
+   not isolated by any test.** A future refactor could silently drop the
+   `HasLegacyWaitingPayload` check and this test would still pass.
+   **Behavioural assertion to add:** "Author posting a stage with only a
+   `waiting` JSON payload (no retired type) is told the waiting story belongs on
+   a join gateway." **Owner:** Blathers.
+
+4. **SHOULD-FIX** — `src/UmbracoPrism.Core.Tests/Workflow/Authoring/`
+   — No test pins the `[Obsolete]` shim path on `AuthoredTransition`
+   (`AuthoredTransition.cs:35-94`: `FromStage` / `ToStage` / `Action`).
+   `AuthoredWorkflowSerializationTests.cs:296-297` *uses* the shim setters but
+   only asserts round-trip JSON shape — it does not assert that a caller
+   writing `FromStage = "x"` ends up with `Source == "x"` (and equivalent for
+   `ToStage`/`Action`). Silent-migration risk if the shim ever stops mirroring.
+   **Behavioural assertion to add:** "A caller that writes the legacy stage
+   names on an AuthoredTransition gets the same value when it reads back the
+   new gateway-first names." **Owner:** Blathers.
+
+5. **SHOULD-FIX** — `src/UmbracoPrism.Client/src/workflow-editor/` —
+   `prism-workflow-graph.ts:2724` still lists `Waiting` and `StatusTimeline` in
+   the list-view kind `<select>`. No Playwright test catches that authoring
+   them now produces a workflow that fails PROJ140 on save. **Behavioural
+   assertion to add:** "Author cannot pick a retired stage type (Waiting,
+   StatusTimeline) from the stage-type list." **Owner:** Tangy (after Isabelle
+   removes them in 3b.1).
+
+6. **WORTH-NOTING — sampled spec behavioural-fitness check**
+   - `workflow-editor-gateways.spec.ts` — **behavioural ✅**. Asserts on visible
+     names ("Review split", "Decision join"), `role="tab"` + `aria-selected`,
+     and on the user-visible inspector field "Split gateway" / "Join gateway".
+     Uses `data-prism-*` semantic anchors rather than CSS-derived structure.
+     Skipped Slice 3b.1 test is annotated honestly.
+   - `workflow-transition-editor.spec.ts` — **mixed**. Mouse-drag handle
+     coordinates (lines 13-23) test interaction surface, not user goal; better
+     phrased as "Author can connect a route from one stage to the next from
+     the canvas". But the keyboard test (line 37+) genuinely proves a user
+     journey and uses visible labels.
+   - `workflow-editor-shell.spec.ts` — **behavioural ✅**. Switches workflows
+     via `getByRole('combobox', { name: 'Select workflow' })` and asserts the
+     editor title + visible stage cards change. Reads as user behaviour.
+
+## Recommended new behavioural tests
+
+(in plain product language, in priority order)
+
+1. **"Author can pick a join gateway from a stage's outgoing route and the
+   change is announced."** — proves the new `Arrive through` select + polite
+   live region wire end-to-end on a real workflow story; covers Slice 3b's
+   headline feature.
+
+2. **"Screen reader user reading a transition in the outline hears the gateway
+   name, not the gateway key."** — locks the SHOULD-FIX #1 above so it cannot
+   regress quietly.
+
+3. **"Author who tries to author waiting on a stage (legacy JSON payload only)
+   is told it belongs on a join gateway."** — pins the bare-sentinel PROJ140
+   path on the backend.
+
+4. **"Caller using the legacy AuthoredTransition shim (`FromStage`, `ToStage`,
+   `Action`) reads back the same values via `Source`, `Target`, `Trigger`."**
+   — single xUnit fact, prevents silent shim drift.
+
+5. **"Author editing a gateway's outgoing route can set the condition that
+   fires it from the gateway inspector."** — **this is the Slice 3b.1
+   done-condition test.** Today (a251bcd) the condition mode/value selects live
+   only inside the transition panel (`prism-step-inspector.ts:660-694`). When
+   3b.1 lands, condition editing should appear under the *gateway*'s outgoing-
+   route panel so authoring a route never requires drilling into a transition
+   chip. The test should select a split gateway, find its outgoing-route block,
+   change the condition mode to "Guard expression", type a value, and assert
+   both the gateway inspector reflects the change and the underlying transition
+   condition is updated.
+
+## Verdict on known-broken specs
+
+- **`workflow-editor-validation.spec.ts`** — **SKIP** (with `test.skip` +
+  comment `"Re-enable once Slice 5 ships [data-prism-canvas-health-hint] and
+  [data-prism-open-validation]"`). Do not delete: the spec encodes the
+  intended Slice 5 contract in product language and will be the right harness
+  when the canvas health hint lands. Leaving it as a live `test(...)` is
+  actively misleading — it implies coverage that does not exist.
+
+- **`workflow-editor-help.spec.ts`** — **SKIP only the third test**
+  (`"empty workflows show getting-started guidance and still expose help"`)
+  with a comment pointing at Slice 5 graph copy. The first two tests
+  (`"help button and F1 open the shortcut guide…"`, `"save and redo shortcuts
+  stay discoverable…"`) are healthy and behavioural — KEEP them live.
+
+## What I would NOT change
+
+- **The `WorkflowSimulationServiceTests` pair (lines 11-95).** Two facts only,
+  but they prove the exact gateway-first contract: a split is walked through
+  invisibly to the next stage; a join pauses with `waiting-gateway`. Adding
+  more parametric coverage here would be implementation-mirror noise.
+
+- **The outline's flat-`<ol>`-with-sibling-gateway-row structure** (despite
+  IMPROVE #3). A `role="treeitem"`/`aria-level` rewrite would buy little for a
+  surface that is read-only navigation; the existing semantic list + visible
+  meta ("Split gateway", "Join gateway") is sufficient for AA. Park as
+  IMPROVE, do not block.
+
+- **The `MultiLaneGatewayContractTests` skipped facts** for `#84 WaitingCopy`
+  and deterministic release. They are honestly skip-flagged with the issue
+  number — that is *exactly* the right shape for a contract-ahead-of-impl
+  test. Resist the temptation to delete them just to make the suite "all
+  green".
+
+- **The polite-live-region-on-edit pattern in `prism-step-inspector.ts:1264`.**
+  It does not announce *selection*, only *changes* — which looks like a gap
+  but is actually correct: announcing every keyboard navigation event would
+  overwhelm screen-reader users. Add a selection announcement at the editor
+  host level (IMPROVE #4) instead of broadening the inspector announcer.
+
+
+
+---
+
+# Decision/Review: tom-nook-editor-reset-review.md
+
+---
+author: tom-nook
+date: 2026-05-30T13:00:00+01:00
+status: proposed
+area: workflow-editor
+confidence: high
+scope: review
+branch: squad/82-named-lanes-editor-slice
+head: a251bcd
+---
+
+# Workflow Editor Architecture & DX Review (post Slice 1+1.5+2+3a+3b)
+
+## Verdict
+
+The editor is **directionally simpler than before the reset** — the agentic UI, mock drafter, proposal diff modal, and conversation pane are genuinely gone from `src/UmbracoPrism.Client/src/workflow-editor/` (grep is clean), and Slice 3a has locked the server contract to stages + gateways only. But the editor is **not yet ready for Slice 4 (visuals lock) or Slice 5 (slot-matrix canvas)** without a consolidation pass. Two related leaks dominate: (a) the TypeScript model still believes in `StageKind.Waiting` / `StageKind.StatusTimeline` even though the C# enum has been closed and PROJ140 now rejects them on save, and (b) "transition" is still a first-class authoring object in the inspector and the canvas, contradicting Jonny's directive answer #1 (which is exactly what Slice 3b.1 was carved out to address). Both are predictable artefacts of slicing across the boundary, but neither will fix itself, and Slice 4's "lock the visuals" promise is unsafe while the underlying model is split-brained.
+
+## Strengths
+
+- Agentic surface is genuinely excised from the client: no `STUB_PROPOSAL`, no `prism-proposal-diff`, no `conversation-pane`, no `chat-drafter` symbols anywhere under `src/UmbracoPrism.Client/src/`.
+- Confidence tab strip (`prism-confidence-tabs.ts`) is a clean, well-bounded component — exactly the right shape for a top-level editor surface (5 tabs, keyboard nav, error/warning counts as props, dispatches one custom event).
+- Slice 3a server validator rules (PROJ140/141/142) cleanly encode the canonical model in one place (`AuthoredWorkflowSchemaValidator.cs:49-55`, plus the new gateway → split-gateway rule).
+- `AuthoredStage` and `AuthoredTransition` legacy-JSON shims are isolated, well-commented, and obviously transitional — a future migration off them will be a localised edit, not an archaeology dig.
+- `prism-workflow-editor-shell.ts` is the right shape for an integrator: thin, URL-aware, lists workflows, hands a key down. The `composition.md` guide explicitly tells integrators to keep their host thin and lists what the editor and the host each own — this is solid DX scaffolding.
+- `deriveGatewayBindings` (slice 3b) now prefers explicit `fromGateway`/`toGateway` bindings on a transition over heuristic anchor inference — the only sane way to make gateways stable when topology shifts.
+
+## Findings
+
+### Architecture & cohesion
+
+- **BLOCKER — Two-models-fighting on stage kinds** — `src/UmbracoPrism.Client/src/workflow-editor/types.ts:58-110`, `workflow-runtime-projection.ts:254-255`, `workflow-validation.ts:4`, `prism-stage-preview.ts:580-582`, `prism-workflow-graph.ts:2007 + 2724`, `workflow-authoring-client.ts:67-78`, `prism-workflow-editor.stories.ts:110`, `types.ts:634/636` (STUB_WORKFLOW) — **WHAT**: The C# `StageKind` enum is now closed to four members (`StageKind.cs`), and PROJ140 actively rejects authored documents that carry `"Waiting"` or `"StatusTimeline"`. The TypeScript surface still treats both as valid first-class kinds, end-to-end: the type union, the converters, the local projector, the stage-preview renderer, the action catalog `mapStageKind`, the in-editor stage-type dropdown, the test fixture used by stories, and the validator's "terminal kinds" set all still believe waiting/status-timeline exist. **WHY IT MATTERS**: A round-trip from a stale workflow JSON through the editor will rehydrate `kind: 'Waiting'`, present it to authors as if it were valid, then fail PROJ140 on save with a generic schema error — and the client has no UI affordance to translate that diagnostic. This is precisely the "names lie" failure: the client's model says yes, the server's says no, and the author lives in the gap. **ACTION**: NEW SLICE: "Close the stage-kind model in TypeScript." Drop both members from `StageKind`, `EditorStageType`, the converters, both projection switches, the preview, the validator terminal-set, all stub/story fixtures, and the graph-canvas option lists. Add a JSON-boundary normaliser in `workflow-authoring-client.ts:mapStageKind` that downgrades legacy values to `Question` and emits an editor-visible diagnostic. (Belongs adjacent to Slice 3b.1; can ship in the same PR.)
+
+- **SHOULD-FIX — Transition is still first-class on both surfaces** — `prism-step-inspector.ts:533-726` (the whole `_renderTransition` panel: preset/condition mode/role guard/target stage/route actions); `prism-workflow-graph.ts:934 (_openCreateTransitionFromStage) + 247 (_createTransitionDialog state) + the _dragTransition state at line 236`; `workflow-transition-editing.ts` (standalone helper); `tests/workflow-editor/workflow-transition-editor.spec.ts`. **WHAT**: Slice 3b explicitly flagged this as a partial fit and named the follow-up (3b.1). The Edit-route panel still owns target, preset, condition, role and actions; the canvas still exposes a drag-handle that opens a "create transition" modal with its own label + condition controls. **WHY IT MATTERS**: This is the exact "leftover seam" the scope reset was supposed to remove. Authors still see two competing entry points to authoring a route ("select the transition" vs "select the gateway"), inspector code is duplicated between stage/gateway/transition panels, and the canvas keeps a transition-handle metaphor that contradicts the gateway-only model. **ACTION**: Land Slice 3b.1 — relocate route editing into the gateway's outgoing-route panel, delete `_renderTransition`, drop the canvas transition-drag handle and `_createTransitionDialog`, and either delete or rewrite `workflow-transition-editor.spec.ts` to assert gateway-route editing instead. `workflow-transition-editing.ts` survives only as the condition mode parse/serialise helpers (rename it `gateway-route-conditions.ts`).
+
+- **WORTH-NOTING — Three write endpoints for one operation** — `src/UmbracoPrism.WorkflowEditor/Extensions/WorkflowEditorEndpointExtensions.cs:151 (/save) + :166 (/publish) + :203 (/apply)`. **WHAT**: `/save` and `/publish` both call the same `SaveAndPublishAsync` helper and even share the same routing comment block (line 164 header is duplicated). `/apply` is the envelope-bound path. **WHY IT MATTERS**: Integrators reading the surface see three doors and cannot tell which is canonical. Internally this is benign; externally it's a documentation tax that will only grow once an Umbraco package consumer reads it. **ACTION**: NEW SLICE: "Collapse the write surface." Keep `/publish` and `/apply` (different semantics — direct save vs. envelope-mediated save), retire `/save` as an alias, fix the duplicate route-header comment. Document both in `composition.md`.
+
+- **WORTH-NOTING — `ProposalEnvelope` is still load-bearing on the wire** — `ProposalEnvelope.cs:44-55`, `ApplyWorkflowRequest.cs:6`, `WorkflowAuthoringProvenanceStore.*`. **WHAT**: With the agentic UI removed, anything that wants to save through `/apply` must still construct a `ProposalEnvelope` with `Id`, `CreatedAt`, `Agent.Kind` (`github-copilot|custom-agent|human-assisted`), `Agent.Identity`, `TargetWorkflowId`, `Rationale` (required, non-empty string), and a list of `PatchOp` JSON-pointer ops. **WHY IT MATTERS**: For a non-agentic save, every one of those required fields is theatre — the integrator has to invent an agent identity, write a rationale string for an action the author took directly, and split the change into JSON-pointer patches just to use the only `[Obsolete]`-clean save path. This is the "hidden tax" from the reset: the contract still smells of the deleted feature. **ACTION**: NEW SLICE: "Decouple save from envelope." Either (a) make `Rationale`/`Agent` optional on `ProposalEnvelope` with author-initiated defaults, or (b) keep `/apply` for envelope semantics and promote `/publish` to the default whole-document save path documented for integrators. Recommendation: (b) — clearer split, smaller blast radius.
+
+### Simple design (complexity, naming, structure)
+
+- **SHOULD-FIX — `PrismWorkflowEditorElement` owns 24 state slots and uses three parallel selection fields instead of its own `WorkflowSelection` union** — `prism-workflow-editor.ts:35-39` defines `WorkflowSelection` (a tagged union), and then `:159-182` declares `_selectedStageKey`, `_selectedGatewayKey`, `_selectedTransitionIndex` as three separate `@state` fields that have to be kept consistent by hand. **WHY IT MATTERS**: Every selection change touches three fields plus their derived `selectionsEqual`; the union is defined but unused. Bugs where two of the three are set simultaneously are quietly possible. A new contributor reading this will not understand in 10 minutes why a union exists and is ignored. **ACTION**: Refactor selection state to one `@state() private _selection: WorkflowSelection = null` and derive the three legacy reads where Lit children still want them. Belongs in the same 3b.1 PR so the gateway-route relocation has a single selection model to plug into.
+
+- **SHOULD-FIX — `prism-workflow-graph.ts` (3,982 lines) carries a `linear`/`graph` mode that duplicates the outline workspace** — `prism-workflow-graph.ts:36 (GraphMode = 'graph' | 'linear')`, `_renderLinear`, `_draggedLinearStageKey`, `_dragOverLinearStageKey`, plus a `LinearMode` story at `prism-workflow-graph.stories.ts:264`. The shell also renders `prism-workflow-outline.ts` as a separate list workspace. **WHY IT MATTERS**: Two list views, one inside the graph and one beside it, with different selection contracts. The graph-internal list still owns drag-reorder state that is duplicated by the outline. **ACTION**: NEW SLICE (or scope into Slice 4 visual lock): retire `mode = 'linear'` and the `_renderLinear*` path; the outline is the canonical list. Delete `LinearMode` story and the `allow-linear-mode` attribute. Drops ~400 lines and one entire control flow out of the largest file.
+
+- **WORTH-NOTING — `prism-workflow-graph.ts` keeps four creation dialogs (stage / delete-stage / transition / gateway) as graph-canvas state** — `:240-250`. **WHY IT MATTERS**: The graph file is doing layout + interaction + dialog hosting + selection. Once the transition-create dialog dies with 3b.1, the remaining three could live with the outline/inspector instead, letting the graph become a pure render-and-route surface. Defer until 3b.1 has landed, then revisit.
+
+- **WORTH-NOTING — `prism-step-inspector.ts` (1,701 lines) renders three node-kind detail panels in one component** — `_renderStage`, `_renderGateway` (around `:728+`), and `_renderTransition`. **WHY IT MATTERS**: Once `_renderTransition` is removed (Finding above), the file becomes a two-panel host and the split into `prism-stage-panel.ts` + `prism-gateway-panel.ts` becomes obvious. Defer the split decision until after 3b.1.
+
+### Componentised DX (public API, integrator view)
+
+- **SHOULD-FIX — `<prism-workflow-graph>` cannot be embedded standalone for read-only consumption** — `prism-workflow-graph.ts:180-260`. **WHAT**: The only attribute is `mode` (`graph`/`linear`) plus the soon-to-be-retired `allow-linear-mode`. `workflow`, all selection props, and all simulation props are `@property({ attribute: false })`, so the only way to hand the component data is via JS property assignment. There is no `read-only` mode — the component always renders the create/delete/edit affordances and the four creation dialogs. **WHY IT MATTERS**: The composition guide promises "the editor is a Web Component, drop it into your page" — true for `<prism-workflow-editor>`, false for `<prism-workflow-graph>` as a viewer. An integrator wanting a workflow viewer (a real, near-term ask for a public-facing case-status surface) must fork the file or hide affordances with shadow-piercing CSS. **ACTION**: NEW SLICE: "Make `<prism-workflow-graph>` reusable read-only." Add a `read-only` boolean attribute (suppresses dialogs, drag-handles, ghost slots, and the `mode-toggle`), expose `workflow-json` as an attribute that accepts the serialised authored workflow, and document the standalone-viewer pattern in `composition.md`. This is the slice that unlocks the editor's gateway/stage rendering primitives as genuinely reusable, which is the whole "componentised DX" promise.
+
+- **SHOULD-FIX — No public-API surface documentation for the editor components** — there are Storybook stories per component but no MDX, README, or JSDoc-driven manifest describing attributes / properties / events / slots / CSS custom properties. The composition guide describes `<prism-workflow-editor>`'s attributes informally but doesn't enumerate its events (none are documented, but `tab-changed`, `outline-gateway-selected`, etc. exist on children) or its theming hooks. **WHY IT MATTERS**: An integrator outside Umbraco.Prism has to read 4,500 lines of TS to know what events to listen for. **ACTION**: NEW SLICE (small): "Component API contract per element." Write a short Storybook MDX page per public element (`prism-workflow-editor`, `prism-workflow-graph`, `prism-workflow-editor-shell`) listing attributes, events, slots, and CSS custom properties used. Cross-link from `composition.md`. Belongs near Slice 4 because that's when the visual contract stabilises.
+
+- **WORTH-NOTING — `composition.md` lists `"waiting"` as an available stage type** — `docs/guides/workflow-editor-composition.md` ~ "stage types (form, review, decision, waiting, etc.)". **WHY IT MATTERS**: Doc contradicts server validator. Trivial fix, but ships the wrong promise to integrators. **ACTION**: Edit `composition.md` to drop `waiting`; pair with the stage-kind close-out slice.
+
+- **WORTH-NOTING — `workflow-authoring-client.ts` SDK speaks legacy field names on the wire** — `:184-186` writes `fromStage`/`toStage`/`action` on outbound JSON because the TS type still declares them. The C# legacy-JSON shims absorb this, but every save now exercises the deprecated path. **WHY IT MATTERS**: The TS SDK is the de-facto public contract for any non-browser integrator; it currently speaks the *pre-Slice-3a* dialect. This is the leftover seam the Slice 3a decision doc explicitly named as the open follow-up. **ACTION**: NEW SLICE: "Rename client transition fields to `source/target/trigger`," parallel to deleting the `LegacyFromStage`/`LegacyToStage`/`LegacyAction` shims on the C# side once authored documents on disk have been migrated. Bundles cleanly with the stage-kind close-out so the wire-format rename happens in one breath.
+
+### Leftovers & seams
+
+- **SHOULD-FIX — `docs/design/workflow-editor-v1/04-agentic-surfaces.md` is not marked historical** — first 5 lines still show `Status: Proposed`, no "superseded" or "historical" banner. **WHY IT MATTERS**: Slice 1's decision-doc obligation explicitly named this file for the historical marker, and the design directory is the first place a new contributor will read. **ACTION**: Coordinator scribe pass — add a `Status: Historical (paused 2026-05-30 per scope-reset directive)` banner; do not delete.
+
+- **SHOULD-FIX — `tests/workflow-editor/workflow-transition-editor.spec.ts` is dead-spec territory** — exercises a drag-from-handle + create-transition-dialog flow that is the canvas-side mirror of the inspector transition object being retired in Slice 3b.1. **ACTION**: Delete or rewrite as a gateway-route-creation spec when 3b.1 lands.
+
+- **WORTH-NOTING — `tests/workflow-editor/vertical-lanes-switcher.spec.ts` has a misleading name** — the file actually tests workflow switching in the shell, not a vertical/horizontal orientation switcher. Grep elsewhere confirms no orientation switcher exists. **WHY IT MATTERS**: A future contributor will read the name and assume the orientation toggle still exists. **ACTION**: Rename to `workflow-shell-switching.spec.ts` during Slice 4's spec cleanup. Cheap.
+
+- **WORTH-NOTING — `workflow-validation.ts:4` keeps `'Waiting'` and `'StatusTimeline'` in `TERMINAL_STAGE_KINDS`** — dead branch once the TS `StageKind` closes. Same slice as the stage-kind close-out.
+
+- **WORTH-NOTING — `PatchAgent.Kind = github-copilot | custom-agent | human-assisted` is preserved verbatim in `ProposalEnvelope.cs:8`** — the vocabulary is straight from the agentic narrative. Even if `/apply` survives as an envelope path, this vocabulary should be relaxed to a free-string `actor` once non-agentic saves use it.
+
+### Layer boundaries (Core ↔ WorkflowEditor ↔ Shared ↔ Runtime)
+
+- **Cohesion: good.** `src/UmbracoPrism.Shared/Models/Workflow/` is genuinely a runtime contract surface — components, definition file, response envelopes — with no authoring concepts leaking in. The slice 3a guidance ("DO NOT touch `WorkflowTransitionFile.Action`") was honoured: runtime field names are untouched. The boundary held under the rename.
+- **`[Obsolete]` shim tax: acceptable for now.** Only one type (`AuthoredTransition`) carries the shims, only three properties, all annotated, all `[JsonIgnore]` on the typed side so they cannot accidentally leak into JSON. The shim site is the right place to take the cost — adapters are precisely what `[Obsolete]` exists for. **ACTION**: Set a delete-by date (next minor or once authored-document migration ships). Track in `decisions.md`.
+- **WORTH-NOTING — `AuthoredStage.LegacyKindRaw` / `HasLegacyWaitingPayload` validator support** — `AuthoredStage.cs:92-157`. Slice 3a chose to detect retired stage kinds at the JSON boundary while keeping the C# enum closed. The mechanism is sound but it cements the asymmetry with the TypeScript surface: the server is *forgiving on input, strict on validation*, while the client is *generous in its type model, silent on save failure*. Closing the TS stage-kind set (Finding above) is what makes this asymmetry safe.
+- **WORTH-NOTING — `WaitingMetadata` survives only on `AuthoredGateway.WaitingInfo`** — good. The only leak is that `AuthoredStage.LegacyWaitingPayload` keeps the JSON binding so the validator can detect old documents; the comment is clear about why. No action.
+
+## Top-3 actions you'd take first
+
+1. **Close the stage-kind model in TypeScript end-to-end (one slice, parallel to 3b.1).** Removes the highest-confusion "names lie" defect in the editor right now, eliminates a whole class of silent save failures, and is the single change that makes the client and server tell the same story about what a stage is. Touches ~8 files, all listed above.
+2. **Land Slice 3b.1: relocate route editing onto the source gateway's outgoing-route list.** Already scoped and named by Isabelle's slice-3b decision; this is the change that finally removes "transition" as a first-class authoring object and lets the inspector + canvas + outline agree on what selection means. Unlocks the simple-design clean-up that follows (graph-only canvas, two-panel inspector).
+3. **Make `<prism-workflow-graph>` reusable in read-only mode + ship a one-page component API contract per public element.** This is the smallest investment that converts "we have web components" from a slogan into a real integrator promise — and it has to land before Slice 4 freezes the visuals, because once the visuals are frozen the API ought to be frozen with them.
+
+## Areas worth a deeper second look by another agent
+
+- **Tangy** — Audit `tests/workflow-editor/workflow-graph-layout-proof.spec.ts` for actual coverage of (a) same-lane fan-out widening and (b) join-row trunk continuity, since Slice 5's slot-matrix work depends on those properties being pinned. Also verify whether `LinearMode` story / `mode='linear'` is exercised by any spec — suspect it is not, which would make its removal a free deletion.
+- **Blathers** — Inspect the `/save` vs `/publish` vs `/apply` surface and decide which two of the three survive. Consider whether `ProposalEnvelope` can become an optional envelope (rationale/agent default-able) so non-agentic saves stop paying the agent-narrative tax. Confirm there is no live caller of `/save` other than tests.
+- **Isabelle** — Once 3b.1 is in flight, do a focused pass on `prism-workflow-graph.ts` for the orientation-toggle, transition-drag, and linear-mode dead paths; estimate how much of the 3,982 lines is rendering vs interaction vs dialog hosting, and whether the three creation dialogs belong on the canvas or in the outline.
+- **Scribe / Coordinator** — Confirm the historical markers on `docs/design/workflow-editor-v1/04-agentic-surfaces.md` and the `"waiting"` reference in `docs/guides/workflow-editor-composition.md`. Both were named for cleanup in Slice 1/Slice 2 but have not yet been applied to the doc surface.
+
+— Tom Nook, 2026-05-30T13:00+01:00
