@@ -199,3 +199,42 @@ Built artefacts land in `src/UmbracoPrism.WorkflowEditor/wwwroot/dist/`:
 * `workflow-editor.html` — host harness used by TestSite Razor pages.
 
 Build with `npm run build` from `src/UmbracoPrism.Client/`.
+
+---
+
+## Visual testing
+
+The canvas has a dedicated visual regression suite proving five reading-level
+concerns: lane fit, no-overlap, label fit (text doesn't crash), scroll
+behaviour, and arrow legibility — plus an ergonomics suite covering the
+named author flows (add stage, selection survives a tab switch, keyboard
+reach). The full strategy lives in
+[`docs/testing/workflow-editor-visual-tests.md`](../../../../docs/testing/workflow-editor-visual-tests.md).
+
+**Run locally:**
+
+```bash
+npx playwright test tests/workflow-editor/workflow-canvas-*.spec.ts \
+                    tests/workflow-editor/workflow-editor-ergonomics.spec.ts \
+                    --reporter=line
+```
+
+### Data attributes the visual suite depends on
+
+These hooks are the public surface the visual contract leans on. **Do not
+remove or rename without updating the suite in the same commit.**
+
+| Attribute | Purpose |
+|---|---|
+| `data-prism-component="workflow-graph"` | Graph root marker. |
+| `data-prism-mode="graph"` | Workspace mode. |
+| `data-prism-read-only="true|false"` | Read-only viewer marker. |
+| `data-prism-lane-container=<laneKey>` | Lane bounding box for fit/overlap/arrow specs. |
+| `data-prism-role-lane=<laneKey>` | Synonym kept for backwards compat. |
+| `data-prism-lane-header=<laneKey>` | Sticky-header scroll spec. |
+| `data-prism-stage-card=<stageKey>` | Stage bounding box. |
+| `data-prism-stage=<stageKey>` | Stage click target + label container. |
+| `data-prism-gateway-node=<gatewayKey>` | Gateway bounding box. |
+| `data-prism-gateway=<gatewayKey>` | Gateway click target + label container. |
+| `data-prism-route-path=<key>` | SVG route path (endpoint assertion). |
+| `data-prism-route-from=<key>` / `data-prism-route-to=<key>` | Route endpoint mapping. |

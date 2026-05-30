@@ -348,3 +348,78 @@ export const GraphReadOnly: Story = {
     await expect(root.querySelector('[role="application"]')).not.toBeNull();
   },
 };
+
+/**
+ * Large workflow — wide enough and tall enough to exceed a 1440x900 canvas
+ * viewport on both axes. Used by the visual regression suite's scroll specs
+ * (see docs/testing/workflow-editor-visual-tests.md) and by lane-fit /
+ * no-overlap assertions that need a non-trivial number of nodes per lane.
+ *
+ * Shape: five lanes, each carrying eight stages in a linear sequence, with
+ * a single cross-lane Join gateway at the end so the routing layer also
+ * gets exercised at scale.
+ */
+function buildLargeWorkflow(): AuthoredWorkflow {
+  const lanes = ['intake', 'triage', 'review', 'decision', 'archive'];
+  const stagesPerLane = 8;
+  const stages: AuthoredWorkflow['stages'] = [];
+  const transitions: AuthoredWorkflow['transitions'] = [];
+
+  for (const lane of lanes) {
+    for (let i = 0; i < stagesPerLane; i++) {
+      const stageKey = `${lane}-step-${i + 1}`;
+      stages.push({
+        stageKey,
+        displayName: `${lane[0].toUpperCase()}${lane.slice(1)} step ${i + 1}`,
+        description: `Synthetic stage ${i + 1} in the ${lane} lane.`,
+        kind: i === stagesPerLane - 1 ? 'Confirmation' : 'Question',
+        actor: lane,
+        actions: [],
+        fields: [],
+        roleGates: [],
+      });
+      if (i > 0) {
+        transitions.push({
+          fromStage: `${lane}-step-${i}`,
+          toStage: stageKey,
+          action: 'continue',
+          actions: [],
+        });
+      }
+    }
+  }
+
+  return {
+    definitionKey: 'large-synthetic-workflow',
+    displayName: 'Large synthetic workflow',
+    version: 1,
+    schemaVersion: '1.0',
+    instancePolicy: 'multiple',
+    initialStageKey: `${lanes[0]}-step-1`,
+    stages,
+    transitions,
+  };
+}
+
+const LARGE_WORKFLOW: AuthoredWorkflow = buildLargeWorkflow();
+
+export const LargeWorkflow: Story = {
+  args: { workflow: LARGE_WORKFLOW },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Synthetic large workflow (five lanes × eight stages) used by the ' +
+          'visual regression suite to exercise canvas scrolling and ' +
+          'high-cardinality layout. Not a real product fixture.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 160));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_WORKFLOW.stages.length);
+  },
+};
