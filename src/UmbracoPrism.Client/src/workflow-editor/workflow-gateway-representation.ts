@@ -34,10 +34,28 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
   const stageByKey = new Map(workflow.stages.map(stage => [stage.stageKey, stage]));
   const outgoingByStage = new Map<string, number[]>();
   const incomingByStage = new Map<string, number[]>();
+  const explicitSplitBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
+  const explicitJoinBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
 
   workflow.transitions.forEach((transition, index) => {
     outgoingByStage.set(transition.fromStage, [...(outgoingByStage.get(transition.fromStage) ?? []), index]);
     incomingByStage.set(transition.toStage, [...(incomingByStage.get(transition.toStage) ?? []), index]);
+
+    if (transition.fromGateway) {
+      const existing = explicitSplitBindings.get(transition.fromGateway);
+      explicitSplitBindings.set(transition.fromGateway, {
+        anchorStageKey: existing?.anchorStageKey ?? transition.fromStage,
+        relatedTransitionIndices: [...(existing?.relatedTransitionIndices ?? []), index],
+      });
+    }
+
+    if (transition.toGateway) {
+      const existing = explicitJoinBindings.get(transition.toGateway);
+      explicitJoinBindings.set(transition.toGateway, {
+        anchorStageKey: existing?.anchorStageKey ?? transition.toStage,
+        relatedTransitionIndices: [...(existing?.relatedTransitionIndices ?? []), index],
+      });
+    }
   });
 
   const splitCandidatesByLane = new Map<string, string[]>();
@@ -76,20 +94,26 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
 
   return (workflow.gateways ?? []).map(gateway => {
     const laneKey = gatewayLaneKey(gateway);
-    const anchorStageKey = gateway.kind === 'Split'
-      ? shiftCandidate(splitCandidatesByLane, laneKey)
-      : shiftCandidate(joinCandidatesByLane, laneKey);
+    const explicitBinding = gateway.kind === 'Split'
+      ? explicitSplitBindings.get(gateway.gatewayKey)
+      : explicitJoinBindings.get(gateway.gatewayKey);
+    const anchorStageKey = explicitBinding?.anchorStageKey ?? (
+      gateway.kind === 'Split'
+        ? shiftCandidate(splitCandidatesByLane, laneKey)
+        : shiftCandidate(joinCandidatesByLane, laneKey)
+    );
 
     return {
       gateway,
       laneKey,
       anchorStageKey,
       relatedTransitionIndices:
-        anchorStageKey === null
+        explicitBinding?.relatedTransitionIndices
+        ?? (anchorStageKey === null
           ? []
           : gateway.kind === 'Split'
             ? (outgoingByStage.get(anchorStageKey) ?? [])
-            : (incomingByStage.get(anchorStageKey) ?? []),
+            : (incomingByStage.get(anchorStageKey) ?? [])),
     };
   });
 }

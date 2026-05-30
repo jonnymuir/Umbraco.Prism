@@ -42,7 +42,6 @@ const STAGE_TYPE_OPTIONS: Array<{ value: EditorStageType; label: string }> = [
   { value: 'form', label: 'Form' },
   { value: 'review', label: 'Review' },
   { value: 'decision', label: 'Decision' },
-  { value: 'waiting', label: 'Waiting' },
   { value: 'confirmation', label: 'Confirmation' },
   { value: 'system-work', label: 'System work' },
 ];
@@ -154,6 +153,47 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _stageLabel(stageKey: string) {
     return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
+  }
+
+  private _gatewayLabel(gatewayKey: string) {
+    return this.workflow?.gateways?.find(gateway => gateway.gatewayKey === gatewayKey)?.displayName ?? gatewayKey;
+  }
+
+  private _routeDescriptor(transition: AuthoredTransition) {
+    return [
+      this._stageLabel(transition.fromStage),
+      transition.fromGateway ? this._gatewayLabel(transition.fromGateway) : null,
+      transition.toGateway ? this._gatewayLabel(transition.toGateway) : null,
+      this._stageLabel(transition.toStage),
+    ].filter(Boolean).join(' → ');
+  }
+
+  private _availableSplitGatewaysForStage(stageKey: string) {
+    if (!this.workflow) {
+      return [];
+    }
+
+    const stage = this.workflow.stages.find(candidate => candidate.stageKey === stageKey);
+    const laneKey = stage ? stageLaneKey(stage) : '';
+
+    return deriveGatewayBindings(this.workflow)
+      .filter(binding => binding.gateway.kind === 'Split')
+      .filter(binding => binding.anchorStageKey === stageKey || (!binding.anchorStageKey && binding.laneKey === laneKey))
+      .map(binding => binding.gateway);
+  }
+
+  private _availableJoinGatewaysForStage(stageKey: string) {
+    if (!this.workflow) {
+      return [];
+    }
+
+    const stage = this.workflow.stages.find(candidate => candidate.stageKey === stageKey);
+    const laneKey = stage ? stageLaneKey(stage) : '';
+
+    return deriveGatewayBindings(this.workflow)
+      .filter(binding => binding.gateway.kind === 'Join')
+      .filter(binding => binding.anchorStageKey === stageKey || (!binding.anchorStageKey && binding.laneKey === laneKey))
+      .map(binding => binding.gateway);
   }
 
   private _selectedStageOutgoing(stage: AuthoredStage) {
@@ -347,7 +387,7 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     this._replaceSelectedTransition({ ...transition, action });
-    this._announce(`Transition label updated to ${action}.`);
+    this._announce(`Route label updated to ${action}.`);
   }
 
   private _updateTransitionActionPreset(event: Event) {
@@ -362,7 +402,7 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     this._replaceSelectedTransition({ ...transition, action: nextAction });
-    this._announce(`Transition action updated to ${nextAction}.`);
+    this._announce(`Route preset updated to ${nextAction}.`);
   }
 
   private _updateTransitionTarget(event: Event) {
@@ -377,7 +417,45 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     this._replaceSelectedTransition({ ...transition, toStage });
-    this._announce(`Transition now routes to ${this._stageLabel(toStage)}.`);
+    this._announce(`Route now arrives at ${this._stageLabel(toStage)}.`);
+  }
+
+  private _updateTransitionFromGateway(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const fromGateway = (event.currentTarget as HTMLSelectElement).value || undefined;
+    if (fromGateway === transition.fromGateway) {
+      return;
+    }
+
+    this._replaceSelectedTransition({ ...transition, fromGateway });
+    this._announce(
+      fromGateway
+        ? `Route now leaves through ${this._gatewayLabel(fromGateway)}.`
+        : 'Route now leaves directly from the stage.'
+    );
+  }
+
+  private _updateTransitionToGateway(event: Event) {
+    const transition = this._selectedTransition;
+    if (!transition) {
+      return;
+    }
+
+    const toGateway = (event.currentTarget as HTMLSelectElement).value || undefined;
+    if (toGateway === transition.toGateway) {
+      return;
+    }
+
+    this._replaceSelectedTransition({ ...transition, toGateway });
+    this._announce(
+      toGateway
+        ? `Route now arrives through ${this._gatewayLabel(toGateway)}.`
+        : 'Route now arrives directly at the target stage.'
+    );
   }
 
   private _updateTransitionConditionMode(event: Event) {
@@ -393,7 +471,7 @@ export class PrismStepInspectorElement extends LitElement {
     this._replaceSelectedTransition({ ...transition, condition });
     this._announce(
       mode === 'always'
-        ? 'Transition condition cleared.'
+        ? 'Route condition cleared.'
         : `${mode === 'event' ? 'Event' : 'Guard'} condition enabled.`
     );
   }
@@ -411,7 +489,7 @@ export class PrismStepInspectorElement extends LitElement {
     );
 
     this._replaceSelectedTransition({ ...transition, condition });
-    this._announce('Transition condition updated.');
+    this._announce('Route condition updated.');
   }
 
   private _updateTransitionRole(event: Event) {
@@ -441,13 +519,13 @@ export class PrismStepInspectorElement extends LitElement {
 
     const transitions = this.workflow.transitions.filter((_, index) => index !== this.selectedTransitionIndex);
     this._emitWorkflowUpdated({ ...this.workflow, transitions }, null);
-    this._announce(`Transition ${transition.action} deleted.`);
+    this._announce(`Route ${transition.action} deleted.`);
   }
 
   private _renderEmpty() {
     return html`
       <div class="empty-state" role="status">
-        <p>Select a stage or transition from the workspace to inspect its details.</p>
+        <p>Select a stage, gateway, or route from the workspace to inspect its details.</p>
       </div>
     `;
   }
@@ -455,6 +533,8 @@ export class PrismStepInspectorElement extends LitElement {
   private _renderTransition(transition: AuthoredTransition) {
     const condition = parseTransitionCondition(transition.condition);
     const targetOptions = (this.workflow?.stages ?? []).filter(stage => stage.stageKey !== transition.fromStage);
+    const splitGateways = this._availableSplitGatewaysForStage(transition.fromStage);
+    const joinGateways = this._availableJoinGatewaysForStage(transition.toStage);
 
     return html`
       <article
@@ -465,19 +545,35 @@ export class PrismStepInspectorElement extends LitElement {
       >
         <div class="inspector-header">
           <div>
-            <p class="eyebrow">Transition</p>
+            <p class="eyebrow">Route</p>
             <h2 id="inspector-transition-title" class="stage-title">${transition.action}</h2>
           </div>
-          <span class="stage-kind-badge transition-badge">Edge</span>
+          <span class="stage-kind-badge transition-badge">Routing rule</span>
         </div>
 
         <section class="inspector-section" aria-labelledby="section-transition-route">
-          <h3 id="section-transition-route" class="section-heading">Route</h3>
+          <h3 id="section-transition-route" class="section-heading">Authored shape</h3>
           <dl class="meta-list">
             <div class="meta-row">
               <dt>From</dt>
               <dd>${this._stageLabel(transition.fromStage)}</dd>
             </div>
+            ${transition.fromGateway
+              ? html`
+                  <div class="meta-row">
+                    <dt>Leaves through</dt>
+                    <dd>${this._gatewayLabel(transition.fromGateway)}</dd>
+                  </div>
+                `
+              : nothing}
+            ${transition.toGateway
+              ? html`
+                  <div class="meta-row">
+                    <dt>Arrives through</dt>
+                    <dd>${this._gatewayLabel(transition.toGateway)}</dd>
+                  </div>
+                `
+              : nothing}
             <div class="meta-row">
               <dt>To</dt>
               <dd>${this._stageLabel(transition.toStage)}</dd>
@@ -487,16 +583,17 @@ export class PrismStepInspectorElement extends LitElement {
               <dd>${describeTransitionCondition(transition.condition)}</dd>
             </div>
           </dl>
+          <p class="action-summary gateway-routing-hint">${this._routeDescriptor(transition)}</p>
         </section>
 
         <section class="inspector-section" aria-labelledby="section-transition-edit">
           <div class="section-header-row">
-            <h3 id="section-transition-edit" class="section-heading">Edit transition</h3>
+            <h3 id="section-transition-edit" class="section-heading">Edit route</h3>
             <span class="section-meta">${transitionQuickAction(transition.action) === 'custom' ? 'Custom label' : 'Preset label'}</span>
           </div>
           <div class="field-grid">
             <label class="field-block">
-              <span class="field-label">Label</span>
+              <span class="field-label">Route label</span>
               <input
                 class="field-control"
                 data-prism-transition-label
@@ -505,12 +602,23 @@ export class PrismStepInspectorElement extends LitElement {
               />
             </label>
             <label class="field-block">
-              <span class="field-label">Action shortcut</span>
+              <span class="field-label">Route preset</span>
               <select class="field-control" data-prism-transition-action @change=${this._updateTransitionActionPreset}>
                 ${TRANSITION_ACTION_OPTIONS.map(option => html`
                   <option value=${option.value} ?selected=${transitionQuickAction(transition.action) === option.value}>${option.label}</option>
                 `)}
                 <option value="custom" ?selected=${transitionQuickAction(transition.action) === 'custom'}>Custom label</option>
+              </select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Leave through</span>
+              <select class="field-control" data-prism-transition-from-gateway @change=${this._updateTransitionFromGateway}>
+                <option value="">No split gateway</option>
+                ${splitGateways.map(gateway => html`
+                  <option value=${gateway.gatewayKey} ?selected=${gateway.gatewayKey === transition.fromGateway}>
+                    ${gateway.displayName}
+                  </option>
+                `)}
               </select>
             </label>
             <label class="field-block">
@@ -522,11 +630,22 @@ export class PrismStepInspectorElement extends LitElement {
               </select>
             </label>
             <label class="field-block">
+              <span class="field-label">Arrive through</span>
+              <select class="field-control" data-prism-transition-to-gateway @change=${this._updateTransitionToGateway}>
+                <option value="">No join gateway</option>
+                ${joinGateways.map(gateway => html`
+                  <option value=${gateway.gatewayKey} ?selected=${gateway.gatewayKey === transition.toGateway}>
+                    ${gateway.displayName}
+                  </option>
+                `)}
+              </select>
+            </label>
+            <label class="field-block">
               <span class="field-label-row">
                 <span class="field-label">Role guard</span>
                 <prism-inline-help
                   label="Role guard help"
-                  message="Add a role only when this route should be limited to a specific actor such as reviewer or caseworker. Leave it blank when everyone on the route can use the transition."
+                  message="Add a role only when this route should be limited to a specific actor such as reviewer or caseworker. Leave it blank when everyone on the route can use it."
                 ></prism-inline-help>
               </span>
               <input
@@ -545,7 +664,7 @@ export class PrismStepInspectorElement extends LitElement {
                 <span class="field-label">Condition type</span>
                 <prism-inline-help
                   label="Condition type help"
-                  message="Choose Always available for a standard route, Event for named workflow triggers, or Guard expression when runtime data decides whether this transition can run."
+                  message="Choose Always available for a standard route, Event for named workflow triggers, or Guard expression when runtime data decides whether this route can run."
                 ></prism-inline-help>
               </span>
               <select class="field-control" data-prism-transition-condition-mode @change=${this._updateTransitionConditionMode}>
@@ -582,14 +701,14 @@ export class PrismStepInspectorElement extends LitElement {
               data-prism-transition-delete
               @click=${this._deleteSelectedTransition}
             >
-              Delete transition
+              Delete route
             </button>
           </div>
         </section>
 
         <section class="inspector-section" aria-labelledby="section-transition-actions">
           <div class="section-header-row">
-            <h3 id="section-transition-actions" class="section-heading">Transition actions</h3>
+            <h3 id="section-transition-actions" class="section-heading">Route actions</h3>
             <span class="section-meta">${transition.actions?.length ?? 0} configured</span>
           </div>
           <prism-workflow-action-editor
@@ -785,7 +904,7 @@ export class PrismStepInspectorElement extends LitElement {
                 <span class="field-label">Key</span>
                 <prism-inline-help
                   label="Gateway key help"
-                  message="A stable, unique identifier for this gateway. Must not clash with any stage key or other gateway key. Transition routing references this key."
+                  message="A stable, unique identifier for this gateway. Must not clash with any stage key or other gateway key. Route bindings reference this key."
                 ></prism-inline-help>
               </span>
               <input
@@ -856,7 +975,7 @@ export class PrismStepInspectorElement extends LitElement {
               : nothing}
           </dl>
           <p class="action-summary gateway-routing-hint">
-            Use the transition inspector to set a transition's source or target to this gateway.
+            Use route editing to bind stages through this gateway so the authored flow stays visible as stage → gateway → stage.
             ${isJoin ? ' Join gateways wait for all required incoming paths before releasing.' : ' Split gateways create independent paths for each outgoing transition.'}
           </p>
         </section>
@@ -968,11 +1087,11 @@ export class PrismStepInspectorElement extends LitElement {
       : false;
     const validationMessages = [
       ...(this._stageKeyError ? [this._stageKeyError] : []),
-      ...(orphaned ? ['This stage is disconnected from the workflow. Add at least one transition to connect it.'] : []),
+      ...(orphaned ? ['This stage is disconnected from the workflow. Add at least one route to connect it.'] : []),
       ...(deadEnd || (outgoing.length === 0 && !isTerminalStage(stage))
-        ? ['Add at least one outbound transition before publishing this stage.']
+        ? ['Add at least one outgoing route before publishing this stage.']
         : []),
-      ...(unreachable ? ['This stage is unreachable from the workflow start. Add or retarget an inbound transition.'] : []),
+      ...(unreachable ? ['This stage is unreachable from the workflow start. Add or retarget an incoming route.'] : []),
     ];
 
     return html`
@@ -1096,18 +1215,17 @@ export class PrismStepInspectorElement extends LitElement {
 
         <section class="inspector-section" aria-labelledby="stage-transitions-heading">
           <div class="section-header-row">
-            <h3 id="stage-transitions-heading" class="section-heading">Outbound transitions</h3>
+            <h3 id="stage-transitions-heading" class="section-heading">Outgoing routes</h3>
             <span class="section-meta">${outgoing.length}</span>
           </div>
           ${outgoing.length === 0
-            ? html`<p class="section-empty">No outbound transitions yet.</p>`
+            ? html`<p class="section-empty">No outgoing routes yet.</p>`
             : html`
                 <ul class="transition-list">
                   ${outgoing.map(transition => html`
                     <li class="transition-item">
                       <span class="transition-action">${transition.action}</span>
-                      <span class="transition-arrow" aria-hidden="true">→</span>
-                      <span>${this._stageLabel(transition.toStage)}</span>
+                      <span>${this._routeDescriptor(transition)}</span>
                     </li>
                   `)}
                 </ul>

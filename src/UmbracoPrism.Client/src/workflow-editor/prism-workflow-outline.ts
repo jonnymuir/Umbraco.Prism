@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { AuthoredTransition, AuthoredWorkflow } from './types.js';
+import type { AuthoredGateway, AuthoredTransition, AuthoredWorkflow } from './types.js';
+import { deriveGatewayBindings } from './workflow-gateway-representation.js';
+import { stageLaneKey, stageLaneLabel } from './workflow-stage-assignment.js';
 
 @customElement('prism-workflow-outline')
 export class PrismWorkflowOutline extends LitElement {
@@ -15,6 +17,9 @@ export class PrismWorkflowOutline extends LitElement {
 
   @property({ attribute: 'selected-transition-index', type: Number })
   selectedTransitionIndex: number | null = null;
+
+  @property({ attribute: 'selected-gateway-key' })
+  selectedGatewayKey: string | null = null;
 
   private _handleStageClick(stageKey: string) {
     this.dispatchEvent(
@@ -36,6 +41,16 @@ export class PrismWorkflowOutline extends LitElement {
     );
   }
 
+  private _handleGatewayClick(gatewayKey: string) {
+    this.dispatchEvent(
+      new CustomEvent('outline-gateway-selected', {
+        detail: { gatewayKey },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private _stageOutboundTransitions(stageKey: string): { transition: AuthoredTransition; index: number }[] {
     if (!this.workflow) {
       return [];
@@ -44,6 +59,40 @@ export class PrismWorkflowOutline extends LitElement {
     return this.workflow.transitions
       .map((transition, index) => ({ transition, index }))
       .filter(({ transition }) => transition.fromStage === stageKey);
+  }
+
+  private _splitGatewaysForStage(stageKey: string): AuthoredGateway[] {
+    if (!this.workflow) {
+      return [];
+    }
+
+    return deriveGatewayBindings(this.workflow)
+      .filter(binding => binding.gateway.kind === 'Split' && binding.anchorStageKey === stageKey)
+      .map(binding => binding.gateway);
+  }
+
+  private _laneGroups() {
+    if (!this.workflow) {
+      return [];
+    }
+
+    const groups = new Map<string, { key: string; label: string; stages: AuthoredWorkflow['stages'] }>();
+    for (const stage of this.workflow.stages) {
+      const laneKey = stageLaneKey(stage) || stage.actor || 'public';
+      const existing = groups.get(laneKey);
+      if (existing) {
+        existing.stages.push(stage);
+        continue;
+      }
+
+      groups.set(laneKey, {
+        key: laneKey,
+        label: stageLaneLabel(this.workflow, laneKey),
+        stages: [stage],
+      });
+    }
+
+    return [...groups.values()];
   }
 
   render() {
@@ -56,12 +105,13 @@ export class PrismWorkflowOutline extends LitElement {
     }
 
     const stages = this.workflow.stages || [];
+    const laneGroups = this._laneGroups();
 
     if (stages.length === 0) {
       return html`
         <div class="outline-empty">
-          <p class="outline-empty-text">No stages in workflow</p>
-          <p class="outline-empty-hint">Create a stage to get started</p>
+          <p class="outline-empty-text">Start by adding your first stage</p>
+          <p class="outline-empty-hint">The outline will group stages by lane once the workflow starts taking shape.</p>
         </div>
       `;
     }
@@ -72,15 +122,26 @@ export class PrismWorkflowOutline extends LitElement {
           ? html`
               <div class="outline-header">
                 <h2 class="outline-title">Outline</h2>
-                <p class="outline-subtitle">${stages.length} ${stages.length === 1 ? 'stage' : 'stages'}</p>
+                <p class="outline-subtitle">
+                  ${stages.length} ${stages.length === 1 ? 'stage' : 'stages'}
+                  ${this.workflow.gateways?.length ? html` · ${this.workflow.gateways.length} gateways` : nothing}
+                </p>
               </div>
             `
           : nothing}
 
-        <ol class="outline-stage-list">
-          ${stages.map((stage) => {
+        <div class="outline-lane-groups">
+          ${laneGroups.map(group => html`
+            <section class="outline-lane-section" data-prism-outline-lane=${group.key}>
+              <div class="outline-lane-header">
+                <h3 class="outline-lane-title">${group.label}</h3>
+                <p class="outline-lane-meta">Read top to bottom</p>
+              </div>
+              <ol class="outline-stage-list">
+                ${group.stages.map((stage: AuthoredWorkflow['stages'][number]) => {
             const isSelected = this.selectedStageKey === stage.stageKey;
             const transitions = this._stageOutboundTransitions(stage.stageKey);
+            const splitGateways = this._splitGatewaysForStage(stage.stageKey);
 
             return html`
               <li class="outline-stage-item">
@@ -94,6 +155,27 @@ export class PrismWorkflowOutline extends LitElement {
                   <span class="outline-stage-title">${stage.displayName}</span>
                   <span class="outline-stage-meta">${stage.actor}</span>
                 </button>
+
+                ${splitGateways.map(gateway => {
+                  const isGatewaySelected = this.selectedGatewayKey === gateway.gatewayKey;
+                  return html`
+                    <div class="outline-gateway-row">
+                      <button
+                        type="button"
+                        class="outline-gateway-button ${isGatewaySelected ? 'outline-gateway-button-selected' : ''}"
+                        @click=${() => this._handleGatewayClick(gateway.gatewayKey)}
+                        aria-current=${isGatewaySelected ? 'location' : nothing}
+                        data-prism-outline-gateway="${gateway.gatewayKey}"
+                      >
+                        <span class="outline-gateway-shape" aria-hidden="true"></span>
+                        <span class="outline-gateway-copy">
+                          <span class="outline-gateway-title">${gateway.displayName}</span>
+                          <span class="outline-gateway-meta">${gateway.kind} gateway</span>
+                        </span>
+                      </button>
+                    </div>
+                  `;
+                })}
 
                 ${transitions.length > 0
                   ? html`
@@ -111,7 +193,11 @@ export class PrismWorkflowOutline extends LitElement {
                                 aria-current=${isTransitionSelected ? 'location' : nothing}
                               >
                                 <span class="outline-transition-label">${transition.action}</span>
-                                <span class="outline-transition-target">→ ${transition.toStage}</span>
+                                <span class="outline-transition-target">
+                                  ${transition.fromGateway ? `via ${transition.fromGateway} → ` : ''}
+                                  ${transition.toGateway ? `${transition.toGateway} → ` : ''}
+                                  ${transition.toStage}
+                                </span>
                               </button>
                             </li>
                           `;
@@ -121,8 +207,11 @@ export class PrismWorkflowOutline extends LitElement {
                   : nothing}
               </li>
             `;
-          })}
-        </ol>
+               })}
+             </ol>
+            </section>
+          `)}
+        </div>
       </nav>
     `;
   }
@@ -142,7 +231,7 @@ export class PrismWorkflowOutline extends LitElement {
       display: flex;
       flex-direction: column;
       height: 100%;
-      overflow: hidden;
+      overflow-y: auto;
     }
 
     .outline-header {
@@ -166,12 +255,43 @@ export class PrismWorkflowOutline extends LitElement {
       line-height: 1.4;
     }
 
+    .outline-lane-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.75rem;
+    }
+
+    .outline-lane-section {
+      border: 1px solid #d8dde3;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .outline-lane-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #eef2f6;
+      background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    }
+
+    .outline-lane-title {
+      margin: 0;
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: #0b0c0c;
+    }
+
+    .outline-lane-meta {
+      margin: 0.2rem 0 0;
+      font-size: 0.75rem;
+      color: #475569;
+    }
+
     .outline-stage-list {
       list-style: none;
       margin: 0;
       padding: 0;
-      overflow-y: auto;
-      flex: 1;
     }
 
     .outline-stage-item {
@@ -234,6 +354,56 @@ export class PrismWorkflowOutline extends LitElement {
       margin: 0;
       padding: 0;
       background: #f8f8f8;
+    }
+
+    .outline-gateway-row {
+      padding: 0 1rem 0.5rem;
+      background: #f8f8fc;
+    }
+
+    .outline-gateway-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border: 1px solid #e9d5ff;
+      border-radius: 12px;
+      background: #ffffff;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
+
+    .outline-gateway-button-selected {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+    }
+
+    .outline-gateway-shape {
+      width: 0.9rem;
+      height: 0.9rem;
+      flex-shrink: 0;
+      border: 2px solid #7c3aed;
+      background: #f5f3ff;
+      transform: rotate(45deg);
+    }
+
+    .outline-gateway-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .outline-gateway-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #0b0c0c;
+    }
+
+    .outline-gateway-meta {
+      font-size: 0.75rem;
+      color: #6d28d9;
     }
 
     .outline-transition-item {
