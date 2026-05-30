@@ -23,7 +23,15 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 
 builder.Services.AddPrismAuthentication(builder.Configuration);
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // The workflow-editor endpoint group asserts this policy on every route. Default V1
+    // posture is "any authenticated principal can author"; downstream apps tighten by
+    // re-registering the policy with their own claim/role requirements.
+    options.AddPolicy(
+        UmbracoPrism.WorkflowEditor.Extensions.WorkflowAuthoringPolicies.WorkflowAuthor,
+        policy => policy.RequireAuthenticatedUser());
+});
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 
@@ -41,18 +49,23 @@ builder.Services.AddSingleton<IAuthoredWorkflowStore>(
 builder.Services.AddSingleton<IPublishedWorkflowStore, InMemoryRuntimePublishedWorkflowStore>();
 builder.Services.AddSingleton<IWorkflowAuthoringProvenanceStore, InMemoryWorkflowAuthoringProvenanceStore>();
 
-// AddPrismWorkflowEditor registers the projector, patch service, preview service, etc.
+// AddPrismWorkflowEditor registers the projector, patch service, etc.
 // The authoredWorkflowBasePath is ignored because we've already registered the stores above.
 var publishedWorkflowPath = Path.Combine(builder.Environment.ContentRootPath, "workflow-seeds");
 builder.Services.AddPrismWorkflowEditor(string.Empty, publishedWorkflowPath);
 builder.Services.AddBusinessAppWorkflowActions();
 
-// Development CORS — allows the editor host page (Isabelle) running on a different origin to call
-// the authoring API. Never enabled outside Development.
+// Development CORS — allows the editor host page (Isabelle) running on a specific local origin to call
+// the authoring API. Restricted to localhost dev origins; never enabled outside Development.
+// Override via PrismBusinessApp:WorkflowAuthoringDevOrigins (CSV) when hosting the editor on a
+// non-default port.
+var devOrigins = (builder.Configuration["PrismBusinessApp:WorkflowAuthoringDevOrigins"]
+                  ?? "http://localhost:5173,http://127.0.0.1:5173")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("WorkflowAuthoringDevCors", policy =>
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+        policy.WithOrigins(devOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 });
 
 // Business App workflow engine — singleton so in-memory instance state survives across requests.
@@ -102,13 +115,17 @@ if (!app.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnv
     throw new InvalidOperationException("KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments.");
 }
 
-// SECURITY: Admin workflow endpoints should not exist outside Development mode.
-// Defence-in-depth: ensure they're unreachable even if accidentally deployed.
+// SECURITY: Admin workflow endpoints and the workflow-authoring API should not exist outside
+// Development mode in the reference app. Defence-in-depth: ensure they're unreachable even if
+// accidentally deployed. Downstream apps that intentionally expose authoring in production
+// should re-implement this middleware to allow `/api/workflow-authoring` and rely on the
+// `WorkflowAuthor` authorization policy for access control.
 if (!app.Environment.IsDevelopment())
 {
     app.Use(async (ctx, next) =>
     {
-        if (ctx.Request.Path.StartsWithSegments("/admin"))
+        if (ctx.Request.Path.StartsWithSegments("/admin")
+            || ctx.Request.Path.StartsWithSegments("/api/workflow-authoring"))
         {
             ctx.Response.StatusCode = 404;
             return;
@@ -136,7 +153,8 @@ app.Use(async (ctx, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Workflow authoring API (V1 agent loop — no auth required, Development CORS applied by endpoint group).
+// Workflow authoring API. Authentication is enforced via the WorkflowAuthor policy on the
+// endpoint group; Development CORS is restricted to localhost dev origins.
 app.MapPrismWorkflowEditor();
 
 

@@ -322,4 +322,23 @@ public class AuthoredWorkflowSerializationTests
     private static string GetFixturesPath() => Path.Combine(
         AppContext.BaseDirectory,
         "Workflow", "Authoring", "Fixtures");
+
+#pragma warning disable CS0618 // legacy shim is intentionally exercised by this test
+    [Fact]
+    public void AuthoredTransition_LegacyShimRoundTrip_FromStageToStageAction_ReadBackViaSourceTargetTrigger()
+    {
+        // Pins the FromStage/ToStage/Action <-> Source/Target/Trigger shim so any future
+        // removal of the obsolete properties surfaces here, not in a downstream caller.
+        var transition = new AuthoredTransition
+        {
+            FromStage = "details",
+            ToStage   = "review",
+            Action    = "submit"
+        };
+
+        transition.Source.Should().Be("details");
+        transition.Target.Should().Be("review");
+        transition.Trigger.Should().Be("submit");
+    }
+#pragma warning restore CS0618
 }

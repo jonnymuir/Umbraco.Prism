@@ -2,14 +2,19 @@ extern alias MockBusinessApp;
 
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using UmbracoPrism.WorkflowEditor.Authoring;
 using MockProgram = MockBusinessApp::Program;
 
@@ -19,10 +24,13 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// Integration smoke tests for <c>MapWorkflowAuthoringEndpoints()</c> using
 /// <see cref="WebApplicationFactory{TEntryPoint}"/> against MockBusinessApp.
 ///
-/// All endpoints are unauthenticated in V1; the factory suppresses OIDC configuration
-/// so no real Keycloak or Entra tenant is required.
+/// The host requires authentication on every <c>/api/workflow-authoring/*</c> route.
+/// <see cref="WorkflowAuthoringWebFactory"/> installs a header-driven test auth scheme
+/// (<c>X-Test-User</c>); tests that exercise normal happy-paths get an authenticated
+/// client via <see cref="WorkflowAuthoringWebFactory.CreateAuthenticatedClient"/>.
 /// </summary>
-public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWebFactory>
+[Collection("WorkflowAuthoringFactory")]
+public class WorkflowAuthoringEndpointsTests
 {
     private readonly WorkflowAuthoringWebFactory _factory;
     private readonly HttpClient _client;
@@ -30,7 +38,7 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
     public WorkflowAuthoringEndpointsTests(WorkflowAuthoringWebFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient("smoke-test");
     }
 
     [Fact]
@@ -191,6 +199,7 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
                 ]));
             });
         }).CreateClient();
+        client.DefaultRequestHeaders.Add(WorkflowAuthoringWebFactory.TestUserHeader, "smoke-test");
 
         var response = await client.GetAsync("/api/workflow-authoring/action-catalog");
 
@@ -336,28 +345,11 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
     }
 
     [Fact]
-    public async Task PostApply_WithMissingApprover_ReturnsBadRequest()
-    {
-        var body = JsonSerializer.Serialize(new
-        {
-            envelope = BuildMinimalEnvelope("smoke-key"),
-            approver = ""   // empty — must be rejected
-        }, WorkflowProjector.CanonicalOptions);
-
-        var response = await _client.PostAsync(
-            "/api/workflow-authoring/workflows/smoke-key/apply",
-            new StringContent(body, Encoding.UTF8, "application/json"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
     public async Task PostApply_WithNonExistentWorkflow_ReturnsNotFound()
     {
         var body = JsonSerializer.Serialize(new
         {
-            envelope = BuildMinimalEnvelope("missing-key"),
-            approver = "test-approver"
+            envelope = BuildMinimalEnvelope("missing-key")
         }, WorkflowProjector.CanonicalOptions);
 
         var response = await _client.PostAsync(
@@ -370,10 +362,10 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
     [Fact]
     public async Task PostApply_WithExistingWorkflow_PublishesRuntimeDefinition()
     {
+        // Envelope agent identity must match the calling principal for human-assisted kind.
         var body = JsonSerializer.Serialize(new
         {
-            envelope = BuildMinimalEnvelope("planning-application"),
-            approver = "test-approver"
+            envelope = BuildMinimalEnvelope("planning-application", agentIdentity: "smoke-test")
         }, WorkflowProjector.CanonicalOptions);
 
         var response = await _client.PostAsync(
@@ -433,11 +425,11 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
         ]
     };
 
-    private static ProposalEnvelope BuildMinimalEnvelope(string targetKey) => new()
+    private static ProposalEnvelope BuildMinimalEnvelope(string targetKey, string agentIdentity = "smoke-test") => new()
     {
         Id               = Guid.NewGuid(),
         CreatedAt        = DateTimeOffset.UtcNow,
-        Agent            = new PatchAgent { Kind = "human-assisted", Identity = "smoke-test" },
+        Agent            = new PatchAgent { Kind = "human-assisted", Identity = agentIdentity },
         TargetWorkflowId = targetKey,
         Rationale        = "Smoke test envelope",
         Ops              = []
@@ -486,9 +478,59 @@ public class WorkflowAuthoringEndpointsTests : IClassFixture<WorkflowAuthoringWe
 /// </summary>
 public sealed class WorkflowAuthoringWebFactory : WebApplicationFactory<MockProgram>
 {
+    public const string TestAuthScheme = "Test";
+    public const string TestUserHeader = "X-Test-User";
+
+    // ConfigureWebHost is re-invoked on every CreateClient/WithWebHostBuilder call;
+    // reset the on-disk fixtures only once per process to avoid IOException races when
+    // tests run in parallel collections.
+    private static readonly object _fixturesGate = new();
+    private static bool _fixturesInitialised;
+    private static readonly object _publishedGate = new();
+    private static bool _publishedInitialised;
+    private static readonly object _provenanceGate = new();
+    private static bool _provenanceInitialised;
+
+    private static void EnsureCleanPublishedDirectory(string path)
+    {
+        if (_publishedInitialised) { Directory.CreateDirectory(path); return; }
+        lock (_publishedGate)
+        {
+            if (_publishedInitialised) return;
+            if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+            Directory.CreateDirectory(path);
+            _publishedInitialised = true;
+        }
+    }
+
+    private static void EnsureCleanProvenanceDirectory(string path)
+    {
+        if (_provenanceInitialised) { Directory.CreateDirectory(path); return; }
+        lock (_provenanceGate)
+        {
+            if (_provenanceInitialised) return;
+            if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+            Directory.CreateDirectory(path);
+            _provenanceInitialised = true;
+        }
+    }
+
+    /// <summary>
+    /// Returns an <see cref="HttpClient"/> pre-configured to authenticate as
+    /// <paramref name="user"/> via the in-process test scheme. Use
+    /// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient()"/> directly when a test
+    /// needs to exercise the unauthenticated path (will receive 401 from the policy).
+    /// </summary>
+    public HttpClient CreateAuthenticatedClient(string user)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add(TestUserHeader, user);
+        return client;
+    }
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
-        ResetAuthoredFixturesDirectory();
+        EnsureFixturesInitialised();
 
         // Set to Development so authoring CORS policy is registered.
         builder.UseEnvironment("Development");
@@ -519,14 +561,36 @@ public sealed class WorkflowAuthoringWebFactory : WebApplicationFactory<MockProg
             services.AddSingleton<IPublishedWorkflowStore>(_ =>
             {
                 var publishedPath = GetPublishedPath();
-                if (Directory.Exists(publishedPath))
-                    Directory.Delete(publishedPath, recursive: true);
-
-                Directory.CreateDirectory(publishedPath);
+                EnsureCleanPublishedDirectory(publishedPath);
                 return new FilesystemPublishedWorkflowStore(publishedPath);
             });
+
+            // Point provenance at a writable test-only directory and expose it for inspection.
+            services.RemoveAll<IWorkflowAuthoringProvenanceStore>();
+            services.AddSingleton<IWorkflowAuthoringProvenanceStore>(_ =>
+            {
+                var provenancePath = GetProvenancePath();
+                EnsureCleanProvenanceDirectory(provenancePath);
+                return new FilesystemWorkflowAuthoringProvenanceStore(provenancePath);
+            });
+
+            // Install a header-driven test authentication scheme as the default for
+            // authenticate/challenge. Tests that omit the X-Test-User header receive 401.
+            services.Configure<AuthenticationOptions>(o =>
+            {
+                o.DefaultAuthenticateScheme = TestAuthScheme;
+                o.DefaultChallengeScheme = TestAuthScheme;
+                o.DefaultScheme = TestAuthScheme;
+            });
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, TestUserHeaderAuthHandler>(TestAuthScheme, _ => { });
         });
     }
+
+    internal static string GetProvenancePath() =>
+        Path.Combine(
+            Path.GetDirectoryName(typeof(WorkflowAuthoringEndpointsTests).Assembly.Location)!,
+            "Workflow", "Authoring", "Provenance");
 
     private static string GetFixturesPath() =>
         Path.Combine(
@@ -548,18 +612,43 @@ public sealed class WorkflowAuthoringWebFactory : WebApplicationFactory<MockProg
             Path.GetDirectoryName(typeof(WorkflowAuthoringEndpointsTests).Assembly.Location)!,
             "Workflow", "Authoring", "Published");
 
+    private static void EnsureFixturesInitialised()
+    {
+        if (_fixturesInitialised) return;
+        lock (_fixturesGate)
+        {
+            if (_fixturesInitialised) return;
+            ResetAuthoredFixturesDirectory();
+            _fixturesInitialised = true;
+        }
+    }
+
     private static void ResetAuthoredFixturesDirectory()
     {
         var fixturesPath = GetFixturesPath();
         Directory.CreateDirectory(fixturesPath);
 
-        foreach (var path in Directory.GetFiles(fixturesPath, "*.workflow.json"))
-            File.Delete(path);
+        var sourceFiles = Directory
+            .GetFiles(GetSourceFixturesPath(), "*.workflow.json")
+            .ToDictionary(p => Path.GetFileName(p), p => p, StringComparer.Ordinal);
 
-        foreach (var path in Directory.GetFiles(GetSourceFixturesPath(), "*.workflow.json"))
+        // Copy from source only when missing in bin — csproj <Content Include> already mirrors
+        // them on build. Avoiding a copy-with-overwrite when not strictly needed prevents
+        // IOException races with concurrent readers in sibling test classes.
+        foreach (var (fileName, sourcePath) in sourceFiles)
         {
-            var targetPath = Path.Combine(fixturesPath, Path.GetFileName(path));
-            File.Copy(path, targetPath, overwrite: true);
+            var targetPath = Path.Combine(fixturesPath, fileName);
+            if (!File.Exists(targetPath))
+                File.Copy(sourcePath, targetPath);
+        }
+
+        // Remove any test-introduced fixture (e.g. broken-listing) that is not part of
+        // the canonical source set.
+        foreach (var path in Directory.GetFiles(fixturesPath, "*.workflow.json"))
+        {
+            var name = Path.GetFileName(path);
+            if (!sourceFiles.ContainsKey(name))
+                File.Delete(path);
         }
     }
 }
@@ -570,3 +659,50 @@ internal sealed class StubActionCatalogSource(IReadOnlyList<ActionCatalogEntry> 
 }
 
 internal sealed record WorkflowAuthoringSummary(string WorkflowKey, Guid Id, string DefinitionKey, string DisplayName);
+
+/// <summary>
+/// Test-only authentication handler. Reads <c>X-Test-User</c> from the request; when present
+/// the request is authenticated as that user via <c>preferred_username</c>. When absent the
+/// handler returns <see cref="AuthenticateResult.NoResult"/> so the workflow-author policy
+/// challenges and the caller sees 401.
+/// </summary>
+internal sealed class TestUserHeaderAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public TestUserHeaderAuthHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (!Request.Headers.TryGetValue(WorkflowAuthoringWebFactory.TestUserHeader, out var values))
+            return Task.FromResult(AuthenticateResult.NoResult());
+
+        var name = values.ToString();
+        if (string.IsNullOrWhiteSpace(name))
+            return Task.FromResult(AuthenticateResult.NoResult());
+
+        var claims = new[]
+        {
+            new Claim("preferred_username", name),
+            new Claim(ClaimTypes.Name, name)
+        };
+        var identity = new ClaimsIdentity(claims, WorkflowAuthoringWebFactory.TestAuthScheme);
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, WorkflowAuthoringWebFactory.TestAuthScheme);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+/// <summary>
+/// Shared collection so any test class that boots <see cref="WorkflowAuthoringWebFactory"/>
+/// re-uses the same instance, runs serially, and only performs the fixture reset once per
+/// process — preventing races with concurrent readers in sibling test classes.
+/// </summary>
+[CollectionDefinition("WorkflowAuthoringFactory")]
+public sealed class WorkflowAuthoringFactoryCollection : ICollectionFixture<WorkflowAuthoringWebFactory>
+{
+}

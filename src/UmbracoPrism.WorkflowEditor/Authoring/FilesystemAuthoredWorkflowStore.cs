@@ -23,6 +23,26 @@ public sealed class FilesystemAuthoredWorkflowStore : IAuthoredWorkflowStore
     /// </param>
     public FilesystemAuthoredWorkflowStore(string basePath) => _basePath = basePath;
 
+    /// <summary>
+    /// Defence-in-depth path guard. The endpoint layer rejects unsafe keys against
+    /// <c>^[a-zA-Z0-9_-]+$</c>, but the store re-asserts that the resolved path lives
+    /// inside <see cref="_basePath"/> so callers cannot smuggle traversal through any
+    /// other entry point.
+    /// </summary>
+    private string ResolveSafePath(string fileName)
+    {
+        var combined = Path.Combine(_basePath, fileName);
+        var resolved = Path.GetFullPath(combined);
+        var baseFull = Path.GetFullPath(_basePath);
+        if (!resolved.StartsWith(baseFull + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && !string.Equals(resolved, baseFull, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Resolved path '{resolved}' escapes authored workflow base directory '{baseFull}'.");
+        }
+        return resolved;
+    }
+
     /// <inheritdoc/>
     public async Task<IReadOnlyList<AuthoredWorkflowStoreEntry>> ListAsync(CancellationToken ct = default)
     {
@@ -78,7 +98,7 @@ public sealed class FilesystemAuthoredWorkflowStore : IAuthoredWorkflowStore
     /// <inheritdoc/>
     public async Task<AuthoredWorkflow?> LoadAsync(string workflowKey, CancellationToken ct = default)
     {
-        var path = Path.Combine(_basePath, $"{workflowKey}.workflow.json");
+        var path = ResolveSafePath($"{workflowKey}.workflow.json");
 
         if (!File.Exists(path))
             return null;
@@ -107,7 +127,7 @@ public sealed class FilesystemAuthoredWorkflowStore : IAuthoredWorkflowStore
     {
         Directory.CreateDirectory(_basePath);
 
-        var path = Path.Combine(_basePath, $"{workflowKey}.workflow.json");
+        var path = ResolveSafePath($"{workflowKey}.workflow.json");
         var options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -120,7 +140,7 @@ public sealed class FilesystemAuthoredWorkflowStore : IAuthoredWorkflowStore
     /// <inheritdoc/>
     public async Task<string> SaveAsync(AuthoredWorkflow workflow, CancellationToken ct = default)
     {
-        var path = Path.Combine(_basePath, $"{workflow.DefinitionKey}.workflow.json");
+        var path = ResolveSafePath($"{workflow.DefinitionKey}.workflow.json");
         var options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

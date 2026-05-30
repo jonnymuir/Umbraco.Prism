@@ -128,6 +128,41 @@ public class AuthoredWorkflowValidationTests
     }
 
     [Fact]
+    public void Project_StageWithBareWaitingPayloadOnly_ReportsProj140()
+    {
+        // Pins the bare-sentinel branch of HasLegacyWaitingPayload independently of
+        // LegacyKindRaw. Even with a current-valid stage type ("Question"), a non-null
+        // "waiting" JSON payload at stage scope must fire PROJ140.
+        // See AuthoredWorkflowSchemaValidator.cs:49-55 and AuthoredStage.cs:146-153.
+        const string json = """
+        {
+          "definitionKey": "validation-test",
+          "displayName": "Validation Test",
+          "schemaVersion": "1.0",
+          "initialStageKey": "start",
+          "stages": [
+            {
+              "key": "start",
+              "title": "Start",
+              "type": "Question",
+              "actions": [],
+              "waiting": { "content": "Hold on" }
+            }
+          ],
+          "transitions": []
+        }
+        """;
+        var authored = JsonSerializer.Deserialize<AuthoredWorkflow>(json)!;
+
+        var result = _projector.Project(authored);
+
+        result.HasErrors.Should().BeTrue();
+        result.Diagnostics.Should().ContainSingle(
+            d => d.Code == "PROJ140" && d.StageKey == "start",
+            because: "the bare 'waiting' payload at stage scope is a smuggled legacy shape and must be rejected even when LegacyKindRaw is empty");
+    }
+
+    [Fact]
     public void Project_ActionReferencingUnknownParameterSchema_ReportsProj118()
     {
         var result = _projector.Project(new AuthoredWorkflow

@@ -7,6 +7,20 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 /// </summary>
 public sealed class FilesystemWorkflowAuthoringProvenanceStore(string basePath) : IWorkflowAuthoringProvenanceStore
 {
+    private string ResolveSafePath(string fileName)
+    {
+        var combined = Path.Combine(basePath, fileName);
+        var resolved = Path.GetFullPath(combined);
+        var baseFull = Path.GetFullPath(basePath);
+        if (!resolved.StartsWith(baseFull + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && !string.Equals(resolved, baseFull, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Resolved path '{resolved}' escapes provenance base directory '{baseFull}'.");
+        }
+        return resolved;
+    }
+
     public async Task<string?> SaveAsync(
         string workflowKey,
         ProposalEnvelope envelope,
@@ -17,7 +31,7 @@ public sealed class FilesystemWorkflowAuthoringProvenanceStore(string basePath) 
 
         var utcStamp = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
         var fileName = $"{workflowKey}-{utcStamp}.json";
-        var path = Path.Combine(basePath, fileName);
+        var path = ResolveSafePath(fileName);
 
         var payload = new
         {

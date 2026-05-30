@@ -154,3 +154,65 @@ All backend publishing and validation now aligned to gateway-only contract. Read
 - All build/test checks passed
 - Frontend deletion by isabelle followed (Slice 1 frontend deletions)
 - 3 git stashes preserved on branch (untouched, pending Slice 3/5)
+
+---
+
+## 2026-05-30 — Slice 3c: workflow-authoring security hardening (squad/82)
+
+**Scope:** Closed the three CRITICAL/HIGH must-fix items from Copper's
+`copper-editor-reset-security-review.md`: (1) auth on `/api/workflow-authoring/*`,
+(2) approver derived from `HttpContext.User` (not body), (3) workflow-key
+sanitisation + filesystem path-containment.
+
+**Shipped:**
+- `WorkflowAuthoringPolicies.WorkflowAuthor` constant; group
+  `.RequireAuthorization` on `MapPrismWorkflowEditor`; MockBusinessApp wires
+  `RequireAuthenticatedUser`; non-Dev 404 guard extended.
+- **BREAKING** `ApplyWorkflowRequest.Approver` removed; `/apply` resolves the
+  approver via the same `preferred_username → email → name → Identity.Name`
+  ladder as `PrismIdentityExtensions.GetEmail`. Human-assisted agents get a
+  cross-stamp check on `envelope.Agent.Identity`.
+- Endpoint-layer `^[a-zA-Z0-9_-]+$` regex on `{key}`; defence-in-depth
+  `ResolveSafePath` containment guards added to all three Filesystem*Store
+  classes.
+- Dev CORS tightened from `AllowAnyOrigin` to a configurable
+  localhost:5173/127.0.0.1:5173 allowlist.
+- 16 new behavioural tests in `WorkflowAuthoringEndpointSecurityTests.cs` plus
+  Tangy's two pin tests (bare-`waiting` PROJ140 branch and AuthoredTransition
+  legacy-shim round-trip). One stale `PostApply_WithMissingApprover…` test
+  deleted. **862/862 tests green, stable on repeat.**
+
+**Test infrastructure learnings:**
+- `WebApplicationFactory<T>.ConfigureWebHost` re-fires on every
+  `CreateClient()` / `WithWebHostBuilder()` call. Anything stateful inside
+  (file resets, dir cleanup) must be guarded once-per-process — added three
+  `static bool _xInitialised` + `static object _xGate` pairs.
+- `ResetAuthoredFixturesDirectory`'s previous "delete-all then copy-all"
+  shape raced with sibling test classes' readers — `IOException: file in use`.
+  Final shape: skip the copy entirely when the target already exists (csproj
+  `<Content Include>` mirrors source on build), and only delete files not in
+  the canonical source set.
+- Header-driven `Test` auth scheme handler with `X-Test-User` makes 401
+  assertions trivial — omit the header to get the policy challenge.
+- `[CollectionDefinition("WorkflowAuthoringFactory")] + ICollectionFixture`
+  forces the auth-touching classes to share one factory + run serially.
+- Provenance filename has second-granular UTC stamp — two `/apply` calls in
+  the same wall-clock second silently overwrite. Snapshot-diff tests are
+  fragile; better to read `provenancePath` from the response body and assert
+  on it directly.
+
+**Iframe follow-up (flagged to Squad — not shipped):**
+The TestSite dashboard mounts the editor via iframe to BusinessApp:
+authenticating BusinessApp's API breaks the iframe's anonymous-fetch
+contract. Documented options (Bearer forwarding vs. Brewster's web-component
+re-host) in the decision file. Not a backend slice.
+
+**Explicitly deferred:** multi-tenant scoping, `WorkflowPatchService` covert
+insert, `WorkflowRuntimeEngine` join forgery (pre-existing), absolute-path
+leaks in responses, `/save` vs `/publish` vs `/apply` consolidation.
+
+**Key Notes:**
+- BREAKING API change called out in `blathers-slice3c-security-hardening.md`
+- All Copper verification-matrix tests pass
+- Pre-existing fixture-race exposed during the slice was repaired as a
+  by-product

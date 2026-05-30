@@ -3,9 +3,12 @@ extern alias MockBusinessApp;
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using UmbracoPrism.WorkflowEditor.Authoring;
 using MockProgram = MockBusinessApp::Program;
 
@@ -37,6 +40,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     {
         _factory = factory;
         _client = factory.CreateClient();
+        _client.DefaultRequestHeaders.Add(WorkflowAuthoringWebFactory.TestUserHeader, "reference-contract");
     }
 
     [Fact]
@@ -86,6 +90,21 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
                     ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "https://localhost:9999/realms/smoke",
                     ["PrismBusinessApp:Tenants:0:OidcClientId"] = "smoke-client"
                 });
+            });
+
+            // Install header-driven test auth scheme so the contract tests can hit the
+            // authoring endpoints without needing a real OIDC token.
+            builder.ConfigureServices(services =>
+            {
+                services.Configure<AuthenticationOptions>(o =>
+                {
+                    o.DefaultAuthenticateScheme = WorkflowAuthoringWebFactory.TestAuthScheme;
+                    o.DefaultChallengeScheme = WorkflowAuthoringWebFactory.TestAuthScheme;
+                    o.DefaultScheme = WorkflowAuthoringWebFactory.TestAuthScheme;
+                });
+                services.AddAuthentication()
+                    .AddScheme<AuthenticationSchemeOptions, TestUserHeaderAuthHandler>(
+                        WorkflowAuthoringWebFactory.TestAuthScheme, _ => { });
             });
         }
     }

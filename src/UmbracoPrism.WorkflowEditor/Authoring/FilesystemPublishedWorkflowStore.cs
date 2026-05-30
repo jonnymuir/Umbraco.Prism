@@ -15,9 +15,23 @@ public sealed class FilesystemPublishedWorkflowStore(string basePath) : IPublish
         PropertyNameCaseInsensitive = true
     };
 
+    private string ResolveSafePath(string fileName)
+    {
+        var combined = Path.Combine(basePath, fileName);
+        var resolved = Path.GetFullPath(combined);
+        var baseFull = Path.GetFullPath(basePath);
+        if (!resolved.StartsWith(baseFull + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && !string.Equals(resolved, baseFull, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Resolved path '{resolved}' escapes published workflow base directory '{baseFull}'.");
+        }
+        return resolved;
+    }
+
     public async Task<WorkflowDefinitionFile?> LoadAsync(string definitionKey, CancellationToken ct = default)
     {
-        var path = Path.Combine(basePath, $"{definitionKey}.json");
+        var path = ResolveSafePath($"{definitionKey}.json");
         if (!File.Exists(path))
             return null;
 
@@ -29,7 +43,7 @@ public sealed class FilesystemPublishedWorkflowStore(string basePath) : IPublish
     {
         Directory.CreateDirectory(basePath);
 
-        var path = Path.Combine(basePath, $"{workflow.DefinitionKey}.json");
+        var path = ResolveSafePath($"{workflow.DefinitionKey}.json");
         await using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(stream, workflow, WorkflowProjector.CanonicalOptions, ct);
         return path;
