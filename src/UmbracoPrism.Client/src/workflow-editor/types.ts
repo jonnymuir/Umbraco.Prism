@@ -41,6 +41,13 @@ export interface AuthoredStage {
   roleGates: string[];
   waiting?: WaitingMetadata;
   editorComment?: string;
+  /**
+   * Editor-only diagnostic marker. Set by the JSON-boundary normaliser when a
+   * stale workflow document arrives carrying the retired `Waiting` or
+   * `StatusTimeline` kind. The validator surfaces a warning so authors see why
+   * their stage was rewritten to `Question`. Stripped on outbound writes.
+   */
+  legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline';
 }
 
 export interface AuthoredGateway {
@@ -55,13 +62,14 @@ export interface AuthoredGateway {
   editorComment?: string;
 }
 
+// Closed union — mirrors the C# StageKind enum exactly. PROJ140 on the server
+// rejects any authored document carrying the retired "Waiting" / "StatusTimeline"
+// values; the client must not pretend they are still valid kinds.
 export type StageKind =
   | 'Question'
   | 'CheckAnswers'
   | 'Confirmation'
-  | 'TaskList'
-  | 'Waiting'
-  | 'StatusTimeline';
+  | 'TaskList';
 
 export type GatewayKind = 'Split' | 'Join';
 
@@ -69,9 +77,7 @@ export type EditorStageType =
   | 'form'
   | 'review'
   | 'decision'
-  | 'waiting'
-  | 'confirmation'
-  | 'system-work';
+  | 'confirmation';
 
 export function stageKindToEditorStageType(kind: StageKind): EditorStageType {
   switch (kind) {
@@ -79,12 +85,8 @@ export function stageKindToEditorStageType(kind: StageKind): EditorStageType {
       return 'review';
     case 'TaskList':
       return 'decision';
-    case 'Waiting':
-      return 'waiting';
     case 'Confirmation':
       return 'confirmation';
-    case 'StatusTimeline':
-      return 'system-work';
     case 'Question':
     default:
       return 'form';
@@ -97,12 +99,8 @@ export function editorStageTypeToStageKind(type: EditorStageType): StageKind {
       return 'CheckAnswers';
     case 'decision':
       return 'TaskList';
-    case 'waiting':
-      return 'Waiting';
     case 'confirmation':
       return 'Confirmation';
-    case 'system-work':
-      return 'StatusTimeline';
     case 'form':
     default:
       return 'Question';
@@ -630,21 +628,6 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'waiting-for-review',
-      displayName: 'Waiting for Review',
-      description: 'Pause while the planning team picks up the case.',
-      kind: 'Waiting',
-      actor: 'public',
-      actions: [],
-      fields: [],
-      roleGates: [],
-      waiting: {
-        allowDefer: true,
-        content: 'Your application is under review by a planning officer.',
-        expectedWaitSeconds: 86400,
-      },
-    },
-    {
       stageKey: 'reviewer-assessment',
       displayName: 'Reviewer Assessment',
       description: 'Internal assessment and decision making.',
@@ -711,7 +694,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
         },
       ],
     },
-    { fromStage: 'check-answers', toStage: 'waiting-for-review', action: 'submit', actions: [] },
+    { fromStage: 'check-answers', toStage: 'reviewer-assessment', action: 'submit', actions: [] },
     { fromStage: 'reviewer-assessment', toStage: 'confirmation', action: 'approve', requiresRole: 'reviewer', actions: [] },
     { fromStage: 'reviewer-assessment', toStage: 'applicant-details', action: 'reject', requiresRole: 'reviewer', actions: [] },
   ],

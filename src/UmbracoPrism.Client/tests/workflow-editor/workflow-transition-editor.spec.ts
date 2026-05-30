@@ -4,70 +4,51 @@ function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
 
-test.describe('Workflow transition editor', () => {
-  test('dragging a graph handle opens the transition label prompt and adds a route', async ({ page }) => {
-    await page.goto(storyUrl('workflow-editor-workflow-graph--workspace-canvas'));
+// Slice 3b.1: route creation/editing relocated to the gateway inspector's
+// outgoing-routes panel. The drag handle, keyboard 't' shortcut, and the
+// dedicated create-transition dialog have all been retired. The single
+// behavioural test below covers Tangy's review item #5: "Author editing a
+// gateway's outgoing route can set the condition that fires it from the
+// gateway inspector".
+test.describe('Gateway-first route editing', () => {
+  test("author editing a gateway's outgoing route can set the condition that fires it from the gateway inspector", async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--gateway-representation'));
 
-    await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    const editor = page.locator('prism-workflow-editor');
+    await expect(editor).toBeVisible({ timeout: 10_000 });
 
-    const handle = page.locator('[data-prism-transition-handle="waiting-for-review"]');
-    const target = page.locator('[data-prism-stage="confirmation"]');
-    const handleBox = await handle.boundingBox();
-    const targetBox = await target.boundingBox();
-    expect(handleBox).not.toBeNull();
-    expect(targetBox).not.toBeNull();
+    const outline = editor.locator('prism-workflow-outline');
+    await outline.locator('[data-prism-outline-gateway="review-split"]').click();
 
-    await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 12 });
-    await page.mouse.up();
+    const inspector = editor.locator('prism-step-inspector');
+    await expect(inspector.locator('[data-prism-gateway-detail="review-split"]')).toBeVisible();
 
-    const dialog = page.locator('[data-prism-create-transition-dialog]');
-    await expect(dialog).toBeVisible();
-    await dialog.locator('[data-prism-create-transition-label]').fill('approve');
-    await dialog.locator('[data-prism-create-transition-condition-mode]').selectOption('guard');
-    await dialog.locator('[data-prism-create-transition-condition-value]').fill('case.readyForDecision == true');
-    await dialog.getByRole('button', { name: 'Create transition' }).click();
+    const routeBlock = inspector.locator('[data-prism-route-target="reviewer-assessment"]');
+    await expect(routeBlock).toBeVisible();
 
-    await expect(dialog).toBeHidden();
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(6);
-    await expect(page.locator('[data-prism-transition]').last()).toContainText('approve');
-  });
+    await routeBlock.locator('[data-prism-route-condition-mode]').selectOption('guard');
+    const conditionInput = routeBlock.locator('[data-prism-route-condition-value]');
+    await conditionInput.fill('application.readyForReview == true');
+    await conditionInput.press('Enter');
+    await conditionInput.blur();
 
-  test('keyboard transition editing retargets, validates connectivity, and deletes cleanly', async ({ page }) => {
-    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+    // (a) Inspector reflects the updated condition value.
+    await expect(routeBlock.locator('[data-prism-route-condition-value]'))
+      .toHaveValue('application.readyForReview == true');
 
-    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    // (b) Underlying transition condition is updated in the workflow model.
+    const updatedCondition = await inspector.evaluate(node => {
+      const el = node as unknown as { workflow: { transitions: Array<{ toStage: string; condition?: string }> } | null };
+      const transition = el.workflow?.transitions.find(t => t.toStage === 'reviewer-assessment');
+      return transition?.condition ?? null;
+    });
+    expect(updatedCondition).toContain('application.readyForReview == true');
 
-    const handle = page.locator('[data-prism-transition-handle="submitted"]');
-    await handle.focus();
-    await handle.press('Enter');
-
-    const dialog = page.locator('[data-prism-create-transition-dialog]');
-    await expect(dialog).toBeVisible();
-    await dialog.locator('[data-prism-create-transition-target]').selectOption('application-form');
-    await dialog.locator('[data-prism-create-transition-label]').fill('return');
-    await dialog.getByRole('button', { name: 'Create transition' }).click();
-
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(4);
-    await expect(page.locator('[data-prism-transition-detail="submitted-return-application-form"]')).toBeVisible();
-
-    await page.locator('[data-prism-transition-action]').selectOption('submit');
-    await page.locator('[data-prism-transition-target]').selectOption('check-answers');
-    await page.locator('[data-prism-transition-condition-mode]').selectOption('event');
-    await page.locator('[data-prism-transition-condition-value]').fill('application-resubmitted');
-    await page.locator('[data-prism-transition-condition-value]').press('Enter');
-
-    await page.locator('prism-workflow-graph').getByRole('button', { name: 'List view' }).click();
-    const submittedRow = page.locator('[data-prism-list-row="submitted"]');
-    await expect(submittedRow.locator('[data-prism-list-transition]')).toContainText('submit → Check your answers (Event: application-resubmitted)');
-
-    await submittedRow.locator('[data-prism-list-transition]').click();
-    await expect(page.locator('[data-prism-transition-detail="submitted-submit-check-answers"]')).toBeVisible();
-    await page.locator('[data-prism-transition-delete]').click();
-
-    await expect(submittedRow.locator('[data-prism-list-transition]')).toHaveCount(0);
-    await page.locator('prism-workflow-graph').getByRole('button', { name: 'Graph view' }).click();
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(3);
+    // (c) The polite live region announced the condition update.
+    const announcement = await inspector.evaluate(node => {
+      const announcer = (node as HTMLElement).shadowRoot?.getElementById('inspector-announcer');
+      return announcer?.textContent?.trim() ?? '';
+    });
+    expect(announcement).toMatch(/route condition updated/i);
   });
 });

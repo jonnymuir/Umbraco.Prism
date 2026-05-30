@@ -407,10 +407,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    if (currentStage.kind === 'Waiting') {
-      return 'waiting';
-    }
-
     if (isTerminalStage(currentStage)) {
       return 'terminal';
     }
@@ -1288,17 +1284,11 @@ export class PrismWorkflowEditorElement extends LitElement {
       pathTransitionIndices: [...this._simulation.pathTransitionIndices, e.detail.transitionIndex],
     };
 
-    const stopReason = nextStage.kind === 'Waiting'
-      ? 'waiting'
-      : isTerminalStage(nextStage)
-        ? 'terminal'
-        : null;
+    const stopReason = isTerminalStage(nextStage) ? 'terminal' : null;
     this._announceSimulation(
-      stopReason === 'waiting'
-        ? `Simulation stopped at waiting stage ${nextStage.displayName}.`
-        : stopReason === 'terminal'
-          ? `Simulation reached end stage ${nextStage.displayName}.`
-          : `Simulation moved to ${nextStage.displayName}.`
+      stopReason === 'terminal'
+        ? `Simulation reached end stage ${nextStage.displayName}.`
+        : `Simulation moved to ${nextStage.displayName}.`
     );
   }
 
@@ -1667,8 +1657,8 @@ export class PrismWorkflowEditorElement extends LitElement {
                     .workflow=${this._workflow}
                     selected-stage-key="${this._selectedStageKey ?? ''}"
                     selected-gateway-key="${this._selectedGatewayKey ?? ''}"
-                    .selectedTransitionIndex=${this._selectedTransitionIndex}
                     .selectedActionIndex=${this._selectedActionIndex}
+                    .selectedActionTransitionIndex=${this._selectedTransitionIndex}
                     .actionCatalog=${this._actionCatalog}
                     @workflow-updated=${this._handleWorkflowUpdated}
                     @action-selected=${this._handleActionSelected}

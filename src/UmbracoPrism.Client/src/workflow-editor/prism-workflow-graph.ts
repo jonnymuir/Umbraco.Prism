@@ -18,14 +18,8 @@ import {
   workflowLaneOptions,
 } from './workflow-stage-assignment.js';
 import {
-  defaultTransitionAction,
-  defaultTransitionTarget,
   describeTransitionCondition,
-  serialiseTransitionCondition,
-  TRANSITION_ACTION_OPTIONS,
-  transitionQuickAction,
-  type TransitionConditionMode,
-} from './workflow-transition-editing.js';
+} from './gateway-route-conditions.js';
 import { workflowDeadEndStages, workflowUnreachableStages } from './workflow-validation.js';
 import {
   deriveGatewayBindings,
@@ -131,16 +125,6 @@ type DeleteStageDialogState = {
   affectedTransitions: AuthoredTransition[];
 };
 
-type CreateTransitionDialogState = {
-  sourceStageKey: string;
-  targetStageKey: string;
-  action: string;
-  conditionMode: TransitionConditionMode;
-  conditionValue: string;
-  requiresRole: string;
-  error: string | null;
-};
-
 type CreateGatewayDialogState = {
   title: string;
   gatewayKey: string;
@@ -233,18 +217,10 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _dragOverLinearStageKey: string | null = null;
 
   @state()
-  private _dragTransition:
-    | { sourceStageKey: string; x: number; y: number; targetStageKey: string | null }
-    | null = null;
-
-  @state()
   private _createStageDialog: CreateStageDialogState | null = null;
 
   @state()
   private _deleteStageDialog: DeleteStageDialogState | null = null;
-
-  @state()
-  private _createTransitionDialog: CreateTransitionDialogState | null = null;
 
   @state()
   private _createGatewayDialog: CreateGatewayDialogState | null = null;
@@ -258,13 +234,9 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('pointermove', this._handleWindowPointerMove);
-    window.addEventListener('pointerup', this._handleWindowPointerUp);
   }
 
   disconnectedCallback() {
-    window.removeEventListener('pointermove', this._handleWindowPointerMove);
-    window.removeEventListener('pointerup', this._handleWindowPointerUp);
     if (this._statusTimer !== null) {
       window.clearTimeout(this._statusTimer);
       this._statusTimer = null;
@@ -904,111 +876,6 @@ export class PrismWorkflowGraphElement extends LitElement {
     return surface === 'back-stage' ? 'reviewer' : 'public';
   }
 
-  private _openCreateTransitionDialog(
-    sourceStageKey: string,
-    targetStageKey: string,
-    returnTarget?: HTMLElement | null
-  ) {
-    if (!this.workflow) {
-      return;
-    }
-
-    this._dialogReturnTarget = returnTarget ?? this._contextReturnTarget ?? null;
-    this._createTransitionDialog = {
-      sourceStageKey,
-      targetStageKey,
-      action: defaultTransitionAction(this.workflow, targetStageKey),
-      conditionMode: 'always',
-      conditionValue: '',
-      requiresRole: '',
-      error: null,
-    };
-    this._dismissContextMenu(false);
-    requestAnimationFrame(() => {
-      this.shadowRoot
-        ?.querySelector<HTMLInputElement>('[data-prism-create-transition-label]')
-        ?.focus();
-    });
-  }
-
-  private _openCreateTransitionFromStage(stageKey: string, returnTarget?: HTMLElement | null) {
-    if (!this.workflow) {
-      return;
-    }
-
-    const targetStageKey = defaultTransitionTarget(this.workflow, stageKey);
-    if (!targetStageKey) {
-      this._announce('Add another stage before creating a transition.');
-      return;
-    }
-
-    this._openCreateTransitionDialog(stageKey, targetStageKey, returnTarget);
-  }
-
-  private _closeCreateTransitionDialog() {
-    this._createTransitionDialog = null;
-    const returnTarget = this._dialogReturnTarget;
-    this._dialogReturnTarget = null;
-    requestAnimationFrame(() => returnTarget?.focus());
-  }
-
-  private _submitCreateTransition() {
-    if (!this.workflow || !this._createTransitionDialog) {
-      return;
-    }
-
-    const dialog = this._createTransitionDialog;
-    const action = dialog.action.trim();
-    if (!action) {
-      this._createTransitionDialog = { ...dialog, error: 'Transition label is required.' };
-      return;
-    }
-
-    if (!dialog.targetStageKey || dialog.targetStageKey === dialog.sourceStageKey) {
-      this._createTransitionDialog = { ...dialog, error: 'Choose a different target stage.' };
-      return;
-    }
-
-    if (dialog.conditionMode !== 'always' && !dialog.conditionValue.trim()) {
-      this._createTransitionDialog = {
-        ...dialog,
-        error: dialog.conditionMode === 'event' ? 'Event name is required.' : 'Guard expression is required.',
-      };
-      return;
-    }
-
-    const existingIndex = this.workflow.transitions.findIndex(transition =>
-      transition.fromStage === dialog.sourceStageKey
-      && transition.toStage === dialog.targetStageKey
-    );
-    if (existingIndex >= 0) {
-      this._createTransitionDialog = { ...dialog, error: 'That route already exists. Edit the existing transition instead.' };
-      return;
-    }
-
-    const transition: AuthoredTransition = {
-      fromStage: dialog.sourceStageKey,
-      toStage: dialog.targetStageKey,
-      action,
-      condition: serialiseTransitionCondition(dialog.conditionMode, dialog.conditionValue),
-      requiresRole: dialog.requiresRole.trim() || undefined,
-      actions: [],
-    };
-
-    const workflow: AuthoredWorkflow = {
-      ...this.workflow,
-      transitions: [...this.workflow.transitions, transition],
-    };
-
-    const transitionIndex = workflow.transitions.length - 1;
-    this._emitWorkflowUpdated(workflow, { kind: 'transition', transitionIndex });
-    this._selectTransition(transitionIndex, { openInspector: true });
-    this._announce(
-      `Transition ${action} created from ${this._labelForStage(dialog.sourceStageKey)} to ${this._labelForStage(dialog.targetStageKey)}.`
-    );
-    this._closeCreateTransitionDialog();
-  }
-
   private _openCreateStageDialog(
     surfaceHint: StageSurface,
     position: 'append' | 'before' | 'after',
@@ -1128,7 +995,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       actions: [],
       fields: [],
       roleGates: [],
-      waiting: dialog.stageType === 'waiting' ? { allowDefer: false } : undefined,
       editorComment: 'Created from the graph workspace.',
     }, dialog.laneKey);
 
@@ -1490,9 +1356,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     if (target.kind === 'stage') {
-      if (action === 'add-transition') {
-        this._openCreateTransitionFromStage(target.stageKey);
-      } else if (action === 'copy-stage') {
+      if (action === 'copy-stage') {
         void this._copyStage(target.stageKey);
       } else if (action === 'delete-stage') {
         this._openDeleteStageDialog(target.stageKey);
@@ -1549,11 +1413,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       event.preventDefault();
       this._openContextMenuFromKeyboard({ kind: 'stage', stageKey: node.stage.stageKey }, event.currentTarget as HTMLElement);
       return;
-    }
-
-    if (node.kind === 'stage' && event.key.toLowerCase() === 't') {
-      event.preventDefault();
-      this._openCreateTransitionFromStage(node.stage.stageKey, event.currentTarget as HTMLElement);
     }
   }
 
@@ -1704,66 +1563,6 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._dragOverLinearStageKey = null;
   }
 
-  private _handleWindowPointerMove = (event: PointerEvent) => {
-    if (!this._dragTransition) {
-      return;
-    }
-
-    const point = this._scenePointFromClient(event.clientX, event.clientY);
-    this._dragTransition = {
-      ...this._dragTransition,
-      x: point.x,
-      y: point.y,
-      targetStageKey: this._stageKeyAtClientPoint(event.clientX, event.clientY),
-    };
-  };
-
-  private _handleWindowPointerUp = () => {
-    if (!this._dragTransition) {
-      return;
-    }
-
-    const { sourceStageKey, targetStageKey } = this._dragTransition;
-    this._dragTransition = null;
-
-    if (targetStageKey && targetStageKey !== sourceStageKey) {
-      this._openCreateTransitionDialog(sourceStageKey, targetStageKey);
-    } else {
-      this._announce('Transition creation cancelled.');
-    }
-  };
-
-  private _scenePointFromClient(clientX: number, clientY: number) {
-    const frame = this.shadowRoot?.querySelector<HTMLElement>('.graph-scene-frame');
-    if (!frame) {
-      return { x: clientX, y: clientY };
-    }
-
-    const rect = frame.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left) / this._zoom,
-      y: (clientY - rect.top) / this._zoom,
-    };
-  }
-
-  private _stageKeyAtClientPoint(clientX: number, clientY: number) {
-    const node = this.shadowRoot?.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-prism-stage]');
-    return node?.getAttribute('data-prism-stage') ?? null;
-  }
-
-  private _startTransitionDrag(event: PointerEvent, stage: AuthoredStage) {
-    event.preventDefault();
-    event.stopPropagation();
-    const point = this._scenePointFromClient(event.clientX, event.clientY);
-    this._dragTransition = {
-      sourceStageKey: stage.stageKey,
-      x: point.x,
-      y: point.y,
-      targetStageKey: null,
-    };
-    this._announce(`Creating transition from ${stage.displayName}. Drop on another stage to connect it.`);
-  }
-
   private _jumpToValidationStage(stageKey: string) {
     const stage = this.workflow?.stages.find(candidate => candidate.stageKey === stageKey);
     if (!stage) {
@@ -1865,9 +1664,6 @@ export class PrismWorkflowGraphElement extends LitElement {
           : nothing}
         ${target.kind === 'stage'
           ? html`
-              <button type="button" role="menuitem" @click=${() => this._handleContextMenuAction('add-transition')}>
-                Create transition
-              </button>
               <button type="button" role="menuitem" @click=${() => this._handleContextMenuAction('edit-stage')}>
                 Open stage inspector
               </button>
@@ -2004,9 +1800,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                 <option value="form" ?selected=${dialog.stageType === 'form'}>Form</option>
                 <option value="review" ?selected=${dialog.stageType === 'review'}>Review</option>
                 <option value="decision" ?selected=${dialog.stageType === 'decision'}>Decision</option>
-                <option value="waiting" ?selected=${dialog.stageType === 'waiting'}>Waiting</option>
                 <option value="confirmation" ?selected=${dialog.stageType === 'confirmation'}>Confirmation</option>
-                <option value="system-work" ?selected=${dialog.stageType === 'system-work'}>System work</option>
               </select>
             </label>
           </div>
@@ -2067,165 +1861,6 @@ export class PrismWorkflowGraphElement extends LitElement {
     `;
   }
 
-  private _renderCreateTransitionDialog() {
-    const dialog = this._createTransitionDialog;
-    if (!dialog || !this.workflow) {
-      return nothing;
-    }
-
-    const availableTargets = this.workflow.stages.filter(stage => stage.stageKey !== dialog.sourceStageKey);
-    const quickAction = transitionQuickAction(dialog.action);
-
-    return html`
-      <div class="dialog-backdrop" role="presentation">
-        <div
-          class="dialog-panel"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-transition-dialog-title"
-          aria-describedby="create-transition-dialog-copy"
-          data-prism-create-transition-dialog
-          @keydown=${(event: KeyboardEvent) => this._handleDialogKeydown(event, () => this._closeCreateTransitionDialog())}
-        >
-          <div class="dialog-header">
-            <div>
-              <p class="dialog-eyebrow">Transition creation</p>
-              <h2 id="create-transition-dialog-title" class="dialog-title">Create transition</h2>
-            </div>
-          </div>
-          <p id="create-transition-dialog-copy" class="dialog-copy">
-            Confirm the route, choose a transition label, and add a simple condition or role guard if needed.
-          </p>
-          ${dialog.error ? html`<p class="dialog-error" data-prism-create-transition-error>${dialog.error}</p>` : nothing}
-          <div class="dialog-grid">
-            <label class="dialog-field">
-              <span class="dialog-label">From</span>
-              <input class="dialog-control" .value=${this._labelForStage(dialog.sourceStageKey)} disabled />
-            </label>
-            <label class="dialog-field">
-              <span class="dialog-label">To</span>
-              <select
-                class="dialog-control"
-                data-prism-create-transition-target
-                @change=${(event: Event) => {
-                  const targetStageKey = (event.currentTarget as HTMLSelectElement).value;
-                  this._createTransitionDialog = this._createTransitionDialog
-                    ? {
-                        ...this._createTransitionDialog,
-                        targetStageKey,
-                        action:
-                          quickAction === 'custom'
-                            ? this._createTransitionDialog.action
-                            : defaultTransitionAction(this.workflow!, targetStageKey),
-                        error: null,
-                      }
-                    : null;
-                }}
-              >
-                ${availableTargets.map(stage => html`
-                  <option value=${stage.stageKey} ?selected=${stage.stageKey === dialog.targetStageKey}>${stage.displayName}</option>
-                `)}
-              </select>
-            </label>
-            <label class="dialog-field">
-              <span class="dialog-label">Label</span>
-              <input
-                class="dialog-control"
-                data-prism-create-transition-label
-                .value=${dialog.action}
-                @input=${(event: Event) => {
-                  const action = (event.currentTarget as HTMLInputElement).value;
-                  this._createTransitionDialog = this._createTransitionDialog
-                    ? { ...this._createTransitionDialog, action, error: null }
-                    : null;
-                }}
-              />
-            </label>
-            <label class="dialog-field">
-              <span class="dialog-label">Action shortcut</span>
-              <select
-                class="dialog-control"
-                data-prism-create-transition-action
-                @change=${(event: Event) => {
-                  const nextAction = (event.currentTarget as HTMLSelectElement).value;
-                  if (nextAction === 'custom') {
-                    return;
-                  }
-                  this._createTransitionDialog = this._createTransitionDialog
-                    ? { ...this._createTransitionDialog, action: nextAction, error: null }
-                    : null;
-                }}
-              >
-                ${TRANSITION_ACTION_OPTIONS.map(option => html`
-                  <option value=${option.value} ?selected=${quickAction === option.value}>${option.label}</option>
-                `)}
-                <option value="custom" ?selected=${quickAction === 'custom'}>Custom label</option>
-              </select>
-            </label>
-            <label class="dialog-field">
-              <span class="dialog-label">Condition type</span>
-              <select
-                class="dialog-control"
-                data-prism-create-transition-condition-mode
-                @change=${(event: Event) => {
-                  const conditionMode = (event.currentTarget as HTMLSelectElement).value as TransitionConditionMode;
-                  this._createTransitionDialog = this._createTransitionDialog
-                    ? {
-                        ...this._createTransitionDialog,
-                        conditionMode,
-                        conditionValue:
-                          conditionMode === this._createTransitionDialog.conditionMode
-                            ? this._createTransitionDialog.conditionValue
-                            : '',
-                      }
-                    : null;
-                }}
-              >
-                <option value="always" ?selected=${dialog.conditionMode === 'always'}>Always available</option>
-                <option value="event" ?selected=${dialog.conditionMode === 'event'}>Event</option>
-                <option value="guard" ?selected=${dialog.conditionMode === 'guard'}>Guard expression</option>
-              </select>
-            </label>
-            <label class="dialog-field ${dialog.conditionMode === 'always' ? 'dialog-field-disabled' : ''}">
-              <span class="dialog-label">${dialog.conditionMode === 'event' ? 'Event name' : 'Condition value'}</span>
-              <input
-                class="dialog-control"
-                data-prism-create-transition-condition-value
-                .value=${dialog.conditionValue}
-                ?disabled=${dialog.conditionMode === 'always'}
-                placeholder=${dialog.conditionMode === 'event' ? 'application-submitted' : 'application.isComplete == true'}
-                @input=${(event: Event) => {
-                  const conditionValue = (event.currentTarget as HTMLInputElement).value;
-                  this._createTransitionDialog = this._createTransitionDialog
-                    ? { ...this._createTransitionDialog, conditionValue }
-                    : null;
-                }}
-              />
-            </label>
-            <label class="dialog-field">
-              <span class="dialog-label">Role guard</span>
-              <input
-                class="dialog-control"
-                data-prism-create-transition-role
-                .value=${dialog.requiresRole}
-                placeholder="reviewer"
-                @input=${(event: Event) => {
-                  const requiresRole = (event.currentTarget as HTMLInputElement).value;
-                  this._createTransitionDialog = this._createTransitionDialog
-                    ? { ...this._createTransitionDialog, requiresRole }
-                    : null;
-                }}
-              />
-            </label>
-          </div>
-          <div class="dialog-actions">
-            <button type="button" class="dialog-button secondary" @click=${this._closeCreateTransitionDialog}>Cancel</button>
-            <button type="button" class="dialog-button primary" data-prism-create-transition-submit @click=${this._submitCreateTransition}>Create transition</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
   private _renderCreateGatewayDialog() {
     const dialog = this._createGatewayDialog;
@@ -2336,12 +1971,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _renderGraph() {
     const { bounds, roleLanes, stageLayouts, gatewayLayouts, transitionLayouts } = this._layout;
     const isEmpty = stageLayouts.length === 0 && gatewayLayouts.length === 0;
-    const dragSource = this._dragTransition
-      ? stageLayouts.find(layout => layout.stage.stageKey === this._dragTransition?.sourceStageKey)
-      : null;
-    const dragPath = dragSource && this._dragTransition
-      ? `M ${dragSource.x + dragSource.width} ${dragSource.y + dragSource.height / 2} C ${dragSource.x + dragSource.width + 80} ${dragSource.y + dragSource.height / 2}, ${this._dragTransition.x - 80} ${this._dragTransition.y}, ${this._dragTransition.x} ${this._dragTransition.y}`
-      : null;
+    const dragPath: string | null = null;
 
     return html`
       <div class="graph-hud" aria-label="Workspace controls and hints">
@@ -2504,7 +2134,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                 >
                   <button
                     type="button"
-                    class=${`stage-node ${layout.surface} ${this._selectedStageKey === layout.stage.stageKey ? 'selected' : ''} ${this._dragTransition?.targetStageKey === layout.stage.stageKey ? 'drag-target' : ''} ${this._stageIsInSimulationPath(layout.stage.stageKey) ? 'simulation-path' : ''} ${this.simulationCurrentStageKey === layout.stage.stageKey ? 'simulation-current' : ''}`}
+                    class=${`stage-node ${layout.surface} ${this._selectedStageKey === layout.stage.stageKey ? 'selected' : ''} ${this._stageIsInSimulationPath(layout.stage.stageKey) ? 'simulation-path' : ''} ${this.simulationCurrentStageKey === layout.stage.stageKey ? 'simulation-current' : ''}`}
                     aria-pressed=${String(this._selectedStageKey === layout.stage.stageKey)}
                     aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} lane`}
                     data-prism-stage="${layout.stage.stageKey}"
@@ -2518,20 +2148,6 @@ export class PrismWorkflowGraphElement extends LitElement {
                     <span class="surface-tag">${layout.laneLabel}</span>
                     <span class="node-label">${layout.stage.displayName}</span>
                     <span class="node-meta">${layout.stage.kind} · ${layout.laneLabel} lane</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="transition-handle"
-                    aria-label=${`Create transition from ${layout.stage.displayName}`}
-                    data-prism-transition-handle="${layout.stage.stageKey}"
-                    @click=${(event: MouseEvent) => {
-                      if (event.detail === 0) {
-                        this._openCreateTransitionFromStage(layout.stage.stageKey, event.currentTarget as HTMLElement);
-                      }
-                    }}
-                    @pointerdown=${(event: PointerEvent) => this._startTransitionDrag(event, layout.stage)}
-                  >
-                    +
                   </button>
                 </div>
               `)}
@@ -2611,7 +2227,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         </div>
 
         <p class="graph-hint">
-          Tab into the row controls. Arrow keys move between rows, Enter opens the inspector, Add transition opens routing creation, and Alt plus Arrow Up or Arrow Down reorders stages.
+          Tab into the row controls. Arrow keys move between rows, Enter opens the inspector, and Alt plus Arrow Up or Arrow Down reorders stages. Route creation now lives on each gateway inspector.
         </p>
 
         ${visibleStages.length === 0 && visibleGateways.length === 0
@@ -2721,7 +2337,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                               data-prism-inline-field="kind"
                               @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'kind')}
                             >
-                              ${(['Question', 'CheckAnswers', 'Confirmation', 'TaskList', 'Waiting', 'StatusTimeline'] as const).map(kind => html`
+                              ${(['Question', 'CheckAnswers', 'Confirmation', 'TaskList'] as const).map(kind => html`
                                 <option value=${kind} ?selected=${stage.kind === kind}>${kind}</option>
                               `)}
                             </select>
@@ -2767,14 +2383,6 @@ export class PrismWorkflowGraphElement extends LitElement {
                           </td>
                           <td>
                             <div class="row-actions">
-                              <button
-                                type="button"
-                                class="row-action-button"
-                                data-prism-create-transition="${stage.stageKey}"
-                                @click=${(event: Event) => this._openCreateTransitionFromStage(stage.stageKey, event.currentTarget as HTMLElement)}
-                              >
-                                Add transition
-                              </button>
                               <button
                                 type="button"
                                 class="row-action-button"
@@ -2904,7 +2512,6 @@ export class PrismWorkflowGraphElement extends LitElement {
         ${this._renderContextMenu()}
         ${this._renderCreateStageDialog()}
         ${this._renderDeleteStageDialog()}
-        ${this._renderCreateTransitionDialog()}
         ${this._renderCreateGatewayDialog()}
       </div>
     `;

@@ -1,3 +1,11 @@
+/**
+ * Condition parse/serialise helpers for outgoing routes on a gateway.
+ *
+ * Slice 3b.1 relocated route editing onto the source gateway's inspector;
+ * these helpers were lifted from the retired `workflow-transition-editing.ts`
+ * module so the gateway-route panel can share a single condition vocabulary
+ * with any other future surface that needs to render the same controls.
+ */
 import type { AuthoredWorkflow } from './types.js';
 
 export type TransitionConditionMode = 'always' | 'event' | 'guard';

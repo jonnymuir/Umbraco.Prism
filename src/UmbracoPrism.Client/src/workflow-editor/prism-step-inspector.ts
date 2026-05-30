@@ -19,15 +19,14 @@ import {
   stageLaneLabel,
   workflowLaneOptions,
 } from './workflow-stage-assignment.js';
-import { deriveGatewayBindings, gatewayLaneKey } from './workflow-gateway-representation.js';
+import { deriveGatewayBindings, gatewayLaneKey, type GatewayBinding } from './workflow-gateway-representation.js';
 import {
-  describeTransitionCondition,
   parseTransitionCondition,
   serialiseTransitionCondition,
   TRANSITION_ACTION_OPTIONS,
   transitionQuickAction,
   type TransitionConditionMode,
-} from './workflow-transition-editing.js';
+} from './gateway-route-conditions.js';
 import {
   isTerminalStage,
   workflowDeadEndStages,
@@ -43,13 +42,11 @@ const STAGE_TYPE_OPTIONS: Array<{ value: EditorStageType; label: string }> = [
   { value: 'review', label: 'Review' },
   { value: 'decision', label: 'Decision' },
   { value: 'confirmation', label: 'Confirmation' },
-  { value: 'system-work', label: 'System work' },
 ];
 
 type GraphSelectionDetail = {
-  kind: 'stage' | 'transition' | 'gateway';
+  kind: 'stage' | 'gateway';
   stageKey?: string;
-  transitionIndex?: number;
   gatewayKey?: string;
 };
 
@@ -65,6 +62,7 @@ type ActionsUpdatedDetail = {
 type ActionSelectedDetail = {
   index: number | null;
   target: 'stage' | 'transition';
+  transitionIndex?: number;
 };
 
 @customElement('prism-step-inspector')
@@ -75,9 +73,6 @@ export class PrismStepInspectorElement extends LitElement {
   @property({ type: String, attribute: 'selected-stage-key' })
   selectedStageKey: string | null = null;
 
-  @property({ type: Number, attribute: false })
-  selectedTransitionIndex: number | null = null;
-
   @property({ type: String, attribute: 'selected-gateway-key' })
   selectedGatewayKey: string | null = null;
 
@@ -86,6 +81,9 @@ export class PrismStepInspectorElement extends LitElement {
 
   @property({ type: Number, attribute: false })
   selectedActionIndex: number | null = null;
+
+  @property({ type: Number, attribute: false })
+  selectedActionTransitionIndex: number | null = null;
 
   @state() private _stageKeyError: string | null = null;
   @state() private _statusMessage: string | null = null;
@@ -96,14 +94,6 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     return this.workflow.stages.find(stage => stage.stageKey === this.selectedStageKey) ?? null;
-  }
-
-  private get _selectedTransition(): AuthoredTransition | null {
-    if (!this.workflow || this.selectedTransitionIndex === null) {
-      return null;
-    }
-
-    return this.workflow.transitions[this.selectedTransitionIndex] ?? null;
   }
 
   private get _selectedGateway(): AuthoredGateway | null {
@@ -168,20 +158,6 @@ export class PrismStepInspectorElement extends LitElement {
     ].filter(Boolean).join(' → ');
   }
 
-  private _availableSplitGatewaysForStage(stageKey: string) {
-    if (!this.workflow) {
-      return [];
-    }
-
-    const stage = this.workflow.stages.find(candidate => candidate.stageKey === stageKey);
-    const laneKey = stage ? stageLaneKey(stage) : '';
-
-    return deriveGatewayBindings(this.workflow)
-      .filter(binding => binding.gateway.kind === 'Split')
-      .filter(binding => binding.anchorStageKey === stageKey || (!binding.anchorStageKey && binding.laneKey === laneKey))
-      .map(binding => binding.gateway);
-  }
-
   private _availableJoinGatewaysForStage(stageKey: string) {
     if (!this.workflow) {
       return [];
@@ -200,20 +176,21 @@ export class PrismStepInspectorElement extends LitElement {
     return this.workflow ? workflowOutgoingTransitions(this.workflow, stage.stageKey) : [];
   }
 
-  private _replaceSelectedTransition(nextTransition: AuthoredTransition) {
-    if (!this.workflow || this.selectedTransitionIndex === null) {
+  private _replaceSelectedTransition(nextTransition: AuthoredTransition, transitionIndex: number) {
+    if (!this.workflow) {
       return;
     }
 
     const transitions = [...this.workflow.transitions];
-    if (!transitions[this.selectedTransitionIndex]) {
+    if (!transitions[transitionIndex]) {
       return;
     }
 
-    transitions[this.selectedTransitionIndex] = nextTransition;
+    transitions[transitionIndex] = nextTransition;
+    const gatewayKey = this._selectedGateway?.gatewayKey;
     this._emitWorkflowUpdated(
       { ...this.workflow, transitions },
-      { kind: 'transition', transitionIndex: this.selectedTransitionIndex }
+      gatewayKey ? { kind: 'gateway', gatewayKey } : null
     );
   }
 
@@ -266,16 +243,43 @@ export class PrismStepInspectorElement extends LitElement {
     });
   }
 
-  private _updateSelectedTransitionActions(event: CustomEvent<ActionsUpdatedDetail>) {
-    const transition = this._selectedTransition;
+  private _updateRouteActions(event: CustomEvent<ActionsUpdatedDetail>) {
+    if (!this.workflow) {
+      return;
+    }
+    const target = event.currentTarget as HTMLElement | null;
+    const idxAttr = target?.dataset.prismRouteIndex;
+    const transitionIndex = idxAttr ? Number(idxAttr) : NaN;
+    if (!Number.isInteger(transitionIndex)) {
+      return;
+    }
+    const transition = this.workflow.transitions[transitionIndex];
     if (!transition) {
       return;
     }
+    this._replaceSelectedTransition(
+      { ...transition, actions: event.detail.actions },
+      transitionIndex
+    );
+  }
 
-    this._replaceSelectedTransition({
-      ...transition,
-      actions: event.detail.actions,
-    });
+  private _handleRouteActionSelected(event: CustomEvent<ActionSelectedDetail>) {
+    event.stopPropagation();
+    const target = event.currentTarget as HTMLElement | null;
+    const idxAttr = target?.dataset.prismRouteIndex;
+    const transitionIndex = idxAttr ? Number(idxAttr) : NaN;
+    const detail: ActionSelectedDetail = {
+      ...event.detail,
+      target: 'transition',
+      transitionIndex: Number.isInteger(transitionIndex) ? transitionIndex : undefined,
+    };
+    this.dispatchEvent(
+      new CustomEvent<ActionSelectedDetail>('action-selected', {
+        detail,
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   private _updateStageTitle(event: Event) {
@@ -368,89 +372,64 @@ export class PrismStepInspectorElement extends LitElement {
     const nextStage: AuthoredStage = {
       ...stage,
       kind: nextKind,
-      waiting: nextKind === 'Waiting' ? stage.waiting ?? { allowDefer: false } : stage.waiting,
     };
 
     this._replaceSelectedStage(nextStage);
     this._announce(`${stage.displayName} type updated.`);
   }
 
-  private _updateTransitionLabel(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
+  private _routeIndexFromEvent(event: Event): number | null {
+    const target = event.currentTarget as HTMLElement | null;
+    const raw = target?.dataset.prismRouteIndex;
+    const index = raw ? Number(raw) : NaN;
+    return Number.isInteger(index) ? index : null;
+  }
 
+  private _routeTransitionFromEvent(event: Event): { index: number; transition: AuthoredTransition } | null {
+    if (!this.workflow) {
+      return null;
+    }
+    const index = this._routeIndexFromEvent(event);
+    if (index === null) {
+      return null;
+    }
+    const transition = this.workflow.transitions[index];
+    return transition ? { index, transition } : null;
+  }
+
+  private _updateRouteLabel(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
     const action = (event.currentTarget as HTMLInputElement).value.trim();
-    if (!action || action === transition.action) {
-      return;
-    }
-
-    this._replaceSelectedTransition({ ...transition, action });
+    if (!action || action === ctx.transition.action) return;
+    this._replaceSelectedTransition({ ...ctx.transition, action }, ctx.index);
     this._announce(`Route label updated to ${action}.`);
   }
 
-  private _updateTransitionActionPreset(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
+  private _updateRouteActionPreset(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
     const nextAction = (event.currentTarget as HTMLSelectElement).value;
-    if (nextAction === 'custom' || nextAction === transition.action) {
-      return;
-    }
-
-    this._replaceSelectedTransition({ ...transition, action: nextAction });
+    if (nextAction === 'custom' || nextAction === ctx.transition.action) return;
+    this._replaceSelectedTransition({ ...ctx.transition, action: nextAction }, ctx.index);
     this._announce(`Route preset updated to ${nextAction}.`);
   }
 
-  private _updateTransitionTarget(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
+  private _updateRouteTarget(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
     const toStage = (event.currentTarget as HTMLSelectElement).value;
-    if (!toStage || toStage === transition.toStage) {
-      return;
-    }
-
-    this._replaceSelectedTransition({ ...transition, toStage });
+    if (!toStage || toStage === ctx.transition.toStage) return;
+    this._replaceSelectedTransition({ ...ctx.transition, toStage }, ctx.index);
     this._announce(`Route now arrives at ${this._stageLabel(toStage)}.`);
   }
 
-  private _updateTransitionFromGateway(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
-    const fromGateway = (event.currentTarget as HTMLSelectElement).value || undefined;
-    if (fromGateway === transition.fromGateway) {
-      return;
-    }
-
-    this._replaceSelectedTransition({ ...transition, fromGateway });
-    this._announce(
-      fromGateway
-        ? `Route now leaves through ${this._gatewayLabel(fromGateway)}.`
-        : 'Route now leaves directly from the stage.'
-    );
-  }
-
-  private _updateTransitionToGateway(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
+  private _updateRouteToGateway(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
     const toGateway = (event.currentTarget as HTMLSelectElement).value || undefined;
-    if (toGateway === transition.toGateway) {
-      return;
-    }
-
-    this._replaceSelectedTransition({ ...transition, toGateway });
+    if (toGateway === ctx.transition.toGateway) return;
+    this._replaceSelectedTransition({ ...ctx.transition, toGateway }, ctx.index);
     this._announce(
       toGateway
         ? `Route now arrives through ${this._gatewayLabel(toGateway)}.`
@@ -458,17 +437,13 @@ export class PrismStepInspectorElement extends LitElement {
     );
   }
 
-  private _updateTransitionConditionMode(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
+  private _updateRouteConditionMode(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
     const mode = (event.currentTarget as HTMLSelectElement).value as TransitionConditionMode;
-    const current = parseTransitionCondition(transition.condition);
+    const current = parseTransitionCondition(ctx.transition.condition);
     const condition = serialiseTransitionCondition(mode, mode === current.mode ? current.value : '');
-
-    this._replaceSelectedTransition({ ...transition, condition });
+    this._replaceSelectedTransition({ ...ctx.transition, condition }, ctx.index);
     this._announce(
       mode === 'always'
         ? 'Route condition cleared.'
@@ -476,50 +451,38 @@ export class PrismStepInspectorElement extends LitElement {
     );
   }
 
-  private _updateTransitionConditionValue(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
-    const parsed = parseTransitionCondition(transition.condition);
+  private _updateRouteConditionValue(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
+    const parsed = parseTransitionCondition(ctx.transition.condition);
     const condition = serialiseTransitionCondition(
       parsed.mode === 'always' ? 'guard' : parsed.mode,
       (event.currentTarget as HTMLInputElement).value
     );
-
-    this._replaceSelectedTransition({ ...transition, condition });
+    this._replaceSelectedTransition({ ...ctx.transition, condition }, ctx.index);
     this._announce('Route condition updated.');
   }
 
-  private _updateTransitionRole(event: Event) {
-    const transition = this._selectedTransition;
-    if (!transition) {
-      return;
-    }
-
+  private _updateRouteRole(event: Event) {
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
     const requiresRole = (event.currentTarget as HTMLInputElement).value.trim() || undefined;
-    if (requiresRole === transition.requiresRole) {
-      return;
-    }
-
-    this._replaceSelectedTransition({ ...transition, requiresRole });
+    if (requiresRole === ctx.transition.requiresRole) return;
+    this._replaceSelectedTransition({ ...ctx.transition, requiresRole }, ctx.index);
     this._announce(requiresRole ? `Role guard updated to ${requiresRole}.` : 'Role guard cleared.');
   }
 
-  private _deleteSelectedTransition() {
-    if (!this.workflow || this.selectedTransitionIndex === null) {
-      return;
-    }
-
-    const transition = this.workflow.transitions[this.selectedTransitionIndex];
-    if (!transition) {
-      return;
-    }
-
-    const transitions = this.workflow.transitions.filter((_, index) => index !== this.selectedTransitionIndex);
-    this._emitWorkflowUpdated({ ...this.workflow, transitions }, null);
-    this._announce(`Route ${transition.action} deleted.`);
+  private _deleteRoute(event: Event) {
+    if (!this.workflow) return;
+    const ctx = this._routeTransitionFromEvent(event);
+    if (!ctx) return;
+    const transitions = this.workflow.transitions.filter((_, index) => index !== ctx.index);
+    const gatewayKey = this._selectedGateway?.gatewayKey;
+    this._emitWorkflowUpdated(
+      { ...this.workflow, transitions },
+      gatewayKey ? { kind: 'gateway', gatewayKey } : null
+    );
+    this._announce(`Route ${ctx.transition.action} deleted.`);
   }
 
   private _renderEmpty() {
@@ -530,195 +493,205 @@ export class PrismStepInspectorElement extends LitElement {
     `;
   }
 
-  private _renderTransition(transition: AuthoredTransition) {
+  private _renderGatewayOutgoingRoutes(gateway: AuthoredGateway, binding: GatewayBinding | null) {
+    if (!this.workflow) return nothing;
+    const indices = binding?.relatedTransitionIndices ?? [];
+    if (indices.length === 0) {
+      return html`
+        <section class="inspector-section" aria-labelledby="section-gateway-routes">
+          <h3 id="section-gateway-routes" class="section-heading">Outgoing routes</h3>
+          <p class="empty-section" data-prism-gateway-routes-empty>
+            This gateway has no routes attached yet. Add transitions in the workflow graph and they will appear here.
+          </p>
+        </section>
+      `;
+    }
+
+    const routeNoun = gateway.kind === 'Join' ? 'Incoming routes' : 'Outgoing routes';
+    return html`
+      <section class="inspector-section" aria-labelledby="section-gateway-routes">
+        <h3 id="section-gateway-routes" class="section-heading">${routeNoun}</h3>
+        <p class="action-summary" data-prism-gateway-routes-summary>
+          ${indices.length} ${indices.length === 1 ? 'route' : 'routes'} ${gateway.kind === 'Join' ? 'feed into' : 'leave'} this gateway.
+        </p>
+        <ul class="gateway-route-list" role="list">
+          ${indices.map(transitionIndex => {
+            const transition = this.workflow!.transitions[transitionIndex];
+            if (!transition) return nothing;
+            return html`
+              <li
+                class="gateway-route-item"
+                data-prism-gateway-route="${transitionIndex}"
+                data-prism-route-target="${transition.toStage}"
+              >
+                ${this._renderRouteEditor(transition, transitionIndex)}
+              </li>
+            `;
+          })}
+        </ul>
+      </section>
+    `;
+  }
+
+  private _renderRouteEditor(transition: AuthoredTransition, transitionIndex: number) {
     const condition = parseTransitionCondition(transition.condition);
     const targetOptions = (this.workflow?.stages ?? []).filter(stage => stage.stageKey !== transition.fromStage);
-    const splitGateways = this._availableSplitGatewaysForStage(transition.fromStage);
     const joinGateways = this._availableJoinGatewaysForStage(transition.toStage);
+    const idx = String(transitionIndex);
+    const ariaId = `route-${transitionIndex}-title`;
 
     return html`
       <article
-        class="inspector-panel"
-        data-prism-transition-detail="${transition.fromStage}-${transition.action}-${transition.toStage}"
-        data-prism-inspector-kind="transition"
-        aria-labelledby="inspector-transition-title"
+        class="gateway-route-editor"
+        aria-labelledby="${ariaId}"
+        data-prism-route-detail="${transition.fromStage}-${transition.action}-${transition.toStage}"
       >
-        <div class="inspector-header">
-          <div>
-            <p class="eyebrow">Route</p>
-            <h2 id="inspector-transition-title" class="stage-title">${transition.action}</h2>
-          </div>
-          <span class="stage-kind-badge transition-badge">Routing rule</span>
+        <header class="gateway-route-editor-header">
+          <h4 id="${ariaId}" class="gateway-route-title">${transition.action}</h4>
+          <p class="action-summary gateway-routing-hint" data-prism-route-descriptor>
+            ${this._routeDescriptor(transition)}
+          </p>
+        </header>
+
+        <div class="field-grid">
+          <label class="field-block">
+            <span class="field-label">Route label</span>
+            <input
+              class="field-control"
+              data-prism-route-label
+              data-prism-route-index="${idx}"
+              .value=${transition.action}
+              @change=${this._updateRouteLabel}
+            />
+          </label>
+          <label class="field-block">
+            <span class="field-label">Route preset</span>
+            <select
+              class="field-control"
+              data-prism-route-action
+              data-prism-route-index="${idx}"
+              @change=${this._updateRouteActionPreset}
+            >
+              ${TRANSITION_ACTION_OPTIONS.map(option => html`
+                <option value=${option.value} ?selected=${transitionQuickAction(transition.action) === option.value}>${option.label}</option>
+              `)}
+              <option value="custom" ?selected=${transitionQuickAction(transition.action) === 'custom'}>Custom label</option>
+            </select>
+          </label>
+          <label class="field-block">
+            <span class="field-label">Target stage</span>
+            <select
+              class="field-control"
+              data-prism-route-target-select
+              data-prism-route-index="${idx}"
+              @change=${this._updateRouteTarget}
+            >
+              ${targetOptions.map(stage => html`
+                <option value=${stage.stageKey} ?selected=${stage.stageKey === transition.toStage}>${stage.displayName}</option>
+              `)}
+            </select>
+          </label>
+          <label class="field-block">
+            <span class="field-label">Arrive through</span>
+            <select
+              class="field-control"
+              data-prism-route-to-gateway
+              data-prism-route-index="${idx}"
+              @change=${this._updateRouteToGateway}
+            >
+              <option value="">No join gateway</option>
+              ${joinGateways.map(g => html`
+                <option value=${g.gatewayKey} ?selected=${g.gatewayKey === transition.toGateway}>${g.displayName}</option>
+              `)}
+            </select>
+          </label>
+          <label class="field-block">
+            <span class="field-label-row">
+              <span class="field-label">Role guard</span>
+              <prism-inline-help
+                label="Role guard help"
+                message="Add a role only when this route should be limited to a specific actor such as reviewer or caseworker. Leave it blank when everyone on the route can use it."
+              ></prism-inline-help>
+            </span>
+            <input
+              class="field-control"
+              data-prism-route-role
+              data-prism-route-index="${idx}"
+              .value=${transition.requiresRole ?? ''}
+              placeholder="reviewer"
+              @change=${this._updateRouteRole}
+            />
+          </label>
         </div>
 
-        <section class="inspector-section" aria-labelledby="section-transition-route">
-          <h3 id="section-transition-route" class="section-heading">Authored shape</h3>
-          <dl class="meta-list">
-            <div class="meta-row">
-              <dt>From</dt>
-              <dd>${this._stageLabel(transition.fromStage)}</dd>
-            </div>
-            ${transition.fromGateway
-              ? html`
-                  <div class="meta-row">
-                    <dt>Leaves through</dt>
-                    <dd>${this._gatewayLabel(transition.fromGateway)}</dd>
-                  </div>
-                `
-              : nothing}
-            ${transition.toGateway
-              ? html`
-                  <div class="meta-row">
-                    <dt>Arrives through</dt>
-                    <dd>${this._gatewayLabel(transition.toGateway)}</dd>
-                  </div>
-                `
-              : nothing}
-            <div class="meta-row">
-              <dt>To</dt>
-              <dd>${this._stageLabel(transition.toStage)}</dd>
-            </div>
-            <div class="meta-row">
-              <dt>Condition</dt>
-              <dd>${describeTransitionCondition(transition.condition)}</dd>
-            </div>
-          </dl>
-          <p class="action-summary gateway-routing-hint">${this._routeDescriptor(transition)}</p>
-        </section>
-
-        <section class="inspector-section" aria-labelledby="section-transition-edit">
-          <div class="section-header-row">
-            <h3 id="section-transition-edit" class="section-heading">Edit route</h3>
-            <span class="section-meta">${transitionQuickAction(transition.action) === 'custom' ? 'Custom label' : 'Preset label'}</span>
-          </div>
-          <div class="field-grid">
-            <label class="field-block">
-              <span class="field-label">Route label</span>
-              <input
-                class="field-control"
-                data-prism-transition-label
-                .value=${transition.action}
-                @change=${this._updateTransitionLabel}
-              />
-            </label>
-            <label class="field-block">
-              <span class="field-label">Route preset</span>
-              <select class="field-control" data-prism-transition-action @change=${this._updateTransitionActionPreset}>
-                ${TRANSITION_ACTION_OPTIONS.map(option => html`
-                  <option value=${option.value} ?selected=${transitionQuickAction(transition.action) === option.value}>${option.label}</option>
-                `)}
-                <option value="custom" ?selected=${transitionQuickAction(transition.action) === 'custom'}>Custom label</option>
-              </select>
-            </label>
-            <label class="field-block">
-              <span class="field-label">Leave through</span>
-              <select class="field-control" data-prism-transition-from-gateway @change=${this._updateTransitionFromGateway}>
-                <option value="">No split gateway</option>
-                ${splitGateways.map(gateway => html`
-                  <option value=${gateway.gatewayKey} ?selected=${gateway.gatewayKey === transition.fromGateway}>
-                    ${gateway.displayName}
-                  </option>
-                `)}
-              </select>
-            </label>
-            <label class="field-block">
-              <span class="field-label">Target stage</span>
-              <select class="field-control" data-prism-transition-target @change=${this._updateTransitionTarget}>
-                ${targetOptions.map(stage => html`
-                  <option value=${stage.stageKey} ?selected=${stage.stageKey === transition.toStage}>${stage.displayName}</option>
-                `)}
-              </select>
-            </label>
-            <label class="field-block">
-              <span class="field-label">Arrive through</span>
-              <select class="field-control" data-prism-transition-to-gateway @change=${this._updateTransitionToGateway}>
-                <option value="">No join gateway</option>
-                ${joinGateways.map(gateway => html`
-                  <option value=${gateway.gatewayKey} ?selected=${gateway.gatewayKey === transition.toGateway}>
-                    ${gateway.displayName}
-                  </option>
-                `)}
-              </select>
-            </label>
-            <label class="field-block">
-              <span class="field-label-row">
-                <span class="field-label">Role guard</span>
-                <prism-inline-help
-                  label="Role guard help"
-                  message="Add a role only when this route should be limited to a specific actor such as reviewer or caseworker. Leave it blank when everyone on the route can use it."
-                ></prism-inline-help>
-              </span>
-              <input
-                class="field-control"
-                data-prism-transition-role
-                .value=${transition.requiresRole ?? ''}
-                placeholder="reviewer"
-                @change=${this._updateTransitionRole}
-              />
-            </label>
-          </div>
-
-          <div class="field-grid">
-            <label class="field-block">
-              <span class="field-label-row">
-                <span class="field-label">Condition type</span>
-                <prism-inline-help
-                  label="Condition type help"
-                  message="Choose Always available for a standard route, Event for named workflow triggers, or Guard expression when runtime data decides whether this route can run."
-                ></prism-inline-help>
-              </span>
-              <select class="field-control" data-prism-transition-condition-mode @change=${this._updateTransitionConditionMode}>
-                <option value="always" ?selected=${condition.mode === 'always'}>Always available</option>
-                <option value="event" ?selected=${condition.mode === 'event'}>Event</option>
-                <option value="guard" ?selected=${condition.mode === 'guard'}>Guard expression</option>
-              </select>
-            </label>
-            <label class="field-block ${condition.mode === 'always' ? 'field-block-disabled' : ''}">
-              <span class="field-label-row">
-                <span class="field-label">${condition.mode === 'event' ? 'Event name' : 'Condition value'}</span>
-                <prism-inline-help
-                  label="Condition value help"
-                  message=${condition.mode === 'event'
-                    ? 'Use the exact event name your runtime emits, for example submit-clicked.'
-                    : 'Use a concise guard expression that explains when this route should unlock, for example application.isComplete == true.'}
-                ></prism-inline-help>
-              </span>
-              <input
-                class="field-control"
-                data-prism-transition-condition-value
-                .value=${condition.value}
-                ?disabled=${condition.mode === 'always'}
-                placeholder=${condition.mode === 'event' ? 'submit-clicked' : 'application.isComplete == true'}
-                @change=${this._updateTransitionConditionValue}
-              />
-            </label>
-          </div>
-
-          <div class="action-buttons">
-            <button
-              type="button"
-              class="icon-button danger-button"
-              data-prism-transition-delete
-              @click=${this._deleteSelectedTransition}
+        <div class="field-grid">
+          <label class="field-block">
+            <span class="field-label-row">
+              <span class="field-label">Condition type</span>
+              <prism-inline-help
+                label="Condition type help"
+                message="Choose Always available for a standard route, Event for named workflow triggers, or Guard expression when runtime data decides whether this route can run."
+              ></prism-inline-help>
+            </span>
+            <select
+              class="field-control"
+              data-prism-route-condition-mode
+              data-prism-route-index="${idx}"
+              @change=${this._updateRouteConditionMode}
             >
-              Delete route
-            </button>
-          </div>
-        </section>
+              <option value="always" ?selected=${condition.mode === 'always'}>Always available</option>
+              <option value="event" ?selected=${condition.mode === 'event'}>Event</option>
+              <option value="guard" ?selected=${condition.mode === 'guard'}>Guard expression</option>
+            </select>
+          </label>
+          <label class="field-block ${condition.mode === 'always' ? 'field-block-disabled' : ''}">
+            <span class="field-label-row">
+              <span class="field-label">${condition.mode === 'event' ? 'Event name' : 'Condition value'}</span>
+              <prism-inline-help
+                label="Condition value help"
+                message=${condition.mode === 'event'
+                  ? 'Use the exact event name your runtime emits, for example submit-clicked.'
+                  : 'Use a concise guard expression that explains when this route should unlock, for example application.isComplete == true.'}
+              ></prism-inline-help>
+            </span>
+            <input
+              class="field-control"
+              data-prism-route-condition-value
+              data-prism-route-index="${idx}"
+              .value=${condition.value}
+              ?disabled=${condition.mode === 'always'}
+              placeholder=${condition.mode === 'event' ? 'submit-clicked' : 'application.isComplete == true'}
+              @change=${this._updateRouteConditionValue}
+            />
+          </label>
+        </div>
 
-        <section class="inspector-section" aria-labelledby="section-transition-actions">
+        <div class="action-buttons">
+          <button
+            type="button"
+            class="icon-button danger-button"
+            data-prism-route-delete
+            data-prism-route-index="${idx}"
+            @click=${this._deleteRoute}
+          >
+            Delete route
+          </button>
+        </div>
+
+        <section class="inspector-subsection" aria-labelledby="section-route-actions-${idx}">
           <div class="section-header-row">
-            <h3 id="section-transition-actions" class="section-heading">Route actions</h3>
+            <h5 id="section-route-actions-${idx}" class="section-heading">Route actions</h5>
             <span class="section-meta">${transition.actions?.length ?? 0} configured</span>
           </div>
           <prism-workflow-action-editor
+            data-prism-route-index="${idx}"
             .actions=${transition.actions ?? []}
             .actionCatalog=${this.actionCatalog}
-            .selectedActionIndex=${this.selectedActionIndex}
+            .selectedActionIndex=${this.selectedActionTransitionIndex === transitionIndex ? this.selectedActionIndex : null}
             target="transition"
             subject-label="transition"
-            @actions-updated=${this._updateSelectedTransitionActions}
-            @action-selected=${this._handleActionSelected}
+            @actions-updated=${this._updateRouteActions}
+            @action-selected=${this._handleRouteActionSelected}
           ></prism-workflow-action-editor>
         </section>
       </article>
@@ -1050,6 +1023,8 @@ export class PrismStepInspectorElement extends LitElement {
             `
           : nothing}
 
+        ${this._renderGatewayOutgoingRoutes(gateway, binding)}
+
         <section class="inspector-section" aria-labelledby="gateway-danger-heading">
           <h3 id="gateway-danger-heading" class="section-heading">Actions</h3>
           <div class="action-buttons">
@@ -1255,17 +1230,14 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   render() {
-    const transition = this._selectedTransition;
-    const gateway = transition ? null : this._selectedGateway;
-    const stage = transition || gateway ? null : this._selectedStage;
+    const gateway = this._selectedGateway;
+    const stage = gateway ? null : this._selectedStage;
 
     return html`
       <div class="step-inspector-root" data-prism-component="step-inspector" tabindex="0">
         <div id="inspector-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true">${this._statusMessage ?? ''}</div>
-        ${transition
-          ? this._renderTransition(transition)
-          : gateway
-            ? this._renderGateway(gateway)
+        ${gateway
+          ? this._renderGateway(gateway)
           : stage
             ? this._renderStage(stage)
             : this._renderEmpty()}

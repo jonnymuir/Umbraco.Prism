@@ -193,11 +193,10 @@ function mapKind(raw: string): StageKind {
       return 'Confirmation';
     case 'TaskList':
       return 'TaskList';
-    case 'Waiting':
-      return 'Waiting';
-    case 'StatusTimeline':
-      return 'StatusTimeline';
     default:
+      // Retired kinds (Waiting, StatusTimeline) and any unknown value collapse
+      // to Question — PROJ140 rejects them on save, so the editor must not
+      // surface them as valid choices.
       return 'Question';
   }
 }

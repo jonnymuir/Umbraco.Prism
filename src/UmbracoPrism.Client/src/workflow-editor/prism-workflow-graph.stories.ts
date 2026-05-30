@@ -7,10 +7,7 @@ import type { AuthoredWorkflow } from './types.js';
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
-  transitions: [
-    ...STUB_WORKFLOW.transitions,
-    { fromStage: 'waiting-for-review', toStage: 'reviewer-assessment', action: 'assign', requiresRole: 'reviewer', actions: [] },
-  ],
+  transitions: [...STUB_WORKFLOW.transitions],
 };
 
 const GATEWAY_WORKFLOW: AuthoredWorkflow = {

@@ -1,5 +1,32 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-30T15:30:00+01:00 — Slice 3b.1: Gateway-First Route Editing + Closed TS StageKind
+
+**Session:** named-lanes editor — Slice 3b.1
+**Role:** Implementation (TS/Lit frontend; client-only — backend `[Obsolete]` shims from 3a absorb legacy inbound names)
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**Outcomes:**
+- ✅ Package A — transition surfaces removed from canvas (drag-handle, create-dialog, context-menu, `'t'` shortcut, list-view row-action); routes are now authored exclusively on the gateway inspector's outgoing-routes panel (`_renderGatewayOutgoingRoutes` / `_renderRouteEditor`). Inspector `transition` selection branch deleted; new `selectedActionTransitionIndex` disambiguates per-route action editors.
+- ✅ Package B — `StageKind` closed to `Question | CheckAnswers | Confirmation | TaskList`; legacy-kind normaliser-with-diagnostic pattern emits `stage-legacy-kind-rewritten` warnings and strips both the marker AND the `waiting` payload so PROJ140 accepts the save; outbound transition wire fields renamed to canonical `source`/`target`/`trigger` (inbound prefers canonical, falls back to legacy).
+- ✅ New `gateway-route-conditions.ts` module split from inspector for focused route-condition helpers.
+- ✅ New `data-prism-route-*` selector convention paired with `data-prism-route-index="${idx}"` enables one set of shared `_updateRoute*` handlers reading `event.currentTarget`.
+- ✅ New tests: `workflow-stage-type-options.spec.ts` (Tangy SHOULD-FIX #5), `workflow-transition-editor.spec.ts` rewritten as Tangy #5 verbatim. Retargeted `workflow-editor-history.spec.ts:61` onto new `GatewayRepresentation` story for route label/delete undo/redo.
+- ✅ `npx tsc --noEmit` clean; `npm run build` clean; `npm run build-storybook` clean; targeted Playwright specs green (gateway-route, retired-types, gateway×4, transition-editor, history).
+- ✅ Verified 6 still-red editor-only specs (copy-paste, help, simulation×3, validation-rail) fail identically on baseline `HEAD` without my changes → pre-existing.
+
+**Key notes / patterns to remember:**
+- **Legacy-kind normaliser-with-diagnostic:** when widening becomes narrowing, ride a non-persisted marker on the domain object purely for editor-side diagnostic emission. Strip it (and any payload it gates) at the wire boundary or the server validator will reject.
+- **`serialiseWorkflow` returns `Record<string, unknown>`** now — the local projection fallback (`projectWorkflowLocally`) consumes the pre-serialisation `workflow` directly so it can still read `fromStage`/`toStage`/`action`.
+- **WorkflowSelection union collapse deferred** (build/tests green without it). Inspector no longer reads `_selectedTransitionIndex`; graph (edge highlight) and outline (row highlight) still do. Filed as Slice 3b.2 polish.
+- **Breaking-change-but-not-really:** outbound wire rename is mitigated server-side by `[Obsolete]` setter shims on `AuthoredTransition.cs` (Slice 3a); only third-party SDKs that parse the publish *response* or replay captured POST bodies through a typed model will see the new shape.
+
+**Validation jump UX for transition codes** still routes to source stage via existing graph behaviour; acceptable for this slice.
+
+**Follow-ups:** `WorkflowSelection` union collapse, plus the 6 pre-existing editor-only spec failures (carry-over).
+
+---
+
 ## 2026-05-25T16:48:28Z — Gateway-Only Redo: Editor UX Rebuild
 
 **Spawn:** isabelle background agent  

@@ -251,16 +251,6 @@ function projectStageComponents(stage: AuthoredStage, workflow: AuthoredWorkflow
         type: 'task-list',
         sections: null,
       }];
-    case 'Waiting':
-    case 'StatusTimeline':
-      return [{
-        type: 'waiting',
-        content: stage.waiting?.content ?? 'We are processing this stage.',
-        expectedWaitSeconds: stage.waiting?.expectedWaitSeconds ?? 0,
-        pollIntervalMs: stage.waiting?.pollIntervalMs ?? 3000,
-        allowDefer: stage.waiting?.allowDefer ?? false,
-        deferMessage: stage.waiting?.deferMessage,
-      }];
     case 'Question':
     default:
       return [{

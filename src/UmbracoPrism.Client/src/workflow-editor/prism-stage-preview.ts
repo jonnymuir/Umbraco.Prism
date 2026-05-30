@@ -577,10 +577,6 @@ function shellLabelFor(state: ProjectedWorkflowState): string {
       return 'Confirmation shell';
     case 'TaskList':
       return 'Task list shell';
-    case 'Waiting':
-      return 'Waiting shell';
-    case 'StatusTimeline':
-      return 'Status timeline shell';
     case 'Question':
     default:
       return 'Question shell';

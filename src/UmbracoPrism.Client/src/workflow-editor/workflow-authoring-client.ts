@@ -24,14 +24,51 @@ import { STUB_ACTION_CATALOG } from './types.js';
 import { projectWorkflowLocally, type ProjectWorkflowResult } from './workflow-runtime-projection.js';
 
 function stripLegacyStageSurface<T extends AuthoredStage>(stage: T): T {
-  const { editorSurface: _editorSurface, ...rest } = stage as T & { editorSurface?: 'front-stage' | 'back-stage' };
+  const {
+    editorSurface: _editorSurface,
+    legacyKindRewrittenFrom,
+    ...rest
+  } = stage as T & {
+    editorSurface?: 'front-stage' | 'back-stage';
+    legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline';
+  };
+
+  if (legacyKindRewrittenFrom) {
+    // The C# validator (PROJ140) rejects a legacy waiting payload on a stage,
+    // so once we've downgraded the kind we must also drop the payload that
+    // came with it. Waiting copy belongs on join gateways from Slice 3a on.
+    const { waiting: _waiting, ...withoutWaiting } = rest as typeof rest & { waiting?: unknown };
+    return withoutWaiting as T;
+  }
+
   return rest as T;
 }
 
-function serialiseWorkflow(workflow: AuthoredWorkflow): AuthoredWorkflow {
+function serialiseTransition(transition: AuthoredTransition): Record<string, unknown> {
+  // Slice 3b.1 wire-format alignment: the C# AuthoredTransition canonical
+  // field names are source/target/trigger. Stop exercising the [Obsolete]
+  // fromStage/toStage/action shims on every save.
+  const {
+    fromStage,
+    toStage,
+    action,
+    fromGateway: _fromGateway,
+    toGateway: _toGateway,
+    ...rest
+  } = transition;
+  return {
+    ...rest,
+    source: fromStage,
+    target: toStage,
+    trigger: action,
+  };
+}
+
+function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
   return {
     ...workflow,
     stages: workflow.stages.map(stage => stripLegacyStageSurface(stage)),
+    transitions: workflow.transitions.map(serialiseTransition),
   };
 }
 
@@ -64,16 +101,24 @@ function url(path: string, apiBase?: string): string {
   return `${normaliseAuthoringApiBase(apiBase)}${path}`;
 }
 
-function mapStageKind(raw: string | undefined): StageKind {
+function mapStageKind(raw: string | undefined): {
+  kind: StageKind;
+  legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline';
+} {
   switch (raw) {
     case 'CheckAnswers':
     case 'Confirmation':
     case 'TaskList':
+      return { kind: raw };
     case 'Waiting':
     case 'StatusTimeline':
-      return raw;
+      // JSON-boundary normaliser (Slice 3b.1): the C# StageKind enum no
+      // longer includes these kinds and PROJ140 rejects them on save.
+      // Downgrade to Question and mark the stage so the validator can
+      // surface the rewrite to the author.
+      return { kind: 'Question', legacyKindRewrittenFrom: raw };
     default:
-      return 'Question';
+      return { kind: 'Question' };
   }
 }
 
@@ -144,11 +189,13 @@ function normaliseAction(raw: Record<string, unknown>): AuthoredAction {
 }
 
 function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
+  const kindResult = mapStageKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined);
   return {
     stageKey: String(raw.stageKey ?? raw.key ?? ''),
     displayName: String(raw.displayName ?? raw.title ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
-    kind: mapStageKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined),
+    kind: kindResult.kind,
+    legacyKindRewrittenFrom: kindResult.legacyKindRewrittenFrom,
     actor: typeof raw.actor === 'string' ? raw.actor : undefined,
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
@@ -181,9 +228,11 @@ function normaliseTransition(raw: Record<string, unknown>): AuthoredTransition {
       : null;
 
   return {
-    fromStage: String(raw.fromStage ?? raw.source ?? ''),
-    toStage: String(raw.toStage ?? raw.target ?? ''),
-    action: String(raw.action ?? raw.trigger ?? ''),
+    // Prefer the canonical source/target/trigger wire names; fall back to the
+    // legacy fromStage/toStage/action shape for any caller still emitting it.
+    fromStage: String(raw.source ?? raw.fromStage ?? ''),
+    toStage: String(raw.target ?? raw.toStage ?? ''),
+    action: String(raw.trigger ?? raw.action ?? ''),
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
       : [],
@@ -399,7 +448,7 @@ export async function projectWorkflow(
     }
   }
 
-  return projectWorkflowLocally(requestBody);
+  return projectWorkflowLocally(workflow);
 }
 
 function isProjectWorkflowResult(value: unknown): value is ProjectWorkflowResult {

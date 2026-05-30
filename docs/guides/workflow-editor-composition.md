@@ -66,7 +66,7 @@ These settings should be fixed in your authoring API and documented for develope
 - **Action catalog** — What actions are available? What parameters do they need?
 - **Validation rules** — What makes a workflow definition valid in your system?
 - **Forms engine components** — What form fields and layouts does your system support?
-- **Stage types** — What stage types (form, review, decision, waiting, etc.) are available?
+- **Stage types** — What stage types (form, review, decision, confirmation) are available?
 - **Role definitions** — What actor roles exist in your system?
 - **Assignment model** — Which `actor` and `roleGates` combinations should appear as journey or operations lanes in your host?
 

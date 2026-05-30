@@ -107,15 +107,11 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       stageKey: 'checks-pending',
       displayName: 'Checks pending',
       description: 'The application is paused while further checks run.',
-      kind: 'Waiting',
+      kind: 'Question',
       actor: 'reviewer',
       actions: [],
       fields: [],
       roleGates: ['reviewer'],
-      waiting: {
-        allowDefer: false,
-        content: 'Additional planning checks are running before the application can progress.',
-      },
     },
     {
       stageKey: 'approved',
@@ -283,6 +279,115 @@ export const SimulationBlockers: Story = {
   render: () => makeEditor(makeSimulationBlockerWorkflow()),
 };
 
-// NOTE: `GatewayRepresentation` story removed in Slice 1.5 — it required the
-// LEAVE_REQUEST_STARTER_WORKFLOW fixture (gateway-shaped) which lives with the
-// Slice 5 canvas/slot-matrix work. Reinstate alongside that slice.
+// NOTE: Slice 1.5 removed the original `GatewayRepresentation` story because
+// it pulled in a fixture that lived in the Slice 5 canvas WIP. Slice 3b.1
+// reinstates it with an inline gateway-shaped workflow so the editor-host
+// gateway specs (and the new gateway-route condition spec) have a story to
+// boot against. Slice 5 may swap this fixture out for the shared
+// LEAVE_REQUEST_STARTER_WORKFLOW once that lands.
+function makeGatewayWorkflow(): AuthoredWorkflow {
+  return {
+    definitionKey: 'planning-permission-gateway-draft',
+    displayName: 'Planning Permission Gateway Draft',
+    version: 1,
+    schemaVersion: '1.0',
+    instancePolicy: 'single',
+    initialStageKey: 'draft',
+    stages: [
+      {
+        stageKey: 'draft',
+        displayName: 'Draft submission',
+        description: 'Capture the initial applicant draft before review starts.',
+        kind: 'Question',
+        actor: 'public',
+        actions: [],
+        fields: [],
+        roleGates: [],
+      },
+      {
+        stageKey: 'applicant-amendments',
+        displayName: 'Applicant amendments',
+        description: 'Applicant lane work after the split.',
+        kind: 'Question',
+        actor: 'public',
+        actions: [],
+        fields: [],
+        roleGates: [],
+      },
+      {
+        stageKey: 'reviewer-assessment',
+        displayName: 'Reviewer assessment',
+        description: 'Reviewer lane work after the split.',
+        kind: 'Question',
+        actor: 'reviewer',
+        actions: [],
+        fields: [],
+        roleGates: ['reviewer'],
+      },
+      {
+        stageKey: 'decision-confirmed',
+        displayName: 'Decision confirmed',
+        description: 'The merged path continues here for the authored executable route.',
+        kind: 'Confirmation',
+        actor: 'public',
+        actions: [],
+        fields: [],
+        roleGates: [],
+      },
+    ],
+    transitions: [
+      {
+        fromStage: 'draft',
+        toStage: 'applicant-amendments',
+        action: 'continue applicant branch',
+        fromGateway: 'review-split',
+        actions: [],
+      },
+      {
+        fromStage: 'draft',
+        toStage: 'reviewer-assessment',
+        action: 'start reviewer branch',
+        fromGateway: 'review-split',
+        actions: [],
+      },
+      {
+        fromStage: 'applicant-amendments',
+        toStage: 'decision-confirmed',
+        action: 'complete applicant branch',
+        toGateway: 'decision-join',
+        actions: [],
+      },
+      {
+        fromStage: 'reviewer-assessment',
+        toStage: 'decision-confirmed',
+        action: 'approve decision',
+        requiresRole: 'reviewer',
+        toGateway: 'decision-join',
+        actions: [],
+      },
+    ],
+    gateways: [
+      {
+        gatewayKey: 'review-split',
+        displayName: 'Review split',
+        kind: 'Split',
+        laneKey: 'public',
+        actor: 'public',
+        roleGates: [],
+      },
+      {
+        gatewayKey: 'decision-join',
+        displayName: 'Decision join',
+        kind: 'Join',
+        laneKey: 'public',
+        actor: 'public',
+        roleGates: [],
+      },
+    ],
+  };
+}
+
+export const GatewayRepresentation: Story = {
+  name: 'Gateway Representation',
+  render: () => makeEditor(makeGatewayWorkflow()),
+};
