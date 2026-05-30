@@ -216,3 +216,65 @@ leaks in responses, `/save` vs `/publish` vs `/apply` consolidation.
 - All Copper verification-matrix tests pass
 - Pre-existing fixture-race exposed during the slice was repaired as a
   by-product
+
+## 2026-05-30 — Slice 8a: collapse write surface + relax ProposalEnvelope (squad/82)
+
+**Scope:** Two of Tom Nook's worth-noting findings from the editor reset
+review: retire the `/save` alias and stop forcing integrators through the
+agentic envelope theatre for non-agentic saves.
+
+**Shipped:**
+- **Package A — `/save` retired.** Removed the `MapPost("/workflows/{key}/save")`
+  endpoint from `WorkflowEditorEndpointExtensions.cs`. `/publish` is now the
+  canonical direct save; `/apply` keeps envelope-mediated saves with provenance.
+  Fixed the duplicated `/publish` route-header comment that had marked both
+  endpoints with the same banner. Renamed the two `PostSave_…` tests in
+  `WorkflowAuthoringEndpointsTests` to `PostPublish_…` and pointed them at
+  the surviving route, then added a pin test that `/save` on a real workflow
+  returns 404. Dropped the `/save` row from the unauth theory and renamed
+  `PostSave_WithUnsafeKey…` to `PostPublish_WithUnsafeKey…`.
+- **Package B — `ProposalEnvelope` relaxed.** `Agent` and `Rationale` are now
+  nullable; `Id` and `CreatedAt` stay required for audit. `PatchAgent.Kind`'s
+  XML doc became "free-form actor identifier" — the endpoint only validates
+  whitespace and only cross-stamps when `Kind == "human-assisted"`. The
+  `/apply` endpoint now (a) rejects empty `Ops` with 400 before any other
+  validation runs, (b) synthesises a `PatchAgent { Kind = "human-assisted",
+  Identity = approver }` when none is supplied, (c) rejects whitespace-only
+  `Agent.Kind` when an agent *is* supplied. Provenance store needed no
+  changes — the anonymous JSON payload serialises nulls fine.
+- **Behavioural tests:** added `WorkflowAuthoringApplyRelaxationTests`
+  (4 tests, all green): null-Agent+null-Rationale succeeds and provenance
+  synthesises the actor; arbitrary actor string (`planning-bot`) accepted
+  verbatim; empty ops returns 400; `/save` returns 404. Test totals:
+  866 total / 860 passed / 6 pre-existing manifest failures unchanged.
+
+**Surface I touched:**
+- `src/UmbracoPrism.WorkflowEditor/Authoring/ProposalEnvelope.cs`
+- `src/UmbracoPrism.WorkflowEditor/Extensions/WorkflowEditorEndpointExtensions.cs`
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringEndpointsTests.cs`
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringEndpointSecurityTests.cs`
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowAuthoringApplyRelaxationTests.cs` (NEW)
+
+**Notes / learnings:**
+- The SDK client (`workflow-authoring-client.ts`) was already on `/publish` — no
+  TS rename or Playwright re-run was required. The `/save` removal is a
+  server-side delete with no client churn.
+- `BuildMinimalEnvelope` in the endpoint tests previously emitted `Ops = []`;
+  with the new "empty-ops → 400" rule that helper now embeds a real
+  `update-transition` op that matches an existing planning transition by
+  (source, target, trigger), which `WorkflowPatchService` treats as a no-op
+  overwrite. Two adjacent security tests that hand-rolled anonymous-object
+  envelopes had to be updated the same way to keep exercising their
+  identity-mismatch / approver-from-claims assertions instead of tripping the
+  new ops-empty check first.
+- Order of `/apply` validations now: (1) safe key, (2) parseable body, (3)
+  ops non-empty, (4) authenticated approver, (5) agent kind / cross-stamp,
+  (6) workflow exists. Each step returns the most specific 400/401/404 it can.
+- `WorkflowPatchService` needed no changes — its `Apply` loop is naturally
+  empty-safe and it never reads `Agent` or `Rationale`.
+
+**Explicitly deferred (still open):**
+- `WorkflowPatchService` covert insert (Copper MEDIUM)
+- `WorkflowRuntimeEngine` join-arrival forgery (Copper MEDIUM)
+- Multi-tenant scoping (V1 single-tenant by directive)
+- Backoffice editor re-introduction (permanently rejected)

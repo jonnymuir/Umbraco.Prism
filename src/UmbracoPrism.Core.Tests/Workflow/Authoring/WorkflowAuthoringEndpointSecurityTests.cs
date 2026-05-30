@@ -29,7 +29,6 @@ public class WorkflowAuthoringEndpointSecurityTests
     // ─── Authentication ──────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData("/api/workflow-authoring/workflows/smoke-test/save")]
     [InlineData("/api/workflow-authoring/workflows/smoke-test/publish")]
     [InlineData("/api/workflow-authoring/workflows/smoke-test/apply")]
     public async Task UnauthenticatedRequest_ReturnsUnauthorized(string path)
@@ -53,13 +52,13 @@ public class WorkflowAuthoringEndpointSecurityTests
     [InlineData("foo/bar")]
     [InlineData("foo.bar")]
     [InlineData("with space")]
-    public async Task PostSave_WithUnsafeKey_ReturnsBadRequest_AndDoesNotWriteOutsideBasePath(string unsafeKey)
+    public async Task PostPublish_WithUnsafeKey_ReturnsBadRequest_AndDoesNotWriteOutsideBasePath(string unsafeKey)
     {
         using var client = _factory.CreateAuthenticatedClient("alice");
         var encodedKey = Uri.EscapeDataString(unsafeKey);
 
         var response = await client.PostAsync(
-            $"/api/workflow-authoring/workflows/{encodedKey}/save",
+            $"/api/workflow-authoring/workflows/{encodedKey}/publish",
             new StringContent("{}", Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(
@@ -217,7 +216,15 @@ public class WorkflowAuthoringEndpointSecurityTests
                 createdAt = DateTimeOffset.UtcNow,
                 agent = new { kind = "human-assisted", identity = "alice" },
                 targetWorkflowId = "planning-application",
-                rationale = "Slice 3c: approver-from-claims regression"
+                rationale = "Slice 3c: approver-from-claims regression",
+                ops = new[]
+                {
+                    new
+                    {
+                        op = "update-transition",
+                        value = new { source = "declaration", target = "route-application-form", trigger = "continue" }
+                    }
+                }
             },
             approver = "bob"
         }, WorkflowProjector.CanonicalOptions);
@@ -262,7 +269,15 @@ public class WorkflowAuthoringEndpointSecurityTests
                 createdAt = DateTimeOffset.UtcNow,
                 agent = new { kind = "human-assisted", identity = "bob" }, // mismatch
                 targetWorkflowId = "planning-application",
-                rationale = "Slice 3c: agent-identity cross-stamp regression"
+                rationale = "Slice 3c: agent-identity cross-stamp regression",
+                ops = new[]
+                {
+                    new
+                    {
+                        op = "update-transition",
+                        value = new { source = "declaration", target = "route-application-form", trigger = "continue" }
+                    }
+                }
             }
         }, WorkflowProjector.CanonicalOptions);
 

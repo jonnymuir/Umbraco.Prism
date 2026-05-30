@@ -292,7 +292,7 @@ public class WorkflowAuthoringEndpointsTests
     }
 
     [Fact]
-    public async Task PostSave_WithValidWorkflow_PersistsAuthoredAndPublishedDefinitions()
+    public async Task PostPublish_WithValidWorkflow_PersistsAuthoredAndPublishedDefinitions()
     {
         var authored = BuildMinimalAuthoredWorkflow() with
         {
@@ -302,7 +302,7 @@ public class WorkflowAuthoringEndpointsTests
         var json = JsonSerializer.Serialize(authored, WorkflowProjector.CanonicalOptions);
 
         var response = await _client.PostAsync(
-            "/api/workflow-authoring/workflows/save-smoke/save",
+            "/api/workflow-authoring/workflows/save-smoke/publish",
             new StringContent(json, Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -316,7 +316,7 @@ public class WorkflowAuthoringEndpointsTests
     }
 
     [Fact]
-    public async Task PostSave_PreservesRouteWorkflowKey_WhenDefinitionKeyDiffers()
+    public async Task PostPublish_PreservesRouteWorkflowKey_WhenDefinitionKeyDiffers()
     {
         const string workflowKey = "planning-shell";
         const string definitionKey = "planning-shell-definition";
@@ -330,7 +330,7 @@ public class WorkflowAuthoringEndpointsTests
         try
         {
             var response = await _client.PostAsync(
-                $"/api/workflow-authoring/workflows/{workflowKey}/save",
+                $"/api/workflow-authoring/workflows/{workflowKey}/publish",
                 new StringContent(json, Encoding.UTF8, "application/json"));
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -342,6 +342,26 @@ public class WorkflowAuthoringEndpointsTests
             CleanupAuthoredFixture(workflowKey);
             CleanupAuthoredFixture(definitionKey);
         }
+    }
+
+    [Fact]
+    public async Task PostSave_LegacyAliasRoute_IsRetiredAndReturnsNotFound()
+    {
+        // Slice 8a retired the /save alias. Only /publish (direct save) and /apply
+        // (envelope-mediated save) remain. Integrators that still target /save get
+        // a routing 404, not a silent rewrite.
+        var authored = BuildMinimalAuthoredWorkflow() with
+        {
+            DefinitionKey = "retired-save-route",
+            DisplayName = "Retired Save Route"
+        };
+        var json = JsonSerializer.Serialize(authored, WorkflowProjector.CanonicalOptions);
+
+        var response = await _client.PostAsync(
+            "/api/workflow-authoring/workflows/retired-save-route/save",
+            new StringContent(json, Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -432,7 +452,22 @@ public class WorkflowAuthoringEndpointsTests
         Agent            = new PatchAgent { Kind = "human-assisted", Identity = agentIdentity },
         TargetWorkflowId = targetKey,
         Rationale        = "Smoke test envelope",
-        Ops              = []
+        // /apply requires at least one op (Slice 8a). This update-transition matches
+        // an existing planning transition by (source, target, trigger), so the patch
+        // service treats it as a no-op overwrite and projection still passes.
+        Ops              =
+        [
+            new PatchOp
+            {
+                Op    = "update-transition",
+                Value = JsonSerializer.SerializeToElement(new
+                {
+                    source  = "declaration",
+                    target  = "route-application-form",
+                    trigger = "continue"
+                })
+            }
+        ]
     };
 
     private static string GetAuthoredFixturePath(string key) =>

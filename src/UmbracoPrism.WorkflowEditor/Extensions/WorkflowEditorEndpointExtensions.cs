@@ -164,22 +164,9 @@ public static class WorkflowEditorEndpointExtensions
         });
 
         // ── POST /api/workflow-authoring/workflows/{key}/publish ──────────────
-
-        group.MapPost("/workflows/{key}/save", async (
-            string key,
-            HttpContext ctx,
-            IAuthoredWorkflowStore store,
-            IWorkflowPublishService publishService,
-            CancellationToken ct) =>
-        {
-            if (!IsSafeWorkflowKey(key)) return InvalidKey(key);
-            var authored = await ReadBodyAsync<AuthoredWorkflow>(ctx, ct);
-            return authored is null
-                ? Results.BadRequest(new { error = "Request body must be a valid AuthoredWorkflow." })
-                : await SaveAndPublishAsync(key, authored, store, publishService, ct);
-        });
-
-        // ── POST /api/workflow-authoring/workflows/{key}/publish ──────────────
+        // Canonical direct save: persist the supplied AuthoredWorkflow and re-publish
+        // the runtime definition. Use /apply for envelope-mediated saves (PatchOps +
+        // provenance). The earlier /save alias was retired in Slice 8a.
 
         group.MapPost("/workflows/{key}/publish", async (
             string key,
@@ -236,6 +223,11 @@ public static class WorkflowEditorEndpointExtensions
             var request = await ReadBodyAsync<ApplyWorkflowRequest>(ctx, ct);
             if (request is null) return Results.BadRequest(new { error = "Request body must be { envelope: ProposalEnvelope }." });
 
+            // Envelope-mode saves must carry at least one operation; otherwise the
+            // caller wants direct save (use /publish) rather than envelope mediation.
+            if (request.Envelope.Ops is null || request.Envelope.Ops.Count == 0)
+                return Results.BadRequest(new { error = "envelope.ops must contain at least one operation. Use /publish for whole-document saves." });
+
             // Approver is bound to the authenticated principal. RequireAuthorization on the
             // group has already rejected anonymous calls; if we still cannot resolve a name
             // claim treat it as an authentication failure rather than silently writing "".
@@ -243,12 +235,26 @@ public static class WorkflowEditorEndpointExtensions
             if (string.IsNullOrWhiteSpace(approver))
                 return Results.Unauthorized();
 
-            // Cross-stamp: a human-assisted envelope must name the calling principal.
-            // Agent-kind envelopes (e.g. github-copilot, custom-agent) name the agent, not the
-            // human, and are deliberately not cross-checked here.
-            if (string.Equals(request.Envelope.Agent.Kind, "human-assisted", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(request.Envelope.Agent.Identity, approver, StringComparison.OrdinalIgnoreCase))
+            // Agent is optional. When omitted, synthesise one from the authenticated
+            // principal so provenance still records who applied the envelope.
+            var envelope = request.Envelope;
+            if (envelope.Agent is null)
             {
+                envelope = envelope with
+                {
+                    Agent = new PatchAgent { Kind = "human-assisted", Identity = approver }
+                };
+            }
+            else if (string.IsNullOrWhiteSpace(envelope.Agent.Kind))
+            {
+                return Results.BadRequest(new { error = "envelope.agent.kind must be a non-blank actor label when an agent is supplied." });
+            }
+            else if (string.Equals(envelope.Agent.Kind, "human-assisted", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(envelope.Agent.Identity, approver, StringComparison.OrdinalIgnoreCase))
+            {
+                // Cross-stamp: a human-assisted envelope must name the calling principal.
+                // Agent-kind envelopes that name a non-human actor (e.g. github-copilot)
+                // are deliberately not cross-checked here.
                 return Results.BadRequest(new
                 {
                     error = "envelope.agent.identity must match the authenticated principal for human-assisted proposals."
@@ -258,7 +264,7 @@ public static class WorkflowEditorEndpointExtensions
             var original = await store.LoadAsync(key, ct);
             if (original is null) return Results.NotFound(new { error = $"Workflow '{key}' not found." });
 
-            var patchResult = patchService.Apply(request.Envelope, original);
+            var patchResult = patchService.Apply(envelope, original);
             if (patchResult.HasErrors)
                 return Results.Json(new { hasErrors = true, diagnostics = patchResult.Diagnostics }, WorkflowProjector.CanonicalOptions);
 
@@ -266,11 +272,11 @@ public static class WorkflowEditorEndpointExtensions
             var publishResult = await publishService.PublishAsync(patchResult.Updated, ct);
 
             var provenancePath = await SaveProvenanceAsync(
-                key, request.Envelope, approver, provenanceStore, logger, ct);
+                key, envelope, approver, provenanceStore, logger, ct);
 
             logger.LogInformation(
                 "Workflow authoring apply: key={Key} approver={Approver} envelopeId={EnvelopeId} savedPath={SavedPath} provenance={Provenance}",
-                key, approver, request.Envelope.Id, savedPath, provenancePath ?? "(none)");
+                key, approver, envelope.Id, savedPath, provenancePath ?? "(none)");
 
             return Results.Json(new
             {
