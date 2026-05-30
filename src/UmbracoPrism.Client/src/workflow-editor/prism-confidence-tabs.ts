@@ -3,6 +3,9 @@ import { customElement, property } from 'lit/decorators.js';
 
 export type ConfidenceTab = 'canvas' | 'validation' | 'preview' | 'simulation' | 'help';
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-confidence-tabs')
 export class PrismConfidenceTabs extends LitElement {
   @property({ attribute: 'active-tab' })

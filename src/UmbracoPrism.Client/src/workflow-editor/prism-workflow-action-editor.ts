@@ -40,6 +40,9 @@ type DeleteActionDialogState = {
   label: string;
 };
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-workflow-action-editor')
 export class PrismWorkflowActionEditorElement extends LitElement {
   @property({ attribute: false })

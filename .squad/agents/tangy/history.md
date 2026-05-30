@@ -222,6 +222,22 @@ Created a unified behavioural test slice spanning backend authoring contracts, e
 
 ---
 
+## 2026-05-30T13:00:00+01:00 — A11y + Test-Quality Review (slices 1+1.5+2+3a+3b)
+
+**Scope:** Read-only review of editor reset slices on `squad/82-named-lanes-editor-slice` (HEAD a251bcd / b03ee38).
+**Output:** `.squad/decisions/inbox/tangy-editor-reset-a11y-test-review.md`.
+
+### Learnings
+
+- When a gateway-first inspector is introduced, the first a11y debt is almost always **label-leak in adjacent navigation surfaces**: the inspector itself uses display names (`_gatewayLabel`), but the outline/transition summary still surfaces raw gateway keys (`prism-workflow-outline.ts:195-200`). Audit both surfaces, not just the one that changed.
+- The `→` (U+2192) glyph is inconsistently announced by screen readers and carries no semantic role. Any "from … via … to …" route descriptor needs either (a) `aria-hidden="true"` on the arrow plus an `aria-label` spelling out the relationship, or (b) discrete DOM elements per segment. A flat `<span>${labels.join(' → ')}</span>` looks fine visually but fails WCAG 1.3.1 silently.
+- **Skip-with-comment > delete** for specs that encode a future-slice contract in honest product language. `workflow-editor-validation.spec.ts` references selectors that don't exist yet (Slice 5), but the assertion shape is exactly what we will want when the canvas health hint lands. Keep it dormant, don't lose it.
+- The `[Obsolete]` shim path on `AuthoredTransition` (Source/Target/Trigger vs FromStage/ToStage/Action) currently has zero pinning tests — `AuthoredWorkflowSerializationTests` uses the shim setters but only asserts JSON shape, not round-trip equivalence. This is a silent-migration trap class: any rename that leaves the JSON contract intact will still break legacy C# callers without test coverage flagging it.
+- The PROJ140 validator has **three** independent triggers (`LegacyKindRaw == "Waiting"`, `LegacyKindRaw == "StatusTimeline"`, `HasLegacyWaitingPayload`). The existing test (`Project_WaitingStage_InGatewayOnlyModel_IsRejected`) bundles two of them in one fixture, so a refactor could silently drop the JSON-sentinel-only path. When a validator has OR'd triggers, each branch needs an isolated test or you have implicit single-point-of-failure coverage.
+- A list-view `<select>` of stage kinds that still includes retired enum values (`prism-workflow-graph.ts:2724` still lists `Waiting`, `StatusTimeline`) is an accessibility trap too — assistive-tech users can navigate straight into an option that will silently fail server validation on save. Pruning option lists is part of the deletion-slice checklist, not a cosmetic follow-up.
+
+---
+
 ## 2026-05-30 — Scope-Reset Session: Validation & Quality Assurance
 
 **Session:** workflow-editor-scope-reset  

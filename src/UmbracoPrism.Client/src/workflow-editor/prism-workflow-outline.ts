@@ -4,6 +4,9 @@ import type { AuthoredGateway, AuthoredTransition, AuthoredWorkflow } from './ty
 import { deriveGatewayBindings } from './workflow-gateway-representation.js';
 import { stageLaneKey, stageLaneLabel } from './workflow-stage-assignment.js';
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-workflow-outline')
 export class PrismWorkflowOutline extends LitElement {
   @property({ type: Object })

@@ -4,7 +4,6 @@ import {
   type ActionCatalogEntry,
   type AuthoredAction,
   type AuthoredStage,
-  type AuthoredTransition,
   type AuthoredWorkflow,
 } from './types.js';
 import {
@@ -35,7 +34,6 @@ import type { ProjectWorkflowResult, ProjectedWorkflowState, ProjectedWorkflowTr
 type WorkflowSelection =
   | { kind: 'stage'; stageKey: string }
   | { kind: 'gateway'; gatewayKey: string }
-  | { kind: 'transition'; transitionIndex: number }
   | null;
 
 type WorkflowHistoryEntry = {
@@ -101,10 +99,6 @@ function selectionsEqual(left: WorkflowSelection, right: WorkflowSelection): boo
     return left.gatewayKey === right.gatewayKey;
   }
 
-  if (left?.kind === 'transition' && right?.kind === 'transition') {
-    return left.transitionIndex === right.transitionIndex;
-  }
-
   return left === right;
 }
 
@@ -157,8 +151,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   initialWorkflow: AuthoredWorkflow | null = null;
 
   @state() private _workflow: AuthoredWorkflow | null = null;
-  @state() private _selectedStageKey: string | null = null;
-  @state() private _selectedGatewayKey: string | null = null;
+  @state() private _selection: WorkflowSelection = null;
   @state() private _selectedTransitionIndex: number | null = null;
   @state() private _toastMessage: string | null = null;
   @state() private _loading = false;
@@ -187,6 +180,14 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _stagePreviewRequestId = 0;
   private _lastLoadedWorkflowKey: string | null = null;
   private _workflowLoadRequestId = 0;
+
+  private get _selectedStageKey(): string | null {
+    return this._selection?.kind === 'stage' ? this._selection.stageKey : null;
+  }
+
+  private get _selectedGatewayKey(): string | null {
+    return this._selection?.kind === 'gateway' ? this._selection.gatewayKey : null;
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -440,19 +441,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private _currentSelection(): WorkflowSelection {
-    if (this._selectedStageKey) {
-      return { kind: 'stage', stageKey: this._selectedStageKey };
-    }
-
-    if (this._selectedGatewayKey) {
-      return { kind: 'gateway', gatewayKey: this._selectedGatewayKey };
-    }
-
-    if (this._selectedTransitionIndex !== null) {
-      return { kind: 'transition', transitionIndex: this._selectedTransitionIndex };
-    }
-
-    return null;
+    return this._selection;
   }
 
   private _normaliseSelection(
@@ -466,56 +455,45 @@ export class PrismWorkflowEditorElement extends LitElement {
       return { kind: 'gateway', gatewayKey: selection.gatewayKey };
     }
 
-    if (selection?.kind === 'transition' && typeof selection.transitionIndex === 'number') {
-      return { kind: 'transition', transitionIndex: selection.transitionIndex };
-    }
-
     return null;
   }
 
   private _applySelection(selection: WorkflowSelection, workflow: AuthoredWorkflow | null = this._workflow) {
     if (!workflow) {
-      this._selectedStageKey = null;
+      this._selection = null;
       this._selectedTransitionIndex = null;
       this._syncStagePreview();
       return;
     }
 
     if (selection?.kind === 'stage') {
-      this._selectedStageKey = workflow.stages.some(stage => stage.stageKey === selection.stageKey)
-        ? selection.stageKey
-        : null;
-      this._selectedGatewayKey = null;
+      const exists = workflow.stages.some(stage => stage.stageKey === selection.stageKey);
+      this._selection = exists ? { kind: 'stage', stageKey: selection.stageKey } : null;
       this._selectedTransitionIndex = null;
       this._syncStagePreview();
       return;
     }
 
     if (selection?.kind === 'gateway') {
-      this._selectedGatewayKey = workflow.gateways?.some(gateway => gateway.gatewayKey === selection.gatewayKey)
-        ? selection.gatewayKey
-        : null;
-      this._selectedStageKey = null;
+      const exists = workflow.gateways?.some(gateway => gateway.gatewayKey === selection.gatewayKey) ?? false;
+      this._selection = exists ? { kind: 'gateway', gatewayKey: selection.gatewayKey } : null;
       this._selectedTransitionIndex = null;
       this._syncStagePreview();
       return;
     }
 
-    if (
-      selection?.kind === 'transition'
-      && selection.transitionIndex >= 0
-      && selection.transitionIndex < workflow.transitions.length
-    ) {
-      this._selectedTransitionIndex = selection.transitionIndex;
-      this._selectedStageKey = null;
-      this._selectedGatewayKey = null;
-      this._syncStagePreview();
+    this._selection = null;
+    this._selectedTransitionIndex = null;
+    this._syncStagePreview();
+  }
+
+  private _applyTransitionHighlight(transitionIndex: number, workflow: AuthoredWorkflow | null = this._workflow) {
+    if (!workflow || transitionIndex < 0 || transitionIndex >= workflow.transitions.length) {
+      this._selectedTransitionIndex = null;
       return;
     }
-
-    this._selectedStageKey = null;
-    this._selectedGatewayKey = null;
-    this._selectedTransitionIndex = null;
+    this._selection = null;
+    this._selectedTransitionIndex = transitionIndex;
     this._syncStagePreview();
   }
 
@@ -634,8 +612,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    return (currentSelection.kind === 'stage' && this._actionSelection.target === 'stage')
-      || (currentSelection.kind === 'transition' && this._actionSelection.target === 'transition')
+    return currentSelection.kind === 'stage' && this._actionSelection.target === 'stage'
       ? this._actionSelection.index
       : null;
   }
@@ -990,7 +967,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private _handleTransitionSelected(e: CustomEvent<{ transitionIndex: number }>) {
-    this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
+    this._applyTransitionHighlight(e.detail.transitionIndex, this._workflow);
     this._actionSelection = null;
   }
 
@@ -1033,7 +1010,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   };
 
   private _handleOutlineTransitionSelected = (e: CustomEvent<{ transitionIndex: number }>) => {
-    this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
+    this._applyTransitionHighlight(e.detail.transitionIndex, this._workflow);
     this._actionSelection = null;
   };
 
@@ -1102,46 +1079,27 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
 
     const currentSelection = this._currentSelection();
-    if (!currentSelection || currentSelection.kind === 'gateway') {
+    if (!currentSelection || currentSelection.kind !== 'stage') {
       return false;
     }
 
-    const target = currentSelection.kind === 'stage' ? 'stage' : 'transition';
-    const pastedAction = this._normalisePastedAction(this._clipboard.action, target);
+    const pastedAction = this._normalisePastedAction(this._clipboard.action, 'stage');
     if (!pastedAction) {
-      this._showToast(`Action ${this._clipboard.label} cannot be pasted into the current ${target}.`);
+      this._showToast(`Action ${this._clipboard.label} cannot be pasted into the current stage.`);
       return false;
     }
 
-    if (currentSelection.kind === 'stage') {
-      const stageIndex = this._workflow.stages.findIndex(stage => stage.stageKey === currentSelection.stageKey);
-      if (stageIndex < 0) {
-        return false;
-      }
-
-      const stages = [...this._workflow.stages];
-      const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
-      stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
-      this._commitWorkflowUpdate({ ...this._workflow, stages }, currentSelection);
-      this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
-      this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
-      return true;
-    }
-
-    const transition = this._workflow.transitions[currentSelection.transitionIndex];
-    if (!transition) {
+    const stageIndex = this._workflow.stages.findIndex(stage => stage.stageKey === currentSelection.stageKey);
+    if (stageIndex < 0) {
       return false;
     }
 
-    const transitions = [...this._workflow.transitions];
-    const nextActions = [...(transition.actions ?? []), pastedAction];
-    transitions[currentSelection.transitionIndex] = {
-      ...transition,
-      actions: nextActions,
-    } as AuthoredTransition;
-    this._commitWorkflowUpdate({ ...this._workflow, transitions }, currentSelection);
-    this._actionSelection = { target: 'transition', index: nextActions.length - 1 };
-    this._showToast(`Pasted action ${this._clipboard.label} into transition ${transition.action}.`);
+    const stages = [...this._workflow.stages];
+    const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
+    stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
+    this._commitWorkflowUpdate({ ...this._workflow, stages }, currentSelection);
+    this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
+    this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
     return true;
   }
 
@@ -1191,16 +1149,17 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
 
     if (issue.location.kind === 'transition') {
-      this._applySelection({ kind: 'transition', transitionIndex: issue.location.transitionIndex }, this._workflow);
+      this._applyTransitionHighlight(issue.location.transitionIndex, this._workflow);
       this._actionSelection = null;
       this._focusInspectorForValidationIssue(issue);
       return;
     }
 
-    const selection = issue.location.target === 'stage'
-      ? { kind: 'stage' as const, stageKey: issue.location.stageKey ?? '' }
-      : { kind: 'transition' as const, transitionIndex: issue.location.transitionIndex ?? 0 };
-    this._applySelection(selection, this._workflow);
+    if (issue.location.target === 'stage') {
+      this._applySelection({ kind: 'stage', stageKey: issue.location.stageKey ?? '' }, this._workflow);
+    } else {
+      this._applyTransitionHighlight(issue.location.transitionIndex ?? 0, this._workflow);
+    }
     this._actionSelection = { target: issue.location.target, index: issue.location.actionIndex };
     this._focusInspectorForValidationIssue(issue);
   }
@@ -1612,8 +1571,6 @@ export class PrismWorkflowEditorElement extends LitElement {
                 <prism-workflow-graph
                   class="graph-panel"
                   .workflow=${this._workflow}
-                  mode="graph"
-                  .allowLinearMode=${false}
                   .selectedStageKey=${this._selectedStageKey}
                   .selectedGatewayKey=${this._selectedGatewayKey}
                   .selectedTransitionIndex=${this._selectedTransitionIndex}

@@ -28,6 +28,9 @@ function assignmentCopy(projectedState: ProjectedWorkflowState): string {
   return 'Assignment comes from the workflow definition.';
 }
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-stage-preview')
 export class PrismStagePreviewElement extends LitElement {
   @property({ attribute: false })

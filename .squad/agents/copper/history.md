@@ -213,3 +213,38 @@ Awaiting implementation phase dispatch.
 
 Produced security decision on staged assurance and case-scoped access. Defined verified contact-channel (magic link/OTP), case-scoped identity, reviewer-backed step-up. Established fail-closed data visibility until verification. Decision emphasizes separation of channel proof from authority/member-match. Merged to shared registry.
 
+
+## 2026-05-30 — Workflow Editor Reset Security Review (squad/82, HEAD a251bcd)
+
+**Scope:** CIA + tenant isolation review after the proposal-diff/preview removal and gateway-first authoring rebase. Read-only. No code changes.
+
+### Top findings
+
+1. **CRITICAL — `/api/workflow-authoring/*` is fully unauthenticated.** `MapPrismWorkflowEditor` adds no `.RequireAuthorization()`; only a Development CORS policy is applied. MockBusinessApp's non-Dev `/admin` 404 middleware does NOT match `/api/workflow-authoring`, so the endpoints survive a non-Dev deployment. Comment at `Program.cs:139` explicitly says "no auth required". Combined with `AllowAnyOrigin` in Dev → CSRF-trivial.
+2. **CRITICAL — Authorship is self-asserted.** `/apply` reads `approver: string` from the request body (`ApplyWorkflowRequest.cs:8`); provenance store writes whatever string the caller supplied. No claims-based identity. Authorship spoofing is the default behaviour.
+3. **HIGH — Path traversal in all three filesystem stores.** `{key}` route param is interpolated unsanitised into `Path.Combine(basePath, $"{key}.workflow.json")` (FilesystemAuthoredWorkflowStore:36/81/110/123), and into provenance filenames (FilesystemWorkflowAuthoringProvenanceStore:19-20). `key="../../etc/passwd"` escapes the base directory. MockBusinessApp dodges this only because it pre-registers InMemory stores — downstream hosts that follow the default DI path are exposed.
+4. **MEDIUM — `update-transition` is a covert insert path.** WorkflowPatchService:187-195 falls through to `transitions.Add(updated)` when no match exists. Combined with no auth, any caller can insert arbitrary edges and rely only on the projector to reject; projector relies on PROJ141/142 (the new rules), so the schema is now the *only* gate. Defence-in-depth issue.
+5. **MEDIUM — Path-traversal in patch op stage selector.** WorkflowPatchService:218 treats `op.Path` segments like `parts[1]` as a literal stage key without sanitisation — fine for the in-memory model but means audit logs become attacker-controlled strings.
+6. **LOW — PROJ140 sentinel scoping is fragile.** `AuthoredStage.LegacyWaitingPayload` only flips `_hasLegacyWaitingPayload` when JSON value is non-null; `{ "waiting": null }` slips past. Not a present-day exploit (null payload carries nothing), but the design is property-name-coupled — any future legacy alias added under a different JSON property will silently bypass PROJ140.
+7. **LOW — Filesystem path disclosure in apply response.** `savedPath`/`provenancePath` returned to the client expose absolute server paths.
+
+### CIA verdict
+
+- **Confidentiality:** unchanged (response leaks server paths; no PII in ProposalEnvelope itself).
+- **Integrity:** **regressed** by the auth + spoofable-approver combination. The reset removed the preview step that previously gave a (weak) two-step ceremony.
+- **Availability:** unchanged; validators do recursive walks but parameter-schema depth is bounded by JSON depth limits in System.Text.Json defaults (64).
+
+### Net attack surface
+
+Surface area shrank (one endpoint, one service removed) but the *remaining* surface is more dangerous because (a) authorship is now solely carried by the body-supplied `approver`, with no agentic preview/staging step in front, and (b) schema validators are doing more load-bearing work after PROJ140/141/142 took on integrity duties that previously lived partly in the now-deleted SemanticDiff path.
+
+### Action items emitted
+
+Detailed findings written to `.squad/decisions/inbox/copper-editor-reset-security-review.md` for Scribe pickup.
+
+## Learnings
+
+- **Lit `html``` tag escapes interpolations.** Inspector + outline render lane / stage / gateway / waiting-message strings via Lit templates with no `unsafeHTML` anywhere in `src/UmbracoPrism.Client/src/workflow-editor/`. XSS surface in the editor authoring shell is currently nil even though every field flows from authored JSON.
+- **`TryAddSingleton` masks default-DI vulnerabilities.** `AddPrismWorkflowEditor` registers filesystem stores via `TryAddSingleton`, so a reference host that pre-registers in-memory stores (MockBusinessApp) appears safe while downstream hosts inherit the path-traversal default. Always audit the *default* registration, not just the call site you tested.
+- **Legacy JSON shims need a property-name allowlist, not a value-presence check.** `LegacyWaitingPayload` keys off `"waiting"` being present and non-null. Any new field name that future authors use to carry waiting metadata (e.g. `"waitConfig"`) bypasses PROJ140 without anyone noticing — the sentinel should be replaced with a positive allowlist of stage properties.
+- **`{key}` route params on filesystem-backed stores need explicit sanitisation.** This codebase has now repeated the unsanitised-`{key}` → `Path.Combine` pattern across three stores. Worth a repository-wide rule.

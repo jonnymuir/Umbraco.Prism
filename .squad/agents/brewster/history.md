@@ -156,3 +156,17 @@ All squad members deployed together to complete the vinyl/core boundary work. Ar
 - All 815 tests passing
 - 0 warnings in build/test lane
 
+
+## Learnings — 2026-05-30T13:00:00+01:00 — Workflow Editor Umbraco DX Review (Slices 1+1.5+2+3a+3b @ b03ee38)
+
+- The v17 backoffice section under `src/UmbracoPrism.TestSite/App_Plugins/PrismWorkflowEditor/` is manifest-correct (Lit + UmbLitElement, no AngularJS leakage), but the dashboard renders an `<iframe>` pointing at MockBusinessApp (`https://localhost:7245/workflow-editor`). Integrators get an Umbraco *section* without an Umbraco *editor* — they must stand up a second .NET process.
+- The App_Plugins payload lives in TestSite, not in `UmbracoPrism.WorkflowEditor`. There is no NuGet-time way for an integrator to acquire the manifest.
+- The 11 `<prism-…>` custom elements have no public/internal documentation. `<prism-workflow-editor>`, `<prism-workflow-editor-shell>`, `<prism-workflow-graph>` are the realistic public surface; nothing in JSDoc/README declares this.
+- `<prism-workflow-graph>` declares its `workflow` property with `attribute: false`, so it cannot be initialised from Razor markup. A `workflow-json` attribute would unlock public read-only embedding.
+- `MapPrismWorkflowEditor()` silently requires a CORS policy named exactly `"WorkflowAuthoringDevCors"` to be registered in Development — invisible from the method signature.
+- `IWorkflowPublishService.PreviewAsync` and `PublishPreviewResult` survive the scope reset; the endpoint is gone but the interface members still impose work on custom implementations.
+- `AddPrismWorkflowEditor(authoredWorkflowBasePath: string.Empty, …)` is a sentinel-driven shape that only works because callers pre-register the store; splitting into two overloads removes the sentinel.
+- `PrismWorkflowPageController` and `WorkflowHubController` rely on `User.Identity?.IsAuthenticated` rather than `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`. Works today because PrismMemberCookie is the default scheme, but it's the wrong contract for any integrator mixing schemes.
+- `WorkflowHubController` *does* drive workflow page URLs from `IPublishedContent` (`ContentAtRoot().DescendantsOrSelf()` + `workflowKey` value) — content-driven discovery is preserved; only the full-tree descendant scan is worth optimising.
+- Walkthroughs (`docs/walkthroughs/authoring-a-workflow.md`, `docs/walkthroughs/planning-workflow-editor.md`) are editor-UX guides and mention neither `AddPrismWorkflowEditor` / `MapPrismWorkflowEditor` nor the App_Plugins manifest. The Umbraco-idiomatic order (compose → doctypes → controllers → templates → App_Plugins mount → editor) is not documented anywhere.
+- Decision written to `.squad/decisions/inbox/brewster-editor-reset-umbraco-dx-review.md`.

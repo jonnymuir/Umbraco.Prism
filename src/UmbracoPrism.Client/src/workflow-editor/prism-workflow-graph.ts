@@ -18,17 +18,11 @@ import {
   workflowLaneOptions,
 } from './workflow-stage-assignment.js';
 import {
-  describeTransitionCondition,
-} from './gateway-route-conditions.js';
-import { workflowDeadEndStages, workflowUnreachableStages } from './workflow-validation.js';
-import {
   deriveGatewayBindings,
   gatewayLaneKey,
   type GatewayBinding,
 } from './workflow-gateway-representation.js';
 
-export type GraphMode = 'graph' | 'linear';
-type LinearFilter = '__all__' | string;
 type SelectionKind = 'stage' | 'transition' | 'gateway';
 
 type GraphSelectionDetail = {
@@ -148,7 +142,6 @@ const GATEWAY_OFFSET = 28;
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 1.5;
 const LANE_HEADER_OFFSET = 80;
-const ALL_LANES_FILTER: LinearFilter = '__all__';
 
 /**
  * Workflow graph workspace for stage/transition authoring.
@@ -165,11 +158,22 @@ export class PrismWorkflowGraphElement extends LitElement {
   @property({ attribute: false })
   workflow: AuthoredWorkflow | null = null;
 
-  @property({ type: String })
-  mode: GraphMode = 'graph';
+  /**
+   * Render the graph as a pure viewer — no toolbar create buttons, no creation
+   * dialogs, no context menus. Selection and zoom remain available so the viewer
+   * is keyboard-navigable. Defaults to false (full authoring surface).
+   */
+  @property({ type: Boolean, attribute: 'read-only', reflect: true })
+  readOnly = false;
 
-  @property({ type: Boolean, attribute: 'allow-linear-mode' })
-  allowLinearMode = true;
+  /**
+   * Declarative JSON form of {@link workflow}. Lets the element be initialised
+   * from HTML/Razor markup without JS wiring — Razor authors can write
+   * `<prism-workflow-graph read-only workflow-json='...'>` and skip the prop
+   * assignment. When set, this attribute is parsed and assigned to `workflow`.
+   */
+  @property({ type: String, attribute: 'workflow-json' })
+  workflowJson: string | null = null;
 
   @property({ attribute: false })
   selectedStageKey: string | null = null;
@@ -208,15 +212,6 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _contextMenu: ContextMenuState | null = null;
 
   @state()
-  private _linearFilter: LinearFilter = ALL_LANES_FILTER;
-
-  @state()
-  private _draggedLinearStageKey: string | null = null;
-
-  @state()
-  private _dragOverLinearStageKey: string | null = null;
-
-  @state()
   private _createStageDialog: CreateStageDialogState | null = null;
 
   @state()
@@ -245,6 +240,15 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
+    if (changed.has('workflowJson') && this.workflowJson) {
+      try {
+        const parsed = JSON.parse(this.workflowJson) as AuthoredWorkflow;
+        this.workflow = parsed;
+      } catch (error) {
+        console.error('prism-workflow-graph: workflow-json could not be parsed.', error);
+      }
+    }
+
     if (changed.has('selectedStageKey')) {
       this._selectedStageKey = this.selectedStageKey ?? null;
     }
@@ -260,9 +264,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     const stages = this.workflow?.stages ?? [];
     const transitions = this.workflow?.transitions ?? [];
     const gateways = this.workflow?.gateways ?? [];
-    const focusableStages = this.mode === 'linear'
-      ? this._visibleLinearStages(stages)
-      : stages;
+    const focusableStages = stages;
 
     if (this._selectedStageKey && !stages.some(stage => stage.stageKey === this._selectedStageKey)) {
       this._selectedStageKey = null;
@@ -536,15 +538,6 @@ export class PrismWorkflowGraphElement extends LitElement {
     };
   }
 
-  private _toggleMode() {
-    if (!this.allowLinearMode) {
-      return;
-    }
-    this.mode = this.mode === 'graph' ? 'linear' : 'graph';
-    this._focusedIndex = 0;
-    this._dismissContextMenu();
-  }
-
   private _announce(message: string) {
     const announcer = this.shadowRoot?.getElementById('graph-announcer');
     if (!announcer) {
@@ -700,155 +693,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       canvas.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     });
     this._announce('Canvas fit to screen.');
-  }
-
-  private _visibleLinearStages(stages: AuthoredStage[] = this.workflow?.stages ?? []) {
-    return stages.filter(stage =>
-      this._linearFilter === ALL_LANES_FILTER || stageLaneKey(stage) === this._linearFilter
-    );
-  }
-
-  private _visibleLinearGateways(gateways: AuthoredGateway[] = this.workflow?.gateways ?? []) {
-    return gateways.filter(gateway =>
-      this._linearFilter === ALL_LANES_FILTER || this._laneKeyForGateway(gateway) === this._linearFilter
-    );
-  }
-
-  private _outgoingTransitionsForStage(stageKey: string) {
-    return (this.workflow?.transitions ?? [])
-      .map((transition, index) => ({ transition, index }))
-      .filter(entry => entry.transition.fromStage === stageKey);
-  }
-
-  private _actionCountForStage(stage: AuthoredStage) {
-    return (stage.actions ?? []).length;
-  }
-
-  private _actionSummariesForStage(stage: AuthoredStage) {
-    return (stage.actions ?? [])
-      .map(action => action.summary?.trim() || action.type)
-      .filter(Boolean)
-      .slice(0, 2);
-  }
-
-  private _focusLinearRow(index: number) {
-    requestAnimationFrame(() => {
-      this.shadowRoot
-        ?.querySelectorAll<HTMLElement>('[data-prism-list-row-trigger]')
-        ?.[index]
-        ?.focus();
-    });
-  }
-
-  private _setLinearFilter(filter: LinearFilter) {
-    this._linearFilter = filter;
-    this._focusedIndex = 0;
-    this._announce(
-      filter === ALL_LANES_FILTER
-        ? 'Showing all stages in the list workspace.'
-        : `Showing ${this._roleLabelForLane(filter)} lane only.`
-    );
-    this._focusLinearRow(0);
-  }
-
-  private _commitStageField(
-    stageKey: string,
-    field: 'stageKey' | 'displayName' | 'lane' | 'kind',
-    value: string
-  ) {
-    if (!this.workflow) {
-      return;
-    }
-
-    const stageIndex = this.workflow.stages.findIndex(stage => stage.stageKey === stageKey);
-    if (stageIndex < 0) {
-      return;
-    }
-
-    const currentStage = this.workflow.stages[stageIndex];
-    const currentValue = field === 'lane'
-      ? stageLaneKey(currentStage)
-      : String(currentStage[field] ?? '');
-    if (value === currentValue) {
-      return;
-    }
-
-    const nextStages = [...this.workflow.stages];
-    let nextTransitions = [...this.workflow.transitions];
-    let nextInitialStageKey = this.workflow.initialStageKey;
-    let nextSelectedStageKey = this._selectedStageKey;
-    let nextDraggedStageKey = this._draggedLinearStageKey;
-    let nextDragOverStageKey = this._dragOverLinearStageKey;
-    let announcement = '';
-
-    if (field === 'stageKey') {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        this._announce('Stage key cannot be empty.');
-        this.requestUpdate();
-        return;
-      }
-
-      if (
-        trimmed !== currentStage.stageKey
-        && this.workflow.stages.some(stage => stage.stageKey === trimmed)
-      ) {
-        this._announce(`Stage key ${trimmed} is already in use.`);
-        this.requestUpdate();
-        return;
-      }
-
-      nextStages[stageIndex] = { ...currentStage, stageKey: trimmed };
-      nextTransitions = nextTransitions.map(transition => ({
-        ...transition,
-        fromStage: transition.fromStage === currentStage.stageKey ? trimmed : transition.fromStage,
-        toStage: transition.toStage === currentStage.stageKey ? trimmed : transition.toStage,
-      }));
-      nextInitialStageKey = this.workflow.initialStageKey === currentStage.stageKey
-        ? trimmed
-        : this.workflow.initialStageKey;
-      nextSelectedStageKey = this._selectedStageKey === currentStage.stageKey
-        ? trimmed
-        : this._selectedStageKey;
-      nextDraggedStageKey = this._draggedLinearStageKey === currentStage.stageKey
-        ? trimmed
-        : this._draggedLinearStageKey;
-      nextDragOverStageKey = this._dragOverLinearStageKey === currentStage.stageKey
-        ? trimmed
-        : this._dragOverLinearStageKey;
-      announcement = `Stage key updated to ${trimmed}.`;
-    } else if (field === 'lane') {
-      nextStages[stageIndex] = applyLaneToStage(currentStage, value);
-      announcement = `${currentStage.displayName} lane updated.`;
-    } else if (field === 'kind') {
-      nextStages[stageIndex] = {
-        ...currentStage,
-        kind: value as AuthoredStage['kind'],
-      };
-      announcement = `${currentStage.displayName} type updated to ${value}.`;
-    } else {
-      nextStages[stageIndex] = {
-        ...currentStage,
-        displayName: value.trim() || currentStage.displayName,
-      };
-      announcement = `${nextStages[stageIndex].displayName} title updated.`;
-    }
-
-    const workflow: AuthoredWorkflow = {
-      ...this.workflow,
-      initialStageKey: nextInitialStageKey,
-      stages: nextStages,
-      transitions: nextTransitions,
-    };
-
-    const selectedStageKey = nextSelectedStageKey ?? nextStages[stageIndex].stageKey;
-    this._selectedStageKey = selectedStageKey;
-    this._selectedTransitionIndex = null;
-    this._draggedLinearStageKey = nextDraggedStageKey;
-    this._dragOverLinearStageKey = nextDragOverStageKey;
-    this._emitSelectionChange({ kind: 'stage', stageKey: selectedStageKey });
-    this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: selectedStageKey });
-    this._announce(announcement);
   }
 
   private _makeUniqueStageKey(base: string) {
@@ -1147,8 +991,6 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     this._selectedStageKey = null;
     this._selectedTransitionIndex = null;
-    this._draggedLinearStageKey = null;
-    this._dragOverLinearStageKey = null;
     this._emitWorkflowUpdated(workflow, null);
     this._announce(
       `${deletedLabel} deleted.${transitionCount > 0 ? ` ${transitionCount} affected transition${transitionCount === 1 ? '' : 's'} removed.` : ''}`
@@ -1190,84 +1032,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       this._announce(`Transition “${transition.action}” copy prepared, but clipboard access was unavailable.`);
     }
     this._dismissContextMenu(false);
-  }
-
-  private _moveStage(stageKey: string, delta: -1 | 1) {
-    if (!this.workflow) {
-      return;
-    }
-
-    const stages = [...this.workflow.stages];
-    const currentIndex = stages.findIndex(stage => stage.stageKey === stageKey);
-    if (currentIndex < 0) {
-      return;
-    }
-
-    const nextIndex = Math.min(stages.length - 1, Math.max(0, currentIndex + delta));
-    if (nextIndex === currentIndex) {
-      this._announce(delta < 0 ? 'Stage is already first.' : 'Stage is already last.');
-      return;
-    }
-
-    const [movedStage] = stages.splice(currentIndex, 1);
-    stages.splice(nextIndex, 0, movedStage);
-
-    const workflow: AuthoredWorkflow = {
-      ...this.workflow,
-      stages,
-    };
-
-    this._selectedStageKey = movedStage.stageKey;
-    this._selectedTransitionIndex = null;
-    this._emitSelectionChange({ kind: 'stage', stageKey: movedStage.stageKey });
-    this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: movedStage.stageKey });
-
-    const visibleIndex = this._visibleLinearStages(stages).findIndex(
-      stage => stage.stageKey === movedStage.stageKey
-    );
-    this._focusedIndex = Math.max(visibleIndex, 0);
-    this._announce(`${movedStage.displayName} moved to position ${nextIndex + 1}.`);
-    this._focusLinearRow(this._focusedIndex);
-  }
-
-  private _reorderStageBefore(stageKey: string, beforeStageKey: string) {
-    if (!this.workflow || stageKey === beforeStageKey) {
-      this._draggedLinearStageKey = null;
-      this._dragOverLinearStageKey = null;
-      return;
-    }
-
-    const stages = [...this.workflow.stages];
-    const fromIndex = stages.findIndex(stage => stage.stageKey === stageKey);
-    const targetIndex = stages.findIndex(stage => stage.stageKey === beforeStageKey);
-    if (fromIndex < 0 || targetIndex < 0) {
-      this._draggedLinearStageKey = null;
-      this._dragOverLinearStageKey = null;
-      return;
-    }
-
-    const [movedStage] = stages.splice(fromIndex, 1);
-    const insertIndex = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
-    stages.splice(insertIndex, 0, movedStage);
-
-    const workflow: AuthoredWorkflow = {
-      ...this.workflow,
-      stages,
-    };
-
-    this._selectedStageKey = movedStage.stageKey;
-    this._selectedTransitionIndex = null;
-    this._draggedLinearStageKey = null;
-    this._dragOverLinearStageKey = null;
-    this._emitSelectionChange({ kind: 'stage', stageKey: movedStage.stageKey });
-    this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: movedStage.stageKey });
-
-    const visibleIndex = this._visibleLinearStages(stages).findIndex(
-      stage => stage.stageKey === movedStage.stageKey
-    );
-    this._focusedIndex = Math.max(visibleIndex, 0);
-    this._announce(`${movedStage.displayName} reordered before ${this._labelForStage(beforeStageKey)}.`);
-    this._focusLinearRow(this._focusedIndex);
   }
 
   private _deleteTransition(index: number) {
@@ -1439,192 +1203,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       event.preventDefault();
       this._openContextMenuFromKeyboard({ kind: 'transition', transitionIndex }, event.currentTarget as HTMLElement);
     }
-  }
-
-  private _handleListKeydown(event: KeyboardEvent, stageKey: string, index: number) {
-    const stages = this._visibleLinearStages();
-    if (stages.length === 0) {
-      return;
-    }
-
-    let nextIndex = index;
-    if (event.altKey && event.key === 'ArrowUp') {
-      event.preventDefault();
-      this._moveStage(stageKey, -1);
-      return;
-    } else if (event.altKey && event.key === 'ArrowDown') {
-      event.preventDefault();
-      this._moveStage(stageKey, 1);
-      return;
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      nextIndex = Math.min(index + 1, stages.length - 1);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      nextIndex = Math.max(index - 1, 0);
-    } else if (event.key === 'Home') {
-      event.preventDefault();
-      nextIndex = 0;
-    } else if (event.key === 'End') {
-      event.preventDefault();
-      nextIndex = stages.length - 1;
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      this._selectStage(stageKey, { openInspector: true, focusIndex: index });
-      return;
-    } else if (event.key === ' ') {
-      event.preventDefault();
-      this._selectStage(stageKey, { focusIndex: index });
-      return;
-    } else if (event.key.toLowerCase() === 'e') {
-      event.preventDefault();
-      this._selectStage(stageKey, { openInspector: true, focusIndex: index });
-      return;
-    } else if (event.key === 'Delete' || event.key === 'Backspace') {
-      event.preventDefault();
-      this._openDeleteStageDialog(stageKey, event.currentTarget as HTMLElement);
-      return;
-    } else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-      event.preventDefault();
-      this._openContextMenuFromKeyboard(
-        { kind: 'stage', stageKey },
-        event.currentTarget as HTMLElement
-      );
-      return;
-    } else {
-      return;
-    }
-
-    this._focusedIndex = nextIndex;
-    this._focusLinearRow(nextIndex);
-  }
-
-  private _handleLinearRowClick(event: MouseEvent, stageKey: string, index: number) {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button, input, select, textarea')) {
-      return;
-    }
-
-    this._selectStage(stageKey, { openInspector: true, focusIndex: index });
-  }
-
-  private _handleInlineEditorCommit(
-    event: Event,
-    stageKey: string,
-    field: 'stageKey' | 'displayName' | 'lane' | 'kind'
-  ) {
-    const value = (event.currentTarget as HTMLInputElement | HTMLSelectElement).value;
-    this._commitStageField(stageKey, field, value);
-  }
-
-  private _handleInlineEditorKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      (event.currentTarget as HTMLElement).blur();
-    }
-  }
-
-  private _handleLinearDragStart(event: DragEvent, stageKey: string) {
-    this._draggedLinearStageKey = stageKey;
-    this._dragOverLinearStageKey = null;
-    event.dataTransfer?.setData('text/plain', stageKey);
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-    }
-    this._announce(`Dragging ${this._labelForStage(stageKey)}.`);
-  }
-
-  private _handleLinearDragOver(event: DragEvent, stageKey: string) {
-    if (!this._draggedLinearStageKey || this._draggedLinearStageKey === stageKey) {
-      return;
-    }
-
-    event.preventDefault();
-    this._dragOverLinearStageKey = stageKey;
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
-    }
-  }
-
-  private _handleLinearDrop(event: DragEvent, stageKey: string) {
-    event.preventDefault();
-    const draggedStageKey = this._draggedLinearStageKey
-      ?? event.dataTransfer?.getData('text/plain')
-      ?? null;
-    if (!draggedStageKey) {
-      return;
-    }
-
-    this._reorderStageBefore(draggedStageKey, stageKey);
-  }
-
-  private _handleLinearDragEnd() {
-    this._draggedLinearStageKey = null;
-    this._dragOverLinearStageKey = null;
-  }
-
-  private _jumpToValidationStage(stageKey: string) {
-    const stage = this.workflow?.stages.find(candidate => candidate.stageKey === stageKey);
-    if (!stage) {
-      return;
-    }
-
-    if (this.mode === 'linear' && this._linearFilter !== ALL_LANES_FILTER && stageLaneKey(stage) !== this._linearFilter) {
-      this._linearFilter = ALL_LANES_FILTER;
-    }
-
-    const visibleStages = this.mode === 'linear'
-      ? this._visibleLinearStages(this.workflow?.stages ?? [])
-      : (this.workflow?.stages ?? []);
-    const focusIndex = Math.max(visibleStages.findIndex(candidate => candidate.stageKey === stageKey), 0);
-    this._selectStage(stageKey, { openInspector: true, focusIndex });
-  }
-
-  private _renderValidationSummary() {
-    if (!this.workflow) {
-      return nothing;
-    }
-
-    const unreachableStages = workflowUnreachableStages(this.workflow);
-    const deadEndStages = workflowDeadEndStages(this.workflow);
-    if (unreachableStages.length === 0 && deadEndStages.length === 0) {
-      return nothing;
-    }
-
-    return html`
-      <section class="validation-banner" aria-labelledby="workspace-validation-heading">
-        <div class="validation-banner-header">
-          <h2 id="workspace-validation-heading" class="validation-banner-title">Routing warnings</h2>
-          <span class="validation-banner-meta">${unreachableStages.length + deadEndStages.length}</span>
-        </div>
-        <ul class="validation-banner-list">
-          ${unreachableStages.map(stage => html`
-            <li>
-              <button
-                type="button"
-                class="validation-link"
-                data-prism-validation-unreachable=${stage.stageKey}
-                @click=${() => this._jumpToValidationStage(stage.stageKey)}
-              >
-                ${stage.displayName} is unreachable from the workflow start.
-              </button>
-            </li>
-          `)}
-          ${deadEndStages.map(stage => html`
-            <li>
-              <button
-                type="button"
-                class="validation-link"
-                data-prism-validation-dead-end=${stage.stageKey}
-                @click=${() => this._jumpToValidationStage(stage.stageKey)}
-              >
-                ${stage.displayName} has no outbound transition.
-              </button>
-            </li>
-          `)}
-        </ul>
-      </section>
-    `;
   }
 
   private _renderContextMenu() {
@@ -1975,32 +1553,36 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     return html`
       <div class="graph-hud" aria-label="Workspace controls and hints">
-        <div class="hud-group">
-          <button
-            type="button"
-            class="hud-button"
-            data-prism-add-stage
-            @click=${(event: Event) => {
-              const selectedStage = this.workflow?.stages.find(stage => stage.stageKey === this._selectedStageKey) ?? null;
-              this._openCreateStageDialog(
-                selectedStage ? this._surfaceForStage(selectedStage) : 'front-stage',
-                this._selectedStageKey ? 'after' : 'append',
-                this._selectedStageKey,
-                event.currentTarget as HTMLElement
-              );
-            }}
-          >
-            Add stage
-          </button>
-          <button
-            type="button"
-            class="hud-button"
-            data-prism-add-gateway
-            @click=${(event: Event) => this._openCreateGatewayDialog(event.currentTarget as HTMLElement)}
-          >
-            Add gateway
-          </button>
-        </div>
+        ${this.readOnly
+          ? nothing
+          : html`
+              <div class="hud-group">
+                <button
+                  type="button"
+                  class="hud-button"
+                  data-prism-add-stage
+                  @click=${(event: Event) => {
+                    const selectedStage = this.workflow?.stages.find(stage => stage.stageKey === this._selectedStageKey) ?? null;
+                    this._openCreateStageDialog(
+                      selectedStage ? this._surfaceForStage(selectedStage) : 'front-stage',
+                      this._selectedStageKey ? 'after' : 'append',
+                      this._selectedStageKey,
+                      event.currentTarget as HTMLElement
+                    );
+                  }}
+                >
+                  Add stage
+                </button>
+                <button
+                  type="button"
+                  class="hud-button"
+                  data-prism-add-gateway
+                  @click=${(event: Event) => this._openCreateGatewayDialog(event.currentTarget as HTMLElement)}
+                >
+                  Add gateway
+                </button>
+              </div>
+            `}
         <div class="hud-group">
           <button type="button" class="hud-button" aria-label="Zoom out" @click=${() => this._zoomBy(-0.1)}>
             −
@@ -2016,19 +1598,21 @@ export class PrismWorkflowGraphElement extends LitElement {
       </div>
 
       <p class="graph-hint">
-        Tab through role bands, stage cards, transition chips, and transition handles. Enter selects, T opens transition creation, E opens the inspector, and Shift+F10 opens the context menu.
+        ${this.readOnly
+          ? 'Tab through role bands and stage cards. Enter selects, arrow keys move between stages.'
+          : 'Tab through role bands, stage cards, transition chips, and transition handles. Enter selects, T opens transition creation, E opens the inspector, and Shift+F10 opens the context menu.'}
       </p>
 
       ${isEmpty
-        ? this._renderWorkspaceEmptyState('graph')
+        ? this._renderWorkspaceEmptyState()
         : html`<div
             class="graph-canvas"
             role="application"
             tabindex="0"
             aria-label=${`Workflow graph canvas — ${this.workflow?.displayName ?? 'workflow'}`}
-            aria-roledescription="Role-first workflow editor workspace"
+            aria-roledescription=${this.readOnly ? 'Role-first workflow viewer' : 'Role-first workflow editor workspace'}
             @click=${() => this._dismissContextMenu(false)}
-            @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'canvas' })}
+            @contextmenu=${this.readOnly ? nothing : (event: MouseEvent) => this._openContextMenu(event, { kind: 'canvas' })}
           >
         <div class="graph-viewport" tabindex="0">
           <div
@@ -2096,7 +1680,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                   @click=${() => this._selectTransition(layout.index)}
                   @dblclick=${() => this._selectTransition(layout.index, { openInspector: true })}
                   @keydown=${(event: KeyboardEvent) => this._handleTransitionKeydown(event, layout.index)}
-                  @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'transition', transitionIndex: layout.index }, event.currentTarget as HTMLElement)}
+                  @contextmenu=${this.readOnly ? nothing : (event: MouseEvent) => this._openContextMenu(event, { kind: 'transition', transitionIndex: layout.index }, event.currentTarget as HTMLElement)}
                 >
                   ${layout.transition.action}
                 </button>
@@ -2119,7 +1703,6 @@ export class PrismWorkflowGraphElement extends LitElement {
                     @dblclick=${() => this._selectGateway(layout.gateway.gatewayKey, { openInspector: true })}
                     @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, { kind: 'gateway', gateway: layout.gateway })}
                   >
-                    <span class="surface-tag">${layout.laneLabel}</span>
                     <span class="gateway-kind-badge">${layout.gateway.kind} gateway</span>
                     <span class="node-label">${layout.gateway.displayName}</span>
                     <span class="node-meta">${layout.binding.relatedTransitionIndices.length} related route${layout.binding.relatedTransitionIndices.length === 1 ? '' : 's'}</span>
@@ -2143,11 +1726,10 @@ export class PrismWorkflowGraphElement extends LitElement {
                     @click=${() => this._selectStage(layout.stage.stageKey, { focusIndex: visualIndex })}
                     @dblclick=${() => this._selectStage(layout.stage.stageKey, { openInspector: true, focusIndex: visualIndex })}
                     @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, { kind: 'stage', stage: layout.stage, index: visualIndex })}
-                    @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'stage', stageKey: layout.stage.stageKey }, event.currentTarget as HTMLElement)}
+                    @contextmenu=${this.readOnly ? nothing : (event: MouseEvent) => this._openContextMenu(event, { kind: 'stage', stageKey: layout.stage.stageKey }, event.currentTarget as HTMLElement)}
                   >
-                    <span class="surface-tag">${layout.laneLabel}</span>
                     <span class="node-label">${layout.stage.displayName}</span>
-                    <span class="node-meta">${layout.stage.kind} · ${layout.laneLabel} lane</span>
+                    <span class="node-meta">${layout.stage.kind}</span>
                   </button>
                 </div>
               `)}
@@ -2158,361 +1740,55 @@ export class PrismWorkflowGraphElement extends LitElement {
     `;
   }
 
-  private _renderWorkspaceEmptyState(mode: 'graph' | 'linear') {
+  private _renderWorkspaceEmptyState() {
     return html`
-      <section class="workspace-empty-state" role="status" data-prism-empty-state=${mode}>
-        <h2 class="workspace-empty-title">Start building your workflow</h2>
+      <section class="workspace-empty-state" role="status" data-prism-empty-state="graph">
+        <h2 class="workspace-empty-title">${this.readOnly ? 'No stages to display' : 'Start building your workflow'}</h2>
         <p class="workspace-empty-copy">
-          This workflow does not have any stages yet. Add the first stage, then connect routes as you model the author journey.
+          ${this.readOnly
+            ? 'This workflow has no stages.'
+            : 'This workflow does not have any stages yet. Add the first stage, then connect routes as you model the author journey.'}
         </p>
-        <ul class="workspace-empty-tips">
-          <li>Use <strong>Add stage</strong>, then name the lane owner that should own the work.</li>
-          <li>Use the editor Help button or press <strong>F1</strong> to review shortcuts while you work.</li>
-        </ul>
-        <div class="workspace-empty-actions">
-          <button
-            type="button"
-            class="hud-button"
-            data-prism-empty-add-stage
-            @click=${(event: Event) => this._openCreateStageDialog('front-stage', 'append', null, event.currentTarget as HTMLElement)}
-          >
-            Add first stage
-          </button>
-        </div>
-      </section>
-    `;
-  }
-
-  private _renderLinear(stages: AuthoredStage[]) {
-    const visibleStages = this._visibleLinearStages(stages);
-    const visibleGateways = this._visibleLinearGateways();
-    const laneFilters = this._availableLaneKeys();
-    const gatewayBindingsByKey = new Map(this._layout.gatewayLayouts.map(layout => [layout.gateway.gatewayKey, layout]));
-
-    return html`
-      <section class="linear-workspace" aria-label="Workflow stages — list workspace">
-        <div class="linear-toolbar" aria-label="List workspace controls">
-          <div class="hud-group">
-            <button
-              type="button"
-              class=${`hud-button ${this._linearFilter === ALL_LANES_FILTER ? 'filter-active' : ''}`}
-              aria-pressed=${String(this._linearFilter === ALL_LANES_FILTER)}
-              data-prism-linear-filter=${ALL_LANES_FILTER}
-              @click=${() => this._setLinearFilter(ALL_LANES_FILTER)}
-            >
-              All stages
-            </button>
-            ${laneFilters.map(laneKey => html`
-              <button
-                type="button"
-                class=${`hud-button ${this._linearFilter === laneKey ? 'filter-active' : ''}`}
-                aria-pressed=${String(this._linearFilter === laneKey)}
-                data-prism-linear-filter=${laneKey}
-                @click=${() => this._setLinearFilter(laneKey)}
-              >
-                ${this._roleLabelForLane(laneKey)} lane
-              </button>
-            `)}
-          </div>
-          <div class="hud-group">
-            <button
-              type="button"
-              class="hud-button"
-              data-prism-list-add-stage
-              @click=${(event: Event) => this._openCreateStageDialog('front-stage', this._selectedStageKey ? 'after' : 'append', this._selectedStageKey, event.currentTarget as HTMLElement)}
-            >
-              Add stage
-            </button>
-          </div>
-        </div>
-
-        <p class="graph-hint">
-          Tab into the row controls. Arrow keys move between rows, Enter opens the inspector, and Alt plus Arrow Up or Arrow Down reorders stages. Route creation now lives on each gateway inspector.
-        </p>
-
-        ${visibleStages.length === 0 && visibleGateways.length === 0
-          ? this._renderWorkspaceEmptyState('linear')
+        ${this.readOnly
+          ? nothing
           : html`
-              <div class="linear-table-scroll" tabindex="0">
-                <table class="stage-table" data-prism-linear-table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Row</th>
-                      <th scope="col">Stage key</th>
-                      <th scope="col">Title</th>
-                      <th scope="col">Lane owner</th>
-                      <th scope="col">Type</th>
-                      <th scope="col">Action count</th>
-                      <th scope="col">Outbound transitions</th>
-                      <th scope="col">Lane</th>
-                      <th scope="col">Row actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${visibleStages.map((stage, index) => {
-                      const outgoing = this._outgoingTransitionsForStage(stage.stageKey);
-                      const actionCount = this._actionCountForStage(stage);
-                      const actionSummaries = this._actionSummariesForStage(stage);
-                      const isSelected = this._selectedStageKey === stage.stageKey;
-                      const isDragOver = this._dragOverLinearStageKey === stage.stageKey;
-                      const isDragging = this._draggedLinearStageKey === stage.stageKey;
-                      const inputIdBase = `stage-${stage.stageKey.replace(/[^a-z0-9-]/gi, '-')}`;
-                      const moveUpDisabled = (this.workflow?.stages.findIndex(candidate => candidate.stageKey === stage.stageKey) ?? 0) === 0;
-                      const moveDownDisabled = (this.workflow?.stages.findIndex(candidate => candidate.stageKey === stage.stageKey) ?? 0) === (this.workflow?.stages.length ?? 1) - 1;
-                      const surface = this._surfaceForStage(stage);
-                      return html`
-                        <tr
-                          class=${`stage-table-row ${surface} ${isSelected ? 'selected' : ''} ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''}`}
-                          data-prism-list-row="${stage.stageKey}"
-                          @click=${(event: MouseEvent) => this._handleLinearRowClick(event, stage.stageKey, index)}
-                          @dragover=${(event: DragEvent) => this._handleLinearDragOver(event, stage.stageKey)}
-                          @drop=${(event: DragEvent) => this._handleLinearDrop(event, stage.stageKey)}
-                        >
-                          <td class="row-trigger-cell">
-                            <button
-                              type="button"
-                              class="row-trigger"
-                              data-prism-list-row-trigger
-                              data-prism-stage="${stage.stageKey}"
-                              tabindex=${String(index === this._focusedIndex ? '0' : '-1')}
-                              aria-current=${isSelected ? 'true' : 'false'}
-                              aria-label=${`Open ${stage.displayName} in the inspector`}
-                              @click=${() => this._selectStage(stage.stageKey, { openInspector: true, focusIndex: index })}
-                              @keydown=${(event: KeyboardEvent) => this._handleListKeydown(event, stage.stageKey, index)}
-                              @contextmenu=${(event: MouseEvent) => this._openContextMenu(event, { kind: 'stage', stageKey: stage.stageKey }, event.currentTarget as HTMLElement)}
-                            >
-                              Row ${index + 1}
-                            </button>
-                            <button
-                              type="button"
-                              class="drag-handle"
-                              draggable="true"
-                              aria-label=${`Drag ${stage.displayName} to reorder`}
-                              data-prism-stage-drag="${stage.stageKey}"
-                              @dragstart=${(event: DragEvent) => this._handleLinearDragStart(event, stage.stageKey)}
-                              @dragend=${this._handleLinearDragEnd}
-                            >
-                              ↕
-                            </button>
-                          </td>
-                          <td>
-                            <label class="sr-only" for=${`${inputIdBase}-key`}>Stage key</label>
-                            <input
-                              id=${`${inputIdBase}-key`}
-                              class="table-input"
-                              data-prism-inline-field="stageKey"
-                              .value=${stage.stageKey}
-                              @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'stageKey')}
-                              @keydown=${this._handleInlineEditorKeydown}
-                            />
-                          </td>
-                          <td>
-                            <label class="sr-only" for=${`${inputIdBase}-title`}>Stage title</label>
-                            <input
-                              id=${`${inputIdBase}-title`}
-                              class="table-input"
-                              data-prism-inline-field="displayName"
-                              .value=${stage.displayName}
-                              @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'displayName')}
-                              @keydown=${this._handleInlineEditorKeydown}
-                            />
-                          </td>
-                          <td>
-                            <label class="sr-only" for=${`${inputIdBase}-lane`}>Stage lane owner</label>
-                            <input
-                              id=${`${inputIdBase}-lane`}
-                              class="table-input"
-                              data-prism-inline-field="lane"
-                              .value=${stageLaneKey(stage)}
-                              placeholder="applicant"
-                              @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'lane')}
-                              @keydown=${this._handleInlineEditorKeydown}
-                            />
-                          </td>
-                          <td>
-                            <label class="sr-only" for=${`${inputIdBase}-kind`}>Stage type</label>
-                            <select
-                              id=${`${inputIdBase}-kind`}
-                              class="table-select"
-                              data-prism-inline-field="kind"
-                              @change=${(event: Event) => this._handleInlineEditorCommit(event, stage.stageKey, 'kind')}
-                            >
-                              ${(['Question', 'CheckAnswers', 'Confirmation', 'TaskList'] as const).map(kind => html`
-                                <option value=${kind} ?selected=${stage.kind === kind}>${kind}</option>
-                              `)}
-                            </select>
-                          </td>
-                          <td>
-                            <div class="stage-action-summary-cell">
-                              <span class="metric-pill" data-prism-action-count>${actionCount}</span>
-                              ${actionSummaries.length > 0
-                                ? html`
-                                    <ul class="stage-action-summary-list" data-prism-list-action-summary="${stage.stageKey}">
-                                      ${actionSummaries.map(summary => html`<li>${summary}</li>`)}
-                                    </ul>
-                                  `
-                                : html`<span class="transition-empty">No action summaries</span>`}
-                            </div>
-                          </td>
-                          <td>
-                            <div class="transition-summary" data-prism-outbound-count=${String(outgoing.length)}>
-                              <span class="metric-pill">${outgoing.length}</span>
-                              ${outgoing.length === 0
-                                ? html`<span class="transition-empty">No outbound transitions</span>`
-                                : html`
-                                    <ul class="transition-list">
-                                      ${outgoing.map(({ transition, index: transitionIndex }) => html`
-                                        <li>
-                                          <button
-                                            type="button"
-                                            class="transition-link"
-                                            data-prism-list-transition=${String(transitionIndex)}
-                                            @click=${() => this._selectTransition(transitionIndex, { openInspector: true })}
-                                          >
-                                            ${transition.action} → ${this._labelForStage(transition.toStage)}
-                                            ${transition.condition ? ` (${describeTransitionCondition(transition.condition)})` : ''}
-                                          </button>
-                                        </li>
-                                      `)}
-                                    </ul>
-                                  `}
-                            </div>
-                          </td>
-                          <td>
-                            <span class="badge">${this._roleLabelForLane(stageLaneKey(stage))}</span>
-                          </td>
-                          <td>
-                            <div class="row-actions">
-                              <button
-                                type="button"
-                                class="row-action-button"
-                                data-prism-insert-before="${stage.stageKey}"
-                                @click=${(event: Event) => this._openCreateStageDialog(this._surfaceForStage(stage), 'before', stage.stageKey, event.currentTarget as HTMLElement)}
-                              >
-                                Insert before
-                              </button>
-                              <button
-                                type="button"
-                                class="row-action-button"
-                                data-prism-insert-after="${stage.stageKey}"
-                                @click=${(event: Event) => this._openCreateStageDialog(this._surfaceForStage(stage), 'after', stage.stageKey, event.currentTarget as HTMLElement)}
-                              >
-                                Insert after
-                              </button>
-                              <button
-                                type="button"
-                                class="row-action-button"
-                                data-prism-move-up="${stage.stageKey}"
-                                ?disabled=${moveUpDisabled}
-                                @click=${() => this._moveStage(stage.stageKey, -1)}
-                              >
-                                Move up
-                              </button>
-                              <button
-                                type="button"
-                                class="row-action-button"
-                                data-prism-move-down="${stage.stageKey}"
-                                ?disabled=${moveDownDisabled}
-                                @click=${() => this._moveStage(stage.stageKey, 1)}
-                              >
-                                Move down
-                              </button>
-                              <button
-                                type="button"
-                                class="row-action-button danger"
-                                data-prism-delete-stage="${stage.stageKey}"
-                                @click=${(event: Event) => this._openDeleteStageDialog(stage.stageKey, event.currentTarget as HTMLElement)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      `;
-                    })}
-                    ${visibleGateways.map((gateway, index) => {
-                      const binding = gatewayBindingsByKey.get(gateway.gatewayKey);
-                      const laneKey = this._laneKeyForGateway(gateway);
-                      const laneLabel = this._roleLabelForLane(laneKey);
-                      const isSelected = this._selectedGatewayKey === gateway.gatewayKey;
-                      const rowIndex = visibleStages.length + index + 1;
-                      return html`
-                        <tr
-                          class=${`stage-table-row gateway-table-row ${isSelected ? 'selected' : ''}`}
-                          data-prism-list-row=${gateway.gatewayKey}
-                          data-prism-row-type="gateway"
-                        >
-                          <td class="row-trigger-cell">
-                            <button
-                              type="button"
-                              class="row-trigger"
-                              aria-current=${isSelected ? 'true' : 'false'}
-                              aria-label=${`Open ${gateway.displayName} in the inspector`}
-                              @click=${() => this._selectGateway(gateway.gatewayKey, { openInspector: true })}
-                            >
-                              Row ${rowIndex}
-                            </button>
-                          </td>
-                          <td><span class="gateway-inline-key">${gateway.gatewayKey}</span></td>
-                          <td><strong>${gateway.displayName}</strong></td>
-                          <td>${laneKey}</td>
-                          <td><span class="badge gateway-badge-inline">${gateway.kind}</span></td>
-                          <td><span class="transition-empty">Editor only</span></td>
-                          <td>
-                            <div class="transition-summary">
-                              <span class="metric-pill">${binding?.binding.relatedTransitionIndices.length ?? 0}</span>
-                              <span class="transition-empty">
-                                ${gateway.kind === 'Split' ? 'Branch point' : 'Merge point'}
-                                ${binding?.binding.anchorStageKey ? ` near ${this._labelForStage(binding.binding.anchorStageKey)}` : ''}
-                              </span>
-                            </div>
-                          </td>
-                          <td><span class="badge gateway-badge-inline">${laneLabel}</span></td>
-                          <td><span class="transition-empty">Select to inspect</span></td>
-                        </tr>
-                      `;
-                    })}
-                  </tbody>
-                </table>
+              <ul class="workspace-empty-tips">
+                <li>Use <strong>Add stage</strong>, then name the lane owner that should own the work.</li>
+                <li>Use the editor Help button or press <strong>F1</strong> to review shortcuts while you work.</li>
+              </ul>
+              <div class="workspace-empty-actions">
+                <button
+                  type="button"
+                  class="hud-button"
+                  data-prism-empty-add-stage
+                  @click=${(event: Event) => this._openCreateStageDialog('front-stage', 'append', null, event.currentTarget as HTMLElement)}
+                >
+                  Add first stage
+                </button>
               </div>
             `}
       </section>
     `;
   }
 
-  render() {
-    const stages = this.workflow?.stages ?? [];
-    const isLinear = this.allowLinearMode && this.mode === 'linear';
 
+  render() {
     return html`
-      <div class="workflow-graph-root" data-prism-component="workflow-graph" data-prism-mode=${this.mode}>
+      <div class="workflow-graph-root" data-prism-component="workflow-graph" data-prism-mode="graph" data-prism-read-only=${String(this.readOnly)}>
         <div class="toolbar">
           <div class="toolbar-title-block">
             <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>
-            <span class="workflow-subtitle">Graph workspace for lane-owned stages, gateways, and transitions</span>
+            <span class="workflow-subtitle">${this.readOnly ? 'Published workflow — read-only viewer' : 'Graph workspace for lane-owned stages, gateways, and transitions'}</span>
           </div>
-          ${this.allowLinearMode
-            ? html`
-                <button
-                  class="mode-toggle"
-                  aria-pressed=${String(isLinear)}
-                  @click=${this._toggleMode}
-                  title=${isLinear ? 'Switch to graph view' : 'Switch to linear list view'}
-                >
-                  ${isLinear ? 'Graph view' : 'List view'}
-                </button>
-              `
-            : nothing}
         </div>
 
         <div id="graph-announcer" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 
-        ${this._renderValidationSummary()}
-        ${isLinear ? this._renderLinear(stages) : this._renderGraph()}
-        ${this._renderContextMenu()}
-        ${this._renderCreateStageDialog()}
-        ${this._renderDeleteStageDialog()}
-        ${this._renderCreateGatewayDialog()}
+        ${this._renderGraph()}
+        ${this.readOnly ? nothing : this._renderContextMenu()}
+        ${this.readOnly ? nothing : this._renderCreateStageDialog()}
+        ${this.readOnly ? nothing : this._renderDeleteStageDialog()}
+        ${this.readOnly ? nothing : this._renderCreateGatewayDialog()}
       </div>
     `;
   }

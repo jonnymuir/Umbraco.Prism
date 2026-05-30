@@ -65,6 +65,9 @@ type ActionSelectedDetail = {
   transitionIndex?: number;
 };
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-step-inspector')
 export class PrismStepInspectorElement extends LitElement {
   @property({ attribute: false })

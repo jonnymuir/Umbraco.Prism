@@ -29,6 +29,9 @@ const STOP_COPY: Record<Exclude<WorkflowSimulationStopReason, null>, string> = {
   'no-transitions': 'Simulation stopped because this stage has no outbound transitions.',
 };
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-workflow-simulation')
 export class PrismWorkflowSimulationElement extends LitElement {
   @property({ attribute: false })

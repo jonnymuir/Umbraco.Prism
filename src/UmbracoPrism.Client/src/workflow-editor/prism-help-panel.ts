@@ -2,6 +2,9 @@ import { LitElement, html, css } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-help-panel')
 export class PrismHelpPanel extends LitElement {
   render() {

@@ -3,8 +3,13 @@
 This guide shows how to embed the workflow editor into your own application with minimal complexity.
 
 **For context:**
+- **Component API reference (public elements, attributes, events)?** See [`src/UmbracoPrism.Client/src/workflow-editor/README.md`](../../src/UmbracoPrism.Client/src/workflow-editor/README.md)
 - **Understanding the editor design?** See [Workflow Editor V1 Design](../design/workflow-editor-v1/README.md)
 - **Setting up workflows in Umbraco?** See [Setting Up a Prism Workflow](./workflow-setup.md)
+
+> The editor is **runtime-only** — never mount it as an Umbraco v17 backoffice dashboard. Hosts are TestSite Razor pages, the Storybook harness, and your reference shell.
+
+> Only three elements are public API: `<prism-workflow-editor>`, `<prism-workflow-editor-shell>`, and `<prism-workflow-graph>` (the last also supports a `read-only` viewer mode for embedding a published workflow on read-only pages). Everything else under `src/workflow-editor/` is composition detail marked `@internal`.
 
 ---
 
