@@ -20,11 +20,5 @@ public enum StageKind
     Confirmation,
 
     /// <summary>Task dashboard stage — emits a TaskListComponent. Infers "task-list".</summary>
-    TaskList,
-
-    /// <summary>Polling/waiting stage — emits a WaitingComponent. Infers "status-timeline".</summary>
-    Waiting,
-
-    /// <summary>Alias for <see cref="Waiting"/>. Emits a WaitingComponent. Infers "status-timeline".</summary>
-    StatusTimeline
+    TaskList
 }

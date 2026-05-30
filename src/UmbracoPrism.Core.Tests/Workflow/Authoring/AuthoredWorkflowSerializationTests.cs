@@ -36,7 +36,7 @@ public class AuthoredWorkflowSerializationTests
         restored.Lanes.Should().ContainSingle();
         restored.Lanes[0].Key.Should().Be("applicant");
         restored.Gateways.Should().ContainSingle();
-        restored.Gateways[0].GatewayKey.Should().Be("review-split");
+        restored.Gateways[0].GatewayKey.Should().Be("route-submit");
         restored.Gateways[0].LaneKey.Should().Be("applicant");
 
         restored.Stages.Should().HaveCount(2);
@@ -54,13 +54,16 @@ public class AuthoredWorkflowSerializationTests
 
         restored.Stages[1].Kind.Should().Be(StageKind.Confirmation);
 
-        restored.Transitions.Should().HaveCount(1);
-        restored.Transitions[0].FromStage.Should().Be("details");
-        restored.Transitions[0].ToStage.Should().Be("done");
-        restored.Transitions[0].Action.Should().Be("submit");
+        restored.Transitions.Should().HaveCount(2);
+        restored.Transitions[0].Source.Should().Be("details");
+        restored.Transitions[0].Target.Should().Be("route-submit");
+        restored.Transitions[0].Trigger.Should().Be("submit");
         restored.Transitions[0].Conditions.Should().ContainSingle();
         restored.Transitions[0].Actions.Should().ContainSingle();
         restored.Transitions[0].Actions[0].Timing.Should().Be(ActionTiming.OnTransition);
+        restored.Transitions[1].Source.Should().Be("route-submit");
+        restored.Transitions[1].Target.Should().Be("done");
+        restored.Transitions[1].Trigger.Should().Be("route");
 
         restored.ParameterSchemas.Should().ContainSingle();
         restored.ParameterSchemas[0].Key.Should().Be("forms-form-definition");
@@ -145,7 +148,7 @@ public class AuthoredWorkflowSerializationTests
         workflow!.DefinitionKey.Should().Be("planning-application");
         workflow.Stages.Should().HaveCount(4);
         workflow.Stages.Should().Contain(s => s.StageKey == "declaration" && s.Actions.Count == 1);
-        workflow.Transitions.Should().ContainSingle(t => t.Action == "submit" && t.Actions.Count == 1);
+        workflow.Transitions.Should().ContainSingle(t => t.Trigger == "submit" && t.Actions.Count == 1);
         workflow.ParameterSchemas.Should().ContainSingle(s => s.Key == "forms-form-definition");
     }
 
@@ -203,8 +206,8 @@ public class AuthoredWorkflowSerializationTests
         [
             new AuthoredGateway
             {
-                GatewayKey = "review-split",
-                DisplayName = "Review split",
+                GatewayKey = "route-submit",
+                DisplayName = "Route to completion",
                 Kind = GatewayKind.Split,
                 LaneKey = "applicant"
             }
@@ -253,9 +256,9 @@ public class AuthoredWorkflowSerializationTests
         [
             new AuthoredTransition
             {
-                FromStage = "details",
-                ToStage = "done",
-                Action = "submit",
+                Source = "details",
+                Target = "route-submit",
+                Trigger = "submit",
                 Conditions =
                 [
                     new AuthoredCondition
@@ -277,6 +280,12 @@ public class AuthoredWorkflowSerializationTests
                         }
                     }
                 ]
+            },
+            new AuthoredTransition
+            {
+                Source = "route-submit",
+                Target = "done",
+                Trigger = "route"
             }
         ],
         Handoffs =

@@ -99,18 +99,26 @@ public class WorkflowProjectorDeterminismTests
                 new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation },
                 new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation }
             ],
+            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Gateways =
+            [
+                new AuthoredGateway { GatewayKey = "route-b", DisplayName = "Route B", Kind = GatewayKind.Split, LaneKey = "applicant" },
+                new AuthoredGateway { GatewayKey = "route-c", DisplayName = "Route C", Kind = GatewayKind.Split, LaneKey = "applicant" }
+            ],
             Transitions =
             [
-                new AuthoredTransition { FromStage = "a", ToStage = "c", Action = "skip" },
-                new AuthoredTransition { FromStage = "a", ToStage = "b", Action = "continue" }
+                new AuthoredTransition { Source = "a", Target = "route-c", Trigger = "skip" },
+                new AuthoredTransition { Source = "a", Target = "route-b", Trigger = "continue" },
+                new AuthoredTransition { Source = "route-b", Target = "b", Trigger = "route" },
+                new AuthoredTransition { Source = "route-c", Target = "c", Trigger = "route" }
             ]
         };
 
         var result = _projector.Project(authored);
 
         result.File.Transitions.Select(t => t.ToState)
-            .Should().ContainInOrder(new[] { "b", "c" },
-                because: "transitions must be emitted sorted by (FromStage, ToStage, Action)");
+            .Should().ContainInOrder(new[] { "route-b", "route-c", "b", "c" },
+                because: "transitions must be emitted sorted by (source, target, trigger)");
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -151,10 +159,18 @@ public class WorkflowProjectorDeterminismTests
                 Kind = StageKind.Confirmation
             }
         ],
+        Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+        Gateways =
+        [
+            new AuthoredGateway { GatewayKey = "route-review", DisplayName = "Route to review", Kind = GatewayKind.Split, LaneKey = "applicant" },
+            new AuthoredGateway { GatewayKey = "route-done", DisplayName = "Route to done", Kind = GatewayKind.Split, LaneKey = "applicant" }
+        ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "collect", ToStage = "review", Action = "continue" },
-            new AuthoredTransition { FromStage = "review", ToStage = "done", Action = "submit" }
+            new AuthoredTransition { Source = "collect", Target = "route-review", Trigger = "continue" },
+            new AuthoredTransition { Source = "route-review", Target = "review", Trigger = "route" },
+            new AuthoredTransition { Source = "review", Target = "route-done", Trigger = "submit" },
+            new AuthoredTransition { Source = "route-done", Target = "done", Trigger = "route" }
         ],
         Handoffs = [],
         Metadata = new Dictionary<string, string> { ["env"] = "test" }

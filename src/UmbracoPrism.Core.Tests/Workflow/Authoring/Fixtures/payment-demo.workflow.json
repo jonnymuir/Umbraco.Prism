@@ -3,27 +3,132 @@
   "definitionKey": "payment-demo",
   "displayName": "Payment Demo",
   "version": 1,
-  "description": "Two-stage authored payment flow for the reference contract.",
   "schemaVersion": "1.0",
   "initialStageKey": "enter-details",
   "instancePolicy": "single",
+  "lanes": [
+    {
+      "key": "applicant",
+      "title": "Applicant",
+      "actor": "applicant",
+      "roleGates": []
+    },
+    {
+      "key": "payments",
+      "title": "Payments",
+      "actor": "reviewer",
+      "roleGates": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "payment-submitted",
+      "title": "Payment submitted",
+      "type": "Split",
+      "laneKey": "applicant",
+      "roleGates": []
+    },
+    {
+      "key": "payment-settled",
+      "title": "Payment settled",
+      "type": "Join",
+      "laneKey": "applicant",
+      "roleGates": [],
+      "waitingInfo": {
+        "content": "Your payment is being processed right now.",
+        "expectedWaitSeconds": 30,
+        "pollIntervalMs": 5000,
+        "allowDefer": true,
+        "deferMessage": "You can leave this page and return to your applications later. Your progress has been saved."
+      },
+      "requiredIncomingLanes": [
+        "applicant",
+        "payments"
+      ]
+    }
+  ],
   "stages": [
     {
       "key": "enter-details",
       "title": "Enter Payment Details",
-      "type": "Question"
+      "type": "Question",
+      "laneKey": "applicant",
+      "actions": [],
+      "fields": [
+        {
+          "key": "cardholderName",
+          "label": "Cardholder name",
+          "type": "Text",
+          "required": true,
+          "options": []
+        },
+        {
+          "key": "amount",
+          "label": "Amount (\u00a3)",
+          "type": "Decimal",
+          "required": true,
+          "options": []
+        }
+      ],
+      "roleGates": []
     },
     {
-      "key": "payment-confirmed",
-      "title": "Payment confirmed",
-      "type": "Confirmation"
+      "key": "provider-processing",
+      "title": "Provider processing",
+      "description": "Payment provider processing and reconciliation work.",
+      "type": "Question",
+      "laneKey": "payments",
+      "actions": [],
+      "fields": [],
+      "roleGates": []
+    },
+    {
+      "key": "payment-complete",
+      "title": "Payment Complete",
+      "description": "Payment received. A receipt has been sent to your email address.",
+      "type": "Confirmation",
+      "laneKey": "applicant",
+      "actions": [],
+      "fields": [],
+      "roleGates": []
     }
   ],
   "transitions": [
     {
       "source": "enter-details",
-      "target": "payment-confirmed",
-      "trigger": "pay"
+      "target": "payment-submitted",
+      "trigger": "submit",
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "source": "payment-submitted",
+      "target": "payment-settled",
+      "trigger": "await-payment",
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "source": "payment-submitted",
+      "target": "provider-processing",
+      "trigger": "route-provider",
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "source": "provider-processing",
+      "target": "payment-settled",
+      "trigger": "complete",
+      "conditions": [],
+      "actions": [],
+      "requiresRole": "reviewer"
+    },
+    {
+      "source": "payment-settled",
+      "target": "payment-complete",
+      "trigger": "release",
+      "conditions": [],
+      "actions": []
     }
   ]
 }

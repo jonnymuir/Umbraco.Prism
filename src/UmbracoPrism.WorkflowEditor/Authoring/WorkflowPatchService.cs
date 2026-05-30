@@ -183,11 +183,11 @@ public sealed class WorkflowPatchService : IWorkflowPatchService
 
         var transitions = current.Transitions.ToList();
 
-        // Attempt to match an existing transition by (fromStage, toStage, action); insert if not found.
+        // Attempt to match an existing transition by (source, target, trigger); insert if not found.
         var idx = transitions.FindIndex(t =>
-            t.FromStage == updated.FromStage &&
-            t.ToStage   == updated.ToStage &&
-            t.Action    == updated.Action);
+            t.Source  == updated.Source &&
+            t.Target  == updated.Target &&
+            t.Trigger == updated.Trigger);
 
         if (idx < 0)
             transitions.Add(updated);

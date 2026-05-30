@@ -14,6 +14,7 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
         int? maxSteps = null)
     {
         var stagesByKey = workflow.Stages.ToDictionary(stage => stage.StageKey, StringComparer.Ordinal);
+        var gatewaysByKey = workflow.Gateways.ToDictionary(gateway => gateway.GatewayKey, StringComparer.Ordinal);
         if (!stagesByKey.TryGetValue(workflow.InitialStageKey, out var initialStage))
         {
             return new WorkflowSimulationResult
@@ -36,8 +37,8 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
         {
             var action = requestedActions[i];
             var transition = workflow.Transitions.FirstOrDefault(
-                candidate => string.Equals(candidate.FromStage, currentStage.StageKey, StringComparison.Ordinal)
-                             && string.Equals(candidate.Action, action, StringComparison.Ordinal));
+                candidate => string.Equals(candidate.Source, currentStage.StageKey, StringComparison.Ordinal)
+                             && string.Equals(candidate.Trigger, action, StringComparison.Ordinal));
 
             if (transition is null)
             {
@@ -45,17 +46,23 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
                 return BuildResult(workflow, currentStage.StageKey, stopReason, false, steps);
             }
 
-            if (!stagesByKey.TryGetValue(transition.ToStage, out var nextStage))
+            var resolution = ResolveNextStage(workflow, stagesByKey, gatewaysByKey, transition.Target);
+            if (resolution.StopReason is not null)
+            {
+                return BuildResult(workflow, resolution.NodeKey, resolution.StopReason, false, steps);
+            }
+
+            if (!stagesByKey.TryGetValue(resolution.NodeKey, out var nextStage))
             {
                 stopReason = "target-stage-missing";
-                return BuildResult(workflow, currentStage.StageKey, stopReason, false, steps);
+                return BuildResult(workflow, resolution.NodeKey, stopReason, false, steps);
             }
 
             steps.Add(new WorkflowSimulationStep
             {
                 FromStageKey = currentStage.StageKey,
-                Action = transition.Action,
-                ToStageKey = transition.ToStage,
+                Action = transition.Trigger,
+                ToStageKey = nextStage.StageKey,
                 Condition = transition.Conditions.FirstOrDefault()?.Expression,
                 RequiresRole = transition.RequiresRole
             });
@@ -70,17 +77,13 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
         }
 
         var availableTransitions = workflow.Transitions
-            .Where(transition => string.Equals(transition.FromStage, currentStage.StageKey, StringComparison.Ordinal))
+            .Where(transition => string.Equals(transition.Source, currentStage.StageKey, StringComparison.Ordinal))
             .ToArray();
 
         if (availableTransitions.Length == 0)
         {
             stopReason = "terminal-stage";
             completed = true;
-        }
-        else if (currentStage.Kind == StageKind.Waiting || currentStage.Kind == StageKind.StatusTimeline)
-        {
-            stopReason = "waiting-stage";
         }
 
         return BuildResult(workflow, currentStage.StageKey, stopReason, completed, steps);
@@ -94,11 +97,11 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
         IReadOnlyList<WorkflowSimulationStep> steps)
     {
         var availableTransitions = workflow.Transitions
-            .Where(transition => string.Equals(transition.FromStage, currentStageKey, StringComparison.Ordinal))
+            .Where(transition => string.Equals(transition.Source, currentStageKey, StringComparison.Ordinal))
             .Select(transition => new WorkflowSimulationTransitionOption
             {
-                Action = transition.Action,
-                ToStageKey = transition.ToStage,
+                Action = transition.Trigger,
+                ToStageKey = transition.Target,
                 Condition = transition.Conditions.FirstOrDefault()?.Expression,
                 RequiresRole = transition.RequiresRole
             })
@@ -113,5 +116,43 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
             Steps = steps,
             AvailableTransitions = availableTransitions
         };
+    }
+
+    private static (string NodeKey, string? StopReason) ResolveNextStage(
+        AuthoredWorkflow workflow,
+        IReadOnlyDictionary<string, AuthoredStage> stagesByKey,
+        IReadOnlyDictionary<string, AuthoredGateway> gatewaysByKey,
+        string nodeKey)
+    {
+        var current = nodeKey;
+        var seenGateways = new HashSet<string>(StringComparer.Ordinal);
+
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            if (stagesByKey.ContainsKey(current))
+                return (current, null);
+
+            if (!gatewaysByKey.TryGetValue(current, out var gateway))
+                return (current, "target-stage-missing");
+
+            if (!seenGateways.Add(current))
+                return (current, "cycle-detected");
+
+            if (gateway.Kind == GatewayKind.Join)
+                return (current, "waiting-gateway");
+
+            var nextTransition = workflow.Transitions
+                .Where(transition => string.Equals(transition.Source, current, StringComparison.Ordinal))
+                .OrderBy(transition => transition.Trigger, StringComparer.Ordinal)
+                .ThenBy(transition => transition.Target, StringComparer.Ordinal)
+                .FirstOrDefault();
+
+            if (nextTransition is null)
+                return (current, "target-stage-missing");
+
+            current = nextTransition.Target;
+        }
+
+        return (nodeKey, "target-stage-missing");
     }
 }

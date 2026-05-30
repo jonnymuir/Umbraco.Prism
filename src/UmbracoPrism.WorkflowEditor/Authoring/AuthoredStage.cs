@@ -11,6 +11,9 @@ public record AuthoredStage
 {
     private string _stageKey = string.Empty;
     private string _displayName = string.Empty;
+    private StageKind _kind = StageKind.Question;
+    private string? _legacyKindRaw;
+    private bool _hasLegacyWaitingPayload;
 
     /// <summary>Stable key unique within this workflow. Maps to <c>StepDefinition.StateKey</c> on projection.</summary>
     [JsonPropertyName("key")]
@@ -55,17 +58,56 @@ public record AuthoredStage
     public string? Description { get; init; }
 
     /// <summary>Shell intent used by the projector to choose which components to emit.</summary>
+    [JsonIgnore]
+    public StageKind Kind
+    {
+        get => _kind;
+        init => _kind = value;
+    }
+
+    /// <summary>
+    /// JSON-bound stage type token. Accepts any string so the validator can flag retired values
+    /// (PROJ140: <c>Waiting</c>, <c>StatusTimeline</c>) at the JSON boundary; unknown tokens default
+    /// to <see cref="StageKind.Question"/> at the runtime level but are preserved on
+    /// <see cref="LegacyKindRaw"/> for diagnostic emission.
+    /// </summary>
     [JsonPropertyName("type")]
-    public StageKind Kind { get; init; } = StageKind.Question;
+    public string TypeRaw
+    {
+        get => _kind.ToString();
+        init => ApplyKindToken(value);
+    }
 
     /// <summary>Legacy alias for <see cref="Kind"/> retained for proposal payload compatibility.</summary>
     [JsonPropertyName("kind")]
-    public StageKind? LegacyKind
+    public string? LegacyKindLiteral
     {
         init
         {
-            if (value is not null)
-                Kind = value.Value;
+            if (!string.IsNullOrWhiteSpace(value))
+                ApplyKindToken(value);
+        }
+    }
+
+    /// <summary>Raw stage-type token captured when JSON supplied a value that does not map to <see cref="StageKind"/>.</summary>
+    [JsonIgnore]
+    public string? LegacyKindRaw => _legacyKindRaw;
+
+    private void ApplyKindToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        if (Enum.TryParse<StageKind>(value, ignoreCase: true, out var parsed)
+            && Enum.IsDefined(typeof(StageKind), parsed))
+        {
+            _kind = parsed;
+            _legacyKindRaw = null;
+        }
+        else
+        {
+            _legacyKindRaw = value;
+            _kind = StageKind.Question;
         }
     }
 
@@ -96,9 +138,23 @@ public record AuthoredStage
     [JsonPropertyName("roleGates")]
     public IReadOnlyList<string> RoleGates { get; init; } = [];
 
-    /// <summary>Waiting configuration, required for <see cref="StageKind.Waiting"/> and <see cref="StageKind.StatusTimeline"/> stages.</summary>
+    /// <summary>
+    /// Legacy waiting payload retained only to detect old authored documents at the JSON boundary.
+    /// Waiting metadata belongs on join gateways; presence here triggers PROJ140.
+    /// </summary>
     [JsonPropertyName("waiting")]
-    public WaitingMetadata? Waiting { get; init; }
+    public System.Text.Json.Nodes.JsonNode? LegacyWaitingPayload
+    {
+        init
+        {
+            if (value is not null)
+                _hasLegacyWaitingPayload = true;
+        }
+    }
+
+    /// <summary>True when the authored document carried stage-level waiting metadata that the validator should reject.</summary>
+    [JsonIgnore]
+    public bool HasLegacyWaitingPayload => _hasLegacyWaitingPayload;
 
     /// <summary>Editor-only comment, stripped during projection.</summary>
     [JsonPropertyName("editorComment")]

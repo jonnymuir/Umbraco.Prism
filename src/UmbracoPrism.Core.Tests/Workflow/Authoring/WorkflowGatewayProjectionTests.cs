@@ -246,12 +246,12 @@ public class WorkflowGatewayProjectionTests
         ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "submit", ToStage = "split-review", Action = "submit" },
-            new AuthoredTransition { FromStage = "split-review", ToStage = "finance-review", Action = "split-auto" },
-            new AuthoredTransition { FromStage = "split-review", ToStage = "planning-review", Action = "split-auto" },
-            new AuthoredTransition { FromStage = "finance-review", ToStage = "join-reviews", Action = "approve" },
-            new AuthoredTransition { FromStage = "planning-review", ToStage = "join-reviews", Action = "approve" },
-            new AuthoredTransition { FromStage = "join-reviews", ToStage = "decision", Action = "release" }
+            new AuthoredTransition { Source = "submit", Target = "split-review", Trigger = "submit" },
+            new AuthoredTransition { Source = "split-review", Target = "finance-review", Trigger = "split-auto" },
+            new AuthoredTransition { Source = "split-review", Target = "planning-review", Trigger = "split-auto" },
+            new AuthoredTransition { Source = "finance-review", Target = "join-reviews", Trigger = "approve" },
+            new AuthoredTransition { Source = "planning-review", Target = "join-reviews", Trigger = "approve" },
+            new AuthoredTransition { Source = "join-reviews", Target = "decision", Trigger = "release" }
         ]
     };
 }

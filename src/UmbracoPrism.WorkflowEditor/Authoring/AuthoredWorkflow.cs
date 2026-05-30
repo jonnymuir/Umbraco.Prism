@@ -62,7 +62,7 @@ public record AuthoredWorkflow
     [JsonPropertyName("lanes")]
     public IReadOnlyList<AuthoredLane> Lanes { get; init; } = [];
 
-    /// <summary>Gateway definitions reserved for future multi-lane execution slices.</summary>
+    /// <summary>Gateway definitions that own all authored routing between stages.</summary>
     [JsonPropertyName("gateways")]
     public IReadOnlyList<AuthoredGateway> Gateways { get; init; } = [];
 

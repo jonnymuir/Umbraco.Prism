@@ -35,6 +35,16 @@ public static class ReferenceWorkflowRepository
         SchemaVersion = "1.0",
         InitialStageKey = "declaration",
         InstancePolicy = "single",
+        Lanes =
+        [
+            ApplicantLane()
+        ],
+        Gateways =
+        [
+            RouteGateway("route-application-form", "Route to application form", "applicant"),
+            RouteGateway("route-check-answers", "Route to check answers", "applicant"),
+            RouteGateway("route-submitted", "Route to submitted", "applicant")
+        ],
         Stages =
         [
             new AuthoredStage
@@ -44,6 +54,7 @@ public static class ReferenceWorkflowRepository
                 Description = "Collects applicant and site identity before the full planning form.",
                 Kind = StageKind.Question,
                 Actor = "applicant",
+                LaneKey = "applicant",
                 Actions =
                 [
                     new AuthoredAction
@@ -86,6 +97,7 @@ public static class ReferenceWorkflowRepository
                 Description = "Captures the substantive planning request.",
                 Kind = StageKind.Question,
                 Actor = "applicant",
+                LaneKey = "applicant",
                 Actions =
                 [
                     new AuthoredAction
@@ -134,6 +146,7 @@ public static class ReferenceWorkflowRepository
                 Description = "Summarises captured answers before final submission.",
                 Kind = StageKind.CheckAnswers,
                 Actor = "applicant",
+                LaneKey = "applicant",
                 EditorComment = "Summary of all answers before final submission."
             },
             new AuthoredStage
@@ -142,18 +155,21 @@ public static class ReferenceWorkflowRepository
                 DisplayName = "Application submitted",
                 Description = "Confirms receipt and moves the case into reviewer handling.",
                 Kind = StageKind.Confirmation,
-                Actor = "applicant"
+                Actor = "applicant",
+                LaneKey = "applicant"
             }
         ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "declaration", ToStage = "application-form", Action = "continue" },
-            new AuthoredTransition { FromStage = "application-form", ToStage = "check-answers", Action = "continue" },
+            Transition("declaration", "route-application-form", "continue"),
+            Transition("route-application-form", "application-form", "route"),
+            Transition("application-form", "route-check-answers", "continue"),
+            Transition("route-check-answers", "check-answers", "route"),
             new AuthoredTransition
             {
-                FromStage = "check-answers",
-                ToStage = "submitted",
-                Action = "submit",
+                Source = "check-answers",
+                Target = "route-submitted",
+                Trigger = "submit",
                 Conditions =
                 [
                     new AuthoredCondition
@@ -176,7 +192,8 @@ public static class ReferenceWorkflowRepository
                         Summary = "Submit the application form to the business app."
                     }
                 ]
-            }
+            },
+            Transition("route-submitted", "submitted", "route")
         ],
         Handoffs =
         [
@@ -228,14 +245,17 @@ public static class ReferenceWorkflowRepository
         Version = 1,
         InitialStageKey = "collecting-details",
         InstancePolicy = "single",
+        Lanes = [ApplicantLane()],
+        Gateways = [RouteGateway("route-submitted", "Route to submitted", "applicant")],
         Stages =
         [
-            new AuthoredStage { StageKey = "collecting-details", DisplayName = "Your details", Kind = StageKind.Question },
-            new AuthoredStage { StageKey = "submitted", DisplayName = "Thank you", Kind = StageKind.Confirmation }
+            new AuthoredStage { StageKey = "collecting-details", DisplayName = "Your details", Kind = StageKind.Question, LaneKey = "applicant" },
+            new AuthoredStage { StageKey = "submitted", DisplayName = "Thank you", Kind = StageKind.Confirmation, LaneKey = "applicant" }
         ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "collecting-details", ToStage = "submitted", Action = "submit" }
+            Transition("collecting-details", "route-submitted", "submit"),
+            Transition("route-submitted", "submitted", "route")
         ]
     };
 
@@ -247,6 +267,30 @@ public static class ReferenceWorkflowRepository
         Version = 1,
         InstancePolicy = "single",
         InitialStageKey = "collecting-info",
+        Lanes =
+        [
+            ApplicantLane(),
+            new AuthoredLane { Key = "caseworker", DisplayName = "Caseworker", Actor = "caseworker" }
+        ],
+        Gateways =
+        [
+            RouteGateway("request-submitted", "Request submitted", "applicant"),
+            new AuthoredGateway
+            {
+                GatewayKey = "review-complete",
+                DisplayName = "Review complete",
+                Kind = GatewayKind.Join,
+                LaneKey = "applicant",
+                WaitingInfo = new WaitingMetadata
+                {
+                    Content = "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
+                    ExpectedWaitSeconds = 30,
+                    PollIntervalMs = 5000,
+                    AllowDefer = false
+                },
+                RequiredIncomingLanes = ["applicant", "caseworker"]
+            }
+        ],
         Stages =
         [
             new AuthoredStage
@@ -254,6 +298,7 @@ public static class ReferenceWorkflowRepository
                 StageKey = "collecting-info",
                 DisplayName = "Tell us about yourself",
                 Kind = StageKind.Question,
+                LaneKey = "applicant",
                 Fields =
                 [
                     new AuthoredField { Key = "firstName", Label = "First name", Type = FieldType.Text, Required = true, Hint = "As it appears on your ID" },
@@ -299,21 +344,27 @@ public static class ReferenceWorkflowRepository
             },
             new AuthoredStage
             {
-                StageKey = "under-review",
-                DisplayName = "Your request is being reviewed",
-                Kind = StageKind.Waiting,
-                Waiting = new WaitingMetadata
-                {
-                    Content = "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
-                    ExpectedWaitSeconds = 30,
-                    PollIntervalMs = 5000,
-                    AllowDefer = false
-                }
+                StageKey = "caseworker-review",
+                DisplayName = "Caseworker review",
+                Kind = StageKind.Question,
+                LaneKey = "caseworker",
+                Description = "Caseworker confirms the review outcome before the applicant sees the final status."
+            },
+            new AuthoredStage
+            {
+                StageKey = "complete",
+                DisplayName = "Request Complete",
+                Kind = StageKind.Confirmation,
+                LaneKey = "applicant"
             }
         ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "collecting-info", ToStage = "under-review", Action = "submit" }
+            Transition("collecting-info", "request-submitted", "submit"),
+            Transition("request-submitted", "review-complete", "await-review"),
+            Transition("request-submitted", "caseworker-review", "route-review"),
+            Transition("caseworker-review", "review-complete", "complete-review"),
+            Transition("review-complete", "complete", "release")
         ]
     };
 
@@ -325,6 +376,31 @@ public static class ReferenceWorkflowRepository
         Version = 1,
         InitialStageKey = "enter-details",
         InstancePolicy = "single",
+        Lanes =
+        [
+            ApplicantLane(),
+            new AuthoredLane { Key = "payments", DisplayName = "Payments", Actor = "reviewer" }
+        ],
+        Gateways =
+        [
+            RouteGateway("payment-submitted", "Payment submitted", "applicant"),
+            new AuthoredGateway
+            {
+                GatewayKey = "payment-settled",
+                DisplayName = "Payment settled",
+                Kind = GatewayKind.Join,
+                LaneKey = "applicant",
+                WaitingInfo = new WaitingMetadata
+                {
+                    Content = "Your payment is being processed right now.",
+                    ExpectedWaitSeconds = 30,
+                    PollIntervalMs = 5000,
+                    AllowDefer = true,
+                    DeferMessage = "You can leave this page and return to your applications later. Your progress has been saved."
+                },
+                RequiredIncomingLanes = ["applicant", "payments"]
+            }
+        ],
         Stages =
         [
             new AuthoredStage
@@ -332,6 +408,7 @@ public static class ReferenceWorkflowRepository
                 StageKey = "enter-details",
                 DisplayName = "Enter Payment Details",
                 Kind = StageKind.Question,
+                LaneKey = "applicant",
                 Fields =
                 [
                     new AuthoredField { Key = "cardholderName", Label = "Cardholder name", Type = FieldType.Text, Required = true },
@@ -340,30 +417,50 @@ public static class ReferenceWorkflowRepository
             },
             new AuthoredStage
             {
-                StageKey = "processing-payment",
-                DisplayName = "Processing Your Payment",
-                Kind = StageKind.Waiting,
-                Waiting = new WaitingMetadata
-                {
-                    Content = "Your payment is being processed right now.",
-                    ExpectedWaitSeconds = 30,
-                    PollIntervalMs = 5000,
-                    AllowDefer = true,
-                    DeferMessage = "You can leave this page and return to your applications later. Your progress has been saved."
-                }
+                StageKey = "provider-processing",
+                DisplayName = "Provider processing",
+                Kind = StageKind.Question,
+                LaneKey = "payments",
+                Description = "Payment provider processing and reconciliation work."
             },
             new AuthoredStage
             {
                 StageKey = "payment-complete",
                 DisplayName = "Payment Complete",
                 Kind = StageKind.Confirmation,
+                LaneKey = "applicant",
                 Description = "Payment received. A receipt has been sent to your email address."
             }
         ],
         Transitions =
         [
-            new AuthoredTransition { FromStage = "enter-details", ToStage = "processing-payment", Action = "submit" },
-            new AuthoredTransition { FromStage = "processing-payment", ToStage = "payment-complete", Action = "complete", RequiresRole = "reviewer" }
+            Transition("enter-details", "payment-submitted", "submit"),
+            Transition("payment-submitted", "payment-settled", "await-payment"),
+            Transition("payment-submitted", "provider-processing", "route-provider"),
+            new AuthoredTransition { Source = "provider-processing", Target = "payment-settled", Trigger = "complete", RequiresRole = "reviewer" },
+            Transition("payment-settled", "payment-complete", "release")
         ]
+    };
+
+    private static AuthoredLane ApplicantLane() => new()
+    {
+        Key = "applicant",
+        DisplayName = "Applicant",
+        Actor = "applicant"
+    };
+
+    private static AuthoredGateway RouteGateway(string key, string title, string laneKey) => new()
+    {
+        GatewayKey = key,
+        DisplayName = title,
+        Kind = GatewayKind.Split,
+        LaneKey = laneKey
+    };
+
+    private static AuthoredTransition Transition(string source, string target, string trigger) => new()
+    {
+        Source = source,
+        Target = target,
+        Trigger = trigger
     };
 }

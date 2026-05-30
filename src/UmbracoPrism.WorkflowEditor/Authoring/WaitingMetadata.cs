@@ -1,8 +1,8 @@
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
-/// Authored metadata for a <see cref="StageKind.Waiting"/> or <see cref="StageKind.StatusTimeline"/> stage.
-/// Projected directly into a <see cref="UmbracoPrism.Shared.Models.Workflow.Components.WaitingComponent"/>.
+/// Waiting metadata authored on join gateways and projected into runtime waiting envelopes.
+/// Legacy stage-level waiting payloads still deserialize for compatibility, but validation rejects them.
 /// </summary>
 public record WaitingMetadata
 {

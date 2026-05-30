@@ -97,7 +97,7 @@
         "laneKey": { "type": ["string", "null"] },
         "type": {
           "type": "string",
-          "enum": ["Question", "CheckAnswers", "Confirmation", "TaskList", "Waiting", "StatusTimeline"]
+          "enum": ["Question", "CheckAnswers", "Confirmation", "TaskList"]
         },
         "actions": {
           "type": "array",
@@ -110,9 +110,6 @@
         "roleGates": {
           "type": "array",
           "items": { "type": "string" }
-        },
-        "waiting": {
-          "type": ["object", "null"]
         },
         "editorComment": {
           "type": ["string", "null"]
@@ -163,11 +160,41 @@
           "enum": ["Split", "Join"]
         },
         "laneKey": { "type": "string" },
+        "description": { "type": ["string", "null"] },
         "actor": { "type": ["string", "null"] },
         "roleGates": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "waitingInfo": {
+          "$ref": "#/$defs/waitingMetadata"
+        },
+        "requiredIncomingLanes": {
+          "type": "array",
+          "items": { "type": "string" }
         }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "Join" }
+            }
+          },
+          "then": {
+            "required": ["waitingInfo", "requiredIncomingLanes"]
+          }
+        }
+      ]
+    },
+    "waitingMetadata": {
+      "type": "object",
+      "properties": {
+        "content": { "type": ["string", "null"] },
+        "expectedWaitSeconds": { "type": "integer", "minimum": 0 },
+        "pollIntervalMs": { "type": "integer", "minimum": 0 },
+        "allowDefer": { "type": "boolean" },
+        "deferMessage": { "type": ["string", "null"] }
       }
     },
     "action": {

@@ -63,10 +63,7 @@ public class WorkflowProjectorShellInferenceTests
                     Kind = StageKind.CheckAnswers
                 }
             ],
-            Transitions =
-            [
-                new AuthoredTransition { FromStage = "collect", ToStage = "review", Action = "continue" }
-            ]
+            Transitions = []
         };
 
         var result = _projector.Project(authored);
@@ -104,40 +101,6 @@ public class WorkflowProjectorShellInferenceTests
             "a stage with a TaskListComponent should infer as 'task-list'");
 
         state.Components.Should().ContainSingle().Which.Should().BeOfType<TaskListComponent>();
-    }
-
-    [Fact]
-    public void WaitingStage_EmitsWaitingComponent_InfersStatusTimeline()
-    {
-        var authored = SingleStageWorkflow("processing", StageKind.Waiting, waiting: new WaitingMetadata
-        {
-            Content = "Processing your request…",
-            ExpectedWaitSeconds = 60
-        });
-
-        var result = _projector.Project(authored);
-
-        var state = result.File.States.Single(s => s.StateKey == "processing");
-        state.Components.InferStepType().Should().Be("status-timeline",
-            "a stage with a WaitingComponent should infer as 'status-timeline'");
-
-        var waiting = state.Components.Should().ContainSingle()
-            .Which.Should().BeOfType<WaitingComponent>().Subject;
-
-        waiting.Content.Should().Be("Processing your request…");
-        waiting.ExpectedWaitSeconds.Should().Be(60);
-    }
-
-    [Fact]
-    public void StatusTimelineStage_IsAliasForWaiting_InfersStatusTimeline()
-    {
-        var authored = SingleStageWorkflow("status", StageKind.StatusTimeline);
-
-        var result = _projector.Project(authored);
-
-        var state = result.File.States.Single(s => s.StateKey == "status");
-        state.Components.InferStepType().Should().Be("status-timeline");
-        state.Components.Should().ContainSingle().Which.Should().BeOfType<WaitingComponent>();
     }
 
     [Fact]
@@ -179,11 +142,7 @@ public class WorkflowProjectorShellInferenceTests
                     Kind = StageKind.CheckAnswers
                 }
             ],
-            Transitions =
-            [
-                new AuthoredTransition { FromStage = "step1", ToStage = "step2", Action = "continue" },
-                new AuthoredTransition { FromStage = "step2", ToStage = "review", Action = "continue" }
-            ]
+            Transitions = []
         };
 
         var result = _projector.Project(authored);
@@ -220,8 +179,7 @@ public class WorkflowProjectorShellInferenceTests
     private static AuthoredWorkflow SingleStageWorkflow(
         string stageKey,
         StageKind kind,
-        IReadOnlyList<AuthoredField>? fields = null,
-        WaitingMetadata? waiting = null)
+        IReadOnlyList<AuthoredField>? fields = null)
     {
         return new AuthoredWorkflow
         {
@@ -237,8 +195,7 @@ public class WorkflowProjectorShellInferenceTests
                     StageKey = stageKey,
                     DisplayName = stageKey,
                     Kind = kind,
-                    Fields = fields ?? [],
-                    Waiting = waiting
+                    Fields = fields ?? []
                 }
             ],
             Transitions = []

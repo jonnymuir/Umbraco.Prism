@@ -8,16 +8,16 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 /// </summary>
 public record AuthoredTransition
 {
-    private string _fromStage = string.Empty;
-    private string _toStage = string.Empty;
-    private string _action = string.Empty;
+    private string _source = string.Empty;
+    private string _target = string.Empty;
+    private string _trigger = string.Empty;
 
-    /// <summary>The <see cref="AuthoredStage.StageKey"/> this transition originates from.</summary>
+    /// <summary>The stage or gateway key this transition originates from.</summary>
     [JsonPropertyName("source")]
-    public string FromStage
+    public string Source
     {
-        get => _fromStage;
-        init => _fromStage = value;
+        get => _source;
+        init => _source = value;
     }
 
     [JsonPropertyName("fromStage")]
@@ -26,16 +26,25 @@ public record AuthoredTransition
         init
         {
             if (!string.IsNullOrWhiteSpace(value))
-                _fromStage = value;
+                _source = value;
         }
     }
 
-    /// <summary>The <see cref="AuthoredStage.StageKey"/> this transition goes to.</summary>
-    [JsonPropertyName("target")]
-    public string ToStage
+    /// <summary>Compatibility shim for older C# callers that still refer to stage-based names.</summary>
+    [JsonIgnore]
+    [Obsolete("Use Source/Target/Trigger. Removed in next major.", error: false)]
+    public string FromStage
     {
-        get => _toStage;
-        init => _toStage = value;
+        get => _source;
+        init => _source = value;
+    }
+
+    /// <summary>The stage or gateway key this transition points at.</summary>
+    [JsonPropertyName("target")]
+    public string Target
+    {
+        get => _target;
+        init => _target = value;
     }
 
     [JsonPropertyName("toStage")]
@@ -44,16 +53,25 @@ public record AuthoredTransition
         init
         {
             if (!string.IsNullOrWhiteSpace(value))
-                _toStage = value;
+                _target = value;
         }
+    }
+
+    /// <summary>Compatibility shim for older C# callers that still refer to stage-based names.</summary>
+    [JsonIgnore]
+    [Obsolete("Use Source/Target/Trigger. Removed in next major.", error: false)]
+    public string ToStage
+    {
+        get => _target;
+        init => _target = value;
     }
 
     /// <summary>Action label that triggers this transition (e.g. "submit", "continue").</summary>
     [JsonPropertyName("trigger")]
-    public string Action
+    public string Trigger
     {
-        get => _action;
-        init => _action = value;
+        get => _trigger;
+        init => _trigger = value;
     }
 
     [JsonPropertyName("action")]
@@ -62,8 +80,17 @@ public record AuthoredTransition
         init
         {
             if (!string.IsNullOrWhiteSpace(value))
-                _action = value;
+                _trigger = value;
         }
+    }
+
+    /// <summary>Compatibility shim for older C# callers that still refer to stage-based names.</summary>
+    [JsonIgnore]
+    [Obsolete("Use Source/Target/Trigger. Removed in next major.", error: false)]
+    public string Action
+    {
+        get => _trigger;
+        init => _trigger = value;
     }
 
     /// <summary>Optional structured conditions that gate whether the transition is available.</summary>

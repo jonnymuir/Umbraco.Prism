@@ -920,11 +920,34 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
         var allCursors = remainingCursors.Concat(newCursors).ToArray();
         var primaryState = FirstActiveStageCursorKey(allCursors) ?? newCursors[0].CurrentNodeKey;
+        var joinArrivals = new Dictionary<string, IReadOnlyList<string>>(instance.JoinArrivals);
+
+        foreach (var joinGroup in newCursors
+                     .Where(cursor => cursor.IsAtGateway)
+                     .GroupBy(cursor => cursor.CurrentNodeKey, StringComparer.Ordinal))
+        {
+            var gateway = FindGateway(definition, joinGroup.Key);
+            if (!string.Equals(gateway?.GatewayType, "Join", StringComparison.Ordinal))
+                continue;
+
+            var existingArrivals = joinArrivals.TryGetValue(joinGroup.Key, out var existing)
+                ? existing.ToList()
+                : new List<string>();
+
+            foreach (var cursorId in joinGroup.Select(cursor => cursor.CursorId))
+            {
+                if (!existingArrivals.Contains(cursorId))
+                    existingArrivals.Add(cursorId);
+            }
+
+            joinArrivals[joinGroup.Key] = existingArrivals;
+        }
 
         var updated = instance with
         {
             CurrentState = primaryState,
             Cursors = allCursors,
+            JoinArrivals = joinArrivals,
             StateVersion = instance.StateVersion + 1,
             UpdatedAt = DateTimeOffset.UtcNow,
             FieldValues = Merge(instance.FieldValues, fieldValues)
@@ -1079,6 +1102,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                              ?? "Please wait while other parts of this workflow are completed.";
         var pollMs = joinGateway.WaitingPollIntervalMs > 0 ? joinGateway.WaitingPollIntervalMs : 3000;
         var expectedSeconds = joinGateway.WaitingExpectedSeconds > 0 ? joinGateway.WaitingExpectedSeconds : 30;
+        var allowDefer = joinGateway.WaitingDeferMessage is not null || joinGateway.WaitingAllowDefer;
 
         var waitingArrivals = instance.JoinArrivals.TryGetValue(joinGateway.Key, out var arr) ? arr : [];
         var requiredLanes = joinGateway.RequiredIncomingLanes ?? [];
@@ -1105,7 +1129,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     Content = statusContent,
                     ExpectedWaitSeconds = expectedSeconds,
                     PollIntervalMs = pollMs,
-                    AllowDefer = true
+                    AllowDefer = allowDefer,
+                    DeferMessage = joinGateway.WaitingDeferMessage
                 }
             ],
             AvailableActions = Array.Empty<WorkflowAction>()

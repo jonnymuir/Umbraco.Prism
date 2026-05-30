@@ -17,6 +17,10 @@ public static class AuthoredWorkflowSchemaValidator
         actionCatalogProvider ??= new BuiltInActionCatalogProvider();
         var catalogByType = actionCatalogProvider.GetEntries()
             .ToDictionary(entry => entry.Type, StringComparer.Ordinal);
+        var stageKeys = authored.Stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageKey))
+            .Select(stage => stage.StageKey)
+            .ToHashSet(StringComparer.Ordinal);
 
         if (string.IsNullOrWhiteSpace(authored.DefinitionKey))
             diagnostics.Add(Error("PROJ100", "DefinitionKey is required.", null));
@@ -42,10 +46,12 @@ public static class AuthoredWorkflowSchemaValidator
                     $"Stage '{stage.StageKey}' must define a title.", stage.StageKey));
             }
 
-            if ((stage.Kind == StageKind.Waiting || stage.Kind == StageKind.StatusTimeline) && stage.Waiting is null)
+            if (string.Equals(stage.LegacyKindRaw, "Waiting", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stage.LegacyKindRaw, "StatusTimeline", StringComparison.OrdinalIgnoreCase)
+                || stage.HasLegacyWaitingPayload)
             {
-                diagnostics.Add(Error("PROJ105",
-                    $"Stage '{stage.StageKey}' of type '{stage.Kind}' must define waiting metadata.", stage.StageKey));
+                diagnostics.Add(Error("PROJ140",
+                    $"Stage '{stage.StageKey}' cannot author waiting state. Waiting belongs on join gateways.", stage.StageKey));
             }
 
             if (!string.IsNullOrWhiteSpace(stage.LaneKey))
@@ -134,30 +140,51 @@ public static class AuthoredWorkflowSchemaValidator
             }
         }
 
+        var gatewaysByKey = authored.Gateways
+            .Where(gateway => !string.IsNullOrWhiteSpace(gateway.GatewayKey))
+            .GroupBy(gateway => gateway.GatewayKey, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
         foreach (var transition in authored.Transitions)
         {
-            if (string.IsNullOrWhiteSpace(transition.FromStage))
+            if (string.IsNullOrWhiteSpace(transition.Source))
                 diagnostics.Add(Error("PROJ106", "Transition source is required.", null));
 
-            if (string.IsNullOrWhiteSpace(transition.ToStage))
+            if (string.IsNullOrWhiteSpace(transition.Target))
                 diagnostics.Add(Error("PROJ107", "Transition target is required.", null));
 
-            if (string.IsNullOrWhiteSpace(transition.Action))
-                diagnostics.Add(Error("PROJ108", "Transition trigger is required.", transition.FromStage));
+            if (string.IsNullOrWhiteSpace(transition.Trigger))
+                diagnostics.Add(Error("PROJ108", "Transition trigger is required.", transition.Source));
+
+            if (stageKeys.Contains(transition.Source) && stageKeys.Contains(transition.Target))
+            {
+                diagnostics.Add(Error("PROJ141",
+                    $"Transition '{transition.Source}' → '{transition.Target}' is invalid. Route through a gateway instead of linking stages directly.",
+                    transition.Source));
+            }
+
+            if (gatewaysByKey.TryGetValue(transition.Source, out _)
+                && gatewaysByKey.TryGetValue(transition.Target, out var targetGateway)
+                && targetGateway.Kind == GatewayKind.Split)
+            {
+                diagnostics.Add(Error("PROJ142",
+                    $"Transition '{transition.Source}' → '{transition.Target}' is invalid. Gateways may only transition to a stage or to a join gateway.",
+                    transition.Source));
+            }
 
             foreach (var condition in transition.Conditions)
             {
                 if (string.IsNullOrWhiteSpace(condition.Expression))
                 {
                     diagnostics.Add(Error("PROJ109",
-                        $"Transition '{transition.FromStage}' → '{transition.ToStage}' contains a condition with no expression.",
-                        transition.FromStage));
+                        $"Transition '{transition.Source}' → '{transition.Target}' contains a condition with no expression.",
+                        transition.Source));
                 }
             }
 
             ValidateActions(
                 transition.Actions,
-                transition.FromStage,
+                transition.Source,
                 "transition",
                 new HashSet<ActionTiming> { ActionTiming.OnTransition },
                 schemaByKey,

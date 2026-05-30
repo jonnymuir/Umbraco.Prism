@@ -176,6 +176,14 @@ public record WorkflowGatewayDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int WaitingPollIntervalMs { get; init; }
 
+    /// <summary>Whether the join-gateway waiting display may offer a defer/return-later affordance.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WaitingAllowDefer { get; init; }
+
+    /// <summary>Optional defer/return-later copy shown with the join-gateway waiting display.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WaitingDeferMessage { get; init; }
+
     /// <summary>Lane keys whose cursors must all arrive before this join gateway releases.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? RequiredIncomingLanes { get; init; }

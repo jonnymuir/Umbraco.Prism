@@ -142,10 +142,22 @@ public sealed class WorkflowPublishServiceTests : IDisposable
             [
                 new AuthoredTransition
                 {
-                    FromStage = "draft",
-                    ToStage = "done",
-                    Action = "submit"
-                }
+                    Source = "draft",
+                    Target = "fan-out",
+                    Trigger = "submit"
+                },
+                new AuthoredTransition
+                {
+                    Source = "fan-out",
+                    Target = "fan-in",
+                    Trigger = "route"
+                },
+                new AuthoredTransition
+                {
+                    Source = "fan-in",
+                    Target = "done",
+                    Trigger = "release"
+                },
             ]
         };
 

@@ -73,9 +73,9 @@ public sealed class WorkflowProjector : IWorkflowProjector
             .ToList();
 
         var normalisedTransitions = authored.Transitions
-            .OrderBy(t => t.FromStage, StringComparer.Ordinal)
-            .ThenBy(t => t.ToStage, StringComparer.Ordinal)
-            .ThenBy(t => t.Action, StringComparer.Ordinal)
+            .OrderBy(t => t.Source, StringComparer.Ordinal)
+            .ThenBy(t => t.Target, StringComparer.Ordinal)
+            .ThenBy(t => t.Trigger, StringComparer.Ordinal)
             .ToList();
 
         // 3. Emit
@@ -149,18 +149,18 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
         foreach (var transition in authored.Transitions)
         {
-            if (!string.IsNullOrWhiteSpace(transition.FromStage) && !validNodeKeys.Contains(transition.FromStage))
+            if (!string.IsNullOrWhiteSpace(transition.Source) && !validNodeKeys.Contains(transition.Source))
             {
                 diagnostics.Add(Warning("PROJ004",
-                    $"Transition source '{transition.FromStage}' does not reference a defined stage or gateway.",
-                    transition.FromStage));
+                    $"Transition source '{transition.Source}' does not reference a defined stage or gateway.",
+                    transition.Source));
             }
 
-            if (!string.IsNullOrWhiteSpace(transition.ToStage) && !validNodeKeys.Contains(transition.ToStage))
+            if (!string.IsNullOrWhiteSpace(transition.Target) && !validNodeKeys.Contains(transition.Target))
             {
                 diagnostics.Add(Warning("PROJ004",
-                    $"Transition target '{transition.ToStage}' does not reference a defined stage or gateway.",
-                    transition.ToStage));
+                    $"Transition target '{transition.Target}' does not reference a defined stage or gateway.",
+                    transition.Target));
             }
         }
     }
@@ -195,7 +195,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
             StageKind.CheckAnswers => EmitCheckAnswersComponents(authored),
             StageKind.Confirmation => EmitConfirmationComponents(stage),
             StageKind.TaskList => EmitTaskListComponents(),
-            StageKind.Waiting or StageKind.StatusTimeline => EmitWaitingComponents(stage),
             _ => EmitUnknownKind(stage, diagnostics)
         };
     }
@@ -244,22 +243,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
     private static IReadOnlyList<PrismComponent> EmitTaskListComponents()
         => [new TaskListComponent()];
 
-    private static IReadOnlyList<PrismComponent> EmitWaitingComponents(AuthoredStage stage)
-    {
-        var meta = stage.Waiting ?? new WaitingMetadata();
-        return
-        [
-            new WaitingComponent
-            {
-                Content = meta.Content,
-                ExpectedWaitSeconds = meta.ExpectedWaitSeconds,
-                PollIntervalMs = meta.PollIntervalMs,
-                AllowDefer = meta.AllowDefer,
-                DeferMessage = meta.DeferMessage
-            }
-        ];
-    }
-
     private static IReadOnlyList<PrismComponent> EmitUnknownKind(
         AuthoredStage stage,
         List<ProjectionDiagnostic> diagnostics)
@@ -274,9 +257,9 @@ public sealed class WorkflowProjector : IWorkflowProjector
     private static WorkflowTransitionFile EmitTransition(AuthoredTransition t) =>
         new()
         {
-            FromState = t.FromStage,
-            ToState = t.ToStage,
-            Action = t.Action,
+            FromState = t.Source,
+            ToState = t.Target,
+            Action = t.Trigger,
             RequiresRole = t.RequiresRole,
             Metadata = EmitTransitionMetadata(t)
         };
@@ -318,6 +301,8 @@ public sealed class WorkflowProjector : IWorkflowProjector
                         WaitingContent = waitingInfo?.Content,
                         WaitingExpectedSeconds = waitingInfo?.ExpectedWaitSeconds ?? 0,
                         WaitingPollIntervalMs = waitingInfo?.PollIntervalMs ?? 0,
+                        WaitingAllowDefer = waitingInfo?.AllowDefer ?? true,
+                        WaitingDeferMessage = waitingInfo?.DeferMessage,
                         RequiredIncomingLanes = gateway.RequiredIncomingLanes.Count == 0
                             ? null
                             : gateway.RequiredIncomingLanes.OrderBy(l => l, StringComparer.Ordinal).ToArray()
