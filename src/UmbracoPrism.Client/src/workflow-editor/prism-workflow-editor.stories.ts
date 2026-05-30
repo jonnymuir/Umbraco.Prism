@@ -2,9 +2,8 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import { expect, waitFor, within } from '@storybook/test';
 import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
-import { PLANNING_WORKFLOW } from './fixtures/index.js';
+import { LEAVE_REQUEST_STARTER_WORKFLOW, PLANNING_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 import { STUB_ACTION_CATALOG, type AuthoredWorkflow } from './types.js';
-import { draftProposal } from './workflow-authoring-mock-drafter.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
 
 /**
@@ -77,13 +76,14 @@ function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkfl
 }
 
 function makeEmptyWorkflow(): AuthoredWorkflow {
-  const workflow = JSON.parse(JSON.stringify(PLANNING_WORKFLOW)) as AuthoredWorkflow;
+  const workflow = cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
   return {
     ...workflow,
-    displayName: 'Workflow draft',
+    displayName: 'Leave Request',
     initialStageKey: '',
     stages: [],
     transitions: [],
+    gateways: [],
   };
 }
 
@@ -166,77 +166,7 @@ function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
 }
 
 function makeGatewayWorkflow(): AuthoredWorkflow {
-  return {
-    ...PLANNING_WORKFLOW,
-    displayName: 'Planning Application Gateway Draft',
-    initialStageKey: 'draft',
-    stages: [
-      {
-        stageKey: 'draft',
-        displayName: 'Draft submission',
-        description: 'Capture the initial applicant draft before review starts.',
-        kind: 'Question',
-        actor: 'applicant',
-        actions: [],
-        fields: [],
-        roleGates: [],
-      },
-      {
-        stageKey: 'applicant-amendments',
-        displayName: 'Applicant amendments',
-        description: 'Applicant lane work after the split.',
-        kind: 'Question',
-        actor: 'applicant',
-        actions: [],
-        fields: [],
-        roleGates: [],
-      },
-      {
-        stageKey: 'reviewer-assessment',
-        displayName: 'Reviewer assessment',
-        description: 'Reviewer lane work after the split.',
-        kind: 'Question',
-        actor: 'reviewer',
-        actions: [],
-        fields: [],
-        roleGates: ['reviewer'],
-      },
-      {
-        stageKey: 'decision-confirmed',
-        displayName: 'Decision confirmed',
-        description: 'The merged path continues here for the authored executable route.',
-        kind: 'Confirmation',
-        actor: 'applicant',
-        actions: [],
-        fields: [],
-        roleGates: [],
-      },
-    ],
-    transitions: [
-      { fromStage: 'draft', toStage: 'applicant-amendments', action: 'continue applicant branch', actions: [] },
-      { fromStage: 'draft', toStage: 'reviewer-assessment', action: 'start reviewer branch', actions: [] },
-      { fromStage: 'applicant-amendments', toStage: 'decision-confirmed', action: 'complete applicant branch', actions: [] },
-      { fromStage: 'reviewer-assessment', toStage: 'decision-confirmed', action: 'approve decision', requiresRole: 'reviewer', actions: [] },
-    ],
-    gateways: [
-      {
-        gatewayKey: 'review-split',
-        displayName: 'Review split',
-        kind: 'Split',
-        laneKey: 'applicant',
-        actor: 'applicant',
-        roleGates: [],
-      },
-      {
-        gatewayKey: 'decision-join',
-        displayName: 'Decision join',
-        kind: 'Join',
-        laneKey: 'applicant',
-        actor: 'applicant',
-        roleGates: [],
-      },
-    ],
-  };
+  return cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
 }
 
 const meta: Meta = {
@@ -287,10 +217,6 @@ export const PlanningWorkflow: Story = {
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();
 
-    // Embedded conversation pane is intentionally not rendered
-    const conversation = root.querySelector('prism-conversation-pane');
-    await expect(conversation).toBeNull();
-
     // Modal is NOT open by default
     const backdrop = root.querySelector('.modal-backdrop');
     await expect(backdrop).toBeNull();
@@ -324,41 +250,6 @@ export const WithStageSelected: Story = {
           ?.trim()
       ).toBe('Declaration')
     );
-  },
-};
-
-export const ModalOpen: Story = {
-  name: 'Proposal Modal Open',
-  render: () => {
-    const el = makeEditor();
-    requestAnimationFrame(async () => {
-      await el.updateComplete;
-      const proposal = draftProposal('insert ID&V before submission', PLANNING_WORKFLOW);
-      if (!proposal) {
-        return;
-      }
-
-      const storyEditor = el as unknown as {
-        _proposal: typeof proposal | null;
-        _modalOpen: boolean;
-        requestUpdate(): void;
-      };
-      storyEditor._proposal = proposal;
-      storyEditor._modalOpen = true;
-      storyEditor.requestUpdate();
-    });
-    return el;
-  },
-  play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 800));
-    const el = canvasElement.querySelector('prism-workflow-editor') as PrismWorkflowEditorElement;
-    await el.updateComplete;
-
-    const root = el.shadowRoot!;
-
-    // Verify the canvas container is still present
-    const container = root.querySelector('[data-prism-component="workflow-editor"]');
-    await expect(container).not.toBeNull();
   },
 };
 

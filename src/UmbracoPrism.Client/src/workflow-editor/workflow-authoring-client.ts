@@ -18,7 +18,6 @@ import type {
   AuthoredWorkflow,
   FieldKind,
   GatewayKind,
-  ProposalEnvelope,
   StageKind,
 } from './types.js';
 import { STUB_ACTION_CATALOG } from './types.js';
@@ -348,42 +347,6 @@ export async function fetchWorkflow(key: string, apiBase?: string): Promise<Auth
   });
   if (!res.ok) throw new Error(`Failed to fetch workflow "${key}": ${res.status} ${res.statusText}`);
   return normaliseWorkflow(await res.json() as Record<string, unknown>);
-}
-
-export async function previewProposal(
-  key: string,
-  proposal: ProposalEnvelope,
-  apiBase?: string
-): Promise<ProposalEnvelope> {
-  const res = await fetch(
-    url(`/api/workflow-authoring/workflows/${encodeURIComponent(key)}/preview`, apiBase),
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(proposal),
-    }
-  );
-  if (!res.ok)
-    throw new Error(`Preview failed for "${key}": ${res.status} ${res.statusText}`);
-  return res.json() as Promise<ProposalEnvelope>;
-}
-
-export async function applyProposal(
-  key: string,
-  proposal: ProposalEnvelope,
-  apiBase?: string,
-  approver = 'reference-shell'
-): Promise<void> {
-  const res = await fetch(
-    url(`/api/workflow-authoring/workflows/${encodeURIComponent(key)}/apply`, apiBase),
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ envelope: proposal, approver }),
-    }
-  );
-  if (!res.ok)
-    throw new Error(`Apply failed for "${key}": ${res.status} ${res.statusText}`);
 }
 
 export async function publishWorkflow(

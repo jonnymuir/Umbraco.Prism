@@ -6,7 +6,6 @@ import {
   type AuthoredStage,
   type AuthoredTransition,
   type AuthoredWorkflow,
-  type ProposalEnvelope,
 } from './types.js';
 import {
   defaultAuthoringApiBase,
@@ -14,14 +13,12 @@ import {
   fetchActionCatalog,
   projectWorkflow,
   publishWorkflow,
-  applyProposal,
 } from './workflow-authoring-client.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
 import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
-import './prism-proposal-diff.js';
 import './prism-stage-preview.js';
 import './prism-workflow-simulation.js';
 import './prism-workflow-outline.js';
@@ -129,7 +126,6 @@ function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): s
  * Layout:
  *   Left  — prism-workflow-graph (with title bar + mode toggle)
  *   Right — prism-step-inspector
- *   Modal — prism-proposal-diff (overlay when a proposal is active)
  *
  * URL param: ?workflow=<key>  (default: "planning")
  * Prop: initialWorkflow — set directly for Storybook / offline use; skips API fetch.
@@ -164,8 +160,6 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _selectedStageKey: string | null = null;
   @state() private _selectedGatewayKey: string | null = null;
   @state() private _selectedTransitionIndex: number | null = null;
-  @state() private _proposal: ProposalEnvelope | null = null;
-  @state() private _modalOpen = false;
   @state() private _toastMessage: string | null = null;
   @state() private _loading = false;
   @state() private _error: string | null = null;
@@ -890,7 +884,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    if (this._modalOpen || this._helpOpen || event.defaultPrevented || event.altKey) {
+    if (this._helpOpen || event.defaultPrevented || event.altKey) {
       return;
     }
 
@@ -1033,6 +1027,11 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._actionSelection = null;
   };
 
+  private _handleOutlineGatewaySelected = (e: CustomEvent<{ gatewayKey: string }>) => {
+    this._applySelection({ kind: 'gateway', gatewayKey: e.detail.gatewayKey }, this._workflow);
+    this._actionSelection = null;
+  };
+
   private _handleOutlineTransitionSelected = (e: CustomEvent<{ transitionIndex: number }>) => {
     this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
     this._actionSelection = null;
@@ -1144,62 +1143,6 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._actionSelection = { target: 'transition', index: nextActions.length - 1 };
     this._showToast(`Pasted action ${this._clipboard.label} into transition ${transition.action}.`);
     return true;
-  }
-
-  private async _handleProposalAccept() {
-    if (!this._proposal) return;
-    try {
-      await applyProposal(
-        this.workflowKey,
-        this._proposal,
-        this._resolvedAuthoringApiBase,
-        this.approverName
-      );
-    } catch {
-      // Apply endpoint may not be live in V1 walkthrough — apply locally
-      this._applyProposalLocally(this._proposal);
-    }
-
-    this._closeModal();
-    this._showToast('Workflow updated successfully.');
-
-    // Re-fetch unless we are running with an injected fixture
-    if (!this.initialWorkflow) {
-      await this._loadWorkflow();
-    }
-  }
-
-  private _applyProposalLocally(proposal: ProposalEnvelope) {
-    if (!this._workflow) return;
-    // V1: find insert-stage ops and splice them into the local workflow.
-    // op.before may be undefined if the target stage doesn't exist yet — fall back to append.
-    let stages = [...this._workflow.stages];
-    for (const op of proposal.ops) {
-      if (op.op === 'insert-stage' && op.value) {
-        const stage = op.value as typeof stages[number];
-        if (op.before) {
-          const idx = stages.findIndex(s => s.stageKey === op.before);
-          if (idx >= 0) {
-            stages = [...stages.slice(0, idx), stage, ...stages.slice(idx)];
-          } else {
-            stages = [...stages, stage];
-          }
-        } else {
-          stages = [...stages, stage];
-        }
-      }
-    }
-    this._workflow = { ...this._workflow, stages };
-  }
-
-  private _handleProposalReject() {
-    this._closeModal();
-    this._showToast('Proposal rejected.');
-  }
-
-  private _closeModal() {
-    this._modalOpen = false;
-    this._proposal = null;
   }
 
   private _showToast(message: string) {
@@ -1562,6 +1505,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                       : html`
                           <p class="panel-subtitle">
                             ${(this._workflow?.stages.length ?? 0)} ${(this._workflow?.stages.length ?? 0) === 1 ? 'stage' : 'stages'}
+                            ${this._workflow?.gateways?.length ? ` · ${this._workflow.gateways.length} gateways` : ''}
                           </p>
                         `}
                   </div>
@@ -1588,9 +1532,11 @@ export class PrismWorkflowEditorElement extends LitElement {
                     data-prism-workflow-outline
                     .workflow=${this._workflow}
                     .selectedStageKey=${this._selectedStageKey}
+                    .selectedGatewayKey=${this._selectedGatewayKey}
                     .selectedTransitionIndex=${this._selectedTransitionIndex}
                     .showHeader=${false}
                     @outline-stage-selected=${this._handleOutlineStageSelected}
+                    @outline-gateway-selected=${this._handleOutlineGatewaySelected}
                     @outline-transition-selected=${this._handleOutlineTransitionSelected}
                   ></prism-workflow-outline>
                 </div>
@@ -1695,7 +1641,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                     <h2 class="panel-title">Properties</h2>
                     ${this._inspectorCollapsed
                       ? nothing
-                      : html`<p class="panel-subtitle">Selected stage, gateway, or transition details</p>`}
+                      : html`<p class="panel-subtitle">Selected stage, gateway, or route details</p>`}
                   </div>
                   <button
                     type="button"
@@ -1740,25 +1686,6 @@ export class PrismWorkflowEditorElement extends LitElement {
         </prism-confidence-tabs>
 
         ${this._renderShortcutGuide()}
-
-        <!-- Modal overlay for proposal diff -->
-        ${this._modalOpen && this._proposal
-          ? html`
-              <div
-                class="modal-backdrop"
-                role="presentation"
-                @click="${(e: MouseEvent) => {
-                  if (e.target === e.currentTarget) this._handleProposalReject();
-                }}"
-              >
-                <prism-proposal-diff
-                  .proposal=${this._proposal}
-                  @proposal-accept="${this._handleProposalAccept}"
-                  @proposal-reject="${this._handleProposalReject}"
-                ></prism-proposal-diff>
-              </div>
-            `
-          : nothing}
       </div>
     `;
   }
@@ -2215,13 +2142,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       justify-content: center;
       z-index: 100;
       padding: 1rem;
-    }
-
-    prism-proposal-diff {
-      max-width: 720px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
     }
 
     .shortcut-dialog {

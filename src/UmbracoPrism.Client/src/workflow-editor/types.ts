@@ -281,48 +281,6 @@ export interface ActionFormFieldConfig {
   options: string[];
 }
 
-// ---------------------------------------------------------------------------
-// Proposal Envelope — Tangy's canonical schema
-// ---------------------------------------------------------------------------
-
-export interface ProposalEnvelope {
-  id: string;
-  createdAt: string;
-  agent: ProposalAgent;
-  targetWorkflowId: string;
-  rationale: string;
-  ops: ProposalOp[];
-  placement: ProposalPlacement;
-  validationResult: ValidationResult;
-  previewArtifactRef?: string | null;
-}
-
-export interface ProposalAgent {
-  kind: 'github-copilot' | 'custom-agent' | 'human-assisted';
-  identity: string;
-  sessionRef?: string;
-}
-
-export interface ProposalOp {
-  op: 'insert-stage' | 'remove-stage' | 'update-stage' | 'insert-handoff' | 'update-transition';
-  path: string;
-  value?: unknown;
-  before?: string;
-  after?: string;
-}
-
-export interface ProposalPlacement {
-  insertAfterStageKey?: string | null;
-  insertBeforeStageKey?: string | null;
-  handoffId?: string | null;
-  transitionId?: string | null;
-}
-
-export interface ValidationResult {
-  status: 'pass' | 'fail' | 'not-run';
-  checkedAt: string | null;
-  errors: string[];
-}
 
 // ---------------------------------------------------------------------------
 // Stub data for Storybook / development
@@ -760,38 +718,3 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
   roles: [{ roleKey: 'reviewer', displayName: 'Planning Officer' }],
 };
 
-export const STUB_PROPOSAL: ProposalEnvelope = {
-  id: 'a3f7c221-8b14-4e02-9d61-f23a10b5e7c9',
-  createdAt: '2026-05-16T13:20:33.659+01:00',
-  agent: {
-    kind: 'github-copilot',
-    identity: 'github-copilot/gpt-4o',
-    sessionRef: 'copilot-session-2026-05-16-planning-idv',
-  },
-  targetWorkflowId: 'planning-permission',
-  rationale:
-    'Insert a mandatory external identity-and-verification (ID&V) stage between application submission and reviewer assessment. The ID&V step validates the applicant\'s identity with an external provider before the case is assigned to a planning officer.',
-  ops: [
-    {
-      op: 'insert-stage',
-      path: '/stages/2',
-      before: 'reviewer-assessment',
-    },
-    {
-      op: 'update-transition',
-      path: '/transitions/0',
-    },
-  ],
-  placement: {
-    insertAfterStageKey: 'check-answers',
-    insertBeforeStageKey: 'reviewer-assessment',
-    handoffId: null,
-    transitionId: null,
-  },
-  validationResult: {
-    status: 'pass',
-    checkedAt: '2026-05-16T13:20:33.659+01:00',
-    errors: [],
-  },
-  previewArtifactRef: null,
-};
