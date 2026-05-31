@@ -1,7 +1,8 @@
 using System.Text.Json;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.WorkflowEditor.Authoring;
 
-namespace UmbracoPrism.WorkflowEditor.Authoring;
+namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
 /// <summary>
 /// File-backed implementation of <see cref="IPublishedWorkflowStore"/> that writes canonical

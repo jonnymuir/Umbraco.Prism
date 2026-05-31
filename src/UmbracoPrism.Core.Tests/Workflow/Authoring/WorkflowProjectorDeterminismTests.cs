@@ -46,9 +46,7 @@ public class WorkflowProjectorDeterminismTests
     public async Task Project_PlanningFixture_IsDeterministic()
     {
         var fixturesPath = GetFixturesPath();
-        var store = new FilesystemAuthoredWorkflowStore(fixturesPath);
-
-        var authored = await store.LoadAsync("planning");
+        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
         authored.Should().NotBeNull("planning fixture must exist");
 
         var result1 = _projector.Project(authored!);

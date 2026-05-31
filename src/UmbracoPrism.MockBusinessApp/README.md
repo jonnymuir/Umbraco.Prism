@@ -46,9 +46,19 @@ This mirrors the secrets management pattern used by `UmbracoPrism.TestSite` (see
 
 ## Reference workflow editor host
 
-The business app now exposes a thin reference editor shell at `/workflow-editor` (redirects to `/workflow-editor.html?workflow=planning`).
+The business app exposes a thin reference editor shell at `/workflow-editor`
+(redirects to `/workflow-editor.html?workflow=planning`).
 
-- It hosts authoring-only concerns: picking a workflow, pointing at the authoring API, and mounting `<prism-workflow-editor>`.
-- It does **not** own runtime workflow execution or business case logic — those stay in the business app domain.
-- Use it as the reference integration slice for downstream apps that want to embed the workflow editor with minimal wiring.
-- Authoring endpoints live under `/api/workflow-authoring/workflows/{key}` and cover load, save/publish, validate, preview, apply, and simulate against the filesystem-backed reference store.
+- It hosts authoring-only concerns: picking a workflow and mounting
+  `<prism-workflow-editor-shell>` wired to an in-process `WorkflowSource`.
+- It does **not** own runtime workflow execution or business case logic —
+  those stay in the business app domain.
+- Use it as the reference integration slice for downstream apps that want to
+  embed the workflow editor with minimal wiring.
+- Workflow CRUD endpoints live under `/mockapp/workflows/*` — `GET` (list),
+  `GET /{key}`, `PUT /{key}` — and back onto an in-process singleton
+  (`ReferenceAuthoredWorkflowStore`) seeded from the bundled reference
+  workflow fixtures. They have **no authentication**: this app is a
+  same-origin reference host. Downstream applications that mount the editor
+  must implement their own `WorkflowSource` against their own persistence
+  and authorization story — the editor has no built-in HTTP client.

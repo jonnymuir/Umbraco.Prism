@@ -155,8 +155,7 @@ public class WorkflowPatchServiceFailureTests
 
     private static async Task<AuthoredWorkflow> LoadPlanningFixture()
     {
-        var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        var wf    = await store.LoadAsync("planning");
+        var wf = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
         return wf ?? throw new InvalidOperationException("planning fixture not found");
     }
 

@@ -1,6 +1,6 @@
 using UmbracoPrism.Shared.Models.Workflow;
 
-namespace UmbracoPrism.WorkflowEditor.Authoring;
+namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
 /// <summary>
 /// Persists published runtime workflow definitions.

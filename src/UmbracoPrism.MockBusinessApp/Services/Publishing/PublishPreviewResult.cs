@@ -1,6 +1,7 @@
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.WorkflowEditor.Authoring;
 
-namespace UmbracoPrism.WorkflowEditor.Authoring;
+namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
 /// <summary>
 /// Side-effect-free publish preview describing what would be written to the runtime store.

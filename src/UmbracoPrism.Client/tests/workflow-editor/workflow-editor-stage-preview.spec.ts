@@ -12,26 +12,6 @@ async function openPreviewForDeclaration(page: import('@playwright/test').Page) 
   await expect(previewTab).toHaveAttribute('aria-selected', 'true');
 }
 
-async function slowProjectPreview(page: import('@playwright/test').Page, delayMs: number) {
-  await page.evaluate(delay => {
-    const originalFetch = window.fetch.bind(window);
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
-
-      if (/\/api\/workflow-authoring\/workflows\/.+\/project$/.test(url)) {
-        await new Promise(resolve => window.setTimeout(resolve, delay));
-      }
-
-      return originalFetch(input, init);
-    };
-  }, delayMs);
-}
-
 test.describe('Workflow editor stage preview', () => {
   test('renders a read-only runtime preview for the selected planning stage', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
@@ -54,14 +34,11 @@ test.describe('Workflow editor stage preview', () => {
     await expect(preview.locator('[data-prism-preview-selector]')).toHaveCount(0);
   });
 
-  test('updates the preview when stage edits change the projected runtime and exposes loading feedback', async ({ page }) => {
+  test('updates the preview when stage edits change the projected runtime', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
 
-    await slowProjectPreview(page, 1_500);
     await openPreviewForDeclaration(page);
-
-    await expect(page.locator('[data-prism-preview-loading]')).toContainText('Rendering preview');
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration');
 
     await page.getByRole('tab', { name: 'Canvas' }).click();
@@ -73,7 +50,6 @@ test.describe('Workflow editor stage preview', () => {
     await laneInput.press('Tab');
     await page.getByRole('tab', { name: 'Preview' }).click();
 
-    await expect(page.locator('[data-prism-preview-loading]')).toContainText('Updating preview');
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration preview');
     await expect(page.locator('[data-prism-preview-assignment]')).toContainText('Assigned to Reviewer');
     await expect(page.locator('[data-prism-preview-surface-panel]')).toBeVisible();

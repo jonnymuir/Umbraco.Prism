@@ -6,13 +6,11 @@ import {
   type AuthoredStage,
   type AuthoredWorkflow,
 } from './types.js';
-import {
-  defaultAuthoringApiBase,
-  fetchWorkflow,
-  fetchActionCatalog,
-  projectWorkflow,
-  publishWorkflow,
-} from './workflow-authoring-client.js';
+import { projectWorkflowLocally } from './workflow-runtime-projection.js';
+import type { WorkflowSource } from './workflow-source.js';
+import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
+import { BuiltInWorkflowActionCatalog } from './workflow-action-catalog.js';
+import type { WorkflowAuthorContext } from './workflow-author-context.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
 import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
@@ -141,13 +139,24 @@ export class PrismWorkflowEditorElement extends LitElement {
   @property({ type: String, attribute: 'workflow-key' })
   workflowKey = 'planning';
 
-  /** Optional override for the workflow authoring API origin. */
-  @property({ type: String, attribute: 'authoring-api-base' })
-  authoringApiBase = '';
+  /**
+   * Host-supplied source the editor reads workflows from and writes back to.
+   * Required for runtime use; Storybook stories pass `initialWorkflow` instead
+   * and can leave this unset.
+   */
+  @property({ attribute: false })
+  workflowSource?: WorkflowSource;
 
-  /** Name written into apply provenance for the host shell / approver. */
-  @property({ type: String, attribute: 'approver-name' })
-  approverName = 'reference-shell';
+  /**
+   * Host-supplied catalog of action types the editor can render. Falls back
+   * to Prism's built-in catalog when the host does not extend it.
+   */
+  @property({ attribute: false })
+  actionCatalog?: WorkflowActionCatalog;
+
+  /** Optional UX hint about the current author. Never authoritative. */
+  @property({ attribute: false })
+  authorContext?: WorkflowAuthorContext;
 
   /**
    * If set, the component uses this workflow directly instead of fetching from
@@ -254,8 +263,20 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._error = null;
     this._reflectWorkflowLoadedState();
     this._lastLoadedWorkflowKey = this.workflowKey;
+
+    if (!this.workflowSource) {
+      // Empty state — no source wired. The shell renders a developer
+      // affordance; the editor element itself stays silently empty so
+      // Storybook stories that drive it via `initialWorkflow` are not
+      // disturbed.
+      this._workflow = null;
+      this._loading = false;
+      this._reflectWorkflowLoadedState();
+      return;
+    }
+
     try {
-      const workflow = await fetchWorkflow(this.workflowKey, this._resolvedAuthoringApiBase);
+      const workflow = await this.workflowSource.load(this.workflowKey);
       if (requestId !== this._workflowLoadRequestId) {
         return;
       }
@@ -275,7 +296,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private async _loadActionCatalog() {
-    this._actionCatalog = await fetchActionCatalog(this._resolvedAuthoringApiBase);
+    const catalog = this.actionCatalog ?? new BuiltInWorkflowActionCatalog();
+    this._actionCatalog = await catalog.entries();
   }
 
   private _initialiseEditorState(workflow: AuthoredWorkflow) {
@@ -556,7 +578,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._stagePreviewError = null;
 
     try {
-      const preview = await projectWorkflow(this.workflowKey, this._workflow, this._resolvedAuthoringApiBase);
+      const preview = projectWorkflowLocally(this._workflow);
       if (requestId !== this._stagePreviewRequestId) {
         return;
       }
@@ -669,7 +691,10 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private get _canSave() {
-    return Boolean(this._workflow) && !this._hasBlockingValidationIssues && this._saveState !== 'saving';
+    return Boolean(this._workflow)
+      && !this._hasBlockingValidationIssues
+      && this._saveState !== 'saving'
+      && this._canSaveByContext;
   }
 
   private get _dirtyStateSummary() {
@@ -1350,11 +1375,18 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._saveState = 'saving';
     this._saveMessage = null;
 
+    if (!this.workflowSource) {
+      this._saveState = 'error';
+      this._saveMessage = 'Save unavailable — no workflow source is wired to the editor.';
+      this._showToast(this._saveMessage);
+      return;
+    }
+
     try {
-      await publishWorkflow(this.workflowKey, this._workflow, this._resolvedAuthoringApiBase);
+      await this.workflowSource.save(this.workflowKey, this._workflow);
       this._savedWorkflowSnapshot = cloneWorkflow(this._workflow);
       this._saveState = 'saved';
-      this._saveMessage = 'Workflow saved and published.';
+      this._saveMessage = 'Workflow saved.';
       this._showToast(this._saveMessage);
     } catch (error) {
       this._saveState = 'error';
@@ -1657,8 +1689,8 @@ export class PrismWorkflowEditorElement extends LitElement {
     `;
   }
 
-  private get _resolvedAuthoringApiBase(): string {
-    return this.authoringApiBase || defaultAuthoringApiBase();
+  private get _canSaveByContext(): boolean {
+    return this.authorContext?.canSave !== false;
   }
 
   private _renderStagePreview() {
@@ -1769,6 +1801,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                       class="toolbar-btn govuk-button"
                       data-prism-save
                       ?disabled=${!this._canSave}
+                      title=${!this._canSaveByContext ? 'Saving is disabled for the current author.' : nothing}
                       aria-keyshortcuts=${SAVE_SHORTCUT?.ariaKeys ?? nothing}
                       @click=${this._handleSave}
                     >

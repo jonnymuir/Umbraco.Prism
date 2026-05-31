@@ -42,18 +42,29 @@ test.describe('Workflow editor shell proof', () => {
     await expect(editor.locator('[data-prism-stage="review-enquiry"]')).toHaveCount(0);
   });
 
-  test('workflow switcher keeps the same authoring API base while remounting the editor', async ({ page }) => {
+  test('workflow switcher keeps the host-supplied workflowSource alive while remounting the editor', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-editor-shell--reference-shell'));
 
     const selector = page.getByRole('combobox', { name: 'Select workflow' });
     const editor = page.locator('prism-workflow-editor');
 
     await waitForWorkflowLoad(page, 'planning');
-    await expect(editor).toHaveAttribute('authoring-api-base', 'https://example.test');
+
+    const initialSourceIdentity = await editor.evaluate(node => {
+      const source = (node as unknown as { workflowSource?: object }).workflowSource;
+      return source ? source.constructor.name : null;
+    });
+    expect(initialSourceIdentity).not.toBeNull();
 
     await selector.selectOption('information-request');
     await waitForWorkflowLoad(page, 'information-request');
-    await expect(editor).toHaveAttribute('authoring-api-base', 'https://example.test');
+
+    const sourceSurvived = await editor.evaluate((node, expectedName) => {
+      const source = (node as unknown as { workflowSource?: object }).workflowSource;
+      return source ? source.constructor.name === expectedName : false;
+    }, initialSourceIdentity);
+    expect(sourceSurvived).toBe(true);
+
     await expect(editor.locator('.editor-title')).toHaveText('Information Request');
     await expect(editor.locator('[data-prism-stage="review-response-pack"]')).toBeVisible();
   });

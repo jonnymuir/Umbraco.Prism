@@ -1,13 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-workflow-editor-shell.js';
 import type { PrismWorkflowEditorShellElement } from './prism-workflow-editor-shell.js';
-import type { WorkflowAuthoringSummary } from './workflow-authoring-client.js';
-import { serialiseWorkflow } from './workflow-authoring-client.js';
 import { PLANNING_WORKFLOW } from './fixtures/index.js';
-import { STUB_ACTION_CATALOG, type AuthoredWorkflow, type AuthoredStage } from './types.js';
-import { projectWorkflowLocally } from './workflow-runtime-projection.js';
-
-const AUTHORING_API_BASE = 'https://example.test';
+import type { AuthoredWorkflow, AuthoredStage } from './types.js';
+import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
 
 type WorkflowSeed = {
   workflowKey: string;
@@ -56,9 +52,9 @@ function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
   };
 }
 
-const WORKFLOWS: Record<string, AuthoredWorkflow> = {
-  planning: cloneWorkflow(PLANNING_WORKFLOW),
-  'community-enquiry': buildWorkflow({
+function buildShellSource(): InMemoryWorkflowSource {
+  const planning = cloneWorkflow(PLANNING_WORKFLOW);
+  const communityEnquiry = buildWorkflow({
     workflowKey: 'community-enquiry',
     definitionKey: 'community-enquiry',
     displayName: 'Community Enquiry',
@@ -81,8 +77,8 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
       },
     ],
     transitionActions: ['continue', 'send to review', 'close enquiry'],
-  }),
-  'information-request': buildWorkflow({
+  });
+  const informationRequest = buildWorkflow({
     workflowKey: 'information-request',
     definitionKey: 'information-request',
     displayName: 'Information Request',
@@ -105,8 +101,8 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
       },
     ],
     transitionActions: ['continue', 'submit evidence', 'send response'],
-  }),
-  'payment-demo': buildWorkflow({
+  });
+  const paymentDemo = buildWorkflow({
     workflowKey: 'payment-demo',
     definitionKey: 'payment-demo',
     displayName: 'Payment Demo',
@@ -129,109 +125,24 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
       },
     ],
     transitionActions: ['continue', 'submit payment', 'confirm payment'],
-  }),
-};
-
-const WORKFLOW_SUMMARIES: WorkflowAuthoringSummary[] = [
-  {
-    workflowKey: 'planning',
-    id: 'planning-story',
-    definitionKey: WORKFLOWS.planning.definitionKey,
-    displayName: WORKFLOWS.planning.displayName,
-  },
-  {
-    workflowKey: 'community-enquiry',
-    id: 'community-enquiry-story',
-    definitionKey: WORKFLOWS['community-enquiry'].definitionKey,
-    displayName: WORKFLOWS['community-enquiry'].displayName,
-  },
-  {
-    workflowKey: 'information-request',
-    id: 'information-request-story',
-    definitionKey: WORKFLOWS['information-request'].definitionKey,
-    displayName: WORKFLOWS['information-request'].displayName,
-  },
-  {
-    workflowKey: 'payment-demo',
-    id: 'payment-demo-story',
-    definitionKey: WORKFLOWS['payment-demo'].definitionKey,
-    displayName: WORKFLOWS['payment-demo'].displayName,
-  },
-];
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-function stubFetchFor(element: PrismWorkflowEditorShellElement): void {
-  const originalFetch = window.fetch;
-
-  const stubbedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const request = input instanceof Request ? input : undefined;
-    const urlString = typeof input === 'string'
-      ? input
-      : input instanceof URL
-        ? input.href
-        : request?.url ?? '';
-    const method = (init?.method ?? request?.method ?? 'GET').toUpperCase();
-
-    if (/\/api\/workflow-authoring\/action-catalog(?:\?.*)?$/.test(urlString)) {
-      return jsonResponse(STUB_ACTION_CATALOG);
-    }
-
-    if (/\/api\/workflow-authoring\/workflows(?:\?.*)?$/.test(urlString) && method === 'GET') {
-      return jsonResponse(WORKFLOW_SUMMARIES);
-    }
-
-    const workflowMatch = urlString.match(/\/api\/workflow-authoring\/workflows\/([^/?#]+)(?:\/([^/?#]+))?(?:\?.*)?$/);
-    if (workflowMatch) {
-      const workflowKey = decodeURIComponent(workflowMatch[1]);
-      const operation = workflowMatch[2] ?? null;
-      const workflow = WORKFLOWS[workflowKey];
-      if (!workflow) {
-        return jsonResponse({ error: `Workflow '${workflowKey}' not found.` }, 404);
-      }
-
-      if (!operation && method === 'GET') {
-        return jsonResponse(serialiseWorkflow(workflow));
-      }
-
-      const body = init?.body ? JSON.parse(String(init.body)) : workflow;
-      if (operation === 'project' && method === 'POST') {
-        return jsonResponse(projectWorkflowLocally(body as AuthoredWorkflow));
-      }
-
-      if (['preview', 'apply', 'publish', 'save'].includes(operation ?? '') && method === 'POST') {
-        return jsonResponse(body);
-      }
-    }
-
-    return originalFetch(input, init);
-  };
-
-  window.fetch = stubbedFetch;
-
-  const observer = new MutationObserver(() => {
-    if (!document.contains(element)) {
-      if (window.fetch === stubbedFetch) {
-        window.fetch = originalFetch;
-      }
-      observer.disconnect();
-    }
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  // workflowKey for planning is 'planning' even though the definitionKey is
+  // 'planning-application', so the shell's selector entries match the four
+  // reference workflows the existing Playwright suite drives.
+  return new InMemoryWorkflowSource([
+    { workflowKey: 'planning', workflow: planning },
+    { workflowKey: 'community-enquiry', workflow: communityEnquiry },
+    { workflowKey: 'information-request', workflow: informationRequest },
+    { workflowKey: 'payment-demo', workflow: paymentDemo },
+  ]);
 }
 
 function makeShell(): PrismWorkflowEditorShellElement {
   const element = document.createElement('prism-workflow-editor-shell') as PrismWorkflowEditorShellElement;
   element.workflowKey = 'planning';
-  element.authoringApiBase = AUTHORING_API_BASE;
+  element.workflowSource = buildShellSource();
   element.style.cssText = 'display:block;min-height:860px;';
-  stubFetchFor(element);
   return element;
 }
 

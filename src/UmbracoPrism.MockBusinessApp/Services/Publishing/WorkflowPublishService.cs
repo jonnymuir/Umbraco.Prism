@@ -1,6 +1,7 @@
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.WorkflowEditor.Authoring;
 
-namespace UmbracoPrism.WorkflowEditor.Authoring;
+namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
 /// <summary>
 /// Deterministic publish pipeline from authored workflow to persisted runtime definition.

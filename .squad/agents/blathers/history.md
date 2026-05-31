@@ -18,6 +18,23 @@ Backend Developer specializing in core infrastructure and pipeline design.
 - Aspire cleanup: Wire `postDebugTask` in `.vscode/launch.json` to clean up child processes spawned by DCP on debugger stop.
 - **Filesystem durability (2026-05-24):** Always call `stream.FlushAsync()` explicitly before closing file streams in write operations that are immediately followed by read verification. Linux CI environments with virtualized/networked filesystems cache directory metadata; relying only on `await using` disposal isn't sufficient to guarantee File.Exists() sees the new file. This manifested as intermittent HTTP 500 failures in `PostApply_WithExistingWorkflow_PublishesRuntimeDefinition` where `PublishAsync` couldn't reload the just-saved workflow JSON for round-trip verification.
 
+## 2026-05-31 — Slice B: Authoring stack leaves WorkflowEditor; publish moves into MockBusinessApp
+
+**Session:** named-lanes editor — Slice B (DDD boundary, backend cut)  
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**Scope:** Tear out `/api/workflow-authoring/*` from `UmbracoPrism.WorkflowEditor`, move the publish stack into MockBusinessApp where it belongs, and replace the authoring endpoints with anonymous `/mockapp/workflows/*` CRUD on a singleton in-memory store.
+
+**Outcomes:**
+- ✅ Deleted 11 production files from `UmbracoPrism.WorkflowEditor`: both `Authoring/Http/*` endpoint files, both extension files (`WorkflowEditorEndpointExtensions`, `WorkflowAuthoringPolicies`), and the entire `IAuthoredWorkflowStore` family + `IWorkflowAuthoringProvenanceStore` family (in-memory + filesystem flavours of each, plus `AuthoredWorkflowStoreEntry`).
+- ✅ Moved 6 publish-stack files (`git mv`) from `UmbracoPrism.WorkflowEditor/Authoring/` to `UmbracoPrism.MockBusinessApp/Services/Publishing/` — `WorkflowPublishService`, `IWorkflowPublishService`, `PublishResult`, `PublishPreviewResult`, `IPublishedWorkflowStore`, `FilesystemPublishedWorkflowStore`. Renamespaced to `UmbracoPrism.MockBusinessApp.Services.Publishing` and re-added `using UmbracoPrism.WorkflowEditor.Authoring;` for `WorkflowProjector.CanonicalOptions`.
+- ✅ Trimmed `WorkflowEditorServiceExtensions.AddPrismWorkflowEditor()` to a no-arg call (registers only projector / patch / simulation / action catalog / parameter widget mapper). Hosts wire their own persistence.
+- ✅ Created `ReferenceAuthoredWorkflowStore` (singleton, in-memory, seeded from `ReferenceWorkflowRepository.GetReferenceWorkflows()`) and three anonymous endpoints under `/mockapp/workflows/*` (list, GET, PUT). Key regex `^[a-zA-Z0-9_\-]+$`, ProblemDetails on bad JSON. **No auth, no CORS** — same-origin reference host posture, deliberate.
+- ✅ Major `Program.cs` surgery: dropped CORS, dropped the `WorkflowAuthor` auth policy, dropped store registrations, dropped `MapPrismWorkflowEditor()`, dropped the `/api/workflow-authoring` middleware guard, dropped the legacy `/admin/workflow/definition/{key}/json` GET+PUT, and dropped the JSON modal HTML/CSS/JS + ace.js CDN + `ResolveWorkflowDefinitionKeyAsync` helper + Edit JSON button.
+- ✅ Validated: `dotnet build UmbracoPrism.sln` green / 0 warnings / 0 errors; `dotnet test` 814 passed / 0 failed / 11 skipped (was 860 — 46 tests deleted with the obsolete stores).
+
+**Peers:** Isabelle (TS boundary + editor rewrite + integration example), Brewster (test-infra refit and FourWorkflow contract rewrite against `/mockapp/workflows/*`).
+
 ## 2026-05-23T13:04:58.778000+00:00 — Session: Vinyl/Core Boundary Integration
 
 All squad members deployed together to complete the vinyl/core boundary work. Architecture split successful:

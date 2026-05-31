@@ -31,14 +31,22 @@ Full authoring experience.
 | Attribute | Type | Default | Notes |
 |-----------|------|---------|-------|
 | `workflow-key` | string | `"planning"` | Workflow to load. Also reads `?workflow=` URL param. |
-| `authoring-api-base` | string | `""` | Optional override for the authoring API origin. |
-| `approver-name` | string | `"reference-shell"` | Written into apply provenance. |
 
 **JS-only properties**
 
 | Property | Type | Notes |
 |----------|------|-------|
-| `initialWorkflow` | `AuthoredWorkflow \| null` | If set, bypasses the API and uses this workflow directly. Designed for Storybook / fixtures. |
+| `workflowSource` | `WorkflowSource \| undefined` | Host-supplied source the editor reads workflows from and writes back to. Required for runtime use. Storybook stories can pass `initialWorkflow` instead. See `integrations/mockapp-workflow-source.ts` for a reference HTTP implementation. |
+| `actionCatalog` | `WorkflowActionCatalog \| undefined` | Host-supplied catalog of action types the editor can render. Falls back to `BuiltInWorkflowActionCatalog` when unset. |
+| `authorContext` | `WorkflowAuthorContext \| undefined` | Optional UX hint about the current author (`{ canSave?: boolean }`). Never authoritative — server-side authorization stays in the host application. |
+| `initialWorkflow` | `AuthoredWorkflow \| null` | If set, bypasses `workflowSource.load` and uses this workflow directly. Designed for Storybook / fixtures. |
+
+The editor has **no built-in HTTP client and no opinion about authentication**.
+Hosts are responsible for implementing the `WorkflowSource` contract
+(`list / load / save`) against their own persistence — the editor only sees
+typed `AuthoredWorkflow` values. A reference implementation that talks to the
+MockBusinessApp's `/mockapp/workflows/*` endpoints lives at
+[`integrations/mockapp-workflow-source.ts`](./integrations/mockapp-workflow-source.ts).
 
 **Definition tab — JSON twin-pane**
 
@@ -105,7 +113,13 @@ shell.
 | Attribute | Type | Default | Notes |
 |-----------|------|---------|-------|
 | `workflow-key` | string | `"planning"` | Initial workflow selection. Synced to `?workflow=` URL param. |
-| `authoring-api-base` | string | `""` | Optional override for the authoring API origin. |
+
+**JS-only properties**
+
+The shell forwards `workflowSource`, `actionCatalog`, and `authorContext` to
+the nested `<prism-workflow-editor>`. It uses `workflowSource.list()` to
+populate its picker, and renders a developer-affordance empty state when no
+source is wired.
 
 ---
 

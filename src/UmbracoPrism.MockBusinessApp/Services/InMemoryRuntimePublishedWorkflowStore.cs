@@ -1,5 +1,5 @@
+using UmbracoPrism.MockBusinessApp.Services.Publishing;
 using UmbracoPrism.Shared.Models.Workflow;
-using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 

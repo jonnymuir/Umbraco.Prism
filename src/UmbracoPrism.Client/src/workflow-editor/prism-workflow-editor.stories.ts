@@ -3,76 +3,18 @@ import { expect, waitFor, within } from '@storybook/test';
 import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
-import { STUB_ACTION_CATALOG, type AuthoredWorkflow } from './types.js';
-import { serialiseWorkflow } from './workflow-authoring-client.js';
-import { projectWorkflowLocally } from './workflow-runtime-projection.js';
-
-/**
- * Stubs window.fetch for authoring API URLs so stories work fully offline.
- * Called from each story's render function; the original fetch is restored
- * shortly after to avoid cross-story contamination.
- */
-function stubFetchFor(el: PrismWorkflowEditorElement): void {
-  const originalFetch = window.fetch;
-  const WORKFLOW_API_RE = /\/api\/workflow-authoring\/workflows/;
-  const ACTION_CATALOG_RE = /\/api\/workflow-authoring\/action-catalog/;
-
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const urlStr =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.href
-          : (input as Request).url;
-    if (ACTION_CATALOG_RE.test(urlStr)) {
-      return new Response(JSON.stringify(STUB_ACTION_CATALOG), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    if (WORKFLOW_API_RE.test(urlStr)) {
-      const method = (init?.method ?? 'GET').toUpperCase();
-      if (method === 'GET')
-        return new Response(JSON.stringify(serialiseWorkflow(PLANNING_WORKFLOW)), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      if (method === 'POST') {
-        const body = init?.body ? JSON.parse(init.body as string) : {};
-        if (urlStr.endsWith('/project')) {
-          return new Response(JSON.stringify(projectWorkflowLocally(body as AuthoredWorkflow)), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response(null, { status: 204 });
-    }
-    return originalFetch(input, init);
-  };
-
-  // Restore after story element is removed from the DOM
-  const observer = new MutationObserver(() => {
-    if (!document.contains(el)) {
-      window.fetch = originalFetch;
-      observer.disconnect();
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-}
+import type { AuthoredWorkflow } from './types.js';
+import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
 
 function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkflowEditorElement {
   const el = document.createElement('prism-workflow-editor') as PrismWorkflowEditorElement;
-  // Inject the fixture directly — no API fetch needed
-  el.initialWorkflow = workflow;
+  // Stories drive the editor by injecting the workflow directly. The Save
+  // button still needs a `workflowSource` to resolve, so wire an in-memory
+  // one seeded with the same workflow — this proves the integrator pattern.
+  el.workflowSource = new InMemoryWorkflowSource([workflow]);
   el.workflowKey = workflow.definitionKey;
+  el.initialWorkflow = workflow;
   el.style.cssText = 'display: block; width: 1200px; height: 700px;';
-  // Also stub fetch so preview/apply calls work offline if triggered
-  stubFetchFor(el);
   return el;
 }
 
@@ -193,24 +135,19 @@ export const PlanningWorkflow: Story = {
 
     const root = el.shadowRoot!;
 
-    // Root container is present with correct test hooks
     const container = root.querySelector('[data-prism-component="workflow-editor"]');
     await expect(container).not.toBeNull();
 
-    // Workflow name appears in the header
     const title = root.querySelector('.editor-title');
     await expect(title?.textContent?.trim()).toBe('Planning Application');
 
-    // Graph panel is rendered
     const graph = root.querySelector('prism-workflow-graph');
     await expect(graph).not.toBeNull();
     await expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-lane]').length ?? 0).toBeGreaterThan(0);
 
-    // Inspector panel is rendered
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();
 
-    // Modal is NOT open by default
     const backdrop = root.querySelector('.modal-backdrop');
     await expect(backdrop).toBeNull();
   },
@@ -279,7 +216,6 @@ export const SimulationBlockers: Story = {
   name: 'Simulation Blockers',
   render: () => makeEditor(makeSimulationBlockerWorkflow()),
 };
-
 
 export const GatewayRepresentation: Story = {
   name: 'Gateway Representation',

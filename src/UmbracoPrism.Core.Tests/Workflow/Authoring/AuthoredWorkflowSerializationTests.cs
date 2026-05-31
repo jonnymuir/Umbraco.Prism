@@ -140,9 +140,7 @@ public class AuthoredWorkflowSerializationTests
     public async Task FilesystemStore_LoadsFixtureDocument()
     {
         var fixturesPath = GetFixturesPath();
-        var store = new FilesystemAuthoredWorkflowStore(fixturesPath);
-
-        var workflow = await store.LoadAsync("planning");
+        var workflow = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
 
         workflow.Should().NotBeNull();
         workflow!.DefinitionKey.Should().Be("planning-application");
@@ -150,37 +148,6 @@ public class AuthoredWorkflowSerializationTests
         workflow.Stages.Should().Contain(s => s.StageKey == "declaration" && s.Actions.Count == 1);
         workflow.Transitions.Should().ContainSingle(t => t.Trigger == "submit" && t.Actions.Count == 1);
         workflow.ParameterSchemas.Should().ContainSingle(s => s.Key == "forms-form-definition");
-    }
-
-    [Fact]
-    public async Task FilesystemStore_ListKeys_ReturnsFixtureKey()
-    {
-        var store = new FilesystemAuthoredWorkflowStore(GetFixturesPath());
-
-        var keys = await store.ListKeysAsync();
-
-        keys.Should().Contain("planning");
-    }
-
-    [Fact]
-    public async Task FilesystemStore_ListAsync_PreservesWorkflowKeySeparatelyFromDefinitionKey()
-    {
-        var store = new FilesystemAuthoredWorkflowStore(GetFixturesPath());
-
-        var entries = await store.ListAsync();
-
-        entries.Should().ContainSingle(entry => entry.WorkflowKey == "planning")
-            .Which.DefinitionKey.Should().Be("planning-application");
-    }
-
-    [Fact]
-    public async Task FilesystemStore_ReturnsNull_ForMissingKey()
-    {
-        var store = new FilesystemAuthoredWorkflowStore(GetFixturesPath());
-
-        var result = await store.LoadAsync("does-not-exist");
-
-        result.Should().BeNull();
     }
 
     private static AuthoredWorkflow BuildTestWorkflow() => new()

@@ -1,4 +1,7 @@
-namespace UmbracoPrism.WorkflowEditor.Authoring;
+namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
+
+using UmbracoPrism.WorkflowEditor.Authoring;
+
 
 /// <summary>
 /// Previews and publishes authored workflows into runtime-ready definitions.

@@ -1,5 +1,25 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-31 — Slice B: WorkflowSource boundary lands on the editor
+
+**Session:** named-lanes editor — Slice B (DDD boundary, frontend cut)  
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**Outcomes:**
+- ✅ Created the typed editor↔host boundary: `WorkflowSource` (list/load/save), `WorkflowActionCatalog`, `WorkflowAuthorContext`, plus `InMemoryWorkflowSource` and `BuiltInWorkflowActionCatalog` fallbacks.
+- ✅ Extracted `normaliseWorkflow` / `serialiseWorkflow` into `workflow-wire-format.ts` so integrators can convert wire JSON without re-implementing the contract.
+- ✅ Rewrote `prism-workflow-editor.ts` and `prism-workflow-editor-shell.ts` end-to-end against the new properties (`workflowSource`, `actionCatalog`, `authorContext` — JS-only, no attributes). Dropped `authoring-api-base` / `approver-name`. Editor goes silently empty when no source is wired; shell shows a developer-affordance message.
+- ✅ Deleted `workflow-authoring-client.ts` — the editor no longer ships an HTTP client and no longer has any opinion about authentication or transport.
+- ✅ Rewrote both stories files (`prism-workflow-editor.stories.ts` + `prism-workflow-editor-shell.stories.ts`) to drive the editor via `InMemoryWorkflowSource` rather than stubbed `fetch` — the integrator pattern is now its own documentation.
+- ✅ Added `integrations/mockapp-workflow-source.ts` as the reference HTTP `WorkflowSource` for MockBusinessApp's `/mockapp/workflows/*` endpoints. Wired into `workflow-editor.html`.
+- ✅ Refreshed `README.md` (editor) — new properties table, integrator note pointing at the example, removed the deleted attributes.
+- ✅ Save button gating now respects `authorContext.canSave` and shows the reason via tooltip; server-side authorisation remains source of truth.
+- ✅ Validated: `tsc --noEmit` clean, Vite workflow-editor build clean (332.94 kB), Storybook build clean, Playwright posture identical to Slice A baseline (85 pass / 11 skip / 49 pre-existing fail / 2 flaky — no new regressions; verified by stash+spot-run).
+
+**Peers:** Blathers (C# deletions + endpoint rewrite + publish-stack move), Brewster (test-infra refit and contract test rewrite).
+
+---
+
 ## 2026-05-30T20:15:00+01:00 — Slice 7.5: Clear Tangy's three visual bugs from Slice 7
 
 **Session:** named-lanes editor — Slice 7.5 (pre-Slice 8 fix-it)

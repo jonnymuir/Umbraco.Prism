@@ -29,7 +29,15 @@
         min-height: 100vh;
       }
     </style>
-    <script type="module" src="/src/workflow-editor/prism-workflow-editor-shell.ts"></script>
+    <script type="module">
+      import './src/workflow-editor/prism-workflow-editor-shell.ts';
+      import { MockBusinessAppWorkflowSource } from './src/workflow-editor/integrations/mockapp-workflow-source.ts';
+
+      const shell = document.querySelector('prism-workflow-editor-shell');
+      if (shell) {
+        shell.workflowSource = new MockBusinessAppWorkflowSource();
+      }
+    </script>
   </head>
   <body>
     <prism-workflow-editor-shell workflow-key="planning"></prism-workflow-editor-shell>

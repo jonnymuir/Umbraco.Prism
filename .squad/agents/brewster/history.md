@@ -1,3 +1,18 @@
+## 2026-05-31 — Slice B: Test-infra refit + contract test rewrite for `/mockapp/workflows/*`
+
+**Session:** named-lanes editor — Slice B (DDD boundary, test cut)  
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**Outcomes:**
+- ✅ Created `AuthoredWorkflowFixtureLoader` (static test helper, `Workflow/Authoring/`) — `LoadAsync(basePath, key)` / `ListKeys(basePath)`. Replaces the deleted `FilesystemAuthoredWorkflowStore` for tests that only need to read fixture JSON.
+- ✅ Migrated six test files to use the loader: `AuthoredWorkflowSerializationTests`, `StartupWorkflowPublishingTests`, `WorkflowPatchServiceTests`, `WorkflowPatchServiceFailureTests`, `WorkflowProjectorShellInferenceTests`, `WorkflowProjectorDeterminismTests`, plus the moved-and-renamespaced `Workflow/Publishing/WorkflowPublishServiceTests`.
+- ✅ Dropped three implementation-mirror tests in `AuthoredWorkflowSerializationTests` (`FilesystemStore_ListKeys_ReturnsFixtureKey`, `FilesystemStore_ListAsync_PreservesWorkflowKeySeparatelyFromDefinitionKey`, `FilesystemStore_ReturnsNull_ForMissingKey`) — all asserted on the deleted production class. Kept `FilesystemStore_LoadsFixtureDocument` and converted it to the new loader.
+- ✅ Deleted four whole test files (all tested deleted production code): `WorkflowAuthoringEndpointsTests`, `WorkflowAuthoringEndpointSecurityTests`, `WorkflowAuthoringApplyRelaxationTests`, `InMemoryAuthoredWorkflowStoreTests`.
+- ✅ Rewrote `FourWorkflowReferenceContractTests.cs` against the new `/mockapp/workflows/*` endpoints, with a new anonymous `MockBusinessAppWebFactory` (in-file) replacing the deleted `WorkflowAuthoringWebFactory` + `TestUserHeaderAuthHandler` infra.
+- ✅ Validated: `dotnet test UmbracoPrism.sln` → 814 passed / 0 failed / 11 skipped (was 860 — 46 tests legitimately retired with their production classes; no surviving tests dropped).
+
+**Peers:** Blathers (production deletions + endpoint rewrite + publish move), Isabelle (TS boundary + editor rewrite).
+
 ## 2026-05-16: Workflow Editor V1 Design Cycle
 
 **Scope:** Five-agent orchestration for workflow editor design iteration  

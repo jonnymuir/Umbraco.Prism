@@ -160,8 +160,7 @@ public class WorkflowProjectorShellInferenceTests
     public async Task PlanningFixture_AllStages_HaveCorrectInferredShells()
     {
         var fixturesPath = Path.Combine(AppContext.BaseDirectory, "Workflow", "Authoring", "Fixtures");
-        var store = new FilesystemAuthoredWorkflowStore(fixturesPath);
-        var authored = await store.LoadAsync("planning");
+        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
 
         var result = _projector.Project(authored!);
 

@@ -1,30 +1,44 @@
-import { LitElement, css, html } from 'lit';
+import { LitElement, css, html, nothing } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { live } from 'lit/directives/live.js';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { WorkflowAuthoringSummary } from './workflow-authoring-client.js';
-import {
-  defaultAuthoringApiBase,
-  listWorkflows,
-  normaliseAuthoringApiBase,
-} from './workflow-authoring-client.js';
 import './prism-workflow-editor.js';
+import type { WorkflowSource, WorkflowSummary } from './workflow-source.js';
+import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
+import type { WorkflowAuthorContext } from './workflow-author-context.js';
 
 @customElement('prism-workflow-editor-shell')
 export class PrismWorkflowEditorShellElement extends LitElement {
   @property({ type: String, attribute: 'workflow-key' })
   workflowKey = 'planning';
 
-  @property({ type: String, attribute: 'authoring-api-base' })
-  authoringApiBase = '';
+  /**
+   * Host-supplied source of authored workflows. The shell lists workflows
+   * via `source.list()` and forwards the selected workflow to
+   * `<prism-workflow-editor>`.
+   */
+  @property({ attribute: false })
+  workflowSource?: WorkflowSource;
+
+  /** Optional host-supplied action catalog forwarded to the editor. */
+  @property({ attribute: false })
+  actionCatalog?: WorkflowActionCatalog;
+
+  /** Optional host-supplied UX hints forwarded to the editor. */
+  @property({ attribute: false })
+  authorContext?: WorkflowAuthorContext;
 
   @state() private _draftWorkflowKey = 'planning';
-  @state() private _workflowOptions: WorkflowAuthoringSummary[] = [];
+  @state() private _workflowOptions: WorkflowSummary[] = [];
+  @state() private _sourceError: string | null = null;
 
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('workflowKey')) {
       this._draftWorkflowKey = this.workflowKey;
       this._syncUrlToWorkflow();
+    }
+    if (changed.has('workflowSource')) {
+      void this._loadWorkflowOptions();
     }
   }
 
@@ -43,14 +57,17 @@ export class PrismWorkflowEditorShellElement extends LitElement {
     void this._loadWorkflowOptions();
   }
 
-  private get _resolvedAuthoringApiBase(): string {
-    return normaliseAuthoringApiBase(this.authoringApiBase || defaultAuthoringApiBase());
-  }
-
   private async _loadWorkflowOptions(): Promise<void> {
+    if (!this.workflowSource) {
+      this._workflowOptions = [];
+      this._sourceError = null;
+      return;
+    }
+
     try {
-      const options = await listWorkflows(this._resolvedAuthoringApiBase);
+      const options = await this.workflowSource.list();
       this._workflowOptions = options;
+      this._sourceError = null;
 
       if (!this._draftWorkflowKey.trim() && options.length > 0) {
         this._draftWorkflowKey = options[0].workflowKey;
@@ -58,6 +75,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       }
     } catch (error) {
       this._workflowOptions = [];
+      this._sourceError = error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -89,9 +107,47 @@ export class PrismWorkflowEditorShellElement extends LitElement {
     );
   }
 
-  render() {
-    const editorIdentity = `${this.workflowKey}|${this._resolvedAuthoringApiBase}`;
+  private _renderEditorOrPlaceholder() {
+    if (!this.workflowSource) {
+      // Developer affordance — fail loudly when a host forgot to wire a source.
+      // Storybook stories that drive `<prism-workflow-editor>` directly via
+      // `initialWorkflow` should not be using the shell.
+      return html`
+        <div class="empty-state" role="status" data-prism-shell-empty="no-source">
+          <h2>No workflow source configured</h2>
+          <p>
+            Set <code>element.workflowSource</code> on
+            <code>&lt;prism-workflow-editor-shell&gt;</code> to a
+            <code>WorkflowSource</code> implementation. The in-memory reference
+            implementation lives in <code>in-memory-workflow-source.ts</code>.
+          </p>
+        </div>
+      `;
+    }
 
+    if (this._sourceError) {
+      return html`
+        <div class="empty-state" role="alert" data-prism-shell-empty="source-error">
+          <h2>Workflow source unavailable</h2>
+          <p>${this._sourceError}</p>
+        </div>
+      `;
+    }
+
+    return keyed(
+      this.workflowKey,
+      html`
+        <prism-workflow-editor
+          workflow-key="${this.workflowKey}"
+          .workflowSource=${this.workflowSource}
+          .actionCatalog=${this.actionCatalog}
+          .authorContext=${this.authorContext}
+        ></prism-workflow-editor>
+      `
+    );
+  }
+
+  render() {
     return html`
       <a class="skip-link" href="#workflow-editor-reference-main">Skip to editor</a>
 
@@ -117,22 +173,15 @@ export class PrismWorkflowEditorShellElement extends LitElement {
                    ${this._renderWorkflowOptions()}
                  </select>
                `
-             : html`<p class="workflow-label">${this.workflowKey}</p>`}
+             : this.workflowSource
+               ? html`<p class="workflow-label">${this.workflowKey}</p>`
+               : nothing}
           </div>
         </header>
 
         <main id="workflow-editor-reference-main" class="content">
           <div class="editor-frame">
-            ${keyed(
-              editorIdentity,
-              html`
-                <prism-workflow-editor
-                  workflow-key="${this.workflowKey}"
-                  authoring-api-base="${this._resolvedAuthoringApiBase}"
-                  approver-name="reference-shell"
-                ></prism-workflow-editor>
-              `
-            )}
+            ${this._renderEditorOrPlaceholder()}
           </div>
         </main>
       </div>
@@ -247,6 +296,25 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       display: block;
       height: 100%;
       width: 100%;
+    }
+
+    .empty-state {
+      padding: 2rem;
+      max-width: 60ch;
+      margin: 2rem auto;
+      color: #0b0c0c;
+    }
+
+    .empty-state h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+    }
+
+    .empty-state code {
+      background: #f3f2f1;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.92em;
     }
 
     @media (max-width: 768px) {

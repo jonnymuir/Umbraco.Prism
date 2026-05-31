@@ -1,9 +1,11 @@
 using System.Text.Json;
 using FluentAssertions;
+using UmbracoPrism.MockBusinessApp.Services.Publishing;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.WorkflowEditor.Authoring;
+using UmbracoPrism.Core.Tests.Workflow.Authoring;
 
-namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
+namespace UmbracoPrism.Core.Tests.Workflow.Publishing;
 
 public sealed class WorkflowPublishServiceTests : IDisposable
 {
@@ -185,8 +187,7 @@ public sealed class WorkflowPublishServiceTests : IDisposable
 
     private static async Task<AuthoredWorkflow> LoadPlanningFixture()
     {
-        var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        return await store.LoadAsync("planning")
+        return await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning")
             ?? throw new InvalidOperationException("planning fixture not found");
     }
 }

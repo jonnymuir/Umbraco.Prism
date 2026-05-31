@@ -196,8 +196,7 @@ public class WorkflowPatchServiceTests
 
     private static async Task<AuthoredWorkflow> LoadReferenceFixture()
     {
-        var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        var wf    = await store.LoadAsync("community-enquiry");
+        var wf = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "community-enquiry");
         return wf ?? throw new InvalidOperationException("community-enquiry fixture not found");
     }
 
