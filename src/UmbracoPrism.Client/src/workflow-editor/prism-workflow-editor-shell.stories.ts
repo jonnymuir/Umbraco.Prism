@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-workflow-editor-shell.js';
 import type { PrismWorkflowEditorShellElement } from './prism-workflow-editor-shell.js';
 import type { WorkflowAuthoringSummary } from './workflow-authoring-client.js';
+import { serialiseWorkflow } from './workflow-authoring-client.js';
 import { PLANNING_WORKFLOW } from './fixtures/index.js';
 import { STUB_ACTION_CATALOG, type AuthoredWorkflow, type AuthoredStage } from './types.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
@@ -195,7 +196,7 @@ function stubFetchFor(element: PrismWorkflowEditorShellElement): void {
       }
 
       if (!operation && method === 'GET') {
-        return jsonResponse(workflow);
+        return jsonResponse(serialiseWorkflow(workflow));
       }
 
       const body = init?.body ? JSON.parse(String(init.body)) : workflow;

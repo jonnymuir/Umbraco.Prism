@@ -41,13 +41,6 @@ export interface AuthoredStage {
   roleGates: string[];
   waiting?: WaitingMetadata;
   editorComment?: string;
-  /**
-   * Editor-only diagnostic marker. Set by the JSON-boundary normaliser when a
-   * stale workflow document arrives carrying the retired `Waiting` or
-   * `StatusTimeline` kind. The validator surfaces a warning so authors see why
-   * their stage was rewritten to `Question`. Stripped on outbound writes.
-   */
-  legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline';
 }
 
 export interface AuthoredGateway {
@@ -62,9 +55,10 @@ export interface AuthoredGateway {
   editorComment?: string;
 }
 
-// Closed union — mirrors the C# StageKind enum exactly. PROJ140 on the server
-// rejects any authored document carrying the retired "Waiting" / "StatusTimeline"
-// values; the client must not pretend they are still valid kinds.
+// Closed union — mirrors the C# StageKind enum exactly. PROJ005 on the server
+// rejects any authored document carrying an unknown stage kind (including the
+// retired "Waiting" / "StatusTimeline" tokens), so this client must not pretend
+// they are still valid kinds.
 export type StageKind =
   | 'Question'
   | 'CheckAnswers'

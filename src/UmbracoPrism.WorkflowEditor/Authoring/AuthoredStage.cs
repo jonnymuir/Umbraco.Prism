@@ -9,49 +9,16 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 /// </summary>
 public record AuthoredStage
 {
-    private string _stageKey = string.Empty;
-    private string _displayName = string.Empty;
     private StageKind _kind = StageKind.Question;
-    private string? _legacyKindRaw;
-    private bool _hasLegacyWaitingPayload;
+    private string? _unknownKindToken;
 
     /// <summary>Stable key unique within this workflow. Maps to <c>StepDefinition.StateKey</c> on projection.</summary>
     [JsonPropertyName("key")]
-    public string StageKey
-    {
-        get => _stageKey;
-        init => _stageKey = value;
-    }
-
-    /// <summary>Legacy alias for <see cref="StageKey"/> retained for proposal payload compatibility.</summary>
-    [JsonPropertyName("stageKey")]
-    public string? LegacyStageKey
-    {
-        init
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-                _stageKey = value;
-        }
-    }
+    public string StageKey { get; init; } = string.Empty;
 
     /// <summary>User-facing title rendered by the editor and projected runtime state.</summary>
     [JsonPropertyName("title")]
-    public string DisplayName
-    {
-        get => _displayName;
-        init => _displayName = value;
-    }
-
-    /// <summary>Legacy alias for <see cref="DisplayName"/> retained for proposal payload compatibility.</summary>
-    [JsonPropertyName("displayName")]
-    public string? LegacyDisplayName
-    {
-        init
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-                _displayName = value;
-        }
-    }
+    public string DisplayName { get; init; } = string.Empty;
 
     /// <summary>Optional description to explain the purpose of the stage to authors.</summary>
     [JsonPropertyName("description")]
@@ -66,10 +33,9 @@ public record AuthoredStage
     }
 
     /// <summary>
-    /// JSON-bound stage type token. Accepts any string so the validator can flag retired values
-    /// (PROJ140: <c>Waiting</c>, <c>StatusTimeline</c>) at the JSON boundary; unknown tokens default
-    /// to <see cref="StageKind.Question"/> at the runtime level but are preserved on
-    /// <see cref="LegacyKindRaw"/> for diagnostic emission.
+    /// JSON-bound stage type token. Unknown tokens are captured on
+    /// <see cref="UnknownKindToken"/> so the validator can fail loudly (PROJ005)
+    /// instead of silently rewriting the kind.
     /// </summary>
     [JsonPropertyName("type")]
     public string TypeRaw
@@ -78,20 +44,12 @@ public record AuthoredStage
         init => ApplyKindToken(value);
     }
 
-    /// <summary>Legacy alias for <see cref="Kind"/> retained for proposal payload compatibility.</summary>
-    [JsonPropertyName("kind")]
-    public string? LegacyKindLiteral
-    {
-        init
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-                ApplyKindToken(value);
-        }
-    }
-
-    /// <summary>Raw stage-type token captured when JSON supplied a value that does not map to <see cref="StageKind"/>.</summary>
+    /// <summary>
+    /// Raw stage-type token captured when JSON supplied a value that does not map to <see cref="StageKind"/>.
+    /// Surfaces in PROJ005 diagnostics; null on well-formed inputs.
+    /// </summary>
     [JsonIgnore]
-    public string? LegacyKindRaw => _legacyKindRaw;
+    public string? UnknownKindToken => _unknownKindToken;
 
     private void ApplyKindToken(string value)
     {
@@ -102,12 +60,11 @@ public record AuthoredStage
             && Enum.IsDefined(typeof(StageKind), parsed))
         {
             _kind = parsed;
-            _legacyKindRaw = null;
+            _unknownKindToken = null;
         }
         else
         {
-            _legacyKindRaw = value;
-            _kind = StageKind.Question;
+            _unknownKindToken = value;
         }
     }
 
@@ -137,24 +94,6 @@ public record AuthoredStage
     /// <summary>Roles that may enter this stage. Empty means any authenticated principal.</summary>
     [JsonPropertyName("roleGates")]
     public IReadOnlyList<string> RoleGates { get; init; } = [];
-
-    /// <summary>
-    /// Legacy waiting payload retained only to detect old authored documents at the JSON boundary.
-    /// Waiting metadata belongs on join gateways; presence here triggers PROJ140.
-    /// </summary>
-    [JsonPropertyName("waiting")]
-    public System.Text.Json.Nodes.JsonNode? LegacyWaitingPayload
-    {
-        init
-        {
-            if (value is not null)
-                _hasLegacyWaitingPayload = true;
-        }
-    }
-
-    /// <summary>True when the authored document carried stage-level waiting metadata that the validator should reject.</summary>
-    [JsonIgnore]
-    public bool HasLegacyWaitingPayload => _hasLegacyWaitingPayload;
 
     /// <summary>Editor-only comment, stripped during projection.</summary>
     [JsonPropertyName("editorComment")]

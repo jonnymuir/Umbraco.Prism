@@ -194,10 +194,11 @@ function mapKind(raw: string): StageKind {
     case 'TaskList':
       return 'TaskList';
     default:
-      // Retired kinds (Waiting, StatusTimeline) and any unknown value collapse
-      // to Question — PROJ140 rejects them on save, so the editor must not
-      // surface them as valid choices.
-      return 'Question';
+      // Closed enum. The server rejects unknown kinds with PROJ005; mirror
+      // that here so a malformed fixture fails loudly at load time.
+      throw new Error(
+        `Unknown stage kind "${raw}". Allowed kinds: Question, CheckAnswers, Confirmation, TaskList.`
+      );
   }
 }
 

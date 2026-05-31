@@ -2,9 +2,8 @@ import type { AuthoredWorkflow } from './types.js';
 
 /**
  * Definition-tab schema/shape validator. Mirrors the gateway-only model the
- * server (PROJ140/141/142) enforces — but acts on the *raw* parsed JSON before
- * the authoring client's silent `Waiting` → `Question` rewrite would mask
- * problems.
+ * server (PROJ005/141/142) enforces — runs against the *raw* parsed JSON so the
+ * JSON editor can surface inline diagnostics before the document hits the API.
  *
  * Returns a list of issues. Each carries a short author-facing message and an
  * optional 1-based line number derived from the editor source so the JSON

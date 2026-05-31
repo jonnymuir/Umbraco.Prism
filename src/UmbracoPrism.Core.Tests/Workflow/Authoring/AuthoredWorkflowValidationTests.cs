@@ -97,10 +97,11 @@ public class AuthoredWorkflowValidationTests
     }
 
     [Fact]
-    public void Project_StageWaitingMetadata_ReportsProj140()
+    public void Project_StageWithUnknownKind_ReportsProj005()
     {
-        // Retired stage kinds ("Waiting"/"StatusTimeline") and stage-level waiting payloads must be
-        // rejected at the JSON boundary — the C# enum no longer carries these values, so we feed raw JSON.
+        // Stage kind is a closed enum (Question, CheckAnswers, Confirmation, TaskList).
+        // The retired "Waiting" / "StatusTimeline" tokens — and any other unknown
+        // token — must surface a clear PROJ005 error rather than a silent rewrite.
         const string json = """
         {
           "definitionKey": "validation-test",
@@ -112,8 +113,7 @@ public class AuthoredWorkflowValidationTests
               "key": "start",
               "title": "Start",
               "type": "Waiting",
-              "actions": [],
-              "waiting": { "content": "Hold on" }
+              "actions": []
             }
           ],
           "transitions": []
@@ -124,16 +124,16 @@ public class AuthoredWorkflowValidationTests
         var result = _projector.Project(authored);
 
         result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ140" && d.StageKey == "start");
+        result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ005" && d.StageKey == "start")
+            .Which.Message.Should().Contain("Waiting");
     }
 
     [Fact]
-    public void Project_StageWithBareWaitingPayloadOnly_ReportsProj140()
+    public void Project_TransitionWithRetiredFromStageKey_HasEmptySourceAndReportsProj106()
     {
-        // Pins the bare-sentinel branch of HasLegacyWaitingPayload independently of
-        // LegacyKindRaw. Even with a current-valid stage type ("Question"), a non-null
-        // "waiting" JSON payload at stage scope must fire PROJ140.
-        // See AuthoredWorkflowSchemaValidator.cs:49-55 and AuthoredStage.cs:146-153.
+        // The retired fromStage/toStage/action JSON aliases have been purged.
+        // A document still emitting them must hit the "source required" validator
+        // rather than being silently rewritten — no backwards compatibility shim.
         const string json = """
         {
           "definitionKey": "validation-test",
@@ -141,25 +141,24 @@ public class AuthoredWorkflowValidationTests
           "schemaVersion": "1.0",
           "initialStageKey": "start",
           "stages": [
-            {
-              "key": "start",
-              "title": "Start",
-              "type": "Question",
-              "actions": [],
-              "waiting": { "content": "Hold on" }
-            }
+            { "key": "start", "title": "Start", "type": "Question", "actions": [] },
+            { "key": "done",  "title": "Done",  "type": "Confirmation", "actions": [] }
           ],
-          "transitions": []
+          "transitions": [
+            { "fromStage": "start", "toStage": "done", "action": "submit" }
+          ]
         }
         """;
         var authored = JsonSerializer.Deserialize<AuthoredWorkflow>(json)!;
+        authored.Transitions.Should().ContainSingle()
+            .Which.Source.Should().BeEmpty("the retired fromStage alias must no longer rewrite Source");
 
         var result = _projector.Project(authored);
 
         result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().ContainSingle(
-            d => d.Code == "PROJ140" && d.StageKey == "start",
-            because: "the bare 'waiting' payload at stage scope is a smuggled legacy shape and must be rejected even when LegacyKindRaw is empty");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ106");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ107");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ108");
     }
 
     [Fact]
@@ -294,7 +293,8 @@ public class AuthoredWorkflowValidationTests
     [Fact]
     public void Project_WaitingStage_InGatewayOnlyModel_IsRejected()
     {
-        // Authoring docs that still carry the retired waiting-stage shape must be rejected at the JSON boundary.
+        // Authoring docs that still carry the retired waiting-stage type are rejected at the
+        // JSON boundary with PROJ005 — waiting belongs on join gateways.
         const string json = """
         {
           "definitionKey": "waiting-stage-validation",
@@ -309,13 +309,7 @@ public class AuthoredWorkflowValidationTests
               "title": "Wait for review",
               "type": "Waiting",
               "laneKey": "applicant",
-              "actions": [],
-              "waiting": {
-                "content": "Waiting for a review.",
-                "expectedWaitSeconds": 120,
-                "pollIntervalMs": 5000,
-                "allowDefer": false
-              }
+              "actions": []
             }
           ],
           "transitions": [
@@ -329,8 +323,8 @@ public class AuthoredWorkflowValidationTests
 
         result.HasErrors.Should().BeTrue(
             "waiting belongs on join gateways in the corrected model");
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ140",
-            "PROJ140 should fire when stage-level waiting metadata or retired stage kinds appear");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ005" && d.StageKey == "wait-for-review",
+            "PROJ005 should fire when an unknown/retired stage kind appears");
     }
 
     [Fact]

@@ -4,6 +4,7 @@ import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 import { STUB_ACTION_CATALOG, type AuthoredWorkflow } from './types.js';
+import { serialiseWorkflow } from './workflow-authoring-client.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
 
 /**
@@ -32,7 +33,7 @@ function stubFetchFor(el: PrismWorkflowEditorElement): void {
     if (WORKFLOW_API_RE.test(urlStr)) {
       const method = (init?.method ?? 'GET').toUpperCase();
       if (method === 'GET')
-        return new Response(JSON.stringify(PLANNING_WORKFLOW), {
+        return new Response(JSON.stringify(serialiseWorkflow(PLANNING_WORKFLOW)), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });

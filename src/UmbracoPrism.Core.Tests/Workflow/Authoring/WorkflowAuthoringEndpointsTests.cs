@@ -345,7 +345,7 @@ public class WorkflowAuthoringEndpointsTests
     }
 
     [Fact]
-    public async Task PostSave_LegacyAliasRoute_IsRetiredAndReturnsNotFound()
+    public async Task PostSave_RetiredAliasRoute_ReturnsNotFound()
     {
         // Slice 8a retired the /save alias. Only /publish (direct save) and /apply
         // (envelope-mediated save) remain. Integrators that still target /save get

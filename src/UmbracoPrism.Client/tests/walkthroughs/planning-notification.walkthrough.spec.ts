@@ -1,4 +1,4 @@
-// Legacy planning-notification walkthrough retained for historical screenshots only.
+// Planning-notification walkthrough retained for historical screenshots only.
 // The live localhost-auth lane now runs against the authored "planning" workflow
 // (Declaration → Application Form → Check your answers → Application submitted).
 // See planning-workflow-complete.walkthrough.spec.ts for the current contract.

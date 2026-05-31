@@ -46,12 +46,11 @@ public static class AuthoredWorkflowSchemaValidator
                     $"Stage '{stage.StageKey}' must define a title.", stage.StageKey));
             }
 
-            if (string.Equals(stage.LegacyKindRaw, "Waiting", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(stage.LegacyKindRaw, "StatusTimeline", StringComparison.OrdinalIgnoreCase)
-                || stage.HasLegacyWaitingPayload)
+            if (!string.IsNullOrWhiteSpace(stage.UnknownKindToken))
             {
-                diagnostics.Add(Error("PROJ140",
-                    $"Stage '{stage.StageKey}' cannot author waiting state. Waiting belongs on join gateways.", stage.StageKey));
+                diagnostics.Add(Error("PROJ005",
+                    $"Unknown stage kind '{stage.UnknownKindToken}'. Allowed kinds: Question, CheckAnswers, Confirmation, TaskList.",
+                    stage.StageKey));
             }
 
             if (!string.IsNullOrWhiteSpace(stage.LaneKey))

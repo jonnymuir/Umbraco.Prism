@@ -25,7 +25,6 @@ export interface WorkflowValidationIssue {
     | 'stage-orphaned'
     | 'stage-unreachable'
     | 'stage-dead-end'
-    | 'stage-legacy-kind-rewritten'
     | 'transition-missing-stage'
     | 'action-configuration';
   severity: WorkflowValidationSeverity;
@@ -228,17 +227,6 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     message: `Stage “${stage.displayName}” has no outgoing route through a gateway yet.`,
   }));
 
-  const legacyKindIssues = workflow.stages
-    .filter(stage => Boolean(stage.legacyKindRewrittenFrom))
-    .map(stage => ({
-      id: `stage-legacy-kind-rewritten-${stage.stageKey}`,
-      code: 'stage-legacy-kind-rewritten' as const,
-      severity: 'warning' as const,
-      blocking: false,
-      location: { kind: 'stage', stageKey: stage.stageKey } as const,
-      message: `Stage “${stage.displayName}” was loaded with the retired type “${stage.legacyKindRewrittenFrom}”. The editor rewrote it to “Question” because the server no longer accepts the old type — move waiting copy onto a join gateway before you save.`,
-    }));
-
   const missingStageTransitionIssues = workflowTransitionsWithMissingStages(workflow).map(({ transition, transitionIndex }) => {
     const missingSource = !workflow.stages.some(stage => stage.stageKey === transition.fromStage);
     const missingTarget = !workflow.stages.some(stage => stage.stageKey === transition.toStage);
@@ -284,7 +272,6 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     ...orphanedIssues,
     ...unreachableIssues,
     ...deadEndIssues,
-    ...legacyKindIssues,
     ...missingStageTransitionIssues,
     ...stageActionIssues,
     ...transitionActionIssues,

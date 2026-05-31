@@ -68,9 +68,9 @@ public class WorkflowPatchServiceFailureTests
         var envelope = BuildEnvelopeWithValue("insert-stage",
             new
             {
-                stageKey    = "new-stage",
-                displayName = "New Stage",
-                kind        = "Question",
+                key         = "new-stage",
+                title       = "New Stage",
+                type        = "Question",
                 actor       = "applicant",
                 fields      = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
@@ -105,9 +105,9 @@ public class WorkflowPatchServiceFailureTests
         var envelope = BuildEnvelopeWithValue("update-stage",
             new
             {
-                stageKey    = "does-not-exist",
-                displayName = "Ghost Stage",
-                kind        = "Question",
+                key         = "does-not-exist",
+                title       = "Ghost Stage",
+                type        = "Question",
                 actor       = "applicant",
                 fields      = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()

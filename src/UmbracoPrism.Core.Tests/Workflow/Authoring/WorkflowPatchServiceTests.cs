@@ -28,9 +28,9 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
-            stageKey    = "site-notice",
-            displayName = "Site Notice",
-            kind        = "Question",
+            key         = "site-notice",
+            title       = "Site Notice",
+            type        = "Question",
             actor       = "caseworker",
             fields      = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
@@ -54,9 +54,9 @@ public class WorkflowPatchServiceTests
             before: "submitted",
             value: new
             {
-                stageKey    = "supporting-docs",
-                displayName = "Supporting Documents",
-                kind        = "Question",
+                key         = "supporting-docs",
+                title       = "Supporting Documents",
+                type        = "Question",
                 actor       = "applicant",
                 fields      = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
@@ -80,9 +80,9 @@ public class WorkflowPatchServiceTests
             after: "collecting-details",
             value: new
             {
-                stageKey    = "eligibility-check",
-                displayName = "Eligibility Check",
-                kind        = "Question",
+                key         = "eligibility-check",
+                title       = "Eligibility Check",
+                type        = "Question",
                 actor       = "applicant",
                 fields      = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
@@ -123,9 +123,9 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("update-stage", path: "/stages/collecting-details", value: new
         {
-            stageKey    = "collecting-details",
-            displayName = "Updated Details",
-            kind        = "Question",
+            key         = "collecting-details",
+            title       = "Updated Details",
+            type        = "Question",
             actor       = "applicant",
             fields      = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
@@ -148,9 +148,9 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
-            stageKey    = "extra-stage",
-            displayName = "Extra Stage",
-            kind        = "Question",
+            key         = "extra-stage",
+            title       = "Extra Stage",
+            type        = "Question",
             actor       = "applicant",
             fields      = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
@@ -176,9 +176,9 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
-            stageKey    = "new-stage",
-            displayName = "New Stage",
-            kind        = "Question",
+            key         = "new-stage",
+            title       = "New Stage",
+            type        = "Question",
             actor       = "applicant",
             fields      = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()

@@ -2,7 +2,7 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Waiting metadata authored on join gateways and projected into runtime waiting envelopes.
-/// Legacy stage-level waiting payloads still deserialize for compatibility, but validation rejects them.
+/// Stage-level waiting is not supported — waiting copy lives on the gateway that gates the wait.
 /// </summary>
 public record WaitingMetadata
 {

@@ -9,9 +9,9 @@
   "instancePolicy": "single",
   "stages": [
     {
-      "stageKey": "declaration",
-      "displayName": "Declaration",
-      "kind": "Question",
+      "key": "declaration",
+      "title": "Declaration",
+      "type": "Question",
       "actor": "applicant",
       "fields": [
         {
@@ -35,9 +35,9 @@
       "editorComment": "Entry point — collects basic applicant and site identity."
     },
     {
-      "stageKey": "application-form",
-      "displayName": "Application Form",
-      "kind": "Question",
+      "key": "application-form",
+      "title": "Application Form",
+      "type": "Question",
       "actor": "applicant",
       "fields": [
         {
@@ -59,18 +59,18 @@
       "roleGates": []
     },
     {
-      "stageKey": "check-answers",
-      "displayName": "Check your answers",
-      "kind": "CheckAnswers",
+      "key": "check-answers",
+      "title": "Check your answers",
+      "type": "CheckAnswers",
       "actor": "applicant",
       "fields": [],
       "roleGates": [],
       "editorComment": "Summary of all answers before final submission."
     },
     {
-      "stageKey": "submitted",
-      "displayName": "Application submitted",
-      "kind": "Confirmation",
+      "key": "submitted",
+      "title": "Application submitted",
+      "type": "Confirmation",
       "actor": "applicant",
       "fields": [],
       "roleGates": []
@@ -78,19 +78,19 @@
   ],
   "transitions": [
     {
-      "fromStage": "declaration",
-      "toStage": "application-form",
-      "action": "continue"
+      "source": "declaration",
+      "target": "application-form",
+      "trigger": "continue"
     },
     {
-      "fromStage": "application-form",
-      "toStage": "check-answers",
-      "action": "continue"
+      "source": "application-form",
+      "target": "check-answers",
+      "trigger": "continue"
     },
     {
-      "fromStage": "check-answers",
-      "toStage": "submitted",
-      "action": "submit"
+      "source": "check-answers",
+      "target": "submitted",
+      "trigger": "submit"
     }
   ],
   "handoffs": [

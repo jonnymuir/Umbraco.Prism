@@ -23,31 +23,17 @@ import type {
 import { STUB_ACTION_CATALOG } from './types.js';
 import { projectWorkflowLocally, type ProjectWorkflowResult } from './workflow-runtime-projection.js';
 
-function stripLegacyStageSurface<T extends AuthoredStage>(stage: T): T {
-  const {
-    editorSurface: _editorSurface,
-    legacyKindRewrittenFrom,
-    ...rest
-  } = stage as T & {
+function stripEditorOnlyStageSurface<T extends AuthoredStage>(stage: T): T {
+  const { editorSurface: _editorSurface, ...rest } = stage as T & {
     editorSurface?: 'front-stage' | 'back-stage';
-    legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline';
   };
-
-  if (legacyKindRewrittenFrom) {
-    // The C# validator (PROJ140) rejects a legacy waiting payload on a stage,
-    // so once we've downgraded the kind we must also drop the payload that
-    // came with it. Waiting copy belongs on join gateways from Slice 3a on.
-    const { waiting: _waiting, ...withoutWaiting } = rest as typeof rest & { waiting?: unknown };
-    return withoutWaiting as T;
-  }
-
   return rest as T;
 }
 
 function serialiseTransition(transition: AuthoredTransition): Record<string, unknown> {
-  // Slice 3b.1 wire-format alignment: the C# AuthoredTransition canonical
-  // field names are source/target/trigger. Stop exercising the [Obsolete]
-  // fromStage/toStage/action shims on every save.
+  // The canonical C# AuthoredTransition wire shape is source/target/trigger.
+  // Editor-only fields (fromGateway/toGateway) and TS-side aliases
+  // (fromStage/toStage/action) never go on the wire.
   const {
     fromStage,
     toStage,
@@ -56,6 +42,7 @@ function serialiseTransition(transition: AuthoredTransition): Record<string, unk
     toGateway: _toGateway,
     ...rest
   } = transition;
+  // Stages on the wire use key/title/type, not stageKey/displayName/kind.
   return {
     ...rest,
     source: fromStage,
@@ -64,11 +51,52 @@ function serialiseTransition(transition: AuthoredTransition): Record<string, unk
   };
 }
 
-function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
+function serialiseStage(stage: AuthoredStage): Record<string, unknown> {
+  const stripped = stripEditorOnlyStageSurface(stage);
+  const { stageKey, displayName, kind, ...rest } = stripped as AuthoredStage & Record<string, unknown>;
+  return {
+    ...rest,
+    key: stageKey,
+    title: displayName,
+    type: kind,
+  };
+}
+
+function serialiseGateway(gateway: AuthoredGateway): Record<string, unknown> {
+  const { gatewayKey, displayName, kind, ...rest } = gateway as AuthoredGateway & Record<string, unknown>;
+  return {
+    ...rest,
+    key: gatewayKey,
+    title: displayName,
+    type: kind,
+  };
+}
+
+function serialiseField(field: AuthoredField): Record<string, unknown> {
+  const { fieldKey, kind, hintText, ...rest } = field as AuthoredField & Record<string, unknown>;
+  return {
+    ...rest,
+    key: fieldKey,
+    type: kind,
+    hint: hintText,
+  };
+}
+
+export function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
   return {
     ...workflow,
-    stages: workflow.stages.map(stage => stripLegacyStageSurface(stage)),
+    stages: workflow.stages.map(stage => {
+      const serialised = serialiseStage(stage);
+      if (Array.isArray((serialised as { fields?: unknown[] }).fields)) {
+        (serialised as { fields: unknown[] }).fields =
+          ((serialised as { fields: unknown[] }).fields as AuthoredField[]).map(serialiseField);
+      }
+      return serialised;
+    }),
     transitions: workflow.transitions.map(serialiseTransition),
+    gateways: Array.isArray(workflow.gateways)
+      ? workflow.gateways.map(serialiseGateway)
+      : workflow.gateways,
   };
 }
 
@@ -101,24 +129,22 @@ function url(path: string, apiBase?: string): string {
   return `${normaliseAuthoringApiBase(apiBase)}${path}`;
 }
 
-function mapStageKind(raw: string | undefined): {
-  kind: StageKind;
-  legacyKindRewrittenFrom?: 'Waiting' | 'StatusTimeline';
-} {
+function mapStageKind(raw: string | undefined): StageKind {
+  if (raw === undefined || raw === '') {
+    return 'Question';
+  }
   switch (raw) {
+    case 'Question':
     case 'CheckAnswers':
     case 'Confirmation':
     case 'TaskList':
-      return { kind: raw };
-    case 'Waiting':
-    case 'StatusTimeline':
-      // JSON-boundary normaliser (Slice 3b.1): the C# StageKind enum no
-      // longer includes these kinds and PROJ140 rejects them on save.
-      // Downgrade to Question and mark the stage so the validator can
-      // surface the rewrite to the author.
-      return { kind: 'Question', legacyKindRewrittenFrom: raw };
+      return raw;
     default:
-      return { kind: 'Question' };
+      // Closed enum — the server rejects unknown kinds with PROJ005. Fail loudly
+      // here too so authors see the real problem instead of a silent rewrite.
+      throw new Error(
+        `Unknown stage kind "${raw}". Allowed kinds: Question, CheckAnswers, Confirmation, TaskList.`
+      );
   }
 }
 
@@ -163,11 +189,11 @@ function mapGatewayKind(raw: string | undefined): GatewayKind {
 
 function normaliseField(raw: Record<string, unknown>): AuthoredField {
   return {
-    fieldKey: String(raw.fieldKey ?? raw.key ?? ''),
+    fieldKey: String(raw.key ?? ''),
     label: String(raw.label ?? ''),
-    kind: mapFieldKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined),
+    kind: mapFieldKind(typeof raw.type === 'string' ? raw.type : undefined),
     required: Boolean(raw.required),
-    hintText: typeof raw.hintText === 'string' ? raw.hintText : typeof raw.hint === 'string' ? raw.hint : undefined,
+    hintText: typeof raw.hint === 'string' ? raw.hint : undefined,
     validationPattern:
       typeof raw.validationPattern === 'string'
         ? raw.validationPattern
@@ -189,13 +215,12 @@ function normaliseAction(raw: Record<string, unknown>): AuthoredAction {
 }
 
 function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
-  const kindResult = mapStageKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined);
+  const kind = mapStageKind(typeof raw.type === 'string' ? raw.type : undefined);
   return {
-    stageKey: String(raw.stageKey ?? raw.key ?? ''),
-    displayName: String(raw.displayName ?? raw.title ?? ''),
+    stageKey: String(raw.key ?? ''),
+    displayName: String(raw.title ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
-    kind: kindResult.kind,
-    legacyKindRewrittenFrom: kindResult.legacyKindRewrittenFrom,
+    kind,
     actor: typeof raw.actor === 'string' ? raw.actor : undefined,
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
@@ -209,10 +234,10 @@ function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
 
 function normaliseGateway(raw: Record<string, unknown>): AuthoredGateway {
   return {
-    gatewayKey: String(raw.gatewayKey ?? raw.key ?? ''),
-    displayName: String(raw.displayName ?? raw.title ?? ''),
+    gatewayKey: String(raw.key ?? ''),
+    displayName: String(raw.title ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
-    kind: mapGatewayKind(typeof raw.kind === 'string' ? raw.kind : typeof raw.type === 'string' ? raw.type : undefined),
+    kind: mapGatewayKind(typeof raw.type === 'string' ? raw.type : undefined),
     laneKey: typeof raw.laneKey === 'string' ? raw.laneKey : undefined,
     actor: typeof raw.actor === 'string' ? raw.actor : undefined,
     roleGates: Array.isArray(raw.roleGates) ? raw.roleGates.map(value => String(value)) : [],
@@ -228,11 +253,9 @@ function normaliseTransition(raw: Record<string, unknown>): AuthoredTransition {
       : null;
 
   return {
-    // Prefer the canonical source/target/trigger wire names; fall back to the
-    // legacy fromStage/toStage/action shape for any caller still emitting it.
-    fromStage: String(raw.source ?? raw.fromStage ?? ''),
-    toStage: String(raw.target ?? raw.toStage ?? ''),
-    action: String(raw.trigger ?? raw.action ?? ''),
+    fromStage: String(raw.source ?? ''),
+    toStage: String(raw.target ?? ''),
+    action: String(raw.trigger ?? ''),
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
       : [],

@@ -323,22 +323,25 @@ public class AuthoredWorkflowSerializationTests
         AppContext.BaseDirectory,
         "Workflow", "Authoring", "Fixtures");
 
-#pragma warning disable CS0618 // legacy shim is intentionally exercised by this test
     [Fact]
-    public void AuthoredTransition_LegacyShimRoundTrip_FromStageToStageAction_ReadBackViaSourceTargetTrigger()
+    public void AuthoredTransition_JsonWithRetiredFromStageKey_DoesNotPopulateSource()
     {
-        // Pins the FromStage/ToStage/Action <-> Source/Target/Trigger shim so any future
-        // removal of the obsolete properties surfaces here, not in a downstream caller.
-        var transition = new AuthoredTransition
+        // Pins the post-legacy-purge wire contract: only source/target/trigger
+        // bind. A caller still emitting the retired fromStage/toStage/action
+        // shape must hit a validation error (PROJ106/107/108), not get a
+        // silent rewrite that pretends the document was valid.
+        const string json = """
         {
-            FromStage = "details",
-            ToStage   = "review",
-            Action    = "submit"
-        };
+          "fromStage": "details",
+          "toStage":   "review",
+          "action":    "submit"
+        }
+        """;
 
-        transition.Source.Should().Be("details");
-        transition.Target.Should().Be("review");
-        transition.Trigger.Should().Be("submit");
+        var transition = JsonSerializer.Deserialize<AuthoredTransition>(json)!;
+
+        transition.Source.Should().BeEmpty();
+        transition.Target.Should().BeEmpty();
+        transition.Trigger.Should().BeEmpty();
     }
-#pragma warning restore CS0618
 }
