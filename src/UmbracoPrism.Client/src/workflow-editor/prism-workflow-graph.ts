@@ -22,6 +22,7 @@ import {
   gatewayLaneKey,
   type GatewayBinding,
 } from './workflow-gateway-representation.js';
+import { deleteRoute, withDerivedTransitions } from './workflow-routes.js';
 
 type SelectionKind = 'stage' | 'transition' | 'gateway';
 
@@ -715,7 +716,19 @@ export class PrismWorkflowGraphElement extends LitElement {
     const transitionLayouts: TransitionLayout[] = transitions.map((transition, index) => {
       const sourceStage = stageMap.get(transition.fromStage);
       const targetStage = stageMap.get(transition.toStage);
-      if (!sourceStage || !targetStage) {
+      const sourceGateway = transition.fromGateway
+        ? gatewayLayoutByKey.get(transition.fromGateway) ?? null
+        : splitLayoutByAnchorStage.get(transition.fromStage) ?? null;
+      const targetGateway = transition.toGateway
+        ? gatewayLayoutByKey.get(transition.toGateway) ?? null
+        : joinLayoutByAnchorStage.get(transition.toStage) ?? null;
+
+      // Slice C: a route may target a gateway directly (e.g. a feeder split
+      // pointing into a Join). When the toStage is itself a gateway key, the
+      // terminal node of the path is the gateway, not a stage.
+      const effectiveSource = sourceStage ?? sourceGateway ?? null;
+      const effectiveTarget = targetStage ?? targetGateway ?? null;
+      if (!effectiveSource || !effectiveTarget) {
         return {
           transition,
           index,
@@ -729,21 +742,15 @@ export class PrismWorkflowGraphElement extends LitElement {
         };
       }
 
-      const sourceGateway = transition.fromGateway
-        ? gatewayLayoutByKey.get(transition.fromGateway) ?? null
-        : splitLayoutByAnchorStage.get(transition.fromStage) ?? null;
-      const targetGateway = transition.toGateway
-        ? gatewayLayoutByKey.get(transition.toGateway) ?? null
-        : joinLayoutByAnchorStage.get(transition.toStage) ?? null;
-      const routedNodes: Array<StageLayout | GatewayLayout> = [sourceStage];
+      const routedNodes: Array<StageLayout | GatewayLayout> = [effectiveSource];
       if (sourceGateway && routedNodes[routedNodes.length - 1] !== sourceGateway) {
         routedNodes.push(sourceGateway);
       }
       if (targetGateway && routedNodes[routedNodes.length - 1] !== targetGateway) {
         routedNodes.push(targetGateway);
       }
-      if (routedNodes[routedNodes.length - 1] !== targetStage) {
-        routedNodes.push(targetStage);
+      if (routedNodes[routedNodes.length - 1] !== effectiveTarget) {
+        routedNodes.push(effectiveTarget);
       }
 
       const { path, labelX, labelY } = this._buildTransitionPath(routedNodes);
@@ -1060,7 +1067,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _selectTransition(index: number, options?: { openInspector?: boolean }) {
-    const transition = this.workflow?.transitions[index];
+    const transition = (this.workflow?.transitions ?? [])[index];
     if (!transition) {
       return;
     }
@@ -1407,7 +1414,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._dialogReturnTarget = returnTarget ?? this._contextReturnTarget ?? null;
     this._deleteStageDialog = {
       stageKey,
-      affectedTransitions: this.workflow.transitions.filter(
+      affectedTransitions: (this.workflow.transitions ?? []).filter(
         transition => transition.fromStage === stageKey || transition.toStage === stageKey
       ),
     };
@@ -1435,19 +1442,26 @@ export class PrismWorkflowGraphElement extends LitElement {
     const deletedLabel = this._labelForStage(stageKey);
     const transitionCount = this._deleteStageDialog.affectedTransitions.length;
     const stages = this.workflow.stages.filter(stage => stage.stageKey !== stageKey);
-    const transitions = this.workflow.transitions.filter(
-      transition => transition.fromStage !== stageKey && transition.toStage !== stageKey
-    );
 
-    const workflow: AuthoredWorkflow = {
+    // Drop any gateway whose source was this stage, and remove any route
+    // that targeted this stage. The derived `transitions` view is rebuilt
+    // by `withDerivedTransitions` before we hand the workflow downstream.
+    const gateways = (this.workflow.gateways ?? [])
+      .filter(g => g.source !== stageKey)
+      .map(g => ({
+        ...g,
+        routes: (g.routes ?? []).filter(route => route.target !== stageKey),
+      }));
+
+    const workflow: AuthoredWorkflow = withDerivedTransitions({
       ...this.workflow,
       stages,
-      transitions,
+      gateways,
       initialStageKey:
         this.workflow.initialStageKey === stageKey
           ? stages[0]?.stageKey ?? ''
           : this.workflow.initialStageKey,
-    };
+    });
 
     this._selectedStageKey = null;
     this._selectedTransitionIndex = null;
@@ -1477,7 +1491,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private async _copyTransition(index: number) {
-    const transition = this.workflow?.transitions[index];
+    const transition = (this.workflow?.transitions ?? [])[index];
     if (!transition) {
       return;
     }
@@ -1499,16 +1513,19 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
 
-    const transition = this.workflow.transitions[index];
+    const transition = (this.workflow.transitions ?? [])[index];
     if (!transition) {
       return;
     }
 
-    const transitions = this.workflow.transitions.filter((_, transitionIndex) => transitionIndex !== index);
-    const workflow: AuthoredWorkflow = {
-      ...this.workflow,
-      transitions,
-    };
+    const gatewayKey = transition.gatewayKey;
+    const routeId = transition.routeId;
+    const workflow: AuthoredWorkflow = (gatewayKey && routeId)
+      ? deleteRoute(this.workflow, { gatewayKey, routeId })
+      : {
+          ...this.workflow,
+          transitions: (this.workflow.transitions ?? []).filter((_, i) => i !== index),
+        };
 
     this._selectedTransitionIndex = null;
     this._emitWorkflowUpdated(workflow, null);

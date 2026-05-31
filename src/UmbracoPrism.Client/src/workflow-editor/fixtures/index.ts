@@ -7,12 +7,14 @@
 import type {
   AuthoredAction,
   AuthoredField,
+  AuthoredGateway,
+  AuthoredRoute,
   AuthoredStage,
-  AuthoredTransition,
   AuthoredWorkflow,
   FieldKind,
   StageKind,
 } from '../types.js';
+import { withDerivedTransitions } from '../workflow-routes.js';
 
 interface FixtureField {
   key: string;
@@ -43,11 +45,25 @@ interface FixtureStage {
   editorComment?: string;
 }
 
-interface FixtureTransition {
-  fromStage: string;
-  toStage: string;
-  action: string;
+interface FixtureRoute {
+  id: string;
+  target: string;
+  trigger: string;
+  condition?: string;
+  requiresRole?: string;
   actions?: FixtureAction[];
+}
+
+interface FixtureGateway {
+  gatewayKey: string;
+  displayName: string;
+  description?: string;
+  kind: 'Split' | 'Join';
+  laneKey?: string;
+  actor?: string;
+  source?: string;
+  roleGates?: string[];
+  routes: FixtureRoute[];
 }
 
 interface RawPlanningWorkflow {
@@ -59,7 +75,7 @@ interface RawPlanningWorkflow {
   initialStageKey: string;
   instancePolicy: string;
   stages: FixtureStage[];
-  transitions: FixtureTransition[];
+  gateways: FixtureGateway[];
 }
 
 const RAW: RawPlanningWorkflow = {
@@ -163,20 +179,64 @@ const RAW: RawPlanningWorkflow = {
       roleGates: [],
     },
   ],
-  transitions: [
-    { fromStage: 'declaration', toStage: 'application-form', action: 'continue', actions: [] },
-    { fromStage: 'application-form', toStage: 'check-answers', action: 'continue', actions: [] },
+  gateways: [
     {
-      fromStage: 'check-answers',
-      toStage: 'submitted',
-      action: 'submit',
-      actions: [
+      gatewayKey: 'route-application-form',
+      displayName: 'Route to application form',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      source: 'declaration',
+      roleGates: [],
+      routes: [
         {
-          type: 'forms.submit',
-          timing: 'OnTransition',
-          parameterSchemaKey: 'forms-form-definition',
-          params: { formDefinitionId: 'planning-application' },
-          summary: 'Submit the application form to the business app.',
+          id: 'declaration--continue--application-form',
+          target: 'application-form',
+          trigger: 'continue',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'route-check-answers',
+      displayName: 'Route to check answers',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      source: 'application-form',
+      roleGates: [],
+      routes: [
+        {
+          id: 'application-form--continue--check-answers',
+          target: 'check-answers',
+          trigger: 'continue',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'route-submitted',
+      displayName: 'Route to submitted',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      source: 'check-answers',
+      roleGates: [],
+      routes: [
+        {
+          id: 'check-answers--submit--submitted',
+          target: 'submitted',
+          trigger: 'submit',
+          condition: 'guard:application.isComplete == true',
+          actions: [
+            {
+              type: 'forms.submit',
+              timing: 'OnTransition',
+              parameterSchemaKey: 'forms-form-definition',
+              params: { formDefinitionId: 'planning-application' },
+              summary: 'Submit the application form to the business app.',
+            },
+          ],
         },
       ],
     },
@@ -236,13 +296,6 @@ function normaliseAction(raw: FixtureAction): AuthoredAction {
 }
 
 function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
-  const transitions: AuthoredTransition[] = raw.transitions.map(t => ({
-    fromStage: t.fromStage,
-    toStage: t.toStage,
-    action: t.action,
-    actions: (t.actions ?? []).map(normaliseAction),
-  }));
-
   const stages: AuthoredStage[] = raw.stages.map(s => {
     const fields: AuthoredField[] = s.fields.map(f => ({
       fieldKey: f.key,
@@ -266,7 +319,30 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     };
   });
 
-  return {
+  const gateways: AuthoredGateway[] = raw.gateways.map(g => {
+    const routes: AuthoredRoute[] = g.routes.map(r => ({
+      id: r.id,
+      target: r.target,
+      trigger: r.trigger,
+      condition: r.condition,
+      requiresRole: r.requiresRole,
+      actions: (r.actions ?? []).map(normaliseAction),
+    }));
+
+    return {
+      gatewayKey: g.gatewayKey,
+      displayName: g.displayName,
+      description: g.description,
+      kind: g.kind,
+      laneKey: g.laneKey,
+      actor: g.actor,
+      source: g.source,
+      roleGates: g.roleGates ?? [],
+      routes,
+    };
+  });
+
+  return withDerivedTransitions({
     definitionKey: raw.definitionKey,
     displayName: raw.displayName,
     version: raw.version,
@@ -274,8 +350,8 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     instancePolicy: raw.instancePolicy,
     initialStageKey: raw.initialStageKey,
     stages,
-    transitions,
-  };
+    gateways,
+  });
 }
 
 export const PLANNING_WORKFLOW: AuthoredWorkflow = normalisePlanningFixture(RAW);
@@ -296,7 +372,7 @@ export function cloneAuthoredWorkflow<T extends AuthoredWorkflow>(workflow: T): 
  * (one of which crosses into the reviewer lane) and `decision-join` waits
  * for every branch before releasing the decision-confirmed stage.
  */
-export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
+export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = withDerivedTransitions({
   definitionKey: 'leave-request',
   displayName: 'Leave Request',
   version: 1,
@@ -355,52 +431,6 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
   ],
-  transitions: [
-    {
-      fromStage: 'start-request',
-      fromGateway: 'review-split',
-      toStage: 'applicant-amendments',
-      action: 'request amendments',
-      actions: [],
-    },
-    {
-      fromStage: 'start-request',
-      fromGateway: 'review-split',
-      toStage: 'upload-evidence',
-      action: 'upload evidence',
-      actions: [],
-    },
-    {
-      fromStage: 'start-request',
-      fromGateway: 'review-split',
-      toStage: 'reviewer-assessment',
-      action: 'send to reviewer',
-      actions: [],
-      requiresRole: 'reviewer',
-    },
-    {
-      fromStage: 'applicant-amendments',
-      toGateway: 'decision-join',
-      toStage: 'decision-confirmed',
-      action: 'finish amendments',
-      actions: [],
-    },
-    {
-      fromStage: 'upload-evidence',
-      toGateway: 'decision-join',
-      toStage: 'decision-confirmed',
-      action: 'evidence complete',
-      actions: [],
-    },
-    {
-      fromStage: 'reviewer-assessment',
-      toGateway: 'decision-join',
-      toStage: 'decision-confirmed',
-      action: 'confirm review',
-      actions: [],
-      requiresRole: 'reviewer',
-    },
-  ],
   gateways: [
     {
       gatewayKey: 'review-split',
@@ -409,7 +439,84 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       kind: 'Split',
       laneKey: 'applicant',
       actor: 'applicant',
+      source: 'start-request',
       roleGates: [],
+      routes: [
+        {
+          id: 'start-request--request-amendments--applicant-amendments',
+          target: 'applicant-amendments',
+          trigger: 'request amendments',
+          actions: [],
+        },
+        {
+          id: 'start-request--upload-evidence--upload-evidence',
+          target: 'upload-evidence',
+          trigger: 'upload evidence',
+          actions: [],
+        },
+        {
+          id: 'start-request--send-to-reviewer--reviewer-assessment',
+          target: 'reviewer-assessment',
+          trigger: 'send to reviewer',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'applicant-amendments-feed',
+      displayName: 'Applicant amendments feed',
+      description: 'Feed the decision join once amendments are complete.',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      source: 'applicant-amendments',
+      roleGates: [],
+      routes: [
+        {
+          id: 'applicant-amendments--finish-amendments--decision-join',
+          target: 'decision-join',
+          trigger: 'finish amendments',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'upload-evidence-feed',
+      displayName: 'Upload evidence feed',
+      description: 'Feed the decision join once evidence is uploaded.',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      source: 'upload-evidence',
+      roleGates: [],
+      routes: [
+        {
+          id: 'upload-evidence--evidence-complete--decision-join',
+          target: 'decision-join',
+          trigger: 'evidence complete',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'reviewer-assessment-feed',
+      displayName: 'Reviewer assessment feed',
+      description: 'Feed the decision join once the reviewer confirms.',
+      kind: 'Split',
+      laneKey: 'reviewer',
+      actor: 'reviewer',
+      source: 'reviewer-assessment',
+      roleGates: ['reviewer'],
+      routes: [
+        {
+          id: 'reviewer-assessment--confirm-review--decision-join',
+          target: 'decision-join',
+          trigger: 'confirm review',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+      ],
     },
     {
       gatewayKey: 'decision-join',
@@ -423,6 +530,14 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
         allowDefer: false,
         content: 'Waiting for amendments, supporting evidence, and reviewer assessment before the decision can continue.',
       },
+      routes: [
+        {
+          id: 'decision-join--continue--decision-confirmed',
+          target: 'decision-confirmed',
+          trigger: 'continue',
+          actions: [],
+        },
+      ],
     },
   ],
-};
+});

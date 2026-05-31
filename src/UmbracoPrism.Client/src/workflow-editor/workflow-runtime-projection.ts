@@ -1,4 +1,5 @@
 import type { AuthoredAction, AuthoredField, AuthoredStage, AuthoredWorkflow } from './types.js';
+import { flattenRoutes } from './workflow-routes.js';
 
 export interface ProjectionDiagnostic {
   code: string;
@@ -174,21 +175,22 @@ export function projectWorkflowLocally(workflow: AuthoredWorkflow): ProjectWorkf
     .sort((left, right) => left.stageKey.localeCompare(right.stageKey))
     .map(stage => projectStage(stage, workflow));
 
-  const transitions = [...workflow.transitions]
+  const transitions = flattenRoutes(workflow)
+    .slice()
     .sort((left, right) =>
       left.fromStage.localeCompare(right.fromStage)
       || left.toStage.localeCompare(right.toStage)
       || left.action.localeCompare(right.action))
-    .map(transition => ({
-      fromState: transition.fromStage,
-      toState: transition.toStage,
-      action: transition.action,
-      requiresRole: transition.requiresRole,
+    .map(view => ({
+      fromState: view.fromStage,
+      toState: view.toStage,
+      action: view.action,
+      requiresRole: view.requiresRole,
       metadata: {
-        conditions: transition.condition
-          ? [{ kind: 'expression', expression: transition.condition }]
+        conditions: view.condition
+          ? [{ kind: 'expression', expression: view.condition }]
           : undefined,
-        actions: transition.actions?.map(projectAction),
+        actions: view.actions?.map(projectAction),
       },
     }));
 

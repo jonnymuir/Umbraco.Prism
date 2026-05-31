@@ -64,7 +64,7 @@ export class PrismWorkflowOutline extends LitElement {
       return [];
     }
 
-    return this.workflow.transitions
+    return (this.workflow.transitions ?? [])
       .map((transition, index) => ({ transition, index }))
       .filter(({ transition }) => transition.fromStage === stageKey);
   }

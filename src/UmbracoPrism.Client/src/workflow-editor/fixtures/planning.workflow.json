@@ -7,12 +7,98 @@
   "schemaVersion": "1.0",
   "initialStageKey": "declaration",
   "instancePolicy": "single",
+  "lanes": [
+    {
+      "key": "applicant",
+      "title": "Applicant",
+      "actor": "applicant",
+      "roleGates": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-application-form",
+      "title": "Route to application form",
+      "type": "Split",
+      "laneKey": "applicant",
+      "source": "declaration",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "declaration--continue--application-form",
+          "target": "application-form",
+          "trigger": "continue",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "route-check-answers",
+      "title": "Route to check answers",
+      "type": "Split",
+      "laneKey": "applicant",
+      "source": "application-form",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "application-form--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "route-submitted",
+      "title": "Route to submitted",
+      "type": "Split",
+      "laneKey": "applicant",
+      "source": "check-answers",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "check-answers--submit--submitted",
+          "target": "submitted",
+          "trigger": "submit",
+          "condition": {
+            "kind": "expression",
+            "expression": "application.isComplete == true",
+            "description": "Prevent submission until the applicant has completed the form."
+          },
+          "actions": [
+            {
+              "type": "forms.submit",
+              "timing": "OnTransition",
+              "parameterSchemaKey": "forms-form-definition",
+              "params": {
+                "formDefinitionId": "planning-application"
+              },
+              "summary": "Submit the application form to the business app."
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "stages": [
     {
       "key": "declaration",
       "title": "Declaration",
+      "description": "Collects applicant and site identity before the full planning form.",
       "type": "Question",
       "actor": "applicant",
+      "laneKey": "applicant",
+      "actions": [
+        {
+          "type": "forms.load",
+          "timing": "OnEntry",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-declaration"
+          },
+          "summary": "Load the declaration form."
+        }
+      ],
       "fields": [
         {
           "key": "applicant-name",
@@ -32,13 +118,26 @@
         }
       ],
       "roleGates": [],
-      "editorComment": "Entry point — collects basic applicant and site identity."
+      "editorComment": "Entry point \u2014 collects basic applicant and site identity."
     },
     {
       "key": "application-form",
       "title": "Application Form",
+      "description": "Captures the substantive planning request.",
       "type": "Question",
       "actor": "applicant",
+      "laneKey": "applicant",
+      "actions": [
+        {
+          "type": "forms.save",
+          "timing": "OnExit",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-application"
+          },
+          "summary": "Persist the application form before moving on."
+        }
+      ],
       "fields": [
         {
           "key": "description",
@@ -53,7 +152,13 @@
           "label": "Type of development",
           "type": "Select",
           "required": true,
-          "options": ["New build", "Extension", "Change of use", "Demolition", "Other"]
+          "options": [
+            "New build",
+            "Extension",
+            "Change of use",
+            "Demolition",
+            "Other"
+          ]
         }
       ],
       "roleGates": []
@@ -61,8 +166,11 @@
     {
       "key": "check-answers",
       "title": "Check your answers",
+      "description": "Summarises captured answers before final submission.",
       "type": "CheckAnswers",
       "actor": "applicant",
+      "laneKey": "applicant",
+      "actions": [],
       "fields": [],
       "roleGates": [],
       "editorComment": "Summary of all answers before final submission."
@@ -70,27 +178,13 @@
     {
       "key": "submitted",
       "title": "Application submitted",
+      "description": "Confirms receipt and moves the case into reviewer handling.",
       "type": "Confirmation",
       "actor": "applicant",
+      "laneKey": "applicant",
+      "actions": [],
       "fields": [],
       "roleGates": []
-    }
-  ],
-  "transitions": [
-    {
-      "source": "declaration",
-      "target": "application-form",
-      "trigger": "continue"
-    },
-    {
-      "source": "application-form",
-      "target": "check-answers",
-      "trigger": "continue"
-    },
-    {
-      "source": "check-answers",
-      "target": "submitted",
-      "trigger": "submit"
     }
   ],
   "handoffs": [
@@ -100,6 +194,32 @@
       "toStage": "submitted",
       "label": "applicant-to-caseworker",
       "actorChange": "caseworker"
+    }
+  ],
+  "parameterSchemas": [
+    {
+      "key": "forms-form-definition",
+      "title": "Forms engine definition reference",
+      "description": "Shared parameter contract for load/save/submit form actions.",
+      "appliesTo": [
+        "forms.load",
+        "forms.save",
+        "forms.submit"
+      ],
+      "valueKind": "Object",
+      "allowAdditionalProperties": false,
+      "properties": [
+        {
+          "key": "formDefinitionId",
+          "title": "Form definition id",
+          "description": "Stable forms-engine key to load or persist.",
+          "valueKind": "String",
+          "editor": "text"
+        }
+      ],
+      "required": [
+        "formDefinitionId"
+      ]
     }
   ],
   "metadata": {

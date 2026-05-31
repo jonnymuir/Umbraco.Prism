@@ -8,7 +8,7 @@ import { LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixture
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
-  transitions: [...STUB_WORKFLOW.transitions],
+  transitions: [...(STUB_WORKFLOW.transitions ?? [])],
 };
 
 const GATEWAY_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
@@ -192,7 +192,7 @@ export const WorkspaceCanvas: Story = {
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.stages.length);
-    await expect(root.querySelectorAll('[data-prism-transition]').length).toBe(WORKSPACE_WORKFLOW.transitions.length);
+    await expect(root.querySelectorAll('[data-prism-transition]').length).toBe((WORKSPACE_WORKFLOW.transitions ?? []).length);
   },
 };
 
@@ -244,7 +244,7 @@ export const InteractiveWorkspace: Story = {
     fillCreateTransitionDialog(root, 'assign', 'confirmation', 'guard', 'case.readyForDecision == true');
     root.querySelector<HTMLButtonElement>('[data-prism-create-transition-submit]')!.click();
     await el.updateComplete;
-    await expect(root.querySelectorAll('[data-prism-transition]').length).toBe(WORKSPACE_WORKFLOW.transitions.length + 1);
+    await expect(root.querySelectorAll('[data-prism-transition]').length).toBe((WORKSPACE_WORKFLOW.transitions ?? []).length + 1);
 
     root.querySelector<HTMLButtonElement>('[data-prism-fit-screen]')!.click();
     await el.updateComplete;

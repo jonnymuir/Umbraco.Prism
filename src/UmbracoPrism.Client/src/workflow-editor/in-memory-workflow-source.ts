@@ -8,6 +8,7 @@
 
 import type { AuthoredWorkflow } from './types.js';
 import type { WorkflowSource, WorkflowSummary } from './workflow-source.js';
+import { withDerivedTransitions } from './workflow-routes.js';
 
 type SeedEntry = AuthoredWorkflow | { workflowKey: string; workflow: AuthoredWorkflow };
 
@@ -43,11 +44,14 @@ export class InMemoryWorkflowSource implements WorkflowSource {
     if (!workflow) {
       throw new Error(`Workflow "${key}" not found.`);
     }
-    return deepClone(workflow);
+    return withDerivedTransitions(deepClone(workflow));
   }
 
   async save(key: string, workflow: AuthoredWorkflow): Promise<void> {
-    this.workflows.set(key, deepClone(workflow));
+    // Strip the derived transitions view before storing — it's a read-only
+    // projection of gateways[].routes maintained by withDerivedTransitions.
+    const { transitions: _legacy, ...rest } = workflow as AuthoredWorkflow & { transitions?: unknown };
+    this.workflows.set(key, deepClone(rest as AuthoredWorkflow));
   }
 
   /** Returns the underlying entries — handy for tests that want to assert state. */

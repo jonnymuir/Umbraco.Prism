@@ -18,9 +18,12 @@ const TOP_LEVEL_KEY_ORDER: readonly string[] = [
   'initialStageKey',
   'authorNote',
   'roles',
+  'lanes',
   'stages',
   'gateways',
-  'transitions',
+  'handoffs',
+  'parameterSchemas',
+  'metadata',
 ];
 
 function orderTopLevel(value: Record<string, unknown>): Record<string, unknown> {
@@ -54,7 +57,10 @@ function sortKeys(value: unknown): unknown {
 }
 
 export function serializeAuthoredWorkflow(workflow: AuthoredWorkflow): string {
-  const top = orderTopLevel(workflow as unknown as Record<string, unknown>);
+  // Drop the deprecated derived `transitions` view; canonical JSON is the
+  // wire shape, and Slice C moved routing onto gateway.routes[].
+  const { transitions: _legacy, ...rest } = workflow as AuthoredWorkflow & { transitions?: unknown };
+  const top = orderTopLevel(rest as unknown as Record<string, unknown>);
   const canonical: Record<string, unknown> = {};
   for (const key of Object.keys(top)) {
     canonical[key] = sortKeys(top[key]);

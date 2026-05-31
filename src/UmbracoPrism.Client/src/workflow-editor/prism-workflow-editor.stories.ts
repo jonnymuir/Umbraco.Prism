@@ -5,6 +5,7 @@ import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 import type { AuthoredWorkflow } from './types.js';
 import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
+import { withDerivedTransitions } from './workflow-routes.js';
 
 function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkflowEditorElement {
   const el = document.createElement('prism-workflow-editor') as PrismWorkflowEditorElement;
@@ -77,31 +78,63 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       roleGates: ['reviewer'],
     },
   ];
-  workflow.transitions = [
-    { fromStage: 'declaration', toStage: 'application-form', action: 'continue', actions: [] },
-    { fromStage: 'application-form', toStage: 'review-decision', action: 'submit for review', actions: [] },
-    { fromStage: 'review-decision', toStage: 'approved', action: 'approve', actions: [] },
-    { fromStage: 'review-decision', toStage: 'rejected', action: 'reject', actions: [] },
+  workflow.gateways = [
     {
-      fromStage: 'review-decision',
-      toStage: 'checks-pending',
-      action: 'request more checks',
-      condition: 'siteVisitRequired == true',
-      actions: [],
+      gatewayKey: 'review-decision-routes',
+      displayName: 'Review decision routes',
+      kind: 'Split',
+      source: 'review-decision',
+      laneKey: 'reviewer',
+      roleGates: [],
+      routes: [
+        { id: 'review-decision--approve--approved', target: 'approved', trigger: 'approve' },
+        { id: 'review-decision--reject--rejected', target: 'rejected', trigger: 'reject' },
+        {
+          id: 'review-decision--request-more-checks--checks-pending',
+          target: 'checks-pending',
+          trigger: 'request more checks',
+          condition: 'siteVisitRequired == true',
+        },
+      ],
+    },
+    {
+      gatewayKey: 'declaration-routes',
+      displayName: 'Declaration routes',
+      kind: 'Split',
+      source: 'declaration',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        { id: 'declaration--continue--application-form', target: 'application-form', trigger: 'continue' },
+      ],
+    },
+    {
+      gatewayKey: 'application-form-routes',
+      displayName: 'Application form routes',
+      kind: 'Split',
+      source: 'application-form',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        { id: 'application-form--submit--review-decision', target: 'review-decision', trigger: 'submit for review' },
+      ],
     },
   ];
-  return workflow;
+  return withDerivedTransitions(workflow);
 }
 
 function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
   const workflow = makeSimulationBranchWorkflow();
   workflow.displayName = 'Planning Application Simulation Blockers';
-  workflow.transitions = workflow.transitions.map(transition =>
-    transition.action === 'reject'
-      ? { ...transition, toStage: 'missing-rejection-stage' }
-      : transition
-  );
-  return workflow;
+  const rejectGateway = (workflow.gateways ?? []).find(g => g.gatewayKey === 'review-decision-routes');
+  if (rejectGateway) {
+    rejectGateway.routes = (rejectGateway.routes ?? []).map(route =>
+      route.trigger === 'reject'
+        ? { ...route, target: 'missing-rejection-stage' }
+        : route
+    );
+  }
+  return withDerivedTransitions(workflow);
 }
 
 const meta: Meta = {

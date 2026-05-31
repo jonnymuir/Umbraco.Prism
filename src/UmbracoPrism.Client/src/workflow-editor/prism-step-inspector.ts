@@ -34,6 +34,7 @@ import {
   workflowOutgoingTransitions,
   workflowUnreachableStages,
 } from './workflow-validation.js';
+import { deleteRoute, updateRoute, withDerivedTransitions } from './workflow-routes.js';
 import './prism-workflow-action-editor.js';
 import './prism-inline-help.js';
 
@@ -196,16 +197,40 @@ export class PrismStepInspectorElement extends LitElement {
       return;
     }
 
-    const transitions = [...this.workflow.transitions];
-    if (!transitions[transitionIndex]) {
+    const transitions = [...(this.workflow.transitions ?? [])];
+    const previous = transitions[transitionIndex];
+    if (!previous) {
       return;
     }
 
-    transitions[transitionIndex] = nextTransition;
-    const gatewayKey = this._selectedGateway?.gatewayKey;
+    // Slice C: edits address a gateway-owned route by (gatewayKey, routeId).
+    // The legacy `transitions` view is read-only; project the mutation back
+    // onto gateways[].routes so it survives serialisation.
+    const gatewayKey = previous.gatewayKey ?? nextTransition.gatewayKey;
+    const routeId = previous.routeId ?? nextTransition.routeId;
+    let nextWorkflow: AuthoredWorkflow = this.workflow;
+
+    if (gatewayKey && routeId) {
+      nextWorkflow = updateRoute(this.workflow, { gatewayKey, routeId }, route => ({
+        ...route,
+        target: nextTransition.toStage || route.target,
+        trigger: nextTransition.action || route.trigger,
+        condition: nextTransition.condition,
+        requiresRole: nextTransition.requiresRole,
+        actions: nextTransition.actions ?? route.actions,
+        editorComment: nextTransition.editorComment,
+      }));
+    } else {
+      // Fallback for transient editor surfaces that have not yet bound the
+      // (gatewayKey, routeId) — keep the derived view in sync at least.
+      transitions[transitionIndex] = nextTransition;
+      nextWorkflow = { ...this.workflow, transitions };
+    }
+
+    const selectedGatewayKey = this._selectedGateway?.gatewayKey;
     this._emitWorkflowUpdated(
-      { ...this.workflow, transitions },
-      gatewayKey ? { kind: 'gateway', gatewayKey } : null
+      nextWorkflow,
+      selectedGatewayKey ? { kind: 'gateway', gatewayKey: selectedGatewayKey } : null
     );
   }
 
@@ -222,26 +247,32 @@ export class PrismStepInspectorElement extends LitElement {
     const stages = [...this.workflow.stages];
     stages[stageIndex] = nextStage;
 
-    let transitions = [...this.workflow.transitions];
+    let gateways = this.workflow.gateways;
     let initialStageKey = this.workflow.initialStageKey;
 
     if (nextStage.stageKey !== previousStageKey) {
-      transitions = transitions.map(transition => ({
-        ...transition,
-        fromStage: transition.fromStage === previousStageKey ? nextStage.stageKey : transition.fromStage,
-        toStage: transition.toStage === previousStageKey ? nextStage.stageKey : transition.toStage,
+      // Stage rename — repoint gateway sources and route targets that
+      // referenced the old stage key. The derived `transitions` view is
+      // recomputed by `withDerivedTransitions` below.
+      gateways = (this.workflow.gateways ?? []).map(gateway => ({
+        ...gateway,
+        source: gateway.source === previousStageKey ? nextStage.stageKey : gateway.source,
+        routes: (gateway.routes ?? []).map(route => ({
+          ...route,
+          target: route.target === previousStageKey ? nextStage.stageKey : route.target,
+        })),
       }));
       if (initialStageKey === previousStageKey) {
         initialStageKey = nextStage.stageKey;
       }
     }
 
-    const workflow: AuthoredWorkflow = {
+    const workflow: AuthoredWorkflow = withDerivedTransitions({
       ...this.workflow,
       initialStageKey,
       stages,
-      transitions,
-    };
+      gateways,
+    });
 
     this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: nextStage.stageKey });
   }
@@ -268,7 +299,7 @@ export class PrismStepInspectorElement extends LitElement {
     if (!Number.isInteger(transitionIndex)) {
       return;
     }
-    const transition = this.workflow.transitions[transitionIndex];
+    const transition = (this.workflow.transitions ?? [])[transitionIndex];
     if (!transition) {
       return;
     }
@@ -408,7 +439,7 @@ export class PrismStepInspectorElement extends LitElement {
     if (index === null) {
       return null;
     }
-    const transition = this.workflow.transitions[index];
+    const transition = (this.workflow.transitions ?? [])[index];
     return transition ? { index, transition } : null;
   }
 
@@ -491,11 +522,19 @@ export class PrismStepInspectorElement extends LitElement {
     if (!this.workflow) return;
     const ctx = this._routeTransitionFromEvent(event);
     if (!ctx) return;
-    const transitions = this.workflow.transitions.filter((_, index) => index !== ctx.index);
-    const gatewayKey = this._selectedGateway?.gatewayKey;
+    const gatewayKey = ctx.transition.gatewayKey;
+    const routeId = ctx.transition.routeId;
+    let nextWorkflow: AuthoredWorkflow;
+    if (gatewayKey && routeId) {
+      nextWorkflow = deleteRoute(this.workflow, { gatewayKey, routeId });
+    } else {
+      const transitions = (this.workflow.transitions ?? []).filter((_, index) => index !== ctx.index);
+      nextWorkflow = { ...this.workflow, transitions };
+    }
+    const selectedGatewayKey = this._selectedGateway?.gatewayKey;
     this._emitWorkflowUpdated(
-      { ...this.workflow, transitions },
-      gatewayKey ? { kind: 'gateway', gatewayKey } : null
+      nextWorkflow,
+      selectedGatewayKey ? { kind: 'gateway', gatewayKey: selectedGatewayKey } : null
     );
     this._announce(`Route ${ctx.transition.action} deleted.`);
   }
@@ -531,7 +570,7 @@ export class PrismStepInspectorElement extends LitElement {
         </p>
         <ul class="gateway-route-list" role="list">
           ${indices.map(transitionIndex => {
-            const transition = this.workflow!.transitions[transitionIndex];
+            const transition = (this.workflow!.transitions ?? [])[transitionIndex];
             if (!transition) return nothing;
             return html`
               <li
@@ -728,17 +767,23 @@ export class PrismStepInspectorElement extends LitElement {
     const gateways = [...(this.workflow.gateways ?? [])];
     gateways[gatewayIndex] = nextGateway;
 
-    let transitions = [...this.workflow.transitions];
+    // Gateway rename — repoint any route.target on other gateways that
+    // pointed at this gateway. Routes belonging to the renamed gateway are
+    // unaffected (the key change is internal). Derived `transitions` is
+    // recomputed by `withDerivedTransitions` below.
+    let nextGateways = gateways;
     if (nextGateway.gatewayKey !== previousGatewayKey) {
-      transitions = transitions.map(t => ({
-        ...t,
-        fromGateway: t.fromGateway === previousGatewayKey ? nextGateway.gatewayKey : t.fromGateway,
-        toGateway: t.toGateway === previousGatewayKey ? nextGateway.gatewayKey : t.toGateway,
+      nextGateways = gateways.map((g, idx) => idx === gatewayIndex ? g : ({
+        ...g,
+        routes: (g.routes ?? []).map(route => ({
+          ...route,
+          target: route.target === previousGatewayKey ? nextGateway.gatewayKey : route.target,
+        })),
       }));
     }
 
     this._emitWorkflowUpdated(
-      { ...this.workflow, gateways, transitions },
+      withDerivedTransitions({ ...this.workflow, gateways: nextGateways }),
       { kind: 'gateway', gatewayKey: nextGateway.gatewayKey }
     );
   }
@@ -841,12 +886,8 @@ export class PrismStepInspectorElement extends LitElement {
     const gateway = this._selectedGateway;
     if (!this.workflow || !gateway) return;
     const gateways = (this.workflow.gateways ?? []).filter(g => g.gatewayKey !== gateway.gatewayKey);
-    const transitions = this.workflow.transitions.map(t => ({
-      ...t,
-      fromGateway: t.fromGateway === gateway.gatewayKey ? undefined : t.fromGateway,
-      toGateway: t.toGateway === gateway.gatewayKey ? undefined : t.toGateway,
-    }));
-    this._emitWorkflowUpdated({ ...this.workflow, gateways, transitions }, null);
+    const nextWorkflow = withDerivedTransitions({ ...this.workflow, gateways });
+    this._emitWorkflowUpdated(nextWorkflow, null);
     this._announce(`${gateway.displayName} gateway deleted.`);
   }
 

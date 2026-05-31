@@ -1,5 +1,6 @@
-import type { ActionCatalogEntry, AuthoredAction, AuthoredStage, AuthoredTransition, AuthoredWorkflow } from './types.js';
+import type { ActionCatalogEntry, AuthoredAction, AuthoredStage, AuthoredWorkflow, RouteView } from './types.js';
 import { findCatalogEntry, validateAction } from './workflow-action-editing.js';
+import { flattenRoutes, outgoingRouteViews, inboundRouteViews } from './workflow-routes.js';
 
 const TERMINAL_STAGE_KINDS = new Set<AuthoredStage['kind']>(['Confirmation']);
 
@@ -7,12 +8,13 @@ export type WorkflowValidationSeverity = 'error' | 'warning';
 
 export type WorkflowValidationLocation =
   | { kind: 'stage'; stageKey: string }
-  | { kind: 'transition'; transitionIndex: number }
+  | { kind: 'route'; gatewayKey: string; routeId: string }
   | {
       kind: 'action';
-      target: 'stage' | 'transition';
+      target: 'stage' | 'route';
       stageKey?: string;
-      transitionIndex?: number;
+      gatewayKey?: string;
+      routeId?: string;
       actionIndex: number;
       fieldKey?: string;
       formFieldIndex?: number;
@@ -25,7 +27,7 @@ export interface WorkflowValidationIssue {
     | 'stage-orphaned'
     | 'stage-unreachable'
     | 'stage-dead-end'
-    | 'transition-missing-stage'
+    | 'route-missing-stage'
     | 'action-configuration';
   severity: WorkflowValidationSeverity;
   message: string;
@@ -37,8 +39,12 @@ export function isTerminalStage(stage: AuthoredStage): boolean {
   return TERMINAL_STAGE_KINDS.has(stage.kind);
 }
 
-export function workflowOutgoingTransitions(workflow: AuthoredWorkflow, stageKey: string) {
-  return workflow.transitions.filter(transition => transition.fromStage === stageKey);
+export function workflowOutgoingRoutes(workflow: AuthoredWorkflow, stageKey: string): RouteView[] {
+  return outgoingRouteViews(workflow, stageKey);
+}
+
+export function workflowInboundRoutes(workflow: AuthoredWorkflow, stageKey: string): RouteView[] {
+  return inboundRouteViews(workflow, stageKey);
 }
 
 export function workflowReachableStageKeys(workflow: AuthoredWorkflow): Set<string> {
@@ -66,27 +72,21 @@ export function workflowReachableStageKeys(workflow: AuthoredWorkflow): Set<stri
 
     reachable.add(current);
 
-    workflow.transitions
-      .filter(transition => transition.fromStage === current)
-      .forEach(transition => {
-        if (stageKeys.has(transition.toStage) && !reachable.has(transition.toStage)) {
-          pending.push(transition.toStage);
-        }
-      });
+    workflowOutgoingRoutes(workflow, current).forEach(route => {
+      if (stageKeys.has(route.toStage) && !reachable.has(route.toStage)) {
+        pending.push(route.toStage);
+      }
+    });
   }
 
   return reachable;
 }
 
-export function workflowInboundTransitions(workflow: AuthoredWorkflow, stageKey: string) {
-  return workflow.transitions.filter(transition => transition.toStage === stageKey);
-}
-
 export function workflowOrphanedStages(workflow: AuthoredWorkflow): AuthoredStage[] {
   return workflow.stages.filter(stage =>
     stage.stageKey !== workflow.initialStageKey
-    && workflowInboundTransitions(workflow, stage.stageKey).length === 0
-    && workflowOutgoingTransitions(workflow, stage.stageKey).length === 0
+    && workflowInboundRoutes(workflow, stage.stageKey).length === 0
+    && workflowOutgoingRoutes(workflow, stage.stageKey).length === 0
   );
 }
 
@@ -101,18 +101,17 @@ export function workflowDeadEndStages(workflow: AuthoredWorkflow): AuthoredStage
   return workflow.stages.filter(stage =>
     !orphanedKeys.has(stage.stageKey)
     && !isTerminalStage(stage)
-    && workflowOutgoingTransitions(workflow, stage.stageKey).length === 0
+    && workflowOutgoingRoutes(workflow, stage.stageKey).length === 0
   );
 }
 
-export function workflowTransitionsWithMissingStages(workflow: AuthoredWorkflow) {
+export function workflowRoutesWithMissingStages(workflow: AuthoredWorkflow): RouteView[] {
   const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
-  return workflow.transitions
-    .map((transition, transitionIndex) => ({ transition, transitionIndex }))
-    .filter(({ transition }) =>
-      !stageKeys.has(transition.fromStage)
-      || !stageKeys.has(transition.toStage)
-    );
+  const gatewayKeys = new Set((workflow.gateways ?? []).map(g => g.gatewayKey));
+  return flattenRoutes(workflow).filter(route =>
+    !stageKeys.has(route.fromStage)
+    || (!stageKeys.has(route.toStage) && !gatewayKeys.has(route.toStage))
+  );
 }
 
 function stageLabel(workflow: AuthoredWorkflow, stageKey: string) {
@@ -123,8 +122,8 @@ function actionLabel(entry: ActionCatalogEntry | null, action: AuthoredAction) {
   return entry?.label ?? action.summary?.trim() ?? action.type;
 }
 
-function transitionLabel(workflow: AuthoredWorkflow, transition: AuthoredTransition) {
-  return `${stageLabel(workflow, transition.fromStage)} → ${stageLabel(workflow, transition.toStage)}`;
+function routeLabel(workflow: AuthoredWorkflow, view: RouteView) {
+  return `${stageLabel(workflow, view.fromStage)} → ${stageLabel(workflow, view.toStage)}`;
 }
 
 function normaliseValidationMessage(message: string) {
@@ -135,21 +134,20 @@ function actionValidationIssues(
   workflow: AuthoredWorkflow,
   actionCatalog: ActionCatalogEntry[],
   action: AuthoredAction,
-  location: Extract<WorkflowValidationLocation, { kind: 'action' }>
+  location: Extract<WorkflowValidationLocation, { kind: 'action' }>,
+  routeView?: RouteView
 ): WorkflowValidationIssue[] {
   const entry = findCatalogEntry(actionCatalog, action.type);
   const validation = validateAction(entry, action);
   const baseLabel = actionLabel(entry, action);
   const parentLabel = location.target === 'stage'
     ? stageLabel(workflow, location.stageKey ?? '')
-    : transitionLabel(workflow, workflow.transitions[location.transitionIndex ?? -1] ?? {
-      fromStage: '',
-      toStage: '',
-      action: '',
-    });
+    : routeView
+      ? routeLabel(workflow, routeView)
+      : `${location.gatewayKey ?? ''}/${location.routeId ?? ''}`;
 
   const propertyIssues = Object.entries(validation.propertyErrors).map(([fieldKey, message]) => ({
-    id: `${location.target}-${location.stageKey ?? location.transitionIndex}-action-${location.actionIndex}-${fieldKey}`,
+    id: `${location.target}-${location.stageKey ?? `${location.gatewayKey}-${location.routeId}`}-action-${location.actionIndex}-${fieldKey}`,
     code: 'action-configuration' as const,
     severity: 'warning' as const,
     blocking: false,
@@ -166,7 +164,7 @@ function actionValidationIssues(
       }
 
       return [{
-        id: `${location.target}-${location.stageKey ?? location.transitionIndex}-action-${location.actionIndex}-form-${fieldIndex}-${fieldKey}`,
+        id: `${location.target}-${location.stageKey ?? `${location.gatewayKey}-${location.routeId}`}-action-${location.actionIndex}-form-${fieldIndex}-${fieldKey}`,
         code: 'action-configuration' as const,
         severity: 'warning' as const,
         blocking: false,
@@ -227,21 +225,25 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     message: `Stage “${stage.displayName}” has no outgoing route through a gateway yet.`,
   }));
 
-  const missingStageTransitionIssues = workflowTransitionsWithMissingStages(workflow).map(({ transition, transitionIndex }) => {
-    const missingSource = !workflow.stages.some(stage => stage.stageKey === transition.fromStage);
-    const missingTarget = !workflow.stages.some(stage => stage.stageKey === transition.toStage);
-    const missingLabel = missingTarget ? transition.toStage : transition.fromStage;
+  const missingStageRouteIssues = workflowRoutesWithMissingStages(workflow).map(view => {
+    const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
+    const gatewayKeys = new Set((workflow.gateways ?? []).map(g => g.gatewayKey));
+    const missingSource = !stageKeys.has(view.fromStage);
+    const missingTarget = !stageKeys.has(view.toStage) && !gatewayKeys.has(view.toStage);
+    const missingLabel = missingTarget ? view.toStage : view.fromStage;
     const direction = missingTarget ? 'target' : 'source';
+    const gatewayKey = view.gatewayKey ?? '';
+    const routeId = view.routeId ?? '';
 
     return {
-      id: `transition-missing-stage-${transitionIndex}`,
-      code: 'transition-missing-stage' as const,
+      id: `route-missing-stage-${gatewayKey}-${routeId}`,
+      code: 'route-missing-stage' as const,
       severity: 'error' as const,
       blocking: true,
-      location: { kind: 'transition', transitionIndex } as const,
+      location: { kind: 'route', gatewayKey, routeId } as const,
       message: missingSource && missingTarget
-        ? `Route “${transition.action}” is disconnected because both ends are missing. Reconnect it to existing stages before you save or simulate this workflow.`
-        : `Route “${transition.action}” points to a missing ${direction} stage “${missingLabel}”. Reconnect it to an existing stage before you save or simulate this workflow.`,
+        ? `Route “${view.action}” is disconnected because both ends are missing. Reconnect it to existing stages before you save or simulate this workflow.`
+        : `Route “${view.action}” points to a missing ${direction} stage “${missingLabel}”. Reconnect it to an existing stage before you save or simulate this workflow.`,
     };
   });
 
@@ -256,14 +258,15 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     )
   );
 
-  const transitionActionIssues = workflow.transitions.flatMap((transition, transitionIndex) =>
-    (transition.actions ?? []).flatMap((action, actionIndex) =>
+  const routeActionIssues = flattenRoutes(workflow).flatMap(view =>
+    (view.actions ?? []).flatMap((action, actionIndex) =>
       actionValidationIssues(workflow, actionCatalog, action, {
         kind: 'action',
-        target: 'transition',
-        transitionIndex,
+        target: 'route',
+        gatewayKey: view.gatewayKey ?? '',
+        routeId: view.routeId ?? '',
         actionIndex,
-      })
+      }, view)
     )
   );
 
@@ -272,8 +275,13 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     ...orphanedIssues,
     ...unreachableIssues,
     ...deadEndIssues,
-    ...missingStageTransitionIssues,
+    ...missingStageRouteIssues,
     ...stageActionIssues,
-    ...transitionActionIssues,
+    ...routeActionIssues,
   ];
 }
+
+// Back-compat aliases for tests that look up the old names.
+export const workflowOutgoingTransitions = workflowOutgoingRoutes;
+export const workflowInboundTransitions = workflowInboundRoutes;
+export const workflowTransitionsWithMissingStages = workflowRoutesWithMissingStages;

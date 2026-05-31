@@ -34,9 +34,14 @@ test.describe('Workflow editor gateway representation', () => {
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
 
+    // Slice C: routes belong to gateways. The Review split fans out into
+    // three branches; the Decision join is fed by three per-stage feeder
+    // splits, each carrying one merge route. Feeder-split → join edges
+    // satisfy both the branch (source = Split) and merge (target = Join)
+    // styling rules, so the branch-path count includes them too.
     await expect(storyEl.locator('.edge-path[data-prism-transition-from="review-split"]')).toHaveCount(3);
     await expect(storyEl.locator('.edge-path[data-prism-transition-to="decision-join"]')).toHaveCount(3);
-    await expect(storyEl.locator('.edge-path.branch-path')).toHaveCount(3);
+    await expect(storyEl.locator('.edge-path.branch-path')).toHaveCount(6);
     await expect(storyEl.locator('.edge-path.merge-path')).toHaveCount(3);
     await expect(storyEl.locator('[data-prism-stage="start-request"]')).toBeVisible();
     await expect(storyEl.locator('[data-prism-stage="decision-confirmed"]')).toBeVisible();
@@ -75,15 +80,17 @@ test.describe('Workflow editor gateway representation', () => {
   test('surfaces gateways as gateway nodes in the canvas matrix', async ({ page }) => {
     // Slice 4 retired the linear "List view" mode. Gateway visibility is now proved
     // by the canvas slot-matrix rendering each authored gateway as a node with the
-    // Split/Join kind attached.
+    // Split/Join kind attached. Slice C: with gateways owning their routes, the
+    // Decision join is fed by per-stage feeder splits, so the demo fixture now
+    // exposes five gateways (review-split + 3 feeder splits + decision-join).
     await page.setViewportSize({ width: 1440, height: 960 });
     await page.goto(graphStoryUrl());
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
 
-    await expect(storyEl.locator('[data-prism-gateway]')).toHaveCount(2);
-    await expect(storyEl.locator('[data-prism-gateway-kind="Split"]')).toHaveCount(1);
+    await expect(storyEl.locator('[data-prism-gateway]')).toHaveCount(5);
+    await expect(storyEl.locator('[data-prism-gateway-kind="Split"]')).toHaveCount(4);
     await expect(storyEl.locator('[data-prism-gateway-kind="Join"]')).toHaveCount(1);
   });
 

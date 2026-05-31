@@ -16,11 +16,54 @@ export interface AuthoredWorkflow {
   instancePolicy: string;
   initialStageKey: string;
   stages: AuthoredStage[];
-  transitions: AuthoredTransition[];
+  /**
+   * Gateways own all authored routing in the workflow. A stage cannot
+   * transition to another stage directly — it always routes through a gateway
+   * whose `source` is that stage. The runtime contract is still a flat list of
+   * transitions, derived from `gateway.source × gateway.routes` by the
+   * projector (see workflow-runtime-projection.ts).
+   */
   gateways?: AuthoredGateway[];
+  /**
+   * @deprecated Slice C dropped top-level transitions from the wire format and
+   * the canonical authoring model. Populated at load time as a derived,
+   * read-only flattening of `gateways[].routes` so existing iteration code
+   * (graph layout, validation, projection) keeps working. Stripped on save.
+   * Never mutate this array — use the helpers in workflow-routes.ts
+   * (`addRoute`, `updateRoute`, `deleteRoute`) which produce a new immutable
+   * workflow snapshot with the derived view kept in sync.
+   */
+  transitions?: AuthoredTransitionView[];
   /** Client-side convenience — not present in C# AuthoredWorkflow; guard all accesses. */
   roles?: AuthoredRole[];
   authorNote?: string;
+}
+
+/**
+ * Read-only flattening of a gateway's routes into the legacy transition
+ * shape. Carries the addressing info `gatewayKey`+`routeId` so write-back
+ * helpers can locate the underlying route.
+ */
+export interface AuthoredTransitionView {
+  fromStage: string;
+  toStage: string;
+  action: string;
+  actions?: AuthoredAction[];
+  requiresRole?: string;
+  condition?: string;
+  editorComment?: string;
+  /** Owning gateway key (Split) — also surfaces visually as the route's source pill. */
+  fromGateway?: string;
+  /** Set when the route's target resolves to a gateway. */
+  toGateway?: string;
+  /**
+   * Address back into `gateway.routes[routeIndex]` for mutation helpers.
+   * Optional for transient editor literals (stories, fixtures); always present
+   * on views produced by `flattenRoutes`/`withDerivedTransitions`.
+   */
+  gatewayKey?: string;
+  routeIndex?: number;
+  routeId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,8 +93,42 @@ export interface AuthoredGateway {
   kind: GatewayKind;
   laneKey?: string;
   actor?: string;
+  /**
+   * The stage key this gateway routes <em>from</em>. Required for Split
+   * gateways (PROJ141), forbidden for Join gateways (PROJ152). Exactly one
+   * split gateway per source-stage — a stage's outgoing routing lives
+   * entirely inside that one gateway.
+   */
+  source?: string;
+  /**
+   * Outgoing routes carried by this gateway. Each route projects 1:1 to a
+   * runtime transition with the gateway's `source` as the fromState. Defaults
+   * to empty for transient editor literals; the validator enforces PROJ144
+   * (at least one route) on save.
+   */
+  routes?: AuthoredRoute[];
   roleGates: string[];
   waiting?: WaitingMetadata;
+  editorComment?: string;
+}
+
+/**
+ * A single outgoing edge owned by an {@link AuthoredGateway}. The gateway
+ * carries the source stage; each route carries the trigger, optional
+ * condition, optional role gate, optional on-transition actions, and the
+ * target node (another stage or another gateway).
+ *
+ * Route identity is stable within its parent gateway — patch operations
+ * (`update-route`, `delete-route`) address routes by `(gatewayKey, routeId)`
+ * so renames or reorders do not invalidate references in the undo log.
+ */
+export interface AuthoredRoute {
+  id: string;
+  target: string;
+  trigger: string;
+  condition?: string;
+  requiresRole?: string;
+  actions?: AuthoredAction[];
   editorComment?: string;
 }
 
@@ -148,30 +225,23 @@ export interface WaitingMetadata {
 }
 
 // ---------------------------------------------------------------------------
-// Authored Transition
+// Authored Route view (legacy alias)
 // ---------------------------------------------------------------------------
+//
+// AuthoredTransition is gone as an authoring concept — gateways own all
+// routing. `RouteView` is the helper iteration shape produced by
+// `flattenRoutes(workflow)`; `AuthoredTransitionView` (above) is its
+// projected-onto-AuthoredWorkflow.transitions alias kept for back-compat
+// while the editor surfaces migrate. New code should prefer RouteView.
 
-export interface AuthoredTransition {
-  fromStage: string;
-  toStage: string;
-  action: string;
-  actions?: AuthoredAction[];
-  requiresRole?: string;
-  condition?: string;
-  editorComment?: string;
-  /**
-   * Editor-only. When set, the visual source of this transition is a gateway
-   * rather than a stage. The backend still receives fromStage; the graph uses
-   * this field to draw the route correctly and to populate inspector dropdowns.
-   * Requires backend alignment before runtime semantics change (#84/#85).
-   */
-  fromGateway?: string;
-  /**
-   * Editor-only. When set, the visual target of this transition is a gateway.
-   * The backend still receives toStage; the graph routes visually through the gateway.
-   */
-  toGateway?: string;
-}
+export type RouteView = AuthoredTransitionView;
+
+/**
+ * @deprecated Slice C dropped the AuthoredTransition record. The name is kept
+ * as an alias for `AuthoredTransitionView` so existing imports still resolve
+ * during the editor surface migration.
+ */
+export type AuthoredTransition = AuthoredTransitionView;
 
 // ---------------------------------------------------------------------------
 // Authored Action Catalog
@@ -673,24 +743,71 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
   ],
-  transitions: [
+  gateways: [
     {
-      fromStage: 'applicant-details',
-      toStage: 'check-answers',
-      action: 'submit',
-      actions: [
+      gatewayKey: 'route-check-answers',
+      displayName: 'Route to check answers',
+      kind: 'Split',
+      source: 'applicant-details',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
         {
-          type: 'forms.submit',
-          timing: 'OnTransition',
-          parameterSchemaKey: 'forms.form-reference',
-          params: { formDefinitionId: 'planning-applicant-details' },
-          summary: 'Submit the applicant details form.',
+          id: 'applicant-details--submit--check-answers',
+          target: 'check-answers',
+          trigger: 'submit',
+          actions: [
+            {
+              type: 'forms.submit',
+              timing: 'OnTransition',
+              parameterSchemaKey: 'forms.form-reference',
+              params: { formDefinitionId: 'planning-applicant-details' },
+              summary: 'Submit the applicant details form.',
+            },
+          ],
         },
       ],
     },
-    { fromStage: 'check-answers', toStage: 'reviewer-assessment', action: 'submit', actions: [] },
-    { fromStage: 'reviewer-assessment', toStage: 'confirmation', action: 'approve', requiresRole: 'reviewer', actions: [] },
-    { fromStage: 'reviewer-assessment', toStage: 'applicant-details', action: 'reject', requiresRole: 'reviewer', actions: [] },
+    {
+      gatewayKey: 'route-reviewer-assessment',
+      displayName: 'Route to reviewer assessment',
+      kind: 'Split',
+      source: 'check-answers',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        {
+          id: 'check-answers--submit--reviewer-assessment',
+          target: 'reviewer-assessment',
+          trigger: 'submit',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'route-reviewer-decision',
+      displayName: 'Route from reviewer assessment',
+      kind: 'Split',
+      source: 'reviewer-assessment',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        {
+          id: 'reviewer-assessment--approve--confirmation',
+          target: 'confirmation',
+          trigger: 'approve',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+        {
+          id: 'reviewer-assessment--reject--applicant-details',
+          target: 'applicant-details',
+          trigger: 'reject',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+      ],
+    },
   ],
   roles: [{ roleKey: 'reviewer', displayName: 'Planning Officer' }],
 };

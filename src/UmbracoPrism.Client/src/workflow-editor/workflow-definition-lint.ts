@@ -96,14 +96,19 @@ export function lintAuthoredWorkflowDocument(
     });
   }
 
-  if (!Array.isArray(root.transitions)) {
-    issues.push({ message: '"transitions" must be an array.', pathHint: 'transitions' });
+  if ('transitions' in root) {
+    issues.push({
+      message: 'Top-level "transitions" was retired in Slice C. Move routes onto the owning gateway as `gateway.routes[]` and set `gateway.source`.',
+      pathHint: 'transitions',
+      line: findLine(source, '"transitions"'),
+    });
   }
 
   if ('gateways' in root && root.gateways !== undefined && !Array.isArray(root.gateways)) {
     issues.push({ message: '"gateways" must be an array when present.', pathHint: 'gateways' });
   } else if (Array.isArray(root.gateways)) {
     const seenGatewayKeys = new Set<string>();
+    const sourceStageBySplitGateway = new Map<string, string>();
     root.gateways.forEach((rawGateway, index) => {
       if (!rawGateway || typeof rawGateway !== 'object' || Array.isArray(rawGateway)) {
         issues.push({ message: `Gateway at index ${index} must be an object.` });
@@ -121,11 +126,6 @@ export function lintAuthoredWorkflowDocument(
       } else {
         seenGatewayKeys.add(key);
       }
-      if (!key.trim()) {
-        issues.push({
-          message: `Gateway at index ${index} has no name. Named gateways are required.`,
-        });
-      }
       const kind = typeof gateway.kind === 'string' ? gateway.kind : '';
       if (kind && !ALLOWED_GATEWAY_KINDS.has(kind)) {
         issues.push({
@@ -133,6 +133,79 @@ export function lintAuthoredWorkflowDocument(
           line: findLine(source, `"${kind}"`),
         });
       }
+
+      const source_ = typeof gateway.source === 'string' ? gateway.source : '';
+      if (kind === 'Split') {
+        if (!source_.trim()) {
+          issues.push({
+            message: `Split gateway "${key || index}" must declare a "source" stage (PROJ141).`,
+            pathHint: key,
+          });
+        } else if (sourceStageBySplitGateway.has(source_)) {
+          issues.push({
+            message: `Split gateway "${key || index}" shares source stage "${source_}" with another split gateway. One split gateway per source stage (PROJ143).`,
+            pathHint: key,
+          });
+        } else {
+          sourceStageBySplitGateway.set(source_, key);
+        }
+      } else if (kind === 'Join' && source_.trim()) {
+        issues.push({
+          message: `Join gateway "${key || index}" must not declare a "source" (PROJ152).`,
+          pathHint: key,
+        });
+      }
+
+      const routes = Array.isArray(gateway.routes) ? gateway.routes : [];
+      if (routes.length === 0) {
+        issues.push({
+          message: `Gateway "${key || index}" must declare at least one route (PROJ144).`,
+          pathHint: key,
+        });
+      }
+      const seenRouteIds = new Set<string>();
+      const seenTriggerTargets = new Set<string>();
+      routes.forEach((rawRoute, routeIndex) => {
+        if (!rawRoute || typeof rawRoute !== 'object' || Array.isArray(rawRoute)) {
+          issues.push({ message: `Route at index ${routeIndex} on gateway "${key || index}" must be an object.` });
+          return;
+        }
+        const route = rawRoute as Record<string, unknown>;
+        const id = typeof route.id === 'string' ? route.id : '';
+        if (!id.trim()) {
+          issues.push({
+            message: `Route ${routeIndex} on gateway "${key || index}" is missing "id" (PROJ145).`,
+          });
+        } else if (seenRouteIds.has(id)) {
+          issues.push({
+            message: `Duplicate route id "${id}" on gateway "${key || index}" (PROJ146).`,
+          });
+        } else {
+          seenRouteIds.add(id);
+        }
+        const trigger = typeof route.trigger === 'string' ? route.trigger : '';
+        if (!trigger.trim()) {
+          issues.push({
+            message: `Route "${id || routeIndex}" on gateway "${key || index}" is missing "trigger" (PROJ147).`,
+          });
+        }
+        const target = typeof route.target === 'string' ? route.target : '';
+        if (!target.trim()) {
+          issues.push({
+            message: `Route "${id || routeIndex}" on gateway "${key || index}" is missing "target" (PROJ149).`,
+          });
+        }
+        const triggerTargetKey = `${trigger}::${target}`;
+        if (trigger && target) {
+          if (seenTriggerTargets.has(triggerTargetKey)) {
+            issues.push({
+              message: `Gateway "${key || index}" has two routes with the same (trigger, target) "(${trigger}, ${target})" (PROJ148).`,
+            });
+          } else {
+            seenTriggerTargets.add(triggerTargetKey);
+          }
+        }
+      });
     });
   }
 
@@ -154,9 +227,6 @@ export function coerceParsedAuthoredWorkflow(parsed: unknown): AuthoredWorkflow 
     instancePolicy: String(root.instancePolicy ?? 'single'),
     initialStageKey: String(root.initialStageKey ?? ''),
     stages: Array.isArray(root.stages) ? (root.stages as AuthoredWorkflow['stages']) : [],
-    transitions: Array.isArray(root.transitions)
-      ? (root.transitions as AuthoredWorkflow['transitions'])
-      : [],
     gateways: Array.isArray(root.gateways) ? (root.gateways as AuthoredWorkflow['gateways']) : [],
     roles: Array.isArray(root.roles) ? (root.roles as AuthoredWorkflow['roles']) : undefined,
     authorNote: typeof root.authorNote === 'string' ? root.authorNote : undefined,

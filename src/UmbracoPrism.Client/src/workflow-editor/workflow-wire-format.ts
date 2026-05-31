@@ -2,25 +2,29 @@
  * Wire-format helpers for HTTP-backed `WorkflowSource` implementations.
  *
  * The editor's TS authored model uses keys (`stageKey`, `displayName`, `kind`,
- * `fromStage`, …) that differ from the canonical wire shape Prism's projector
- * speaks (`key`, `title`, `type`, `source`, `target`, …).
+ * `gatewayKey`, …) that differ from the canonical wire shape Prism's
+ * projector speaks (`key`, `title`, `type`, `source`, `target`, `routes`, …).
  *
- * Hosts that store workflows as canonical JSON should call `serialiseWorkflow`
- * on save and `normaliseWorkflow` on load. `InMemoryWorkflowSource` does not
- * use these — it stores TS shape directly.
+ * Slice C reshaped routing: gateways now own all routing through
+ * `gateway.source` + `gateway.routes`. The top-level `transitions` array is
+ * gone from both the authored model and the wire format. Hosts that store
+ * workflows as canonical JSON should call `serialiseWorkflow` on save and
+ * `normaliseWorkflow` on load. `InMemoryWorkflowSource` does not use these
+ * — it stores TS shape directly.
  */
 
 import type {
   AuthoredAction,
   AuthoredField,
   AuthoredGateway,
+  AuthoredRoute,
   AuthoredStage,
-  AuthoredTransition,
   AuthoredWorkflow,
   FieldKind,
   GatewayKind,
   StageKind,
 } from './types.js';
+import { withDerivedTransitions } from './workflow-routes.js';
 
 function stripEditorOnlyStageSurface<T extends AuthoredStage>(stage: T): T {
   const { editorSurface: _editorSurface, ...rest } = stage as T & {
@@ -29,23 +33,13 @@ function stripEditorOnlyStageSurface<T extends AuthoredStage>(stage: T): T {
   return rest as T;
 }
 
-function serialiseTransition(transition: AuthoredTransition): Record<string, unknown> {
-  // Editor-only fields (fromGateway/toGateway) and TS-side aliases
-  // (fromStage/toStage/action) never go on the wire.
-  const {
-    fromStage,
-    toStage,
-    action,
-    fromGateway: _fromGateway,
-    toGateway: _toGateway,
-    ...rest
-  } = transition;
-  return {
-    ...rest,
-    source: fromStage,
-    target: toStage,
-    trigger: action,
-  };
+function serialiseRoute(route: AuthoredRoute): Record<string, unknown> {
+  const { condition, ...rest } = route;
+  const wire: Record<string, unknown> = { ...rest };
+  if (typeof condition === 'string' && condition.trim()) {
+    wire.condition = { kind: 'expression', expression: condition };
+  }
+  return wire;
 }
 
 function serialiseStage(stage: AuthoredStage): Record<string, unknown> {
@@ -60,13 +54,15 @@ function serialiseStage(stage: AuthoredStage): Record<string, unknown> {
 }
 
 function serialiseGateway(gateway: AuthoredGateway): Record<string, unknown> {
-  const { gatewayKey, displayName, kind, ...rest } = gateway as AuthoredGateway & Record<string, unknown>;
-  return {
+  const { gatewayKey, displayName, kind, routes, ...rest } = gateway as AuthoredGateway & Record<string, unknown>;
+  const wire: Record<string, unknown> = {
     ...rest,
     key: gatewayKey,
     title: displayName,
     type: kind,
+    routes: (routes as AuthoredRoute[] | undefined ?? []).map(serialiseRoute),
   };
+  return wire;
 }
 
 function serialiseField(field: AuthoredField): Record<string, unknown> {
@@ -80,7 +76,7 @@ function serialiseField(field: AuthoredField): Record<string, unknown> {
 }
 
 export function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
-  return {
+  const out: Record<string, unknown> = {
     ...workflow,
     stages: workflow.stages.map(stage => {
       const serialised = serialiseStage(stage);
@@ -90,11 +86,14 @@ export function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, un
       }
       return serialised;
     }),
-    transitions: workflow.transitions.map(serialiseTransition),
     gateways: Array.isArray(workflow.gateways)
       ? workflow.gateways.map(serialiseGateway)
-      : workflow.gateways,
+      : [],
   };
+  // Legacy field — never emit it on the wire. The derived view is kept on
+  // AuthoredWorkflow.transitions for read-time iteration only.
+  delete (out as Record<string, unknown>).transitions;
+  return out;
 }
 
 function mapStageKind(raw: string | undefined): StageKind {
@@ -182,8 +181,8 @@ function normaliseAction(raw: Record<string, unknown>): AuthoredAction {
 function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
   const kind = mapStageKind(typeof raw.type === 'string' ? raw.type : undefined);
   return {
-    stageKey: String(raw.key ?? ''),
-    displayName: String(raw.title ?? ''),
+    stageKey: String(raw.key ?? raw.stageKey ?? ''),
+    displayName: String(raw.title ?? raw.displayName ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
     kind,
     actor: typeof raw.actor === 'string' ? raw.actor : undefined,
@@ -202,52 +201,73 @@ function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
   };
 }
 
-function normaliseGateway(raw: Record<string, unknown>): AuthoredGateway {
+/**
+ * Slice C: condition may arrive either as a plain string (legacy editor
+ * payloads) or as a structured `{kind, expression, description}` object. The
+ * editor surface still consumes a single string with `event:` / `guard:`
+ * prefixes, so we flatten the object form down to its expression here and let
+ * `serialiseRoute` re-wrap it on the way out.
+ */
+function normaliseCondition(raw: unknown): string | undefined {
+  if (typeof raw === 'string') {
+    return raw.trim() ? raw : undefined;
+  }
+  if (raw && typeof raw === 'object') {
+    const record = raw as Record<string, unknown>;
+    const expression = typeof record.expression === 'string' ? record.expression : '';
+    return expression.trim() ? expression : undefined;
+  }
+  return undefined;
+}
+
+function normaliseRoute(raw: Record<string, unknown>, indexHint: number, gatewaySource: string): AuthoredRoute {
+  const trigger = String(raw.trigger ?? '');
+  const target = String(raw.target ?? '');
+  const id = typeof raw.id === 'string' && raw.id.trim()
+    ? raw.id
+    : `${gatewaySource || 'route'}--${trigger || 'continue'}--${target || `n${indexHint}`}`;
   return {
-    gatewayKey: String(raw.key ?? ''),
-    displayName: String(raw.title ?? ''),
-    description: typeof raw.description === 'string' ? raw.description : undefined,
-    kind: mapGatewayKind(typeof raw.type === 'string' ? raw.type : undefined),
-    laneKey: typeof raw.laneKey === 'string' ? raw.laneKey : undefined,
-    actor: typeof raw.actor === 'string' ? raw.actor : undefined,
-    roleGates: Array.isArray(raw.roleGates) ? raw.roleGates.map(value => String(value)) : [],
-    waiting:
-      typeof raw.waiting === 'object' && raw.waiting !== null
-        ? (raw.waiting as AuthoredGateway['waiting'])
-        : undefined,
+    id,
+    target,
+    trigger,
+    condition: normaliseCondition(raw.condition),
+    requiresRole: typeof raw.requiresRole === 'string' ? raw.requiresRole : undefined,
+    actions: Array.isArray(raw.actions)
+      ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
+      : [],
     editorComment: typeof raw.editorComment === 'string' ? raw.editorComment : undefined,
   };
 }
 
-function normaliseTransition(raw: Record<string, unknown>): AuthoredTransition {
-  const firstCondition =
-    Array.isArray(raw.conditions) &&
-    raw.conditions.length > 0 &&
-    typeof raw.conditions[0] === 'object' &&
-    raw.conditions[0] !== null
-      ? (raw.conditions[0] as Record<string, unknown>)
-      : null;
-
+function normaliseGateway(raw: Record<string, unknown>): AuthoredGateway {
+  const source = typeof raw.source === 'string' ? raw.source : '';
+  const routes = Array.isArray(raw.routes)
+    ? raw.routes.map((route, index) =>
+        normaliseRoute(route as Record<string, unknown>, index, source)
+      )
+    : [];
   return {
-    fromStage: String(raw.source ?? ''),
-    toStage: String(raw.target ?? ''),
-    action: String(raw.trigger ?? ''),
-    actions: Array.isArray(raw.actions)
-      ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
-      : [],
-    requiresRole: typeof raw.requiresRole === 'string' ? raw.requiresRole : undefined,
-    condition:
-      typeof raw.condition === 'string'
-        ? raw.condition
-        : typeof firstCondition?.expression === 'string'
-          ? firstCondition.expression
+    gatewayKey: String(raw.key ?? raw.gatewayKey ?? ''),
+    displayName: String(raw.title ?? raw.displayName ?? ''),
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+    kind: mapGatewayKind(typeof raw.type === 'string' ? raw.type : undefined),
+    laneKey: typeof raw.laneKey === 'string' ? raw.laneKey : undefined,
+    actor: typeof raw.actor === 'string' ? raw.actor : undefined,
+    source: source || undefined,
+    routes,
+    roleGates: Array.isArray(raw.roleGates) ? raw.roleGates.map(value => String(value)) : [],
+    waiting:
+      typeof raw.waitingInfo === 'object' && raw.waitingInfo !== null
+        ? (raw.waitingInfo as AuthoredGateway['waiting'])
+        : typeof raw.waiting === 'object' && raw.waiting !== null
+          ? (raw.waiting as AuthoredGateway['waiting'])
           : undefined,
     editorComment: typeof raw.editorComment === 'string' ? raw.editorComment : undefined,
   };
 }
 
 export function normaliseWorkflow(raw: Record<string, unknown>): AuthoredWorkflow {
-  return {
+  const base: AuthoredWorkflow = {
     definitionKey: String(raw.definitionKey ?? ''),
     displayName: String(raw.displayName ?? ''),
     version: typeof raw.version === 'number' ? raw.version : 1,
@@ -257,12 +277,10 @@ export function normaliseWorkflow(raw: Record<string, unknown>): AuthoredWorkflo
     stages: Array.isArray(raw.stages)
       ? raw.stages.map(stage => normaliseStage(stage as Record<string, unknown>))
       : [],
-    transitions: Array.isArray(raw.transitions)
-      ? raw.transitions.map(transition => normaliseTransition(transition as Record<string, unknown>))
-      : [],
     gateways: Array.isArray(raw.gateways)
       ? raw.gateways.map(gateway => normaliseGateway(gateway as Record<string, unknown>))
       : [],
     authorNote: typeof raw.authorNote === 'string' ? raw.authorNote : undefined,
   };
+  return withDerivedTransitions(base);
 }
