@@ -17,6 +17,8 @@ This walkthrough demonstrates **the complete end-to-end handoff**: start as a me
 
 This is the pattern to copy when you need a user-facing journey to pause while another actor or background service finishes the work.
 
+Every move from one stage to another happens through a gateway. Single-route gateways render as a small pill; multi-route gateways open up as a diamond.
+
 ---
 
 ## Part 1: Start the journey from the dashboard
@@ -132,17 +134,17 @@ This row tells you:
 
 The definition shows:
 
-- **States:** `initial` → `processing-payment` → `payment-complete`
-- **Initial state:** `initial` (where the form appears)
-- **Transitions:** 
-  - Member action: move from `initial` to `processing-payment` (on Submit)
-  - Reviewer action: move from `processing-payment` to `payment-complete` (on Complete, `requiresRole: "reviewer"`)
+- **Stages:** `initial` → `processing-payment` → `payment-complete`
+- **Initial stage:** `initial` (where the form appears)
+- **Gateways:** 
+  - Member action: route from `initial` to `processing-payment` (on Submit)
+  - Reviewer action: route from `processing-payment` to `payment-complete` (on Complete, `requiresRole: "reviewer"`)
 
 This is where everything comes together:
 
-1. The **member page** you saw earlier = the `processing-payment` state displayed to the user
+1. The **member page** you saw earlier = the `processing-payment` stage displayed to the user
 2. The **instance row** above = the current state of the workflow
-3. The **definition card** here = the rules that govern which transitions are possible
+3. The **definition card** here = the rules that govern which routes are possible
 
 Now you can see that the instance is genuinely stuck waiting for a reviewer action, and that reviewer action is defined in the state machine.
 

@@ -28,6 +28,9 @@ Data request form with date picker, textarea, and conditional urgency options. O
 
 These walkthroughs are aimed at developers and operators building or administering a Prism deployment.
 
+### [Gateway-First Authoring](gateway-first-authoring.md)
+How the gateway-and-route model works. Every move from one stage to another happens through a gateway. Worked example: the Leave Request 5-gateway fan-in pattern.
+
 ### [Workflow Administration](workflow-administration.md)
 How to use the development-only workflow admin panel to inspect, edit, and manage workflow instances and definitions. Covers accessing the panel from the dashboard, viewing instances and state, editing definitions, manually advancing workflows, and resetting instances for testing.
 
@@ -59,10 +62,10 @@ Building a Capacitor iOS/Android app from a Prism workflow. Covers the shell str
 
 **Reference contract:** The reference business app (`src/UmbracoPrism.MockBusinessApp`) seeds exactly four demo workflows at runtime from authored sources (`src/UmbracoPrism.MockBusinessApp/workflow-authored/`). These four workflows are the authoritative reference implementation:
 - **planning** — Planning Application workflow
+- **leave-request** — Leave Request workflow (demonstrates 5-gateway fan-in pattern)
 - **community-enquiry** — Get in Touch contact form
 - **information-request** — Information Request form
-- **payment-demo** — Payment Demo workflow
 
-All four are available to the editor, front-end journey, and runtime engine. Downstream applications replace the reference repository with their own authored workflow store (filesystem, database, etc.) by implementing `IAuthoredWorkflowStore`. See [Reference Business App README](../../src/UmbracoPrism.MockBusinessApp/README.md) for details.
+All four are available to the editor, front-end journey, and runtime engine. Downstream applications replace the reference repository with their own authored workflow store (filesystem, database, etc.) by implementing `WorkflowSource`. See [Embedding the Workflow Editor](../guides/embedding-the-workflow-editor.md) for details.
 
-**Authoring:** All workflows use the polymorphic component model (`type` discriminator, `children[]` arrays, `conditionalChildren` on Radios/Checkboxes). The authoring walkthrough explains how to create your own.
+**Authoring:** All workflows use the gateway-and-route model. Every move from one stage to another happens through a gateway. See [Gateway-First Authoring](gateway-first-authoring.md) for the structural consequences and the fan-in pattern.

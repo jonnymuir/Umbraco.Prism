@@ -1,35 +1,25 @@
 import { expect, test } from '@playwright/test';
 
-/**
- * Browser-Hosted Workflow Surface Behavioral Proof
- * 
- * Context: User feedback — "The UX probably seems ok, but the reality if you actually 
- * look at what is happening it is unusable."
- * 
- * Problem: Current shell proof tests the editor in Storybook isolation. But when mounted 
- * in a browser host with marketing chrome, launch cards, integration snippets, and 
- * explanatory copy, the workflow workspace is competing for space and the editor surface 
- * becomes unusable.
- * 
- * This proof validates:
- * 1. Visual workspace prioritization — editor gets enough space to actually work
- * 2. Swim lane reachability — role lanes are navigable in a realistic browser session
- * 3. Accessible navigation — keyboard/screen reader flow works in mounted experience
- * 4. Simple editing flow — create/edit/maintain workflow from browser entry point
- * 
- * Testing strategy: Uses the reference shell (prism-workflow-editor-shell) mounted at 
- * /workflow-editor.html, not the isolated Storybook frame. This proves the editor works 
- * in the intended host integration pattern.
- * 
- * Working in parallel with Isabelle.
- */
+// Slice D quarantine (2026-05-31):
+// This file tests the previous browser shell at `/workflow-editor.html` —
+// the marketing-chrome / launch-card / integration-rail surface that existed
+// before the Slice B WorkflowSource boundary + Slice C MockBusinessApp
+// rewrite. That surface has been deliberately retired; the editor is now
+// embedded by integrators in their own host pages (see
+// docs/guides/embedding-the-workflow-editor.md). These specs are marked
+// fixme rather than deleted so the behavioural intent stays visible if a
+// future slice reintroduces a Prism-shipped demo shell.
+//
+// TODO Slice E: reframe surviving behavioural intents (keyboard reach,
+// screen-reader landmarks, swim-lane reachability) against the
+// MockBusinessApp host page or the Storybook shell, then delete this file.
 
 function shellUrl(workflowKey = 'planning'): string {
   const apiBase = process.env.BUSINESS_APP_ORIGIN || 'http://localhost:7245';
   return `/workflow-editor.html?workflow=${workflowKey}&api=${encodeURIComponent(apiBase)}`;
 }
 
-test.describe('Browser-hosted workflow surface: Usability proof', () => {
+test.describe.fixme('Browser-hosted workflow surface: Usability proof', () => {
   test.describe('1. Visual workspace prioritization', () => {
     test('editor workspace is not overwhelmed by host marketing chrome', async ({ page }) => {
       await page.goto(shellUrl('planning'));

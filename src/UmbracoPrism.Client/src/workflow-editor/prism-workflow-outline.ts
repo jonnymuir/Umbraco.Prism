@@ -1,7 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { AuthoredGateway, AuthoredTransition, AuthoredWorkflow } from './types.js';
+import type { AuthoredGateway, RouteView, AuthoredWorkflow } from './types.js';
 import { deriveGatewayBindings } from './workflow-gateway-representation.js';
+import { flattenRoutes } from './workflow-routes.js';
 import { stageLaneKey, stageLaneLabel } from './workflow-stage-assignment.js';
 
 /**
@@ -59,12 +60,12 @@ export class PrismWorkflowOutline extends LitElement {
     return this.workflow?.gateways?.find(g => g.gatewayKey === gatewayKey)?.displayName ?? gatewayKey;
   }
 
-  private _stageOutboundTransitions(stageKey: string): { transition: AuthoredTransition; index: number }[] {
+  private _stageOutboundTransitions(stageKey: string): { transition: RouteView; index: number }[] {
     if (!this.workflow) {
       return [];
     }
 
-    return (this.workflow.transitions ?? [])
+    return (flattenRoutes(this.workflow))
       .map((transition, index) => ({ transition, index }))
       .filter(({ transition }) => transition.fromStage === stageKey);
   }

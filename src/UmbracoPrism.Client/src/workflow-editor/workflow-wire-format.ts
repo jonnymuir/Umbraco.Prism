@@ -24,7 +24,6 @@ import type {
   GatewayKind,
   StageKind,
 } from './types.js';
-import { withDerivedTransitions } from './workflow-routes.js';
 
 function stripEditorOnlyStageSurface<T extends AuthoredStage>(stage: T): T {
   const { editorSurface: _editorSurface, ...rest } = stage as T & {
@@ -90,9 +89,6 @@ export function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, un
       ? workflow.gateways.map(serialiseGateway)
       : [],
   };
-  // Legacy field — never emit it on the wire. The derived view is kept on
-  // AuthoredWorkflow.transitions for read-time iteration only.
-  delete (out as Record<string, unknown>).transitions;
   return out;
 }
 
@@ -282,5 +278,5 @@ export function normaliseWorkflow(raw: Record<string, unknown>): AuthoredWorkflo
       : [],
     authorNote: typeof raw.authorNote === 'string' ? raw.authorNote : undefined,
   };
-  return withDerivedTransitions(base);
+  return base;
 }

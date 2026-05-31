@@ -280,8 +280,3 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     ...routeActionIssues,
   ];
 }
-
-// Back-compat aliases for tests that look up the old names.
-export const workflowOutgoingTransitions = workflowOutgoingRoutes;
-export const workflowInboundTransitions = workflowInboundRoutes;
-export const workflowTransitionsWithMissingStages = workflowRoutesWithMissingStages;

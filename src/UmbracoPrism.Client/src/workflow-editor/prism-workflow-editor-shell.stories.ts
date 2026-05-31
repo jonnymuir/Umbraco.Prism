@@ -37,17 +37,25 @@ function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
     };
   });
 
+  const builtStages = stages;
   return {
     ...workflow,
     definitionKey: seed.definitionKey,
     displayName: seed.displayName,
-    initialStageKey: stages[0]?.stageKey ?? workflow.initialStageKey,
-    stages,
-    transitions: stages.slice(0, -1).map((stage, index) => ({
-      fromStage: stage.stageKey,
-      toStage: stages[index + 1].stageKey,
-      action: seed.transitionActions[index] ?? 'continue',
-      actions: [],
+    initialStageKey: builtStages[0]?.stageKey ?? workflow.initialStageKey,
+    stages: builtStages,
+    gateways: builtStages.slice(0, -1).map((stage, index) => ({
+      gatewayKey: `route-from-${stage.stageKey}`,
+      displayName: `Route from ${stage.displayName}`,
+      kind: 'Split' as const,
+      source: stage.stageKey,
+      roleGates: [],
+      routes: [{
+        id: `${stage.stageKey}--${seed.transitionActions[index] ?? 'continue'}--${builtStages[index + 1].stageKey}`,
+        target: builtStages[index + 1].stageKey,
+        trigger: seed.transitionActions[index] ?? 'continue',
+        actions: [],
+      }],
     })),
   };
 }

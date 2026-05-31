@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import type {
   AuthoredGateway,
   AuthoredStage,
-  AuthoredTransition,
+  RouteView,
   AuthoredWorkflow,
   EditorStageType,
 } from './types.js';
@@ -22,7 +22,7 @@ import {
   gatewayLaneKey,
   type GatewayBinding,
 } from './workflow-gateway-representation.js';
-import { deleteRoute, withDerivedTransitions } from './workflow-routes.js';
+import { deleteRoute, flattenRoutes } from './workflow-routes.js';
 
 type SelectionKind = 'stage' | 'transition' | 'gateway';
 
@@ -80,7 +80,7 @@ type GatewayLayout = {
 };
 
 type TransitionLayout = {
-  transition: AuthoredTransition;
+  transition: RouteView;
   index: number;
   path: string;
   labelX: number;
@@ -143,7 +143,7 @@ type CreateStageDialogState = {
 
 type DeleteStageDialogState = {
   stageKey: string;
-  affectedTransitions: AuthoredTransition[];
+  affectedTransitions: RouteView[];
 };
 
 type CreateGatewayDialogState = {
@@ -303,7 +303,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     const stages = this.workflow?.stages ?? [];
-    const transitions = this.workflow?.transitions ?? [];
+    const transitions = flattenRoutes(this.workflow);
     const gateways = this.workflow?.gateways ?? [];
     const focusableStages = stages;
 
@@ -331,7 +331,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private get _layout(): WorkspaceLayout {
     const stages = this.workflow?.stages ?? [];
-    const transitions = this.workflow?.transitions ?? [];
+    const transitions = flattenRoutes(this.workflow);
     const gatewayBindings = this.workflow ? deriveGatewayBindings(this.workflow) : [];
 
     // 1. Lane entries: keep first-appearance order so the canvas reads left to
@@ -1067,7 +1067,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _selectTransition(index: number, options?: { openInspector?: boolean }) {
-    const transition = (this.workflow?.transitions ?? [])[index];
+    const transition = (flattenRoutes(this.workflow))[index];
     if (!transition) {
       return;
     }
@@ -1128,7 +1128,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
   }
 
-  private _transitionDescriptor(transition: AuthoredTransition) {
+  private _transitionDescriptor(transition: RouteView) {
     return `${this._labelForStage(transition.fromStage)} to ${this._labelForStage(transition.toStage)}`;
   }
 
@@ -1414,7 +1414,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._dialogReturnTarget = returnTarget ?? this._contextReturnTarget ?? null;
     this._deleteStageDialog = {
       stageKey,
-      affectedTransitions: (this.workflow.transitions ?? []).filter(
+      affectedTransitions: (flattenRoutes(this.workflow)).filter(
         transition => transition.fromStage === stageKey || transition.toStage === stageKey
       ),
     };
@@ -1453,7 +1453,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         routes: (g.routes ?? []).filter(route => route.target !== stageKey),
       }));
 
-    const workflow: AuthoredWorkflow = withDerivedTransitions({
+    const workflow: AuthoredWorkflow = {
       ...this.workflow,
       stages,
       gateways,
@@ -1461,7 +1461,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         this.workflow.initialStageKey === stageKey
           ? stages[0]?.stageKey ?? ''
           : this.workflow.initialStageKey,
-    });
+    };
 
     this._selectedStageKey = null;
     this._selectedTransitionIndex = null;
@@ -1491,7 +1491,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private async _copyTransition(index: number) {
-    const transition = (this.workflow?.transitions ?? [])[index];
+    const transition = (flattenRoutes(this.workflow))[index];
     if (!transition) {
       return;
     }
@@ -1513,19 +1513,17 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
 
-    const transition = (this.workflow.transitions ?? [])[index];
+    const transition = (flattenRoutes(this.workflow))[index];
     if (!transition) {
       return;
     }
 
     const gatewayKey = transition.gatewayKey;
     const routeId = transition.routeId;
-    const workflow: AuthoredWorkflow = (gatewayKey && routeId)
-      ? deleteRoute(this.workflow, { gatewayKey, routeId })
-      : {
-          ...this.workflow,
-          transitions: (this.workflow.transitions ?? []).filter((_, i) => i !== index),
-        };
+    if (!gatewayKey || !routeId) {
+      return;
+    }
+    const workflow: AuthoredWorkflow = deleteRoute(this.workflow, { gatewayKey, routeId });
 
     this._selectedTransitionIndex = null;
     this._emitWorkflowUpdated(workflow, null);
@@ -2174,31 +2172,50 @@ export class PrismWorkflowGraphElement extends LitElement {
                 </button>
               ` : nothing)}
 
-              ${gatewayLayouts.map(layout => html`
+              ${gatewayLayouts.map(layout => {
+                const routeCount = (layout.gateway.routes ?? []).length;
+                const isPill = layout.gateway.kind === 'Split' && routeCount === 1;
+                const shapeClass = isPill ? 'shape-pill' : 'shape-diamond';
+                const route = isPill ? (layout.gateway.routes ?? [])[0] : null;
+                const triggerLabel = route?.trigger ?? '';
+                const hasCondition = !!(route?.condition && route.condition.trim().length > 0);
+                return html`
                 <div
-                  class="gateway-node-shell"
+                  class="gateway-node-shell ${shapeClass}"
                   data-prism-gateway-node=${layout.gateway.gatewayKey}
+                  data-prism-gateway-shape=${isPill ? 'pill' : 'diamond'}
                   data-prism-row-rank=${String(layout.rowRank)}
                   style=${`left:${layout.x}px;top:${layout.y}px;width:${layout.width}px;height:${layout.height}px;`}
                 >
                   <button
                     type="button"
-                    class=${`gateway-node ${layout.surface} kind-${layout.gateway.kind.toLowerCase()} ${this._selectedGatewayKey === layout.gateway.gatewayKey ? 'selected' : ''}`}
+                    class=${`gateway-node ${layout.surface} kind-${layout.gateway.kind.toLowerCase()} ${shapeClass} ${this._selectedGatewayKey === layout.gateway.gatewayKey ? 'selected' : ''}`}
                     aria-pressed=${String(this._selectedGatewayKey === layout.gateway.gatewayKey)}
-                    aria-label=${`${layout.gateway.displayName}, ${layout.gateway.kind} gateway, ${layout.laneLabel} lane`}
+                    aria-label=${isPill
+                      ? `${layout.gateway.displayName}, single-route gateway via “${triggerLabel}”, ${layout.laneLabel} lane`
+                      : `${layout.gateway.displayName}, ${layout.gateway.kind} gateway, ${layout.laneLabel} lane`}
                     data-prism-gateway=${layout.gateway.gatewayKey}
                     data-prism-gateway-kind=${layout.gateway.kind}
+                    data-prism-gateway-route-count=${String(routeCount)}
                     data-prism-lane=${layout.laneKey}
                     @click=${() => this._selectGateway(layout.gateway.gatewayKey)}
                     @dblclick=${() => this._selectGateway(layout.gateway.gatewayKey, { openInspector: true })}
                     @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, { kind: 'gateway', gateway: layout.gateway })}
                   >
-                    <span class="gateway-kind-badge">${layout.gateway.kind} gateway</span>
-                    <span class="node-label">${layout.gateway.displayName}</span>
-                    <span class="node-meta">${layout.binding.relatedTransitionIndices.length} related route${layout.binding.relatedTransitionIndices.length === 1 ? '' : 's'}</span>
+                    ${isPill
+                      ? html`
+                          <span class="pill-trigger">${triggerLabel || layout.gateway.displayName}</span>
+                          ${hasCondition ? html`<span class="pill-condition" aria-label="conditional route" title="${route?.condition ?? ''}">•</span>` : nothing}
+                        `
+                      : html`
+                          <span class="gateway-kind-badge">${layout.gateway.kind} gateway</span>
+                          <span class="node-label">${layout.gateway.displayName}</span>
+                          <span class="node-meta">${layout.binding.relatedTransitionIndices.length} related route${layout.binding.relatedTransitionIndices.length === 1 ? '' : 's'}</span>
+                        `}
                   </button>
                 </div>
-              `)}
+              `;
+              })}
 
               ${stageLayouts.map((layout, visualIndex) => html`
                 <div
@@ -2713,6 +2730,38 @@ export class PrismWorkflowGraphElement extends LitElement {
     .gateway-node.kind-join .gateway-kind-badge {
       background: rgba(15, 118, 110, 0.12);
       color: #0f766e;
+    }
+
+    /* Single-route Split gateways render as a thin pill — low visual weight
+       so straight-through routing reads as "stage → small pill → next stage"
+       instead of a heavy diamond. Multi-route Splits and all Joins keep the
+       full diamond shape rendered above. */
+    .gateway-node.shape-pill {
+      flex-direction: row;
+      gap: 0.35rem;
+      padding: 0.2rem 0.65rem;
+      align-items: center;
+      justify-content: center;
+      border-style: solid;
+      border-width: 1px;
+      border-radius: 999px;
+      background: #f5f3ff;
+      box-shadow: 0 1px 3px rgba(124, 58, 237, 0.18);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #5b21b6;
+    }
+    .gateway-node.shape-pill .pill-trigger {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .gateway-node.shape-pill .pill-condition {
+      color: #6d28d9;
+      font-weight: 700;
+    }
+    .gateway-node.shape-pill.selected {
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.25), 0 1px 3px rgba(29, 78, 216, 0.2);
     }
 
     .stage-node {

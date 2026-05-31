@@ -24,46 +24,9 @@ export interface AuthoredWorkflow {
    * projector (see workflow-runtime-projection.ts).
    */
   gateways?: AuthoredGateway[];
-  /**
-   * @deprecated Slice C dropped top-level transitions from the wire format and
-   * the canonical authoring model. Populated at load time as a derived,
-   * read-only flattening of `gateways[].routes` so existing iteration code
-   * (graph layout, validation, projection) keeps working. Stripped on save.
-   * Never mutate this array — use the helpers in workflow-routes.ts
-   * (`addRoute`, `updateRoute`, `deleteRoute`) which produce a new immutable
-   * workflow snapshot with the derived view kept in sync.
-   */
-  transitions?: AuthoredTransitionView[];
   /** Client-side convenience — not present in C# AuthoredWorkflow; guard all accesses. */
   roles?: AuthoredRole[];
   authorNote?: string;
-}
-
-/**
- * Read-only flattening of a gateway's routes into the legacy transition
- * shape. Carries the addressing info `gatewayKey`+`routeId` so write-back
- * helpers can locate the underlying route.
- */
-export interface AuthoredTransitionView {
-  fromStage: string;
-  toStage: string;
-  action: string;
-  actions?: AuthoredAction[];
-  requiresRole?: string;
-  condition?: string;
-  editorComment?: string;
-  /** Owning gateway key (Split) — also surfaces visually as the route's source pill. */
-  fromGateway?: string;
-  /** Set when the route's target resolves to a gateway. */
-  toGateway?: string;
-  /**
-   * Address back into `gateway.routes[routeIndex]` for mutation helpers.
-   * Optional for transient editor literals (stories, fixtures); always present
-   * on views produced by `flattenRoutes`/`withDerivedTransitions`.
-   */
-  gatewayKey?: string;
-  routeIndex?: number;
-  routeId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,23 +188,35 @@ export interface WaitingMetadata {
 }
 
 // ---------------------------------------------------------------------------
-// Authored Route view (legacy alias)
+// Route view
 // ---------------------------------------------------------------------------
 //
-// AuthoredTransition is gone as an authoring concept — gateways own all
-// routing. `RouteView` is the helper iteration shape produced by
-// `flattenRoutes(workflow)`; `AuthoredTransitionView` (above) is its
-// projected-onto-AuthoredWorkflow.transitions alias kept for back-compat
-// while the editor surfaces migrate. New code should prefer RouteView.
-
-export type RouteView = AuthoredTransitionView;
+// AuthoredTransition is gone — gateways own all routing. `RouteView` is the
+// helper iteration shape produced by `flattenRoutes(workflow)`. The shape
+// carries `(gatewayKey, routeId)` so editor surfaces can address the
+// underlying route for mutation through the helpers in `workflow-routes.ts`.
 
 /**
- * @deprecated Slice C dropped the AuthoredTransition record. The name is kept
- * as an alias for `AuthoredTransitionView` so existing imports still resolve
- * during the editor surface migration.
+ * Read-only flattening of a gateway's routes. Carries the addressing info
+ * `gatewayKey`+`routeId` so editor surfaces can locate the underlying route.
  */
-export type AuthoredTransition = AuthoredTransitionView;
+export interface RouteView {
+  fromStage: string;
+  toStage: string;
+  action: string;
+  actions?: AuthoredAction[];
+  requiresRole?: string;
+  condition?: string;
+  editorComment?: string;
+  /** Owning gateway key (Split) — also surfaces visually as the route's source pill. */
+  fromGateway?: string;
+  /** Set when the route's target resolves to a gateway. */
+  toGateway?: string;
+  /** Address back into `gateway.routes[routeIndex]` for mutation helpers. */
+  gatewayKey: string;
+  routeIndex: number;
+  routeId: string;
+}
 
 // ---------------------------------------------------------------------------
 // Authored Action Catalog

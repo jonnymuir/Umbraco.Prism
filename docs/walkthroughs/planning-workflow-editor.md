@@ -45,7 +45,7 @@ The editor loads with the workflow graph visible in visual (graph) mode. The `<p
 
 ## Step 2 — Canvas shows the planning application stages in vertical lanes
 
-`<prism-workflow-graph>` renders the workflow as vertical lane columns that read top to bottom. Each stage is a card in the lane that owns it; each gateway is a diamond; each transition is an arrow. Same-level siblings in one lane expand into a slot matrix to the right, so the canvas stays scannable as the workflow grows.
+`<prism-workflow-graph>` renders the workflow as vertical lane columns that read top to bottom. Each stage is a card in the lane that owns it; gateways control routing between stages. Every move from one stage to another happens through a gateway. Single-route gateways render as a small pill; multi-route gateways open up as a diamond. Same-level siblings in one lane expand into a slot matrix to the right, so the canvas stays scannable as the workflow grows.
 
 ![Graph view — planning permission stages](../images/walkthroughs/planning-workflow-editor/02-graph-view-stages.png)
 

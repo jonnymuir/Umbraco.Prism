@@ -1,4 +1,5 @@
 import type { AuthoredGateway, AuthoredWorkflow } from './types.js';
+import { flattenRoutes } from './workflow-routes.js';
 import { normaliseLaneKey, stageLaneKey } from './workflow-stage-assignment.js';
 
 export interface GatewayBinding {
@@ -30,14 +31,14 @@ export function gatewayLaneKey(gateway: AuthoredGateway): string {
   return normaliseLaneKey(gateway.laneKey) || stageLaneKey(gateway);
 }
 
-export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' | 'transitions' | 'gateways'>): GatewayBinding[] {
+export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' | 'gateways'>): GatewayBinding[] {
   const stageByKey = new Map(workflow.stages.map(stage => [stage.stageKey, stage]));
   const outgoingByStage = new Map<string, number[]>();
   const incomingByStage = new Map<string, number[]>();
   const explicitSplitBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
   const explicitJoinBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
 
-  (workflow.transitions ?? []).forEach((transition, index) => {
+  (flattenRoutes(workflow)).forEach((transition, index) => {
     outgoingByStage.set(transition.fromStage, [...(outgoingByStage.get(transition.fromStage) ?? []), index]);
     incomingByStage.set(transition.toStage, [...(incomingByStage.get(transition.toStage) ?? []), index]);
 
@@ -70,7 +71,7 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
     if (outgoing.length > 1) {
       const targetLanes = new Set(
         outgoing
-          .map(index => stageByKey.get((workflow.transitions ?? [])[index].toStage))
+          .map(index => stageByKey.get((flattenRoutes(workflow))[index].toStage))
           .filter(Boolean)
           .map(target => stageLaneKey(target!))
       );
@@ -82,7 +83,7 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
     if (incoming.length > 1) {
       const sourceLanes = new Set(
         incoming
-          .map(index => stageByKey.get((workflow.transitions ?? [])[index].fromStage))
+          .map(index => stageByKey.get((flattenRoutes(workflow))[index].fromStage))
           .filter(Boolean)
           .map(source => stageLaneKey(source!))
       );

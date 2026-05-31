@@ -14,8 +14,6 @@ import type {
   FieldKind,
   StageKind,
 } from '../types.js';
-import { withDerivedTransitions } from '../workflow-routes.js';
-
 interface FixtureField {
   key: string;
   label: string;
@@ -342,7 +340,7 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     };
   });
 
-  return withDerivedTransitions({
+  return {
     definitionKey: raw.definitionKey,
     displayName: raw.displayName,
     version: raw.version,
@@ -351,7 +349,7 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
     initialStageKey: raw.initialStageKey,
     stages,
     gateways,
-  });
+  };
 }
 
 export const PLANNING_WORKFLOW: AuthoredWorkflow = normalisePlanningFixture(RAW);
@@ -372,7 +370,7 @@ export function cloneAuthoredWorkflow<T extends AuthoredWorkflow>(workflow: T): 
  * (one of which crosses into the reviewer lane) and `decision-join` waits
  * for every branch before releasing the decision-confirmed stage.
  */
-export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = withDerivedTransitions({
+export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
   definitionKey: 'leave-request',
   displayName: 'Leave Request',
   version: 1,
@@ -540,4 +538,4 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = withDerivedTrans
       ],
     },
   ],
-});
+};

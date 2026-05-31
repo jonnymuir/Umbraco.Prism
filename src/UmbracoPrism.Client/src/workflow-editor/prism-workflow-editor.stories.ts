@@ -5,8 +5,6 @@ import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 import type { AuthoredWorkflow } from './types.js';
 import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
-import { withDerivedTransitions } from './workflow-routes.js';
-
 function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkflowEditorElement {
   const el = document.createElement('prism-workflow-editor') as PrismWorkflowEditorElement;
   // Stories drive the editor by injecting the workflow directly. The Save
@@ -26,7 +24,6 @@ function makeEmptyWorkflow(): AuthoredWorkflow {
     displayName: 'Empty Workflow',
     initialStageKey: '',
     stages: [],
-    transitions: [],
     gateways: [],
   };
 }
@@ -120,7 +117,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       ],
     },
   ];
-  return withDerivedTransitions(workflow);
+  return workflow;
 }
 
 function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
@@ -134,7 +131,7 @@ function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
         : route
     );
   }
-  return withDerivedTransitions(workflow);
+  return workflow;
 }
 
 const meta: Meta = {

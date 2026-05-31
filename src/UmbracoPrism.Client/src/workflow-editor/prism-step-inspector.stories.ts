@@ -154,21 +154,6 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
   ],
-  transitions: [
-    {
-      fromStage: 'submitted',
-      toStage: 'reviewer-assessment',
-      action: 'route for review',
-      fromGateway: 'review-split',
-      requiresRole: 'reviewer',
-      actions: [
-        {
-          type: 'forms.submit',
-          timing: 'OnTransition',
-        },
-      ],
-    },
-  ],
   gateways: [
     {
       gatewayKey: 'review-split',
@@ -176,7 +161,22 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       kind: 'Split',
       laneKey: 'public',
       actor: 'public',
+      source: 'submitted',
       roleGates: [],
+      routes: [
+        {
+          id: 'submitted--route-for-review--reviewer-assessment',
+          target: 'reviewer-assessment',
+          trigger: 'route for review',
+          requiresRole: 'reviewer',
+          actions: [
+            {
+              type: 'forms.submit',
+              timing: 'OnTransition',
+            },
+          ],
+        },
+      ],
     },
   ],
 };

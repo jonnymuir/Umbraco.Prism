@@ -341,3 +341,5 @@ Created a unified behavioural test slice spanning backend authoring contracts, e
 - 3 git stashes preserved on branch (untouched, pending Slice 5 canvas-slot-matrix)
 - Movement model accessibility guardrails in place
 - Ready for Slice 3 parallel testing (gateway-first binding + structure reordering)
+
+- 2026-05-31 — Slice D — visual baselines audit. Confirmed only 3 PNGs live under `tests/__screenshots__/workflow-editor/workflow-canvas-arrows.spec.ts/` and none required re-cert this slice (Slice D landed structural data-attr + class changes for pill rendering, not new arrow geometry). New `workflow-graph-visual.spec.ts` assertions are behavioural (data-attr / aria-label / element-count), not pixel snapshots. Walkthrough screenshots flagged "pending refresh" once the pill render stabilises — captured in `.squad/decisions/inbox/copilot-slice-d-close-out.md` as a deferred docs-only pass.

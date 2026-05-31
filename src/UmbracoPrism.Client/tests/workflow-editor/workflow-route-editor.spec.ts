@@ -36,11 +36,17 @@ test.describe('Gateway-first route editing', () => {
     await expect(routeBlock.locator('[data-prism-route-condition-value]'))
       .toHaveValue('application.readyForReview == true');
 
-    // (b) Underlying transition condition is updated in the workflow model.
+    // (b) Underlying route condition is updated in the workflow model.
     const updatedCondition = await inspector.evaluate(node => {
-      const el = node as unknown as { workflow: { transitions: Array<{ toStage: string; condition?: string }> } | null };
-      const transition = el.workflow?.transitions.find(t => t.toStage === 'reviewer-assessment');
-      return transition?.condition ?? null;
+      const el = node as unknown as {
+        workflow: { gateways?: Array<{ routes?: Array<{ target: string; condition?: string }> }> } | null;
+      };
+      for (const gw of (el.workflow?.gateways ?? [])) {
+        for (const route of (gw.routes ?? [])) {
+          if (route.target === 'reviewer-assessment') return route.condition ?? null;
+        }
+      }
+      return null;
     });
     expect(updatedCondition).toContain('application.readyForReview == true');
 

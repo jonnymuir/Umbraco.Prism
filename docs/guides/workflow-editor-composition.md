@@ -1,6 +1,8 @@
-# Composing the Workflow Editor into Your Application
+# Workflow Editor Composition — Advanced Patterns
 
-This guide shows how to embed the workflow editor into your own application with minimal complexity.
+> **Note:** For the integration recipe (how to embed the editor in your business app), see [Embedding the Workflow Editor](./embedding-the-workflow-editor.md). This document covers advanced composition patterns for custom hosts.
+
+This guide shows advanced patterns for composing the workflow editor into your own application. It assumes you have already implemented `WorkflowSource` and understand the basic integration flow.
 
 **For context:**
 - **Component API reference (public elements, attributes, events)?** See [`src/UmbracoPrism.Client/src/workflow-editor/README.md`](../../src/UmbracoPrism.Client/src/workflow-editor/README.md)
@@ -13,90 +15,90 @@ This guide shows how to embed the workflow editor into your own application with
 
 ---
 
-## The Simplest Way: One Element + One API Base
+## The Elements
 
-The workflow editor is a Web Component. Drop it into your page and point it at your authoring API:
+The workflow editor ships two elements:
 
-```html
-<prism-workflow-editor
-  workflow-key="planning"
-  authoring-api-base="https://your-authoring-api/api/authoring">
-</prism-workflow-editor>
-```
+- **`<prism-workflow-editor>`** — the visual editor (canvas, inspector, validation, history, simulation).
+- **`<prism-workflow-editor-shell>`** — a wrapper that adds workflow selection and displays.
 
-That's all you need. The editor:
-- loads the workflow definition from your authoring API
-- lets authors edit stages, transitions, and actions
-- validates the workflow structure
-- publishes the result back to your authoring API
+Both require a `WorkflowSource` to be wired via JavaScript. See [Embedding the Workflow Editor](./embedding-the-workflow-editor.md) for the basic integration pattern.
 
 ---
 
-## Why the Host Should Stay Thin
+## Host Responsibility Model
 
-The reference shell keeps one clear responsibility: **mount the editor and wire the authoring API**. Everything else belongs to your application.
+The host keeps one clear responsibility: **mount the editor and wire the `WorkflowSource`**. Everything else belongs to your application.
 
 ### What the Host Owns
 
 ✅ **Host responsibilities:**
-- Workflow key selection (which workflow to edit?)
-- Authoring API wiring (where is the API?)
-- Authentication (if needed)
+- Workflow selection UI (if needed)
+- `WorkflowSource` implementation wiring
+- Page layout and branding
 - Editor mounting and initialization
 
 ### What Your Application Owns
 
 ✅ **Application responsibilities:**
-- Workflow definition storage and versioning
+- Workflow storage and versioning (your `WorkflowSource` implementation)
+- Authentication and authorization (who can edit what?)
 - Action handlers and runtime execution
 - Business logic and domain validation
 - Forms engine integration
 - Runtime case management and state persistence
-- User authentication and authorization (both authoring and runtime)
 - Error handling and recovery flows
 - Analytics and observability
 
-**Why this split?** The editor is an authoring tool, not a runtime system. Mixing authoring concerns into the runtime host makes both harder to test, understand, and evolve independently. Keep the editor host a thin shell; let your application own the business logic.
+**Why this split?** The editor is an authoring tool, not a runtime system. Keep the editor host a thin shell. Let your application own the business logic.
 
 ---
 
-## Configuration: What Goes in Docs vs. Runtime UI
+## Custom Action Catalog
 
-Some configuration belongs in documentation and your authoring API. Other configuration should stay out of the UI.
+The editor ships a default catalog of generic actions. Your business app can extend it. See [Extending the Action Catalog](./embedding-the-workflow-editor.md#extending-the-action-catalog) for details.
 
-### Configuration That Belongs in Docs + API
+Key points:
 
-These settings should be fixed in your authoring API and documented for developers:
+- Extend `BuiltInWorkflowActionCatalog` to add your custom actions.
+- Each action has a `type`, `label`, `summary`, `appliesTo`, `paramsSchema`, and `defaultParams`.
+- The editor validates parameters against the schema at design time.
+- Your runtime executes the action at runtime.
 
-- **Action catalog** — What actions are available? What parameters do they need?
-- **Validation rules** — What makes a workflow definition valid in your system?
-- **Forms engine components** — What form fields and layouts does your system support?
-- **Stage types** — What stage types (form, review, decision, confirmation) are available?
-- **Role definitions** — What actor roles exist in your system?
-- **Assignment model** — Which `actor` and `roleGates` combinations should appear as journey or operations lanes in your host?
+---
 
-Example: If your system supports 5 stage types, document them in your API reference or setup guide. Don't expose a "stage type selector" in the editor UI for undefined types. Likewise, if you want journey/operations labels in your host, derive them from the authored assignment fields in one place instead of persisting a second surface flag.
+## Custom Canonical JSON Helpers
 
-### Configuration That Can Stay in the UI (Minimal)
+The editor uses `normaliseWorkflow` and `serialiseWorkflow` from `workflow-wire-format.ts` to convert between wire JSON and `AuthoredWorkflow` objects. If you need custom field normalization or serialization (e.g., for backward compatibility with a legacy format), you can wrap these helpers in your own functions.
 
-Only expose in the runtime UI what developers actually need to change:
+Example:
 
-- Workflow key selection (if hosting multiple workflows)
-- Authoring API endpoint (if switching between dev/staging/prod)
-- User credentials or authentication (if not handled at the application level)
+```typescript
+import { normaliseWorkflow, serialiseWorkflow } from '@umbraco-prism/client/workflow-editor';
+import type { AuthoredWorkflow } from '@umbraco-prism/client/workflow-editor';
 
-The reference shell includes these because they're useful for testing. In production, many applications hard-code the authoring API endpoint and don't expose workflow selection at all.
+export function loadLegacyWorkflow(json: Record<string, unknown>): AuthoredWorkflow {
+  // Apply legacy field migrations before normalising
+  const migrated = { ...json };
+  if ('oldFieldName' in migrated) {
+    migrated['newFieldName'] = migrated['oldFieldName'];
+    delete migrated['oldFieldName'];
+  }
+  return normaliseWorkflow(migrated);
+}
 
-### Configuration That Should NOT Appear in the UI
+export function saveLegacyWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
+  const json = serialiseWorkflow(workflow);
+  // Apply legacy field migrations after serialising
+  if ('newFieldName' in json) {
+    json['oldFieldName'] = json['newFieldName'];
+    delete json['newFieldName'];
+  }
+  return json;
+}
+```
 
-Keep these concerns out of the editor shell entirely:
-
-- Runtime configuration (deadlines, escalation rules, operational policies)
-- Database connection strings or secrets
-- Feature flags or A/B testing toggles
-- Analytics or monitoring settings
-
-These belong in your application configuration, not the editor host. Preview and publish calls should receive the authored workflow contract only; keep editor-only lane hints out of those payloads.
+Use these in your `WorkflowSource` implementation instead of calling `normaliseWorkflow` / `serialiseWorkflow` directly.
 
 ---
 
@@ -109,18 +111,17 @@ If you need a custom host (for branding, custom workflows, or integration), foll
 ```typescript
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import 'prism-workflow-editor';
+import '@umbraco-prism/client/workflow-editor/prism-workflow-editor.js';
+import type { WorkflowSource } from '@umbraco-prism/client/workflow-editor';
 
 @customElement('my-workflow-host')
 export class MyWorkflowHost extends LitElement {
-  @property() workflowKey = 'planning';
-  @property() authoringApiBase = 'https://api.example.com/authoring';
+  @property({ attribute: false }) workflowSource?: WorkflowSource;
 
   render() {
     return html`
       <prism-workflow-editor
-        workflow-key="${this.workflowKey}"
-        authoring-api-base="${this.authoringApiBase}">
+        .workflowSource=${this.workflowSource}>
       </prism-workflow-editor>
     `;
   }
@@ -132,8 +133,10 @@ export class MyWorkflowHost extends LitElement {
 If you need workflow selection:
 
 ```typescript
+@property() selectedKey = 'planning';
+
 private _handleWorkflowChange(key: string) {
-  this.workflowKey = key;
+  this.selectedKey = key;
 }
 
 render() {
@@ -145,8 +148,8 @@ render() {
       </select>
     </section>
     <prism-workflow-editor
-      workflow-key="${this.workflowKey}"
-      authoring-api-base="${this.authoringApiBase}">
+      .workflowSource=${this.workflowSource}
+      .workflowKey=${this.selectedKey}>
     </prism-workflow-editor>
   `;
 }
@@ -155,7 +158,7 @@ render() {
 ### 3. Stop there
 
 Don't add:
-- Form controls for authoring API endpoints (hard-code or use environment variables)
+- Form controls for source configuration (hard-code or use environment variables)
 - Help text or explanatory copy (write it in your onboarding docs instead)
 - Integration snippets or code examples (put those in your developer guides)
 
@@ -202,7 +205,7 @@ See [`docs/testing/workflow-editor-visual-tests.md`](../testing/workflow-editor-
 
 ## Next Steps
 
-1. **Review the editor design:** Understand what the editor can do and what it can't in [Workflow Editor V1 Design](../design/workflow-editor-v1/README.md)
-2. **Set up your authoring API:** See [Setting Up a Prism Workflow](./workflow-setup.md) for API contracts and examples
+1. **Implement `WorkflowSource`:** See [Embedding the Workflow Editor](./embedding-the-workflow-editor.md)
+2. **Review the editor design:** Understand what the editor can do and what it can't in [Workflow Editor V1 Design](../design/workflow-editor-v1/README.md)
 3. **Configure actions and forms:** Document your action catalog and forms engine integration for authors
 4. **Test the workflow:** Use the editor's built-in validation and simulation features to verify your definitions

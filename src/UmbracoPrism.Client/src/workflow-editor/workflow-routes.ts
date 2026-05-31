@@ -20,8 +20,15 @@ import type {
   RouteView,
 } from './types.js';
 
-/** Return every route in the workflow, in `(gateway, routes[])` order. */
-export function flattenRoutes(workflow: Pick<AuthoredWorkflow, 'gateways'>): RouteView[] {
+/**
+ * Return every route in the workflow, in `(gateway, routes[])` order.
+ * This is the single iteration helper editor surfaces use to walk routes —
+ * no surface should iterate `workflow.transitions` (the field is gone).
+ */
+export function flattenRoutes(
+  workflow: Pick<AuthoredWorkflow, 'gateways'> | null | undefined
+): RouteView[] {
+  if (!workflow) return [];
   const gateways = workflow.gateways ?? [];
   const gatewayKeys = new Set(gateways.map(gateway => gateway.gatewayKey));
   const views: RouteView[] = [];
@@ -51,20 +58,9 @@ export function flattenRoutes(workflow: Pick<AuthoredWorkflow, 'gateways'>): Rou
   return views;
 }
 
-/**
- * Return a copy of the workflow with the deprecated `transitions` view kept
- * in sync with `gateways[].routes`. Editor surfaces that still iterate over
- * `workflow.transitions` (graph, inspector, outline) consume this projection
- * for reading. Mutations must still go through the route helpers below — the
- * derived array is rebuilt every time a route changes.
- */
-export function withDerivedTransitions(workflow: AuthoredWorkflow): AuthoredWorkflow {
-  return { ...workflow, transitions: flattenRoutes(workflow) };
-}
-
-/** Build the synthetic `(gatewayKey, routeId)` for a route id within a gateway. */
+/** Build the `(gatewayKey, routeId)` address for a route view. */
 export function routeAddressFromView(view: RouteView): { gatewayKey: string; routeId: string } {
-  return { gatewayKey: view.gatewayKey ?? '', routeId: view.routeId ?? '' };
+  return { gatewayKey: view.gatewayKey, routeId: view.routeId };
 }
 
 /** Find a route by its (gatewayKey, routeId) address. */
@@ -89,7 +85,7 @@ function replaceGateway(
   const gateways = (workflow.gateways ?? []).map(gateway =>
     gateway.gatewayKey === gatewayKey ? mutator(gateway) : gateway
   );
-  return withDerivedTransitions({ ...workflow, gateways });
+  return { ...workflow, gateways };
 }
 
 /** Mutate a single route immutably. */
@@ -161,10 +157,10 @@ export function findOrCreateSplitGateway(
   };
 
   return {
-    workflow: withDerivedTransitions({
+    workflow: {
       ...workflow,
       gateways: [...(workflow.gateways ?? []), gateway],
-    }),
+    },
     gatewayKey,
   };
 }

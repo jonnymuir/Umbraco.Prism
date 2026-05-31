@@ -4,7 +4,9 @@ Step-by-step guides for common workflows and customizations in Umbraco.Prism.
 
 ## Getting Started
 
-- **[Composing the Workflow Editor](./workflow-editor-composition.md)** — Embed the workflow editor into your application with minimal complexity. Covers host philosophy, configuration patterns, and custom host examples.
+- **[Embedding the Workflow Editor](./embedding-the-workflow-editor.md)** — **Primary integrator recipe.** Build a business app on top of Prism. Implement `WorkflowSource`, wire the editor, extend the action catalog.
+- **[Workflow Editor Composition](./workflow-editor-composition.md)** — Advanced patterns for custom hosts. Custom canonical JSON helpers, custom action catalogs, building your own host wrapper.
+- **[Umbraco Integration](./umbraco-integration.md)** — Embed Prism workflows in your Umbraco site. Member surface, business app, authentication, roles.
 - **[Setting Up a Prism Workflow](./workflow-setup.md)** — Create and configure a workflow in Umbraco.Prism, from definition to runtime.
 - **[Extending Prism for Your Business Domain](./extending-prism.md)** — Add domain-specific notification handlers, controllers, and models on top of Prism Core. Learn from the vinyl record store example in TestSite.
 

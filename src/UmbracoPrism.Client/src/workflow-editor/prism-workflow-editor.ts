@@ -13,6 +13,7 @@ import { BuiltInWorkflowActionCatalog } from './workflow-action-catalog.js';
 import type { WorkflowAuthorContext } from './workflow-author-context.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
+import { flattenRoutes } from './workflow-routes.js';
 import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
@@ -415,7 +416,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return [];
     }
 
-    const transition = (this._workflow.transitions ?? [])[transitionIndex];
+    const transition = (flattenRoutes(this._workflow))[transitionIndex];
     if (!transition) {
       return ['This transition is no longer available.'];
     }
@@ -466,7 +467,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return [];
     }
 
-    return (this._workflow.transitions ?? [])
+    return (flattenRoutes(this._workflow))
       .map((transition, transitionIndex) => ({ transition, transitionIndex }))
       .filter(({ transition }) => transition.fromStage === this._simulationCurrentStage?.stageKey)
       .map(({ transition, transitionIndex }) => {
@@ -534,7 +535,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private _applyTransitionHighlight(transitionIndex: number, workflow: AuthoredWorkflow | null = this._workflow) {
-    const transitions = workflow?.transitions ?? [];
+    const transitions = flattenRoutes(workflow);
     if (!workflow || transitionIndex < 0 || transitionIndex >= transitions.length) {
       this._selectedTransitionIndex = null;
       return;
@@ -789,7 +790,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
 
     if (this._actionSelection.target === 'transition' && this._selectedTransitionIndex !== null) {
-      const transition = (this._workflow.transitions ?? [])[this._selectedTransitionIndex];
+      const transition = (flattenRoutes(this._workflow))[this._selectedTransitionIndex];
       const action = transition?.actions?.[this._actionSelection.index];
       return action ? { action, target: 'transition' } : null;
     }
@@ -1351,7 +1352,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     if (issue.location.kind === 'route') {
       const gatewayKey = issue.location.gatewayKey;
       const routeId = issue.location.routeId;
-      const transitions = this._workflow.transitions ?? [];
+      const transitions = flattenRoutes(this._workflow);
       const targetIndex = transitions.findIndex(view =>
         view.gatewayKey === gatewayKey && view.routeId === routeId
       );
@@ -1366,7 +1367,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     if (issue.location.kind === 'action' && issue.location.target === 'route') {
       const gatewayKey = issue.location.gatewayKey;
       const routeId = issue.location.routeId;
-      const transitions = this._workflow.transitions ?? [];
+      const transitions = flattenRoutes(this._workflow);
       const targetIndex = transitions.findIndex(view =>
         view.gatewayKey === gatewayKey && view.routeId === routeId
       );
@@ -1442,7 +1443,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    const transition = (this._workflow.transitions ?? [])[e.detail.transitionIndex];
+    const transition = (flattenRoutes(this._workflow))[e.detail.transitionIndex];
     if (!transition) {
       return;
     }

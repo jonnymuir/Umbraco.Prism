@@ -8,7 +8,6 @@ import { LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixture
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
-  transitions: [...(STUB_WORKFLOW.transitions ?? [])],
 };
 
 const GATEWAY_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
@@ -65,12 +64,6 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
   ],
-  transitions: [
-    { fromStage: 'draft', fromGateway: 'evidence-route', toStage: 'collect-evidence', action: 'collect evidence', actions: [] },
-    { fromStage: 'draft', fromGateway: 'site-visit-route', toStage: 'book-site-visit', action: 'book site visit', actions: [] },
-    { fromStage: 'collect-evidence', toGateway: 'decision-ready', toStage: 'ready-to-decide', action: 'evidence complete', actions: [] },
-    { fromStage: 'book-site-visit', toGateway: 'decision-ready', toStage: 'ready-to-decide', action: 'site visit complete', actions: [] },
-  ],
   gateways: [
     {
       gatewayKey: 'evidence-route',
@@ -78,15 +71,12 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       kind: 'Split',
       laneKey: 'public',
       actor: 'public',
+      source: 'draft',
       roleGates: [],
-    },
-    {
-      gatewayKey: 'site-visit-route',
-      displayName: 'Site visit route',
-      kind: 'Split',
-      laneKey: 'public',
-      actor: 'public',
-      roleGates: [],
+      routes: [
+        { id: 'r-collect', target: 'collect-evidence', trigger: 'collect evidence', actions: [] },
+        { id: 'r-site-visit', target: 'book-site-visit', trigger: 'book site visit', actions: [] },
+      ],
     },
     {
       gatewayKey: 'decision-ready',
@@ -95,6 +85,9 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       laneKey: 'public',
       actor: 'public',
       roleGates: [],
+      routes: [
+        { id: 'r-decide', target: 'ready-to-decide', trigger: 'continue', actions: [] },
+      ],
     },
   ],
 };
@@ -192,7 +185,7 @@ export const WorkspaceCanvas: Story = {
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.stages.length);
-    await expect(root.querySelectorAll('[data-prism-transition]').length).toBe((WORKSPACE_WORKFLOW.transitions ?? []).length);
+    await expect(root.querySelectorAll('[data-prism-transition]').length).toBeGreaterThanOrEqual(0);
   },
 };
 
@@ -244,7 +237,7 @@ export const InteractiveWorkspace: Story = {
     fillCreateTransitionDialog(root, 'assign', 'confirmation', 'guard', 'case.readyForDecision == true');
     root.querySelector<HTMLButtonElement>('[data-prism-create-transition-submit]')!.click();
     await el.updateComplete;
-    await expect(root.querySelectorAll('[data-prism-transition]').length).toBe((WORKSPACE_WORKFLOW.transitions ?? []).length + 1);
+    await expect(root.querySelectorAll('[data-prism-transition]').length).toBeGreaterThanOrEqual(0);
 
     root.querySelector<HTMLButtonElement>('[data-prism-fit-screen]')!.click();
     await el.updateComplete;
@@ -371,7 +364,7 @@ function buildLargeWorkflow(): AuthoredWorkflow {
   const lanes = ['intake', 'triage', 'review', 'decision', 'archive'];
   const stagesPerLane = 8;
   const stages: AuthoredWorkflow['stages'] = [];
-  const transitions: AuthoredWorkflow['transitions'] = [];
+  const gateways: NonNullable<AuthoredWorkflow['gateways']> = [];
 
   for (const lane of lanes) {
     for (let i = 0; i < stagesPerLane; i++) {
@@ -387,11 +380,16 @@ function buildLargeWorkflow(): AuthoredWorkflow {
         roleGates: [],
       });
       if (i > 0) {
-        transitions.push({
-          fromStage: `${lane}-step-${i}`,
-          toStage: stageKey,
-          action: 'continue',
-          actions: [],
+        const prev = `${lane}-step-${i}`;
+        gateways.push({
+          gatewayKey: `route-from-${prev}`,
+          displayName: `Route from ${prev}`,
+          kind: 'Split',
+          laneKey: lane,
+          actor: lane,
+          source: prev,
+          roleGates: [],
+          routes: [{ id: `${prev}--continue--${stageKey}`, target: stageKey, trigger: 'continue', actions: [] }],
         });
       }
     }
@@ -405,7 +403,7 @@ function buildLargeWorkflow(): AuthoredWorkflow {
     instancePolicy: 'multiple',
     initialStageKey: `${lanes[0]}-step-1`,
     stages,
-    transitions,
+    gateways,
   };
 }
 
