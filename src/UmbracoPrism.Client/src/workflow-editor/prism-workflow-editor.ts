@@ -2746,7 +2746,7 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     .definition-editor-frame prism-definition-editor {
       flex: 1;
-      min-height: 240px;
+      min-height: 0;
       border: 1px solid #b1b4b6;
       border-radius: 4px;
       /* overflow: hidden removed — was blocking mouse wheel events from reaching CodeMirror */

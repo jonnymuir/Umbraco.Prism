@@ -165,7 +165,8 @@ export class PrismDefinitionEditorElement extends LitElement {
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
       height: 100%;
       min-height: 0;
       background: #ffffff;
@@ -173,8 +174,10 @@ export class PrismDefinitionEditorElement extends LitElement {
     }
 
     .editor-host {
-      height: 100%;
+      flex: 1;
       min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     .editor-host:focus-within {
@@ -182,17 +185,24 @@ export class PrismDefinitionEditorElement extends LitElement {
       outline-offset: -3px;
     }
 
-    /* CodeMirror's default container should fill the host. */
-    .editor-host :global(.cm-editor),
-    .editor-host .cm-editor {
-      height: 100%;
+    /* CodeMirror's default container should fill the host and establish a flex column. */
+    :host ::slotted(.cm-editor),
+    .cm-editor {
+      flex: 1 1 0%;
+      min-height: 0;
+      display: flex !important;
+      flex-direction: column !important;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       font-size: 0.875rem;
       color: #0b0c0c;
     }
 
-    .editor-host .cm-scroller {
-      overflow: auto;
+    /* The scroller is the actual scrolling container. */
+    :host ::slotted(.cm-scroller),
+    .cm-scroller {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      overflow: auto !important;
     }
 
     .editor-host .cm-gutters {

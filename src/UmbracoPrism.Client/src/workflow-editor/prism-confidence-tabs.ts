@@ -269,12 +269,16 @@ export class PrismConfidenceTabs extends LitElement {
 
     .tab-panel-container {
       flex: 1;
+      min-height: 0;
       overflow: hidden;
       position: relative;
+      display: flex;
+      flex-direction: column;
     }
 
     .tab-panel {
-      height: 100%;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       display: none;
     }
@@ -289,11 +293,15 @@ export class PrismConfidenceTabs extends LitElement {
     }
 
     .tab-panel-active {
-      display: block;
+      display: flex;
+      flex-direction: column;
     }
 
     ::slotted(*) {
-      display: block;
+      flex: 1;
+      min-height: 0;
+      display: flex !important;
+      flex-direction: column !important;
     }
   `;
 }

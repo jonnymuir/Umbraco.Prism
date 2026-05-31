@@ -55,7 +55,7 @@ test.describe('Definition editor UX — wheel scrolling + Find', () => {
     expect(parentOverflow).not.toBe('hidden');
 
     // Verify the CodeMirror scroller has overflow: auto (allowing scrolling).
-    const scrollerOverflow = await page.evaluate(() => {
+    const { scrollerOverflow, isActuallyScrollable, clientHeight, scrollHeight } = await page.evaluate(() => {
       const host = document.querySelector('prism-workflow-editor');
       const def = host?.shadowRoot?.querySelector('prism-definition-editor');
       const scroller = def?.shadowRoot?.querySelector('.cm-scroller') as HTMLElement | null;
@@ -63,10 +63,36 @@ test.describe('Definition editor UX — wheel scrolling + Find', () => {
         throw new Error('CodeMirror scroller not found');
       }
       const style = window.getComputedStyle(scroller);
-      return style.overflowY;
+      return {
+        scrollerOverflow: style.overflowY,
+        isActuallyScrollable: scroller.scrollHeight > scroller.clientHeight,
+        clientHeight: scroller.clientHeight,
+        scrollHeight: scroller.scrollHeight,
+      };
     });
 
     expect(scrollerOverflow).toBe('auto');
+
+    // CRITICAL: The content must actually overflow the visible area.
+    // If scrollHeight <= clientHeight, there's no scrollbar and trackpad/wheel has nothing to scroll.
+    expect(isActuallyScrollable).toBe(true);
+    expect(scrollHeight).toBeGreaterThan(clientHeight);
+
+    // Verify scrolling actually works by programmatically scrolling.
+    const scrollWorked = await page.evaluate(() => {
+      const host = document.querySelector('prism-workflow-editor');
+      const def = host?.shadowRoot?.querySelector('prism-definition-editor');
+      const scroller = def?.shadowRoot?.querySelector('.cm-scroller') as HTMLElement | null;
+      if (!scroller) {
+        return false;
+      }
+      const before = scroller.scrollTop;
+      scroller.scrollTop = 100;
+      const after = scroller.scrollTop;
+      return after > before;
+    });
+
+    expect(scrollWorked).toBe(true);
   });
 
   test('Cmd/Ctrl+F opens the CodeMirror search panel', async ({ page }) => {
