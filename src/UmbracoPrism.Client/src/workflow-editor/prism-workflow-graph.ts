@@ -2551,15 +2551,6 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .lane-header {
-      position: sticky;
-      /* Stick at the header's natural position (lane top + lane padding-top)
-         so its viewport position stays constant as the canvas scrolls. The
-         scrolling ancestor is .graph-canvas; the header floats above stage
-         cards and edges (which are siblings to .lane at the graph-viewport
-         level). */
-      top: ${TOP_PADDING + 18}px;
-      z-index: 5;
-      background: inherit;
       display: flex;
       align-items: center;
       justify-content: space-between;
