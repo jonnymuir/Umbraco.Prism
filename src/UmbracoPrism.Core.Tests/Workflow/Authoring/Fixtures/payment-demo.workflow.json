@@ -26,7 +26,39 @@
       "title": "Payment submitted",
       "type": "Split",
       "laneKey": "applicant",
-      "roleGates": []
+      "source": "enter-details",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "enter-details--submit--payment-settled",
+          "target": "payment-settled",
+          "trigger": "submit",
+          "actions": []
+        },
+        {
+          "id": "enter-details--submit--provider-processing",
+          "target": "provider-processing",
+          "trigger": "submit",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "provider-route",
+      "title": "Route from provider processing",
+      "type": "Split",
+      "laneKey": "payments",
+      "source": "provider-processing",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "provider-processing--complete--payment-settled",
+          "target": "payment-settled",
+          "trigger": "complete",
+          "requiresRole": "reviewer",
+          "actions": []
+        }
+      ]
     },
     {
       "key": "payment-settled",
@@ -44,6 +76,14 @@
       "requiredIncomingLanes": [
         "applicant",
         "payments"
+      ],
+      "routes": [
+        {
+          "id": "payment-settled--release--payment-complete",
+          "target": "payment-complete",
+          "trigger": "release",
+          "actions": []
+        }
       ]
     }
   ],
@@ -91,44 +131,6 @@
       "actions": [],
       "fields": [],
       "roleGates": []
-    }
-  ],
-  "transitions": [
-    {
-      "source": "enter-details",
-      "target": "payment-submitted",
-      "trigger": "submit",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "payment-submitted",
-      "target": "payment-settled",
-      "trigger": "await-payment",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "payment-submitted",
-      "target": "provider-processing",
-      "trigger": "route-provider",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "provider-processing",
-      "target": "payment-settled",
-      "trigger": "complete",
-      "conditions": [],
-      "actions": [],
-      "requiresRole": "reviewer"
-    },
-    {
-      "source": "payment-settled",
-      "target": "payment-complete",
-      "trigger": "release",
-      "conditions": [],
-      "actions": []
     }
   ]
 }

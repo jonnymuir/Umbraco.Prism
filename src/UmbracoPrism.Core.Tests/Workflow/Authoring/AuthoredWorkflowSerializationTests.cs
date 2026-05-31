@@ -8,7 +8,8 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// <summary>
 /// Verifies that <see cref="AuthoredWorkflow"/> and its graph types round-trip
 /// through System.Text.Json without data loss, and that the filesystem store
-/// loads fixture documents correctly.
+/// loads fixture documents correctly. After the gateway collapse, edges live as
+/// <see cref="AuthoredRoute"/> records owned by gateways.
 /// </summary>
 public class AuthoredWorkflowSerializationTests
 {
@@ -35,9 +36,20 @@ public class AuthoredWorkflowSerializationTests
         restored.SchemaVersion.Should().Be(original.SchemaVersion);
         restored.Lanes.Should().ContainSingle();
         restored.Lanes[0].Key.Should().Be("applicant");
+
         restored.Gateways.Should().ContainSingle();
-        restored.Gateways[0].GatewayKey.Should().Be("route-submit");
-        restored.Gateways[0].LaneKey.Should().Be("applicant");
+        var gateway = restored.Gateways[0];
+        gateway.GatewayKey.Should().Be("route-submit");
+        gateway.LaneKey.Should().Be("applicant");
+        gateway.Source.Should().Be("details");
+        gateway.Routes.Should().ContainSingle();
+        gateway.Routes[0].Id.Should().Be("submit-done");
+        gateway.Routes[0].Target.Should().Be("done");
+        gateway.Routes[0].Trigger.Should().Be("submit");
+        gateway.Routes[0].Condition.Should().NotBeNull();
+        gateway.Routes[0].Condition!.Expression.Should().Be("form.isValid == true");
+        gateway.Routes[0].Actions.Should().ContainSingle();
+        gateway.Routes[0].Actions[0].Timing.Should().Be(ActionTiming.OnTransition);
 
         restored.Stages.Should().HaveCount(2);
         restored.Stages[0].StageKey.Should().Be("details");
@@ -53,17 +65,6 @@ public class AuthoredWorkflowSerializationTests
         restored.Stages[0].Fields[0].Required.Should().BeTrue();
 
         restored.Stages[1].Kind.Should().Be(StageKind.Confirmation);
-
-        restored.Transitions.Should().HaveCount(2);
-        restored.Transitions[0].Source.Should().Be("details");
-        restored.Transitions[0].Target.Should().Be("route-submit");
-        restored.Transitions[0].Trigger.Should().Be("submit");
-        restored.Transitions[0].Conditions.Should().ContainSingle();
-        restored.Transitions[0].Actions.Should().ContainSingle();
-        restored.Transitions[0].Actions[0].Timing.Should().Be(ActionTiming.OnTransition);
-        restored.Transitions[1].Source.Should().Be("route-submit");
-        restored.Transitions[1].Target.Should().Be("done");
-        restored.Transitions[1].Trigger.Should().Be("route");
 
         restored.ParameterSchemas.Should().ContainSingle();
         restored.ParameterSchemas[0].Key.Should().Be("forms-form-definition");
@@ -87,6 +88,9 @@ public class AuthoredWorkflowSerializationTests
         root.TryGetProperty("parameterSchemas", out _).Should().BeTrue();
         root.TryGetProperty("lanes", out _).Should().BeTrue();
         root.TryGetProperty("gateways", out _).Should().BeTrue();
+        // The collapsed model has no top-level transitions block.
+        root.TryGetProperty("transitions", out _).Should().BeFalse(
+            "gateways own routing in the collapsed authoring model");
 
         var stage = root.GetProperty("stages")[0];
         stage.TryGetProperty("key", out _).Should().BeTrue();
@@ -95,14 +99,17 @@ public class AuthoredWorkflowSerializationTests
         stage.TryGetProperty("actions", out _).Should().BeTrue();
         stage.TryGetProperty("laneKey", out _).Should().BeTrue();
 
-        var transition = root.GetProperty("transitions")[0];
-        transition.TryGetProperty("source", out _).Should().BeTrue();
-        transition.TryGetProperty("target", out _).Should().BeTrue();
-        transition.TryGetProperty("trigger", out _).Should().BeTrue();
-        transition.TryGetProperty("conditions", out _).Should().BeTrue();
-        transition.TryGetProperty("actions", out _).Should().BeTrue();
+        var gateway = root.GetProperty("gateways")[0];
+        gateway.TryGetProperty("source", out _).Should().BeTrue();
+        gateway.TryGetProperty("routes", out _).Should().BeTrue();
 
-        var action = transition.GetProperty("actions")[0];
+        var route = gateway.GetProperty("routes")[0];
+        route.TryGetProperty("id", out _).Should().BeTrue();
+        route.TryGetProperty("target", out _).Should().BeTrue();
+        route.TryGetProperty("trigger", out _).Should().BeTrue();
+        route.TryGetProperty("actions", out _).Should().BeTrue();
+
+        var action = route.GetProperty("actions")[0];
         action.TryGetProperty("type", out _).Should().BeTrue();
         action.TryGetProperty("timing", out _).Should().BeTrue();
         action.TryGetProperty("params", out _).Should().BeTrue();
@@ -146,7 +153,8 @@ public class AuthoredWorkflowSerializationTests
         workflow!.DefinitionKey.Should().Be("planning-application");
         workflow.Stages.Should().HaveCount(4);
         workflow.Stages.Should().Contain(s => s.StageKey == "declaration" && s.Actions.Count == 1);
-        workflow.Transitions.Should().ContainSingle(t => t.Trigger == "submit" && t.Actions.Count == 1);
+        workflow.Gateways.SelectMany(g => g.Routes)
+            .Should().Contain(r => r.Trigger == "submit");
         workflow.ParameterSchemas.Should().ContainSingle(s => s.Key == "forms-form-definition");
     }
 
@@ -176,7 +184,35 @@ public class AuthoredWorkflowSerializationTests
                 GatewayKey = "route-submit",
                 DisplayName = "Route to completion",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant"
+                LaneKey = "applicant",
+                Source = "details",
+                Routes =
+                [
+                    new AuthoredRoute
+                    {
+                        Id = "submit-done",
+                        Target = "done",
+                        Trigger = "submit",
+                        Condition = new AuthoredCondition
+                        {
+                            Expression = "form.isValid == true",
+                            Description = "Only submit valid forms."
+                        },
+                        Actions =
+                        [
+                            new AuthoredAction
+                            {
+                                Type = "forms.submit",
+                                Timing = ActionTiming.OnTransition,
+                                ParameterSchemaKey = "forms-form-definition",
+                                Parameters = new JsonObject
+                                {
+                                    ["formDefinitionId"] = "details-form"
+                                }
+                            }
+                        ]
+                    }
+                ]
             }
         ],
         Stages =
@@ -219,42 +255,6 @@ public class AuthoredWorkflowSerializationTests
                 LaneKey = "applicant"
             }
         ],
-        Transitions =
-        [
-            new AuthoredTransition
-            {
-                Source = "details",
-                Target = "route-submit",
-                Trigger = "submit",
-                Conditions =
-                [
-                    new AuthoredCondition
-                    {
-                        Expression = "form.isValid == true",
-                        Description = "Only submit valid forms."
-                    }
-                ],
-                Actions =
-                [
-                    new AuthoredAction
-                    {
-                        Type = "forms.submit",
-                        Timing = ActionTiming.OnTransition,
-                        ParameterSchemaKey = "forms-form-definition",
-                        Parameters = new JsonObject
-                        {
-                            ["formDefinitionId"] = "details-form"
-                        }
-                    }
-                ]
-            },
-            new AuthoredTransition
-            {
-                Source = "route-submit",
-                Target = "done",
-                Trigger = "route"
-            }
-        ],
         Handoffs =
         [
             new AuthoredHandoff
@@ -289,26 +289,4 @@ public class AuthoredWorkflowSerializationTests
     private static string GetFixturesPath() => Path.Combine(
         AppContext.BaseDirectory,
         "Workflow", "Authoring", "Fixtures");
-
-    [Fact]
-    public void AuthoredTransition_JsonWithRetiredFromStageKey_DoesNotPopulateSource()
-    {
-        // Pins the post-legacy-purge wire contract: only source/target/trigger
-        // bind. A caller still emitting the retired fromStage/toStage/action
-        // shape must hit a validation error (PROJ106/107/108), not get a
-        // silent rewrite that pretends the document was valid.
-        const string json = """
-        {
-          "fromStage": "details",
-          "toStage":   "review",
-          "action":    "submit"
-        }
-        """;
-
-        var transition = JsonSerializer.Deserialize<AuthoredTransition>(json)!;
-
-        transition.Source.Should().BeEmpty();
-        transition.Target.Should().BeEmpty();
-        transition.Trigger.Should().BeEmpty();
-    }
 }

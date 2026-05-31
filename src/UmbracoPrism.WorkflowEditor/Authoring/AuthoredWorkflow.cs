@@ -54,10 +54,6 @@ public record AuthoredWorkflow
     [JsonPropertyName("stages")]
     public IReadOnlyList<AuthoredStage> Stages { get; init; } = [];
 
-    /// <summary>All transitions (graph edges). Projected 1:1 to <c>WorkflowTransitionFile</c>.</summary>
-    [JsonPropertyName("transitions")]
-    public IReadOnlyList<AuthoredTransition> Transitions { get; init; } = [];
-
     /// <summary>Named lanes used to share assignment data across stages and gateways.</summary>
     [JsonPropertyName("lanes")]
     public IReadOnlyList<AuthoredLane> Lanes { get; init; } = [];

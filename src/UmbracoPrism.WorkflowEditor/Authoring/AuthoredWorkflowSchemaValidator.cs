@@ -76,6 +76,11 @@ public static class AuthoredWorkflowSchemaValidator
                 diagnostics);
         }
 
+        var routeIdsByGateway = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var stageSourceToGateway = new Dictionary<string, string>(StringComparer.Ordinal);
+        var validRouteTargets = new HashSet<string>(stageKeys, StringComparer.Ordinal);
+        validRouteTargets.UnionWith(authored.Gateways.Select(g => g.GatewayKey));
+
         foreach (var gateway in authored.Gateways)
         {
             if (string.IsNullOrWhiteSpace(gateway.GatewayKey))
@@ -111,6 +116,111 @@ public static class AuthoredWorkflowSchemaValidator
 
             ValidateAssignmentCompatibility(gateway.GatewayKey, "Gateway", gateway.Actor, gateway.RoleGates, lane, diagnostics);
 
+            // Source stage: required for Split gateways (the stage that owns this gateway's
+            // outgoing routing); empty for Join gateways (they're entered from multiple stages
+            // via routes that target the join's key).
+            if (gateway.Kind == GatewayKind.Split)
+            {
+                if (string.IsNullOrWhiteSpace(gateway.Source))
+                {
+                    diagnostics.Add(Error("PROJ141",
+                        $"Split gateway '{gateway.GatewayKey}' must define a source stage.", gateway.GatewayKey));
+                }
+                else if (!stageKeys.Contains(gateway.Source))
+                {
+                    diagnostics.Add(Error("PROJ142",
+                        $"Gateway '{gateway.GatewayKey}' source '{gateway.Source}' does not reference a defined stage.",
+                        gateway.GatewayKey));
+                }
+                else if (!stageSourceToGateway.TryAdd(gateway.Source, gateway.GatewayKey))
+                {
+                    diagnostics.Add(Error("PROJ143",
+                        $"Stage '{gateway.Source}' is already owned by gateway '{stageSourceToGateway[gateway.Source]}'. Each stage may own at most one gateway.",
+                        gateway.GatewayKey));
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(gateway.Source))
+            {
+                diagnostics.Add(Error("PROJ152",
+                    $"Join gateway '{gateway.GatewayKey}' must not define a source — joins are entered from multiple stages via routes that target the join.",
+                    gateway.GatewayKey));
+            }
+
+            // Routes: at least one, each with a trigger, each targeting a known node, and triggers
+            // unique within this gateway.
+            if (gateway.Routes.Count == 0)
+            {
+                diagnostics.Add(Error("PROJ144",
+                    $"Gateway '{gateway.GatewayKey}' must define at least one route.", gateway.GatewayKey));
+            }
+
+            var routeIds = new HashSet<string>(StringComparer.Ordinal);
+            var triggerTargets = new HashSet<(string Trigger, string Target)>();
+
+            for (var routeIndex = 0; routeIndex < gateway.Routes.Count; routeIndex++)
+            {
+                var route = gateway.Routes[routeIndex];
+
+                if (string.IsNullOrWhiteSpace(route.Id))
+                {
+                    diagnostics.Add(Error("PROJ145",
+                        $"Route #{routeIndex} on gateway '{gateway.GatewayKey}' must define an id.",
+                        gateway.GatewayKey));
+                }
+                else if (!routeIds.Add(route.Id))
+                {
+                    diagnostics.Add(Error("PROJ146",
+                        $"Gateway '{gateway.GatewayKey}' has duplicate route id '{route.Id}'.",
+                        gateway.GatewayKey));
+                }
+
+                if (string.IsNullOrWhiteSpace(route.Trigger))
+                {
+                    diagnostics.Add(Error("PROJ147",
+                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' must define a trigger.",
+                        gateway.GatewayKey));
+                }
+
+                if (string.IsNullOrWhiteSpace(route.Target))
+                {
+                    diagnostics.Add(Error("PROJ149",
+                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' must define a target.",
+                        gateway.GatewayKey));
+                }
+                else if (!validRouteTargets.Contains(route.Target))
+                {
+                    diagnostics.Add(Error("PROJ150",
+                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' targets '{route.Target}', which is not a known stage or gateway.",
+                        gateway.GatewayKey));
+                }
+
+                if (!string.IsNullOrWhiteSpace(route.Trigger) && !string.IsNullOrWhiteSpace(route.Target)
+                    && !triggerTargets.Add((route.Trigger, route.Target)))
+                {
+                    diagnostics.Add(Error("PROJ148",
+                        $"Gateway '{gateway.GatewayKey}' has duplicate route '{route.Trigger}' → '{route.Target}'.",
+                        gateway.GatewayKey));
+                }
+
+                if (route.Condition is { Expression: var expr } && string.IsNullOrWhiteSpace(expr))
+                {
+                    diagnostics.Add(Error("PROJ151",
+                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' has a condition with no expression.",
+                        gateway.GatewayKey));
+                }
+
+                ValidateActions(
+                    route.Actions,
+                    gateway.GatewayKey,
+                    "route",
+                    new HashSet<ActionTiming> { ActionTiming.OnTransition },
+                    schemaByKey,
+                    catalogByType,
+                    diagnostics);
+            }
+
+            routeIdsByGateway[gateway.GatewayKey] = routeIds;
+
             if (gateway.Kind == GatewayKind.Join)
             {
                 if (gateway.WaitingInfo is null)
@@ -137,58 +247,6 @@ public static class AuthoredWorkflowSchemaValidator
                     }
                 }
             }
-        }
-
-        var gatewaysByKey = authored.Gateways
-            .Where(gateway => !string.IsNullOrWhiteSpace(gateway.GatewayKey))
-            .GroupBy(gateway => gateway.GatewayKey, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-
-        foreach (var transition in authored.Transitions)
-        {
-            if (string.IsNullOrWhiteSpace(transition.Source))
-                diagnostics.Add(Error("PROJ106", "Transition source is required.", null));
-
-            if (string.IsNullOrWhiteSpace(transition.Target))
-                diagnostics.Add(Error("PROJ107", "Transition target is required.", null));
-
-            if (string.IsNullOrWhiteSpace(transition.Trigger))
-                diagnostics.Add(Error("PROJ108", "Transition trigger is required.", transition.Source));
-
-            if (stageKeys.Contains(transition.Source) && stageKeys.Contains(transition.Target))
-            {
-                diagnostics.Add(Error("PROJ141",
-                    $"Transition '{transition.Source}' → '{transition.Target}' is invalid. Route through a gateway instead of linking stages directly.",
-                    transition.Source));
-            }
-
-            if (gatewaysByKey.TryGetValue(transition.Source, out _)
-                && gatewaysByKey.TryGetValue(transition.Target, out var targetGateway)
-                && targetGateway.Kind == GatewayKind.Split)
-            {
-                diagnostics.Add(Error("PROJ142",
-                    $"Transition '{transition.Source}' → '{transition.Target}' is invalid. Gateways may only transition to a stage or to a join gateway.",
-                    transition.Source));
-            }
-
-            foreach (var condition in transition.Conditions)
-            {
-                if (string.IsNullOrWhiteSpace(condition.Expression))
-                {
-                    diagnostics.Add(Error("PROJ109",
-                        $"Transition '{transition.Source}' → '{transition.Target}' contains a condition with no expression.",
-                        transition.Source));
-                }
-            }
-
-            ValidateActions(
-                transition.Actions,
-                transition.Source,
-                "transition",
-                new HashSet<ActionTiming> { ActionTiming.OnTransition },
-                schemaByKey,
-                catalogByType,
-                diagnostics);
         }
     }
 

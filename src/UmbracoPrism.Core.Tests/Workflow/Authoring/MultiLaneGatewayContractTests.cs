@@ -219,7 +219,12 @@ public class MultiLaneGatewayContractTests
                 GatewayKey = "review-split",
                 DisplayName = "Review split",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant"
+                LaneKey = "applicant",
+                Source = "applicant-details",
+                Routes =
+                [
+                    new AuthoredRoute { Id = "to-join", Target = "outcome-join", Trigger = "submit" }
+                ]
             },
             new AuthoredGateway
             {
@@ -234,7 +239,11 @@ public class MultiLaneGatewayContractTests
                     PollIntervalMs = 5000,
                     AllowDefer = false
                 },
-                RequiredIncomingLanes = ["applicant", "caseworker"]
+                RequiredIncomingLanes = ["applicant", "caseworker"],
+                Routes =
+                [
+                    new AuthoredRoute { Id = "release", Target = "caseworker-review", Trigger = "release-review" }
+                ]
             }
         ],
         Stages =
@@ -267,12 +276,6 @@ public class MultiLaneGatewayContractTests
                 Kind = StageKind.Question,
                 LaneKey = "caseworker"
             }
-        ],
-        Transitions =
-        [
-            new AuthoredTransition { Source = "applicant-details", Target = "review-split", Trigger = "submit" },
-            new AuthoredTransition { Source = "review-split", Target = "outcome-join", Trigger = "route-for-review" },
-            new AuthoredTransition { Source = "outcome-join", Target = "caseworker-review", Trigger = "release-review" }
         ],
         ParameterSchemas =
         [

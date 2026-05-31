@@ -20,11 +20,9 @@ public class WorkflowProjectorDeterminismTests
         var result1 = _projector.Project(authored);
         var result2 = _projector.Project(authored);
 
-        // Checksums must be identical
         result1.Checksum.Should().Be(result2.Checksum,
             "identical inputs must produce identical SHA-256 checksums");
 
-        // Independently serialize the WorkflowDefinitionFile and compare raw bytes
         var bytes1 = JsonSerializer.SerializeToUtf8Bytes(result1.File, WorkflowProjector.CanonicalOptions);
         var bytes2 = JsonSerializer.SerializeToUtf8Bytes(result2.File, WorkflowProjector.CanonicalOptions);
 
@@ -37,7 +35,6 @@ public class WorkflowProjectorDeterminismTests
     {
         var result = _projector.Project(BuildDeterministicWorkflow());
 
-        // SHA-256 hex string is always 64 lowercase hex characters
         result.Checksum.Should().MatchRegex("^[0-9a-f]{64}$",
             "checksum must be a lowercase hex-encoded SHA-256 digest");
     }
@@ -58,7 +55,6 @@ public class WorkflowProjectorDeterminismTests
     [Fact]
     public void Project_NormalisesStageOrder_BeforeEmitting()
     {
-        // Build workflow with stages in reverse alphabetical order to prove normalisation sorts them
         var authored = new AuthoredWorkflow
         {
             Id = new Guid("aaaabbbb-0000-0000-0000-000000000001"),
@@ -70,8 +66,7 @@ public class WorkflowProjectorDeterminismTests
             [
                 new AuthoredStage { StageKey = "zeta", DisplayName = "Zeta", Kind = StageKind.Confirmation },
                 new AuthoredStage { StageKey = "alpha", DisplayName = "Alpha", Kind = StageKind.Question }
-            ],
-            Transitions = []
+            ]
         };
 
         var result = _projector.Project(authored);
@@ -84,6 +79,8 @@ public class WorkflowProjectorDeterminismTests
     [Fact]
     public void Project_NormalisesTransitionOrder_BeforeEmitting()
     {
+        // Two gateways with different source stages each emit one route; verify that the
+        // projected runtime transitions are sorted by (source, target, trigger).
         var authored = new AuthoredWorkflow
         {
             Id = new Guid("aaaabbbb-0000-0000-0000-000000000002"),
@@ -93,33 +90,35 @@ public class WorkflowProjectorDeterminismTests
             InitialStageKey = "a",
             Stages =
             [
-                new AuthoredStage { StageKey = "a", DisplayName = "A", Kind = StageKind.Question },
-                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation },
-                new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation }
+                new AuthoredStage { StageKey = "a", DisplayName = "A", Kind = StageKind.Question, LaneKey = "applicant" },
+                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation, LaneKey = "applicant" },
+                new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation, LaneKey = "applicant" }
             ],
             Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
             Gateways =
             [
-                new AuthoredGateway { GatewayKey = "route-b", DisplayName = "Route B", Kind = GatewayKind.Split, LaneKey = "applicant" },
-                new AuthoredGateway { GatewayKey = "route-c", DisplayName = "Route C", Kind = GatewayKind.Split, LaneKey = "applicant" }
-            ],
-            Transitions =
-            [
-                new AuthoredTransition { Source = "a", Target = "route-c", Trigger = "skip" },
-                new AuthoredTransition { Source = "a", Target = "route-b", Trigger = "continue" },
-                new AuthoredTransition { Source = "route-b", Target = "b", Trigger = "route" },
-                new AuthoredTransition { Source = "route-c", Target = "c", Trigger = "route" }
+                new AuthoredGateway
+                {
+                    GatewayKey = "out-of-a",
+                    DisplayName = "Out of A",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Source = "a",
+                    Routes =
+                    [
+                        new AuthoredRoute { Id = "to-c", Target = "c", Trigger = "skip" },
+                        new AuthoredRoute { Id = "to-b", Target = "b", Trigger = "continue" }
+                    ]
+                }
             ]
         };
 
         var result = _projector.Project(authored);
 
         result.File.Transitions.Select(t => t.ToState)
-            .Should().ContainInOrder(new[] { "route-b", "route-c", "b", "c" },
+            .Should().ContainInOrder(new[] { "b", "c" },
                 because: "transitions must be emitted sorted by (source, target, trigger)");
     }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static AuthoredWorkflow BuildDeterministicWorkflow() => new()
     {
@@ -138,6 +137,7 @@ public class WorkflowProjectorDeterminismTests
                 StageKey = "collect",
                 DisplayName = "Collect details",
                 Kind = StageKind.Question,
+                LaneKey = "applicant",
                 Fields =
                 [
                     new AuthoredField { Key = "email", Label = "Email address", Type = FieldType.Email, Required = true },
@@ -148,27 +148,38 @@ public class WorkflowProjectorDeterminismTests
             {
                 StageKey = "review",
                 DisplayName = "Check your answers",
-                Kind = StageKind.CheckAnswers
+                Kind = StageKind.CheckAnswers,
+                LaneKey = "applicant"
             },
             new AuthoredStage
             {
                 StageKey = "done",
                 DisplayName = "Application submitted",
-                Kind = StageKind.Confirmation
+                Kind = StageKind.Confirmation,
+                LaneKey = "applicant"
             }
         ],
         Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
         Gateways =
         [
-            new AuthoredGateway { GatewayKey = "route-review", DisplayName = "Route to review", Kind = GatewayKind.Split, LaneKey = "applicant" },
-            new AuthoredGateway { GatewayKey = "route-done", DisplayName = "Route to done", Kind = GatewayKind.Split, LaneKey = "applicant" }
-        ],
-        Transitions =
-        [
-            new AuthoredTransition { Source = "collect", Target = "route-review", Trigger = "continue" },
-            new AuthoredTransition { Source = "route-review", Target = "review", Trigger = "route" },
-            new AuthoredTransition { Source = "review", Target = "route-done", Trigger = "submit" },
-            new AuthoredTransition { Source = "route-done", Target = "done", Trigger = "route" }
+            new AuthoredGateway
+            {
+                GatewayKey = "after-collect",
+                DisplayName = "After collect",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "collect",
+                Routes = [new AuthoredRoute { Id = "to-review", Target = "review", Trigger = "continue" }]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "after-review",
+                DisplayName = "After review",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "review",
+                Routes = [new AuthoredRoute { Id = "to-done", Target = "done", Trigger = "submit" }]
+            }
         ],
         Handoffs = [],
         Metadata = new Dictionary<string, string> { ["env"] = "test" }

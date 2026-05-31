@@ -63,7 +63,6 @@ public class WorkflowProjectorShellInferenceTests
                     Kind = StageKind.CheckAnswers
                 }
             ],
-            Transitions = []
         };
 
         var result = _projector.Project(authored);
@@ -142,7 +141,6 @@ public class WorkflowProjectorShellInferenceTests
                     Kind = StageKind.CheckAnswers
                 }
             ],
-            Transitions = []
         };
 
         var result = _projector.Project(authored);
@@ -197,7 +195,6 @@ public class WorkflowProjectorShellInferenceTests
                     Fields = fields ?? []
                 }
             ],
-            Transitions = []
         };
     }
 }

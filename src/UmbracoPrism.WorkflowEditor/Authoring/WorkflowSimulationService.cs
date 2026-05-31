@@ -1,7 +1,8 @@
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
-/// Lightweight authored-workflow simulator used by the reference host and endpoint contract tests.
+/// Lightweight authored-workflow simulator. Walks the graph by:
+///   stage → that stage's owning gateway (if any) → matched route → resolve target (stage or gateway).
 /// </summary>
 public sealed class WorkflowSimulationService : IWorkflowSimulationService
 {
@@ -15,6 +16,11 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
     {
         var stagesByKey = workflow.Stages.ToDictionary(stage => stage.StageKey, StringComparer.Ordinal);
         var gatewaysByKey = workflow.Gateways.ToDictionary(gateway => gateway.GatewayKey, StringComparer.Ordinal);
+        var gatewayBySourceStage = workflow.Gateways
+            .Where(g => !string.IsNullOrWhiteSpace(g.Source))
+            .GroupBy(g => g.Source, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
         if (!stagesByKey.TryGetValue(workflow.InitialStageKey, out var initialStage))
         {
             return new WorkflowSimulationResult
@@ -36,35 +42,40 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
         for (var i = 0; i < requestedActions.Count && i < budget; i++)
         {
             var action = requestedActions[i];
-            var transition = workflow.Transitions.FirstOrDefault(
-                candidate => string.Equals(candidate.Source, currentStage.StageKey, StringComparison.Ordinal)
-                             && string.Equals(candidate.Trigger, action, StringComparison.Ordinal));
-
-            if (transition is null)
+            if (!gatewayBySourceStage.TryGetValue(currentStage.StageKey, out var owningGateway))
             {
                 stopReason = "transition-not-found";
-                return BuildResult(workflow, currentStage.StageKey, stopReason, false, steps);
+                return BuildResult(workflow, gatewayBySourceStage, currentStage.StageKey, stopReason, false, steps);
             }
 
-            var resolution = ResolveNextStage(workflow, stagesByKey, gatewaysByKey, transition.Target);
+            var route = owningGateway.Routes.FirstOrDefault(
+                r => string.Equals(r.Trigger, action, StringComparison.Ordinal));
+
+            if (route is null)
+            {
+                stopReason = "transition-not-found";
+                return BuildResult(workflow, gatewayBySourceStage, currentStage.StageKey, stopReason, false, steps);
+            }
+
+            var resolution = ResolveNextStage(stagesByKey, gatewaysByKey, route.Target);
             if (resolution.StopReason is not null)
             {
-                return BuildResult(workflow, resolution.NodeKey, resolution.StopReason, false, steps);
+                return BuildResult(workflow, gatewayBySourceStage, resolution.NodeKey, resolution.StopReason, false, steps);
             }
 
             if (!stagesByKey.TryGetValue(resolution.NodeKey, out var nextStage))
             {
                 stopReason = "target-stage-missing";
-                return BuildResult(workflow, resolution.NodeKey, stopReason, false, steps);
+                return BuildResult(workflow, gatewayBySourceStage, resolution.NodeKey, stopReason, false, steps);
             }
 
             steps.Add(new WorkflowSimulationStep
             {
                 FromStageKey = currentStage.StageKey,
-                Action = transition.Trigger,
+                Action = route.Trigger,
                 ToStageKey = nextStage.StageKey,
-                Condition = transition.Conditions.FirstOrDefault()?.Expression,
-                RequiresRole = transition.RequiresRole
+                Condition = route.Condition?.Expression,
+                RequiresRole = route.RequiresRole
             });
 
             currentStage = nextStage;
@@ -73,39 +84,36 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
         if (requestedActions.Count > budget)
         {
             stopReason = "max-steps-reached";
-            return BuildResult(workflow, currentStage.StageKey, stopReason, false, steps);
+            return BuildResult(workflow, gatewayBySourceStage, currentStage.StageKey, stopReason, false, steps);
         }
 
-        var availableTransitions = workflow.Transitions
-            .Where(transition => string.Equals(transition.Source, currentStage.StageKey, StringComparison.Ordinal))
-            .ToArray();
-
-        if (availableTransitions.Length == 0)
+        if (!gatewayBySourceStage.TryGetValue(currentStage.StageKey, out var outgoingGateway)
+            || outgoingGateway.Routes.Count == 0)
         {
             stopReason = "terminal-stage";
             completed = true;
         }
 
-        return BuildResult(workflow, currentStage.StageKey, stopReason, completed, steps);
+        return BuildResult(workflow, gatewayBySourceStage, currentStage.StageKey, stopReason, completed, steps);
     }
 
     private static WorkflowSimulationResult BuildResult(
         AuthoredWorkflow workflow,
+        IReadOnlyDictionary<string, AuthoredGateway> gatewayBySourceStage,
         string currentStageKey,
         string stopReason,
         bool completed,
         IReadOnlyList<WorkflowSimulationStep> steps)
     {
-        var availableTransitions = workflow.Transitions
-            .Where(transition => string.Equals(transition.Source, currentStageKey, StringComparison.Ordinal))
-            .Select(transition => new WorkflowSimulationTransitionOption
+        var availableTransitions = gatewayBySourceStage.TryGetValue(currentStageKey, out var owning)
+            ? owning.Routes.Select(route => new WorkflowSimulationTransitionOption
             {
-                Action = transition.Trigger,
-                ToStageKey = transition.Target,
-                Condition = transition.Conditions.FirstOrDefault()?.Expression,
-                RequiresRole = transition.RequiresRole
-            })
-            .ToArray();
+                Action = route.Trigger,
+                ToStageKey = route.Target,
+                Condition = route.Condition?.Expression,
+                RequiresRole = route.RequiresRole
+            }).ToArray()
+            : [];
 
         return new WorkflowSimulationResult
         {
@@ -119,7 +127,6 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
     }
 
     private static (string NodeKey, string? StopReason) ResolveNextStage(
-        AuthoredWorkflow workflow,
         IReadOnlyDictionary<string, AuthoredStage> stagesByKey,
         IReadOnlyDictionary<string, AuthoredGateway> gatewaysByKey,
         string nodeKey)
@@ -141,16 +148,17 @@ public sealed class WorkflowSimulationService : IWorkflowSimulationService
             if (gateway.Kind == GatewayKind.Join)
                 return (current, "waiting-gateway");
 
-            var nextTransition = workflow.Transitions
-                .Where(transition => string.Equals(transition.Source, current, StringComparison.Ordinal))
-                .OrderBy(transition => transition.Trigger, StringComparer.Ordinal)
-                .ThenBy(transition => transition.Target, StringComparer.Ordinal)
+            // For split gateways routed-to from elsewhere (chained gateways), follow the
+            // canonically-first outgoing route.
+            var nextRoute = gateway.Routes
+                .OrderBy(r => r.Trigger, StringComparer.Ordinal)
+                .ThenBy(r => r.Target, StringComparer.Ordinal)
                 .FirstOrDefault();
 
-            if (nextTransition is null)
+            if (nextRoute is null)
                 return (current, "target-stage-missing");
 
-            current = nextTransition.Target;
+            current = nextRoute.Target;
         }
 
         return (nodeKey, "target-stage-missing");

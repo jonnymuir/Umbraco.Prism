@@ -21,21 +21,63 @@
       "title": "Route to application form",
       "type": "Split",
       "laneKey": "applicant",
-      "roleGates": []
+      "source": "declaration",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "declaration--continue--application-form",
+          "target": "application-form",
+          "trigger": "continue",
+          "actions": []
+        }
+      ]
     },
     {
       "key": "route-check-answers",
       "title": "Route to check answers",
       "type": "Split",
       "laneKey": "applicant",
-      "roleGates": []
+      "source": "application-form",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "application-form--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue",
+          "actions": []
+        }
+      ]
     },
     {
       "key": "route-submitted",
       "title": "Route to submitted",
       "type": "Split",
       "laneKey": "applicant",
-      "roleGates": []
+      "source": "check-answers",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "check-answers--submit--submitted",
+          "target": "submitted",
+          "trigger": "submit",
+          "condition": {
+            "kind": "expression",
+            "expression": "application.isComplete == true",
+            "description": "Prevent submission until the applicant has completed the form."
+          },
+          "actions": [
+            {
+              "type": "forms.submit",
+              "timing": "OnTransition",
+              "parameterSchemaKey": "forms-form-definition",
+              "params": {
+                "formDefinitionId": "planning-application"
+              },
+              "summary": "Submit the application form to the business app."
+            }
+          ]
+        }
+      ]
     }
   ],
   "stages": [
@@ -143,66 +185,6 @@
       "actions": [],
       "fields": [],
       "roleGates": []
-    }
-  ],
-  "transitions": [
-    {
-      "source": "declaration",
-      "target": "route-application-form",
-      "trigger": "continue",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "route-application-form",
-      "target": "application-form",
-      "trigger": "route",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "application-form",
-      "target": "route-check-answers",
-      "trigger": "continue",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "route-check-answers",
-      "target": "check-answers",
-      "trigger": "route",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "check-answers",
-      "target": "route-submitted",
-      "trigger": "submit",
-      "conditions": [
-        {
-          "kind": "expression",
-          "expression": "application.isComplete == true",
-          "description": "Prevent submission until the applicant has completed the form."
-        }
-      ],
-      "actions": [
-        {
-          "type": "forms.submit",
-          "timing": "OnTransition",
-          "parameterSchemaKey": "forms-form-definition",
-          "params": {
-            "formDefinitionId": "planning-application"
-          },
-          "summary": "Submit the application form to the business app."
-        }
-      ]
-    },
-    {
-      "source": "route-submitted",
-      "target": "submitted",
-      "trigger": "route",
-      "conditions": [],
-      "actions": []
     }
   ],
   "handoffs": [

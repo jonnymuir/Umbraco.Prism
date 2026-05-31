@@ -107,7 +107,9 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     GatewayKey = "fan-out",
                     DisplayName = "Fan out",
                     Kind = GatewayKind.Split,
-                    LaneKey = "applicant"
+                    LaneKey = "applicant",
+                    Source = "draft",
+                    Routes = [new AuthoredRoute { Id = "to-join", Target = "fan-in", Trigger = "submit" }]
                 },
                 new AuthoredGateway
                 {
@@ -120,7 +122,8 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                         Content = "Waiting for all lanes to complete.",
                         ExpectedWaitSeconds = 60
                     },
-                    RequiredIncomingLanes = ["applicant"]
+                    RequiredIncomingLanes = ["applicant"],
+                    Routes = [new AuthoredRoute { Id = "release", Target = "done", Trigger = "release" }]
                 }
             ],
             Stages =
@@ -139,27 +142,6 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     Kind = StageKind.Confirmation,
                     LaneKey = "applicant"
                 }
-            ],
-            Transitions =
-            [
-                new AuthoredTransition
-                {
-                    Source = "draft",
-                    Target = "fan-out",
-                    Trigger = "submit"
-                },
-                new AuthoredTransition
-                {
-                    Source = "fan-out",
-                    Target = "fan-in",
-                    Trigger = "route"
-                },
-                new AuthoredTransition
-                {
-                    Source = "fan-in",
-                    Target = "done",
-                    Trigger = "release"
-                },
             ]
         };
 

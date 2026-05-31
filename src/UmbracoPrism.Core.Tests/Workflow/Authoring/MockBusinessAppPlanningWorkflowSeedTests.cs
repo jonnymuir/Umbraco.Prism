@@ -69,7 +69,8 @@ public class MockBusinessAppPlanningWorkflowSeedTests
         planningWorkflow.Should().NotBeNull();
         planningWorkflow!.DefinitionKey.Should().Be("planning-application");
         planningWorkflow.Stages.Should().NotBeEmpty();
-        planningWorkflow.Transitions.Should().NotBeEmpty();
+        planningWorkflow.Gateways.Should().NotBeEmpty();
+        planningWorkflow.Gateways.SelectMany(g => g.Routes).Should().NotBeEmpty();
     }
 
     [Fact]

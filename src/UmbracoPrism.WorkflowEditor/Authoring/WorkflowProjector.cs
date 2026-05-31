@@ -72,10 +72,12 @@ public sealed class WorkflowProjector : IWorkflowProjector
             .OrderBy(s => s.StageKey, StringComparer.Ordinal)
             .ToList();
 
-        var normalisedTransitions = authored.Transitions
-            .OrderBy(t => t.Source, StringComparer.Ordinal)
-            .ThenBy(t => t.Target, StringComparer.Ordinal)
-            .ThenBy(t => t.Trigger, StringComparer.Ordinal)
+        var normalisedTransitions = authored.Gateways
+            .Where(g => !string.IsNullOrWhiteSpace(g.Source))
+            .SelectMany(g => g.Routes.Select(r => (Gateway: g, Route: r)))
+            .OrderBy(t => t.Gateway.Source, StringComparer.Ordinal)
+            .ThenBy(t => t.Route.Target, StringComparer.Ordinal)
+            .ThenBy(t => t.Route.Trigger, StringComparer.Ordinal)
             .ToList();
 
         // 3. Emit
@@ -84,7 +86,7 @@ public sealed class WorkflowProjector : IWorkflowProjector
             .ToList();
 
         var transitions = normalisedTransitions
-            .Select(EmitTransition)
+            .Select(t => EmitTransition(t.Gateway, t.Route))
             .ToList();
 
         var file = new WorkflowDefinitionFile
@@ -140,29 +142,9 @@ public sealed class WorkflowProjector : IWorkflowProjector
                 $"InitialStageKey '{authored.InitialStageKey}' does not reference any defined stage.", null));
         }
 
-        // Transitions may target either stages or gateways — both are valid graph nodes.
-        var gatewayKeys = new HashSet<string>(
-            authored.Gateways.Select(g => g.GatewayKey), StringComparer.Ordinal);
-
-        var validNodeKeys = new HashSet<string>(stageKeys, StringComparer.Ordinal);
-        validNodeKeys.UnionWith(gatewayKeys);
-
-        foreach (var transition in authored.Transitions)
-        {
-            if (!string.IsNullOrWhiteSpace(transition.Source) && !validNodeKeys.Contains(transition.Source))
-            {
-                diagnostics.Add(Warning("PROJ004",
-                    $"Transition source '{transition.Source}' does not reference a defined stage or gateway.",
-                    transition.Source));
-            }
-
-            if (!string.IsNullOrWhiteSpace(transition.Target) && !validNodeKeys.Contains(transition.Target))
-            {
-                diagnostics.Add(Warning("PROJ004",
-                    $"Transition target '{transition.Target}' does not reference a defined stage or gateway.",
-                    transition.Target));
-            }
-        }
+        // Routes target either stages or gateways — both are valid graph nodes. The detailed
+        // per-route checks (target existence, unique triggers, etc) live in the schema validator;
+        // here we just emit the basic stage-side diagnostics.
     }
 
     // ─── Stage 3: Emit ────────────────────────────────────────────────────────
@@ -254,14 +236,14 @@ public sealed class WorkflowProjector : IWorkflowProjector
         return [new FieldsetComponent()];
     }
 
-    private static WorkflowTransitionFile EmitTransition(AuthoredTransition t) =>
+    private static WorkflowTransitionFile EmitTransition(AuthoredGateway gateway, AuthoredRoute route) =>
         new()
         {
-            FromState = t.Source,
-            ToState = t.Target,
-            Action = t.Trigger,
-            RequiresRole = t.RequiresRole,
-            Metadata = EmitTransitionMetadata(t)
+            FromState = gateway.Source,
+            ToState = route.Target,
+            Action = route.Trigger,
+            RequiresRole = route.RequiresRole,
+            Metadata = EmitTransitionMetadata(route)
         };
 
     private static WorkflowDefinitionMetadata? EmitWorkflowMetadata(AuthoredWorkflow authored)
@@ -408,17 +390,20 @@ public sealed class WorkflowProjector : IWorkflowProjector
             roleGates.Count == 0 ? null : roleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray());
     }
 
-    private static WorkflowTransitionMetadata? EmitTransitionMetadata(AuthoredTransition transition)
+    private static WorkflowTransitionMetadata? EmitTransitionMetadata(AuthoredRoute route)
     {
-        var actions = EmitActions(transition.Actions);
-        var conditions = transition.Conditions.Count == 0
+        var actions = EmitActions(route.Actions);
+        var conditions = route.Condition is null
             ? null
-            : transition.Conditions.Select(c => new WorkflowConditionDefinition
+            : new[]
             {
-                Kind = c.Kind,
-                Expression = c.Expression,
-                Description = c.Description
-            }).ToArray();
+                new WorkflowConditionDefinition
+                {
+                    Kind = route.Condition.Kind,
+                    Expression = route.Condition.Expression,
+                    Description = route.Condition.Description
+                }
+            };
 
         return actions is null && conditions is null
             ? null

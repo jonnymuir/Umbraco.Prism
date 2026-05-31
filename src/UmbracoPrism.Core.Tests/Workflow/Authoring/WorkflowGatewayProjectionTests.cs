@@ -5,35 +5,27 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
 /// <summary>
 /// Validates that the projector correctly emits gateway metadata including description,
-/// waiting info for join gateways, required incoming lanes, and that transitions can
-/// target either stage keys or gateway keys without raising false-positive warnings.
+/// waiting info for join gateways, required incoming lanes, and that gateway routes resolve
+/// cleanly into runtime transitions.
 /// </summary>
 public class WorkflowGatewayProjectionTests
 {
     private readonly WorkflowProjector _projector = new();
 
-    // ─── Transition graph: stage → gateway, gateway → stage ──────────────────
+    // ─── Route graph: stage owns gateway, gateway routes to stage/gateway ──────
 
     [Fact]
-    public void Project_TransitionToGateway_DoesNotEmitProj004Warning()
+    public void Project_GatewayRoutes_AreEmittedAsRuntimeTransitions()
     {
         var workflow = BuildTwoLaneWorkflow();
 
         var result = _projector.Project(workflow);
 
-        result.HasErrors.Should().BeFalse("gateway-targeted transitions are valid graph edges");
-        result.Diagnostics.Should().NotContain(d => d.Code == "PROJ004",
-            "transitions whose source or target is a defined gateway key must not warn");
-    }
-
-    [Fact]
-    public void Project_TransitionFromGateway_DoesNotEmitProj004Warning()
-    {
-        var workflow = BuildTwoLaneWorkflow();
-
-        var result = _projector.Project(workflow);
-
-        result.Diagnostics.Should().NotContain(d => d.Code == "PROJ004");
+        result.HasErrors.Should().BeFalse();
+        result.File.Transitions.Should().Contain(t =>
+            t.FromState == "submit" && t.ToState == "finance-review" && t.Action == "submit");
+        result.File.Transitions.Should().Contain(t =>
+            t.FromState == "submit" && t.ToState == "planning-review" && t.Action == "submit");
     }
 
     // ─── Split gateway emission ───────────────────────────────────────────────
@@ -96,24 +88,28 @@ public class WorkflowGatewayProjectionTests
     [Fact]
     public void Project_JoinGatewayWithoutWaitingInfo_ReportsProj137()
     {
-        var workflow = BuildTwoLaneWorkflow() with
+        var workflow = BuildTwoLaneWorkflow();
+        var altered = workflow with
         {
             Gateways =
             [
-                BuildTwoLaneWorkflow().Gateways[0],
+                workflow.Gateways[0],
+                workflow.Gateways[1],
+                workflow.Gateways[2],
                 new AuthoredGateway
                 {
                     GatewayKey = "join-reviews",
                     DisplayName = "All reviews done",
                     Kind = GatewayKind.Join,
                     LaneKey = "applicant",
-                    RequiredIncomingLanes = ["finance", "planning"]
+                    RequiredIncomingLanes = ["finance", "planning"],
+                    Routes = [new AuthoredRoute { Id = "release", Target = "decision", Trigger = "release" }]
                     // WaitingInfo intentionally missing
                 }
             ]
         };
 
-        var result = _projector.Project(workflow);
+        var result = _projector.Project(altered);
 
         result.HasErrors.Should().BeTrue();
         result.Diagnostics.Should().Contain(d => d.Code == "PROJ137");
@@ -122,24 +118,28 @@ public class WorkflowGatewayProjectionTests
     [Fact]
     public void Project_JoinGatewayWithoutRequiredIncomingLanes_ReportsProj138()
     {
-        var workflow = BuildTwoLaneWorkflow() with
+        var workflow = BuildTwoLaneWorkflow();
+        var altered = workflow with
         {
             Gateways =
             [
-                BuildTwoLaneWorkflow().Gateways[0],
+                workflow.Gateways[0],
+                workflow.Gateways[1],
+                workflow.Gateways[2],
                 new AuthoredGateway
                 {
                     GatewayKey = "join-reviews",
                     DisplayName = "All reviews done",
                     Kind = GatewayKind.Join,
                     LaneKey = "applicant",
-                    WaitingInfo = new WaitingMetadata { Content = "Waiting.", ExpectedWaitSeconds = 30, PollIntervalMs = 3000 }
+                    WaitingInfo = new WaitingMetadata { Content = "Waiting.", ExpectedWaitSeconds = 30, PollIntervalMs = 3000 },
+                    Routes = [new AuthoredRoute { Id = "release", Target = "decision", Trigger = "release" }]
                     // RequiredIncomingLanes intentionally empty
                 }
             ]
         };
 
-        var result = _projector.Project(workflow);
+        var result = _projector.Project(altered);
 
         result.HasErrors.Should().BeTrue();
         result.Diagnostics.Should().Contain(d => d.Code == "PROJ138");
@@ -148,11 +148,14 @@ public class WorkflowGatewayProjectionTests
     [Fact]
     public void Project_JoinGatewayWithUnknownRequiredLane_ReportsProj139()
     {
-        var workflow = BuildTwoLaneWorkflow() with
+        var workflow = BuildTwoLaneWorkflow();
+        var altered = workflow with
         {
             Gateways =
             [
-                BuildTwoLaneWorkflow().Gateways[0],
+                workflow.Gateways[0],
+                workflow.Gateways[1],
+                workflow.Gateways[2],
                 new AuthoredGateway
                 {
                     GatewayKey = "join-reviews",
@@ -160,12 +163,13 @@ public class WorkflowGatewayProjectionTests
                     Kind = GatewayKind.Join,
                     LaneKey = "applicant",
                     WaitingInfo = new WaitingMetadata { Content = "Waiting.", ExpectedWaitSeconds = 30, PollIntervalMs = 3000 },
-                    RequiredIncomingLanes = ["finance", "does-not-exist"]
+                    RequiredIncomingLanes = ["finance", "does-not-exist"],
+                    Routes = [new AuthoredRoute { Id = "release", Target = "decision", Trigger = "release" }]
                 }
             ]
         };
 
-        var result = _projector.Project(workflow);
+        var result = _projector.Project(altered);
 
         result.HasErrors.Should().BeTrue();
         result.Diagnostics.Should().Contain(d =>
@@ -196,7 +200,31 @@ public class WorkflowGatewayProjectionTests
                 DisplayName = "Start parallel reviews",
                 Description = "Branch into finance and planning lanes.",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant"
+                LaneKey = "applicant",
+                Source = "submit",
+                Routes =
+                [
+                    new AuthoredRoute { Id = "to-finance", Target = "finance-review", Trigger = "submit" },
+                    new AuthoredRoute { Id = "to-planning", Target = "planning-review", Trigger = "submit" }
+                ]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "finance-out",
+                DisplayName = "Finance routing",
+                Kind = GatewayKind.Split,
+                LaneKey = "finance",
+                Source = "finance-review",
+                Routes = [new AuthoredRoute { Id = "approve", Target = "join-reviews", Trigger = "approve" }]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "planning-out",
+                DisplayName = "Planning routing",
+                Kind = GatewayKind.Split,
+                LaneKey = "planning",
+                Source = "planning-review",
+                Routes = [new AuthoredRoute { Id = "approve", Target = "join-reviews", Trigger = "approve" }]
             },
             new AuthoredGateway
             {
@@ -210,7 +238,8 @@ public class WorkflowGatewayProjectionTests
                     Content = "Waiting for all reviews to complete.",
                     ExpectedWaitSeconds = 60,
                     PollIntervalMs = 5000
-                }
+                },
+                Routes = [new AuthoredRoute { Id = "release", Target = "decision", Trigger = "release" }]
             }
         ],
         Stages =
@@ -243,15 +272,6 @@ public class WorkflowGatewayProjectionTests
                 Kind = StageKind.Confirmation,
                 LaneKey = "applicant"
             }
-        ],
-        Transitions =
-        [
-            new AuthoredTransition { Source = "submit", Target = "split-review", Trigger = "submit" },
-            new AuthoredTransition { Source = "split-review", Target = "finance-review", Trigger = "split-auto" },
-            new AuthoredTransition { Source = "split-review", Target = "planning-review", Trigger = "split-auto" },
-            new AuthoredTransition { Source = "finance-review", Target = "join-reviews", Trigger = "approve" },
-            new AuthoredTransition { Source = "planning-review", Target = "join-reviews", Trigger = "approve" },
-            new AuthoredTransition { Source = "join-reviews", Target = "decision", Trigger = "release" }
         ]
     };
 }

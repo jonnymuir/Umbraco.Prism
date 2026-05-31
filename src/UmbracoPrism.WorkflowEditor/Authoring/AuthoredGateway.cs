@@ -25,6 +25,21 @@ public record AuthoredGateway
     [JsonPropertyName("laneKey")]
     public string LaneKey { get; init; } = string.Empty;
 
+    /// <summary>
+    /// The stage key this gateway routes <em>from</em>. Exactly one gateway per source-stage:
+    /// a stage's outgoing routing lives entirely inside that one gateway.
+    /// </summary>
+    [JsonPropertyName("source")]
+    public string Source { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Outgoing routes carried by this gateway. Each route projects 1:1 to a
+    /// <see cref="UmbracoPrism.Shared.Models.Workflow.WorkflowTransitionFile"/>
+    /// at runtime, with the gateway's <see cref="Source"/> as the <c>FromState</c>.
+    /// </summary>
+    [JsonPropertyName("routes")]
+    public IReadOnlyList<AuthoredRoute> Routes { get; init; } = [];
+
     [JsonPropertyName("actor")]
     public string? Actor { get; init; }
 

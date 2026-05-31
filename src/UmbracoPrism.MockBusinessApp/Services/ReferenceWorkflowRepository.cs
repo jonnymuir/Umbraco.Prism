@@ -41,9 +41,60 @@ public static class ReferenceWorkflowRepository
         ],
         Gateways =
         [
-            RouteGateway("route-application-form", "Route to application form", "applicant"),
-            RouteGateway("route-check-answers", "Route to check answers", "applicant"),
-            RouteGateway("route-submitted", "Route to submitted", "applicant")
+            new AuthoredGateway
+            {
+                GatewayKey = "route-application-form",
+                DisplayName = "Route to application form",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "declaration",
+                Routes = [Route("declaration--continue--application-form", "application-form", "continue")]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "route-check-answers",
+                DisplayName = "Route to check answers",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "application-form",
+                Routes = [Route("application-form--continue--check-answers", "check-answers", "continue")]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "route-submitted",
+                DisplayName = "Route to submitted",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "check-answers",
+                Routes =
+                [
+                    new AuthoredRoute
+                    {
+                        Id = "check-answers--submit--submitted",
+                        Target = "submitted",
+                        Trigger = "submit",
+                        Condition = new AuthoredCondition
+                        {
+                            Expression = "application.isComplete == true",
+                            Description = "Prevent submission until the applicant has completed the form."
+                        },
+                        Actions =
+                        [
+                            new AuthoredAction
+                            {
+                                Type = "forms.submit",
+                                Timing = ActionTiming.OnTransition,
+                                ParameterSchemaKey = "forms-form-definition",
+                                Parameters = new JsonObject
+                                {
+                                    ["formDefinitionId"] = "planning-application"
+                                },
+                                Summary = "Submit the application form to the business app."
+                            }
+                        ]
+                    }
+                ]
+            }
         ],
         Stages =
         [
@@ -159,42 +210,6 @@ public static class ReferenceWorkflowRepository
                 LaneKey = "applicant"
             }
         ],
-        Transitions =
-        [
-            Transition("declaration", "route-application-form", "continue"),
-            Transition("route-application-form", "application-form", "route"),
-            Transition("application-form", "route-check-answers", "continue"),
-            Transition("route-check-answers", "check-answers", "route"),
-            new AuthoredTransition
-            {
-                Source = "check-answers",
-                Target = "route-submitted",
-                Trigger = "submit",
-                Conditions =
-                [
-                    new AuthoredCondition
-                    {
-                        Expression = "application.isComplete == true",
-                        Description = "Prevent submission until the applicant has completed the form."
-                    }
-                ],
-                Actions =
-                [
-                    new AuthoredAction
-                    {
-                        Type = "forms.submit",
-                        Timing = ActionTiming.OnTransition,
-                        ParameterSchemaKey = "forms-form-definition",
-                        Parameters = new JsonObject
-                        {
-                            ["formDefinitionId"] = "planning-application"
-                        },
-                        Summary = "Submit the application form to the business app."
-                    }
-                ]
-            },
-            Transition("route-submitted", "submitted", "route")
-        ],
         Handoffs =
         [
             new AuthoredHandoff
@@ -246,16 +261,22 @@ public static class ReferenceWorkflowRepository
         InitialStageKey = "collecting-details",
         InstancePolicy = "single",
         Lanes = [ApplicantLane()],
-        Gateways = [RouteGateway("route-submitted", "Route to submitted", "applicant")],
+        Gateways =
+        [
+            new AuthoredGateway
+            {
+                GatewayKey = "route-submitted",
+                DisplayName = "Route to submitted",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "collecting-details",
+                Routes = [Route("collecting-details--submit--submitted", "submitted", "submit")]
+            }
+        ],
         Stages =
         [
             new AuthoredStage { StageKey = "collecting-details", DisplayName = "Your details", Kind = StageKind.Question, LaneKey = "applicant" },
             new AuthoredStage { StageKey = "submitted", DisplayName = "Thank you", Kind = StageKind.Confirmation, LaneKey = "applicant" }
-        ],
-        Transitions =
-        [
-            Transition("collecting-details", "route-submitted", "submit"),
-            Transition("route-submitted", "submitted", "route")
         ]
     };
 
@@ -274,7 +295,28 @@ public static class ReferenceWorkflowRepository
         ],
         Gateways =
         [
-            RouteGateway("request-submitted", "Request submitted", "applicant"),
+            new AuthoredGateway
+            {
+                GatewayKey = "request-submitted",
+                DisplayName = "Request submitted",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "collecting-info",
+                Routes =
+                [
+                    Route("collecting-info--submit--review-complete", "review-complete", "submit"),
+                    Route("collecting-info--submit--caseworker-review", "caseworker-review", "submit")
+                ]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "caseworker-route",
+                DisplayName = "Route from caseworker review",
+                Kind = GatewayKind.Split,
+                LaneKey = "caseworker",
+                Source = "caseworker-review",
+                Routes = [Route("caseworker-review--complete-review--review-complete", "review-complete", "complete-review")]
+            },
             new AuthoredGateway
             {
                 GatewayKey = "review-complete",
@@ -288,7 +330,8 @@ public static class ReferenceWorkflowRepository
                     PollIntervalMs = 5000,
                     AllowDefer = false
                 },
-                RequiredIncomingLanes = ["applicant", "caseworker"]
+                RequiredIncomingLanes = ["applicant", "caseworker"],
+                Routes = [Route("review-complete--release--complete", "complete", "release")]
             }
         ],
         Stages =
@@ -357,14 +400,6 @@ public static class ReferenceWorkflowRepository
                 Kind = StageKind.Confirmation,
                 LaneKey = "applicant"
             }
-        ],
-        Transitions =
-        [
-            Transition("collecting-info", "request-submitted", "submit"),
-            Transition("request-submitted", "review-complete", "await-review"),
-            Transition("request-submitted", "caseworker-review", "route-review"),
-            Transition("caseworker-review", "review-complete", "complete-review"),
-            Transition("review-complete", "complete", "release")
         ]
     };
 
@@ -383,7 +418,37 @@ public static class ReferenceWorkflowRepository
         ],
         Gateways =
         [
-            RouteGateway("payment-submitted", "Payment submitted", "applicant"),
+            new AuthoredGateway
+            {
+                GatewayKey = "payment-submitted",
+                DisplayName = "Payment submitted",
+                Kind = GatewayKind.Split,
+                LaneKey = "applicant",
+                Source = "enter-details",
+                Routes =
+                [
+                    Route("enter-details--submit--payment-settled", "payment-settled", "submit"),
+                    Route("enter-details--submit--provider-processing", "provider-processing", "submit")
+                ]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "provider-route",
+                DisplayName = "Route from provider processing",
+                Kind = GatewayKind.Split,
+                LaneKey = "payments",
+                Source = "provider-processing",
+                Routes =
+                [
+                    new AuthoredRoute
+                    {
+                        Id = "provider-processing--complete--payment-settled",
+                        Target = "payment-settled",
+                        Trigger = "complete",
+                        RequiresRole = "reviewer"
+                    }
+                ]
+            },
             new AuthoredGateway
             {
                 GatewayKey = "payment-settled",
@@ -398,7 +463,8 @@ public static class ReferenceWorkflowRepository
                     AllowDefer = true,
                     DeferMessage = "You can leave this page and return to your applications later. Your progress has been saved."
                 },
-                RequiredIncomingLanes = ["applicant", "payments"]
+                RequiredIncomingLanes = ["applicant", "payments"],
+                Routes = [Route("payment-settled--release--payment-complete", "payment-complete", "release")]
             }
         ],
         Stages =
@@ -431,14 +497,6 @@ public static class ReferenceWorkflowRepository
                 LaneKey = "applicant",
                 Description = "Payment received. A receipt has been sent to your email address."
             }
-        ],
-        Transitions =
-        [
-            Transition("enter-details", "payment-submitted", "submit"),
-            Transition("payment-submitted", "payment-settled", "await-payment"),
-            Transition("payment-submitted", "provider-processing", "route-provider"),
-            new AuthoredTransition { Source = "provider-processing", Target = "payment-settled", Trigger = "complete", RequiresRole = "reviewer" },
-            Transition("payment-settled", "payment-complete", "release")
         ]
     };
 
@@ -449,17 +507,9 @@ public static class ReferenceWorkflowRepository
         Actor = "applicant"
     };
 
-    private static AuthoredGateway RouteGateway(string key, string title, string laneKey) => new()
+    private static AuthoredRoute Route(string id, string target, string trigger) => new()
     {
-        GatewayKey = key,
-        DisplayName = title,
-        Kind = GatewayKind.Split,
-        LaneKey = laneKey
-    };
-
-    private static AuthoredTransition Transition(string source, string target, string trigger) => new()
-    {
-        Source = source,
+        Id = id,
         Target = target,
         Trigger = trigger
     };

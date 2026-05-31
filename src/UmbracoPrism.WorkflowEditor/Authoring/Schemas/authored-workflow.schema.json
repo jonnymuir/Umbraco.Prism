@@ -9,8 +9,7 @@
     "displayName",
     "schemaVersion",
     "initialStageKey",
-    "stages",
-    "transitions"
+    "stages"
   ],
   "properties": {
     "id": {
@@ -45,12 +44,7 @@
         "$ref": "#/$defs/stage"
       }
     },
-    "transitions": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/transition"
-      }
-    },
+    "transitions": false,
     "lanes": {
       "type": "array",
       "items": {
@@ -116,26 +110,7 @@
         }
       }
     },
-    "transition": {
-      "type": "object",
-      "required": ["source", "target", "trigger", "conditions", "actions"],
-      "properties": {
-        "source": { "type": "string" },
-        "target": { "type": "string" },
-        "trigger": { "type": "string" },
-        "conditions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/condition" }
-        },
-        "actions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/action" }
-        },
-        "requiresRole": {
-          "type": ["string", "null"]
-        }
-      }
-    },
+    "transition": false,
     "lane": {
       "type": "object",
       "required": ["key", "title"],
@@ -151,7 +126,7 @@
     },
     "gateway": {
       "type": "object",
-      "required": ["key", "title", "type", "laneKey"],
+      "required": ["key", "title", "type", "laneKey", "routes"],
       "properties": {
         "key": { "type": "string" },
         "title": { "type": "string" },
@@ -160,6 +135,12 @@
           "enum": ["Split", "Join"]
         },
         "laneKey": { "type": "string" },
+        "source": { "type": ["string", "null"] },
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/route" }
+        },
         "description": { "type": ["string", "null"] },
         "actor": { "type": ["string", "null"] },
         "roleGates": {
@@ -177,15 +158,43 @@
       "allOf": [
         {
           "if": {
-            "properties": {
-              "type": { "const": "Join" }
-            }
+            "properties": { "type": { "const": "Split" } }
+          },
+          "then": {
+            "required": ["source"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "Join" } }
           },
           "then": {
             "required": ["waitingInfo", "requiredIncomingLanes"]
           }
         }
       ]
+    },
+    "route": {
+      "type": "object",
+      "required": ["id", "target", "trigger"],
+      "properties": {
+        "id": { "type": "string" },
+        "target": { "type": "string" },
+        "trigger": { "type": "string" },
+        "condition": {
+          "oneOf": [
+            { "$ref": "#/$defs/condition" },
+            { "type": "null" }
+          ]
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "requiresRole": {
+          "type": ["string", "null"]
+        }
+      }
     },
     "waitingMetadata": {
       "type": "object",

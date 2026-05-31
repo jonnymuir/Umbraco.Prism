@@ -26,7 +26,38 @@
       "title": "Request submitted",
       "type": "Split",
       "laneKey": "applicant",
-      "roleGates": []
+      "source": "collecting-info",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "collecting-info--submit--review-complete",
+          "target": "review-complete",
+          "trigger": "submit",
+          "actions": []
+        },
+        {
+          "id": "collecting-info--submit--caseworker-review",
+          "target": "caseworker-review",
+          "trigger": "submit",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "caseworker-route",
+      "title": "Route from caseworker review",
+      "type": "Split",
+      "laneKey": "caseworker",
+      "source": "caseworker-review",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "caseworker-review--complete-review--review-complete",
+          "target": "review-complete",
+          "trigger": "complete-review",
+          "actions": []
+        }
+      ]
     },
     {
       "key": "review-complete",
@@ -43,6 +74,14 @@
       "requiredIncomingLanes": [
         "applicant",
         "caseworker"
+      ],
+      "routes": [
+        {
+          "id": "review-complete--release--complete",
+          "target": "complete",
+          "trigger": "release",
+          "actions": []
+        }
       ]
     }
   ],
@@ -137,43 +176,6 @@
       "actions": [],
       "fields": [],
       "roleGates": []
-    }
-  ],
-  "transitions": [
-    {
-      "source": "collecting-info",
-      "target": "request-submitted",
-      "trigger": "submit",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "request-submitted",
-      "target": "review-complete",
-      "trigger": "await-review",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "request-submitted",
-      "target": "caseworker-review",
-      "trigger": "route-review",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "caseworker-review",
-      "target": "review-complete",
-      "trigger": "complete-review",
-      "conditions": [],
-      "actions": []
-    },
-    {
-      "source": "review-complete",
-      "target": "complete",
-      "trigger": "release",
-      "conditions": [],
-      "actions": []
     }
   ]
 }

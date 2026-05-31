@@ -94,7 +94,7 @@ public class AuthoredWorkflowSchemaValidationTests
         defs.TryGetProperty("stage", out _).Should().BeTrue();
         defs.TryGetProperty("lane", out _).Should().BeTrue();
         defs.TryGetProperty("gateway", out _).Should().BeTrue();
-        defs.TryGetProperty("transition", out _).Should().BeTrue();
+        defs.TryGetProperty("route", out _).Should().BeTrue();
         defs.TryGetProperty("action", out _).Should().BeTrue();
         defs.TryGetProperty("parameterSchema", out _).Should().BeTrue();
     }
@@ -156,7 +156,9 @@ public class AuthoredWorkflowSchemaValidationTests
                 GatewayKey = "review-split",
                 DisplayName = "Review split",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant"
+                LaneKey = "applicant",
+                Source = "details",
+                Routes = [new AuthoredRoute { Id = "to-done", Target = "done", Trigger = "continue" }]
             }
         ],
         Stages =
@@ -190,9 +192,15 @@ public class AuthoredWorkflowSchemaValidationTests
                         Required = true
                     }
                 ]
+            },
+            new AuthoredStage
+            {
+                StageKey = "done",
+                DisplayName = "Done",
+                Kind = StageKind.Confirmation,
+                LaneKey = "applicant"
             }
         ],
-        Transitions = [],
         ParameterSchemas =
         [
             new AuthoredParameterSchema

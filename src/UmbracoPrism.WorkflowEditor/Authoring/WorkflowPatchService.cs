@@ -60,11 +60,13 @@ public sealed class WorkflowPatchService : IWorkflowPatchService
         PatchOp op, AuthoredWorkflow current, PatchPlacement? placement) =>
         op.Op switch
         {
-            "insert-stage"      => ApplyInsertStage(op, current, placement),
-            "remove-stage"      => ApplyRemoveStage(op, current),
-            "update-stage"      => ApplyUpdateStage(op, current),
-            "insert-handoff"    => ApplyInsertHandoff(op, current),
-            "update-transition" => ApplyUpdateTransition(op, current),
+            "insert-stage"   => ApplyInsertStage(op, current, placement),
+            "remove-stage"   => ApplyRemoveStage(op, current),
+            "update-stage"   => ApplyUpdateStage(op, current),
+            "insert-handoff" => ApplyInsertHandoff(op, current),
+            "add-route"      => ApplyAddRoute(op, current),
+            "update-route"   => ApplyUpdateRoute(op, current),
+            "delete-route"   => ApplyDeleteRoute(op, current),
             _ => (current, [Err("PATCH001", $"Unknown op '{op.Op}'.", null)])
         };
 
@@ -169,32 +171,129 @@ public sealed class WorkflowPatchService : IWorkflowPatchService
         return (current with { Handoffs = handoffs }, []);
     }
 
-    // ─── update-transition ───────────────────────────────────────────────────
+    // ─── add-route / update-route / delete-route ─────────────────────────────
 
-    private static (AuthoredWorkflow, List<ProjectionDiagnostic>) ApplyUpdateTransition(
+    private static (AuthoredWorkflow, List<ProjectionDiagnostic>) ApplyAddRoute(
         PatchOp op, AuthoredWorkflow current)
     {
         if (op.Value is null)
-            return (current, [Err("PATCH002", "update-transition requires a value.", null)]);
+            return (current, [Err("PATCH002", "add-route requires a value.", null)]);
 
-        AuthoredTransition? updated = TryDeserialize<AuthoredTransition>(op.Value.Value);
-        if (updated is null)
-            return (current, [Err("PATCH002", "update-transition value is not a valid AuthoredTransition.", null)]);
+        var gatewayKey = ReadGatewayKey(op);
+        if (string.IsNullOrWhiteSpace(gatewayKey))
+            return (current, [Err("PATCH010", "add-route requires a gatewayKey in path or value.", null)]);
 
-        var transitions = current.Transitions.ToList();
+        var route = TryDeserialize<AuthoredRoute>(op.Value.Value);
+        if (route is null)
+            return (current, [Err("PATCH002", "add-route value is not a valid AuthoredRoute.", null)]);
 
-        // Attempt to match an existing transition by (source, target, trigger); insert if not found.
-        var idx = transitions.FindIndex(t =>
-            t.Source  == updated.Source &&
-            t.Target  == updated.Target &&
-            t.Trigger == updated.Trigger);
+        if (string.IsNullOrWhiteSpace(route.Id))
+            return (current, [Err("PATCH011", "add-route value must have a non-empty Id.", null)]);
 
+        var gateways = current.Gateways.ToList();
+        var idx = gateways.FindIndex(g => g.GatewayKey == gatewayKey);
         if (idx < 0)
-            transitions.Add(updated);
-        else
-            transitions[idx] = updated;
+            return (current, [Err("PATCH012", $"add-route: gateway '{gatewayKey}' not found.", null)]);
 
-        return (current with { Transitions = transitions }, []);
+        var updatedGateway = gateways[idx] with { Routes = [.. gateways[idx].Routes, route] };
+        gateways[idx] = updatedGateway;
+        return (current with { Gateways = gateways }, []);
+    }
+
+    private static (AuthoredWorkflow, List<ProjectionDiagnostic>) ApplyUpdateRoute(
+        PatchOp op, AuthoredWorkflow current)
+    {
+        if (op.Value is null)
+            return (current, [Err("PATCH002", "update-route requires a value.", null)]);
+
+        var gatewayKey = ReadGatewayKey(op);
+        if (string.IsNullOrWhiteSpace(gatewayKey))
+            return (current, [Err("PATCH010", "update-route requires a gatewayKey in path or value.", null)]);
+
+        var route = TryDeserialize<AuthoredRoute>(op.Value.Value);
+        if (route is null)
+            return (current, [Err("PATCH002", "update-route value is not a valid AuthoredRoute.", null)]);
+
+        if (string.IsNullOrWhiteSpace(route.Id))
+            return (current, [Err("PATCH011", "update-route value must have a non-empty Id.", null)]);
+
+        var gateways = current.Gateways.ToList();
+        var gIdx = gateways.FindIndex(g => g.GatewayKey == gatewayKey);
+        if (gIdx < 0)
+            return (current, [Err("PATCH012", $"update-route: gateway '{gatewayKey}' not found.", null)]);
+
+        var routes = gateways[gIdx].Routes.ToList();
+        var rIdx = routes.FindIndex(r => r.Id == route.Id);
+        if (rIdx < 0)
+            routes.Add(route);
+        else
+            routes[rIdx] = route;
+
+        gateways[gIdx] = gateways[gIdx] with { Routes = routes };
+        return (current with { Gateways = gateways }, []);
+    }
+
+    private static (AuthoredWorkflow, List<ProjectionDiagnostic>) ApplyDeleteRoute(
+        PatchOp op, AuthoredWorkflow current)
+    {
+        var gatewayKey = ReadGatewayKey(op);
+        var routeId = ReadRouteId(op);
+        if (string.IsNullOrWhiteSpace(gatewayKey) || string.IsNullOrWhiteSpace(routeId))
+            return (current, [Err("PATCH010", "delete-route requires a gatewayKey and routeId in path or value.", null)]);
+
+        var gateways = current.Gateways.ToList();
+        var gIdx = gateways.FindIndex(g => g.GatewayKey == gatewayKey);
+        if (gIdx < 0)
+            return (current, [Err("PATCH012", $"delete-route: gateway '{gatewayKey}' not found.", null)]);
+
+        var routes = gateways[gIdx].Routes.ToList();
+        var removed = routes.RemoveAll(r => r.Id == routeId);
+        if (removed == 0)
+            return (current, [Err("PATCH013", $"delete-route: route '{routeId}' not found on gateway '{gatewayKey}'.", null)]);
+
+        gateways[gIdx] = gateways[gIdx] with { Routes = routes };
+        return (current with { Gateways = gateways }, []);
+    }
+
+    private static string? ReadGatewayKey(PatchOp op)
+    {
+        // Prefer JSON-Pointer path like /gateways/{key}/routes[/{id}]
+        if (!string.IsNullOrEmpty(op.Path))
+        {
+            var parts = op.Path.TrimStart('/').Split('/');
+            if (parts.Length >= 2 && parts[0].Equals("gateways", StringComparison.OrdinalIgnoreCase))
+                return parts[1];
+        }
+
+        // Fall back to a top-level "gatewayKey" property on the op value.
+        if (op.Value is { } value && value.ValueKind == JsonValueKind.Object &&
+            value.TryGetProperty("gatewayKey", out var gk) && gk.ValueKind == JsonValueKind.String)
+        {
+            return gk.GetString();
+        }
+
+        return null;
+    }
+
+    private static string? ReadRouteId(PatchOp op)
+    {
+        if (!string.IsNullOrEmpty(op.Path))
+        {
+            var parts = op.Path.TrimStart('/').Split('/');
+            if (parts.Length >= 4 && parts[0].Equals("gateways", StringComparison.OrdinalIgnoreCase)
+                && parts[2].Equals("routes", StringComparison.OrdinalIgnoreCase))
+                return parts[3];
+        }
+
+        if (op.Value is { } value && value.ValueKind == JsonValueKind.Object)
+        {
+            if (value.TryGetProperty("routeId", out var rid) && rid.ValueKind == JsonValueKind.String)
+                return rid.GetString();
+            if (value.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
+                return id.GetString();
+        }
+
+        return null;
     }
 
     // ─── Path / key resolution ───────────────────────────────────────────────

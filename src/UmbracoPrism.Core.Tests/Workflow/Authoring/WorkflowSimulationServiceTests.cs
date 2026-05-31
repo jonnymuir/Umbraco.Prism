@@ -10,9 +10,8 @@ public class WorkflowSimulationServiceTests
     [Fact]
     public void Simulate_WalksThroughSplitGateway_AndArrivesAtNextStage()
     {
-        // Authoring contract: a stage hands off to a gateway, which routes to the next stage.
-        // The simulator must transparently walk through the split gateway and land on the
-        // downstream stage so authors see a single "step" per author-initiated action.
+        // Authoring contract: a stage's outgoing routing is owned by a single split gateway.
+        // The simulator walks through the gateway and lands on the route target.
         var workflow = new AuthoredWorkflow
         {
             DefinitionKey = "split-walk",
@@ -31,20 +30,17 @@ public class WorkflowSimulationServiceTests
                     GatewayKey = "fan-out",
                     DisplayName = "Fan out",
                     Kind = GatewayKind.Split,
-                    LaneKey = "applicant"
+                    LaneKey = "applicant",
+                    Source = "start",
+                    Routes = [new AuthoredRoute { Id = "r1", Target = "end", Trigger = "continue" }]
                 }
-            ],
-            Transitions =
-            [
-                new AuthoredTransition { Source = "start", Target = "fan-out", Trigger = "continue" },
-                new AuthoredTransition { Source = "fan-out", Target = "end", Trigger = "route" }
             ]
         };
 
         var result = _service.Simulate(workflow, actions: new[] { "continue" });
 
         result.CurrentStageKey.Should().Be("end",
-            "simulating from the first stage should walk through the split gateway and arrive at the downstream stage");
+            "simulating from the first stage should walk through the gateway and arrive at the route target");
         result.Steps.Should().ContainSingle()
             .Which.Should().Match<WorkflowSimulationStep>(step =>
                 step.FromStageKey == "start" &&
@@ -57,8 +53,8 @@ public class WorkflowSimulationServiceTests
     [Fact]
     public void Simulate_StopsAtJoinGateway_WithWaitingGatewayReason()
     {
-        // A join gateway is a synchronisation point; the simulator must pause there with a
-        // dedicated stop reason so the UI can surface the waiting copy.
+        // A join gateway is a synchronisation point; the simulator pauses with a dedicated
+        // stop reason so the UI can surface the waiting copy.
         var workflow = new AuthoredWorkflow
         {
             DefinitionKey = "join-pause",
@@ -67,10 +63,20 @@ public class WorkflowSimulationServiceTests
             Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
             Stages =
             [
-                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" }
+                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" },
+                new AuthoredStage { StageKey = "end", DisplayName = "End", Kind = StageKind.Confirmation, LaneKey = "applicant" }
             ],
             Gateways =
             [
+                new AuthoredGateway
+                {
+                    GatewayKey = "route-to-join",
+                    DisplayName = "Route to join",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Source = "start",
+                    Routes = [new AuthoredRoute { Id = "r1", Target = "join-here", Trigger = "continue" }]
+                },
                 new AuthoredGateway
                 {
                     GatewayKey = "join-here",
@@ -78,12 +84,9 @@ public class WorkflowSimulationServiceTests
                     Kind = GatewayKind.Join,
                     LaneKey = "applicant",
                     WaitingInfo = new WaitingMetadata { Content = "Waiting for parallel branches." },
-                    RequiredIncomingLanes = ["applicant"]
+                    RequiredIncomingLanes = ["applicant"],
+                    Routes = [new AuthoredRoute { Id = "release", Target = "end", Trigger = "release" }]
                 }
-            ],
-            Transitions =
-            [
-                new AuthoredTransition { Source = "start", Target = "join-here", Trigger = "continue" }
             ]
         };
 

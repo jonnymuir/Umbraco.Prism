@@ -59,41 +59,127 @@ public class AuthoredWorkflowValidationTests
     }
 
     [Fact]
-    public void Project_TransitionReferencingUnknownStage_ReportsProj004Warning()
+    public void Project_RouteTargetUnknown_ReportsProj150()
     {
         var result = _projector.Project(new AuthoredWorkflow
         {
             DefinitionKey = "validation-test",
             DisplayName = "Validation Test",
             InitialStageKey = "start",
-            Stages = [new AuthoredStage { StageKey = "start", DisplayName = "Start" }],
-            Gateways = [new AuthoredGateway { GatewayKey = "route", DisplayName = "Route", Kind = GatewayKind.Split, LaneKey = "applicant" }],
             Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
-            Transitions = [new AuthoredTransition { Source = "start", Target = "missing", Trigger = "continue" }]
-        });
-
-        result.HasErrors.Should().BeFalse("unknown transition targets are currently warnings, not blocking errors");
-        result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ004" && d.StageKey == "missing");
-    }
-
-    [Fact]
-    public void Project_DirectStageToStageTransition_ReportsProj141()
-    {
-        var result = _projector.Project(new AuthoredWorkflow
-        {
-            DefinitionKey = "validation-test",
-            DisplayName = "Validation Test",
-            InitialStageKey = "start",
-            Stages =
+            Stages = [new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" }],
+            Gateways =
             [
-                new AuthoredStage { StageKey = "start", DisplayName = "Start" },
-                new AuthoredStage { StageKey = "done", DisplayName = "Done", Kind = StageKind.Confirmation }
-            ],
-            Transitions = [new AuthoredTransition { Source = "start", Target = "done", Trigger = "continue" }]
+                new AuthoredGateway
+                {
+                    GatewayKey = "route",
+                    DisplayName = "Route",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Source = "start",
+                    Routes = [new AuthoredRoute { Id = "r1", Target = "missing-stage", Trigger = "continue" }]
+                }
+            ]
         });
 
         result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ141" && d.StageKey == "start");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ150" && d.Message.Contains("missing-stage"));
+    }
+
+    [Fact]
+    public void Project_SplitGatewayWithoutSource_ReportsProj141()
+    {
+        var result = _projector.Project(new AuthoredWorkflow
+        {
+            DefinitionKey = "validation-test",
+            DisplayName = "Validation Test",
+            InitialStageKey = "start",
+            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Stages = [new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" }],
+            Gateways =
+            [
+                new AuthoredGateway
+                {
+                    GatewayKey = "sourceless",
+                    DisplayName = "Sourceless",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Routes = [new AuthoredRoute { Id = "r1", Target = "start", Trigger = "loop" }]
+                }
+            ]
+        });
+
+        result.HasErrors.Should().BeTrue();
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ141");
+    }
+
+    [Fact]
+    public void Project_TwoSplitGatewaysShareSourceStage_ReportsProj143()
+    {
+        var result = _projector.Project(new AuthoredWorkflow
+        {
+            DefinitionKey = "validation-test",
+            DisplayName = "Validation Test",
+            InitialStageKey = "start",
+            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Stages =
+            [
+                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" },
+                new AuthoredStage { StageKey = "a", DisplayName = "A", Kind = StageKind.Confirmation, LaneKey = "applicant" },
+                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation, LaneKey = "applicant" }
+            ],
+            Gateways =
+            [
+                new AuthoredGateway
+                {
+                    GatewayKey = "first",
+                    DisplayName = "First",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Source = "start",
+                    Routes = [new AuthoredRoute { Id = "r1", Target = "a", Trigger = "continue" }]
+                },
+                new AuthoredGateway
+                {
+                    GatewayKey = "second",
+                    DisplayName = "Second",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Source = "start",
+                    Routes = [new AuthoredRoute { Id = "r2", Target = "b", Trigger = "branch" }]
+                }
+            ]
+        });
+
+        result.HasErrors.Should().BeTrue();
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ143");
+    }
+
+    [Fact]
+    public void Project_GatewayWithNoRoutes_ReportsProj144()
+    {
+        var result = _projector.Project(new AuthoredWorkflow
+        {
+            DefinitionKey = "validation-test",
+            DisplayName = "Validation Test",
+            InitialStageKey = "start",
+            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Stages = [new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" }],
+            Gateways =
+            [
+                new AuthoredGateway
+                {
+                    GatewayKey = "empty",
+                    DisplayName = "Empty",
+                    Kind = GatewayKind.Split,
+                    LaneKey = "applicant",
+                    Source = "start"
+                }
+            ]
+        });
+
+        result.HasErrors.Should().BeTrue();
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ144");
     }
 
     [Fact]
@@ -115,8 +201,7 @@ public class AuthoredWorkflowValidationTests
               "type": "Waiting",
               "actions": []
             }
-          ],
-          "transitions": []
+          ]
         }
         """;
         var authored = JsonSerializer.Deserialize<AuthoredWorkflow>(json)!;
@@ -126,39 +211,6 @@ public class AuthoredWorkflowValidationTests
         result.HasErrors.Should().BeTrue();
         result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ005" && d.StageKey == "start")
             .Which.Message.Should().Contain("Waiting");
-    }
-
-    [Fact]
-    public void Project_TransitionWithRetiredFromStageKey_HasEmptySourceAndReportsProj106()
-    {
-        // The retired fromStage/toStage/action JSON aliases have been purged.
-        // A document still emitting them must hit the "source required" validator
-        // rather than being silently rewritten — no backwards compatibility shim.
-        const string json = """
-        {
-          "definitionKey": "validation-test",
-          "displayName": "Validation Test",
-          "schemaVersion": "1.0",
-          "initialStageKey": "start",
-          "stages": [
-            { "key": "start", "title": "Start", "type": "Question", "actions": [] },
-            { "key": "done",  "title": "Done",  "type": "Confirmation", "actions": [] }
-          ],
-          "transitions": [
-            { "fromStage": "start", "toStage": "done", "action": "submit" }
-          ]
-        }
-        """;
-        var authored = JsonSerializer.Deserialize<AuthoredWorkflow>(json)!;
-        authored.Transitions.Should().ContainSingle()
-            .Which.Source.Should().BeEmpty("the retired fromStage alias must no longer rewrite Source");
-
-        var result = _projector.Project(authored);
-
-        result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ106");
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ107");
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ108");
     }
 
     [Fact]
@@ -243,117 +295,36 @@ public class AuthoredWorkflowValidationTests
     }
 
     [Fact]
-    public void Project_DirectStageToStageRoute_InGatewayOnlyWorkflow_IsRejected()
+    public void Project_JoinGatewayWithSource_ReportsProj152()
     {
         var result = _projector.Project(new AuthoredWorkflow
         {
-            DefinitionKey = "gateway-only-validation",
-            DisplayName = "Gateway-only validation",
-            InitialStageKey = "draft",
-            Lanes =
+            DefinitionKey = "validation-test",
+            DisplayName = "Validation Test",
+            InitialStageKey = "start",
+            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Stages =
             [
-                new AuthoredLane { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" },
-                new AuthoredLane { Key = "caseworker", DisplayName = "Caseworker", Actor = "caseworker" }
+                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" },
+                new AuthoredStage { StageKey = "end", DisplayName = "End", Kind = StageKind.Confirmation, LaneKey = "applicant" }
             ],
             Gateways =
             [
                 new AuthoredGateway
                 {
-                    GatewayKey = "decision-join",
-                    DisplayName = "Decision join",
+                    GatewayKey = "bad-join",
+                    DisplayName = "Bad join",
                     Kind = GatewayKind.Join,
-                    LaneKey = "caseworker",
-                    WaitingInfo = new WaitingMetadata
-                    {
-                        Content = "Waiting for the review to finish.",
-                        ExpectedWaitSeconds = 120,
-                        PollIntervalMs = 5000,
-                        AllowDefer = false
-                    },
-                    RequiredIncomingLanes = ["applicant", "caseworker"]
+                    LaneKey = "applicant",
+                    Source = "start", // join must not declare a source
+                    RequiredIncomingLanes = ["applicant"],
+                    WaitingInfo = new WaitingMetadata { Content = "wait" },
+                    Routes = [new AuthoredRoute { Id = "r", Target = "end", Trigger = "release" }]
                 }
-            ],
-            Stages =
-            [
-                new AuthoredStage { StageKey = "draft", DisplayName = "Draft", Kind = StageKind.Question, LaneKey = "applicant" },
-                new AuthoredStage { StageKey = "decision", DisplayName = "Decision", Kind = StageKind.Confirmation, LaneKey = "caseworker" }
-            ],
-            Transitions =
-            [
-                new AuthoredTransition { Source = "draft", Target = "decision", Trigger = "skip-gateway" }
-            ]
-        });
-
-        result.HasErrors.Should().BeTrue(
-            "gateway-only workflows should not jump straight from one stage to another");
-        result.Diagnostics.Should().Contain(d => d.Message.Contains("gateway", StringComparison.OrdinalIgnoreCase),
-            "authors should be told that routing belongs on gateways");
-    }
-
-    [Fact]
-    public void Project_WaitingStage_InGatewayOnlyModel_IsRejected()
-    {
-        // Authoring docs that still carry the retired waiting-stage type are rejected at the
-        // JSON boundary with PROJ005 — waiting belongs on join gateways.
-        const string json = """
-        {
-          "definitionKey": "waiting-stage-validation",
-          "displayName": "Waiting stage validation",
-          "schemaVersion": "1.0",
-          "initialStageKey": "draft",
-          "lanes": [{ "key": "applicant", "title": "Applicant", "actor": "applicant" }],
-          "stages": [
-            { "key": "draft", "title": "Draft", "type": "Question", "laneKey": "applicant", "actions": [] },
-            {
-              "key": "wait-for-review",
-              "title": "Wait for review",
-              "type": "Waiting",
-              "laneKey": "applicant",
-              "actions": []
-            }
-          ],
-          "transitions": [
-            { "source": "draft", "target": "wait-for-review", "trigger": "continue", "conditions": [], "actions": [] }
-          ]
-        }
-        """;
-        var authored = JsonSerializer.Deserialize<AuthoredWorkflow>(json)!;
-
-        var result = _projector.Project(authored);
-
-        result.HasErrors.Should().BeTrue(
-            "waiting belongs on join gateways in the corrected model");
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ005" && d.StageKey == "wait-for-review",
-            "PROJ005 should fire when an unknown/retired stage kind appears");
-    }
-
-    [Fact]
-    public void Project_GatewayToSplitGatewayTransition_ReportsProj142()
-    {
-        var result = _projector.Project(new AuthoredWorkflow
-        {
-            DefinitionKey = "gateway-target-validation",
-            DisplayName = "Gateway target validation",
-            InitialStageKey = "start",
-            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
-            Stages =
-            [
-                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" }
-            ],
-            Gateways =
-            [
-                new AuthoredGateway { GatewayKey = "split-a", DisplayName = "Split A", Kind = GatewayKind.Split, LaneKey = "applicant" },
-                new AuthoredGateway { GatewayKey = "split-b", DisplayName = "Split B", Kind = GatewayKind.Split, LaneKey = "applicant" }
-            ],
-            Transitions =
-            [
-                new AuthoredTransition { Source = "start", Target = "split-a", Trigger = "continue" },
-                // split-a → split-b is invalid: gateways may only target a stage or a join gateway.
-                new AuthoredTransition { Source = "split-a", Target = "split-b", Trigger = "fan-out" }
             ]
         });
 
         result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ142" && d.StageKey == "split-a");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ152");
     }
 }

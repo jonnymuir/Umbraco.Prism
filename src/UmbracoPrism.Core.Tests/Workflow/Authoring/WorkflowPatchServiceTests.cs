@@ -102,14 +102,27 @@ public class WorkflowPatchServiceTests
     {
         var original = await LoadReferenceFixture();
 
-        var envelope = BuildEnvelope("remove-stage", path: "/stages/submitted");
+        // Insert an orphan stage first so removing it does not leave dangling routes.
+        var insertEnvelope = BuildEnvelope("insert-stage", value: new
+        {
+            key       = "orphan-stage",
+            title     = "Orphan",
+            type      = "Question",
+            actor     = "applicant",
+            laneKey   = "applicant",
+            fields    = Array.Empty<object>(),
+            roleGates = Array.Empty<string>()
+        });
+        var withOrphan = _sut.Apply(insertEnvelope, original);
+        withOrphan.HasErrors.Should().BeFalse();
 
-        var result = _sut.Apply(envelope, original);
+        var removeEnvelope = BuildEnvelope("remove-stage", path: "/stages/orphan-stage");
+        var result = _sut.Apply(removeEnvelope, withOrphan.Updated);
 
-        // Projection may warn about dangling transitions but the stage should be gone.
-        result.Updated.Stages.Should().NotContain(s => s.StageKey == "submitted",
+        result.HasErrors.Should().BeFalse();
+        result.Updated.Stages.Should().NotContain(s => s.StageKey == "orphan-stage",
             because: "remove-stage should eliminate the target stage");
-        result.Updated.Stages.Count.Should().Be(original.Stages.Count - 1);
+        result.Updated.Stages.Count.Should().Be(original.Stages.Count);
 
         original.Stages.Should().HaveCount(original.Stages.Count,
             because: "original must not be mutated");
@@ -168,10 +181,10 @@ public class WorkflowPatchServiceTests
         var original = await LoadReferenceFixture();
         var snapshot = new
         {
-            StageCount      = original.Stages.Count,
-            TransitionCount = original.Transitions.Count,
-            HandoffCount    = original.Handoffs.Count,
-            Version         = original.Version
+            StageCount   = original.Stages.Count,
+            GatewayCount = original.Gateways.Count,
+            HandoffCount = original.Handoffs.Count,
+            Version      = original.Version
         };
 
         var envelope = BuildEnvelope("insert-stage", value: new
@@ -187,7 +200,7 @@ public class WorkflowPatchServiceTests
         _sut.Apply(envelope, original);
 
         original.Stages.Count.Should().Be(snapshot.StageCount);
-        original.Transitions.Count.Should().Be(snapshot.TransitionCount);
+        original.Gateways.Count.Should().Be(snapshot.GatewayCount);
         original.Handoffs.Count.Should().Be(snapshot.HandoffCount);
         original.Version.Should().Be(snapshot.Version);
     }
