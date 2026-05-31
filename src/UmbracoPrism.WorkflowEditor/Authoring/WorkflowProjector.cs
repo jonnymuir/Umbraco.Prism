@@ -72,22 +72,12 @@ public sealed class WorkflowProjector : IWorkflowProjector
             .OrderBy(s => s.StageKey, StringComparer.Ordinal)
             .ToList();
 
-        var normalisedTransitions = authored.Gateways
-            .Where(g => !string.IsNullOrWhiteSpace(g.Source))
-            .SelectMany(g => g.Routes.Select(r => (Gateway: g, Route: r)))
-            .OrderBy(t => t.Gateway.Source, StringComparer.Ordinal)
-            .ThenBy(t => t.Route.Target, StringComparer.Ordinal)
-            .ThenBy(t => t.Route.Trigger, StringComparer.Ordinal)
-            .ToList();
-
         // 3. Emit
         var states = normalisedStages
             .Select(s => EmitStage(authored, s, diagnostics, lanesByKey))
             .ToList();
 
-        var transitions = normalisedTransitions
-            .Select(t => EmitTransition(t.Gateway, t.Route))
-            .ToList();
+        var transitions = EmitTransitions(authored.Gateways);
 
         var file = new WorkflowDefinitionFile
         {
@@ -245,6 +235,100 @@ public sealed class WorkflowProjector : IWorkflowProjector
             RequiresRole = route.RequiresRole,
             Metadata = EmitTransitionMetadata(route)
         };
+
+    /// <summary>
+    /// Builds the runtime transition graph from the authored gateways.
+    ///
+    /// Gateway emission rules:
+    ///   - Parallel-fork Split (≥2 routes that all share one trigger): emit the gateway key as a
+    ///     real node so the engine's <c>HandleSplitGatewayAdvance</c> fans out. Shape:
+    ///     <c>source → gatewayKey [trigger]</c> + one <c>gatewayKey → routeTarget [split-auto]</c> per route.
+    ///   - Exclusive-choice Split (routes with distinct triggers) or single-route Split:
+    ///     flatten to <c>source → routeTarget [trigger]</c>. Distinct triggers carry XOR
+    ///     semantics — chaining them would silently convert XOR into a parallel fork.
+    ///   - Join: emit each outgoing route as <c>gatewayKey → routeTarget [trigger]</c> so the
+    ///     engine can release the join after all required incoming lanes have arrived.
+    ///
+    /// All transitions are sorted by (FromState, ToState, Action) for deterministic output.
+    /// </summary>
+    private static List<WorkflowTransitionFile> EmitTransitions(IReadOnlyList<AuthoredGateway> gateways)
+    {
+        var transitions = new List<WorkflowTransitionFile>();
+
+        foreach (var gateway in gateways)
+        {
+            if (gateway.Routes.Count == 0)
+                continue;
+
+            if (gateway.Kind == GatewayKind.Join)
+            {
+                // Join: emit outgoing edges from the gateway key so the engine can release
+                // once all required incoming lanes have arrived.
+                foreach (var route in gateway.Routes)
+                {
+                    transitions.Add(new WorkflowTransitionFile
+                    {
+                        FromState = gateway.GatewayKey,
+                        ToState = route.Target,
+                        Action = route.Trigger,
+                        RequiresRole = route.RequiresRole,
+                        Metadata = EmitTransitionMetadata(route)
+                    });
+                }
+                continue;
+            }
+
+            // Split (or any non-Join gateway with a Source).
+            if (string.IsNullOrWhiteSpace(gateway.Source))
+                continue;
+
+            var distinctTriggers = gateway.Routes
+                .Select(r => r.Trigger)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            var isParallelFork = gateway.Routes.Count >= 2 && distinctTriggers.Count == 1;
+
+            if (!isParallelFork)
+            {
+                // Exclusive choice (distinct triggers) or single-route wrapper:
+                // flatten so each trigger lands on its own target stage.
+                foreach (var route in gateway.Routes)
+                {
+                    transitions.Add(EmitTransition(gateway, route));
+                }
+                continue;
+            }
+
+            // Parallel fan-out: emit the entry edge into the gateway, then one auto-fan-out
+            // edge per outgoing branch. The engine's HandleSplitGatewayAdvance follows every
+            // outgoing edge from gateway.Source==gatewayKey when the user takes the entry trigger.
+            transitions.Add(new WorkflowTransitionFile
+            {
+                FromState = gateway.Source,
+                ToState = gateway.GatewayKey,
+                Action = distinctTriggers[0]
+            });
+
+            foreach (var route in gateway.Routes)
+            {
+                transitions.Add(new WorkflowTransitionFile
+                {
+                    FromState = gateway.GatewayKey,
+                    ToState = route.Target,
+                    Action = "split-auto",
+                    RequiresRole = route.RequiresRole,
+                    Metadata = EmitTransitionMetadata(route)
+                });
+            }
+        }
+
+        return transitions
+            .OrderBy(t => t.FromState, StringComparer.Ordinal)
+            .ThenBy(t => t.ToState, StringComparer.Ordinal)
+            .ThenBy(t => t.Action, StringComparer.Ordinal)
+            .ToList();
+    }
 
     private static WorkflowDefinitionMetadata? EmitWorkflowMetadata(AuthoredWorkflow authored)
     {

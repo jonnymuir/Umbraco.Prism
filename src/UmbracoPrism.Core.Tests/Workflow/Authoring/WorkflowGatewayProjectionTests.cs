@@ -22,10 +22,30 @@ public class WorkflowGatewayProjectionTests
         var result = _projector.Project(workflow);
 
         result.HasErrors.Should().BeFalse();
+
+        // Parallel-fork Split: entry edge into the gateway, then one auto-fan-out edge per branch.
+        // The engine reads `ToState == splitKey` to fire HandleSplitGatewayAdvance, which fans
+        // every outgoing edge of the gateway into one cursor per branch.
         result.File.Transitions.Should().Contain(t =>
-            t.FromState == "submit" && t.ToState == "finance-review" && t.Action == "submit");
+            t.FromState == "submit" && t.ToState == "split-review" && t.Action == "submit",
+            because: "the user's submit trigger must land on the split gateway so the engine can fan out");
         result.File.Transitions.Should().Contain(t =>
-            t.FromState == "submit" && t.ToState == "planning-review" && t.Action == "submit");
+            t.FromState == "split-review" && t.ToState == "finance-review" && t.Action == "split-auto",
+            because: "the split gateway must own the auto-fan-out edge into each branch stage");
+        result.File.Transitions.Should().Contain(t =>
+            t.FromState == "split-review" && t.ToState == "planning-review" && t.Action == "split-auto");
+
+        // Join routes that target the join gateway from a wrapper single-route Split stay flat
+        // (the engine reads `ToState == joinKey` to fire HandleJoinGatewayAdvance directly).
+        result.File.Transitions.Should().Contain(t =>
+            t.FromState == "finance-review" && t.ToState == "join-reviews" && t.Action == "approve");
+        result.File.Transitions.Should().Contain(t =>
+            t.FromState == "planning-review" && t.ToState == "join-reviews" && t.Action == "approve");
+
+        // Join outgoing edge: the release path out of the join into the next stage.
+        result.File.Transitions.Should().Contain(t =>
+            t.FromState == "join-reviews" && t.ToState == "decision" && t.Action == "release",
+            because: "the join gateway must own its release edge so the engine can advance after all required lanes arrive");
     }
 
     // ─── Split gateway emission ───────────────────────────────────────────────
