@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type {
   ActionCatalogEntry,
   AuthoredAction,
+  AuthoredComponent,
   AuthoredGateway,
   AuthoredRoute,
   AuthoredStage,
@@ -10,6 +11,36 @@ import type {
   AuthoredWorkflow,
   EditorStageType,
 } from './types.js';
+
+function describeComponent(component: AuthoredComponent): string {
+  switch (component.type) {
+    case 'fieldset':
+      return component.legend
+        ? `${component.legend} · ${component.children.length} item${component.children.length === 1 ? '' : 's'}`
+        : `Fieldset · ${component.children.length} item${component.children.length === 1 ? '' : 's'}`;
+    case 'accordion':
+      return `Accordion · ${component.sections.length} section${component.sections.length === 1 ? '' : 's'}`;
+    case 'panel':
+      return component.heading;
+    case 'waiting':
+      return component.content;
+    case 'summary-list':
+      return `Summary list · ${component.children.length} row${component.children.length === 1 ? '' : 's'}`;
+    case 'task-list': {
+      const taskCount = (component.sections ?? []).reduce((sum, section) => sum + section.tasks.length, 0);
+      return `Task list · ${taskCount} task${taskCount === 1 ? '' : 's'}`;
+    }
+    case 'body':
+    case 'inset-text':
+    case 'warning-text':
+    case 'details':
+      return component.content ?? component.type;
+    default:
+      return (component as { label?: string }).label
+        ?? (component as { fieldKey?: string }).fieldKey
+        ?? component.type;
+  }
+}
 import {
   editorStageTypeToStageKind,
   stageKindToEditorStageType,
@@ -1153,7 +1184,7 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _renderStage(stage: AuthoredStage) {
-    const fields = stage.fields ?? [];
+    const components = stage.components ?? [];
     const actions = stage.actions ?? [];
     const outgoing = this._selectedStageOutgoing(stage);
     const stageType = stageKindToEditorStageType(stage.kind);
@@ -1323,23 +1354,27 @@ export class PrismStepInspectorElement extends LitElement {
               `}
         </section>
 
-        <section class="inspector-section" aria-labelledby="stage-fields-heading">
+        <section class="inspector-section" aria-labelledby="stage-components-heading">
           <div class="section-header-row">
-            <h3 id="stage-fields-heading" class="section-heading">Fields</h3>
-            <span class="section-meta">${fields.length}</span>
+            <h3 id="stage-components-heading" class="section-heading">Components</h3>
+            <span class="section-meta">${components.length}</span>
           </div>
-          ${fields.length === 0
-            ? html`<p class="section-empty">No fields defined for this stage.</p>`
+          ${components.length === 0
+            ? html`<p class="section-empty">No components defined for this stage.</p>`
             : html`
                 <ul class="field-list">
-                  ${fields.map(field => html`
+                  ${components.map(component => html`
                     <li class="field-item">
-                      <span class="field-item-label">${field.label}</span>
-                      <span class="field-item-meta">${field.kind}${field.required ? ' · required' : ''}</span>
+                      <span class="field-item-label">${describeComponent(component)}</span>
+                      <span class="field-item-meta">${component.type}</span>
                     </li>
                   `)}
                 </ul>
               `}
+          <p class="section-empty">
+            To edit components in detail, switch to the <strong>Definition</strong> tab and edit this stage's
+            <code>components</code> block in the JSON editor.
+          </p>
         </section>
       </article>
     `;

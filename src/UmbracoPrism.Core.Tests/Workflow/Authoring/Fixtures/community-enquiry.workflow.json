@@ -40,8 +40,8 @@
       "type": "Question",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     },
     {
       "key": "submitted",
@@ -49,8 +49,8 @@
       "type": "Confirmation",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     }
   ]
 }

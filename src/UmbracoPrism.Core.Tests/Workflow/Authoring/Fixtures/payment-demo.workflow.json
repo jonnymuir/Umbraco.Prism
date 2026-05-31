@@ -94,23 +94,28 @@
       "type": "Question",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [
+      "roleGates": [],
+      "components": [
         {
-          "key": "cardholderName",
-          "label": "Cardholder name",
-          "type": "Text",
-          "required": true,
-          "options": []
-        },
-        {
-          "key": "amount",
-          "label": "Amount (\u00a3)",
-          "type": "Decimal",
-          "required": true,
-          "options": []
+          "type": "fieldset",
+          "legend": "Enter Payment Details",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "cardholderName",
+              "label": "Cardholder name",
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "amount",
+              "label": "Amount (£)",
+              "required": true
+            }
+          ]
         }
-      ],
-      "roleGates": []
+      ]
     },
     {
       "key": "provider-processing",
@@ -119,8 +124,8 @@
       "type": "Question",
       "laneKey": "payments",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     },
     {
       "key": "payment-complete",
@@ -129,8 +134,8 @@
       "type": "Confirmation",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     }
   ]
 }

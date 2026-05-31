@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -59,10 +60,13 @@ public class AuthoredWorkflowSerializationTests
         restored.Stages[0].Actions[0].Type.Should().Be("forms.load");
         restored.Stages[0].Actions[0].Timing.Should().Be(ActionTiming.OnEntry);
         restored.Stages[0].Actions[0].Parameters["formDefinitionId"]!.GetValue<string>().Should().Be("details-form");
-        restored.Stages[0].Fields.Should().HaveCount(1);
-        restored.Stages[0].Fields[0].Key.Should().Be("full-name");
-        restored.Stages[0].Fields[0].Type.Should().Be(FieldType.Text);
-        restored.Stages[0].Fields[0].Required.Should().BeTrue();
+        restored.Stages[0].Components.Should().HaveCount(1);
+        var restoredFieldset = restored.Stages[0].Components[0].Should().BeOfType<FieldsetComponent>().Subject;
+        var restoredField = restoredFieldset.Children.Should().ContainSingle().Subject;
+        restoredField.Should().BeOfType<TextInputComponent>()
+            .Which.FieldKey.Should().Be("full-name");
+        restoredField.Should().BeOfType<TextInputComponent>()
+            .Which.Required.Should().BeTrue();
 
         restored.Stages[1].Kind.Should().Be(StageKind.Confirmation);
 
@@ -116,17 +120,42 @@ public class AuthoredWorkflowSerializationTests
     }
 
     [Fact]
-    public void AuthoredField_AllTypesRoundTrip()
+    public void AuthoredStage_ComponentsRoundTrip_PolymorphicTree()
     {
-        var allTypes = Enum.GetValues<FieldType>();
-
-        foreach (var fieldType in allTypes)
+        var stage = new AuthoredStage
         {
-            var field = new AuthoredField { Key = "f", Label = "F", Type = fieldType };
-            var json = JsonSerializer.Serialize(field, RoundTripOptions);
-            var restored = JsonSerializer.Deserialize<AuthoredField>(json, RoundTripOptions)!;
-            restored.Type.Should().Be(fieldType, $"FieldType.{fieldType} should round-trip");
-        }
+            StageKey = "details",
+            DisplayName = "Your details",
+            Kind = StageKind.Question,
+            Components =
+            [
+                new BodyComponent { Content = "Tell us about yourself." },
+                new FieldsetComponent
+                {
+                    Legend = "Identity",
+                    LegendSize = "m",
+                    Children =
+                    [
+                        new TextInputComponent { FieldKey = "name", Label = "Full name", Required = true },
+                        new EmailComponent { FieldKey = "email", Label = "Email", Required = true }
+                    ]
+                }
+            ]
+        };
+
+        var json = JsonSerializer.Serialize(stage, RoundTripOptions);
+        var restored = JsonSerializer.Deserialize<AuthoredStage>(json, RoundTripOptions)!;
+
+        restored.Components.Should().HaveCount(2);
+        restored.Components[0].Should().BeOfType<BodyComponent>()
+            .Which.Content.Should().Be("Tell us about yourself.");
+        var restoredFieldset = restored.Components[1].Should().BeOfType<FieldsetComponent>().Subject;
+        restoredFieldset.Legend.Should().Be("Identity");
+        restoredFieldset.Children.Should().HaveCount(2);
+        restoredFieldset.Children[0].Should().BeOfType<TextInputComponent>()
+            .Which.FieldKey.Should().Be("name");
+        restoredFieldset.Children[1].Should().BeOfType<EmailComponent>()
+            .Which.FieldKey.Should().Be("email");
     }
 
     [Fact]
@@ -236,14 +265,19 @@ public class AuthoredWorkflowSerializationTests
                         }
                     }
                 ],
-                Fields =
+                Components =
                 [
-                    new AuthoredField
+                    new FieldsetComponent
                     {
-                        Key = "full-name",
-                        Label = "Full name",
-                        Type = FieldType.Text,
-                        Required = true
+                        Children =
+                        [
+                            new TextInputComponent
+                            {
+                                FieldKey = "full-name",
+                                Label = "Full name",
+                                Required = true
+                            }
+                        ]
                     }
                 ]
             },

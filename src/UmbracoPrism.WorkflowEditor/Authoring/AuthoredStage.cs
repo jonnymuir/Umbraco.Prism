@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
@@ -84,12 +85,13 @@ public record AuthoredStage
     public IReadOnlyList<AuthoredAction> Actions { get; init; } = [];
 
     /// <summary>
-    /// Fields collected or displayed in this stage.
-    /// For <see cref="StageKind.Question"/> stages these become InputComponents inside a FieldsetComponent.
-    /// For <see cref="StageKind.CheckAnswers"/> stages on the parent workflow they populate the SummaryListComponent.
+    /// Components shown by this stage. Authored as a polymorphic tree using the
+    /// shared <see cref="PrismComponent"/> hierarchy (fieldset, body, inset-text,
+    /// summary-list, panel, every input kind, etc.). The projector hands this tree
+    /// straight through to the runtime; nothing wraps it implicitly.
     /// </summary>
-    [JsonPropertyName("fields")]
-    public IReadOnlyList<AuthoredField> Fields { get; init; } = [];
+    [JsonPropertyName("components")]
+    public IReadOnlyList<PrismComponent> Components { get; init; } = [];
 
     /// <summary>Roles that may enter this stage. Empty means any authenticated principal.</summary>
     [JsonPropertyName("roleGates")]

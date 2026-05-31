@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -182,14 +183,19 @@ public class AuthoredWorkflowSchemaValidationTests
                         }
                     }
                 ],
-                Fields =
+                Components =
                 [
-                    new AuthoredField
+                    new FieldsetComponent
                     {
-                        Key = "full-name",
-                        Label = "Full name",
-                        Type = FieldType.Text,
-                        Required = true
+                        Children =
+                        [
+                            new TextInputComponent
+                            {
+                                FieldKey = "full-name",
+                                Label = "Full name",
+                                Required = true
+                            }
+                        ]
                     }
                 ]
             },

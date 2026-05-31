@@ -299,3 +299,88 @@ agentic envelope theatre for non-agentic saves.
 - 2026-05-31 — Slice A legacy purge (backend, branch `squad/82-named-lanes-editor-slice`). Stripped every `Legacy*`/`[Obsolete]` shim from `AuthoredStage` (LegacyStageKey/LegacyDisplayName/LegacyKindLiteral/LegacyKindRaw/LegacyWaitingPayload/HasLegacyWaitingPayload + private `_legacyKindRaw`/`_hasLegacyWaitingPayload`) and `AuthoredTransition` (LegacyFromStage/LegacyToStage/LegacyAction/LegacyCondition init shims + 3 `[Obsolete]` FromStage/ToStage/Action getters). Replaced silent-rewrite-to-Question with hard error: unknown stage kinds are now captured on a private `_unknownKindToken` (exposed as `UnknownKindToken`) and the schema validator surfaces a new **PROJ005 "Unknown stage kind '<x>'. Allowed kinds: Question, CheckAnswers, Confirmation, TaskList."** Deleted the PROJ140 path entirely (waiting-payload binding is gone — empty `type` still defaults to Question to mirror `Enum.TryParse`'s early return; only an explicit non-empty unknown token errors). Tests: replaced the legacy shim round-trip test with a "retired alias does not populate Source" assertion, replaced PROJ140 tests with PROJ005, renamed the legacy-route 404 test. **Audit finding beyond Tom Nook's plan:** `WorkflowPatchServiceTests` and `WorkflowPatchServiceFailureTests` were using `stageKey`/`displayName`/`kind` legacy aliases in their anonymous-object payloads — sed-migrated to `key`/`title`/`type`. **Reminder for Slice C:** `AuthoredHandoff.FromStage`/`ToStage` are *canonical* on that type (different record); do not conflate with the deleted `AuthoredTransition` aliases. Final: 860/860 Core tests green; build clean.
 
 - 2026-05-31 — Slice C (server portion) — gateways own routes. Deleted `AuthoredTransition` entirely. `AuthoredGateway` gained `Source` (required on Split, forbidden on Join) + `Routes` (`IReadOnlyList<AuthoredRoute>`). New `AuthoredRoute` record (`Id`, `Target`, `Trigger`, `Condition`, `RequiresRole`, `Actions`). `AuthoredWorkflow.Transitions` removed. Rewrote `AuthoredWorkflowSchemaValidator` (new PROJ141–PROJ152; retired PROJ106–109 + old PROJ141/142), `WorkflowProjector` (emits transitions from `gateway.Source × routes`), `WorkflowSimulationService` (full rewrite — `gatewayBySourceStage` lookup, `ResolveNextStage` chains through gateways), `WorkflowPatchService` (`add-route` / `update-route` / `delete-route` ops on path `/gateways/{key}/routes/{id}`). Schema dropped top-level `transitions`; gateway shape now conditionally requires `source` only for Split. Multi-target fan-outs require `(trigger, target)` uniqueness — deliberate evolution from spec wording for routers like payment-demo. All four reference workflows reshaped (planning, community-enquiry, information-request, payment-demo) in MockBusinessApp + Core.Tests fixtures + client planning fixture. Test status: 811/811 Core.Tests green, full solution build 0/0. **Outstanding for follow-up:** TS types collapse, graph (3350 LOC), inspector (1688 LOC), wire-format, fixtures/index.ts, stories, Playwright specs, MockBusinessApp admin-page strip, walkthrough corrections. See `.squad/decisions/inbox/copilot-slice-c-gateways-own-routes.md`.
+
+- 2026-05-31 — Audit only (no code change). Reference-workflow backend audit on `squad/82-named-lanes-editor-slice`. Findings in `.squad/decisions/inbox/blathers-reference-workflow-backend-audit.md`. Key learning: there are three parallel expressions of the 4 reference workflows on the backend — `ReferenceWorkflowRepository.cs` (canonical authored, gateway-clean), `Core.Tests/.../Fixtures/*.workflow.json` (mirror, gateway-clean), and `MockBusinessApp/workflow-seeds/*.json` (stale legacy `WorkflowDefinitionFile` with raw `fromState`/`toState`/`action`, no gateways, not wired by `Program.cs` but still copied to `bin/` by the csproj `Content Update` glob). The headline backend gap is at the projector ↔ engine seam: `WorkflowRuntimeEngine` (split/join cursor logic, `JoinArrivals`, `HandleSplitGatewayAdvance` / `HandleJoinGatewayAdvance`) is ready and exercised by hand-built fixtures in `WorkflowJoinGatewayEngineTests`, but `WorkflowProjector.EmitTransition` flattens every gateway route to `gateway.Source → route.Target` and never emits a gateway key as a transition endpoint — so `FindGateway(definition, transition.ToState)` always misses on projected workflows and split/join is unreachable end-to-end. Authored seeds are already correct; engine fix (projector emits the `stage → gatewayKey → stage` chain) has to come first, then the stale workflow-seeds files can be deleted or regenerated. Don't conflate `AuthoredHandoff.FromStage/ToStage` (canonical) with the deleted `AuthoredTransition` aliases.
+
+## 2026-05-31 — Projector now bridges authored gateways to engine gateway cursors
+
+The runtime engine has had split/join/wait logic for ages (cursors,
+JoinArrivals, BuildJoinWaitingEnvelope) but no authored workflow ever
+exercised it. The compiler in the middle — `WorkflowProjector` — flattened
+every authored route to `stage → stage`, so gateway keys never appeared
+as `ToState` and the engine's `FindGateway` always returned null. Dead code.
+
+Fixed in `WorkflowProjector.EmitTransitions`:
+
+- **Parallel-fork Split** (≥2 routes sharing one trigger) now emits the
+  gateway key as a real node: `source → gatewayKey [trigger]` plus
+  `gatewayKey → routeTarget [split-auto]` per branch. Engine's
+  `HandleSplitGatewayAdvance` fires.
+- **Join** now emits its outgoing route as `gatewayKey → routeTarget [trigger]`.
+  Previously dropped entirely by the Source filter — join had no release edge.
+- **Exclusive-choice Split** (distinct triggers) and **single-route Split**
+  stay flat. The first because distinct triggers carry XOR semantics —
+  chaining them would silently turn XOR into a parallel fork. The second
+  because intermediating a wrapper Split whose target is a Join deadlocks
+  the engine (HandleSplitGatewayAdvance records the join arrival but doesn't
+  run the release check — that only lives in HandleJoinGatewayAdvance).
+
+Rubber-duck (code-review agent) caught the XOR collapse before I shipped it.
+The original "all multi-route Splits chain" rule looked clean on paper but
+would have silently broken any authored exclusive-choice workflow. The
+trigger-distinctness disambiguation is what makes the projector safe to land
+without an authored-model schema change.
+
+Behavioural integration test
+(`ProjectorEngineGatewayIntegrationTests`) goes through real projector → real
+engine, asserts cursors fan out, join defers on first arrival, releases on
+the second, and the waiting copy surfaces from the join gateway. Three tests.
+All three were red against the old projector. All green after.
+
+814/814 Core.Tests pass (up from 811). Only one existing test changed:
+`WorkflowGatewayProjectionTests.Project_GatewayRoutes_AreEmittedAsRuntimeTransitions`
+was asserting the flattened bug shape. Reframed to assert the chained shape
+the engine actually wants. Decision: `.squad/decisions/inbox/blathers-projector-gateway-emission.md`.
+
+Latent engine bug noted for a follow-up slice: HandleSplitGatewayAdvance
+doesn't fire the join release check when its outgoing edge lands on a Join
+key. Not reachable from any of the four authored reference workflows under
+the new projector rules, but worth fixing before someone authors a Split
+whose route targets a Join directly under a parallel-fork shape.
+
+## 2026-06-01 — Stages carry components, not fields (issue #82 Slice A)
+
+Replaced `AuthoredStage.Fields: List<AuthoredField>` with
+`AuthoredStage.Components: IReadOnlyList<PrismComponent>` end-to-end (C# +
+TypeScript). Deleted `AuthoredField` and `FieldType` from both sides. The
+projector became a near-no-op: pass `stage.Components` through verbatim,
+falling back to kind-appropriate defaults only when empty. The April
+component-hierarchy decision is now the single shape — no flat-fields
+cohabitation.
+
+**Pattern learned for test rewrites.** Translating flat-field tests to
+component tree assertions is mechanical:
+
+```csharp
+// before
+Fields = [new AuthoredField { FieldKey = "x", Kind = FieldType.Text, ... }]
+
+// after
+Components = [new FieldsetComponent {
+    Legend = "…",
+    Children = [new TextInputComponent { FieldKey = "x", ... }]
+}]
+```
+
+The same shape applies in fixture JSON: wrap the old `fields` array into
+`{ "type": "fieldset", "legend": <stage.title>, "children": [...] }` and
+map field types (`Text` → `text`, `Number` → `number`, `Radios` → `radio`,
+`Checkboxes` → `checkboxlist`, `Boolean` → `boolean`, `Date` → `date`).
+
+**Inspector UX.** When a data shape becomes too rich for a quick-edit form,
+the right move is a read-only summary + a clear pointer to the JSON
+Definition tab — not a tree editor in disguise. That kept Slice A focused.
+
+**Gateway projector, untouched.** Resisted the urge to "tidy up" the gateway
+emission code (commit 23b34c2) while in the neighbourhood. Slice
+discipline > drive-by refactors.

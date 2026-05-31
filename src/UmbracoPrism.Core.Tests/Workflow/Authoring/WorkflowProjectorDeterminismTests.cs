@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -138,10 +139,16 @@ public class WorkflowProjectorDeterminismTests
                 DisplayName = "Collect details",
                 Kind = StageKind.Question,
                 LaneKey = "applicant",
-                Fields =
+                Components =
                 [
-                    new AuthoredField { Key = "email", Label = "Email address", Type = FieldType.Email, Required = true },
-                    new AuthoredField { Key = "name", Label = "Full name", Type = FieldType.Text, Required = true }
+                    new FieldsetComponent
+                    {
+                        Children =
+                        [
+                            new EmailComponent { FieldKey = "email", Label = "Email address", Required = true },
+                            new TextInputComponent { FieldKey = "name", Label = "Full name", Required = true }
+                        ]
+                    }
                 ]
             },
             new AuthoredStage

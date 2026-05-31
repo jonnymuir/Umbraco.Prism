@@ -198,10 +198,6 @@ export class PrismStagePreviewElement extends LitElement {
   }
 
   private _renderFieldset(component: ProjectedFieldsetComponent): TemplateResult {
-    if (!component.legend && component.children.length === 1) {
-      return html`${component.children.map(child => this._renderComponent(child))}`;
-    }
-
     return html`
       <fieldset class="govuk-fieldset preview-fieldset">
         ${component.legend

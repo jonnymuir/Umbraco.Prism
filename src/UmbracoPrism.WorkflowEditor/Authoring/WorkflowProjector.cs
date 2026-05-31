@@ -161,43 +161,42 @@ public sealed class WorkflowProjector : IWorkflowProjector
         AuthoredStage stage,
         List<ProjectionDiagnostic> diagnostics)
     {
+        // Authored components are the source of truth — pass through untouched so authors
+        // express their stages as a real component tree (fieldset + legend, body, inset-text,
+        // panel, summary-list, etc.). When a stage declares no components, fall back to a
+        // sensible kind-based default so empty stages still render as the right shell.
+        if (stage.Components.Count > 0)
+            return stage.Components;
+
         return stage.Kind switch
         {
-            StageKind.Question => EmitQuestionComponents(stage),
-            StageKind.CheckAnswers => EmitCheckAnswersComponents(authored),
-            StageKind.Confirmation => EmitConfirmationComponents(stage),
-            StageKind.TaskList => EmitTaskListComponents(),
+            StageKind.Question => [new FieldsetComponent()],
+            StageKind.CheckAnswers => EmitDefaultCheckAnswersSummary(authored),
+            StageKind.Confirmation => EmitDefaultConfirmation(stage),
+            StageKind.TaskList => [new TaskListComponent()],
             _ => EmitUnknownKind(stage, diagnostics)
         };
     }
 
-    private static IReadOnlyList<PrismComponent> EmitQuestionComponents(AuthoredStage stage)
+    /// <summary>
+    /// Default summary list emitted only when a CheckAnswers stage declares no components
+    /// of its own. Authors are expected to place their own <see cref="SummaryListComponent"/>
+    /// (with the inputs they want summarised) on the stage; this fallback walks the workflow's
+    /// question stages so legacy fixtures without authored components still get a shell that
+    /// infers as "check-answers".
+    /// </summary>
+    private static IReadOnlyList<PrismComponent> EmitDefaultCheckAnswersSummary(AuthoredWorkflow authored)
     {
-        var normalisedFields = stage.Fields
-            .OrderBy(f => f.Key, StringComparer.Ordinal)
-            .ToList();
-
-        var children = normalisedFields
-            .Select(f => (PrismComponent)MapFieldToInputComponent(f))
-            .ToList();
-
-        return [new FieldsetComponent { Children = children }];
-    }
-
-    private static IReadOnlyList<PrismComponent> EmitCheckAnswersComponents(AuthoredWorkflow authored)
-    {
-        // Gather all fields from question stages in canonical (sorted) order so the output is stable.
-        var questionFields = authored.Stages
+        var inputs = authored.Stages
             .Where(s => s.Kind == StageKind.Question)
             .OrderBy(s => s.StageKey, StringComparer.Ordinal)
-            .SelectMany(s => s.Fields.OrderBy(f => f.Key, StringComparer.Ordinal))
-            .Select(f => (PrismComponent)MapFieldToInputComponent(f))
+            .SelectMany(s => HarvestInputs(s.Components))
             .ToList();
 
-        return [new SummaryListComponent { Children = questionFields }];
+        return [new SummaryListComponent { Children = inputs }];
     }
 
-    private static IReadOnlyList<PrismComponent> EmitConfirmationComponents(AuthoredStage stage)
+    private static IReadOnlyList<PrismComponent> EmitDefaultConfirmation(AuthoredStage stage)
     {
         var components = new List<PrismComponent>
         {
@@ -212,8 +211,27 @@ public sealed class WorkflowProjector : IWorkflowProjector
         return components;
     }
 
-    private static IReadOnlyList<PrismComponent> EmitTaskListComponents()
-        => [new TaskListComponent()];
+    private static IEnumerable<PrismComponent> HarvestInputs(IEnumerable<PrismComponent> components)
+    {
+        foreach (var component in components)
+        {
+            switch (component)
+            {
+                case InputComponent input:
+                    yield return input;
+                    break;
+                case FieldsetComponent fieldset:
+                    foreach (var nested in HarvestInputs(fieldset.Children))
+                        yield return nested;
+                    break;
+                case AccordionComponent accordion:
+                    foreach (var section in accordion.Sections)
+                        foreach (var nested in HarvestInputs(section.Children))
+                            yield return nested;
+                    break;
+            }
+        }
+    }
 
     private static IReadOnlyList<PrismComponent> EmitUnknownKind(
         AuthoredStage stage,
@@ -518,67 +536,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
         return clone;
     }
-
-    // ─── Field-to-component mapping ───────────────────────────────────────────
-
-    private static InputComponent MapFieldToInputComponent(AuthoredField field) => field.Type switch
-    {
-        FieldType.Textarea => new TextareaComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Email => new EmailComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Pattern = field.ValidationPattern
-        },
-        FieldType.Number => new NumberInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Decimal => new DecimalInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Date => new DateInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Boolean => new BooleanComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Select => new SelectComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Options = field.Options
-        },
-        FieldType.Radios => new RadiosComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Options = field.Options
-        },
-        FieldType.Checkboxes => new CheckboxesComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Options = field.Options
-        },
-        _ => new TextInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Pattern = field.ValidationPattern
-        }
-    };
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 

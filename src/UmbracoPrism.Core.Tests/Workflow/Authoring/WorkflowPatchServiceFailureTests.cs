@@ -72,7 +72,7 @@ public class WorkflowPatchServiceFailureTests
                 title       = "New Stage",
                 type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             },
             before: "nonexistent-stage");
@@ -109,7 +109,7 @@ public class WorkflowPatchServiceFailureTests
                 title       = "Ghost Stage",
                 type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             },
             path: "/stages/does-not-exist");

@@ -1,4 +1,17 @@
-import type { AuthoredAction, AuthoredField, AuthoredStage, AuthoredWorkflow } from './types.js';
+import type {
+  AuthoredAction,
+  AuthoredAccordionComponent,
+  AuthoredComponent,
+  AuthoredContentComponent,
+  AuthoredFieldsetComponent,
+  AuthoredInputComponent,
+  AuthoredPanelComponent,
+  AuthoredStage,
+  AuthoredSummaryListComponent,
+  AuthoredTaskListComponent,
+  AuthoredWaitingComponent,
+  AuthoredWorkflow,
+} from './types.js';
 import { flattenRoutes } from './workflow-routes.js';
 
 export interface ProjectionDiagnostic {
@@ -76,99 +89,18 @@ export interface ProjectedWorkflowMetadata {
   }>;
 }
 
-interface ProjectedComponentBase {
-  type: string;
-}
-
-export interface ProjectedInputComponent extends ProjectedComponentBase {
-  type:
-    | 'text'
-    | 'number'
-    | 'decimal'
-    | 'select'
-    | 'radio'
-    | 'checkboxlist'
-    | 'date'
-    | 'email'
-    | 'textarea'
-    | 'boolean';
-  fieldKey: string;
-  label: string;
-  hint?: string;
-  required: boolean;
-  conditionalOn?: string | null;
-  visibleWhen?: string | null;
-  options?: string[];
-  minLength?: number | null;
-  maxLength?: number | null;
-  pattern?: string | null;
-  prefix?: string | null;
-  min?: number | null;
-  max?: number | null;
-}
-
-export interface ProjectedFieldsetComponent extends ProjectedComponentBase {
-  type: 'fieldset';
-  children: ProjectedComponent[];
-  legend?: string | null;
-  legendSize?: string | null;
-}
-
-export interface ProjectedAccordionComponent extends ProjectedComponentBase {
-  type: 'accordion';
-  sections: Array<{
-    heading: string;
-    summary?: string | null;
-    children: ProjectedComponent[];
-  }>;
-}
-
-export interface ProjectedPanelComponent extends ProjectedComponentBase {
-  type: 'panel';
-  heading: string;
-}
-
-export interface ProjectedWaitingComponent extends ProjectedComponentBase {
-  type: 'waiting';
-  content: string;
-  expectedWaitSeconds: number;
-  pollIntervalMs: number;
-  allowDefer: boolean;
-  deferMessage?: string;
-}
-
-export interface ProjectedSummaryListComponent extends ProjectedComponentBase {
-  type: 'summary-list';
-  children: ProjectedComponent[];
-  changeStateKey?: string | null;
-  title?: string | null;
-}
-
-export interface ProjectedTaskListComponent extends ProjectedComponentBase {
-  type: 'task-list';
-  sections?: Array<{
-    heading: string;
-    tasks: Array<{ label: string; stateKey?: string | null; href?: string | null }>;
-  }> | null;
-}
-
-export interface ProjectedContentComponent extends ProjectedComponentBase {
-  type: 'body' | 'heading' | 'inset-text' | 'warning-text' | 'details' | 'notification-banner';
-  content?: string;
-  heading?: string;
-  level?: number;
-  bannerType?: string;
-}
-
-export type ProjectedComponent =
-  | ProjectedInputComponent
-  | ProjectedFieldsetComponent
-  | ProjectedAccordionComponent
-  | ProjectedPanelComponent
-  | ProjectedWaitingComponent
-  | ProjectedSummaryListComponent
-  | ProjectedTaskListComponent
-  | ProjectedContentComponent;
+// Authored components and projected components are the same shape — the
+// projector is a pass-through. The Projected* aliases are kept for backwards
+// compatibility with editor surfaces that import them.
+export type ProjectedInputComponent = AuthoredInputComponent;
+export type ProjectedFieldsetComponent = AuthoredFieldsetComponent;
+export type ProjectedAccordionComponent = AuthoredAccordionComponent;
+export type ProjectedPanelComponent = AuthoredPanelComponent;
+export type ProjectedWaitingComponent = AuthoredWaitingComponent;
+export type ProjectedSummaryListComponent = AuthoredSummaryListComponent;
+export type ProjectedTaskListComponent = AuthoredTaskListComponent;
+export type ProjectedContentComponent = AuthoredContentComponent;
+export type ProjectedComponent = AuthoredComponent;
 
 export function projectWorkflowLocally(workflow: AuthoredWorkflow): ProjectWorkflowResult {
   const states = [...workflow.stages]
@@ -231,6 +163,14 @@ function projectStage(stage: AuthoredStage, workflow: AuthoredWorkflow): Project
 }
 
 function projectStageComponents(stage: AuthoredStage, workflow: AuthoredWorkflow): ProjectedComponent[] {
+  // Authored components are the source of truth — pass through as the runtime
+  // shape directly. When a stage declares no components, fall back to a
+  // sensible kind-based default so empty stages still render as the right
+  // shell. This mirrors WorkflowProjector.EmitComponents on the C# side.
+  if (stage.components && stage.components.length > 0) {
+    return [...stage.components];
+  }
+
   switch (stage.kind) {
     case 'CheckAnswers':
       return [{
@@ -238,10 +178,7 @@ function projectStageComponents(stage: AuthoredStage, workflow: AuthoredWorkflow
         children: workflow.stages
           .filter(candidate => candidate.kind === 'Question')
           .sort((left, right) => left.stageKey.localeCompare(right.stageKey))
-          .flatMap(candidate =>
-            [...(candidate.fields ?? [])]
-              .sort((left, right) => left.fieldKey.localeCompare(right.fieldKey))
-              .map(projectField)),
+          .flatMap(candidate => harvestInputs(candidate.components ?? [])),
       }];
     case 'Confirmation':
       return [{
@@ -257,11 +194,30 @@ function projectStageComponents(stage: AuthoredStage, workflow: AuthoredWorkflow
     default:
       return [{
         type: 'fieldset',
-        children: [...(stage.fields ?? [])]
-          .sort((left, right) => left.fieldKey.localeCompare(right.fieldKey))
-          .map(projectField),
+        children: [],
       }];
   }
+}
+
+function harvestInputs(components: AuthoredComponent[]): AuthoredComponent[] {
+  const out: AuthoredComponent[] = [];
+  for (const component of components) {
+    if (component.type === 'fieldset') {
+      out.push(...harvestInputs(component.children));
+    } else if (component.type === 'accordion') {
+      for (const section of component.sections) {
+        out.push(...harvestInputs(section.children));
+      }
+    } else if (
+      component.type === 'text' || component.type === 'number' || component.type === 'decimal'
+      || component.type === 'select' || component.type === 'radio' || component.type === 'checkboxlist'
+      || component.type === 'date' || component.type === 'email' || component.type === 'textarea'
+      || component.type === 'boolean'
+    ) {
+      out.push(component);
+    }
+  }
+  return out;
 }
 
 function projectAction(action: AuthoredAction): ProjectedActionDefinition {
@@ -271,50 +227,6 @@ function projectAction(action: AuthoredAction): ProjectedActionDefinition {
     parameters: { ...(action.params ?? {}) },
     parameterSchemaKey: action.parameterSchemaKey,
     summary: action.summary,
-  };
-}
-
-function projectField(field: AuthoredField): ProjectedInputComponent {
-  switch (field.kind) {
-    case 'NumberInput':
-      return input(field, 'number');
-    case 'Select':
-      return input(field, 'select', { options: [...field.options] });
-    case 'Radios':
-      return input(field, 'radio', { options: [...field.options] });
-    case 'Checkboxes':
-      return input(field, 'checkboxlist', { options: [...field.options] });
-    case 'DateInput':
-      return input(field, 'date');
-    case 'EmailInput':
-      return input(field, 'email', { pattern: field.validationPattern ?? null });
-    case 'Toggle':
-      return input(field, 'boolean');
-    case 'Textarea':
-      return input(field, 'textarea');
-    case 'TextInput':
-    case 'FileUpload':
-    case 'Hidden':
-    default:
-      return input(field, 'text', { pattern: field.validationPattern ?? null });
-  }
-}
-
-function input(
-  field: AuthoredField,
-  type: ProjectedInputComponent['type'],
-  extras: Partial<ProjectedInputComponent> = {}
-): ProjectedInputComponent {
-  return {
-    type,
-    fieldKey: field.fieldKey,
-    label: field.label,
-    hint: field.hintText,
-    required: field.required,
-    conditionalOn: null,
-    visibleWhen: null,
-    options: 'options' in extras ? extras.options : [...field.options],
-    ...extras,
   };
 }
 

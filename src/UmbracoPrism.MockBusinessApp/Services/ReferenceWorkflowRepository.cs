@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
@@ -120,23 +121,33 @@ public static class ReferenceWorkflowRepository
                         Summary = "Load the declaration form."
                     }
                 ],
-                Fields =
+                Components =
                 [
-                    new AuthoredField
+                    new BodyComponent
                     {
-                        Key = "applicant-name",
-                        Label = "Applicant name",
-                        Type = FieldType.Text,
-                        Required = true,
-                        Hint = "Enter the full name of the person or organisation applying."
+                        Content = "Tell us who is applying and where the development will take place. We use these details to create your case file."
                     },
-                    new AuthoredField
+                    new FieldsetComponent
                     {
-                        Key = "site-address",
-                        Label = "Site address",
-                        Type = FieldType.Textarea,
-                        Required = true,
-                        Hint = "Enter the full address of the site where development is proposed."
+                        Legend = "Applicant and site",
+                        LegendSize = "m",
+                        Children =
+                        [
+                            new TextInputComponent
+                            {
+                                FieldKey = "applicant-name",
+                                Label = "Applicant name",
+                                Required = true,
+                                Hint = "Enter the full name of the person or organisation applying."
+                            },
+                            new TextareaComponent
+                            {
+                                FieldKey = "site-address",
+                                Label = "Site address",
+                                Required = true,
+                                Hint = "Enter the full address of the site where development is proposed."
+                            }
+                        ]
                     }
                 ],
                 EditorComment = "Entry point — collects basic applicant and site identity."
@@ -163,30 +174,40 @@ public static class ReferenceWorkflowRepository
                         Summary = "Persist the application form before moving on."
                     }
                 ],
-                Fields =
+                Components =
                 [
-                    new AuthoredField
+                    new FieldsetComponent
                     {
-                        Key = "description",
-                        Label = "Description of proposed works",
-                        Type = FieldType.Textarea,
-                        Required = true,
-                        Hint = "Provide a clear description of the development you are proposing."
-                    },
-                    new AuthoredField
-                    {
-                        Key = "development-type",
-                        Label = "Type of development",
-                        Type = FieldType.Select,
-                        Required = true,
-                        Options =
+                        Legend = "About your proposal",
+                        LegendSize = "m",
+                        Children =
                         [
-                            "New build",
-                            "Extension",
-                            "Change of use",
-                            "Demolition",
-                            "Other"
+                            new TextareaComponent
+                            {
+                                FieldKey = "description",
+                                Label = "Description of proposed works",
+                                Required = true,
+                                Hint = "Provide a clear description of the development you are proposing."
+                            },
+                            new SelectComponent
+                            {
+                                FieldKey = "development-type",
+                                Label = "Type of development",
+                                Required = true,
+                                Options =
+                                [
+                                    "New build",
+                                    "Extension",
+                                    "Change of use",
+                                    "Demolition",
+                                    "Other"
+                                ]
+                            }
                         ]
+                    },
+                    new InsetTextComponent
+                    {
+                        Content = "You can save and return to this form at any point — your answers are kept on your case until you submit."
                     }
                 ]
             },
@@ -342,45 +363,54 @@ public static class ReferenceWorkflowRepository
                 DisplayName = "Tell us about yourself",
                 Kind = StageKind.Question,
                 LaneKey = "applicant",
-                Fields =
+                Components =
                 [
-                    new AuthoredField { Key = "firstName", Label = "First name", Type = FieldType.Text, Required = true, Hint = "As it appears on your ID" },
-                    new AuthoredField { Key = "lastName", Label = "Last name", Type = FieldType.Text, Required = true },
-                    new AuthoredField { Key = "dateOfBirth", Label = "Date of birth", Type = FieldType.Date, Required = true, Hint = "For example, 12 03 1985" },
-                    new AuthoredField { Key = "email", Label = "Email address", Type = FieldType.Email, Required = true, Hint = "We'll only use this to contact you about your request" },
-                    new AuthoredField
+                    new BodyComponent
                     {
-                        Key = "requestType",
-                        Label = "What type of request is this?",
-                        Type = FieldType.Select,
-                        Required = true,
-                        Options =
-                        [
-                            "General enquiry",
-                            "Data subject access request",
-                            "Complaint",
-                            "Technical support"
-                        ]
+                        Content = "Tell us a bit about you so we can route your enquiry to the right team."
                     },
-                    new AuthoredField
+                    new FieldsetComponent
                     {
-                        Key = "description",
-                        Label = "Tell us more about your request",
-                        Type = FieldType.Textarea,
-                        Required = true,
-                        Hint = "Include as much detail as possible. Maximum 1000 characters."
-                    },
-                    new AuthoredField
-                    {
-                        Key = "urgency",
-                        Label = "How urgent is this?",
-                        Type = FieldType.Radios,
-                        Required = true,
-                        Options =
+                        Legend = "About you and your enquiry",
+                        LegendSize = "m",
+                        Children =
                         [
-                            "Standard (5-7 working days)",
-                            "Urgent (2 working days)",
-                            "Critical (same day)"
+                            new TextInputComponent { FieldKey = "firstName", Label = "First name", Required = true, Hint = "As it appears on your ID" },
+                            new TextInputComponent { FieldKey = "lastName", Label = "Last name", Required = true },
+                            new DateInputComponent { FieldKey = "dateOfBirth", Label = "Date of birth", Required = true, Hint = "For example, 12 03 1985" },
+                            new EmailComponent { FieldKey = "email", Label = "Email address", Required = true, Hint = "We'll only use this to contact you about your request" },
+                            new SelectComponent
+                            {
+                                FieldKey = "requestType",
+                                Label = "What type of request is this?",
+                                Required = true,
+                                Options =
+                                [
+                                    "General enquiry",
+                                    "Data subject access request",
+                                    "Complaint",
+                                    "Technical support"
+                                ]
+                            },
+                            new TextareaComponent
+                            {
+                                FieldKey = "description",
+                                Label = "Tell us more about your request",
+                                Required = true,
+                                Hint = "Include as much detail as possible. Maximum 1000 characters."
+                            },
+                            new RadiosComponent
+                            {
+                                FieldKey = "urgency",
+                                Label = "How urgent is this?",
+                                Required = true,
+                                Options =
+                                [
+                                    "Standard (5-7 working days)",
+                                    "Urgent (2 working days)",
+                                    "Critical (same day)"
+                                ]
+                            }
                         ]
                     }
                 ]
@@ -475,10 +505,26 @@ public static class ReferenceWorkflowRepository
                 DisplayName = "Enter Payment Details",
                 Kind = StageKind.Question,
                 LaneKey = "applicant",
-                Fields =
+                Components =
                 [
-                    new AuthoredField { Key = "cardholderName", Label = "Cardholder name", Type = FieldType.Text, Required = true },
-                    new AuthoredField { Key = "amount", Label = "Amount (£)", Type = FieldType.Decimal, Required = true }
+                    new BodyComponent
+                    {
+                        Content = "Enter the card details for this payment. Your information is encrypted in transit."
+                    },
+                    new FieldsetComponent
+                    {
+                        Legend = "Card and amount",
+                        LegendSize = "m",
+                        Children =
+                        [
+                            new TextInputComponent { FieldKey = "cardholderName", Label = "Cardholder name", Required = true },
+                            new DecimalInputComponent { FieldKey = "amount", Label = "Amount (£)", Required = true }
+                        ]
+                    },
+                    new WarningTextComponent
+                    {
+                        Content = "Once you submit this payment we cannot cancel it from this screen — contact support if you need a refund."
+                    }
                 ]
             },
             new AuthoredStage

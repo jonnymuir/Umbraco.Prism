@@ -42,8 +42,8 @@ export interface AuthoredStage {
   actor?: string;
   /** Typed stage actions from the authoring catalog. */
   actions?: AuthoredAction[];
-  /** Fields collected at this stage — matches C# AuthoredStage.Fields. */
-  fields?: AuthoredField[];
+  /** Components shown by this stage — a polymorphic tree using the shared component model. */
+  components?: AuthoredComponent[];
   roleGates: string[];
   waiting?: WaitingMetadata;
   editorComment?: string;
@@ -271,7 +271,7 @@ export interface ActionCatalogEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Authored Role & Field
+// Authored Role
 // ---------------------------------------------------------------------------
 
 export interface AuthoredRole {
@@ -280,30 +280,111 @@ export interface AuthoredRole {
   claimMapping?: string;
 }
 
-export interface AuthoredField {
-  fieldKey: string;
-  label: string;
-  kind: FieldKind;
-  required: boolean;
-  hintText?: string;
-  validationPattern?: string;
-  defaultValue?: unknown;
-  options: string[];
-  editorComment?: string;
+// ---------------------------------------------------------------------------
+// Authored Components
+// ---------------------------------------------------------------------------
+//
+// Stages carry a tree of `AuthoredComponent` instances directly — the same
+// polymorphic hierarchy the runtime renders. Containers (fieldset, accordion,
+// summary-list, panel), inputs (text, email, textarea, number, decimal,
+// select, radio, checkboxlist, date, boolean), and content (body, heading,
+// inset-text, warning-text, details, notification-banner, waiting,
+// task-list) are all peers in this tree. The projector hands the tree
+// straight through to the runtime.
+
+interface AuthoredComponentBase {
+  type: string;
 }
 
-export type FieldKind =
-  | 'TextInput'
-  | 'NumberInput'
-  | 'Textarea'
-  | 'Radios'
-  | 'Checkboxes'
-  | 'Select'
-  | 'DateInput'
-  | 'EmailInput'
-  | 'Toggle'
-  | 'FileUpload'
-  | 'Hidden';
+export interface AuthoredInputComponent extends AuthoredComponentBase {
+  type:
+    | 'text'
+    | 'number'
+    | 'decimal'
+    | 'select'
+    | 'radio'
+    | 'checkboxlist'
+    | 'date'
+    | 'email'
+    | 'textarea'
+    | 'boolean';
+  fieldKey: string;
+  label: string;
+  hint?: string;
+  required: boolean;
+  conditionalOn?: string | null;
+  visibleWhen?: string | null;
+  options?: string[];
+  minLength?: number | null;
+  maxLength?: number | null;
+  pattern?: string | null;
+  prefix?: string | null;
+  min?: number | null;
+  max?: number | null;
+}
+
+export interface AuthoredFieldsetComponent extends AuthoredComponentBase {
+  type: 'fieldset';
+  children: AuthoredComponent[];
+  legend?: string | null;
+  legendSize?: string | null;
+}
+
+export interface AuthoredAccordionComponent extends AuthoredComponentBase {
+  type: 'accordion';
+  sections: Array<{
+    heading: string;
+    summary?: string | null;
+    children: AuthoredComponent[];
+  }>;
+}
+
+export interface AuthoredPanelComponent extends AuthoredComponentBase {
+  type: 'panel';
+  heading: string;
+}
+
+export interface AuthoredWaitingComponent extends AuthoredComponentBase {
+  type: 'waiting';
+  content: string;
+  expectedWaitSeconds: number;
+  pollIntervalMs: number;
+  allowDefer: boolean;
+  deferMessage?: string;
+}
+
+export interface AuthoredSummaryListComponent extends AuthoredComponentBase {
+  type: 'summary-list';
+  children: AuthoredComponent[];
+  changeStateKey?: string | null;
+  title?: string | null;
+}
+
+export interface AuthoredTaskListComponent extends AuthoredComponentBase {
+  type: 'task-list';
+  sections?: Array<{
+    heading: string;
+    tasks: Array<{ label: string; stateKey?: string | null; href?: string | null }>;
+  }> | null;
+}
+
+export interface AuthoredContentComponent extends AuthoredComponentBase {
+  type: 'body' | 'heading' | 'inset-text' | 'warning-text' | 'details' | 'notification-banner';
+  content?: string;
+  heading?: string;
+  level?: number;
+  bannerType?: string;
+}
+
+export type AuthoredComponent =
+  | AuthoredInputComponent
+  | AuthoredFieldsetComponent
+  | AuthoredAccordionComponent
+  | AuthoredPanelComponent
+  | AuthoredWaitingComponent
+  | AuthoredSummaryListComponent
+  | AuthoredTaskListComponent
+  | AuthoredContentComponent;
 
 export type ActionFormFieldType = 'text' | 'number' | 'textarea' | 'select' | 'radio' | 'date';
 
@@ -653,7 +734,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
           summary: 'Send email to Planning Officers',
         },
       ],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -663,7 +744,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
       kind: 'CheckAnswers',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -704,7 +785,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
           summary: 'Request evidence form: 1 field',
         },
       ],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
@@ -714,7 +795,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
       kind: 'Confirmation',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
   ],

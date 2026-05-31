@@ -9,9 +9,9 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 /// Verifies that the projector emits component trees that satisfy the existing shell-inference
 /// rules in <see cref="PrismComponentExtensions.InferStepType"/>.
 ///
-/// The projector does NOT hard-code step types; it emits components whose presence causes
-/// the runtime's own inference to produce the correct shell string. This test validates that
-/// coupling without duplicating the inference logic.
+/// The projector does NOT hard-code step types; it passes authored components straight through
+/// (or falls back to a kind-shaped default when a stage declares none). This test validates
+/// that coupling without duplicating the inference logic.
 /// </summary>
 public class WorkflowProjectorShellInferenceTests
 {
@@ -20,22 +20,29 @@ public class WorkflowProjectorShellInferenceTests
     [Fact]
     public void QuestionStage_EmitsFieldset_InfersQuestion()
     {
-        var authored = SingleStageWorkflow("details", StageKind.Question, fields:
+        var authored = SingleStageWorkflow("details", StageKind.Question, components:
         [
-            new AuthoredField { Key = "name", Label = "Full name", Type = FieldType.Text, Required = true }
+            new FieldsetComponent
+            {
+                Legend = "Your details",
+                Children =
+                [
+                    new TextInputComponent { FieldKey = "name", Label = "Full name", Required = true }
+                ]
+            }
         ]);
 
         var result = _projector.Project(authored);
 
         var state = result.File.States.Single(s => s.StateKey == "details");
         state.Components.InferStepType().Should().Be("question",
-            "a stage with only a FieldsetComponent should infer as 'question'");
+            "a stage with a FieldsetComponent should infer as 'question'");
 
         state.Components.Should().ContainSingle().Which.Should().BeOfType<FieldsetComponent>();
     }
 
     [Fact]
-    public void CheckAnswersStage_EmitsSummaryList_InfersCheckAnswers()
+    public void CheckAnswersStage_AuthoredSummaryList_PassesThrough()
     {
         var authored = new AuthoredWorkflow
         {
@@ -51,16 +58,33 @@ public class WorkflowProjectorShellInferenceTests
                     StageKey = "collect",
                     DisplayName = "Collect",
                     Kind = StageKind.Question,
-                    Fields =
+                    Components =
                     [
-                        new AuthoredField { Key = "email", Label = "Email", Type = FieldType.Email, Required = true }
+                        new FieldsetComponent
+                        {
+                            Children =
+                            [
+                                new EmailComponent { FieldKey = "email", Label = "Email", Required = true }
+                            ]
+                        }
                     ]
                 },
                 new AuthoredStage
                 {
                     StageKey = "review",
                     DisplayName = "Review",
-                    Kind = StageKind.CheckAnswers
+                    Kind = StageKind.CheckAnswers,
+                    Components =
+                    [
+                        new SummaryListComponent
+                        {
+                            Title = "Your answers",
+                            Children =
+                            [
+                                new EmailComponent { FieldKey = "email", Label = "Email", Required = true }
+                            ]
+                        }
+                    ]
                 }
             ],
         };
@@ -71,7 +95,11 @@ public class WorkflowProjectorShellInferenceTests
         reviewState.Components.InferStepType().Should().Be("check-answers",
             "a stage with a SummaryListComponent should infer as 'check-answers'");
 
-        reviewState.Components.Should().ContainSingle().Which.Should().BeOfType<SummaryListComponent>();
+        var summary = reviewState.Components.Should().ContainSingle()
+            .Which.Should().BeOfType<SummaryListComponent>().Subject;
+        summary.Title.Should().Be("Your answers");
+        summary.Children.OfType<InputComponent>().Select(c => c.FieldKey)
+            .Should().BeEquivalentTo(["email"]);
     }
 
     [Fact]
@@ -83,7 +111,7 @@ public class WorkflowProjectorShellInferenceTests
 
         var state = result.File.States.Single(s => s.StateKey == "done");
         state.Components.InferStepType().Should().Be("confirmation",
-            "a stage with a PanelComponent should infer as 'confirmation'");
+            "an empty Confirmation stage should fall back to a PanelComponent");
 
         state.Components.Should().ContainSingle().Which.Should().BeOfType<PanelComponent>();
     }
@@ -97,13 +125,13 @@ public class WorkflowProjectorShellInferenceTests
 
         var state = result.File.States.Single(s => s.StateKey == "tasks");
         state.Components.InferStepType().Should().Be("task-list",
-            "a stage with a TaskListComponent should infer as 'task-list'");
+            "an empty TaskList stage should fall back to a TaskListComponent");
 
         state.Components.Should().ContainSingle().Which.Should().BeOfType<TaskListComponent>();
     }
 
     [Fact]
-    public void CheckAnswersStage_SummaryListContains_QuestionStageFields()
+    public void CheckAnswersStage_EmptyComponents_FallsBackToHarvestedQuestionInputs()
     {
         var authored = new AuthoredWorkflow
         {
@@ -119,9 +147,15 @@ public class WorkflowProjectorShellInferenceTests
                     StageKey = "step1",
                     DisplayName = "Step 1",
                     Kind = StageKind.Question,
-                    Fields =
+                    Components =
                     [
-                        new AuthoredField { Key = "first-name", Label = "First name", Type = FieldType.Text, Required = true }
+                        new FieldsetComponent
+                        {
+                            Children =
+                            [
+                                new TextInputComponent { FieldKey = "first-name", Label = "First name", Required = true }
+                            ]
+                        }
                     ]
                 },
                 new AuthoredStage
@@ -129,9 +163,15 @@ public class WorkflowProjectorShellInferenceTests
                     StageKey = "step2",
                     DisplayName = "Step 2",
                     Kind = StageKind.Question,
-                    Fields =
+                    Components =
                     [
-                        new AuthoredField { Key = "age", Label = "Age", Type = FieldType.Number, Required = true }
+                        new FieldsetComponent
+                        {
+                            Children =
+                            [
+                                new NumberInputComponent { FieldKey = "age", Label = "Age", Required = true }
+                            ]
+                        }
                     ]
                 },
                 new AuthoredStage
@@ -139,6 +179,7 @@ public class WorkflowProjectorShellInferenceTests
                     StageKey = "review",
                     DisplayName = "Check answers",
                     Kind = StageKind.CheckAnswers
+                    // No Components: projector falls back to a harvested SummaryListComponent.
                 }
             ],
         };
@@ -176,7 +217,7 @@ public class WorkflowProjectorShellInferenceTests
     private static AuthoredWorkflow SingleStageWorkflow(
         string stageKey,
         StageKind kind,
-        IReadOnlyList<AuthoredField>? fields = null)
+        IReadOnlyList<PrismComponent>? components = null)
     {
         return new AuthoredWorkflow
         {
@@ -192,7 +233,7 @@ public class WorkflowProjectorShellInferenceTests
                     StageKey = stageKey,
                     DisplayName = stageKey,
                     Kind = kind,
-                    Fields = fields ?? []
+                    Components = components ?? []
                 }
             ],
         };

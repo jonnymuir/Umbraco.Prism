@@ -30,7 +30,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -40,7 +40,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -50,7 +50,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -60,7 +60,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       kind: 'Confirmation',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
   ],
@@ -376,7 +376,7 @@ function buildLargeWorkflow(): AuthoredWorkflow {
         kind: i === stagesPerLane - 1 ? 'Confirmation' : 'Question',
         actor: lane,
         actions: [],
-        fields: [],
+        components: [],
         roleGates: [],
       });
       if (i > 0) {

@@ -132,7 +132,7 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -141,7 +141,7 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
@@ -150,7 +150,7 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
   ],

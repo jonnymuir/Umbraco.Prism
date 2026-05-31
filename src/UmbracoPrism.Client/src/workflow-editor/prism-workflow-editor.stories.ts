@@ -41,7 +41,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       kind: 'TaskList',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
@@ -51,7 +51,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       kind: 'Question',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
@@ -61,7 +61,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       kind: 'Confirmation',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
@@ -71,7 +71,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       kind: 'Confirmation',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
   ];

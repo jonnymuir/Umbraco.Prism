@@ -14,7 +14,7 @@ public sealed class WorkflowPatchService : IWorkflowPatchService
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
-        // Enum converters are declared directly on StageKind and FieldType via [JsonConverter].
+        // Enum converters are declared directly on StageKind via [JsonConverter].
     };
 
     private readonly IWorkflowProjector _projector;

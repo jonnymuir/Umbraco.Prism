@@ -66,7 +66,7 @@
       "laneKey": "applicant",
       "roleGates": [],
       "waitingInfo": {
-        "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon \u2014 no further action is needed right now.",
+        "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
         "expectedWaitSeconds": 30,
         "pollIntervalMs": 5000,
         "allowDefer": false
@@ -92,71 +92,73 @@
       "type": "Question",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [
+      "roleGates": [],
+      "components": [
         {
-          "key": "firstName",
-          "label": "First name",
-          "type": "Text",
-          "required": true,
-          "hint": "As it appears on your ID",
-          "options": []
-        },
-        {
-          "key": "lastName",
-          "label": "Last name",
-          "type": "Text",
-          "required": true,
-          "options": []
-        },
-        {
-          "key": "dateOfBirth",
-          "label": "Date of birth",
-          "type": "Date",
-          "required": true,
-          "hint": "For example, 12 03 1985",
-          "options": []
-        },
-        {
-          "key": "email",
-          "label": "Email address",
-          "type": "Email",
-          "required": true,
-          "hint": "We'll only use this to contact you about your request",
-          "options": []
-        },
-        {
-          "key": "requestType",
-          "label": "What type of request is this?",
-          "type": "Select",
-          "required": true,
-          "options": [
-            "General enquiry",
-            "Data subject access request",
-            "Complaint",
-            "Technical support"
-          ]
-        },
-        {
-          "key": "description",
-          "label": "Tell us more about your request",
-          "type": "Textarea",
-          "required": true,
-          "hint": "Include as much detail as possible. Maximum 1000 characters.",
-          "options": []
-        },
-        {
-          "key": "urgency",
-          "label": "How urgent is this?",
-          "type": "Radios",
-          "required": true,
-          "options": [
-            "Standard (5-7 working days)",
-            "Urgent (2 working days)",
-            "Critical (same day)"
+          "type": "fieldset",
+          "legend": "Tell us about yourself",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "firstName",
+              "label": "First name",
+              "required": true,
+              "hint": "As it appears on your ID"
+            },
+            {
+              "type": "text",
+              "fieldKey": "lastName",
+              "label": "Last name",
+              "required": true
+            },
+            {
+              "type": "date",
+              "fieldKey": "dateOfBirth",
+              "label": "Date of birth",
+              "required": true,
+              "hint": "For example, 12 03 1985"
+            },
+            {
+              "type": "email",
+              "fieldKey": "email",
+              "label": "Email address",
+              "required": true,
+              "hint": "We'll only use this to contact you about your request"
+            },
+            {
+              "type": "select",
+              "fieldKey": "requestType",
+              "label": "What type of request is this?",
+              "required": true,
+              "options": [
+                "General enquiry",
+                "Data subject access request",
+                "Complaint",
+                "Technical support"
+              ]
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "description",
+              "label": "Tell us more about your request",
+              "required": true,
+              "hint": "Include as much detail as possible. Maximum 1000 characters."
+            },
+            {
+              "type": "radio",
+              "fieldKey": "urgency",
+              "label": "How urgent is this?",
+              "required": true,
+              "options": [
+                "Standard (5-7 working days)",
+                "Urgent (2 working days)",
+                "Critical (same day)"
+              ]
+            }
           ]
         }
-      ],
-      "roleGates": []
+      ]
     },
     {
       "key": "caseworker-review",
@@ -165,8 +167,8 @@
       "type": "Question",
       "laneKey": "caseworker",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     },
     {
       "key": "complete",
@@ -174,8 +176,8 @@
       "type": "Confirmation",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     }
   ]
 }

@@ -1257,7 +1257,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       kind: 'Question',
       roleGates: [],
       actions: [],
-      fields: [],
+      components: [],
     }, value);
 
     this._createStageDialog = {
@@ -1304,7 +1304,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       description: undefined,
       kind: editorStageTypeToStageKind(dialog.stageType),
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
       editorComment: 'Created from the graph workspace.',
     }, dialog.laneKey);

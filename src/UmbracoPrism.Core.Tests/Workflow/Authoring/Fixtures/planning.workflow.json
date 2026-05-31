@@ -99,26 +99,31 @@
           "summary": "Load the declaration form."
         }
       ],
-      "fields": [
-        {
-          "key": "applicant-name",
-          "label": "Applicant name",
-          "type": "Text",
-          "required": true,
-          "hint": "Enter the full name of the person or organisation applying.",
-          "options": []
-        },
-        {
-          "key": "site-address",
-          "label": "Site address",
-          "type": "Textarea",
-          "required": true,
-          "hint": "Enter the full address of the site where development is proposed.",
-          "options": []
-        }
-      ],
       "roleGates": [],
-      "editorComment": "Entry point \u2014 collects basic applicant and site identity."
+      "editorComment": "Entry point — collects basic applicant and site identity.",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Declaration",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "applicant-name",
+              "label": "Applicant name",
+              "required": true,
+              "hint": "Enter the full name of the person or organisation applying."
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "site-address",
+              "label": "Site address",
+              "required": true,
+              "hint": "Enter the full address of the site where development is proposed."
+            }
+          ]
+        }
+      ]
     },
     {
       "key": "application-form",
@@ -138,30 +143,36 @@
           "summary": "Persist the application form before moving on."
         }
       ],
-      "fields": [
+      "roleGates": [],
+      "components": [
         {
-          "key": "description",
-          "label": "Description of proposed works",
-          "type": "Textarea",
-          "required": true,
-          "hint": "Provide a clear description of the development you are proposing.",
-          "options": []
-        },
-        {
-          "key": "development-type",
-          "label": "Type of development",
-          "type": "Select",
-          "required": true,
-          "options": [
-            "New build",
-            "Extension",
-            "Change of use",
-            "Demolition",
-            "Other"
+          "type": "fieldset",
+          "legend": "Application Form",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "textarea",
+              "fieldKey": "description",
+              "label": "Description of proposed works",
+              "required": true,
+              "hint": "Provide a clear description of the development you are proposing."
+            },
+            {
+              "type": "select",
+              "fieldKey": "development-type",
+              "label": "Type of development",
+              "required": true,
+              "options": [
+                "New build",
+                "Extension",
+                "Change of use",
+                "Demolition",
+                "Other"
+              ]
+            }
           ]
         }
-      ],
-      "roleGates": []
+      ]
     },
     {
       "key": "check-answers",
@@ -171,9 +182,9 @@
       "actor": "applicant",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [],
       "roleGates": [],
-      "editorComment": "Summary of all answers before final submission."
+      "editorComment": "Summary of all answers before final submission.",
+      "components": []
     },
     {
       "key": "submitted",
@@ -183,8 +194,8 @@
       "actor": "applicant",
       "laneKey": "applicant",
       "actions": [],
-      "fields": [],
-      "roleGates": []
+      "roleGates": [],
+      "components": []
     }
   ],
   "handoffs": [

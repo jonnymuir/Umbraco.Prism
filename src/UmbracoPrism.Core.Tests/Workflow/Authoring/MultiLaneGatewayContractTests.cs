@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -264,9 +265,15 @@ public class MultiLaneGatewayContractTests
                         Parameters = new JsonObject { ["formDefinitionId"] = "details-form" }
                     }
                 ],
-                Fields =
+                Components =
                 [
-                    new AuthoredField { Key = "name", Label = "Full name", Type = FieldType.Text, Required = true }
+                    new FieldsetComponent
+                    {
+                        Children =
+                        [
+                            new TextInputComponent { FieldKey = "name", Label = "Full name", Required = true }
+                        ]
+                    }
                 ]
             },
             new AuthoredStage

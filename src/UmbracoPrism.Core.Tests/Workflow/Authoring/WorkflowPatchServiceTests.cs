@@ -32,7 +32,7 @@ public class WorkflowPatchServiceTests
             title       = "Site Notice",
             type        = "Question",
             actor       = "caseworker",
-            fields      = Array.Empty<object>(),
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
@@ -58,7 +58,7 @@ public class WorkflowPatchServiceTests
                 title       = "Supporting Documents",
                 type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             });
 
@@ -84,7 +84,7 @@ public class WorkflowPatchServiceTests
                 title       = "Eligibility Check",
                 type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             });
 
@@ -110,7 +110,7 @@ public class WorkflowPatchServiceTests
             type      = "Question",
             actor     = "applicant",
             laneKey   = "applicant",
-            fields    = Array.Empty<object>(),
+            components= Array.Empty<object>(),
             roleGates = Array.Empty<string>()
         });
         var withOrphan = _sut.Apply(insertEnvelope, original);
@@ -140,7 +140,7 @@ public class WorkflowPatchServiceTests
             title       = "Updated Details",
             type        = "Question",
             actor       = "applicant",
-            fields      = Array.Empty<object>(),
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
@@ -165,7 +165,7 @@ public class WorkflowPatchServiceTests
             title       = "Extra Stage",
             type        = "Question",
             actor       = "applicant",
-            fields      = Array.Empty<object>(),
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
@@ -193,7 +193,7 @@ public class WorkflowPatchServiceTests
             title       = "New Stage",
             type        = "Question",
             actor       = "applicant",
-            fields      = Array.Empty<object>(),
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 

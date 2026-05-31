@@ -6,12 +6,12 @@
 
 import type {
   AuthoredAction,
-  AuthoredField,
+  AuthoredComponent,
   AuthoredGateway,
+  AuthoredInputComponent,
   AuthoredRoute,
   AuthoredStage,
   AuthoredWorkflow,
-  FieldKind,
   StageKind,
 } from '../types.js';
 interface FixtureField {
@@ -260,27 +260,32 @@ function mapKind(raw: string): StageKind {
   }
 }
 
-function mapFieldKind(raw: string): FieldKind {
+function mapFieldTypeToComponentType(raw: string): AuthoredInputComponent['type'] {
   switch (raw) {
+    case 'Textarea': return 'textarea';
+    case 'Select': return 'select';
+    case 'Radios': return 'radio';
+    case 'Checkboxes': return 'checkboxlist';
+    case 'Date': return 'date';
+    case 'Email': return 'email';
+    case 'Number': return 'number';
+    case 'Decimal': return 'decimal';
+    case 'Boolean': return 'boolean';
     case 'Text':
-      return 'TextInput';
-    case 'Textarea':
-      return 'Textarea';
-    case 'Select':
-      return 'Select';
-    case 'Radios':
-      return 'Radios';
-    case 'Checkboxes':
-      return 'Checkboxes';
-    case 'Date':
-      return 'DateInput';
-    case 'FileUpload':
-      return 'FileUpload';
-    case 'Hidden':
-      return 'Hidden';
     default:
-      return 'TextInput';
+      return 'text';
   }
+}
+
+function fixtureFieldToInputComponent(f: FixtureField): AuthoredInputComponent {
+  return {
+    type: mapFieldTypeToComponentType(f.type),
+    fieldKey: f.key,
+    label: f.label,
+    required: f.required,
+    hint: f.hint,
+    options: f.options,
+  };
 }
 
 function normaliseAction(raw: FixtureAction): AuthoredAction {
@@ -295,14 +300,14 @@ function normaliseAction(raw: FixtureAction): AuthoredAction {
 
 function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
   const stages: AuthoredStage[] = raw.stages.map(s => {
-    const fields: AuthoredField[] = s.fields.map(f => ({
-      fieldKey: f.key,
-      label: f.label,
-      kind: mapFieldKind(f.type),
-      required: f.required,
-      hintText: f.hint,
-      options: f.options,
-    }));
+    const components: AuthoredComponent[] = s.fields.length === 0
+      ? []
+      : [{
+          type: 'fieldset',
+          legend: s.displayName,
+          legendSize: 'm',
+          children: s.fields.map(fixtureFieldToInputComponent),
+        }];
 
     return {
       stageKey: s.stageKey,
@@ -311,7 +316,7 @@ function normalisePlanningFixture(raw: RawPlanningWorkflow): AuthoredWorkflow {
       kind: mapKind(s.kind),
       actor: s.actor,
       actions: s.actions.map(normaliseAction),
-      fields,
+      components,
       roleGates: s.roleGates,
       editorComment: s.editorComment,
     };
@@ -385,7 +390,7 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'applicant',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -395,7 +400,7 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'applicant',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -405,7 +410,7 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'applicant',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
@@ -415,7 +420,7 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       kind: 'Question',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
@@ -425,7 +430,7 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
       kind: 'Confirmation',
       actor: 'applicant',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
   ],

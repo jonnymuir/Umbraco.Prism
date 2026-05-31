@@ -15,12 +15,11 @@
 
 import type {
   AuthoredAction,
-  AuthoredField,
+  AuthoredComponent,
   AuthoredGateway,
   AuthoredRoute,
   AuthoredStage,
   AuthoredWorkflow,
-  FieldKind,
   GatewayKind,
   StageKind,
 } from './types.js';
@@ -64,27 +63,10 @@ function serialiseGateway(gateway: AuthoredGateway): Record<string, unknown> {
   return wire;
 }
 
-function serialiseField(field: AuthoredField): Record<string, unknown> {
-  const { fieldKey, kind, hintText, ...rest } = field as AuthoredField & Record<string, unknown>;
-  return {
-    ...rest,
-    key: fieldKey,
-    type: kind,
-    hint: hintText,
-  };
-}
-
 export function serialiseWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
   const out: Record<string, unknown> = {
     ...workflow,
-    stages: workflow.stages.map(stage => {
-      const serialised = serialiseStage(stage);
-      if (Array.isArray((serialised as { fields?: unknown[] }).fields)) {
-        (serialised as { fields: unknown[] }).fields =
-          ((serialised as { fields: unknown[] }).fields as AuthoredField[]).map(serialiseField);
-      }
-      return serialised;
-    }),
+    stages: workflow.stages.map(stage => serialiseStage(stage)),
     gateways: Array.isArray(workflow.gateways)
       ? workflow.gateways.map(serialiseGateway)
       : [],
@@ -109,35 +91,6 @@ function mapStageKind(raw: string | undefined): StageKind {
   }
 }
 
-function mapFieldKind(raw: string | undefined): FieldKind {
-  switch (raw) {
-    case 'Number':
-    case 'Decimal':
-      return 'NumberInput';
-    case 'Email':
-      return 'EmailInput';
-    case 'Textarea':
-      return 'Textarea';
-    case 'Radios':
-      return 'Radios';
-    case 'Checkboxes':
-      return 'Checkboxes';
-    case 'Select':
-      return 'Select';
-    case 'Date':
-    case 'DateInput':
-      return 'DateInput';
-    case 'Boolean':
-      return 'Toggle';
-    case 'FileUpload':
-      return 'FileUpload';
-    case 'Hidden':
-      return 'Hidden';
-    default:
-      return 'TextInput';
-  }
-}
-
 function mapGatewayKind(raw: string | undefined): GatewayKind {
   switch (raw) {
     case 'Join':
@@ -146,21 +99,6 @@ function mapGatewayKind(raw: string | undefined): GatewayKind {
     default:
       return 'Split';
   }
-}
-
-function normaliseField(raw: Record<string, unknown>): AuthoredField {
-  return {
-    fieldKey: String(raw.key ?? ''),
-    label: String(raw.label ?? ''),
-    kind: mapFieldKind(typeof raw.type === 'string' ? raw.type : undefined),
-    required: Boolean(raw.required),
-    hintText: typeof raw.hint === 'string' ? raw.hint : undefined,
-    validationPattern:
-      typeof raw.validationPattern === 'string' ? raw.validationPattern : undefined,
-    defaultValue: raw.defaultValue,
-    options: Array.isArray(raw.options) ? raw.options.map(value => String(value)) : [],
-    editorComment: typeof raw.editorComment === 'string' ? raw.editorComment : undefined,
-  };
 }
 
 function normaliseAction(raw: Record<string, unknown>): AuthoredAction {
@@ -185,8 +123,8 @@ function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
       : [],
-    fields: Array.isArray(raw.fields)
-      ? raw.fields.map(field => normaliseField(field as Record<string, unknown>))
+    components: Array.isArray(raw.components)
+      ? (raw.components as AuthoredComponent[])
       : [],
     roleGates: Array.isArray(raw.roleGates) ? raw.roleGates.map(value => String(value)) : [],
     waiting:
