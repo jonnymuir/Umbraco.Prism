@@ -10,7 +10,7 @@ import {
 /**
  * Concern 3 from `docs/testing/workflow-editor-visual-tests.md`:
  * the canvas must scroll on the overflowing axis when content exceeds the
- * viewport, and lane headers must remain sticky during vertical scroll.
+ * viewport. Lane headers are plain flow elements (sticky was reverted 2026-05-31).
  * When the workflow fits, scrollbars must not appear.
  */
 
@@ -97,10 +97,11 @@ test.describe('Workflow canvas — scroll behaviour', () => {
     expect(after.scrollLeft, 'horizontal scroll position must update').toBeGreaterThan(before.scrollLeft);
   });
 
-  // Sticky lane headers (BUG-VR-1, fixed in Slice 7.5). The header must
-  // remain anchored at its initial viewport position while the canvas
-  // scrolls — see `.squad/decisions/inbox/isabelle-slice7-5-visual-bug-fixes.md`.
-  test('LARGE_WORKFLOW: lane header strip stays sticky during vertical scroll', async ({ page }) => {
+  // BUG-VR-1 sticky behaviour was reverted at Jonny's request (2026-05-31).
+  // Lane headers are now plain flow elements that scroll with the canvas.
+  // This test confirms the header is NOT sticky: after a 250 px vertical
+  // scroll its viewport top must decrease by roughly the scroll distance.
+  test('LARGE_WORKFLOW: lane header scrolls with the canvas (not sticky)', async ({ page }) => {
     const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
     await gotoCanonicalScenario(page, scenario);
 
@@ -118,15 +119,19 @@ test.describe('Workflow canvas — scroll behaviour', () => {
     expect(result, 'at least one lane header must render').not.toBeNull();
     if (!result) return;
 
-    // Sticky headers either declare `position: sticky` or stay anchored
-    // within ~4 px of their original viewport position after a 250 px
-    // vertical scroll. Either is acceptable evidence of stickiness.
-    const moved = Math.abs(result.after - result.before);
-    const isSticky = result.position === 'sticky' || moved <= 4;
+    // Header must scroll away with the canvas — not stick. We expect the
+    // viewport top to have decreased by the scroll amount (≥ 40 px is a
+    // safe threshold that rules out rounding noise while being much less
+    // than the 250 px we scrolled).
+    const moved = result.before - result.after;
     expect(
-      isSticky,
-      `Lane header drifted ${moved.toFixed(0)}px after vertical scroll (position=${result.position})`,
-    ).toBe(true);
+      result.position,
+      'lane-header must not have position:sticky',
+    ).not.toBe('sticky');
+    expect(
+      moved,
+      `Lane header should have scrolled up by ≥40px after a 250px scroll; actual=${moved.toFixed(0)}px`,
+    ).toBeGreaterThan(40);
   });
 
   test.fixme('SINGLE_LANE_LINEAR: canvas does not produce meaningful horizontal overflow when workflow fits', async ({ page }) => {

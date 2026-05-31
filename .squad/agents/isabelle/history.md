@@ -1,5 +1,18 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-31 — Sticky lane headers reverted
+
+**Request:** Jonny Muir asked that lane headers stop following the scroll. The BUG-VR-1 fix from Slice 7.5 (which added `position: sticky` to `.lane-header`) was intentional at the time but is now unwanted — plain top-of-lane positioning is preferred.
+
+**What changed:**
+- `prism-workflow-graph.ts` — removed `position: sticky`, `top: ${TOP_PADDING + 18}px`, `z-index: 5`, and `background: inherit` from the `.lane-header` rule. No other layout dependencies existed.
+- `tests/workflow-editor/workflow-canvas-scroll.spec.ts` — replaced the `lane header strip stays sticky` test with `lane header scrolls with the canvas (not sticky)`, asserting the header moves ≥ 40 px after a 250 px scroll and does not have `position: sticky`.
+- Filed `isabelle-lane-heading-revert.md` in `.squad/decisions/inbox/` so Scribe can log the deliberate reversal.
+
+**Build:** ✅ green (`npm run build`). Tests: ✅ 3/3 passed (1 pre-existing fixme skipped).
+
+**Learning:** Visual-test specs that assert specific positioning behaviour need updating whenever that behaviour is intentionally reversed — they are not regressions, they are expectation changes.
+
 ## 2026-05-31 — Slice B: WorkflowSource boundary lands on the editor
 
 **Session:** named-lanes editor — Slice B (DDD boundary, frontend cut)  
