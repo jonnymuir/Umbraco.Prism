@@ -203,3 +203,24 @@ export const TransitionActionConfiguration: Story = {
     selectedGatewayKey: 'review-split',
   },
 };
+
+// Stage with no gateway — "+ Add route" button must be visible and
+// must create the gateway on click. The `applicant-amendments` stage in
+// GATEWAY_ROUTE_WORKFLOW has no Split gateway attached.
+export const AddRouteNoGateway: Story = {
+  args: {
+    workflow: GATEWAY_ROUTE_WORKFLOW,
+    selectedStageKey: 'applicant-amendments',
+    selectedGatewayKey: null,
+  },
+};
+
+// Gateway that already has one route — "+ Add route" button must be
+// visible and must append a second route on click.
+export const AddRouteExistingGateway: Story = {
+  args: {
+    workflow: GATEWAY_ROUTE_WORKFLOW,
+    selectedStageKey: null,
+    selectedGatewayKey: 'review-split',
+  },
+};

@@ -4,6 +4,7 @@ import type {
   ActionCatalogEntry,
   AuthoredAction,
   AuthoredGateway,
+  AuthoredRoute,
   AuthoredStage,
   RouteView,
   AuthoredWorkflow,
@@ -34,7 +35,7 @@ import {
   workflowOutgoingRoutes,
   workflowUnreachableStages,
 } from './workflow-validation.js';
-import { deleteRoute, flattenRoutes, updateRoute } from './workflow-routes.js';
+import { addRoute, deleteRoute, findOrCreateSplitGateway, flattenRoutes, newRouteId, updateRoute } from './workflow-routes.js';
 import './prism-workflow-action-editor.js';
 import './prism-inline-help.js';
 
@@ -92,6 +93,9 @@ export class PrismStepInspectorElement extends LitElement {
   @state() private _stageKeyError: string | null = null;
   @state() private _statusMessage: string | null = null;
 
+  /** Tracks the route id of a just-created route so updated() can focus its target picker. */
+  private _newlyAddedRouteId: string | null = null;
+
   private get _selectedStage(): AuthoredStage | null {
     if (!this.workflow || !this.selectedStageKey) {
       return null;
@@ -114,6 +118,21 @@ export class PrismStepInspectorElement extends LitElement {
     }
     if (changed.has('selectedGatewayKey')) {
       this._gatewayKeyError = null;
+    }
+
+    if (this._newlyAddedRouteId) {
+      const routeId = this._newlyAddedRouteId;
+      this._newlyAddedRouteId = null;
+      requestAnimationFrame(() => {
+        const container = this.shadowRoot?.querySelector<HTMLElement>(`[data-prism-route-id="${routeId}"]`);
+        const targetPicker = container?.querySelector<HTMLElement>('[data-prism-route-target-select]');
+        if (container) {
+          container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (targetPicker) {
+          targetPicker.focus();
+        }
+      });
     }
   }
 
@@ -527,6 +546,31 @@ export class PrismStepInspectorElement extends LitElement {
     this._announce(`Route ${ctx.transition.action} deleted.`);
   }
 
+  private _handleAddRoute() {
+    if (!this.workflow) return;
+
+    const sourceStageKey = this._selectedStage?.stageKey
+      ?? (this.workflow.gateways ?? []).find(g => g.gatewayKey === this.selectedGatewayKey)?.source
+      ?? null;
+
+    if (!sourceStageKey) return;
+
+    const { workflow: withGateway, gatewayKey } = findOrCreateSplitGateway(this.workflow, sourceStageKey);
+
+    const routeId = newRouteId(sourceStageKey, '', '') + '-' + Date.now().toString(36);
+    const newRoute: AuthoredRoute = {
+      id: routeId,
+      target: '',
+      trigger: '',
+      actions: [],
+    };
+
+    const nextWorkflow = addRoute(withGateway, gatewayKey, newRoute);
+    this._newlyAddedRouteId = routeId;
+    this._emitWorkflowUpdated(nextWorkflow, { kind: 'gateway', gatewayKey });
+    this._announce('Route added — choose a destination.');
+  }
+
   private _renderEmpty() {
     return html`
       <div class="empty-state" role="status">
@@ -537,40 +581,54 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _renderGatewayOutgoingRoutes(gateway: AuthoredGateway, binding: GatewayBinding | null) {
     if (!this.workflow) return nothing;
+    const isJoin = gateway.kind === 'Join';
     const indices = binding?.relatedTransitionIndices ?? [];
-    if (indices.length === 0) {
-      return html`
-        <section class="inspector-section" aria-labelledby="section-gateway-routes">
-          <h3 id="section-gateway-routes" class="section-heading">Outgoing routes</h3>
-          <p class="empty-section" data-prism-gateway-routes-empty>
-            This gateway has no routes attached yet. Add transitions in the workflow graph and they will appear here.
-          </p>
-        </section>
-      `;
-    }
+    const routeNoun = isJoin ? 'Incoming routes' : 'Outgoing routes';
+    const sourceStageLabel = gateway.source
+      ? this._stageLabel(gateway.source)
+      : gateway.displayName;
 
-    const routeNoun = gateway.kind === 'Join' ? 'Incoming routes' : 'Outgoing routes';
     return html`
       <section class="inspector-section" aria-labelledby="section-gateway-routes">
-        <h3 id="section-gateway-routes" class="section-heading">${routeNoun}</h3>
-        <p class="action-summary" data-prism-gateway-routes-summary>
-          ${indices.length} ${indices.length === 1 ? 'route' : 'routes'} ${gateway.kind === 'Join' ? 'feed into' : 'leave'} this gateway.
-        </p>
-        <ul class="gateway-route-list" role="list">
-          ${indices.map(transitionIndex => {
-            const transition = (flattenRoutes(this.workflow))[transitionIndex];
-            if (!transition) return nothing;
-            return html`
-              <li
-                class="gateway-route-item"
-                data-prism-gateway-route="${transitionIndex}"
-                data-prism-route-target="${transition.toStage}"
-              >
-                ${this._renderRouteEditor(transition, transitionIndex)}
-              </li>
-            `;
-          })}
-        </ul>
+        <div class="section-header-row">
+          <h3 id="section-gateway-routes" class="section-heading">${routeNoun}</h3>
+          ${!isJoin ? html`
+            <button
+              type="button"
+              class="secondary-button"
+              data-prism-add-route
+              aria-label="Add route from ${sourceStageLabel}"
+              @click=${this._handleAddRoute}
+            >+ Add route</button>
+          ` : nothing}
+        </div>
+        ${indices.length === 0
+          ? html`
+              <p class="empty-section" data-prism-gateway-routes-empty>
+                No routes yet. Use <strong>+ Add route</strong> above to send this stage to its next destination.
+              </p>
+            `
+          : html`
+              <p class="action-summary" data-prism-gateway-routes-summary>
+                ${indices.length} ${indices.length === 1 ? 'route' : 'routes'} ${isJoin ? 'feed into' : 'leave'} this gateway.
+              </p>
+              <ul class="gateway-route-list" role="list">
+                ${indices.map(transitionIndex => {
+                  const transition = (flattenRoutes(this.workflow))[transitionIndex];
+                  if (!transition) return nothing;
+                  return html`
+                    <li
+                      class="gateway-route-item"
+                      data-prism-gateway-route="${transitionIndex}"
+                      data-prism-route-target="${transition.toStage}"
+                      data-prism-route-id="${transition.routeId}"
+                    >
+                      ${this._renderRouteEditor(transition, transitionIndex)}
+                    </li>
+                  `;
+                })}
+              </ul>
+            `}
       </section>
     `;
   }
@@ -581,6 +639,8 @@ export class PrismStepInspectorElement extends LitElement {
     const joinGateways = this._availableJoinGatewaysForStage(transition.toStage);
     const idx = String(transitionIndex);
     const ariaId = `route-${transitionIndex}-title`;
+    const targetEmpty = !transition.toStage;
+    const targetWarningId = `route-${transitionIndex}-target-warning`;
 
     return html`
       <article
@@ -623,15 +683,21 @@ export class PrismStepInspectorElement extends LitElement {
           <label class="field-block">
             <span class="field-label">Target stage</span>
             <select
-              class="field-control"
+              class="field-control ${targetEmpty ? 'field-control-error' : ''}"
               data-prism-route-target-select
               data-prism-route-index="${idx}"
+              aria-invalid=${String(targetEmpty)}
+              aria-describedby=${targetEmpty ? targetWarningId : ''}
               @change=${this._updateRouteTarget}
             >
+              <option value="" ?selected=${targetEmpty} disabled>Choose a destination…</option>
               ${targetOptions.map(stage => html`
                 <option value=${stage.stageKey} ?selected=${stage.stageKey === transition.toStage}>${stage.displayName}</option>
               `)}
             </select>
+            ${targetEmpty
+              ? html`<span id="${targetWarningId}" class="field-error" data-prism-route-target-warning>Choose a destination</span>`
+              : nothing}
           </label>
           <label class="field-block">
             <span class="field-label">Arrive through</span>
@@ -1235,10 +1301,16 @@ export class PrismStepInspectorElement extends LitElement {
         <section class="inspector-section" aria-labelledby="stage-transitions-heading">
           <div class="section-header-row">
             <h3 id="stage-transitions-heading" class="section-heading">Outgoing routes</h3>
-            <span class="section-meta">${outgoing.length}</span>
+            <button
+              type="button"
+              class="secondary-button"
+              data-prism-add-route
+              aria-label="Add route from ${stage.displayName}"
+              @click=${this._handleAddRoute}
+            >+ Add route</button>
           </div>
           ${outgoing.length === 0
-            ? html`<p class="section-empty">No outgoing routes yet.</p>`
+            ? html`<p class="section-empty">No routes yet. Use <strong>+ Add route</strong> above to send this stage to its next destination.</p>`
             : html`
                 <ul class="transition-list">
                   ${outgoing.map(transition => html`
