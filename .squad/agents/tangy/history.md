@@ -343,3 +343,10 @@ Created a unified behavioural test slice spanning backend authoring contracts, e
 - Ready for Slice 3 parallel testing (gateway-first binding + structure reordering)
 
 - 2026-05-31 — Slice D — visual baselines audit. Confirmed only 3 PNGs live under `tests/__screenshots__/workflow-editor/workflow-canvas-arrows.spec.ts/` and none required re-cert this slice (Slice D landed structural data-attr + class changes for pill rendering, not new arrow geometry). New `workflow-graph-visual.spec.ts` assertions are behavioural (data-attr / aria-label / element-count), not pixel snapshots. Walkthrough screenshots flagged "pending refresh" once the pill render stabilises — captured in `.squad/decisions/inbox/copilot-slice-d-close-out.md` as a deferred docs-only pass.
+
+---
+
+## 2026-05-31 — Isabelle's Definition Tab: find/scroll coverage note
+
+**Note from Scribe:** Isabelle (Frontend) added 5 new behavioral Playwright tests to `tests/workflow-editor/workflow-editor-definition-tab-find.spec.ts` covering Definition pane find (Ctrl/Cmd+F) and mouse wheel scroll behavior. All tests green. No action required; this is awareness only for Tangy's test portfolio expansion.
+

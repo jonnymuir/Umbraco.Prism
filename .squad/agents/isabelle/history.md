@@ -1,5 +1,52 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-31 — Definition editor UX: mouse wheel + Find (Cmd/Ctrl+F)
+
+**Session:** definition-editor-ux-fixes  
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**Problems reported:** Jonny Muir noted two UX gaps in the Definition tab JSON editor (CodeMirror 6 twin-pane shipped in Slice 6, commit 3ca28a4):
+1. Mouse wheel scrolling doesn't work inside the JSON editor pane.
+2. Cmd/Ctrl+F Find should open an in-editor search panel, but it wasn't wired in.
+
+**Root causes:**
+1. **Wheel scrolling blocked:** The parent `.definition-editor-frame prism-definition-editor` rule in `prism-workflow-editor.ts` had `overflow: hidden` (line 2752), which intercepted wheel events before they could reach the CodeMirror `.cm-scroller` inside the Shadow DOM.
+2. **Find not wired:** `@codemirror/search` was not installed, and the search keymap + panel extension were missing from the CodeMirror setup.
+
+**What changed:**
+- **package.json:** Added `@codemirror/search` (installed via `npm install @codemirror/search --save`).
+- **prism-definition-editor-codemirror.ts:**
+  - Imported `search`, `searchKeymap` from `@codemirror/search`.
+  - Added `search({ top: true })` extension (renders the search panel at the top of the editor).
+  - Added `...searchKeymap` to the keymap array (wires Cmd/Ctrl+F → open search, Esc → close).
+- **prism-workflow-editor.ts:**
+  - Removed `overflow: hidden` from `.definition-editor-frame prism-definition-editor` rule, leaving only `border`, `border-radius`, `flex`, `min-height`. Added inline comment explaining the removal.
+
+**Tests added:** New file `tests/workflow-editor/definition-editor-ux.spec.ts` with 5 behavioural tests:
+1. `Mouse wheel scrolling container is properly configured` — verifies parent does not have `overflow: hidden` and `.cm-scroller` has `overflow-y: auto`.
+2. `Cmd/Ctrl+F opens the CodeMirror search panel` — focuses editor, presses Cmd/Ctrl+F, asserts `.cm-search` panel appears.
+3. `Esc dismisses the search panel` — opens panel, presses Escape, asserts panel removed.
+4. `Line numbers are visible` — checks `.cm-lineNumbers` exists (sanity check).
+5. `Select-all (Cmd/Ctrl+A) works` — focuses editor, presses Cmd/Ctrl+A, asserts selection length equals doc length (sanity check).
+
+**Build & test results:**
+- ✅ `npm run build` — clean (no TypeScript or Vite errors).
+- ✅ All 5 new tests pass (0 failures, 2.4s runtime).
+- ✅ Existing `workflow-editor-definition-tab.spec.ts` passes (10/12 tests; 2 failures are pre-existing test fixture issues unrelated to UX changes — "confirmation stage missing" validation error, not scrolling/search).
+
+**CodeMirror gotchas learned:**
+- **Wheel events and Shadow DOM:** If the host element has `overflow: hidden`, wheel events are absorbed at the host boundary and never reach the scroller inside the Shadow DOM. CodeMirror's `.cm-scroller { overflow: auto }` can't work if the parent blocks the event.
+- **Search panel placement:** `search({ top: true })` places the panel at the top (default is bottom), which works better with our inline help design.
+- **Keymap order matters:** `searchKeymap` must be after `defaultKeymap` in the array to avoid conflicts with built-in Cmd/Ctrl+F browser Find.
+
+**Files touched:**
+- `src/UmbracoPrism.Client/package.json`
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-definition-editor-codemirror.ts`
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor.ts`
+- `src/UmbracoPrism.Client/tests/workflow-editor/definition-editor-ux.spec.ts` (new)
+
+**Next steps:** If Jonny confirms the UX is fixed in production, no further work. If additional editor feel issues surface (e.g., soft-wrap, font size, syntax highlighting), address in a follow-on slice.
+
 ## 2026-05-31 — Slice D follow-on: Inspector "+ Add route" affordance
 
 **Session:** add-route-affordance  
