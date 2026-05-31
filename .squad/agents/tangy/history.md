@@ -4,6 +4,11 @@
 
 ---
 
+## 2026-05-31 — Triage: definition-tab-sync.spec.ts (2 failures)
+
+**Flagged by:** Isabelle (Frontend Dev) — Definition-tab UX fix commit.  
+**Issue:** `definition-tab-sync.spec.ts` has 2 pre-existing failures around bidirectional JSON↔Canvas sync. Candidate for Tangy triage.
+
 ## 2026-05-30 — Slice 7: visual regression strategy + opening suite
 
 **Branch:** `squad/82-named-lanes-editor-slice` (HEAD 3ca28a4 → +1)
