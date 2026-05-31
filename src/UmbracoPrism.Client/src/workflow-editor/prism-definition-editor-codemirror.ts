@@ -20,6 +20,7 @@ import {
   historyKeymap,
   indentWithTab,
 } from '@codemirror/commands';
+import { search, searchKeymap } from '@codemirror/search';
 import {
   bracketMatching,
   defaultHighlightStyle,
@@ -92,7 +93,8 @@ export function createDefinitionView({
       json(),
       lintGutter(),
       diagnosticsField,
-      keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+      search({ top: true }),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
       history(),
       readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
       EditorView.contentAttributes.of({

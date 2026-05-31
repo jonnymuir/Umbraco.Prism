@@ -2749,7 +2749,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       min-height: 240px;
       border: 1px solid #b1b4b6;
       border-radius: 4px;
-      overflow: hidden;
+      /* overflow: hidden removed — was blocking mouse wheel events from reaching CodeMirror */
     }
 
     .definition-loading,
