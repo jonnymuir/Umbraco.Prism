@@ -1,5 +1,33 @@
 # History: Isabelle (Frontend Dev & Accessibility Lead)
 
+## 2026-05-31 — Slice D follow-on: Inspector "+ Add route" affordance
+
+**Session:** add-route-affordance  
+**Branch:** `squad/82-named-lanes-editor-slice`
+
+**What was missing:** The "Outgoing routes" section in `_renderGatewayOutgoingRoutes` (and the stage inspector's matching section) were read/edit-only with no creation path. The empty-state message misleadingly said "Add transitions in the workflow graph" even though the graph had no add affordance.
+
+**What changed:**
+- `prism-step-inspector.ts` — imported `addRoute`, `findOrCreateSplitGateway`, `newRouteId` from `workflow-routes.ts`; added `AuthoredRoute` type import.
+- Added `_handleAddRoute()` method: derives source stage from either `_selectedStage.stageKey` (stage inspector) or the selected gateway's `source` field (gateway inspector); calls `findOrCreateSplitGateway` → `addRoute` with a blank route (`id = newRouteId(source,'','') + '-' + Date.now().toString(36)` for uniqueness); emits `workflow-updated` with `{ kind: 'gateway', gatewayKey }` so the inspector switches to gateway view.
+- Augmented `updated()` lifecycle: on any re-render, if `_newlyAddedRouteId` is set, clears it and schedules a `requestAnimationFrame` that finds `[data-prism-route-id="${routeId}"] [data-prism-route-target-select]`, scrolls it into view, and focuses it.
+- `_renderGatewayOutgoingRoutes` refactored: single section always rendered; "+ Add route" button in the `section-header-row` (hidden for Join gateways); empty-state message changed to "No routes yet. Use **+ Add route** above to send this stage to its next destination."; `<li>` elements now carry `data-prism-route-id="${transition.routeId}"` so focus-after-create can find them.
+- `_renderRouteEditor` augmented: Target select carries `aria-invalid="true"` and `aria-describedby` pointing at a `<span data-prism-route-target-warning>Choose a destination</span>` when `transition.toStage` is empty; both attributes and the warning clear once a target is chosen.
+- Stage inspector "Outgoing routes" section: replaced the count-badge with the "+ Add route" button; same `_handleAddRoute` handler; empty-state copy updated to match.
+
+**Focus/announce pattern established:**
+1. `_handleAddRoute` fires → sets `_newlyAddedRouteId` (plain private field, no re-render) → emits `workflow-updated` → parent updates `workflow`+`selectedGatewayKey`.
+2. Lit re-renders (gateway view now, with new blank route in the list).
+3. `updated()` detects non-null `_newlyAddedRouteId`, clears it (no extra re-render since it's not `@state()`), schedules RAF.
+4. RAF runs after paint: `shadowRoot.querySelector([data-prism-route-id]).querySelector([data-prism-route-target-select]).focus()`.
+5. Existing `inspector-announcer` live region announces "Route added — choose a destination."
+
+**Tests:** 5 new Playwright specs in `add-route-affordance.spec.ts` (all 5 pass on first run). Two new stories added: `AddRouteNoGateway`, `AddRouteExistingGateway`.
+
+**Suite results:** `npm run build` ✅ clean; 86 pass / 0 fail / 66 skip (5 new + 81 existing). Storybook build ✅.
+
+**Context-menu add-route deferred:** A "+ Add route" entry on the graph context menu was explicitly out of scope (Slice E). No code change in `prism-workflow-graph.ts`.
+
 ## 2026-05-31 — Sticky lane headers reverted
 
 **Request:** Jonny Muir asked that lane headers stop following the scroll. The BUG-VR-1 fix from Slice 7.5 (which added `position: sticky` to `.lane-header`) was intentional at the time but is now unwanted — plain top-of-lane positioning is preferred.
