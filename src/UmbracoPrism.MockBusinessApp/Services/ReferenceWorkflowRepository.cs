@@ -444,7 +444,13 @@ public static class ReferenceWorkflowRepository
         Lanes =
         [
             ApplicantLane(),
-            new AuthoredLane { Key = "payments", DisplayName = "Payments team", Actor = "reviewer" }
+            new AuthoredLane
+            {
+                Key = "payments",
+                DisplayName = "Payments team",
+                Actor = "reviewer",
+                QueueName = ReferenceWorkflowQueues.BusinessUser
+            }
         ],
         Gateways =
         [
@@ -630,7 +636,8 @@ public static class ReferenceWorkflowRepository
     {
         Key = "applicant",
         DisplayName = "Applicant",
-        Actor = "applicant"
+        Actor = "applicant",
+        QueueName = ReferenceWorkflowQueues.WebUser
     };
 
     private static AuthoredRoute Route(string id, string target, string trigger) => new()

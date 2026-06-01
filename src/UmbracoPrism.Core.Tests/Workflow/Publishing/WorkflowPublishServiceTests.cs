@@ -97,6 +97,7 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     Key = "applicant",
                     DisplayName = "Applicant lane",
                     Actor = "applicant",
+                    QueueName = "web-user",
                     RoleGates = ["submitter"]
                 }
             ],
@@ -148,7 +149,8 @@ public sealed class WorkflowPublishServiceTests : IDisposable
         var result = await _sut.PublishAsync(workflow);
 
         result.HasErrors.Should().BeFalse();
-        result.File.Metadata!.Lanes.Should().ContainSingle(lane => lane.Key == "applicant" && lane.Actor == "applicant");
+        result.File.Metadata!.Lanes.Should().ContainSingle(lane =>
+            lane.Key == "applicant" && lane.Actor == "applicant" && lane.QueueName == "web-user");
         result.File.Metadata.Gateways.Should().HaveCount(2);
         result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-out" && gateway.GatewayType == "Split");
         result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-in" && gateway.GatewayType == "Join");

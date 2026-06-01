@@ -16,6 +16,9 @@ public record AuthoredLane
     [JsonPropertyName("actor")]
     public string? Actor { get; init; }
 
+    [JsonPropertyName("queueName")]
+    public string? QueueName { get; init; }
+
     [JsonPropertyName("roleGates")]
     public IReadOnlyList<string> RoleGates { get; init; } = [];
 }

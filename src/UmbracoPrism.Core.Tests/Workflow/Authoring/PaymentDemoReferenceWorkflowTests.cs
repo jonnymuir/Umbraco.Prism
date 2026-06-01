@@ -9,6 +9,7 @@ using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Authoring;
 using MockBusinessAppWorkflowEngine = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.BusinessAppWorkflowEngine;
 using MockReferenceWorkflowDefinitionStore = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowDefinitionStore;
+using MockReferenceWorkflowQueues = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowQueues;
 using MockReferenceWorkflowRepository = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowRepository;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -25,6 +26,10 @@ public class PaymentDemoReferenceWorkflowTests
         var projection = new WorkflowProjector().Project(authored);
 
         projection.HasErrors.Should().BeFalse();
+        projection.File.Metadata!.Lanes.Should().ContainSingle(lane =>
+            lane.Key == "applicant" && lane.QueueName == MockReferenceWorkflowQueues.WebUser);
+        projection.File.Metadata!.Lanes.Should().ContainSingle(lane =>
+            lane.Key == "payments" && lane.QueueName == MockReferenceWorkflowQueues.BusinessUser);
         projection.File.Metadata!.Gateways.Should().ContainSingle(g =>
             g.Key == "submit-payment" && g.GatewayType == "Split");
         var joinGateway = projection.File.Metadata!.Gateways!.Single(g => g.Key == "await-payment-confirmation");
@@ -68,7 +73,11 @@ public class PaymentDemoReferenceWorkflowTests
     {
         var engine = CreateEngine();
 
-        var current = engine.GetCurrent("payment-demo", "tenant-1", "applicant@example.com");
+        var current = engine.GetCurrent(
+            "payment-demo",
+            "tenant-1",
+            "applicant@example.com",
+            MockReferenceWorkflowQueues.WebUserProfile());
         current.ResponseState.Should().Be("render");
         current.Render!.StateDisplayName.Should().Be("Enter payment details");
 
@@ -76,6 +85,7 @@ public class PaymentDemoReferenceWorkflowTests
             current.InstanceId,
             "tenant-1",
             "applicant@example.com",
+            MockReferenceWorkflowQueues.WebUserProfile(),
             "submit",
             current.StateVersion,
             new Dictionary<string, object?>
@@ -104,7 +114,22 @@ public class PaymentDemoReferenceWorkflowTests
         waitingInstance.JoinArrivals["await-payment-confirmation"].Should().HaveCount(1,
             because: "the applicant path should already be parked at the join while the payments lane is still outstanding");
 
-        var afterConfirmation = engine.AdvanceAsReviewer(current.InstanceId, "confirm");
+        var queueWork = engine.GetQueueWorkItems(MockReferenceWorkflowQueues.BusinessUserProfile());
+        queueWork.Items.Should().ContainSingle(item =>
+            item.InstanceId == current.InstanceId
+            && item.QueueName == MockReferenceWorkflowQueues.BusinessUser
+            && item.StateKey == "confirm-payment-received"
+            && item.AvailableActions.Any(action => action.ActionKey == "confirm"));
+
+        var workItem = queueWork.Items.Single(item => item.InstanceId == current.InstanceId);
+        var afterConfirmation = engine.Advance(
+            current.InstanceId,
+            "tenant-1",
+            "applicant@example.com",
+            MockReferenceWorkflowQueues.BusinessUserProfile(),
+            "confirm",
+            workItem.StateVersion,
+            fieldValues: null);
 
         afterConfirmation.ResponseState.Should().Be("complete");
         afterConfirmation.Render!.StateDisplayName.Should().Be("Payment complete");
@@ -140,4 +165,135 @@ public class PaymentDemoReferenceWorkflowTests
             .SelectMany(fieldset => fieldset.Children.OfType<InputComponent>())
             .Select(component => component.FieldKey)
             .ToArray();
+
+    [Fact]
+    public void QueueAccessProfile_UsesConfiguredQueueNames_NotHostSpecificRoleNames()
+    {
+        var definition = new UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionFile
+        {
+            DefinitionKey = "queue-test",
+            DisplayName = "Queue Test",
+            Version = 1,
+            InitialState = "citizen-start",
+            InstancePolicy = "single",
+            States =
+            [
+                new UmbracoPrism.Shared.Models.Workflow.StepDefinition
+                {
+                    StateKey = "citizen-start",
+                    DisplayName = "Citizen start",
+                    Components = [new FieldsetComponent()],
+                    Metadata = new UmbracoPrism.Shared.Models.Workflow.WorkflowStateMetadata
+                    {
+                        LaneKey = "citizen-lane"
+                    }
+                },
+                new UmbracoPrism.Shared.Models.Workflow.StepDefinition
+                {
+                    StateKey = "finance-review",
+                    DisplayName = "Finance review",
+                    Components = [new FieldsetComponent()],
+                    Metadata = new UmbracoPrism.Shared.Models.Workflow.WorkflowStateMetadata
+                    {
+                        LaneKey = "finance-lane"
+                    }
+                },
+                new UmbracoPrism.Shared.Models.Workflow.StepDefinition
+                {
+                    StateKey = "done",
+                    DisplayName = "Done",
+                    Components = [new PanelComponent { Heading = "Done" }],
+                    Metadata = new UmbracoPrism.Shared.Models.Workflow.WorkflowStateMetadata
+                    {
+                        LaneKey = "citizen-lane"
+                    }
+                }
+            ],
+            Transitions =
+            [
+                new UmbracoPrism.Shared.Models.Workflow.WorkflowTransitionFile
+                {
+                    FromState = "citizen-start",
+                    ToState = "finance-review",
+                    Action = "submit"
+                },
+                new UmbracoPrism.Shared.Models.Workflow.WorkflowTransitionFile
+                {
+                    FromState = "finance-review",
+                    ToState = "done",
+                    Action = "approve",
+                    RequiresRole = "reviewer"
+                }
+            ],
+            Metadata = new UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionMetadata
+            {
+                Lanes =
+                [
+                    new UmbracoPrism.Shared.Models.Workflow.WorkflowLaneDefinition
+                    {
+                        Key = "citizen-lane",
+                        DisplayName = "Citizen lane",
+                        QueueName = "citizen-queue"
+                    },
+                    new UmbracoPrism.Shared.Models.Workflow.WorkflowLaneDefinition
+                    {
+                        Key = "finance-lane",
+                        DisplayName = "Finance lane",
+                        QueueName = "finance-queue"
+                    }
+                ]
+            }
+        };
+
+        var sanitizer = new Mock<IWorkflowContentSanitizer>();
+        sanitizer.Setup(service => service.Sanitize(It.IsAny<string?>())).Returns<string?>(value => value ?? string.Empty);
+
+        var engine = new UmbracoPrism.WorkflowRuntime.Services.WorkflowRuntimeEngine(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<UmbracoPrism.WorkflowRuntime.Services.WorkflowRuntimeEngine>.Instance,
+            new InMemoryDefinitionStore(definition),
+            sanitizer.Object);
+
+        var citizenProfile = new UmbracoPrism.Shared.Models.Workflow.WorkflowAccessProfile
+        {
+            VisibleQueues = ["citizen-queue"],
+            StartableQueues = ["citizen-queue"],
+            ActionableQueues = ["citizen-queue"]
+        };
+
+        var financeProfile = new UmbracoPrism.Shared.Models.Workflow.WorkflowAccessProfile
+        {
+            VisibleQueues = ["finance-queue"],
+            ActionableQueues = ["finance-queue"],
+            RestrictToInstanceOwner = false
+        };
+
+        var started = engine.GetCurrent("queue-test", "tenant-1", "citizen@example.com", citizenProfile);
+        var submitted = engine.Advance(
+            started.InstanceId,
+            "tenant-1",
+            "citizen@example.com",
+            citizenProfile,
+            "submit",
+            started.StateVersion,
+            null);
+
+        submitted.ResponseState.Should().Be("render");
+        submitted.Render!.StateDisplayName.Should().Be("Finance review");
+
+        var financeItems = engine.GetQueueWorkItems(financeProfile);
+        financeItems.Items.Should().ContainSingle(item =>
+            item.QueueName == "finance-queue"
+            && item.AvailableActions.Any(action => action.ActionKey == "approve"));
+    }
+
+    private sealed class InMemoryDefinitionStore(UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionFile definition)
+        : UmbracoPrism.WorkflowRuntime.Abstractions.IWorkflowDefinitionStore
+    {
+        public IReadOnlyDictionary<string, UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionFile> LoadDefinitions(
+            Microsoft.Extensions.Logging.ILogger logger) =>
+            new Dictionary<string, UmbracoPrism.Shared.Models.Workflow.WorkflowDefinitionFile>(StringComparer.OrdinalIgnoreCase)
+            {
+                [definition.DefinitionKey] = definition
+            };
+    }
 }

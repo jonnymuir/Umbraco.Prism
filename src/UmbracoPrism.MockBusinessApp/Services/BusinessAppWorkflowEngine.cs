@@ -23,81 +23,37 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
             return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
         }
 
-        var definition = GetDefinition(instance.WorkflowKey);
-        if (definition == null)
-        {
-            return ErrorEnvelope($"Workflow '{instance.WorkflowKey}' not found.", "DEFINITION_NOT_FOUND");
-        }
-
-        var transition = definition.Transitions.FirstOrDefault(
-            t => t.FromState == instance.CurrentState && t.Action == action
-                 && string.Equals(t.RequiresRole, "reviewer", StringComparison.OrdinalIgnoreCase));
-
-        if (transition == null)
-        {
-            return ErrorEnvelope(
-                $"Reviewer action '{action}' is not valid from state '{instance.CurrentState}'.",
-                "INVALID_TRANSITION");
-        }
-
-        var sourceState = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
-        if (sourceState == null)
-        {
-            return ErrorEnvelope(
-                $"State '{instance.CurrentState}' not found in definition '{definition.DefinitionKey}'.",
-                "STATE_NOT_FOUND");
-        }
-
-        var nextGateway = FindGateway(definition, transition.ToState);
-        if (nextGateway != null)
-        {
-            return string.Equals(nextGateway.GatewayType, "Split", StringComparison.Ordinal)
-                ? HandleSplitGatewayAdvance(instance, definition, transition, nextGateway, fieldValues: null)
-                : HandleJoinGatewayAdvance(instance, definition, transition, nextGateway, fieldValues: null);
-        }
-
-        var targetState = definition.States.FirstOrDefault(s => s.StateKey == transition.ToState);
-        if (targetState == null)
-        {
-            return ErrorEnvelope(
-                $"State '{transition.ToState}' not found in definition '{definition.DefinitionKey}'.",
-                "STATE_NOT_FOUND");
-        }
-
-        var updated = instance with
-        {
-            CurrentState = transition.ToState,
-            StateVersion = instance.StateVersion + 1,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        if (ExecuteRegisteredActions(
-                updated,
-                definition,
-                sourceState,
-                targetState,
-                transition,
-                action,
-                updated.FieldValues,
-                GetOrderedActions(sourceState, transition, targetState)) is { } actionError)
-        {
-            return actionError;
-        }
-
-        SaveInstance(updated);
-        Logger.LogInformation(
-            "Reviewer advanced instance {Id}: {From} → {To}",
+        return Advance(
             instanceId,
-            instance.CurrentState,
-            transition.ToState);
-
-        return BuildEnvelope(updated, definition);
+            instance.TenantId,
+            instance.UserId,
+            ReferenceWorkflowQueues.BusinessUserProfile(),
+            action,
+            instance.StateVersion,
+            fieldValues: null);
     }
 
     public override WorkflowResponseEnvelope Advance(
         string instanceId,
         string tenantId,
         string userId,
+        string action,
+        int expectedStateVersion,
+        Dictionary<string, object?>? fieldValues) =>
+        Advance(
+            instanceId,
+            tenantId,
+            userId,
+            WorkflowAccessProfile.UnrestrictedOwner,
+            action,
+            expectedStateVersion,
+            fieldValues);
+
+    public override WorkflowResponseEnvelope Advance(
+        string instanceId,
+        string tenantId,
+        string userId,
+        WorkflowAccessProfile accessProfile,
         string action,
         int expectedStateVersion,
         Dictionary<string, object?>? fieldValues)
@@ -107,8 +63,7 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
             return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
         }
 
-        if (!string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal)
-            || !string.Equals(instance.UserId, userId, StringComparison.Ordinal))
+        if (!CanAccessInstance(instance, tenantId, userId, accessProfile))
         {
             return ErrorEnvelope("Access denied to this workflow instance.", "ACCESS_DENIED");
         }
@@ -146,18 +101,29 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
                 "Change-link: jumped instance {Id} to state '{State}'",
                 instanceId,
                 targetStateKey);
-            return BuildEnvelope(jumped, definition);
+            return BuildEnvelope(jumped, definition, accessProfile, allowFallbackWhenHidden: true);
+        }
+
+        var visibleWorkItem = FindAccessibleWorkItems(instance, definition, accessProfile)
+            .FirstOrDefault(item => item.AvailableActions.Any(candidate =>
+                string.Equals(candidate.ActionKey, action, StringComparison.Ordinal)))
+            ?? FindFallbackActionWorkItem(instance, definition, accessProfile, action);
+
+        if (visibleWorkItem is null)
+        {
+            return ErrorEnvelope(
+                $"Action '{action}' is not valid from the current queue view.",
+                "INVALID_TRANSITION");
         }
 
         var transition = definition.Transitions.FirstOrDefault(
-            t => t.FromState == instance.CurrentState
-                 && t.Action == action
-                 && t.RequiresRole == null);
+            t => t.FromState == visibleWorkItem.StateKey
+                 && t.Action == action);
 
         if (transition == null)
         {
             return ErrorEnvelope(
-                $"Action '{action}' is not valid from state '{instance.CurrentState}'.",
+                $"Action '{action}' is not valid from state '{visibleWorkItem.StateKey}'.",
                 "INVALID_TRANSITION");
         }
 
@@ -169,14 +135,14 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         var nextGateway = FindGateway(definition, transition.ToState);
         if (nextGateway != null)
         {
-            return base.Advance(instanceId, tenantId, userId, action, expectedStateVersion, fieldValues);
+            return base.Advance(instanceId, tenantId, userId, accessProfile, action, expectedStateVersion, fieldValues);
         }
 
-        var sourceState = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
+        var sourceState = definition.States.FirstOrDefault(s => s.StateKey == visibleWorkItem.StateKey);
         if (sourceState == null)
         {
             return ErrorEnvelope(
-                $"State '{instance.CurrentState}' not found in definition '{definition.DefinitionKey}'.",
+                $"State '{visibleWorkItem.StateKey}' not found in definition '{definition.DefinitionKey}'.",
                 "STATE_NOT_FOUND");
         }
 
@@ -214,10 +180,10 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         Logger.LogInformation(
             "Advanced instance {Id}: {From} → {To}",
             instanceId,
-            instance.CurrentState,
+            visibleWorkItem.StateKey,
             transition.ToState);
 
-        return BuildEnvelope(updated, definition);
+        return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
     }
 
     public BusinessAppWorkflowEngine(

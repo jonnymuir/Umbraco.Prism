@@ -359,6 +359,7 @@ public sealed class WorkflowProjector : IWorkflowProjector
                     Key = lane.Key,
                     DisplayName = lane.DisplayName,
                     Actor = lane.Actor,
+                    QueueName = lane.QueueName,
                     RoleGates = lane.RoleGates.Count == 0 ? null : lane.RoleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray()
                 })
                 .ToArray();

@@ -268,7 +268,13 @@ app.MapPost("/api/workflow/{workflowKey}/current", async (
     logger.LogInformation("Workflow current: key={Key} tenant={Tenant} user={User} instanceId={InstanceId} action={Action}", 
         workflowKey, tenant.Code, email, instanceId ?? "(none)", action ?? "(none)");
 
-    var envelope = engine.GetCurrent(workflowKey, tenant.Code, email, instanceId, action);
+    var envelope = engine.GetCurrent(
+        workflowKey,
+        tenant.Code,
+        email,
+        ReferenceWorkflowQueues.WebUserProfile(),
+        instanceId,
+        action);
     return envelope.ResponseState == "error" ? Results.UnprocessableEntity(envelope) : Results.Ok(envelope);
 }).RequireAuthorization();
 
@@ -293,8 +299,13 @@ app.MapPost("/api/workflow/{workflowKey}/advance", (
         workflowKey, request.InstanceId, request.Action);
 
     var envelope = engine.Advance(
-        request.InstanceId, tenant.Code, email,
-        request.Action, request.StateVersion, request.FieldValues);
+        request.InstanceId,
+        tenant.Code,
+        email,
+        ReferenceWorkflowQueues.WebUserProfile(),
+        request.Action,
+        request.StateVersion,
+        request.FieldValues);
 
     return envelope.ResponseState == "error" ? Results.UnprocessableEntity(envelope) : Results.Ok(envelope);
 }).RequireAuthorization();
@@ -397,6 +408,7 @@ app.MapGet("/debug/auth", (IConfiguration config) =>
 app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthoredWorkflowStore authoredWorkflowStore) =>
 {
     var instances = engine.GetAllInstances().OrderBy(i => i.CreatedAt).ToList();
+    var businessQueue = engine.GetQueueWorkItems(ReferenceWorkflowQueues.BusinessUserProfile()).Items;
     var defs = engine.GetAllDefinitions().ToList();
     var defsByKey = defs.ToDictionary(d => d.DefinitionKey, StringComparer.OrdinalIgnoreCase);
     var authoredWorkflowEntries = authoredWorkflowStore.List();
@@ -410,11 +422,39 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthor
 
     string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
 
-    // Slice C: drop the in-page mermaid renderer and per-instance reviewer
-    // action buttons from this admin scaffold. Workflow authoring lives in
-    // /workflow-editor; reviewer behaviour belongs in the runtime UI, not in
-    // this developer-only dashboard. We keep the instance table (state badge
-    // + reset) and a flat workflow-definition list (description + Edit link).
+    var queueRows = businessQueue.Count == 0
+        ? """<tr><td colspan="7" style="text-align:center;color:#888;padding:1.5rem">No business-user queue work</td></tr>"""
+        : string.Join("\n", businessQueue.Select((item, n) =>
+        {
+            var shortId = item.InstanceId.Length > 12 ? item.InstanceId[..8] + "…" : item.InstanceId;
+            var actions = item.AvailableActions.Count == 0
+                ? """<span style="color:#888;font-size:.8rem">No actions</span>"""
+                : string.Join(" ", item.AvailableActions.Select(action => $"""
+                    <form method="post" action="/admin/workflow/{Esc(item.InstanceId)}/advance" style="display:inline">
+                      <input type="hidden" name="action" value="{Esc(action.ActionKey)}" />
+                      <input type="hidden" name="stateVersion" value="{item.StateVersion}" />
+                      <button class="btn btn-queue-action">{Esc(action.Label)}</button>
+                    </form>
+                    """));
+
+            return $"""
+            <tr data-workflow-key="{Esc(item.WorkflowKey)}" data-queue-name="{Esc(item.QueueName ?? string.Empty)}">
+              <td>{n + 1}</td>
+              <td style="font-family:monospace;font-size:.8em"><span title="{Esc(item.InstanceId)}">{Esc(shortId)}</span></td>
+              <td>
+                <strong>{Esc(item.WorkflowDisplayName)}</strong>
+                <div style="color:#888;font-size:.73rem">{Esc(item.WorkflowKey)}</div>
+              </td>
+              <td>
+                <span class="badge">{Esc(item.StateDisplayName)}</span>
+                <span style="color:#bbb;font-size:.73rem;display:block">{Esc(item.StateKey)}</span>
+              </td>
+              <td>{Esc(item.QueueName ?? "default")}</td>
+              <td>{Esc(item.TenantId)}</td>
+              <td class="actions">{actions}</td>
+            </tr>
+            """;
+        }));
 
     var rows = instances.Count == 0
         ? """<tr><td colspan="6" style="text-align:center;color:#888;padding:1.5rem">No workflow instances</td></tr>"""
@@ -488,6 +528,8 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthor
             .badge { background:#dbeafe; color:#1d4ed8; padding:.15rem .5rem; border-radius:999px; font-size:.78rem; font-weight:600; }
             .actions { white-space:nowrap; text-align:right; }
             .btn { border:none; border-radius:5px; padding:.25rem .65rem; font-size:.8rem; cursor:pointer; font-weight:600; text-decoration:none; display:inline-block; }
+            .btn-queue-action { background:#dcfce7; color:#166534; }
+            .btn-queue-action:hover { background:#bbf7d0; }
             .btn-reset { background:#f3f4f6; color:#374151; }
             .btn-reset:hover { background:#e5e7eb; }
             .btn-reset-all { background:#fee2e2; color:#991b1b; padding:.35rem 1rem; }
@@ -511,6 +553,19 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthor
             </nav>
           </header>
           <main>
+            <h2>Business-user Queue</h2>
+            <div class="toolbar">
+              <span class="count">{{businessQueue.Count}} work item(s)</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th><th>Instance ID</th><th>Workflow</th><th>Queue step</th><th>Queue</th><th>Tenant</th><th></th>
+                </tr>
+              </thead>
+              <tbody>{{queueRows}}</tbody>
+            </table>
+
             <h2>Workflow Instances</h2>
             <div class="toolbar">
               <span class="count">{{instances.Count}} instance(s)</span>
@@ -541,6 +596,37 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthor
         """;
 
     return Results.Content(html, "text/html");
+});
+
+app.MapPost("/admin/workflow/{instanceId}/advance", async (string instanceId, HttpContext context, BusinessAppWorkflowEngine engine) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var action = form["action"].FirstOrDefault();
+    var stateVersionValue = form["stateVersion"].FirstOrDefault();
+
+    if (string.IsNullOrWhiteSpace(action) || !int.TryParse(stateVersionValue, out var stateVersion))
+    {
+        return Results.BadRequest("Missing queue action details.");
+    }
+
+    var instance = engine.GetAllInstances()
+        .FirstOrDefault(candidate => string.Equals(candidate.InstanceId, instanceId, StringComparison.Ordinal));
+
+    if (instance is null)
+    {
+        return Results.NotFound();
+    }
+
+    engine.Advance(
+        instanceId,
+        instance.TenantId,
+        instance.UserId,
+        ReferenceWorkflowQueues.BusinessUserProfile(),
+        action,
+        stateVersion,
+        fieldValues: null);
+
+    return Results.Redirect("/admin/workflow");
 });
 
 app.MapPost("/admin/workflow/{instanceId}/reset", (string instanceId, BusinessAppWorkflowEngine engine) =>
