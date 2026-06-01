@@ -3,11 +3,12 @@
 Backend Developer specializing in core infrastructure and pipeline design.
 
 **Current Focus:**
+- Payment Gateway Wait-Flow Slice COMPLETED (2026-06-01)
 - Vinyl/Core notification boundary refactor COMPLETED
 - Core notification infrastructure remains reusable and stable
 - TestSite vinyl behavior now opt-in (configuration-driven)
 
-**Status:** All 851 backend tests passing; 0 build warnings
+**Status:** All tests passing; 0 build warnings
 
 ## Key Learnings
 
@@ -17,6 +18,20 @@ Backend Developer specializing in core infrastructure and pipeline design.
 - Process cleanup: Use specific PIDs (`kill $PID`), not name-based (`pkill`, `killall`) per security guidelines.
 - Aspire cleanup: Wire `postDebugTask` in `.vscode/launch.json` to clean up child processes spawned by DCP on debugger stop.
 - **Filesystem durability (2026-05-24):** Always call `stream.FlushAsync()` explicitly before closing file streams in write operations that are immediately followed by read verification. Linux CI environments with virtualized/networked filesystems cache directory metadata; relying only on `await using` disposal isn't sufficient to guarantee File.Exists() sees the new file. This manifested as intermittent HTTP 500 failures in `PostApply_WithExistingWorkflow_PublishesRuntimeDefinition` where `PublishAsync` couldn't reload the just-saved workflow JSON for round-trip verification.
+
+## 2026-06-01 — Payment Gateway Wait-Flow Slice COMPLETED
+
+**Branch:** Payment reference workflow slice  
+**Commit:** 8619e90
+
+**Scope:** Implement split fan-out from enter-payment-details to applicant wait at join gateway and payments-team confirmation stage.
+
+**Outcomes:**
+- ✅ Payment workflow topology: enter-details → split fan-out → applicant parks at join 'Awaiting payment confirmation' → payments-team confirmation → join releases to 'Payment complete'
+- ✅ Split/join topology projects correctly; applicant path parks at join
+- ✅ Waiting component emits while payments confirmation outstanding
+- ✅ Reviewer confirmation releases the join
+- ✅ Build: `dotnet build UmbracoPrism.sln` ✅ | Tests: `dotnet test` ✅
 
 ## 2026-05-31 — Slice B: Authoring stack leaves WorkflowEditor; publish moves into MockBusinessApp
 

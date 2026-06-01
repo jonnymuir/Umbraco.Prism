@@ -1,9 +1,4 @@
 ---
-author: copilot
-date: 2026-05-25T21:57:06.676+01:00
-status: directive
-area: workflow-editor
----
 
 # User Directive: Keep the workflow editor UI simple and clean
 
@@ -28,12 +23,6 @@ Jonny Muir (user request)
 **What:** Keep the workflow editor UI simple and clean; do not repeat validation warnings on the Canvas tab when they already appear on the Validation tab; fix stage/gateway alignment; design the canvas so stages and gateways can slot cleanly when a stage links to one or more gateways in the same or different lanes and gateways can link onward to stages or other gateways.
 **Why:** User request — captured for team memory
 
----
-
-author: isabelle
-date: 2026-05-25T21:57:06.676+01:00
-status: proposed
-area: workflow-editor-canvas
 ---
 
 # Decision: Keep the workflow canvas clean by separating validation from layout and adopting slot-based routing
@@ -138,12 +127,6 @@ This keeps the Canvas tab clean, makes the gateway model legible, and gives the 
 
 ---
 
-author: tom-nook
-date: 2026-05-25T22:04:00.819+01:00
-status: proposed
-area: workflow-editor-canvas
----
-
 # Decision: Gateway-first canvas draws unique adjacency rails
 
 ## Context
@@ -166,12 +149,6 @@ The row-band / slot-grid placement model was already the right foundation and sh
 
 This keeps the canvas visually calm while fixing the two concrete readability faults. It also gives Tangy's geometry tests a durable contract: distinct same-source corridors, separate join trunk, and no route running through a gateway body.
 
----
-
-author: tangy
-date: 2026-05-25T22:04:00.819+01:00
-status: proposed
-area: workflow-editor-tests
 ---
 
 # Decision: Canvas cleanup proof should measure slot readability, not shell screenshots
@@ -197,12 +174,6 @@ The older layout proof mixed shell-width assumptions, stale lane-count expectati
 
 Tangy's quality gate now points directly at the canvas behaviours Isabelle is meant to deliver, and it separates real canvas regressions from old screenshot churn.
 
----
-
-author: tom-nook
-date: 2026-05-25T21:57:06.676+01:00
-status: proposed
-area: workflow-editor-canvas-layout
 ---
 
 # Decision: Canvas layout should use lane row-bands and local slots
@@ -316,11 +287,6 @@ That reading order matters more than preserving authored array order on screen.
 This keeps the canvas simple for the common case while giving us one layout rule that can grow with concurrency. It also stops the editor from teaching the wrong model through overlapping nodes, duplicated warnings, and gateway placement that feels accidental rather than structural.
 
 ---
-author: tom-nook
-date: 2026-05-25T16:48:28.029+01:00
-status: proposed
-area: workflow-gateway-redo
----
 
 # Decision: Gateway-only redo contract
 
@@ -363,12 +329,6 @@ Do not call the redo ready until the design doc, decision record, editor visuals
 
 ---
 
-author: blathers
-date: 2026-05-25T16:48:28.029+01:00
-status: implemented
-area: workflow-authoring
----
-
 # Decision: Gateway-only authored routing and runtime alignment
 
 ## Context
@@ -396,12 +356,6 @@ Backend/runtime publishing is now aligned to the corrected gateway-only contract
 
 ---
 
-author: isabelle
-date: 2026-05-25T16:48:28.029+01:00
-status: proposed
-area: workflow-editor
----
-
 # Decision: Gateway-first editor surface in the client
 
 ## Context
@@ -418,12 +372,6 @@ The editor correction requires authors to understand gateways as the routing obj
 
 The current contract still lacks first-class authored edges whose endpoints can be either a stage or a gateway. That means the client can bind and visualise stage → gateway → stage paths through `fromGateway` and `toGateway`, but it cannot honestly author standalone gateway legs such as join → stage or gateway → gateway without carrying a hidden stage-to-stage transport record underneath. A future backend contract should promote route endpoints to first-class stage/gateway references, or introduce explicit gateway-edge records, before the editor can become fully gateway-only without compromise.
 
----
-
-author: tangy
-date: 2026-05-25T16:48:28.029+01:00
-status: proposed
-area: workflow-editor-tests
 ---
 
 # Decision: Gateway-only behavioural proof replaces hybrid transition proof
@@ -467,12 +415,6 @@ If the tests keep passing a hybrid model, the implementation can look polished w
 **What:** Redo the implementation with gateway-only transitions in mind and pay very careful attention to how the workflow editor looks.
 **Why:** User request — captured for team memory
 
----
-
-author: tom-nook
-date: 2026-05-25T16:39:24.354+01:00
-status: proposed
-area: workflow-editor-gateway-model
 ---
 
 # Decision: PR #89 is blocked by gateway model mismatch
@@ -554,12 +496,6 @@ It has useful partial work in it, but it should not be represented as satisfying
 5. **Review gate**
    - Do not mark the slice ready until graph, inspector, authored schema, simulation/runtime narrative, and behavioural tests all align on the same plain-language model.
 
----
-
-author: tangy
-date: 2026-05-25T16:39:24.354+01:00
-status: proposed
-area: workflow-editor-ux
 ---
 
 # Decision: Gateway mismatch review
@@ -6220,4 +6156,1925 @@ Docs:
 **Recommended execution order:** A → B → C, single PRs, green throughout, no slice merged with stale tests. Each slice is a coherent milestone: after A, the tree has no legacy dialect; after B, the editor is integrator-friendly; after C, the model matches the mental model.
 
 ---
+
+---
+author: blathers
+date: 2026-06-01
+status: proposed
+area: reference-workflows
+issue: 82
+---
+
+# Decision: Payment reference flow now waits at the join gateway
+
+## Context
+
+The payment reference example needed to match the product story Jonny signed off:
+the web user submits payment details, waits at a real join gateway, the payments
+team confirms the payment in the business app, and only then does the user move
+to the completion screen.
+
+The gateway projector fix was already in place, but this slice still needed the
+payment authored flow updated and the runtime path checked end to end so the web
+user saw the waiting state while the back-office confirmation was still pending.
+
+## Decision
+
+- The payment reference workflow now uses:
+  - a parallel split from `enter-details`
+  - an applicant-side join gateway `await-payment-confirmation`
+  - a payments-team confirmation stage `confirm-payment-received`
+  - a wait-for-all join release into `payment-complete`
+- The waiting message now lives on the join gateway, not on a fake waiting stage.
+- The payment entry, payments confirmation, and completion steps now use explicit
+  component trees with product-facing fields and copy.
+- The business app runtime path now honours gateway targets in this flow so the
+  applicant sees the waiting state while the payments lane is outstanding, and
+  the join releases once the confirmation arrives.
+
+## Consequence
+
+The payment demo now behaves like a real handoff story instead of a linear
+processing placeholder. The example proves the intended split → wait at join →
+back-office confirm → release pattern that the other reference workflows can
+follow in later slices.
+
+
+---
+author: blathers
+date: 2026-05-31
+status: decided
+area: workflow-engine, projector
+related-issue: squad/82
+supersedes: none
+related: blathers-reference-workflow-backend-audit.md
+---
+
+# Projector now emits gateway keys as runtime graph nodes
+
+## What changed
+
+`WorkflowProjector` previously flattened every authored gateway route straight to a
+`stage → stage` runtime transition. That meant the runtime engine's existing
+Split fan-out, Join waiting, and JoinArrivals release code paths were unreachable
+from any authored workflow — the engine looks for gateway keys in
+`transition.ToState` to fire `HandleSplitGatewayAdvance` / `HandleJoinGatewayAdvance`,
+and those keys never appeared.
+
+The projector now emits gateway keys as real graph nodes with rules that match
+the runtime engine's expectations:
+
+- **Parallel-fork Split** (≥2 routes all sharing one trigger): the gateway key
+  is emitted as a routing node. Shape:
+  `source → gatewayKey [trigger]` plus one `gatewayKey → routeTarget [split-auto]`
+  per branch. The engine reads `ToState == gatewayKey` and fans out one cursor
+  per outgoing edge.
+- **Exclusive-choice Split** (routes with distinct triggers) and
+  **single-route Split** (degenerate wrapper): stay flattened to
+  `source → routeTarget [trigger]`. Distinct triggers carry XOR semantics —
+  chaining them would silently convert XOR into a parallel fork and break
+  existing workflows. Single-route wrappers stay flat because routing them
+  through an intermediate Split node would create a deadlock when the target
+  is a Join (`HandleSplitGatewayAdvance` records the arrival but never fires
+  the release check, which lives only in `HandleJoinGatewayAdvance`).
+- **Join gateway** (no Source): now emits its outgoing edges as
+  `gatewayKey → routeTarget [trigger]`. These were previously dropped
+  entirely by the `Where(g => !string.IsNullOrWhiteSpace(g.Source))` filter,
+  so the join had no release edge to follow even when all required lanes
+  arrived.
+
+All transitions stay sorted by (FromState, ToState, Action) for deterministic
+output. Checksum determinism is preserved.
+
+## Why
+
+Audit `blathers-reference-workflow-backend-audit.md` (2026-05-31) identified
+the projector/engine boundary as the choke point blocking the
+"payment workflow with a join gateway" pattern. The authored model already
+expressed Split/Join/wait correctly. The engine already implemented the
+runtime semantics. The compiler in the middle was the only missing piece.
+
+This slice unblocks the target payment shape (split → join with waiting →
+second-role stage) without touching the engine, the authored model, the
+editor, or any reference workflow content. Those reshapes follow in
+later slices (Tom Nook for content, Isabelle for stage UI).
+
+## Behavioural proof
+
+New behavioural integration test
+`src/UmbracoPrism.Core.Tests/Workflow/Authoring/ProjectorEngineGatewayIntegrationTests.cs`
+authors a tiny split + join + wait workflow, projects it via the real
+`WorkflowProjector`, hands the projection to the real
+`WorkflowRuntimeEngine`, and asserts:
+
+1. `Split_AuthoredWorkflow_FansOutToOneCursorPerBranch_WhenProjectedAndRun` —
+   after the user takes the split's entry trigger, the engine has one cursor
+   per branch stage.
+2. `Join_AuthoredWorkflow_WaitsUntilAllRequiredLanesArrive_WhenProjectedAndRun` —
+   after the first lane arrives at the join, `ResponseState == "defer"`;
+   after the second lane arrives, the join releases and the workflow reaches
+   the confirmation stage with `ResponseState == "complete"`.
+3. `Join_AuthoredWorkflow_SurfacesWaitingCopyFromTheGateway_NotAFakeStage` —
+   the defer render contains a `waiting` component whose content comes from
+   the authored join's `WaitingInfo`.
+
+All three failed before the projector change (split-fan-out dead; release
+edge missing). All three pass after.
+
+## Test fixture update
+
+`WorkflowGatewayProjectionTests.Project_GatewayRoutes_AreEmittedAsRuntimeTransitions`
+was directly asserting the flattened bug shape (`submit → finance-review` etc).
+Updated to assert the chained shape (entry edge into the split gateway, plus
+`split-auto` fan-out edges, plus the join's release edge). The reframed test
+now describes the contract the engine actually needs.
+
+No other tests required changes. The `WorkflowProjectorDeterminismTests`
+`out-of-a` fixture is an XOR Split (distinct triggers), so it stays flat —
+no semantic change. The planning fixture is three single-route Splits, so it
+also stays flat — `StartupWorkflowPublishingTests` and
+`WorkflowPublishServiceTests` action assertions still hold.
+
+## Deliberately out of scope (follow-up slices)
+
+- The engine's `HandleSplitGatewayAdvance` does not check join release when
+  its outgoing edge lands on a Join key with `IsAtGateway=true`. This is a
+  latent deadlock if an author ever creates a Split whose route targets a
+  Join directly under a parallel-fork shape (≥2 routes sharing a trigger).
+  No existing authored workflow exercises this, and the projector won't
+  produce it from the four reference workflows, but the engine should
+  eventually grow either an auto-advance-into-join step or a release check
+  in the split path. Tracked as a future slice.
+- `WorkflowRuntimeEngine` join-arrival forgery (Copper MEDIUM, open) — out
+  of scope for this slice but related; the join path now fires for real on
+  projected workflows, so the existing finding becomes more reachable in
+  practice. Worth packaging with a follow-up engine-side slice.
+- Stale `MockBusinessApp/workflow-seeds/*.json` legacy files — separate
+  sweep slice.
+
+## Files touched
+
+- `src/UmbracoPrism.WorkflowEditor/Authoring/WorkflowProjector.cs` — replaced
+  flatten LINQ with `EmitTransitions(gateways)` that applies the rules above.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/ProjectorEngineGatewayIntegrationTests.cs` —
+  new behavioural integration test (3 tests).
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowGatewayProjectionTests.cs` —
+  updated the one assertion that pinned the bug shape.
+
+## Verification
+
+- `dotnet build UmbracoPrism.sln` — clean, 0 warnings, 0 errors.
+- `dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests` —
+  814/814 pass (up from 811; +3 new behavioural tests).
+
+
+---
+author: blathers
+date: 2026-05-31
+status: audit-finding
+area: workflow-engine, reference-workflows
+related-issue: squad/82
+---
+
+# Backend audit: 4 reference workflows vs. gateway-only engine model
+
+## TL;DR
+
+There are **three parallel expressions** of the 4 reference workflows on the
+backend, and they do not agree:
+
+1. **`ReferenceWorkflowRepository.cs` (canonical authored seed)** — gateway-clean.
+2. **`Core.Tests/.../Fixtures/*.workflow.json`** — gateway-clean (matches #1).
+3. **`MockBusinessApp/workflow-seeds/*.json`** — **fully legacy** stage→stage
+   format with no gateways at all. Stale leftover from the pre-Slice-C
+   projector. Not consumed by `Program.cs`, but still in tree and copied to
+   the build output by the csproj `Content Update` glob.
+
+The bigger backend finding sits at the **projector ↔ engine boundary**: the
+runtime engine (`WorkflowRuntimeEngine`) already knows how to fan cursors
+across split gateways and converge on join gateways, but the projector
+(`WorkflowProjector.EmitTransition`) flattens every `gateway.Source → route.Target`
+into a direct stage→stage transition and **never emits gateway keys as
+endpoints of `WorkflowTransitionFile`**. Gateways are only preserved as
+`Metadata.Gateways` sidecar. So at runtime the engine's `FindGateway` lookup
+in `transition.ToState` can never match — split/join logic is unreachable
+from any authored workflow that goes through the projector.
+
+This blocks the "payment workflow with a join gateway" pattern at the
+projector layer, not the editor layer.
+
+---
+
+## 1. File inventory (backend)
+
+### Canonical authored seed (gateway-clean)
+- `src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowRepository.cs`
+  - `PlanningWorkflow()` — 3 Split gateways, no Join.
+  - `CommunityEnquiryWorkflow()` — 1 Split gateway.
+  - `InformationRequestWorkflow()` — 2 Splits + 1 Join (`review-complete`,
+    `RequiredIncomingLanes = ["applicant", "caseworker"]`, `WaitingInfo`).
+  - `PaymentDemoWorkflow()` — 2 Splits + 1 Join (`payment-settled`,
+    `RequiredIncomingLanes = ["applicant", "payments"]`, `WaitingInfo`).
+- Loaded at runtime via
+  `src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowDefinitionStore.cs`
+  (wired in `Program.cs` as the active `IWorkflowDefinitionStore`).
+
+### Fixture mirrors used by tests (gateway-clean)
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/planning.workflow.json`
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/community-enquiry.workflow.json`
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/information-request.workflow.json`
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/Fixtures/payment-demo.workflow.json`
+
+All four use the new shape:
+`{ lanes, gateways[{ source, routes[{ id, target, trigger, ... }] }], stages, ... }`.
+Joins carry `type: "Join"`, `requiredIncomingLanes`, `waitingInfo`.
+
+### Stale published-format seeds (LEGACY — do not match current model)
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/information-request.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/payment-demo.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json` (5th file — not in scope but same legacy shape)
+
+These are `WorkflowDefinitionFile` (runtime/published) JSON, not authored.
+All five have top-level `states[]` + `transitions[]` with `fromState`/`toState`/`action`.
+No `gateways`, no `lanes`, no `metadata.gateways`. They look like outputs from
+the pre-Slice-C projector and were last touched 26 Apr – 22 May.
+
+Not loaded by `Program.cs`. The `FilesystemWorkflowDefinitionStore` would
+load them if a downstream app wired it, and `<Content Update="workflow-seeds\**\*">`
+in `UmbracoPrism.MockBusinessApp.csproj` still copies them into `bin/`.
+
+---
+
+## 2. Per-workflow definition status
+
+| Workflow              | Canonical (`ReferenceWorkflowRepository.cs`) | Test fixture JSON | Mock seed JSON     |
+|-----------------------|----------------------------------------------|-------------------|--------------------|
+| planning              | gateway-clean (3× Split, no Join)            | gateway-clean     | **legacy**         |
+| community-enquiry     | gateway-clean (1× Split, no Join)            | gateway-clean     | **legacy**         |
+| information-request   | gateway-clean (2× Split + 1× Join, waiting)  | gateway-clean     | **legacy**         |
+| payment-demo          | gateway-clean (2× Split + 1× Join, waiting)  | gateway-clean     | **legacy** (fakes "waiting" via a `waiting` component on a stage; no Join) |
+| _planning-notification_ (5th, out of scope) | n/a                            | n/a               | **legacy**         |
+
+Per the brief's checklist, evaluating the **canonical** authored definitions:
+
+- **Transitions via gateway nodes?** Yes. There is no `Transitions` collection
+  on `AuthoredWorkflow` any more (deleted in Slice C — see history.md
+  2026-05-31). Every edge lives inside `AuthoredGateway.Routes`.
+- **Split/join concepts in the definition or just labels?** First-class.
+  `GatewayKind { Split, Join }`, `Source` required on Split (forbidden on
+  Join), `RequiredIncomingLanes` + `WaitingInfo` required on Join.
+- **Validates against current `AuthoredWorkflow`/engine schema?** Yes.
+  `AuthoredWorkflowSchemaValidator` PROJ141–PROJ152 cover the gateway-first
+  rules; `WorkflowProjector.Project()` returns no errors for all 4 canonical
+  workflows.
+- **Deprecated fields still in use?** **None in the canonical authored
+  layer.** Slice A purged `LegacyFromStage/LegacyToStage/LegacyAction` etc.
+  from `AuthoredTransition`, Slice C deleted `AuthoredTransition` outright.
+  The legacy `fromStage`/`toStage`/`action` setter shims that emitted
+  Obsolete warnings are gone. The published projection still uses
+  `WorkflowTransitionFile.FromState/ToState/Action`, but those are runtime
+  contract — not "deprecated" in this scope.
+- **Waits / joins modelled?** `information-request` and `payment-demo` both
+  model real joins with `RequiredIncomingLanes` + `WaitingInfo` on the
+  authored object. `planning` and `community-enquiry` are fire-and-forget
+  single-lane flows by design — no join needed.
+
+The `MockBusinessApp/workflow-seeds/*.json` files would each fail the audit
+on every dimension (no gateways, raw `fromState`/`toState`/`action`,
+no lanes, payment-demo's "waiting" is a render-time component on a stage
+rather than a Join gateway).
+
+---
+
+## 3. Engine vs. authored-model capability assessment
+
+### What the engine can do
+`src/UmbracoPrism.WorkflowRuntime/Services/WorkflowRuntimeEngine.cs` already
+implements split/join semantics in full:
+- `HandleSplitGatewayAdvance` (line 874): creates one cursor per outgoing
+  branch when an advance lands on a split gateway, tags each cursor with the
+  target lane.
+- `HandleJoinGatewayAdvance` (line 964): parks the arriving cursor on the
+  join, records the lane in `instance.JoinArrivals`, and only releases the
+  follow-on transition once every `RequiredIncomingLanes` lane has arrived.
+- `BuildJoinWaitingEnvelope`: surfaces the join's `WaitingContent` /
+  `WaitingPollIntervalMs` / `WaitingAllowDefer` to the client while siblings
+  are outstanding.
+
+### What the projector emits
+`src/UmbracoPrism.WorkflowEditor/Authoring/WorkflowProjector.cs:239`:
+```csharp
+private static WorkflowTransitionFile EmitTransition(AuthoredGateway gateway, AuthoredRoute route) =>
+    new() { FromState = gateway.Source, ToState = route.Target, ... };
+```
+Every authored route becomes a single transition from the gateway's source
+stage straight to the route's target stage. **Gateway keys never appear as
+`FromState` or `ToState`.** Gateways survive only as sidecar metadata in
+`WorkflowDefinitionMetadata.Gateways`.
+
+### The gap
+`WorkflowRuntimeEngine.AcceptAction` triggers gateway handling via:
+```csharp
+var nextGateway = FindGateway(definition, transition.ToState);  // line 271
+```
+…where `FindGateway` walks `definition.Metadata?.Gateways` looking for a
+gateway whose `Key` equals the transition's `ToState`. Because the projector
+never emits a transition whose `ToState` is a gateway key, `FindGateway`
+always returns null on projected workflows and the engine falls through to
+the straight stage→stage path. Split fan-out and join waiting are dead code
+for any authored workflow.
+
+`WorkflowJoinGatewayEngineTests` only passes because the test fixture
+hand-builds a `WorkflowDefinitionFile` with `stage → gateway → stage`
+transitions (lines 236–241). No projector-produced workflow ever reaches
+that shape.
+
+**Capability gap that blocks the "payment workflow with a join gateway"
+pattern:** the projector must learn to emit the three-edge chain
+(`source → gatewayKey`, `gatewayKey → target` for splits; symmetric for
+joins) so the engine's existing gateway machinery can fire. The authored
+model and the engine are both ready; the compiler in the middle is the
+choke point.
+
+A secondary gap, called out in `history.md` 2026-05-30, remains open:
+`WorkflowRuntimeEngine join-arrival forgery` (Copper MEDIUM) — arriving
+cursors are trusted client-side and the engine accepts whatever
+`LaneKey` the cursor carries. Worth folding into the same slice that
+re-shapes projector output.
+
+---
+
+## 4. Obsolete fields still in use
+
+Audited surfaces:
+
+- **`AuthoredWorkflow` / `AuthoredStage` / `AuthoredGateway` / `AuthoredRoute`**
+  → clean. No `[Obsolete]` members remain (Slice A purge).
+- **`AuthoredHandoff.FromStage` / `ToStage`** → canonical for handoffs, not
+  deprecated. Do not conflate with the deleted `AuthoredTransition` aliases.
+- **`WorkflowTransitionFile.FromState` / `ToState` / `Action`** → runtime
+  contract, not deprecated. Keep.
+- **`MockBusinessApp/workflow-seeds/*.json`** → entire files are legacy
+  shape; they don't trip Obsolete attributes because they only become
+  `WorkflowDefinitionFile` instances at deserialisation, which is current.
+  They are "deprecated content", not "deprecated fields".
+
+No live `[Obsolete]` warnings expected. `dotnet build` of
+`UmbracoPrism.sln` should come up clean on the authoring layer (last full
+build 860/860 in `history.md`).
+
+---
+
+## 5. Test fixtures that would shift
+
+If/when the projector starts emitting gateway nodes, the following tests
+will need their hand-built definitions and/or assertions updated:
+
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowGatewayProjectionTests.cs`
+  - `Project_GatewayRoutes_AreEmittedAsRuntimeTransitions` directly asserts
+    the flattened shape (`FromState == "submit" && ToState == "finance-review"`)
+    — would need to assert the chained shape.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/MultiLaneGatewayContractTests.cs`
+  - `Stages_AreActionBearing_GatewaysAreNot_InProjectedOutput` and siblings
+    rely on the current emission contract.
+- `src/UmbracoPrism.Core.Tests/Workflow/Components/WorkflowJoinGatewayEngineTests.cs`
+  - Already constructs the *desired* chained shape by hand. Would become
+    redundant against projector-derived fixtures but the core assertions
+    should still hold.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/PlanningWorkflowFixtureTests.cs`
+  - Asserts stage and transition counts against the fixture file. Counts
+    won't shift on the authored side (single source of truth is the
+    AuthoredWorkflow), but if the test ever projects through, expected
+    transition count will rise (one extra edge per route).
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/MockBusinessAppPlanningWorkflowSeedTests.cs`
+  - Validates the authored repository contract; no shift expected on
+    repository-only assertions. If it round-trips through the projector,
+    same caveat as above.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/StartupWorkflowPublishingTests.cs`
+  - Currently asserts the publish path completes for each of the 4 workflows.
+    Will surface real engine behaviour once chaining is in. Likely needs a
+    new assertion that join workflows actually wait/release end-to-end.
+
+The 4 reference workflows **are** used as test fixtures
+(`MockBusinessAppPlanningWorkflowSeedTests`, `PlanningWorkflowFixtureTests`,
+`StartupWorkflowPublishingTests`) — they're the canonical "does the seed
+match the canonical repository" gate. Any reshape ripples through these.
+
+---
+
+## 6. Recommended backend slices
+
+Order matters. Engine fix first, definition fix follows.
+
+### Slice B1 — Projector emits gateway nodes (engine fix, unblock target model)
+- Change `WorkflowProjector` to emit, per gateway:
+  - one `WorkflowTransitionFile { FromState = stage, ToState = gatewayKey, Action = trigger }` per inbound stage (for joins) or per source stage (for splits);
+  - one `WorkflowTransitionFile { FromState = gatewayKey, ToState = route.Target, Action = "split-auto" | route.Trigger }` per route.
+- Mirror the convention `WorkflowJoinGatewayEngineTests` already assumes
+  (`split-auto` for split fan-out, `release` for join exit).
+- Update `WorkflowGatewayProjectionTests` and `MultiLaneGatewayContractTests`
+  to assert the chained shape.
+- Keep `Metadata.Gateways` exactly as it is — the engine reads it.
+
+### Slice B2 — Wipe the stale `workflow-seeds/*.json` legacy files
+- Once `Program.cs` is verified to use only `ReferenceWorkflowDefinitionStore`,
+  delete the five legacy JSON files and drop the
+  `<Content Update="workflow-seeds\**\*">` glob from
+  `UmbracoPrism.MockBusinessApp.csproj`.
+- Alternative: regenerate them on build from the canonical repository via
+  the projector, so they remain a living "what does a published workflow
+  look like" reference instead of a stale snapshot.
+- Either way, `Phase1SecurityRegressionTests.cs:872` creates a
+  `workflow-seeds/` directory in a test temp path — verify nothing else
+  depends on the in-tree copies before deleting.
+
+### Slice B3 — Close the `JoinArrivals` forgery (security hygiene)
+- Existing Copper MEDIUM finding (`WorkflowRuntimeEngine join-arrival
+  forgery`). Worth packaging with B1 because both touch the gateway
+  execution path and B1 will substantially exercise the JoinArrivals
+  bookkeeping for the first time on real authored workflows.
+
+### Not a slice
+- Authored seed cleanup — already done. Don't re-open.
+- Editor / TS side — Tom Nook's lane (architecture audit) and Isabelle's
+  lane (canvas). Stay clear from backend.
+
+---
+
+## Note on lane boundary with Tom Nook
+
+Tom Nook is doing the parallel architecture audit on the same workflows.
+This document deliberately stays in the backend definition + engine lane:
+data shape on disk, projector emission, runtime engine wiring, test
+fixtures. Editor topology, canvas slot layout, story coverage, and the
+client wire-format are out of scope.
+
+
+# Decision — Stages carry the GDS component tree directly
+
+**Author:** Blathers (Coding Agent, working as backend dev)
+**Date:** 2026-06-01
+**Issue:** #82 (named-lanes editor — Slice A consolidation)
+
+## What changed
+
+`AuthoredStage` no longer carries a flat `Fields: List<AuthoredField>`. Instead
+it carries `Components: IReadOnlyList<PrismComponent>` — the same polymorphic
+GDS hierarchy (`fieldset`, `accordion`, `panel`, `summary-list`, `task-list`,
+input variants, body/inset-text/warning-text, …) that the runtime already
+consumes. The TypeScript editor's `AuthoredStage.components` mirrors the C#
+shape exactly.
+
+`AuthoredField` and `FieldType` (C#) and `AuthoredField` / `FieldKind` (TS)
+have been removed. There is no transitional cohabitation: stages declare
+components and only components.
+
+`WorkflowProjector.EmitComponents` is now a near-pass-through:
+
+- If `stage.Components.Count > 0`, emit them verbatim.
+- Otherwise emit a kind-appropriate default
+  (`Question` → empty fieldset; `CheckAnswers` → harvested summary list;
+   `Confirmation` → panel + optional body; `TaskList` → empty task list).
+
+The gateway projector (`EmitTransitions`, commit 23b34c2) is **untouched**.
+
+## Why
+
+The April 2026 component-hierarchy decision (`tom-nook-component-hierarchy-feasibility.md`)
+landed the polymorphic tree on the runtime side, but authoring kept a flat
+field list that the projector translated into a single fieldset. That
+translation was the only thing standing between authors and the full GDS
+vocabulary (panels, accordions, warning-text, summary-list rows, …) that
+real workflows already need. Removing it lets stages express GDS directly
+and removes a class of "the runtime can render this but the editor can't
+author it" bugs.
+
+## Editor UX implication
+
+The Inspector's stage panel now shows a **read-only Components summary**
+(count + per-component label/kind) and a hint pointing authors at the
+**Definition tab** for detailed editing via the JSON editor. There is no
+component tree editor or palette — that is deliberately out of scope for
+this slice; the Definition tab covers complex setup.
+
+## Reference workflows
+
+The four MockBusinessApp reference workflows (planning, information request,
+payment demo, community enquiry) have been re-authored with real GDS
+components: fieldsets with meaningful legends, body content, inset-text /
+warning-text where appropriate.
+
+## Tests
+
+- `dotnet test UmbracoPrism.Core.Tests` → 814/814 passing.
+- `npm run build` (Client + WorkflowEditor) → green, 0 type errors.
+- C# fixture JSON files and TS planning fixture migrated to the components
+  shape.
+
+## Follow-ups for other squad members
+
+- **Isabelle (designer):** the Inspector now nudges authors to the Definition
+  tab for component editing. Consider whether the summary view needs richer
+  affordances (inline JSON snippet preview? per-component "open in JSON
+  editor at this path" link?).
+- **Tom Nook (architect):** the projector pass-through means the C# wire
+  output for stages now contains `components: [...]` exactly as runtime
+  expects — confirm any downstream consumers (state-machine importer,
+  audit log) cope with the richer shape.
+
+
+### 2026-05-31T23:30:00+01:00: User directive
+**By:** Jonny (via Copilot)
+**What:** Go back to the original component hierarchy as it was (the GDS componentised model from the April decisions — PrismComponent polymorphic tree with all 22 component types), and complement it with the workflow editor and the gateway transition model. Don't invent parallel "authoring schemas". Plain product language only — no "authoring", no "schemas", no jargon.
+**Why:** Jonny is explicit: the May greenfield drift away from the decided component hierarchy was a wrong turn. The original component model is what authors should be expressing; the editor and the gateway model wrap around it.
+
+
+### 2026-05-31T23:42:00+01:00: User directive
+**By:** Jonny (via Copilot)
+**What:** Restore the original PrismComponent hierarchy as what stages carry — properly, not as a transitional `fields: + components:` cohabitation. Stages stop carrying a flat `fields:` list and carry a `components:` tree directly. The inspector experience stays basic for now; for complex component setup, authors use the JSON properties editor in the editor's Definition tab as the fallback until a dedicated component-editing UI is designed.
+**Why:** Jonny: "I think just do it with components, i.e. do it properly. The inspector experience will have to be basic for now, to be honest we may as well just let editors complete it with the json properties editor until we work out a good editor experience for doing complex component set up."
+
+
+# Gateway Waiting UI Contract Trace
+
+**Date:** 2026-06-01
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)
+**For:** PR #82 — Named Lanes Editor Slice
+
+## Summary
+
+The existing waiting message + polling UX **can work unmodified with join gateways**. No contract changes needed. The gateway runtime already exposes waiting state in the correct shape for the UI.
+
+## Where the Waiting Logic Lives
+
+### UI Rendering
+- **File:** `/src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-Waiting.cshtml`
+- **Role:** Server-side partial that renders when `StepType` is "waiting"
+- **Responsibility:** Displays waiting message, extracts polling parameters, embeds polling script
+
+### Client-Side Polling
+- **File:** Inline JavaScript in `_WorkflowStep-Waiting.cshtml` (lines 159–215)
+- **Mechanism:** `setInterval` poll loop calling `/api/prism/workflow/poll`
+- **Behavior:** Polls at `pollIntervalMs`, compares state version, reloads page on change
+- **Accessibility:** Uses `aria-live="polite"` for screen reader status updates
+
+### Poll Endpoint
+- **File:** `/src/UmbracoPrism.Core/Controllers/WorkflowPollController.cs`
+- **Route:** `GET /api/prism/workflow/poll`
+- **Request:** `workflowKey`, `instanceId`, `knownStateVersion` (query params)
+- **Response:** `{ changed: bool, newStateVersion: int, stepType: string }`
+
+### Runtime Engine
+- **File:** `/src/UmbracoPrism.WorkflowRuntime/Services/WorkflowRuntimeEngine.cs`
+- **Method:** `BuildJoinWaitingEnvelope()`
+- **Behavior:** Constructs a waiting component from join gateway metadata and returns it in the response envelope
+
+## Current State/Response Shape
+
+The UI expects a **waiting component** with these properties:
+```json
+{
+  "type": "waiting",
+  "content": "We're processing your request. Please do not close this page.",
+  "expectedWaitSeconds": 30,
+  "pollIntervalMs": 5000,
+  "allowDefer": true,
+  "deferMessage": "You can leave and return later…"
+}
+```
+
+**Poll Response Shape:**
+```json
+{
+  "changed": false,
+  "newStateVersion": 5,
+  "stepType": "status-timeline"
+}
+```
+
+When `changed: true`, the page reloads to fetch the new state (which will contain the next step or, if still waiting, an updated waiting component).
+
+## Gateway Waiting Integration Status
+
+✅ **Already Implemented:** Join gateways are properly wired to the waiting UI.
+
+### How It Works
+
+1. **Author defines waiting on join gateway:**
+   - Adds `waitingInfo` with content, expectedWaitSeconds, pollIntervalMs, allowDefer, deferMessage
+
+2. **Projector exposes gateway waiting:**
+   - `WorkflowProjector.cs` maps `gateway.WaitingInfo` → `WorkflowGatewayDefinition.Waiting*` fields
+
+3. **Runtime engine constructs waiting component:**
+   - `BuildJoinWaitingEnvelope()` reads gateway waiting metadata
+   - Creates a `PrismComponentRenderPayload` with type "waiting"
+   - Sets `PollAfterMs` on the response envelope from gateway poll interval
+
+4. **UI renders without changes:**
+   - Server-side partial sees `type: "waiting"` in components
+   - Extracts and uses the same waiting properties (content, pollIntervalMs, etc.)
+   - Existing polling JavaScript works unchanged
+
+### Verified By Tests
+
+- **Unit:** `WorkflowJoinGatewayEngineTests.cs` confirms waiting component emission from join gateway
+- **Unit:** `MultiLaneGatewayContractTests.cs` verifies gateway waiting metadata is projected correctly
+- **Component:** `WorkflowRenderShellResolverTests.cs` confirms shell resolution for waiting components
+
+## Contract Status: No Changes Needed
+
+| Aspect | Status | Why |
+|--------|--------|-----|
+| UI renders waiting | ✅ Works | Existing partial handles any waiting component |
+| Polling mechanism | ✅ Works | Poll endpoint is state-based; works for any state that has a waiting component |
+| Response shape | ✅ Matches | Gateway waiting fields map directly to waiting component properties |
+| Polling parameters | ✅ Set | `PollAfterMs` on envelope uses gateway's `WaitingPollIntervalMs` |
+| Accessibility | ✅ Preserved | Screen reader status updates use same live region for all waiting scenarios |
+
+## Minor Test Coverage Gaps
+
+1. **No test for poll endpoint itself** — The `WorkflowPollController` has no unit tests
+2. **No E2E test for join gateway waiting + polling loop** — Integration test would verify full flow (arrive at join, see waiting, poll, release, reload)
+
+**Recommendation:** Consider adding:
+- Unit test for `WorkflowPollController.Poll()` 
+- E2E test with Playwright that exercises join gateway waiting → polling → release cycle
+
+## UI Accessibility Notes
+
+The waiting partial already handles accessibility correctly:
+- Uses `role="region"` with `aria-labelledby` for the waiting banner
+- Uses `role="status"` with `aria-live="polite"` and `aria-atomic="true"` for poll status updates
+- Visually hidden live region ensures screen readers announce poll progress
+- Defer option (when enabled) is clearly labeled in an expandable details/summary
+
+No changes needed for gateway waiting.
+
+## Conclusion
+
+**The existing waiting UX reuses perfectly with join gateways.** No frontend or runtime contract changes are required. The gateway's waiting metadata flows through the runtime engine as a standard waiting component, which the existing rendering and polling logic consumes without modification.
+
+
+---
+author: isabelle
+date: 2026-05-31
+status: review (audit only — no code changes)
+area: workflow-runtime-ui, workflow-editor-preview, accessibility
+related: tom-nook-reference-workflow-audit.md (parallel architecture audit)
+---
+
+# Stage UI / GDS Regression Review
+
+## TL;DR
+
+The stage *components* (fieldset, field partials, summary list, accordion, etc.) are still GDS-clean. What has regressed is the **stage SHELL** — the per-step-type wrappers (`_WorkflowStep-Question`, `-Review`, `-Completion`, `-StatusTimeline`, `-TaskList`, `-Waiting`) and how `workflowPage.cshtml` chooses headings. The shells diverged from a single GDS pattern into 6 hand-written variants, each inconsistent with the next on:
+
+- page heading (`workflow-page__title` vs `govuk-heading-l`)
+- form wrapping (`<prism-workflow-form>` vs raw `<form>` vs *no `<form>` at all*)
+- error summary placement (Question only — everything else has none)
+- button-group rendering and submit semantics
+
+Separately, the **editor's stage preview** (`prism-stage-preview.ts`) is a parallel reimplementation of GDS markup with a *different* heading hierarchy than the runtime, so "what authors see in preview" is not "what end-users get."
+
+The big visible regression — the one Jonny is reacting to — happened at commit **40314e2** (*"feat: PrismComponentTagHelper + component partials + migrate step partials to Core"*, 2026‑04‑22) and was cemented at **7423803** (*"v2.0 schema — fields become first-class components"*, 2026‑04‑26). Together they dropped the GDS canonical *"label or legend as page heading"* pattern (`is-page-heading` / `govuk-fieldset__heading`) that was working at **7edeb8b** (Phase 1).
+
+---
+
+## 1. Files where a "stage" is rendered
+
+### Runtime stage host (server-side, Razor)
+
+- `src/UmbracoPrism.Core/Views/workflowPage.cshtml` — orchestrator: picks the shell partial by `WorkflowRenderShellResolver.ResolveShell(...)`, owns the page `<h1>` *only for the Question shell*.
+- `src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-Question.cshtml`
+- `src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-Review.cshtml`
+- `src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-Completion.cshtml`
+- `src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-StatusTimeline.cshtml`
+- `src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-TaskList.cshtml`
+- `src/UmbracoPrism.Core/Views/Partials/_WorkflowStep-Waiting.cshtml`
+
+### Component partials (still healthy)
+
+- `src/UmbracoPrism.Core/Views/Partials/PrismComponents/_PrismComponent-Fieldset.cshtml`
+- `…/PrismComponents/_PrismComponent-{Accordion,SummaryList,Panel,NotificationBanner,InsetText,WarningText,Details,Body,Heading,TaskList}.cshtml`
+- `…/PrismFields/_Component-{Text,Textarea,Number,Decimal,Email,Date,Radio,Checkboxlist,Select,Boolean,Default}.cshtml` + `_ComponentLabel.cshtml`
+
+### Test site mounts
+
+- `src/UmbracoPrism.TestSite/Views/workflowPage.cshtml` — **near-duplicate** of the Core view (drifts independently from Core).
+- `src/UmbracoPrism.MockBusinessApp/...` — does not render a workflow stage UI; it is the business backend issuing payloads, not a renderer.
+
+### Editor preview / inspector
+
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-stage-preview.ts` — *reimplements* GDS markup in Lit for the canvas preview (parallel to the Razor partials).
+- `src/UmbracoPrism.Client/src/workflow-editor/prism-step-inspector.ts` — authoring inspector (stage key, title, lane, description, routes). Not a stage renderer; not part of the regression.
+- `src/UmbracoPrism.Client/src/workflow-editor/workflow-runtime-projection.ts` — builds the `ProjectedComponent` model the preview consumes (matters for §3).
+
+### CSS
+
+- `src/UmbracoPrism.TestSite/wwwroot/branding/prism-forms.css:618–633` — defines `.workflow-page__title` with a non-GDS `clamp(32px, 5vw, var(--prism-text-size-xl))` scale.
+- `src/UmbracoPrism.TestSite/wwwroot/css/components.css:1316` — duplicate `.workflow-page__header` declaration.
+
+---
+
+## 2. What stage rendering used to look like (Phase 1 — commit 7edeb8b, 2026‑04‑19)
+
+A single, canonical GDS pattern across shells:
+
+```razor
+@* _WorkflowStep-Question.cshtml @ 7edeb8b *@
+<prism-workflow-form ...>
+  <prism-error-summary problems="@Model.Problems" />
+
+  @foreach (var group in Model.FieldGroups)
+  {
+    @if (group.Fields.Count > 1)
+    {
+      <fieldset class="govuk-fieldset">
+        <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
+          <h1 class="govuk-fieldset__heading">@group.DisplayName</h1>   @* ← GDS canonical *@
+        </legend>
+        ...
+      </fieldset>
+    }
+    else
+    {
+      @* Single field: page-heading pattern *@
+      <prism-field field="@field" ... is-page-heading="true" />
+    }
+  }
+  <div class="govuk-button-group">...</div>
+</prism-workflow-form>
+```
+
+Properties of the Phase 1 design:
+
+- One page heading, **inside** the legend (multi-field) or **inside** the label (single-field). This is the GDS *Page-heading* pattern (https://design-system.service.gov.uk/styles/typography/#page-headings).
+- One error summary, top of form, every shell.
+- One form element via `<prism-workflow-form>` — anti-forgery, hidden state, and the `govuk-button-group` lived inside it.
+- All shells used the same `govuk-grid-row` / `govuk-grid-column-two-thirds` container.
+- "Check your answers" was a fixed h1 for the Review shell — recognisable GDS pattern.
+
+---
+
+## 3. What it looks like now (specific complaints)
+
+### 3a. Page-heading pattern is gone
+
+`workflowPage.cshtml:51–55` wraps only the Question shell with:
+```razor
+<div class="workflow-page__header">
+  <h1 class="workflow-page__title">@Model.StateDisplayName</h1>
+</div>
+```
+…then renders `<prism-component>` → `_PrismComponent-Fieldset.cshtml` which now:
+- For a single-question step (`useSingleQuestion`, line 6) → emits the field with a plain `<label class="govuk-label">` (`_ComponentLabel.cshtml:2`). **The label is no longer the page heading.** Result: a small label sitting under a big page title, no semantic linkage.
+- For a multi-field group → emits `<fieldset><legend class="govuk-fieldset__legend govuk-fieldset__legend--m">` (line 20). Default is `--m`. **There is no `<h1>` inside the legend any more.** GDS guidance for question pages is for the legend to *contain* the page heading.
+- The `is-page-heading` / `IsPageHeading` / `govuk-fieldset__heading` markers have been entirely deleted from the repo — `grep` returns zero hits. So the Phase 1 pattern is unrecoverable from the data model alone.
+
+**Accessibility impact:** screen-reader users hear the page title, then a separate field label, with no `<legend>` → field association on single-question pages. Sighted users see a thin label visually disconnected from the big page title.
+
+### 3b. Inconsistent typography between shells
+
+- Question (`workflowPage.cshtml:54`): `<h1 class="workflow-page__title">` — *custom* class scaled with `clamp(32px, 5vw, ...)` in `prism-forms.css:627`.
+- Review (`_WorkflowStep-Review.cshtml:8`): `<h1 class="govuk-heading-l">` — GDS class.
+- Completion (`_WorkflowStep-Completion.cshtml`): no h1 at all (the partial trusts the page; the page provides no header for "confirmation" shells). The `govuk-panel` confirmation header that *should* be `<h1>` is missing — Phase 1 had it.
+- StatusTimeline (`_WorkflowStep-StatusTimeline.cshtml:5`): `<h1 class="govuk-heading-l">`.
+- TaskList (`_WorkflowStep-TaskList.cshtml:5`): `<h1 class="govuk-heading-l">`.
+- Waiting (`_WorkflowStep-Waiting.cshtml:79`): `<h1 class="govuk-heading-l">`.
+
+So **moving between two stages in the same workflow visibly resizes the page title** and changes its weight. This is the most likely thing Jonny is reacting to as "confused design."
+
+### 3c. Some shells are missing the `<form>` element
+
+- `_WorkflowStep-StatusTimeline.cshtml:24–26` and `_WorkflowStep-TaskList.cshtml:25` render `<button type="submit" name="Action" ...>` **with no enclosing `<form>` element** and no `<prism-workflow-form>` wrapper. These buttons will not submit anything when clicked — they will either do nothing or, depending on browser, submit the page's outer document form if one exists (it doesn't). This is a functional regression, not just visual.
+- `_WorkflowStep-Review.cshtml:22–37` hand-rolls a `<form>` with anti-forgery + 5 hidden inputs (InstanceId, StateVersion, WorkflowKey, ReturnUrl, Nonce). This duplicates exactly what `<prism-workflow-form>` does in Question. Two ways to spell the same thing → drift.
+- `_WorkflowStep-Completion.cshtml:23` renders action buttons as plain `<a href="/">` — destination is hard-coded `/` and ignores the action's actual target. Also: `Submit` buttons styled as anchors break keyboard activation semantics (anchors activate on Enter only; submit buttons on Enter + Space).
+
+### 3d. Error summary only exists on Question
+
+`<prism-error-summary>` is only emitted by Question (via `<prism-workflow-form>`'s internal layout). If a Review (`check-answers`) step has server-side validation errors (`Model.Problems`), the user sees **no GDS error summary**, just per-field errors scattered through the summary list. GDS error summary is mandatory at the top of any form-validating page.
+
+### 3e. Ad-hoc inline styles re-introduced
+
+`_PrismComponent-SummaryList.cshtml`:
+- line 22: `style="display:inline"`
+- lines 30–32: a 6-property inline style on a `<button>` to make it look like a `govuk-link`.
+
+This was the kind of one-off styling that the Phase 1 GDS pass deliberately removed. It also bypasses any future theme overrides.
+
+### 3f. Waiting partial has a duplicate banner + inline `<script>`
+
+- `_WorkflowStep-Waiting.cshtml:85–96` renders a notification banner inline.
+- Lines 113–124 render the **same banner again** in an unreachable branch (`hasWaitingUi && waitingComponent is null` — `hasWaitingUi = waitingComponent is not null` two lines above, so it's effectively dead code that someone hasn't pruned).
+- Lines 157–214 inline a 60-line poll script directly in the partial. The other shells use web components; this one bakes JS into HTML. Inconsistent and harder to test.
+
+### 3g. Editor stage preview rewrites GDS with a different heading hierarchy
+
+`prism-stage-preview.ts`:
+- line 112: stage name rendered as `<h3 class="preview-stage-name">` — runtime renders the same name as `<h1>`.
+- line 145: accordion section heading as `<h4 class="govuk-heading-s">` — runtime uses `<h2 class="govuk-accordion__section-heading">`.
+- line 155: panel title as `<h3 class="govuk-panel__title">` — runtime uses `<h1>`. The confirmation panel in GDS *must* be the page h1.
+- line 165: generic heading component as `<h4>` — runtime computes the level from `component.level` (1–6).
+- line 177: `<details>` gets `role="group"` — wrong ARIA; `<details>` already has correct implicit semantics.
+- lines 177, 186: `aria-label` on containers whose visible heading is already inside — duplicate accessible name.
+
+So a designer using the canvas preview sees a plausible-looking but structurally *wrong* page and cannot verify the runtime heading hierarchy from inside the editor.
+
+### 3h. TestSite duplicates Core's `workflowPage.cshtml`
+
+`src/UmbracoPrism.TestSite/Views/workflowPage.cshtml` is a near-clone of `Core/Views/workflowPage.cshtml`. The Core one is the embedded default; the TestSite copy will override it. Two versions silently diverging is exactly how shells become inconsistent.
+
+---
+
+## 4. Root cause (commits)
+
+| Commit | Date | What it did | What broke |
+|---|---|---|---|
+| `7edeb8b` | 2026-04-19 | Phase 1: rebuilt views with `govuk-*` classes, `is-page-heading` on `prism-field`, `<h1 class="govuk-fieldset__heading">` in legends. | Baseline. Clean. |
+| `ecd09e0` | 2026-04-20 | "outer template owns h1 for question steps; partial legend has no inner h1" | Moved the h1 out of the legend into the page. Convenient at the time but broke the GDS *page-heading* pattern: the legend / label is no longer the heading. |
+| `40314e2` | 2026-04-22 | Migrated step partials Core; introduced `<prism-component>` tag-helper and the 13 component partials. | Locked in per-shell drift. Each shell partial copy-pasted slightly different structure for h1/form/button-group. Single-question single-field special-case (`useSingleQuestion`) just dropped the label-as-h1 idea entirely. |
+| `7423803` | 2026-04-26 | v2.0 schema: fields became first-class components; `FieldGroups`/`FormSectionDefinition` deleted. | Removed the data shape (`FieldGroup`) that carried the *intent* to group fields under a single legend / page heading. Now grouping is implicit ("a fieldset component is a fieldset component"), so the renderer can no longer tell whether the page heading should live in the fieldset or in the page chrome. |
+| `64742fe` | 2026-04-26 | Removed `stepType` + `waitingConfig` from authored schema; shell now inferred. | `WorkflowRenderShellResolver` now picks the partial — but each partial owns its own h1 and form wrapping. Without an authored `stepType` to override, the inferred shell's idiosyncrasies are unavoidable. |
+| (recent) | — | Gateway-only refactor (slices A–D). | Not a direct cause of the GDS regression — it touches the canvas, not the runtime shells. But Jonny perceives the two together. |
+
+**Net root cause:** the Phase 1 design had *one* shell (Collect) plus three terminal shells; the migration to component-first + shell-resolver fan-out turned that into six shells, each hand-rolled, with no shared layout primitive enforcing the GDS pattern.
+
+---
+
+## 5. Recommended restoration plan (one slice at a time — Jonny's preference)
+
+### Slice 1 — Re-establish a single stage-shell primitive (frontend, no schema change)
+
+Goal: pull the common chrome (govuk-grid-row, page h1, error summary, form, button group) into one server-side component or partial. Every shell partial then only renders its body content.
+
+- Add `_WorkflowStage-Shell.cshtml` (or `<prism-stage-shell>` tag helper) accepting: `Title`, `HeadingStyle` (page-heading | section-heading | none-panel-takes-h1), `RenderForm` (true/false), `RenderErrorSummary`, plus the action list.
+- Migrate `_WorkflowStep-Question` → uses shell with `HeadingStyle = page-heading`.
+- Acceptance: every shell uses the same outer markup; visual diff between two stages of a workflow is only the body, never the chrome.
+
+### Slice 2 — Fix the missing `<form>` bug on StatusTimeline + TaskList
+
+- Wrap both shells in `<prism-workflow-form>` so their submit buttons actually submit.
+- Convert Completion's "buttons" from anchors back to submit buttons (or keep as links *only* when the action genuinely is "navigate to URL X").
+- Acceptance: every action button on every shell hits the workflow gateway on Enter/Space/click.
+
+### Slice 3 — Restore the GDS page-heading pattern
+
+- Reintroduce an `IsPageHeading` signal on the stage payload (or compute it: "if this stage has exactly one input component and a question-style shell, the field label is the page heading").
+- Update `_ComponentLabel.cshtml` + `_PrismComponent-Fieldset.cshtml` to emit `<h1 class="govuk-label-wrapper"><label …></label></h1>` or `<legend><h1 class="govuk-fieldset__heading">…</h1></legend>` when the signal is set.
+- Remove the always-on page h1 from `workflowPage.cshtml` for shells that own their heading.
+- Acceptance: every question page has exactly one `<h1>`, and that `<h1>` is the field label (single-field) or fieldset legend (multi-field).
+
+### Slice 4 — Typography unification
+
+- Delete `.workflow-page__title` (`prism-forms.css:627`) and the second copy in `components.css:1316`.
+- Use `govuk-heading-xl` for confirmation panels (GDS default), `govuk-heading-l` for all other page h1s.
+- Acceptance: every page h1 in every shell uses a GDS class; no `clamp()` typography.
+
+### Slice 5 — Clean up SummaryList inline styles
+
+- Replace the inline-styled `<button>`-as-link with a GDS "change link as button" pattern (small partial or CSS utility).
+- Acceptance: `grep "style=" src/UmbracoPrism.Core/Views` returns nothing.
+
+### Slice 6 — Waiting partial cleanup
+
+- Delete the unreachable duplicate banner block (lines 113–124).
+- Move the polling script into a small web component (`<prism-waiting-poll>`).
+- Acceptance: partial drops below 60 lines; no inline `<script>`.
+
+### Slice 7 — Editor stage preview parity
+
+- Promote the preview's `_renderComponent` switch to use the same heading levels as the runtime (panel → h1, accordion section → h2, etc.).
+- Remove `role="group"` from `<details>` and the duplicate `aria-label`s.
+- Acceptance: preview's heading outline matches the runtime's `axe` outline for the same stage.
+
+### Slice 8 — Delete TestSite's `workflowPage.cshtml`
+
+- Let the Core embedded view serve. Re-add only if TestSite truly needs to override something.
+- Acceptance: one place defines the workflow page chrome.
+
+---
+
+## 6. Accessibility regressions (a11y is mandate)
+
+Surfacing the WCAG-relevant items from above:
+
+1. **Page-heading pattern lost** (§3a) — WCAG 2.4.6 *Headings and Labels*, GDS form pattern. Screen-reader users lose the legend/label-as-heading association.
+2. **Inconsistent h1 styling and missing h1 on Completion** (§3b) — WCAG 1.3.1 *Info and Relationships*, 2.4.10 *Section Headings*.
+3. **Submit buttons with no `<form>` ancestor** (§3c) — WCAG 2.1.1 *Keyboard*: button activation submits nothing, so the user is stranded on the stage with no way to advance via keyboard.
+4. **Missing error summary on non-Question shells** (§3d) — GDS error summary is the documented entry point for keyboard/AT users to reach the first invalid field. WCAG 3.3.1 *Error Identification*.
+5. **Anchors styled as primary actions on Completion** (§3c) — keyboard activation differs from buttons (no Space activation). WCAG 2.1.1.
+6. **Inline-styled `<button>` as link in SummaryList** (§3e) — visible link styling without `:focus` treatment may fail 2.4.7 *Focus Visible* under high-contrast themes; the inline styles override the GDS focus rules.
+7. **Editor preview heading hierarchy lies** (§3g) — not a runtime a11y bug, but it prevents the author from spotting runtime a11y bugs at design time.
+8. **`role="group"` on `<details>`** (§3g) — incorrect ARIA; redundant role announcement to AT users in the editor preview.
+
+---
+
+## 7. Lane discipline
+
+Tom Nook is auditing the workflow JSON / architecture in parallel. Findings that touch the *data model*:
+
+- The loss of `FormSectionDefinition` / `FieldGroup` at commit `7423803` removed the renderer's hook for "this group is a page-heading-bearing legend." If Tom recommends keeping the v2.0 component-first model (likely), the page-heading signal needs to be re-derived (see Slice 3) — either by inference rules in `WorkflowRenderShellResolver`, or by an authoring flag on `FieldsetComponent` (e.g. `LegendAsPageHeading: bool`). I'd recommend the latter — authors usually know which legend is the page title.
+
+That is the only crossover. The architecture audit and the GDS audit can land independently otherwise.
+
+---
+
+## 8. Storybook gap
+
+There is no story that renders an end-user stage page (the Razor partials live server-side and aren't covered by Storybook). The editor's `prism-stage-preview` has implicit coverage via the editor-shell stories. Once Slice 1 lands a shared shell primitive, it would be worth either:
+
+- a Playwright snapshot per stage type in `UmbracoPrism.TestSite`, or
+- a server-rendered Storybook fixture page that hosts each shell against a representative payload.
+
+This is Tangy's call — flagging it here, not deciding it.
+
+
+---
+id: tom-nook-component-hierarchy-feasibility
+date: 2026-05-31
+author: tom-nook
+status: feasibility note (spike — no code changes)
+area: workflow-editor, authoring
+related:
+  - copilot-directive-20260531-2330.md
+  - tom-nook-componentised-gds-reconciliation.md
+  - tom-nook-reference-workflow-audit.md
+  - blathers-projector-gateway-emission.md
+---
+
+# Going back to the component hierarchy — feasibility note
+
+## Answer
+
+**Yes — workable, and much smaller than the previous framing made it sound.** We have not drifted too far. The component hierarchy is still alive and intact at the runtime end. The flat fields list is a thin layer that sits on top, and the editor UI built on it is much thinner than I feared. We can put the component tree back in the middle without a rebuild.
+
+## Why I'm confident (the evidence)
+
+Three things make this cheap:
+
+1. **The runtime still knows every component.** `PrismComponent.cs` still declares all 22 kinds (fieldset, accordion, body, inset-text, warning-text, details, notification-banner, panel, summary-list, task-list, waiting, every input). The Razor partials and tag helper still dispatch on them. Nothing on the rendering side was lost in May.
+2. **The editor's preview already speaks the tree.** `prism-stage-preview.ts` walks the projected component tree and has a render branch for every component kind — fieldset, accordion, panel, waiting, task-list, body, heading, inset-text, warning-text, details, notification-banner, summary-list, plus every input via the default branch. It is genuinely waiting for a real tree to be handed to it.
+3. **The editor's "fields" UI is read-only.** The step inspector's Fields section is a 15-line list that shows `label · kind · required` for each field. There is no per-field drag handle, no per-field edit form, no inline validation builder, no undo/redo coupling to field order. Replacing a flat read-only list with a tree-shaped read-only list is small.
+
+The actual scope of the regression is two files (`AuthoredStage.cs` / `AuthoredField.cs` on the server, `types.ts` on the client) and the two projectors that wrap the flat list in an anonymous fieldset (`WorkflowProjector.cs` lines ~174–197 server, `workflow-runtime-projection.ts` lines ~233–264 client). That is the whole footprint.
+
+## Shape of the work, in plain language
+
+- The editor's JSON file for a stage stops carrying a flat `fields:` list and starts carrying a `components:` tree. Each input is a component; a fieldset (with a legend) is a component that holds inputs; body / inset-text / warning-text / accordion are siblings inside that tree.
+- The projector becomes a **pass-through**. Today it wraps every stage's fields in an anonymous fieldset; after this move it just hands the authored tree to the runtime as-is. The CheckAnswers stage stops scraping every other stage's fields and instead just emits a `summary-list` component the author placed there.
+- The runtime renderer doesn't change. It already accepts the tree.
+- The lane/stage/gateway model is **completely untouched**. Lanes, stages, gateways, routes, transitions, waiting metadata — all live on the workflow at a level above the stage's content. They wrap the components; they don't compete with them.
+- The inspector's Fields section becomes a small tree view ("a stage holds these components") instead of a flat list. Still read-only at first.
+
+## The rocks (honest)
+
+- **Editor UI assumptions:** very few. The Fields panel is a read-only list — no drag handles, no per-field editing, no undo/redo coupling, no accessibility patterns built around row order. Replacing it with a tree of `label · kind` rows is cheap. There is no inspector for editing individual field properties at all today (you edit them by hand in the JSON tab), so we are not throwing away a complex form designer because we never built one.
+- **Runtime renderer:** truly accepts the tree as-is. The May regression nibbled at the *authoring shape*, not at the runtime. The preview component already has render branches for all 22 component kinds. One small thing to revisit: the preview has a "if a fieldset has no legend and one child, unwrap it" shortcut (`prism-stage-preview.ts:201`) — that shortcut was a coping mechanism for the anonymous wrapper and should go away once authoring can express a real fieldset (or absence of one) deliberately.
+- **Tests asserting the flat shape:** small set. Roughly 7 test files reference `Fields = …`, each with 1–4 occurrences. They are mechanical to rewrite (`Fields = [field]` → `Components = [new FieldsetComponent { Children = [input] }]` or `Components = [input]` for the no-grouping case). The 4-workflow contract suite does not assert on field shape.
+- **Workflow content:** the 4 reference workflows are in one file (`ReferenceWorkflowRepository.cs`) with only 4 `Fields =` initialisers. Trivial to re-author in the new shape, and this is the natural moment to give Planning some body copy, Information Request a real reviewer fieldset, etc. The `workflow-seeds/*.json` files are dead weight already flagged for deletion. The TS fixtures have ~11 `fields:` initialisers — small.
+- **Editor consumers (TestSite / MockBusinessApp):** no changes beyond regenerating any committed JSON snapshots. They consume the projected runtime payload, which already speaks the tree.
+- **The real rock** is one we should name: the JSON-on-disk shape for any saved workflows changes. We need either (a) a one-shot rewrite of the 4 reference workflows and any test JSON, or (b) a tiny "old `fields:` → new `components:`" reader that accepts both during the transition. Given the small number of authored documents, **(a) is cleaner**. Don't build a migrator we throw away.
+
+## Effort estimate
+
+Roughly **4 slices**, in product language:
+
+1. **Spike slice — one stage proves the path.** Add a `components:` field alongside `fields:` on the stage. Wire the projector to prefer `components:` when present, fall through to today's flat path otherwise. Re-author one stage of the payment workflow to use `body + fieldset(text, text) + warning-text`. Confirm it renders end-to-end in the preview and the live mock business app. No deletions yet.
+2. **Switch the model.** Drop `fields:` from the stage. Re-author the 4 reference workflows and the TS fixtures into the component shape. Make the projector a pass-through. Delete the anonymous-fieldset wrapper and the CheckAnswers field-scraping. Update the ~7 server tests.
+3. **Inspector tree view.** Replace the Fields list in the step inspector with a Components tree view (still read-only — names + kinds, indented). Keep the rest of the inspector identical.
+4. **Polish + closing.** Drop the "unwrap single-child fieldset" shortcut in the preview. Remove `workflow-seeds/*.json` (dead). Refresh design docs and the editor README so the language matches the model again.
+
+(Inspector *editing* of components — add/remove/reorder, palette, per-component property panes — is a separate, later body of work. Worth doing, but not part of this restoration. If we want it, scope it as its own arc on top of slice 4.)
+
+## Recommended first slice (concrete)
+
+**Add `components:` alongside `fields:` and re-author exactly one stage** — the payment workflow's `enter-details` stage — to use `body("Enter your card details") + fieldset(legend "Card", text(cardholder), text(reference)) + decimal(amount)`. Server-side, the projector emits the authored components verbatim when present, otherwise falls back to today's wrapper. Tests added: round-trip serialisation, and a render assertion that the preview shows the `body` and the legend-bearing fieldset distinctly. No existing tests change. No other workflow changes. No deletions.
+
+This is the smallest move that proves the whole pipe — authored tree → projector pass-through → runtime payload → preview + Razor render — end-to-end, on real reference content, with the gateway/lane model still wrapped around it untouched. If it lands clean, slices 2–4 are mechanical.
+
+## How Blathers' Slice 1 (today) slots in
+
+Blathers' gateway-projector fix (commit `23b34c2`) lives on the **transitions** side of the projector — it makes gateway keys appear as real graph nodes so the engine's split/join/waiting code actually runs. It touches `EmitTransitions` and the transition graph; it does **not** touch `EmitComponents` or anything about stage content.
+
+So: **fully orthogonal, survives the move, no adjustment needed.** The component-tree work changes how a stage's *insides* are projected; Blathers' fix changes how *transitions between* stages and gateways are projected. They share a file and nothing else. The 814/814 green baseline includes the gateway emission contracts, and re-authoring the reference workflows in slice 2 will not regress those tests because the gateway/lane fields on `AuthoredWorkflow` and `AuthoredStage` are unchanged.
+
+One small upside: with the reference workflows re-authored in slice 2, we get a natural place to add demo body/inset-text alongside the real gateway demonstrations Blathers' fix now enables, so the same workflow shows off both improvements together.
+
+## Recommendation
+
+Take slice 1 next. It is small, reversible, and proves the architecture without committing to the full restoration. If Jonny is happy with the result, slices 2–4 are a 1-week rhythm at our current cadence.
+
+
+---
+id: tom-nook-componentised-gds-reconciliation
+date: 2026-05-31
+author: tom-nook
+status: reconciliation (audit only — no code changes)
+area: workflow-authoring-schema, workflow-editor-ui
+related:
+  - tom-nook-reference-workflow-audit.md (parallel — found the same files I missed)
+  - isabelle-stage-ui-gds-regression.md (parallel — Razor shell regression at 40314e2/7423803)
+supersedes: (correction to) the "should we add FieldGroup back?" framing in tom-nook-reference-workflow-audit.md
+---
+
+# Reconciliation: the componentised GDS model is already a decided architecture
+
+## Acknowledgement (no spin)
+
+My reference-workflow audit framed `AuthoredStage.Fields` as a "flat list" and asked
+"should we add FieldGroup back?" as if it were a fresh open question. **That framing was
+wrong.** Jonny is correct: we already decided, in writing and twice, that workflows are
+component trees and that the unit of authoring is a polymorphic `PrismComponent` — not
+a list of fields and not a "field group". I missed the prior art. This note corrects the
+record before Slice 5 (and any decomposition that flows from it) is scoped.
+
+---
+
+## 1. The original decision (verbatim)
+
+There are **three** decisions in the chain. All live in
+`.squad/decisions/archive/2026-04-22-and-earlier.md`.
+
+### Decision A — 2026-04-22: "Replace FieldGroupKeys/FormSection with GDS component model"
+
+Commit **`f4b35e5`** (Jonny Muir, 2026-04-22 21:34:21 +0100):
+
+> Replace FieldGroupKeys/FormSection with GDS component model
+>
+> - Add PrismComponentDefinition (design-time) to WorkflowDefinitionFile.cs
+>   with support for fieldset, summary-list, panel, body, heading, inset-text,
+>   warning-text, details, notification-banner, task-list, accordion types
+> - Add PrismComponentRenderPayload (runtime) to WorkflowResponseEnvelope.cs
+>   replacing FormSection; remove FormSection record entirely
+> - Replace FieldGroups: IReadOnlyList<FormSection> with
+>   Components: IReadOnlyList<PrismComponentRenderPayload> on StepContent
+> - Update WorkflowDefinitionBuilder: replace WithFieldGroups/AllowActions with
+>   AddFieldset/AddSummaryList/AddContent/AddComponent fluent API
+
+This is the **first** call: "field group" is a v1 concept and it is being deliberately
+**replaced** by a component model where containers (fieldset, accordion, summary-list,
+task-list) and content (body, heading, inset-text, warning-text, details, notification-banner,
+panel, waiting) are first-class peers of inputs. Authoring and runtime use the same shape.
+
+### Decision B — 2026-04-22: "stepType Removal & Component Model Unification"
+(`.squad/decisions/archive/2026-04-22-and-earlier.md:1–60`, also at line 2578 — "MERGED EARLIER")
+
+> Remove `stepType` from authored workflow JSON. Engine derives runtime `shell`
+> property from component tree structure. Promote `WaitingConfig` from sidecar to
+> first-class component type.
+> …
+> | Pro | Con |
+> | Authors never declare stepType redundantly | New engine inference rules |
+> | Component tree is fully self-describing | … |
+
+Unifies the authoring and runtime models. The phrase "component tree is fully
+self-describing" is the architectural promise — there is no parallel `fields[]` track.
+
+### Decision C — 2026-04-26: "Workflow Schema v2.0 Rollout Plan" + Design Audit
+(`.squad/decisions/archive/2026-04-22-and-earlier.md:2625` and `:2724`)
+
+> **Mandate:** Implement polymorphic type hierarchy, view-layer collapse, **`FieldFile`
+> elimination.**
+> …
+> **Key Findings:**
+> 1. Confirmed: **Fields BECOME first-class components (no `fields[]` array)**
+> 2. 7 of 9 docs need rewrite …
+
+Atomic landing commit: **`7423803`** — *"feat(workflow)!: atomic v2.0 schema
+replacement — fields become first-class components"*. Polymorphic discriminator is
+`"type"`, sealed records per component, no nullable-slot "god object", and crucially
+**no `fields[]` collection on a stage** — the stage carries a `components[]` tree and
+every input is itself a component.
+
+The package docs encode the same line: `docs/design/workflow-forms-engine.md:85` —
+*"The important shift is that authored definitions and rendered payloads now tell the
+same story: workflows are component trees, not ad-hoc field-group dumps."*
+
+---
+
+## 2. Intended shape (plain product language)
+
+A stage owns a **tree of components**, not a list of fields. The same component
+vocabulary is used by the author, the projector, the runtime payload and the Razor /
+Lit renderers. The shapes are:
+
+- **Containers** — `fieldset`, `accordion`, `summary-list`, `task-list`. Containers
+  hold children (other components, including more containers).
+- **Inputs** — `text`, `email`, `textarea`, `number`, `decimal`, `select`, `radio`,
+  `checkboxlist`, `date`, `boolean` (plus `tel` from the builder). These are
+  themselves components, not entries in a sibling `fields[]` array.
+- **Content / status** — `body`, `heading`, `inset-text`, `warning-text`, `details`,
+  `notification-banner`, `panel`, `waiting`. First-class components, not sidecar
+  decoration on a "field group".
+
+Concretely, an author saying *"on this stage, show some guidance text, then group two
+inputs under a legend, then a warning"* should express that as four siblings inside the
+stage's `components` array — a `body`, a `fieldset` (with two input children), and a
+`warning-text` — not as a single anonymous fieldset wrapping the two inputs with no
+way to express the guidance text at all.
+
+The componentised model is **extension-shaped on purpose**: adding a new GDS
+component (or a non-GDS component library) is a matter of adding a sealed record + a
+discriminator + a renderer partial, with no change to the authoring shape and no
+change to the engine. That is the "could be extended to other components" promise
+Jonny is remembering.
+
+---
+
+## 3. Current shape on disk
+
+### Runtime — intact
+
+`src/UmbracoPrism.Shared/Models/Workflow/Components/PrismComponent.cs` is exactly
+the decided shape: `[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]` with
+22 sealed `[JsonDerivedType]` entries (fieldset, accordion, panel, summary-list,
+task-list, text, number, decimal, select, radio, checkboxlist, date, email, textarea,
+boolean, body, heading, inset-text, warning-text, details, notification-banner,
+waiting). The runtime envelope, the Razor `PrismComponentTagHelper`, and the
+convention-based partial dispatch (`_PrismComponent-{Type}.cshtml`) all still consume
+this hierarchy as designed.
+
+### Authoring — regressed to a flat fields list
+
+`src/UmbracoPrism.WorkflowEditor/Authoring/AuthoredStage.cs:91–92`:
+
+```csharp
+[JsonPropertyName("fields")]
+public IReadOnlyList<AuthoredField> Fields { get; init; } = [];
+```
+
+`AuthoredField.cs` is a single non-polymorphic record with a `FieldType` enum
+(`Text`, `Email`, `Number`, …). There is **no** `AuthoredComponent` base, **no**
+container concept, **no** content-component concept, **no** `components[]` collection
+on the stage, and **no** way to author a `body` / `inset-text` / `accordion` / nested
+`fieldset` / extra `summary-list` / etc.
+
+`src/UmbracoPrism.Client/src/workflow-editor/types.ts:46` mirrors the regression:
+the TS `AuthoredStage` likewise carries `fields?: AuthoredField[]`, not a component
+tree.
+
+### Projector — papers over the gap by inventing a wrapper
+
+`src/UmbracoPrism.WorkflowEditor/Authoring/WorkflowProjector.cs:184–207`:
+
+```csharp
+private static IReadOnlyList<PrismComponent> EmitQuestionComponents(AuthoredStage stage)
+{
+    var children = stage.Fields
+        .OrderBy(f => f.Key, StringComparer.Ordinal)
+        .Select(f => (PrismComponent)MapFieldToInputComponent(f))
+        .ToList();
+    return [new FieldsetComponent { Children = children }];      // anonymous wrapper
+}
+
+private static IReadOnlyList<PrismComponent> EmitCheckAnswersComponents(AuthoredWorkflow authored)
+{
+    var questionFields = authored.Stages.Where(s => s.Kind == StageKind.Question) …
+        .Select(f => (PrismComponent)MapFieldToInputComponent(f))
+        .ToList();
+    return [new SummaryListComponent { Children = questionFields }];
+}
+```
+
+Every Question stage produces *exactly one* anonymous `FieldsetComponent`. Every
+CheckAnswers stage produces *exactly one* anonymous `SummaryListComponent` filled
+from every Question stage in the workflow. No legend. No body copy. No inset-text.
+No second fieldset. No accordion. No nested grouping. The componentised model exists
+at the back wall, but the authoring surface can only express one degenerate shape.
+
+---
+
+## 4. What regressed, when, and likely why
+
+The flattening did **not** happen during the v2.0 runtime migration that Isabelle is
+investigating. Isabelle's regression event (`40314e2`, `7423803`, both 2026-04-22 /
+2026-04-26) is in the **Razor stage shells** — page-heading pattern, error summary
+placement, form-element ownership — and the runtime component model survived it
+intact.
+
+The authoring-schema regression is a **separate, later event**:
+
+- **Commit `84ba5eb`** — *"Foundation: define workflow schema and authoring data
+  model (#75)"*, 2026-05-22 06:49 +0100. This is the first commit that touches
+  `src/UmbracoPrism.WorkflowEditor/Authoring/AuthoredStage.cs` and `AuthoredField.cs`.
+  `git log --oneline -- AuthoredStage.cs AuthoredField.cs` returns only four commits
+  (`84ba5eb`, `bb5baa9`, `a251bcd`, `af404c1`) and none of them ever introduces a
+  component tree — the shape has been flat from birth.
+
+- **Likely cause:** issue #75 was scoped as "define a *new, clean* authoring schema
+  for the new editor library". Without a pointer back to the 2026-04-22 / 2026-04-26
+  decisions, whoever wrote the new model treated it as a greenfield design and
+  reached for the easiest shape — a stage with a flat `fields[]` array — because the
+  rest of the new editor (gateway-only transitions, lanes, handoffs) is what the
+  issue was visibly about. The runtime PrismComponent hierarchy was re-used at the
+  projector edge only, which is precisely the symptom: the decision *was*
+  implemented at runtime (April), then *not carried forward* when the authoring
+  layer was re-built as a new library (May).
+
+- Same direction of failure as Isabelle's regression, different mechanism: hers is
+  the shells losing the GDS pattern; mine is the *authoring schema* losing the
+  componentised pattern. Both happened because a later piece of work reached for the
+  smallest local shape that compiled, with no callback to the April decision record.
+
+So this is failure mode **(c) from Jonny's prompt** — the decision was made, fully
+implemented in the runtime layer, and then **regressed during the WorkflowEditor
+library extraction / new-schema foundation work in May**, not during the v2.0
+migration.
+
+---
+
+## 5. Corrected framing for the stage UI slice
+
+My audit's open question said:
+
+> Should we add FieldGroup back?
+
+That's the wrong question on three counts:
+
+1. **"FieldGroup" is v1 vocabulary that was deliberately retired** by Decision A.
+   Saying "add it back" reads as a retreat from the component model. We are not
+   adding back a `FieldGroupKeys` / `FormSection`. We are restoring the v2 decision
+   in the place it never landed: the authoring schema.
+2. **The unit being restored is not "a group" — it is the componentised tree.** The
+   absence of containers is the visible symptom; the *real* gap is that authors can't
+   express any of the non-input components (body, heading, inset-text, warning-text,
+   details, notification-banner, accordion, additional fieldset, second summary-list,
+   panel placement, etc.). Re-introducing "FieldGroup" alone would still leave 11 of
+   the 22 runtime component types unauthored.
+3. **The slice name should call it what it is.** Slice 5 (or whatever we land in
+   Slice 4/5 territory) is *"Restore the componentised authoring model that Decisions
+   A, B and C committed us to."* Not *"add field groups."*
+
+So: **Slice 4 doesn't change in shape** — it can still be the stage UI / inspector
+work on the existing schema, and it can ship with the flat model unchanged. But
+**Slice 5 changes meaningfully**: it stops being "an inspector polish slice" and
+becomes "the slice that brings the authoring schema up to the decided architecture".
+That has knock-on consequences for Slice 4 *only* if Slice 4 plans to bake the flat
+`fields[]` shape into a new UI surface (inspector panes, drag-drop, list rendering).
+If Slice 4 does that, it will need re-work the moment Slice 5 lands. So the right
+sequencing question for Jonny is: *do we hold Slice 4 inspector work behind Slice 5,
+or do we let Slice 4 commit to a flat-fields UI that we'll explicitly throw away?*
+
+Recommended sequencing: **invert** — do the schema restoration before the inspector
+UI hardens around the wrong model. The inspector is the slowest piece to re-work and
+the one users feel most.
+
+---
+
+## 6. Recommendation: single slice or its own decomposition?
+
+**Own decomposition.** This is not a single coherent slice because it touches at
+least six independently-testable surfaces:
+
+| # | Surface | What changes |
+|---|---|---|
+| R1 | `AuthoredComponent` base + at minimum `Fieldset` + the existing input set | Mirror the runtime polymorphism in the authoring namespace; keep TypeScript types.ts in lockstep |
+| R2 | `AuthoredStage.Components` (replaces `Fields`); migrate `AuthoredField` to `InputAuthoredComponent` subtypes | Plus a JSON-boundary normaliser so legacy `fields[]` documents are read and rewritten |
+| R3 | `WorkflowProjector` becomes a pass-through tree-mapper rather than a wrapper | Removes `EmitQuestionComponents` wrapping; CheckAnswers still gathers but from the component tree |
+| R4 | `AuthoredWorkflowSchemaValidator` learns the tree (cycle / depth / containment rules) | New diagnostics for container-of-input, input-in-input, etc. |
+| R5 | Editor UI — inspector, preview, palette — switches to component-tree authoring | Largest piece by LOC; needs the schema landed first |
+| R6 | Reference workflows + tests + fixtures + seed JSON | Use the new shape to actually demonstrate `body` / `inset-text` / multi-fieldset, etc. |
+
+Recommended approach:
+
+1. **Spike (≤1 day):** `AuthoredComponent` + `AuthoredFieldsetComponent` +
+   `AuthoredTextInputComponent`, parallel to the existing `AuthoredField`. Demonstrate
+   round-trip (author → project → runtime payload → Razor render) for one stage in
+   one reference workflow with `body` + `fieldset(text, text)` + `warning-text`. No
+   migration yet. Goal: prove the shape works end-to-end before we start replacing
+   anything.
+2. **R1 + R2 + R3 as one slice** behind the spike (schema + projector flip + JSON
+   normaliser; old `fields[]` documents still load). This is the breaking
+   architectural piece and it must land atomically on the back end.
+3. **R4** as a follow-up (validator hardening) — cheap and isolated.
+4. **R5** as its own slice (or pair of slices: inspector first, palette second). This
+   is where Slice 4/5 effort actually lands once the schema is right.
+5. **R6** as a closing slice — the reference workflows finally demonstrate what the
+   component model is *for*, which loops directly into my earlier reference-workflow
+   audit.
+
+This is roughly the same decomposition Tom did for v2.0 itself (P1 types → P2
+migrator → P3 engine → P4 builder → P5 view collapse → P6 release), scaled down for
+the authoring side. We already have the precedent; we should use it.
+
+---
+
+## 7. Lesson logged
+
+This is a real process miss on my part — the prior decision was twice in the archive,
+once in the inbox of recent decisions, and three times in the package docs. The
+correct first step for any "should we add X?" architectural framing is
+`grep -i {keyword} .squad/decisions.md .squad/decisions/archive/*.md docs/design/**`,
+not "let me reason about the current code shape." I will append this to my history.
+
+
+---
+id: tom-nook-reference-workflow-audit
+date: 2026-05-31
+author: tom-nook
+status: proposed
+area: reference-workflows
+supersedes: none
+---
+
+# Decision: Reference workflows need a gateway-semantics pass; payment is the lead slice
+
+## Context
+
+The engine now mandates gateway-only transitions (see decisions.md, "gateway-first" entries from late May 2026 and the post-reset audit on 2026-05-31). The four reference workflows shipped before that mandate landed. They were ported far enough to compile and validate — every transition does technically pass through a gateway — but most of them are still **stage→gateway→stage** chains where the gateway is a no-op pass-through. They don't actually *demonstrate* what gateways buy you (decisions, joins, multi-role handoffs, waiting states).
+
+The four workflows live in **`src/UmbracoPrism.MockBusinessApp/Services/ReferenceWorkflowRepository.cs`** (single file, 4 private factories). The JSON files under `src/UmbracoPrism.MockBusinessApp/workflow-seeds/*.json` are dead weight — the runtime store re-projects from the C# repository in code and never reads them (already flagged in the post-reset audit; one of them, `planning-notification.json`, isn't even in the four-workflow set).
+
+## Per-workflow findings
+
+### 1. Planning Application (`planning-application`)
+
+**Lines:** ReferenceWorkflowRepository.cs ~29–253.
+
+**Current shape:**
+- One lane (`applicant`).
+- Four stages in a straight line: declaration → application-form → check-answers → submitted.
+- Three split gateways, each with exactly one route. The third (`route-submitted`) carries a `condition` (`application.isComplete == true`) and a `forms.submit` action.
+- One `AuthoredHandoff` from `check-answers → submitted` with `actorChange = "caseworker"` — but the `submitted` stage's `Actor`/`LaneKey` is still `applicant`, so the handoff is documented but not modelled.
+
+**Gaps:**
+- Gateways are decorative — 1-route splits with no decisions, no joins, no fan-out. This is the canonical "gateway-as-syntax-tax" smell.
+- The `Handoff` to a caseworker is a vestige of the old transition model; there is no caseworker lane, no caseworker stage, no join. The story is "applicant fills in a form and clicks submit" — no service handover is actually shown.
+- The conditional gateway (`isComplete == true`) is well-placed but invisible because there's no alternative branch — when the condition is false, nothing happens visibly. A decision gateway with only the happy-path route is just an assertion, not a demonstration.
+
+**Recommended target shape:**
+- Add a `caseworker` lane.
+- Replace the post-`check-answers` gateway with a real **decision split**: `complete → submit-for-review`, `incomplete → return-to-application-form` (close the loop back to the form so the validation expression has a visible alternate path).
+- Add a `caseworker-review` stage in the caseworker lane.
+- Add a **join gateway** "Awaiting decision" (waiting metadata on the applicant side) that requires incoming from both `applicant` and `caseworker` and releases to a `decision-issued` stage.
+- This makes Planning the canonical "form → review → decision" template and gives us a second multi-lane example beyond the payment one.
+
+### 2. Community Enquiry / "Get in Touch" (`community-enquiry`)
+
+**Lines:** ~255–281.
+
+**Current shape:**
+- One lane (`applicant`).
+- Two stages: `collecting-details` → `submitted` (Confirmation).
+- One 1-route split gateway.
+
+**Gaps:**
+- Deliberately minimal. That's fine *if* we want a "hello world" reference. It is not fine if every example is supposed to show gateway power.
+
+**Recommended target shape:**
+- Keep this one tiny on purpose, but rename intent: this is the **"smallest valid workflow"** reference. Make it explicit in the description ("Reference: minimum viable workflow — one stage, one confirmation, one gateway"). No structural change.
+- Acceptable trade: it is the only workflow that *doesn't* need to demonstrate joins/multi-lane, because its job is to demonstrate the floor.
+
+### 3. Information Request (`information-request`)
+
+**Lines:** ~283–404.
+
+**Current shape:**
+- Two lanes: `applicant`, `caseworker`.
+- Stages: `collecting-info` (applicant) → `caseworker-review` (caseworker) → `complete` (applicant).
+- Three gateways: a split that fans `collecting-info` out to *both* the join (`review-complete`) and `caseworker-review`; a 1-route split off `caseworker-review`; a **join** `review-complete` with `WaitingInfo`, `RequiredIncomingLanes = [applicant, caseworker]`, releasing to `complete`.
+
+**Gaps:**
+- Closest to "right shape" of the four. It already uses split + join + multi-lane + waiting.
+- The decision split is implicit — the applicant submit fans to both branches unconditionally. There is no real *choice*, just parallel paths. That's fine for "waiting on a parallel reviewer" but is worth labelling as such in the gateway display name (currently `"Request submitted"`).
+- The `caseworker-review` stage has no fields/description body — it's an empty placeholder. A reviewer stage that contains nothing to review undersells the multi-role story.
+
+**Recommended target shape:**
+- Keep the topology; tighten labels (`"Submit → wait for caseworker"` is clearer than `"Request submitted"`).
+- Give `caseworker-review` 1–2 fields (e.g. `outcome: approve/reject`, `caseworkerNotes`) so the reviewer actually has something to do in the business app.
+- This becomes the canonical **"parallel review + join + waiting"** reference.
+
+### 4. Payment Demo (`payment-demo`)
+
+**Lines:** ~406–501.
+
+**Current shape:**
+- Two lanes: `applicant`, `payments` (actor `reviewer`).
+- Stages: `enter-details` (applicant) → `provider-processing` (payments) → `payment-complete` (applicant).
+- Three gateways: a split off `enter-details` that fans to *both* `payment-settled` (join) and `provider-processing`; a 1-route split off `provider-processing`; a join `payment-settled` requiring both lanes, with waiting metadata, releasing to `payment-complete`.
+
+**Gaps vs Jonny's brief:**
+- Topologically this is already 80% there — it has the right gateway skeleton. The problems are in **labels, framing, and actor naming**:
+  - The first split is named "Payment submitted" — it should be named to convey *what is being decided* ("Send to payment provider"). It currently reads like a status, not a routing decision.
+  - The split fans unconditionally to both branches; that's fine for "we always go via the provider then converge", but the *story* the demo tells is "applicant submits and somehow two things happen". Make it explicit: the applicant path goes straight to the join's waiting state; the payments path goes to the back-office stage.
+  - The `payments` lane uses generic actor `"reviewer"` — for the payment domain this should be `"payments-officer"` or `"finance"`, and the stage should be named for the back-office *action* ("Confirm payment received") rather than the system's view ("Provider processing").
+  - `provider-processing` has zero fields. The whole point of the back-office stage is that an ops user opens the business app and clicks **"confirm payment received"** — that action needs to be visible (a field, a button, an action).
+  - The waiting copy ("Your payment is being processed right now") is OK, but the join's display name "Payment settled" describes the *exit* state, not the *waiting* state. The brief asks for it to be labelled as the wait.
+
+## Payment workflow — concrete target shape
+
+Per Jonny's brief, restated as the authored model:
+
+**Lanes**
+- `applicant` (actor: `applicant`)
+- `payments-office` (actor: `payments-officer`) — rename from `payments`/`reviewer`
+
+**Stages**
+- `enter-details` (applicant, Question) — fields: cardholder, amount, reference. *Unchanged from today aside from a reference field.*
+- `awaiting-confirmation` is **not a stage** — it is the join gateway's waiting state. (Today the wait already lives on the join; keep it there.)
+- `confirm-payment-received` (payments-office, Question) — fields: `confirmationReference` (text, required), `amountReceived` (decimal, required), `notes` (textarea, optional). This is the stage a back-office user opens in the business app to move the case forward.
+- `payment-complete` (applicant, Confirmation) — unchanged.
+
+**Gateways**
+- `submit-payment` (Split, lane: applicant, source: `enter-details`)
+  - Route A → `await-payment-confirmation` (join), trigger `submit`. Carries the applicant.
+  - Route B → `confirm-payment-received` (payments lane), trigger `submit`. Carries the case to the back-office.
+  - *Both routes fire on the same submit*; this is parallel fan-out, not a decision. Rename the gateway to make that obvious ("Submit payment → notify back-office").
+- `payment-confirmed` (Split, lane: payments-office, source: `confirm-payment-received`)
+  - Single route → `await-payment-confirmation`, trigger `confirm`, `requiresRole: "payments-officer"`.
+- `await-payment-confirmation` (Join, lane: applicant)
+  - `RequiredIncomingLanes = [applicant, payments-office]`
+  - `WaitingInfo.Content = "We're waiting for the payments team to confirm receipt of your payment."`
+  - Release route → `payment-complete`, trigger `release`.
+
+**Gap list vs today**
+1. Lane actor `reviewer` → `payments-officer` (semantic).
+2. Stage `provider-processing` → `confirm-payment-received` (rename + add fields + add a `confirm` action so the business-app UI has something to action).
+3. First split gateway display name → "Submit payment → notify back-office" (or similar — name the routing intent, not the status).
+4. Join gateway display name → "Awaiting payment confirmation" (name the wait, not the exit).
+5. Waiting copy stays but tighten to "We're waiting for the payments team to confirm receipt of your payment."
+6. Optional: add a `reference` field to `enter-details` so the back-office stage has something to match against.
+
+This is a content edit, not a structural one. The gateway skeleton is already correct.
+
+## Stage design-language assessment
+
+Looked at `src/UmbracoPrism.Client/src/workflow-editor/workflow-runtime-projection.ts` (projector) and `prism-stage-preview.ts` (renderer). Jonny is right that something has flattened.
+
+**What the model expresses today:**
+- An `AuthoredStage` has `Fields: AuthoredField[]` — a **flat list**. There is no concept of a *field group*, a *section*, or a *fieldset with a legend* in the authored model.
+- The projector (`projectStageComponents`, line ~233) maps a whole `Question` stage to **one** `fieldset` component containing all fields as flat children.
+- The preview (`_renderFieldset`, line ~200) then says: *"if this fieldset has no legend and only one child, unwrap it"*. Net effect for any single-field stage: no fieldset at all. For multi-field stages: one fieldset, no legend, every field as a sibling.
+
+**What that means in product terms:**
+- The GDS pattern is "one fieldset = one question that happens to need several inputs" (an address, a date split into D/M/Y, a name). The current model treats the whole *stage* as the unit of grouping, which collapses every stage to either "bare inputs" or "one anonymous fieldset". The legend, the heading hierarchy, and the grouping signal are all gone.
+- This is a **model regression**, not a CSS regression. Isabelle can't restore the GDS look from styling alone because there is nothing in the authored data to style as a sub-group.
+- The gateway refactor isn't directly responsible — `AuthoredField[]` was probably always flat — but as long as the stage model has no notion of a group/section, no amount of preview work will bring the fieldset story back.
+
+**Where to look (for the next slice that addresses this, not now):**
+- Extend `AuthoredStage` with an optional `FieldGroups: AuthoredFieldGroup[]` (each with `legend`, optional `hint`, and its own `Fields[]`). Keep `Fields` for the ungrouped case.
+- Extend the projector to emit one `fieldset` per group with the legend populated, plus a trailing ungrouped fieldset if needed.
+- Drop the "unwrap single-child fieldset" shortcut in the preview — once legends exist, the wrapper is meaningful.
+- Pair with Isabelle on the rendered look once the model can express it. This is a model+projector slice first, CSS second.
+
+Not for this slice; flagging for the slice after the payment fix.
+
+## Recommended slice ordering
+
+One slice at a time, per Jonny's preference. In order:
+
+1. **Slice 1 — Payment workflow rebuild.** Rename lane/actor, rename stages, add fields to `confirm-payment-received`, rename gateways, tighten waiting copy. Single-file change in `ReferenceWorkflowRepository.cs` plus updates to any tests/fixtures keyed off the old names (grep for `provider-processing`, `payment-settled`, `payments`/`reviewer` in the demo context, and the four-workflow-contract spec). This is the highest-signal demo and the one Jonny called out by name.
+
+2. **Slice 2 — Planning workflow rebuild.** Add the caseworker lane, a real decision split (with the existing `isComplete` condition driving a visible alternate route), a caseworker-review stage, and a join with waiting. Removes the dangling `AuthoredHandoff` in favour of a modelled handover.
+
+3. **Slice 3 — Information Request polish.** Rename gateway labels for intent, give `caseworker-review` 1–2 fields and an outcome action. Smallest of the three rebuilds; possibly fold into Slice 2 if scope allows but I'd keep separate for green-throughout.
+
+4. **Slice 4 — Stage field-grouping model.** Add `FieldGroups` to `AuthoredStage`, teach the projector and preview, and pair with Isabelle on the rendered GDS look. This is the slice that answers Jonny's "stages look confused now" complaint at the model level. Defer until the workflow content is right, because grouping decisions are easier to make against real reference content.
+
+5. **Slice 5 (housekeeping, opportunistic) — delete dead `workflow-seeds/*.json` files.** Already flagged in the post-reset audit; can ride along with any of the above.
+
+Community Enquiry needs no structural change — only its description should be updated when its neighbour gets rebuilt, so it can be done in passing during Slice 1 or 2.
+
+## Open questions for Jonny
+
+1. **Payment back-office actor naming:** `payments-officer` vs `finance` vs `back-office` — preference?
+2. **Planning decision branch:** should `incomplete → return-to-application-form` be a real loop, or should `application.isComplete == true` stay as a guard that simply blocks submission silently? A real loop is a better demo; a guard is closer to today's behaviour.
+3. **Field-grouping (Slice 4):** keep the existing flat `Fields[]` and add `FieldGroups[]` alongside (additive), or replace `Fields[]` with `FieldGroups[]` and treat the ungrouped case as a single anonymous group? Additive is safer mid-flight; replacement is cleaner long-term. Lean: additive now, consolidate later.
+
+## Decision
+
+Accept this audit as the basis for the next sequence of slices. Slice 1 (payment) is the recommended starting point per Jonny's explicit call-out. Do not bundle slices 1–3 — each leaves the system coherent at its boundary and each can be reviewed in the business-app demo independently.
+
+
+---
+id: tom-nook-reference-workflow-flow-order
+date: 2026-06-01
+author: tom-nook
+status: proposed
+area: reference-workflows
+relates_to: tom-nook-reference-workflow-audit
+---
+
+# Decision: Reference Workflow Flow Orders — Concrete Execution Paths
+
+**Context:** Jonny requested a concrete audit of the 4 reference workflows with explicit execution order, gateway mechanics, and waiting-state placement. This document translates each workflow's intended topology into a stage-by-stage, gateway-by-gateway flow that an implementer can follow to rebuild or verify each workflow.
+
+**Blathers' recent fix (commit 23b34c2):** The gateway projector now emits gateway keys as first-class graph nodes for parallel-fork splits (2+ routes) and all joins. Single-route splits remain flattened (intentional). This enables all intended flows below.
+
+---
+
+## 1. Planning Application (`planning-application`)
+
+### Current Execution Order
+1. **declaration** (applicant, Question) → 
+2. **route-application-form** (split, 1 route) → 
+3. **application-form** (applicant, Question) → 
+4. **route-check-answers** (split, 1 route) → 
+5. **check-answers** (applicant, CheckAnswers) → 
+6. **route-submitted** (split, 1 route with condition `isComplete == true`) → 
+7. **submitted** (applicant, Confirmation)
+
+**Gateway semantics:** All 3 gateways are single-route pass-throughs (no-op splits). No decision, no join, no parallel paths.
+
+**Waiting state:** None. Applicant workflow is linear; no multi-role handover is modelled (dangling `AuthoredHandoff` to caseworker has no target lane/stage).
+
+### Intended Execution Order
+
+1. **declaration** (applicant, Question) — applicant provides basic info
+2. **route-declaration-submitted** (split, applicant) — simple pass-through, 1 route
+3. **application-form** (applicant, Question) — applicant completes detailed form
+4. **route-check-answers** (split, applicant) — simple pass-through, 1 route
+5. **check-answers** (applicant, CheckAnswers) — applicant reviews answers
+6. **submit-for-review** (split, applicant, **2 routes**, condition `isComplete == true`) — **DECISION GATEWAY**
+   - Route A → **awaiting-decision** (join, waiting state)
+   - Route B (else) → **application-form** (loop back — visible alternate path)
+7. **application-form** (applicant, Question) — loop case: applicant returns to fix incomplete form
+   - (flows back through check-answers and re-evaluates submit-for-review)
+8. **caseworker-review** (caseworker, Question) — in parallel with Route A waiting state
+   - Fields: `decisionOutcome` (approve/reject), `caseworkerNotes` (textarea)
+9. **review-decision** (split, caseworker, 1 route) — pass-through from caseworker action
+10. **awaiting-decision** (join, applicant lane, **wait-for-all**) — **JOINING GATEWAY**
+    - Incoming: `[applicant, caseworker]`
+    - WaitingInfo: "Your application is being reviewed. We'll contact you within 5 working days."
+    - Trigger: `release`
+11. **decision-issued** (applicant, Confirmation) — applicant sees final outcome
+
+### Gateway Breakdown
+- **submit-for-review** (split, 2 routes): **parallel fan-out with decision**
+  - Condition `isComplete == true` → Route A (awaiting-decision)
+  - Else → Route B (application-form)
+  - **Type:** exclusive-choice split (distinct logic paths); engine emits gateway node
+- **review-decision** (split, 1 route): **simple pass-through**
+  - Caseworker action → awaiting-decision
+  - **Type:** single-route split; engine flattens (no node)
+- **awaiting-decision** (join): **waiting point**
+  - Requires both applicant and caseworker lanes
+  - Applicant sees: "Your application is being reviewed..."
+  - Unblocks only when caseworker completes review
+
+### Waiting Message Placement
+- **Who waits:** Applicant (after submitting complete form)
+- **Waiting at:** awaiting-decision (join gateway's `WaitingInfo`)
+- **What unlocks it:** Caseworker completing review in `caseworker-review` stage and routing to the same join
+
+### Current vs Intended
+| Element | Current | Intended |
+|---------|---------|----------|
+| Lanes | 1 (applicant) | 2 (applicant, caseworker) |
+| Stages | 4 (linear) | 6 (including caseworker-review + decision-issued) |
+| Gateways | 3 single-route splits | 2 single-route + 1 decision split + 1 join |
+| Multi-role story | Broken (dangling handoff) | Complete (explicit caseworker lane + join) |
+| Waiting state | None | On join gateway (applicant sees message) |
+
+### Engine Capability: ✅ ACHIEVABLE
+- 2-route split with condition → engine now emits split node ✓
+- Join with `RequiredIncomingLanes` → engine now emits join node ✓
+- Loop back from submit → valid (stage can be target of multiple routes) ✓
+
+---
+
+## 2. Community Enquiry / "Get in Touch" (`community-enquiry`)
+
+### Current Execution Order
+1. **collecting-details** (applicant, Question) → 
+2. **route-submitted** (split, 1 route) → 
+3. **submitted** (applicant, Confirmation)
+
+**Gateway semantics:** 1 single-route pass-through (no-op).
+
+**Waiting state:** None. Intentionally minimal.
+
+### Intended Execution Order
+**No structural change.** This is the intentional **"minimum viable workflow"** reference.
+
+1. **collecting-details** (applicant, Question) — collect applicant contact details
+2. **route-submitted** (split, applicant, 1 route) — simple pass-through
+3. **submitted** (applicant, Confirmation) — thank you message
+
+### Gateway Breakdown
+- **route-submitted** (split, 1 route): **simple pass-through**
+  - **Type:** single-route split; engine flattens (no node)
+  - Purpose: demonstrates that gateways exist in the model but don't always route to decisions
+
+### Waiting Message Placement
+- None. No multi-role, no waiting.
+
+### Current vs Intended
+| Element | Current | Intended |
+|---------|---------|----------|
+| Lanes | 1 (applicant) | 1 (applicant) |
+| Stages | 2 | 2 |
+| Gateways | 1 single-route split | 1 single-route split |
+| Multi-role story | N/A | N/A |
+| Waiting state | None | None |
+
+**Description update:** Update workflow description to: *"Reference: minimum viable workflow — one stage, one gateway, one confirmation. Demonstrates the simplest valid flow structure."*
+
+### Engine Capability: ✅ ACHIEVABLE
+- Single-route split flattens to direct edge → intentional ✓
+
+---
+
+## 3. Information Request (`information-request`)
+
+### Current Execution Order
+1. **collecting-info** (applicant, Question) → 
+2. **request-submitted** (split, applicant, 2 routes to same trigger) → 
+   - Route A: → **review-complete** (join, waiting)
+   - Route B: → **caseworker-review** (caseworker)
+3. **caseworker-review** (caseworker, Question) → 
+4. **caseworker-route** (split, caseworker, 1 route) → 
+5. **review-complete** (join, applicant lane, wait-for-all) → 
+6. **complete** (applicant, Confirmation)
+
+**Gateway semantics:**
+- **request-submitted:** 2-route parallel fan-out (no decision logic, both routes fire)
+- **caseworker-route:** 1-route pass-through
+- **review-complete:** join with waiting on applicant side
+
+**Waiting state:** Applicant parks at join after submitting; caseworker works in parallel; both must arrive at join to release.
+
+### Intended Execution Order
+**No structural change** — already demonstrates multi-lane + split + join + waiting correctly.
+
+**Content improvements only:**
+
+1. **collecting-info** (applicant, Question) — applicant provides enquiry details
+2. **submit-for-review** (split, applicant, 2 routes, **renamed for intent**) — **parallel fan-out** (not a decision)
+   - DisplayName: "Submit for review" → "**Submit → wait for caseworker**"
+   - Route A: → **awaiting-review** (join, waiting) — applicant parks here
+   - Route B: → **caseworker-review** (caseworker) — caseworker begins work
+3. **awaiting-review** (join, applicant lane, **renamed for clarity**) — **renamed from "review-complete"**
+   - WaitingInfo: "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now."
+   - Incoming: `[applicant, caseworker]`
+   - Trigger: `release`
+4. **caseworker-review** (caseworker, Question) — caseworker assesses enquiry
+   - **Add fields:** `reviewOutcome` (approve/reject/more-info), `caseworkerNotes` (textarea, required)
+   - Description: "Assess the enquiry and record the outcome."
+5. **route-review-complete** (split, caseworker, 1 route, **renamed**) — pass-through from caseworker action
+   - DisplayName: "Route review complete" → "**Complete review**" (or keep "Route review complete" for consistency)
+6. **awaiting-review** (join) — converges both paths
+7. **complete** (applicant, Confirmation) — applicant sees final status
+
+### Gateway Breakdown
+- **submit-for-review** (split, 2 routes): **parallel fan-out (not exclusive choice)**
+  - Both routes unconditionally fire on same trigger (`submit`)
+  - **Type:** parallel-fork split; engine emits split node ✓
+  - Current label: "Request submitted" → too status-like
+  - Intended label: "Submit → wait for caseworker" or "Submit for review" → verb-forward, shows intent
+- **route-review-complete** (split, 1 route): **simple pass-through**
+  - Caseworker action → join
+  - **Type:** single-route split; engine flattens (no node)
+  - Label OK as-is or rename to "Complete review"
+- **awaiting-review** (join): **waiting point**
+  - Current key: "review-complete" → describes exit, not the wait
+  - Intended key: "awaiting-review" → names the state applicant experiences
+  - Requires both lanes
+  - Applicant message stays
+
+### Waiting Message Placement
+- **Who waits:** Applicant (after submitting enquiry)
+- **Waiting at:** awaiting-review (join gateway's `WaitingInfo`)
+- **What unlocks it:** Caseworker completing review in `caseworker-review` stage and routing to the same join
+
+### Current vs Intended
+| Element | Current | Intended |
+|---------|---------|----------|
+| Lanes | 2 (applicant, caseworker) | 2 (applicant, caseworker) |
+| Stages | 3 | 3 |
+| Gateways | 1 parallel split + 1 single-route split + 1 join | 1 parallel split + 1 single-route split + 1 join |
+| Multi-role story | ✓ Already correct | ✓ Add fields to caseworker stage |
+| Waiting state | ✓ Already on join | ✓ No change, just rename join for clarity |
+| Gateway labels | "Request submitted" (status-like) | "Submit → wait for caseworker" (intent-forward) |
+
+### Engine Capability: ✅ ACHIEVABLE
+- 2-route parallel split → engine now emits split node ✓
+- Join with `RequiredIncomingLanes` → engine now emits join node ✓
+- Parallel fan-out from same trigger → supported ✓
+
+---
+
+## 4. Payment Demo (`payment-demo`)
+
+### Current Execution Order
+1. **enter-details** (applicant, Question) → 
+2. **payment-submitted** (split, applicant, 2 routes) → 
+   - Route A: → **payment-settled** (join, waiting)
+   - Route B: → **provider-processing** (payments lane)
+3. **provider-processing** (payments, Question) → 
+4. **provider-route** (split, payments, 1 route) → 
+5. **payment-settled** (join, applicant lane, wait-for-all) → 
+6. **payment-complete** (applicant, Confirmation)
+
+**Gateway semantics:**
+- **payment-submitted:** 2-route parallel fan-out (both routes fire)
+- **provider-route:** 1-route pass-through
+- **payment-settled:** join with waiting
+
+**Waiting state:** Applicant parks at join after submitting payment; back-office processes in parallel; both must arrive at join to release.
+
+### Intended Execution Order
+
+1. **enter-details** (applicant, Question) — applicant enters payment card details
+   - Fields: `cardholderName`, `amount` (plus optional `reference` for matching against back-office)
+2. **submit-payment** (split, applicant, 2 routes, **renamed from "payment-submitted"**) — **parallel fan-out**
+   - DisplayName: "Payment submitted" → "**Submit payment → notify back-office**" (name the intent, not the status)
+   - Route A: → **await-payment-confirmation** (join, applicant waiting state)
+     - Trigger: `submit` | Action: `submit` form
+   - Route B: → **confirm-payment-received** (payments-office lane)
+     - Trigger: `submit` | (same trigger fires both paths)
+3. **await-payment-confirmation** (join, applicant lane, **waiting gateway**) — **renamed from "payment-settled"**
+   - DisplayName: "Payment settled" → "**Awaiting payment confirmation**" (name the wait state)
+   - WaitingInfo: "We're waiting for the payments team to confirm receipt of your payment."
+   - Incoming lanes: `[applicant, payments-office]`
+   - Trigger: `release`
+4. **confirm-payment-received** (payments-office, Question) — back-office user acts to unlock
+   - **Renamed from:** "provider-processing"
+   - **Actor:** "payments-officer" (renamed from `reviewer`)
+   - **Lane key:** "payments-office" (renamed from `payments`)
+   - **Fields:**
+     - `confirmationReference` (text, required) — reference from payment provider
+     - `amountReceived` (decimal, required) — for reconciliation
+     - `notes` (textarea, optional) — additional details
+   - Action: `confirm` trigger (or `complete`) to release
+5. **complete-payment** (split, payments-office, 1 route, **renamed**) — **pass-through from back-office action**
+   - DisplayName: "Route from provider processing" → "**Payment confirmed**" (or "Complete payment")
+   - Trigger: `confirm` (or `complete`)
+   - Target: → **await-payment-confirmation** (join)
+   - Requires role: `payments-officer`
+6. **await-payment-confirmation** (join) — converges both paths
+   - Release when both applicant and payments-office have arrived
+7. **payment-complete** (applicant, Confirmation) — applicant sees payment receipt confirmation
+
+### Gateway Breakdown
+- **submit-payment** (split, 2 routes): **parallel fan-out (not exclusive choice)**
+  - Both routes fire on same trigger (`submit`)
+  - **Type:** parallel-fork split; engine emits split node ✓
+  - Current label: "Payment submitted" → status-like
+  - Intended label: "Submit payment → notify back-office" → verb + intent
+- **complete-payment** (split, 1 route): **simple pass-through**
+  - Back-office action → join
+  - **Type:** single-route split; engine flattens (no node)
+  - Current label: "Route from provider processing" → process-like, not intent-forward
+  - Intended label: "Payment confirmed" or "Complete payment" → action-like
+- **await-payment-confirmation** (join): **waiting point**
+  - Current key: "payment-settled" → describes the exit state
+  - Intended key: "await-payment-confirmation" → names the state applicant experiences
+  - Requires both lanes
+  - Waiting message: "We're waiting for the payments team to confirm receipt of your payment."
+
+### Waiting Message Placement
+- **Who waits:** Applicant (after entering payment details and submitting)
+- **Waiting at:** await-payment-confirmation (join gateway's `WaitingInfo`)
+- **What unlocks it:** Payments-office user opening `confirm-payment-received` stage in business app, entering confirmation details, and confirming the payment — routing to the same join
+
+### The Key Multi-Role Story (as per Jonny's brief)
+
+1. **Applicant submits payment details** → `enter-details` stage
+2. **Split gateway fans out in two directions simultaneously**:
+   - Path 1 → Applicant parks in "awaiting" join with message: "We're waiting for the payments team to confirm receipt of your payment."
+   - Path 2 → Back-office stage opens in business app with confirmation form fields
+3. **Payments-office user works independently** → `confirm-payment-received` stage
+   - Has payment reference number, amount received, optional notes
+   - Clicks "confirm payment received"
+4. **Both paths converge at join**:
+   - Join's wait condition: both applicant and payments-office lanes must have arrived
+   - Release condition: satisfied when both are present
+5. **Applicant is released** → `payment-complete` confirmation page
+
+### Current vs Intended
+| Element | Current | Intended |
+|---------|---------|----------|
+| Lanes | 2 (applicant, payments) | 2 (applicant, payments-office) |
+| Lane actors | applicant, reviewer | applicant, payments-officer |
+| Stages | 3 | 3 |
+| Back-office stage name | provider-processing | confirm-payment-received |
+| Back-office fields | none (empty) | confirmationReference, amountReceived, notes |
+| Gateway labels | "Payment submitted", "Route from provider processing" | "Submit payment → notify back-office", "Payment confirmed" |
+| Join gateway name | "Payment settled" | "Awaiting payment confirmation" |
+| Waiting message | "Your payment is being processed right now." | "We're waiting for the payments team to confirm receipt of your payment." |
+
+### Engine Capability: ✅ ACHIEVABLE
+- 2-route parallel split → engine now emits split node ✓
+- Join with `RequiredIncomingLanes` → engine now emits join node ✓
+- Parallel fan-out from same trigger → supported ✓
+- Wait-for-all semantics → supported by join `RequiredIncomingLanes` ✓
+
+---
+
+## Summary: Headline Flow Shapes
+
+### Planning Application
+**Before:** Linear single-lane form submission (4 stages, 3 no-op splits).
+**After:** Form submission → decision split (complete/incomplete loop) → applicant wait → caseworker review in parallel → join when both complete → decision issued.
+**Story:** Applicant fills form, waits for caseworker review, receives decision.
+
+### Community Enquiry
+**Before & After:** Contact details → confirmation (2 stages, 1 no-op split).
+**Story:** Minimum viable workflow. Intentionally simple.
+
+### Information Request
+**Before:** Applicant submits enquiry, parks in waiting join, caseworker reviews in parallel, both converge at join, applicant released.
+**After:** Same topology, improved labels ("Submit → wait for caseworker" not "Request submitted"), caseworker stage gains review fields.
+**Story:** Applicant enquiry → applicant waits → caseworker reviews → applicant receives outcome.
+
+### Payment Demo
+**Before:** Applicant enters payment, parks at waiting join, back-office processes in parallel, both converge at join, applicant released.
+**After:** Same topology, renamed lane/stage/gateway labels for clarity, back-office stage gains confirmation fields (reference, amount, notes).
+**Story:** Applicant submits payment → applicant waits ("We're waiting for the payments team") → back-office confirms → applicant receives confirmation.
+
+---
+
+## Engine Capability Assessment
+
+**Question:** Can all 4 intended flows run at runtime with the current engine after Blathers' gateway projector fix?
+
+**Answer:** ✅ **YES, fully achievable.**
+
+**Why:**
+
+1. **Blathers' fix (commit 23b34c2)** — gateway projector now emits gateway keys as first-class graph nodes for:
+   - Parallel-fork splits (2+ routes on same trigger) → `HandleSplitGatewayAdvance` fans out cursors
+   - Join gateways → `HandleJoinGatewayAdvance` parks cursors and releases on `RequiredIncomingLanes` met
+   - Projected routes now include `gatewayKey → routeTarget` edges (previously missing)
+
+2. **Single-route splits** (present in Planning, Community Enquiry, Information Request, Payment) — **intentionally flattened** (stay as direct stage→stage edges), which is correct for pass-through gateways:
+   - A 1-route split is not a decision point; it's a routing gate that always passes through
+   - Not emitting a node for it saves unnecessary graph complexity
+   - Projector correctly distinguishes between "decision" (2+ routes, distinct paths) and "pass-through" (1 route)
+
+3. **Waiting states** — supported on join gateways with `WaitingInfo` metadata:
+   - Projector preserves `WaitingInfo` on projected join gateways
+   - Runtime surfaces `WaitingInfo.Content` when a lane is parked at a join awaiting others
+
+4. **Multi-lane parallel fan-out** — supported by 2-route splits:
+   - Route A (applicant path) can target a join (waiting state)
+   - Route B (back-office path) can target a work stage
+   - Both fire on same trigger (`submit`), creating true parallelism
+
+5. **Loop-back flows** (Planning) — stages can be targets of multiple routes:
+   - `check-answers` (incomplete path) can route back to `application-form`
+   - Engine has no prohibition on this (valid DAG structure)
+
+**No capability gaps remain.** All 4 workflows can be authored, projected, and executed as intended.
+
+---
+
+## Recommended Implementation Order
+
+Per the prior audit (tom-nook-reference-workflow-audit.md), in dependency order:
+
+1. **Payment workflow rebuild** — Jonny's named target; highest signal demo.
+   - Lane/actor rename, stage fields, gateway label updates, waiting copy tighten.
+   - Single file, single workflow test-run.
+
+2. **Planning workflow rebuild** — adds the decision-split and multi-lane story.
+   - New lane, new stage, new join gateway, restore handover structure.
+
+3. **Information Request polish** — label clarity, caseworker fields.
+   - Same topology, content-only updates.
+
+4. **Community Enquiry description** — mark as intentional minimum viable.
+   - One-line description update.
+
+Each leaves the system green and independently demo-able.
+
+---
+
+## Appendix: Gateway Mechanics Glossary
+
+**Simple pass-through split** (1 route):
+- Gateway exists in authored model but projector flattens it to a direct edge.
+- No routing decision; flow always proceeds to the single target.
+- Example: "declaration → route-application-form → application-form" flattens to direct edge.
+- Engine optimization: no node in runtime graph.
+
+**Parallel-fork split** (2+ routes, same trigger):
+- Gateway fans flow to multiple routes on one user action.
+- All routes fire immediately; no exclusivity logic.
+- Example: "submit" triggers both "applicant waits" and "back-office works" paths.
+- Engine: emits gateway node, runs `HandleSplitGatewayAdvance`, creates one cursor per route.
+
+**Exclusive-choice split** (2+ routes, distinct triggers):
+- Each route has its own trigger condition; exactly one fires based on user action.
+- Example: "button 'Approve'" → one route; "button 'Reject'" → another route (different triggers).
+- Engine: flattens (distinct triggers don't need a gateway node; they're stage→stage edges with different trigger keys).
+
+**Join gateway** (convergence, wait-for-all):
+- Parking lot where multiple lanes converge.
+- Applicant lane arrives at join after `submit` action on applicant stage.
+- Payments lane arrives at join after `confirm` action on payments stage.
+- Join waits until all `RequiredIncomingLanes` have arrived.
+- Once met, join releases via its outgoing route(s) to the next stage.
+- Engine: emits gateway node, runs `HandleJoinGatewayAdvance`, surfaces `WaitingInfo.Content` to applicant.
+
+**Waiting state**:
+- State where a workflow participant sees a message and waits for external progress.
+- Typically hosted on a join gateway (e.g., "Awaiting payment confirmation").
+- Other lanes' work in the meantime unlocks the wait.
+- Message lives in join gateway's `WaitingInfo` metadata.
+
 

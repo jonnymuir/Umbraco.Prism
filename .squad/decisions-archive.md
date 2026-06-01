@@ -34,3 +34,68 @@ scope: workflow-editor
 date: 2026-05-23T08:30:10.563+01:00
 author: jonny
 status: directive
+
+---
+author: copilot
+date: 2026-05-25T21:57:06.676+01:00
+status: directive
+area: workflow-editor
+---
+
+author: isabelle
+date: 2026-05-25T21:57:06.676+01:00
+status: proposed
+area: workflow-editor-canvas
+---
+
+author: tom-nook
+date: 2026-05-25T22:04:00.819+01:00
+status: proposed
+area: workflow-editor-canvas
+---
+
+author: tangy
+date: 2026-05-25T22:04:00.819+01:00
+status: proposed
+area: workflow-editor-tests
+---
+
+author: tom-nook
+date: 2026-05-25T21:57:06.676+01:00
+status: proposed
+area: workflow-editor-canvas-layout
+---
+author: tom-nook
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-gateway-redo
+---
+
+author: blathers
+date: 2026-05-25T16:48:28.029+01:00
+status: implemented
+area: workflow-authoring
+---
+
+author: isabelle
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-editor
+---
+
+author: tangy
+date: 2026-05-25T16:48:28.029+01:00
+status: proposed
+area: workflow-editor-tests
+---
+
+author: tom-nook
+date: 2026-05-25T16:39:24.354+01:00
+status: proposed
+area: workflow-editor-gateway-model
+---
+
+author: tangy
+date: 2026-05-25T16:39:24.354+01:00
+status: proposed
+area: workflow-editor-ux
