@@ -8078,3 +8078,428 @@ Each leaves the system green and independently demo-able.
 - Message lives in join gateway's `WaitingInfo` metadata.
 
 
+
+---
+
+## Queue Model: Clean Division of Responsibilities — Design Note
+
+**Date:** 2026-06-01  
+**Author:** Tom Nook (Lead, Architecture)  
+**Context:** Directive to tighten the model so each workflow lane becomes an explicit queue with a `queueName`, and host apps (not the shared editor/runtime) decide who can access and act in each queue.
+
+---
+
+### The Problem
+
+Today, the shared editor and workflow runtime bake in web/business assumptions:
+
+- Stages and gateways are tagged with `actor` (persona: "public", "reviewer", "admin") or collected into visual "lanes" in the editor
+- The editor hard-codes lane defaults: "public" lane for front-stage work, "reviewer" lane for back-stage work
+- `roleGates` on stages/routes control access, but there's no contract that tells a host app what queues exist or who can do what in each one
+- Different host applications (TestSite for web, MockBusinessApp for business) have completely different queue requirements, but the editor doesn't know about them
+- Payment workflow example: stages for applicants, payment processors, and confirmers have no clean way to express "this stage belongs to the payments queue" or "only payment admins can work here"
+
+Result: Developers reusing the workflow runtime in their own apps have to improvise the queue model, leading to inconsistency and tight coupling.
+
+---
+
+### The Solution: Queues as First-Class Entities
+
+#### Core Model: What is a Queue?
+
+A **queue** is a named workflow work container. Each queue:
+- Has an explicit, stable name (`queueName`): "web-user", "payments", "admin", etc.
+- Owns a set of workflow stages and gateways
+- Is the scope of visibility and action for a role or user group
+- Is defined and governed entirely by the host app, not by the shared editor/runtime
+
+Queues replace the current concept of "lanes" (which were visual editor groupings that leaked into data models).
+
+#### Data Model: Stages and Gateways Get `queueName`
+
+**Authored workflow structure:**
+```
+AuthoredStage {
+  stageKey: string
+  displayName: string
+  kind: StageKind
+  queueName: string      // NEW: explicit queue identity, e.g. "web-user"
+  roleGates: string[]    // EXISTING: access control rules (unchanged semantics)
+  // ... actions, components, etc.
+}
+
+AuthoredGateway {
+  gatewayKey: string
+  displayName: string
+  kind: GatewayKind
+  queueName?: string     // NEW: optional; Join gateways may not have a queue
+  roleGates: string[]    // EXISTING: access control rules
+  source: string         // Existing: stage routing origin
+  routes: AuthoredRoute[]
+}
+```
+
+**Semantics:**
+- `queueName` is the authoritative queue assignment; it replaces the current ad-hoc derivation from `actor` or `roleGates`
+- `roleGates` remains an access-control mechanism: after routing to a stage in queue "payments", the runtime still checks if the actor has the required role
+- Gateways are queue-assigned but may be "transit" points (e.g., a Join gateway collecting from two different queues has its own queue or no queue to represent a converging point)
+
+---
+
+### Shared Runtime / Editor Responsibilities
+
+The shared workflow editor and runtime **own:**
+
+1. **Queue topology:**
+   - Recognition that stages and gateways belong to named queues
+   - Validation that all stages in a workflow have a `queueName` (no implicit defaults)
+   - Validation that gateway source/target routing respects queue identity (e.g., warn if a gateway exits queue A and enters queue B)
+
+2. **Authored workflow shape:**
+   - `AuthoredStage.queueName` and `AuthoredGateway.queueName` fields
+   - Wire-format serialization / deserialization (JSON in/out, normalisation helpers)
+   - Canvas layout logic that groups stages by queue visually (not hard-coded "public"/"reviewer" lanes)
+
+3. **Workflow validation:**
+   - No unreachable stages (existing logic, now aware of queues)
+   - No dangling routes
+   - All stages assigned to a queue
+
+4. **Runtime work contract:**
+   - Runtime transitions from stage X to gateway Y, evaluates `gateway.roleGates`, then moves to stage Z
+   - Runtime does NOT interpret or enforce queue-based access; that's the host's job at workflow initiation and transition points
+
+---
+
+### Host App Responsibilities
+
+The host app (TestSite, MockBusinessApp, or any developer's custom app) **owns:**
+
+1. **Queue definition and discovery:**
+   - Provide the complete list of queues available in their business domain
+   - Expose this list via the `WorkflowSource` interface (new method):
+     ```ts
+     interface WorkflowSource {
+       list(): Promise<WorkflowSummary[]>
+       load(key: string): Promise<AuthoredWorkflow>
+       save(key: string, workflow: AuthoredWorkflow): Promise<void>
+       // NEW
+       availableQueues(): Promise<QueueDefinition[]>
+     }
+     
+     interface QueueDefinition {
+       queueName: string          // "web-user", "payments", etc.
+       displayName: string        // "Web User", "Payment Processing", etc.
+       description?: string
+     }
+     ```
+
+2. **Access control at workflow boundaries:**
+   - Who can start a workflow (e.g., only web users in TestSite)
+   - Who can transition a workflow instance (e.g., only admins in MockBusinessApp)
+   - Who can view a workflow instance (queue visibility rules)
+
+3. **Queue-aware UI:**
+   - The host app controls which queues appear in UI pickers
+   - The host app shows queue-filtered instances (e.g., "show me payment tasks I can work")
+   - The host app enforces role checks when a user attempts a transition
+
+4. **Reference implementation for each demo app:**
+   - **TestSite (web):** Exposes "web-user" queue only; web users can start and work workflows in that queue; no admin or business queues
+   - **MockBusinessApp (business):** Exposes "admin" queue; admins can view and manually transition instances from an admin page; users cannot start workflows themselves (workflow initiation is batch/scheduled)
+
+---
+
+### Concrete Interface / Contract Changes
+
+#### 1. **AuthoredWorkflow + AuthoredStage**
+- Add `queueName: string` field to each stage (required, non-empty)
+- Add `queueName?: string` field to each gateway (optional for now; Join gateways may bridge queues)
+- Example:
+  ```ts
+  // Payment demo stages
+  { stageKey: "enter-details", queueName: "web-user", actor: "public", roleGates: [] }
+  { stageKey: "process-payment", queueName: "payments", actor: "system", roleGates: ["payment-admin"] }
+  { stageKey: "confirm", queueName: "admin", actor: "administrator", roleGates: ["admin"] }
+  ```
+
+#### 2. **WorkflowSource Extension**
+- Add `availableQueues(): Promise<QueueDefinition[]>`
+- The editor queries this on load to discover what queues exist
+- The editor uses this list to populate queue pickers during authoring
+- The editor validates that authored queues match the available set (with warnings for unrecognized queues)
+
+#### 3. **Editor Canvas / Outline**
+- Replace `stageLaneLabel()` / `workflowLaneOptions()` logic that infers lanes from actors/roles
+- Use explicit `queueName` from stages + `availableQueues()` from host to drive canvas grouping
+- Canvas groups stages by queue (not by inferred actor)
+- No hard-coded "public" or "reviewer" lane; if a queue is not in `availableQueues()`, warn during authoring
+
+#### 4. **Wire Format (serialise/normalise)**
+- When serialising a workflow to JSON (host storage), include the `queueName` field:
+  ```json
+  {
+    "stageKey": "enter-details",
+    "displayName": "Enter Details",
+    "kind": "Question",
+    "queueName": "web-user",
+    "roleGates": []
+  }
+  ```
+- When normalising (loading from host), map `queueName` field and validate it's non-empty
+
+#### 5. **Validation Rules**
+- ❌ No implicit queue defaults (e.g., empty `queueName` is invalid)
+- ❌ No inference from `actor` or `roleGates` alone — `queueName` is authoritative
+- ⚠️ Gateway routing across queues is allowed but should generate an info message (e.g., "Gateway 'process' routes from 'web-user' to 'payments' queue")
+- ✅ Join gateways with no `queueName` are allowed (they represent convergence points)
+
+---
+
+### Payment Workflow Example
+
+The payment demo workflow, reshaped for queues:
+
+```
+Stages:
+1. "enter-payment-details" (queue: "web-user", roleGates: [], actor: "public")
+   → User enters payment info in web app
+
+2. "process-payment" (queue: "payments", roleGates: ["payment-processor"], actor: "system")
+   → Payment backend processes; triggered by gateway split
+
+3. "confirm-payment" (queue: "admin", roleGates: ["admin"], actor: "administrator")
+   → Admin confirms or rejects; triggered by gateway split
+
+4. "payment-complete" (queue: "web-user", roleGates: [], actor: "public")
+   → User sees confirmation; triggered by Join gateway
+
+Gateways:
+1. Split "submit-payment" (source: "enter-payment-details", queueName: "web-user")
+   → Routes to both "process-payment" (payments queue) and "confirm-payment" (admin queue)
+
+2. Join "await-confirmation" (no queueName, source: null)
+   → Converges from both branches, routes to "payment-complete"
+```
+
+**Host behavior (TestSite):**
+- Only "web-user" queue is exposed via `availableQueues()`
+- Stages in "payments" and "admin" queues are hidden
+- User can only start and work in "web-user"
+- Workflow instance stops and waits for backend/admin before the Join; user never sees those stages
+
+**Host behavior (MockBusinessApp):**
+- Both "web-user" and "admin" queues are exposed
+- "payments" queue is internal/system-only, not exposed
+- Admin user can view all queues but only transition instances in "admin"
+- Admin manually calls the workflow transition API to move past Join (simulating async backend completion)
+
+---
+
+### What the Payment Work Reshapes
+
+The payment workflow author slice already committed the right shape: stages with `actor` and the routing structure. Under this queue model:
+
+- **Rename:** `actor` field semantics change from "persona/display" to "queue-scoped persona"; `queueName` becomes the primary identity
+- **Rebind:** Current `actor: "public"` → future `queueName: "web-user", actor: "public"` (or drop actor entirely if it's just for display)
+- **No breaking restructure:** The gateway split/join topology is already correct; we're just being explicit about which queue each stage belongs to
+- **Validation gain:** The payment demo currently shows all stages in one visual "Public" lane due to the normalisation bug (Isabelle's finding); fixing the queue model eliminates this confusion
+
+---
+
+### Implementation Roadmap (for Blathers & Isabelle)
+
+1. **Blathers (Runtime):**
+   - Extend `AuthoredStage` + `AuthoredGateway` type definitions with `queueName` field
+   - Update wire-format normalise/serialise to handle `queueName`
+   - Update validation to require `queueName` (no empty or inferred defaults)
+
+2. **Isabelle (Editor):**
+   - Update canvas grouping logic to use `queueName` + `availableQueues()` instead of derived lanes
+   - Add `availableQueues()` call to `WorkflowSource` interface
+   - Update editor UI to show queue pickers/filters during authoring
+   - Update shell stories and integration tests to pass queue definitions
+
+3. **Reference apps (TestSite & MockBusinessApp):**
+   - Implement `availableQueues()` in their `WorkflowSource` classes
+   - TestSite returns only web-user queue; MockBusinessApp returns admin queue
+   - Update workflow authored documents to include explicit `queueName` fields
+
+---
+
+### Why This Works
+
+- ✅ **No shared assumptions:** Editor/runtime don't assume roles or organisational structure
+- ✅ **Reusable:** Developer in a new app can define their own queues ("approval", "finance", "dispatch") without modifying shared code
+- ✅ **Testable:** Each reference app demonstrates a different queue model; future devs have clear patterns to follow
+- ✅ **Validated:** Authoring surface catches missing/invalid queue names at save time
+- ✅ **Clean boundary:** Host app owns access control; shared runtime owns topology and transitions
+
+---
+
+### Decision Summary
+
+1. **Rename conceptually:** "Lanes" → "Queues" (with explicit `queueName` in authored data)
+2. **Add to interface:** `WorkflowSource.availableQueues()` discovers queues from host
+3. **Validate authoring:** Require `queueName` on all stages; warn on unrecognized queues
+4. **Update editor canvas:** Group by explicit queue, not inferred lane
+5. **Reference apps:** TestSite (web-user only), MockBusinessApp (admin only) as implementation examples
+6. **Payment workflow:** Reshapes cleanly — stages get explicit queue names, routing topology stays the same
+
+This is implementable without breaking existing workflows and gives every developer a clear model to extend.
+
+---
+
+## Decision: Editor host wiring is queue-first
+
+**Date:** 2026-06-01  
+**Author:** Isabelle  
+
+### What changed
+
+- The shared workflow editor and shell now accept `availableQueues` from the host setup.
+- Queue labels and picker options now come from that host-supplied queue catalog first, with authored workflow data only as fallback.
+- Author-facing editor copy now talks about queues instead of lanes where the editor surface or host-facing API exposed that concept.
+
+### Why
+
+Jonny asked for the editor slice to treat stage and gateway ownership as queue-based without baking TestSite or MockBusinessApp assumptions into shared code. This keeps the editor generic while letting reference hosts demonstrate their own queue wiring.
+
+### Follow-up
+
+- Internal helper/type names still use some `lane*` identifiers where that does not leak through the host or authoring surface.
+- Runtime authorization and queue access rules remain out of scope for this slice.
+
+---
+
+## 2026-06-01: Queue access stays in the host, not in the shared runtime
+
+**Author:** Blathers
+
+- Shared workflow definitions can name the queue that owns a lane.
+- The shared runtime now accepts a queue access profile from the host to decide which queues can be started, viewed, and moved on.
+- MockBusinessApp uses that profile to show business-user queue work on the admin page and move items on without teaching the shared runtime about business users.
+- TestSite-style web flows keep their own queue profile, so the same runtime can support different host rules without hard-coded web or business assumptions.
+
+---
+
+## Payment Demo Editor Inspection — Findings & Decisions
+
+**Date:** 2026-06-01  
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)  
+**Context:** Post-payment-flow-slice editor inspection, triggered by screenshot showing "Validation 2" badge and all stages landing in the Public lane.
+
+---
+
+### What the 2 validation errors actually are
+
+Browser inspection of the **Gateway Representation** story (LEAVE_REQUEST_STARTER_WORKFLOW — a workflow with the same Split/Join structure) confirmed:
+
+1. **Error:** `Stage "Decision confirmed" is unreachable from the workflow start. Add or retarget a route through a gateway so authors can get there.`  
+   (In the payment demo this reads: `Stage "Payment Complete" is unreachable…`)
+
+2. **Error:** `Route "continue" points to a missing source stage "". Reconnect it to an existing stage before you save or simulate this workflow.`  
+   (In the payment demo this reads: `Route "release" points to a missing source stage ""…`)
+
+**These are false positives.** Both errors are triggered by the same root cause.
+
+---
+
+### Root cause: `flattenRoutes()` doesn't understand Join gateways
+
+`workflow-routes.ts` → `flattenRoutes()`:
+
+```ts
+const source = gateway.source ?? '';
+```
+
+Join gateways intentionally have no `source` (they receive from multiple upstream branches — their source is implicit in the incoming routes, not a single stage). The `?? ''` fallback creates phantom routes with `fromStage: ''`.
+
+This causes:
+- `workflowRoutesWithMissingStages` to flag the route (error 2 above)
+- `workflowReachableStageKeys` to never traverse the `''` key, so the stage downstream of the Join appears unreachable (error 1 above)
+
+**This is a pre-existing, systemic bug** — it affects every workflow that uses a Join gateway. It was present before the payment slice; the payment slice just made it visible for the first time in the app.
+
+---
+
+### Root cause: `normaliseStage()` reads `actor` but C# serialises `laneKey`
+
+`workflow-wire-format.ts` → `normaliseStage()`:
+
+```ts
+actor: typeof raw.actor === 'string' ? raw.actor : undefined,
+```
+
+The C# `AuthoredStage` has a `LaneKey` property, which serialises to `"laneKey"` in JSON. But `normaliseStage` reads `raw.actor`, which is always undefined for server-loaded stages. So every stage lands in the `'public'` lane via `stageLaneKey()`'s fallback.
+
+Gateways are NOT affected — `normaliseGateway` correctly reads `raw.laneKey`.
+
+**Effect on canvas:** All stages appear in the Public lane band, even though their gateway nodes appear in the correct lane. The canvas tells the wrong story and is visually misleading.
+
+---
+
+### The workflow IS structurally correct
+
+The payment-demo definition itself (committed in `8619e90`) is correct:
+- Split gateway `submit-payment` fans out from `enter-details` to both branches
+- Split gateway `payment-confirmed` in the Payments lane collects the payments-side acknowledgement
+- Join gateway `await-payment-confirmation` has `RequiredIncomingLanes: ["applicant", "payments"]` and routes to `payment-complete`
+
+The graph logic, the route topology, and the gateway types are all right. The bugs are in the editor's normalisation and validation layers, not the definition.
+
+---
+
+### Decisions
+
+#### Decision 1: Fix `flattenRoutes` to skip Join gateway `source` resolution
+
+Join gateways should NOT contribute a `fromStage` entry via their own `source` field. Their routes already express the join semantics via the incoming routes targeting their `gatewayKey`.
+
+**Proposed fix in `workflow-routes.ts`:** Guard `flattenRoutes` to skip adding a `fromStage` for routes emitted by a Join gateway, or to substitute the gateway's own key as the logical source for reachability purposes.
+
+#### Decision 2: Fix `normaliseStage` to read `laneKey` as well as `actor`
+
+The wire format sent by the C# API uses `laneKey` on stages. `normaliseStage` must accept both field names to support both legacy (`actor`) and current (`laneKey`) payloads.
+
+**Proposed fix in `workflow-wire-format.ts`:**
+```ts
+actor: typeof raw.actor === 'string' ? raw.actor
+     : typeof raw.laneKey === 'string' ? raw.laneKey
+     : undefined,
+```
+
+#### Decision 3: Next slice is "Fix Join gateway handling in editor" (two sub-tasks)
+
+- **Sub-task A (tiny, safe):** `normaliseStage` laneKey fallback — one-line change, no risk of regression
+- **Sub-task B (bounded):** Fix validation to correctly handle Join gateways — extends `flattenRoutes` + reachability algorithm
+
+These are targeted corrections to existing logic, not a broad redesign. Both bugs should be fixed together as they make the payment demo (and leave request) unusable in the editor.
+
+#### Decision 4: The Shell story's payment demo does not reflect the real split/join flow
+
+`prism-workflow-editor-shell.stories.ts` uses `buildWorkflow()` for the payment demo, producing a simple linear flow. This is misleading. The story should be updated (in a separate slice or alongside the above fixes) to load the actual payment-demo fixture from `fixtures/index.ts` so the real canvas is testable in isolation.
+
+---
+
+### Recommended next slice title
+
+**"Fix Join gateway normalisation and validation false-positives"**
+
+Scope:
+1. `workflow-wire-format.ts`: `normaliseStage` reads `laneKey` as fallback for `actor`
+2. `workflow-routes.ts`: `flattenRoutes` skips empty-source Join gateways correctly
+3. `workflow-validation.ts`: Ensure `workflowReachableStageKeys` traverses through Join gateway keys
+4. Optional: Update shell story payment demo to use the real fixture
+
+Confidence: 🟢 Frontend only, well-bounded, no API changes needed.
+
+---
+
+## 2026-06-01T23:34:47+01:00: User directive
+
+**By:** Jonny (via Copilot)
+
+**What:** Treat each workflow lane as a queue with a queueName. Host apps, not the workflow runtime or editor, decide who can start or act in each queue. For the reference apps, the TestSite web user queue can start workflows and act in its queue, while the MockBusinessApp business user queue can only move workflow instances on from the admin page for now. The editor must take the available queues from its host interface instead of hard-coding them.
+
+**Why:** Jonny wants the queue model cleanly divided so developers can wire their own applications against the workflow runtime and editor without web/business assumptions being baked into shared components.
