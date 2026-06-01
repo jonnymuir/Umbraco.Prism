@@ -48,6 +48,14 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
                 "STATE_NOT_FOUND");
         }
 
+        var nextGateway = FindGateway(definition, transition.ToState);
+        if (nextGateway != null)
+        {
+            return string.Equals(nextGateway.GatewayType, "Split", StringComparison.Ordinal)
+                ? HandleSplitGatewayAdvance(instance, definition, transition, nextGateway, fieldValues: null)
+                : HandleJoinGatewayAdvance(instance, definition, transition, nextGateway, fieldValues: null);
+        }
+
         var targetState = definition.States.FirstOrDefault(s => s.StateKey == transition.ToState);
         if (targetState == null)
         {
@@ -156,6 +164,12 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         if (ValidateAdvance(instance, definition, fieldValues) is { } validationEnvelope)
         {
             return validationEnvelope;
+        }
+
+        var nextGateway = FindGateway(definition, transition.ToState);
+        if (nextGateway != null)
+        {
+            return base.Advance(instanceId, tenantId, userId, action, expectedStateVersion, fieldValues);
         }
 
         var sourceState = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);

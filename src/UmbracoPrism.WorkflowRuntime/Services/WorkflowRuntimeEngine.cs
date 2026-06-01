@@ -410,6 +410,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition)
     {
+        var visibleStateKey = instance.CurrentState;
+
         // In multi-cursor mode the CurrentState already reflects the first active stage cursor.
         // If all remaining cursors are at join gateways (waiting), show the join waiting information
         // for the owning lane rather than looking for a stage.
@@ -426,18 +428,41 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     return BuildJoinWaitingEnvelope(instance, definition, joinGateway);
                 }
             }
+            else
+            {
+                var clientVisibleStageCursor = stageCursors.FirstOrDefault(c => IsClientVisibleLane(definition, c.LaneKey));
+                if (clientVisibleStageCursor is not null)
+                {
+                    visibleStateKey = clientVisibleStageCursor.CurrentNodeKey;
+                }
+                else
+                {
+                    var clientVisibleJoinGateway = instance.Cursors
+                        .Where(c => c.IsAtGateway)
+                        .Select(c => FindGateway(definition, c.CurrentNodeKey))
+                        .FirstOrDefault(g =>
+                            g is not null
+                            && string.Equals(g.GatewayType, "Join", StringComparison.Ordinal)
+                            && IsClientVisibleLane(definition, g.LaneKey));
+
+                    if (clientVisibleJoinGateway is not null)
+                    {
+                        return BuildJoinWaitingEnvelope(instance, definition, clientVisibleJoinGateway);
+                    }
+                }
+            }
         }
 
-        var state = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
+        var state = definition.States.FirstOrDefault(s => s.StateKey == visibleStateKey);
         if (state == null)
         {
             return ErrorEnvelope(
-                $"State '{instance.CurrentState}' not found in definition '{definition.DefinitionKey}'.",
+                $"State '{visibleStateKey}' not found in definition '{definition.DefinitionKey}'.",
                 "STATE_NOT_FOUND");
         }
 
         var actions = definition.Transitions
-            .Where(t => t.FromState == instance.CurrentState && t.RequiresRole == null)
+            .Where(t => t.FromState == visibleStateKey && t.RequiresRole == null)
             .Select(t => new WorkflowAction
             {
                 ActionKey = t.Action,
@@ -867,11 +892,11 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     // ─── Gateway helpers ──────────────────────────────────────────────────────
 
-    private static WorkflowGatewayDefinition? FindGateway(WorkflowDefinitionFile definition, string nodeKey) =>
+    protected static WorkflowGatewayDefinition? FindGateway(WorkflowDefinitionFile definition, string nodeKey) =>
         definition.Metadata?.Gateways?.FirstOrDefault(g =>
             string.Equals(g.Key, nodeKey, StringComparison.Ordinal));
 
-    private WorkflowResponseEnvelope HandleSplitGatewayAdvance(
+    protected WorkflowResponseEnvelope HandleSplitGatewayAdvance(
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition,
         WorkflowTransitionFile arrivingTransition,
@@ -961,7 +986,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return BuildEnvelope(updated, definition);
     }
 
-    private WorkflowResponseEnvelope HandleJoinGatewayAdvance(
+    protected WorkflowResponseEnvelope HandleJoinGatewayAdvance(
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition,
         WorkflowTransitionFile arrivingTransition,
@@ -1093,7 +1118,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return BuildEnvelope(releasedInstance, definition);
     }
 
-    private WorkflowResponseEnvelope BuildJoinWaitingEnvelope(
+    protected WorkflowResponseEnvelope BuildJoinWaitingEnvelope(
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition,
         WorkflowGatewayDefinition joinGateway)
@@ -1147,6 +1172,20 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             Render = render,
             InstancePolicy = definition.InstancePolicy
         };
+    }
+
+    private static bool IsClientVisibleLane(WorkflowDefinitionFile definition, string laneKey)
+    {
+        var lane = definition.Metadata?.Lanes?.FirstOrDefault(l =>
+            string.Equals(l.Key, laneKey, StringComparison.Ordinal));
+
+        if (lane is null)
+        {
+            return true;
+        }
+
+        return string.Equals(lane.Actor, "applicant", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(lane.Key, "applicant", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<WorkflowCursor> MoveCursor(

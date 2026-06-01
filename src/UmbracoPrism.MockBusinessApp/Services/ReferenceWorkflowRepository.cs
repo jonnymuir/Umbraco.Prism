@@ -444,57 +444,57 @@ public static class ReferenceWorkflowRepository
         Lanes =
         [
             ApplicantLane(),
-            new AuthoredLane { Key = "payments", DisplayName = "Payments", Actor = "reviewer" }
+            new AuthoredLane { Key = "payments", DisplayName = "Payments team", Actor = "reviewer" }
         ],
         Gateways =
         [
             new AuthoredGateway
             {
-                GatewayKey = "payment-submitted",
-                DisplayName = "Payment submitted",
+                GatewayKey = "submit-payment",
+                DisplayName = "Submit payment → notify back-office",
                 Kind = GatewayKind.Split,
                 LaneKey = "applicant",
                 Source = "enter-details",
                 Routes =
                 [
-                    Route("enter-details--submit--payment-settled", "payment-settled", "submit"),
-                    Route("enter-details--submit--provider-processing", "provider-processing", "submit")
+                    Route("enter-details--submit--await-payment-confirmation", "await-payment-confirmation", "submit"),
+                    Route("enter-details--submit--confirm-payment-received", "confirm-payment-received", "submit")
                 ]
             },
             new AuthoredGateway
             {
-                GatewayKey = "provider-route",
-                DisplayName = "Route from provider processing",
+                GatewayKey = "payment-confirmed",
+                DisplayName = "Payment confirmed",
                 Kind = GatewayKind.Split,
                 LaneKey = "payments",
-                Source = "provider-processing",
+                Source = "confirm-payment-received",
                 Routes =
                 [
                     new AuthoredRoute
                     {
-                        Id = "provider-processing--complete--payment-settled",
-                        Target = "payment-settled",
-                        Trigger = "complete",
+                        Id = "confirm-payment-received--confirm--await-payment-confirmation",
+                        Target = "await-payment-confirmation",
+                        Trigger = "confirm",
                         RequiresRole = "reviewer"
                     }
                 ]
             },
             new AuthoredGateway
             {
-                GatewayKey = "payment-settled",
-                DisplayName = "Payment settled",
+                GatewayKey = "await-payment-confirmation",
+                DisplayName = "Awaiting payment confirmation",
                 Kind = GatewayKind.Join,
                 LaneKey = "applicant",
                 WaitingInfo = new WaitingMetadata
                 {
-                    Content = "Your payment is being processed right now.",
-                    ExpectedWaitSeconds = 30,
+                    Content = "We're waiting for the payments team to confirm receipt of your payment.",
+                    ExpectedWaitSeconds = 60,
                     PollIntervalMs = 5000,
                     AllowDefer = true,
-                    DeferMessage = "You can leave this page and return to your applications later. Your progress has been saved."
+                    DeferMessage = "You can leave this page and return later. We'll update this payment as soon as the confirmation arrives."
                 },
                 RequiredIncomingLanes = ["applicant", "payments"],
-                Routes = [Route("payment-settled--release--payment-complete", "payment-complete", "release")]
+                Routes = [Route("await-payment-confirmation--release--payment-complete", "payment-complete", "release")]
             }
         ],
         Stages =
@@ -502,46 +502,126 @@ public static class ReferenceWorkflowRepository
             new AuthoredStage
             {
                 StageKey = "enter-details",
-                DisplayName = "Enter Payment Details",
+                DisplayName = "Enter payment details",
                 Kind = StageKind.Question,
                 LaneKey = "applicant",
                 Components =
                 [
                     new BodyComponent
                     {
-                        Content = "Enter the card details for this payment. Your information is encrypted in transit."
+                        Content = "Provide the payment details for this application. We'll take you to a waiting screen while the payments team confirms receipt."
                     },
                     new FieldsetComponent
                     {
-                        Legend = "Card and amount",
+                        Legend = "Payment details",
                         LegendSize = "m",
                         Children =
                         [
-                            new TextInputComponent { FieldKey = "cardholderName", Label = "Cardholder name", Required = true },
-                            new DecimalInputComponent { FieldKey = "amount", Label = "Amount (£)", Required = true }
+                            new TextInputComponent
+                            {
+                                FieldKey = "cardholderName",
+                                Label = "Cardholder name",
+                                Required = true,
+                                Hint = "Enter the name exactly as it appears on the card."
+                            },
+                            new TextInputComponent
+                            {
+                                FieldKey = "paymentReference",
+                                Label = "Payment reference",
+                                Required = true,
+                                Hint = "Use the reference shown on your application or invoice."
+                            },
+                            new EmailComponent
+                            {
+                                FieldKey = "receiptEmail",
+                                Label = "Email address for the receipt",
+                                Required = true,
+                                Hint = "We'll send confirmation to this address once the payment is confirmed."
+                            },
+                            new DecimalInputComponent
+                            {
+                                FieldKey = "amount",
+                                Label = "Amount (£)",
+                                Required = true,
+                                Hint = "Enter the amount you are paying today."
+                            }
                         ]
+                    },
+                    new InsetTextComponent
+                    {
+                        Content = "After you submit, your payment will wait for a quick back-office confirmation before this journey completes."
                     },
                     new WarningTextComponent
                     {
-                        Content = "Once you submit this payment we cannot cancel it from this screen — contact support if you need a refund."
+                        Content = "Do not close the page until you see the confirmation screen, unless you choose to leave and return later."
                     }
                 ]
             },
             new AuthoredStage
             {
-                StageKey = "provider-processing",
-                DisplayName = "Provider processing",
+                StageKey = "confirm-payment-received",
+                DisplayName = "Confirm payment received",
                 Kind = StageKind.Question,
                 LaneKey = "payments",
-                Description = "Payment provider processing and reconciliation work."
+                Description = "Back-office confirmation step for reconciling the payment before the applicant is released.",
+                Components =
+                [
+                    new BodyComponent
+                    {
+                        Content = "Record the confirmation details from the payment provider so the applicant can be released from the waiting step."
+                    },
+                    new FieldsetComponent
+                    {
+                        Legend = "Confirmation details",
+                        LegendSize = "m",
+                        Children =
+                        [
+                            new TextInputComponent
+                            {
+                                FieldKey = "confirmationReference",
+                                Label = "Confirmation reference",
+                                Required = true,
+                                Hint = "Enter the provider or ledger reference used to match this payment."
+                            },
+                            new DecimalInputComponent
+                            {
+                                FieldKey = "amountReceived",
+                                Label = "Amount received (£)",
+                                Required = true,
+                                Hint = "Use the settled amount shown in the provider response."
+                            },
+                            new TextareaComponent
+                            {
+                                FieldKey = "notes",
+                                Label = "Notes",
+                                Hint = "Add any brief context the service team may need later."
+                            }
+                        ]
+                    }
+                ]
             },
             new AuthoredStage
             {
                 StageKey = "payment-complete",
-                DisplayName = "Payment Complete",
+                DisplayName = "Payment complete",
                 Kind = StageKind.Confirmation,
                 LaneKey = "applicant",
-                Description = "Payment received. A receipt has been sent to your email address."
+                Description = "Confirms that the payment has been matched and the receipt is on its way.",
+                Components =
+                [
+                    new PanelComponent
+                    {
+                        Heading = "Payment confirmed"
+                    },
+                    new BodyComponent
+                    {
+                        Content = "We've matched your payment and sent a receipt to the email address you provided."
+                    },
+                    new InsetTextComponent
+                    {
+                        Content = "Keep your payment reference handy if you contact us about this application."
+                    }
+                ]
             }
         ]
     };
