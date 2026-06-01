@@ -16,7 +16,7 @@ should not depend on it, and breaking changes there will not bump a contract.
 |---------|------|--------------|
 | `<prism-workflow-editor>` | Full authoring surface: graph + inspector + outline + validation + dialogs. | yes |
 | `<prism-workflow-editor-shell>` | Host harness — workflow picker, API base wiring, URL sync. Mounts `<prism-workflow-editor>`. | yes |
-| `<prism-workflow-graph>` | Vertical-lanes graph. Authoring (default) or **read-only viewer** when `read-only` is set. | yes |
+| `<prism-workflow-graph>` | Vertical-queues graph. Authoring (default) or **read-only viewer** when `read-only` is set. | yes |
 
 All three are registered as `customElements` when `workflow-editor.js` loads.
 
@@ -39,6 +39,7 @@ Full authoring experience.
 | `workflowSource` | `WorkflowSource \| undefined` | Host-supplied source the editor reads workflows from and writes back to. Required for runtime use. Storybook stories can pass `initialWorkflow` instead. See `integrations/mockapp-workflow-source.ts` for a reference HTTP implementation. |
 | `actionCatalog` | `WorkflowActionCatalog \| undefined` | Host-supplied catalog of action types the editor can render. Falls back to `BuiltInWorkflowActionCatalog` when unset. |
 | `authorContext` | `WorkflowAuthorContext \| undefined` | Optional UX hint about the current author (`{ canSave?: boolean }`). Never authoritative — server-side authorization stays in the host application. |
+| `availableQueues` | `WorkflowQueueDefinition[]` | Host-supplied queue catalog used for queue labels and queue pickers. Shared editor code stays generic; the host decides which queues exist. |
 | `initialWorkflow` | `AuthoredWorkflow \| null` | If set, bypasses `workflowSource.load` and uses this workflow directly. Designed for Storybook / fixtures. |
 
 The editor has **no built-in HTTP client and no opinion about authentication**.
@@ -116,7 +117,8 @@ shell.
 
 **JS-only properties**
 
-The shell forwards `workflowSource`, `actionCatalog`, and `authorContext` to
+The shell forwards `workflowSource`, `actionCatalog`, `authorContext`, and
+`availableQueues` to
 the nested `<prism-workflow-editor>`. It uses `workflowSource.list()` to
 populate its picker, and renders a developer-affordance empty state when no
 source is wired.
@@ -125,9 +127,9 @@ source is wired.
 
 ### `<prism-workflow-graph>`
 
-The vertical-lanes graph. Lanes are columns (intake → review → approval →
-publish, or whichever the workflow defines); stages and gateways sit inside the
-column for the lane they own. Lane labels live in the column headers, not on
+The vertical-queues graph. Queues are columns (intake → review → approval →
+publish, or whichever the host configures); stages and gateways sit inside the
+column for the queue they own. Queue labels live in the column headers, not on
 the cards.
 
 **Attributes**

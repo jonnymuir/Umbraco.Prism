@@ -1,6 +1,12 @@
 import type { AuthoredGateway, AuthoredStage, AuthoredWorkflow } from './types.js';
 
 export type StageSurface = 'front-stage' | 'back-stage';
+export interface WorkflowQueueDefinition {
+  queueName: string;
+  displayName?: string;
+  description?: string;
+}
+
 type LaneAssignedNode = Pick<AuthoredStage | AuthoredGateway, 'actor' | 'roleGates'> & {
   laneKey?: string;
 };
@@ -64,9 +70,15 @@ export function stageLaneKey(stage: LaneAssignedNode): string {
 
 export function stageLaneLabel(
   workflow: Pick<AuthoredWorkflow, 'roles'> | null | undefined,
-  laneKey: string
+  laneKey: string,
+  availableQueues: ReadonlyArray<WorkflowQueueDefinition> = []
 ): string {
   const normalised = normaliseLaneKey(laneKey);
+  const configuredQueue = availableQueues.find(queue => normaliseLaneKey(queue.queueName) === normalised);
+  if (configuredQueue?.displayName?.trim()) {
+    return configuredQueue.displayName.trim();
+  }
+
   const workflowRole = workflow?.roles?.find(role =>
     normaliseLaneKey(role.roleKey) === normalised
     || normaliseLaneKey(role.claimMapping) === normalised
@@ -77,9 +89,16 @@ export function stageLaneLabel(
 
 export function stageLaneDescription(
   workflow: Pick<AuthoredWorkflow, 'roles'> | null | undefined,
-  laneKey: string
+  laneKey: string,
+  availableQueues: ReadonlyArray<WorkflowQueueDefinition> = []
 ): string {
-  return `${stageLaneLabel(workflow, laneKey)} stages and handoffs`;
+  const normalised = normaliseLaneKey(laneKey);
+  const configuredQueue = availableQueues.find(queue => normaliseLaneKey(queue.queueName) === normalised);
+  if (configuredQueue?.description?.trim()) {
+    return configuredQueue.description.trim();
+  }
+
+  return `Stages and gateways in the ${stageLaneLabel(workflow, laneKey, availableQueues)} queue`;
 }
 
 export function applyLaneToStage(stage: AuthoredStage, laneKey: string): AuthoredStage {
@@ -103,9 +122,17 @@ export function applyLaneToStage(stage: AuthoredStage, laneKey: string): Authore
 }
 
 export function workflowLaneOptions(
-  workflow: Pick<AuthoredWorkflow, 'roles' | 'stages' | 'gateways'> | null | undefined
+  workflow: Pick<AuthoredWorkflow, 'roles' | 'stages' | 'gateways'> | null | undefined,
+  availableQueues: ReadonlyArray<WorkflowQueueDefinition> = []
 ): string[] {
   const laneKeys = new Set<string>();
+
+  availableQueues.forEach(queue => {
+    const key = normaliseLaneKey(queue.queueName);
+    if (key) {
+      laneKeys.add(key);
+    }
+  });
 
   workflow?.roles?.forEach(role => {
     const key = normaliseLaneKey(role.roleKey || role.claimMapping);

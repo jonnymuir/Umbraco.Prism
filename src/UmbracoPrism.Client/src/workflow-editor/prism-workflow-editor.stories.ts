@@ -5,6 +5,16 @@ import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 import type { AuthoredWorkflow } from './types.js';
 import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
+
+const STORY_QUEUES: WorkflowQueueDefinition[] = [
+  { queueName: 'applicant', displayName: 'Applicant' },
+  { queueName: 'reviewer', displayName: 'Reviewer' },
+  { queueName: 'payments', displayName: 'Payments' },
+  { queueName: 'public', displayName: 'Public' },
+  { queueName: 'system', displayName: 'System' },
+];
+
 function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkflowEditorElement {
   const el = document.createElement('prism-workflow-editor') as PrismWorkflowEditorElement;
   // Stories drive the editor by injecting the workflow directly. The Save
@@ -13,6 +23,7 @@ function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkfl
   el.workflowSource = new InMemoryWorkflowSource([workflow]);
   el.workflowKey = workflow.definitionKey;
   el.initialWorkflow = workflow;
+  el.availableQueues = STORY_QUEUES;
   el.style.cssText = 'display: block; width: 1200px; height: 700px;';
   return el;
 }
@@ -197,7 +208,7 @@ export const WithStageSelected: Story = {
     await expect(inspector).not.toBeNull();
 
     const graphCanvas = within(graph!.shadowRoot as unknown as HTMLElement);
-    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant lane' }) as HTMLButtonElement;
+    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant queue' }) as HTMLButtonElement;
     declarationStage.click();
 
     await waitFor(() =>

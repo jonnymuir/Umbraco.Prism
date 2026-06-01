@@ -11,6 +11,7 @@ import type { WorkflowSource } from './workflow-source.js';
 import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
 import { BuiltInWorkflowActionCatalog } from './workflow-action-catalog.js';
 import type { WorkflowAuthorContext } from './workflow-author-context.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
 import { flattenRoutes } from './workflow-routes.js';
@@ -158,6 +159,10 @@ export class PrismWorkflowEditorElement extends LitElement {
   /** Optional UX hint about the current author. Never authoritative. */
   @property({ attribute: false })
   authorContext?: WorkflowAuthorContext;
+
+  /** Host-supplied queues used for queue labels and authoring pickers. */
+  @property({ attribute: false })
+  availableQueues: WorkflowQueueDefinition[] = [];
 
   /**
    * If set, the component uses this workflow directly instead of fetching from
@@ -1803,6 +1808,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                     class="editor-outline"
                     data-prism-workflow-outline
                     .workflow=${this._workflow}
+                    .availableQueues=${this.availableQueues}
                     .selectedStageKey=${this._selectedStageKey}
                     .selectedGatewayKey=${this._selectedGatewayKey}
                     .selectedTransitionIndex=${this._selectedTransitionIndex}
@@ -1917,6 +1923,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                 <prism-workflow-graph
                   class="graph-panel"
                   .workflow=${this._workflow}
+                  .availableQueues=${this.availableQueues}
                   .selectedStageKey=${this._selectedStageKey}
                   .selectedGatewayKey=${this._selectedGatewayKey}
                   .selectedTransitionIndex=${this._selectedTransitionIndex}
@@ -1962,6 +1969,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                     class="inspector-panel"
                     tabindex="0"
                     .workflow=${this._workflow}
+                    .availableQueues=${this.availableQueues}
                     selected-stage-key="${this._selectedStageKey ?? ''}"
                     selected-gateway-key="${this._selectedGatewayKey ?? ''}"
                     .selectedActionIndex=${this._selectedActionIndex}

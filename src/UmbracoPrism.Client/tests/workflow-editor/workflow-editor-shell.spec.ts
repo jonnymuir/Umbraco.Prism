@@ -38,7 +38,8 @@ test.describe('Workflow editor shell proof', () => {
     await waitForWorkflowLoad(page, 'payment-demo');
     await expect(shell).toHaveAttribute('data-prism-active-workflow', 'payment-demo');
     await expect(editorTitle).toHaveText('Payment Demo');
-    await expect(editor.locator('[data-prism-stage="payment-received"]')).toBeVisible();
+    await expect(editor.locator('[data-prism-stage="payment-complete"]')).toBeVisible();
+    await expect(editor.locator('[data-prism-stage="provider-processing"]')).toBeVisible();
     await expect(editor.locator('[data-prism-stage="review-enquiry"]')).toHaveCount(0);
   });
 
@@ -50,23 +51,52 @@ test.describe('Workflow editor shell proof', () => {
 
     await waitForWorkflowLoad(page, 'planning');
 
-    const initialSourceIdentity = await editor.evaluate(node => {
+    const initialHostWiring = await editor.evaluate(node => {
       const source = (node as unknown as { workflowSource?: object }).workflowSource;
-      return source ? source.constructor.name : null;
+      const availableQueues = ((node as unknown as { availableQueues?: Array<{ queueName: string }> }).availableQueues ?? [])
+        .map(queue => queue.queueName);
+      return source
+        ? { sourceName: source.constructor.name, queueNames: availableQueues }
+        : null;
     });
-    expect(initialSourceIdentity).not.toBeNull();
+    expect(initialHostWiring).not.toBeNull();
+    expect(initialHostWiring?.queueNames).toContain('payments');
 
     await selector.selectOption('information-request');
     await waitForWorkflowLoad(page, 'information-request');
 
-    const sourceSurvived = await editor.evaluate((node, expectedName) => {
+    const hostWiringSurvived = await editor.evaluate((node, expected) => {
       const source = (node as unknown as { workflowSource?: object }).workflowSource;
-      return source ? source.constructor.name === expectedName : false;
-    }, initialSourceIdentity);
-    expect(sourceSurvived).toBe(true);
+      const availableQueues = ((node as unknown as { availableQueues?: Array<{ queueName: string }> }).availableQueues ?? [])
+        .map(queue => queue.queueName);
+      return source
+        ? source.constructor.name === expected.sourceName
+          && JSON.stringify(availableQueues) === JSON.stringify(expected.queueNames)
+        : false;
+    }, initialHostWiring);
+    expect(hostWiringSurvived).toBe(true);
 
     await expect(editor.locator('.editor-title')).toHaveText('Information Request');
     await expect(editor.locator('[data-prism-stage="review-response-pack"]')).toBeVisible();
+  });
+
+  test('payment demo uses host-provided queues and stays validation-clean in the editor', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-shell--reference-shell'));
+
+    const selector = page.getByRole('combobox', { name: 'Select workflow' });
+    const editor = page.locator('prism-workflow-editor');
+
+    await selector.selectOption('payment-demo');
+    await waitForWorkflowLoad(page, 'payment-demo');
+
+    await expect(editor.locator('.editor-title')).toHaveText('Payment Demo');
+    await expect(editor.locator('[data-prism-stage="provider-processing"]')).toHaveAttribute(
+      'aria-label',
+      'Provider processing, Payments queue'
+    );
+
+    await page.getByRole('tab', { name: 'Validation' }).click();
+    await expect(page.locator('[data-prism-validation-issue]')).toHaveCount(0);
   });
 
   test('graph-canvas is the scrollable region while shell chrome stays anchored', async ({ page }) => {

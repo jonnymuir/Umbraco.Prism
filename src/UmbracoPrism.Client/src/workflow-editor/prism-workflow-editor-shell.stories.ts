@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-workflow-editor-shell.js';
 import type { PrismWorkflowEditorShellElement } from './prism-workflow-editor-shell.js';
-import { PLANNING_WORKFLOW } from './fixtures/index.js';
+import { PAYMENT_DEMO_WORKFLOW, PLANNING_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 import type { AuthoredWorkflow, AuthoredStage } from './types.js';
 import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 type WorkflowSeed = {
   workflowKey: string;
@@ -110,30 +111,7 @@ function buildShellSource(): InMemoryWorkflowSource {
     ],
     transitionActions: ['continue', 'submit evidence', 'send response'],
   });
-  const paymentDemo = buildWorkflow({
-    workflowKey: 'payment-demo',
-    definitionKey: 'payment-demo',
-    displayName: 'Payment Demo',
-    stages: [
-      { stageKey: 'start-payment', displayName: 'Start payment', actor: 'public' },
-      { stageKey: 'capture-card-details', displayName: 'Capture card details', actor: 'public' },
-      {
-        stageKey: 'review-payment',
-        displayName: 'Review payment',
-        actor: 'reviewer',
-        kind: 'TaskList',
-        roleGates: ['reviewer'],
-      },
-      {
-        stageKey: 'payment-received',
-        displayName: 'Payment received',
-        actor: 'system',
-        kind: 'Confirmation',
-        roleGates: ['reviewer'],
-      },
-    ],
-    transitionActions: ['continue', 'submit payment', 'confirm payment'],
-  });
+  const paymentDemo = cloneAuthoredWorkflow(PAYMENT_DEMO_WORKFLOW);
 
   // workflowKey for planning is 'planning' even though the definitionKey is
   // 'planning-application', so the shell's selector entries match the four
@@ -146,10 +124,19 @@ function buildShellSource(): InMemoryWorkflowSource {
   ]);
 }
 
+const REFERENCE_QUEUES: WorkflowQueueDefinition[] = [
+  { queueName: 'applicant', displayName: 'Applicant' },
+  { queueName: 'public', displayName: 'Public' },
+  { queueName: 'reviewer', displayName: 'Reviewer' },
+  { queueName: 'payments', displayName: 'Payments' },
+  { queueName: 'system', displayName: 'System' },
+];
+
 function makeShell(): PrismWorkflowEditorShellElement {
   const element = document.createElement('prism-workflow-editor-shell') as PrismWorkflowEditorShellElement;
   element.workflowKey = 'planning';
   element.workflowSource = buildShellSource();
+  element.availableQueues = REFERENCE_QUEUES;
   element.style.cssText = 'display:block;min-height:860px;';
   return element;
 }

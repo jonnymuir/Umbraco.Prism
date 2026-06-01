@@ -544,3 +544,128 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = {
     },
   ],
 };
+
+export const PAYMENT_DEMO_WORKFLOW: AuthoredWorkflow = {
+  definitionKey: 'payment-demo',
+  displayName: 'Payment Demo',
+  version: 1,
+  schemaVersion: '1.0',
+  instancePolicy: 'single',
+  initialStageKey: 'enter-details',
+  stages: [
+    {
+      stageKey: 'enter-details',
+      displayName: 'Enter Payment Details',
+      kind: 'Question',
+      actor: 'applicant',
+      actions: [],
+      components: [
+        {
+          type: 'fieldset',
+          legend: 'Enter Payment Details',
+          children: [
+            {
+              type: 'text',
+              fieldKey: 'cardholderName',
+              label: 'Cardholder name',
+              required: true,
+            } satisfies AuthoredInputComponent,
+            {
+              type: 'decimal',
+              fieldKey: 'amount',
+              label: 'Amount (£)',
+              required: true,
+            } satisfies AuthoredInputComponent,
+          ],
+        },
+      ],
+      roleGates: [],
+    },
+    {
+      stageKey: 'provider-processing',
+      displayName: 'Provider processing',
+      description: 'Payment provider processing and reconciliation work.',
+      kind: 'Question',
+      actor: 'payments',
+      actions: [],
+      components: [],
+      roleGates: [],
+    },
+    {
+      stageKey: 'payment-complete',
+      displayName: 'Payment Complete',
+      description: 'Payment received. A receipt has been sent to your email address.',
+      kind: 'Confirmation',
+      actor: 'applicant',
+      actions: [],
+      components: [],
+      roleGates: [],
+    },
+  ],
+  gateways: [
+    {
+      gatewayKey: 'payment-submitted',
+      displayName: 'Payment submitted',
+      kind: 'Split',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      source: 'enter-details',
+      roleGates: [],
+      routes: [
+        {
+          id: 'enter-details--submit--payment-settled',
+          target: 'payment-settled',
+          trigger: 'submit',
+          actions: [],
+        },
+        {
+          id: 'enter-details--submit--provider-processing',
+          target: 'provider-processing',
+          trigger: 'submit',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'provider-route',
+      displayName: 'Route from provider processing',
+      kind: 'Split',
+      laneKey: 'payments',
+      actor: 'payments',
+      source: 'provider-processing',
+      roleGates: [],
+      routes: [
+        {
+          id: 'provider-processing--complete--payment-settled',
+          target: 'payment-settled',
+          trigger: 'complete',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+      ],
+    },
+    {
+      gatewayKey: 'payment-settled',
+      displayName: 'Payment settled',
+      kind: 'Join',
+      laneKey: 'applicant',
+      actor: 'applicant',
+      roleGates: [],
+      waiting: {
+        content: 'Your payment is being processed right now.',
+        expectedWaitSeconds: 30,
+        pollIntervalMs: 5000,
+        allowDefer: true,
+        deferMessage: 'You can leave this page and return to your applications later. Your progress has been saved.',
+      },
+      routes: [
+        {
+          id: 'payment-settled--release--payment-complete',
+          target: 'payment-complete',
+          trigger: 'release',
+          actions: [],
+        },
+      ],
+    },
+  ],
+};

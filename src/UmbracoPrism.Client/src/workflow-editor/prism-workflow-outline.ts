@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { AuthoredGateway, RouteView, AuthoredWorkflow } from './types.js';
 import { deriveGatewayBindings } from './workflow-gateway-representation.js';
 import { flattenRoutes } from './workflow-routes.js';
-import { stageLaneKey, stageLaneLabel } from './workflow-stage-assignment.js';
+import { stageLaneKey, stageLaneLabel, type WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 /**
  * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
@@ -15,6 +15,9 @@ export class PrismWorkflowOutline extends LitElement {
 
   @property({ type: Boolean, attribute: 'show-header' })
   showHeader = true;
+
+  @property({ attribute: false })
+  availableQueues: WorkflowQueueDefinition[] = [];
 
   @property({ attribute: 'selected-stage-key' })
   selectedStageKey: string | null = null;
@@ -96,7 +99,7 @@ export class PrismWorkflowOutline extends LitElement {
 
       groups.set(laneKey, {
         key: laneKey,
-        label: stageLaneLabel(this.workflow, laneKey),
+        label: stageLaneLabel(this.workflow, laneKey, this.availableQueues),
         stages: [stage],
       });
     }
@@ -120,7 +123,7 @@ export class PrismWorkflowOutline extends LitElement {
       return html`
         <div class="outline-empty">
           <p class="outline-empty-text">Start by adding your first stage</p>
-          <p class="outline-empty-hint">The outline will group stages by lane once the workflow starts taking shape.</p>
+          <p class="outline-empty-hint">The outline will group stages by queue once the workflow starts taking shape.</p>
         </div>
       `;
     }

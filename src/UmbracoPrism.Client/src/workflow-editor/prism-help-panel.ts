@@ -38,9 +38,9 @@ export class PrismHelpPanel extends LitElement {
         <section class="help-section">
           <h3 class="help-section-title">Quick tips</h3>
           <ul class="tip-list">
-            <li>Each lane is one <strong>vertical service column</strong>. Read the workflow <strong>top to bottom</strong>.</li>
+            <li>Each queue is one <strong>vertical service column</strong>. Read the workflow <strong>top to bottom</strong>.</li>
             <li>Stages are the work cards. Gateways are the diamond routing points between them.</li>
-            <li>Use the <strong>Outline</strong> panel on the left to jump between lane columns and stages quickly.</li>
+            <li>Use the <strong>Outline</strong> panel on the left to jump between queue columns and stages quickly.</li>
             <li>Reorder stages in <strong>List view</strong> with <strong>Move up</strong>, <strong>Move down</strong>, or <strong>Alt + Arrow</strong>. The canvas keeps its automatic layout in this first pass.</li>
             <li>Use the <strong>Validation</strong> tab for issues, the <strong>Preview</strong> tab for runtime shape, and <strong>Simulation</strong> to walk the route.</li>
             <li>All structural changes support <strong>Undo/Redo</strong> — experiment safely.</li>
@@ -50,7 +50,7 @@ export class PrismHelpPanel extends LitElement {
         <section class="help-section">
           <h3 class="help-section-title">Getting started</h3>
           <ol class="guide-list">
-            <li>Start on the <strong>Canvas</strong> tab and add the first stage for the lane that owns the work.</li>
+            <li>Start on the <strong>Canvas</strong> tab and add the first stage for the queue that owns the work.</li>
             <li>Add the next stage that should happen in the service flow, then open the <strong>Inspector</strong> to shape its details.</li>
             <li>Add a <strong>routing gateway</strong> when the workflow needs to branch or wait for multiple paths to join.</li>
             <li>Create routes so the canvas reads as <strong>stage → gateway → stage</strong> or <strong>gateway → gateway</strong>.</li>

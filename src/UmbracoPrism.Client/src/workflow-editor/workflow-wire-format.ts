@@ -119,7 +119,11 @@ function normaliseStage(raw: Record<string, unknown>): AuthoredStage {
     displayName: String(raw.title ?? raw.displayName ?? ''),
     description: typeof raw.description === 'string' ? raw.description : undefined,
     kind,
-    actor: typeof raw.actor === 'string' ? raw.actor : undefined,
+    actor: typeof raw.actor === 'string'
+      ? raw.actor
+      : typeof raw.laneKey === 'string'
+        ? raw.laneKey
+        : undefined,
     actions: Array.isArray(raw.actions)
       ? raw.actions.map(action => normaliseAction(action as Record<string, unknown>))
       : [],

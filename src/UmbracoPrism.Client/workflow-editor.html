@@ -36,6 +36,12 @@
       const shell = document.querySelector('prism-workflow-editor-shell');
       if (shell) {
         shell.workflowSource = new MockBusinessAppWorkflowSource();
+        shell.availableQueues = [
+          { queueName: 'applicant', displayName: 'Applicant' },
+          { queueName: 'reviewer', displayName: 'Reviewer' },
+          { queueName: 'caseworker', displayName: 'Caseworker' },
+          { queueName: 'payments', displayName: 'Payments' },
+        ];
       }
     </script>
   </head>

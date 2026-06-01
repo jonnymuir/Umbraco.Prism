@@ -49,6 +49,7 @@ import {
   applyLaneToStage,
   stageLaneKey,
   stageLaneLabel,
+  type WorkflowQueueDefinition,
   workflowLaneOptions,
 } from './workflow-stage-assignment.js';
 import { deriveGatewayBindings, gatewayLaneKey, type GatewayBinding } from './workflow-gateway-representation.js';
@@ -114,6 +115,9 @@ export class PrismStepInspectorElement extends LitElement {
 
   @property({ attribute: false })
   actionCatalog: ActionCatalogEntry[] = [];
+
+  @property({ attribute: false })
+  availableQueues: WorkflowQueueDefinition[] = [];
 
   @property({ type: Number, attribute: false })
   selectedActionIndex: number | null = null;
@@ -196,7 +200,9 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _stageLabel(stageKey: string) {
-    return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
+    return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName
+      ?? this.workflow?.gateways?.find(gateway => gateway.gatewayKey === stageKey)?.displayName
+      ?? stageKey;
   }
 
   private _gatewayLabel(gatewayKey: string) {
@@ -447,7 +453,7 @@ export class PrismStepInspectorElement extends LitElement {
     const nextStage = applyLaneToStage(stage, laneKey);
 
     this._replaceSelectedStage(nextStage);
-    this._announce(`${stage.displayName} lane updated.`);
+    this._announce(`${stage.displayName} queue updated.`);
   }
 
   private _updateStageType(event: Event) {
@@ -918,7 +924,7 @@ export class PrismStepInspectorElement extends LitElement {
     const laneKey = (event.currentTarget as HTMLInputElement).value.trim();
     if (!laneKey || laneKey === gatewayLaneKey(gateway)) return;
     this._replaceSelectedGateway({ ...gateway, laneKey, actor: laneKey });
-    this._announce(`${gateway.displayName} lane updated to ${laneKey}.`);
+    this._announce(`${gateway.displayName} queue updated to ${laneKey}.`);
   }
 
   private _updateGatewayDescription(event: Event) {
@@ -978,7 +984,7 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _renderGateway(gateway: AuthoredGateway) {
     const laneKey = gatewayLaneKey(gateway);
-    const laneLabel = stageLaneLabel(this.workflow, laneKey);
+    const laneLabel = stageLaneLabel(this.workflow, laneKey, this.availableQueues);
     const binding = this.workflow
       ? deriveGatewayBindings(this.workflow).find(candidate => candidate.gateway.gatewayKey === gateway.gatewayKey) ?? null
       : null;
@@ -995,7 +1001,7 @@ export class PrismStepInspectorElement extends LitElement {
       >
         <div class="inspector-header">
           <div>
-            <p class="eyebrow">${laneLabel} lane</p>
+            <p class="eyebrow">${laneLabel} queue</p>
             <h2 id="inspector-gateway-title" class="stage-title" data-prism-inspector-heading>${gateway.displayName}</h2>
           </div>
           <span class="stage-kind-badge transition-badge" data-prism-field="kind">${gateway.kind} gateway</span>
@@ -1035,10 +1041,10 @@ export class PrismStepInspectorElement extends LitElement {
             </label>
             <label class="field-block">
               <span class="field-label-row">
-                <span class="field-label">Lane owner</span>
+                <span class="field-label">Queue</span>
                 <prism-inline-help
-                  label="Lane owner help"
-                  message="The lane that owns this gateway. For a join gateway, the owning lane is where waiting information is shown to users."
+                  label="Queue help"
+                  message="The queue that owns this gateway. For a join gateway, the owning queue is where waiting information is shown to users."
                 ></prism-inline-help>
               </span>
               <input
@@ -1050,8 +1056,8 @@ export class PrismStepInspectorElement extends LitElement {
                 @change=${this._updateGatewayLane}
               />
               <datalist id=${laneOptionsId}>
-                ${workflowLaneOptions(this.workflow).map(option => html`
-                  <option value=${option}>${stageLaneLabel(this.workflow, option)}</option>
+                ${workflowLaneOptions(this.workflow, this.availableQueues).map(option => html`
+                  <option value=${option}>${stageLaneLabel(this.workflow, option, this.availableQueues)}</option>
                 `)}
               </datalist>
             </label>
@@ -1073,7 +1079,7 @@ export class PrismStepInspectorElement extends LitElement {
           <dl class="meta-list">
             <div class="meta-row">
               <dt>Kind</dt>
-              <dd>${isJoin ? 'Join — converges multiple lane paths' : 'Split — branches into multiple lane paths'}</dd>
+              <dd>${isJoin ? 'Join — converges multiple queue paths' : 'Split — branches into multiple queue paths'}</dd>
             </div>
             <div class="meta-row">
               <dt>Related routes</dt>
@@ -1101,7 +1107,7 @@ export class PrismStepInspectorElement extends LitElement {
                   <h3 id="gateway-waiting-heading" class="section-heading">Waiting information</h3>
                   <prism-inline-help
                     label="Waiting information help"
-                    message="Join gateways own the waiting story for their lane. This message is shown to users in the owning lane while they wait for other lanes to arrive. Authors set it here rather than on a separate waiting stage."
+                    message="Join gateways own the waiting story for their queue. This message is shown to users in the owning queue while they wait for other queues to arrive. Authors set it here rather than on a separate waiting stage."
                   ></prism-inline-help>
                 </div>
                 <div class="field-grid">
@@ -1111,7 +1117,7 @@ export class PrismStepInspectorElement extends LitElement {
                       class="field-control field-textarea"
                       data-prism-gateway-waiting-content
                       .value=${waiting?.content ?? ''}
-                      placeholder="Explain what users in this lane are waiting for, for example: Your application is under review by the planning team."
+                      placeholder="Explain what users in this queue are waiting for, for example: Your application is under review by the planning team."
                       @change=${this._updateJoinWaitingContent}
                     ></textarea>
                   </label>
@@ -1142,7 +1148,7 @@ export class PrismStepInspectorElement extends LitElement {
                         ?checked=${waiting?.allowDefer ?? false}
                         @change=${this._updateJoinWaitingAllowDefer}
                       />
-                      <span>Users in this lane can defer the wait</span>
+                      <span>Users in this queue can defer the wait</span>
                     </label>
                   </div>
                   ${waiting?.allowDefer
@@ -1189,8 +1195,8 @@ export class PrismStepInspectorElement extends LitElement {
     const outgoing = this._selectedStageOutgoing(stage);
     const stageType = stageKindToEditorStageType(stage.kind);
     const laneKey = stageLaneKey(stage);
-    const laneLabel = stageLaneLabel(this.workflow, laneKey);
-    const laneEyebrow = `${laneLabel} lane`;
+    const laneLabel = stageLaneLabel(this.workflow, laneKey, this.availableQueues);
+    const laneEyebrow = `${laneLabel} queue`;
     const laneOptionsId = `stage-lane-options-${stage.stageKey}`;
     const unreachable = this.workflow
       ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
@@ -1272,10 +1278,10 @@ export class PrismStepInspectorElement extends LitElement {
             </label>
             <label class="field-block">
               <span class="field-label-row">
-                <span class="field-label">Lane owner</span>
+                <span class="field-label">Queue</span>
                 <prism-inline-help
-                  label="Lane owner help"
-                  message="Use the lane key that owns this work, for example applicant, reviewer, finance, or planning-officer. The editor keeps actor and role-gate assignment aligned from this lane value."
+                  label="Queue help"
+                  message="Use the queue name that owns this work, for example applicant, reviewer, finance, or planning. The editor keeps the internal actor and role-gate fields aligned from this queue value."
                 ></prism-inline-help>
               </span>
               <input
@@ -1287,8 +1293,8 @@ export class PrismStepInspectorElement extends LitElement {
                 @change=${this._updateStageLane}
               />
               <datalist id=${laneOptionsId}>
-                ${workflowLaneOptions(this.workflow).map(option => html`
-                  <option value=${option}>${stageLaneLabel(this.workflow, option)}</option>
+                ${workflowLaneOptions(this.workflow, this.availableQueues).map(option => html`
+                  <option value=${option}>${stageLaneLabel(this.workflow, option, this.availableQueues)}</option>
                 `)}
               </datalist>
             </label>

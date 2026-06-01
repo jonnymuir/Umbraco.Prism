@@ -49,6 +49,7 @@ export function workflowInboundRoutes(workflow: AuthoredWorkflow, stageKey: stri
 
 export function workflowReachableStageKeys(workflow: AuthoredWorkflow): Set<string> {
   const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
+  const gatewayKeys = new Set((workflow.gateways ?? []).map(gateway => gateway.gatewayKey));
   if (stageKeys.size === 0) {
     return new Set<string>();
   }
@@ -62,18 +63,28 @@ export function workflowReachableStageKeys(workflow: AuthoredWorkflow): Set<stri
   }
 
   const reachable = new Set<string>();
+  const visitedNodes = new Set<string>();
   const pending = [startStageKey];
+  const routes = flattenRoutes(workflow);
 
   while (pending.length > 0) {
     const current = pending.shift();
-    if (!current || reachable.has(current)) {
+    if (!current || visitedNodes.has(current)) {
       continue;
     }
 
-    reachable.add(current);
+    visitedNodes.add(current);
 
-    workflowOutgoingRoutes(workflow, current).forEach(route => {
-      if (stageKeys.has(route.toStage) && !reachable.has(route.toStage)) {
+    if (stageKeys.has(current)) {
+      reachable.add(current);
+    }
+
+    routes.forEach(route => {
+      if (route.fromStage !== current) {
+        return;
+      }
+
+      if ((stageKeys.has(route.toStage) || gatewayKeys.has(route.toStage)) && !visitedNodes.has(route.toStage)) {
         pending.push(route.toStage);
       }
     });
@@ -109,13 +120,15 @@ export function workflowRoutesWithMissingStages(workflow: AuthoredWorkflow): Rou
   const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
   const gatewayKeys = new Set((workflow.gateways ?? []).map(g => g.gatewayKey));
   return flattenRoutes(workflow).filter(route =>
-    !stageKeys.has(route.fromStage)
+    (!stageKeys.has(route.fromStage) && !gatewayKeys.has(route.fromStage))
     || (!stageKeys.has(route.toStage) && !gatewayKeys.has(route.toStage))
   );
 }
 
 function stageLabel(workflow: AuthoredWorkflow, stageKey: string) {
-  return workflow.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
+  return workflow.stages.find(stage => stage.stageKey === stageKey)?.displayName
+    ?? workflow.gateways?.find(gateway => gateway.gatewayKey === stageKey)?.displayName
+    ?? stageKey;
 }
 
 function actionLabel(entry: ActionCatalogEntry | null, action: AuthoredAction) {
@@ -228,7 +241,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
   const missingStageRouteIssues = workflowRoutesWithMissingStages(workflow).map(view => {
     const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
     const gatewayKeys = new Set((workflow.gateways ?? []).map(g => g.gatewayKey));
-    const missingSource = !stageKeys.has(view.fromStage);
+    const missingSource = !stageKeys.has(view.fromStage) && !gatewayKeys.has(view.fromStage);
     const missingTarget = !stageKeys.has(view.toStage) && !gatewayKeys.has(view.toStage);
     const missingLabel = missingTarget ? view.toStage : view.fromStage;
     const direction = missingTarget ? 'target' : 'source';
@@ -243,7 +256,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
       location: { kind: 'route', gatewayKey, routeId } as const,
       message: missingSource && missingTarget
         ? `Route “${view.action}” is disconnected because both ends are missing. Reconnect it to existing stages before you save or simulate this workflow.`
-        : `Route “${view.action}” points to a missing ${direction} stage “${missingLabel}”. Reconnect it to an existing stage before you save or simulate this workflow.`,
+        : `Route “${view.action}” points to a missing ${direction} step “${missingLabel}”. Reconnect it to an existing stage or gateway before you save or simulate this workflow.`,
     };
   });
 

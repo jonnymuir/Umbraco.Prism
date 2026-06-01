@@ -6,6 +6,7 @@ import './prism-workflow-editor.js';
 import type { WorkflowSource, WorkflowSummary } from './workflow-source.js';
 import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
 import type { WorkflowAuthorContext } from './workflow-author-context.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 @customElement('prism-workflow-editor-shell')
 export class PrismWorkflowEditorShellElement extends LitElement {
@@ -27,6 +28,10 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   /** Optional host-supplied UX hints forwarded to the editor. */
   @property({ attribute: false })
   authorContext?: WorkflowAuthorContext;
+
+  /** Optional host-supplied queue catalog forwarded to the editor. */
+  @property({ attribute: false })
+  availableQueues: WorkflowQueueDefinition[] = [];
 
   @state() private _draftWorkflowKey = 'planning';
   @state() private _workflowOptions: WorkflowSummary[] = [];
@@ -142,6 +147,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
           .workflowSource=${this.workflowSource}
           .actionCatalog=${this.actionCatalog}
           .authorContext=${this.authorContext}
+          .availableQueues=${this.availableQueues}
         ></prism-workflow-editor>
       `
     );

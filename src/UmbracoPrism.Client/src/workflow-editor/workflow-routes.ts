@@ -34,7 +34,9 @@ export function flattenRoutes(
   const views: RouteView[] = [];
 
   gateways.forEach(gateway => {
-    const source = gateway.source ?? '';
+    const source = gateway.kind === 'Join'
+      ? gateway.gatewayKey
+      : gateway.source ?? '';
     (gateway.routes ?? []).forEach((route, routeIndex) => {
       const target = route.target ?? '';
       const toGateway = gatewayKeys.has(target) ? target : undefined;

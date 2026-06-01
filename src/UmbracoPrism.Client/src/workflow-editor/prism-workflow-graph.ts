@@ -15,6 +15,7 @@ import {
   stageLaneLabel,
   stageSurface,
   type StageSurface,
+  type WorkflowQueueDefinition,
   workflowLaneOptions,
 } from './workflow-stage-assignment.js';
 import {
@@ -198,6 +199,9 @@ const LANE_HEADER_OFFSET = 80;
 export class PrismWorkflowGraphElement extends LitElement {
   @property({ attribute: false })
   workflow: AuthoredWorkflow | null = null;
+
+  @property({ attribute: false })
+  availableQueues: WorkflowQueueDefinition[] = [];
 
   /**
    * Render the graph as a pure viewer — no toolbar create buttons, no creation
@@ -804,15 +808,15 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _roleLabelForLane(laneKey: string) {
-    return stageLaneLabel(this.workflow, laneKey);
+    return stageLaneLabel(this.workflow, laneKey, this.availableQueues);
   }
 
   private _roleDescriptionForLane(laneKey: string) {
-    return stageLaneDescription(this.workflow, laneKey);
+    return stageLaneDescription(this.workflow, laneKey, this.availableQueues);
   }
 
   private _availableLaneKeys() {
-    return workflowLaneOptions(this.workflow);
+    return workflowLaneOptions(this.workflow, this.availableQueues);
   }
 
   private _layoutCenter(layout: StageLayout | GatewayLayout) {
@@ -1059,7 +1063,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       })
     );
     this._emitSelectionChange({ kind: 'gateway', gatewayKey });
-    this._announce(`Gateway “${gateway.displayName}” selected. ${gateway.kind} gateway in ${this._roleLabelForLane(this._laneKeyForGateway(gateway))} lane.`);
+    this._announce(`Gateway “${gateway.displayName}” selected. ${gateway.kind} gateway in the ${this._roleLabelForLane(this._laneKeyForGateway(gateway))} queue.`);
 
     if (options?.openInspector) {
       this._requestInspector({ kind: 'gateway', gatewayKey });
@@ -1125,7 +1129,9 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _labelForStage(stageKey: string): string {
-    return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName ?? stageKey;
+    return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName
+      ?? this.workflow?.gateways?.find(gateway => gateway.gatewayKey === stageKey)?.displayName
+      ?? stageKey;
   }
 
   private _transitionDescriptor(transition: RouteView) {
@@ -1339,7 +1345,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
     this._dialogReturnTarget = returnTarget ?? null;
-    const defaultLane = workflowLaneOptions(this.workflow)[0] ?? 'public';
+    const defaultLane = workflowLaneOptions(this.workflow, this.availableQueues)[0] ?? 'public';
     this._createGatewayDialog = {
       title: '',
       gatewayKey: '',
@@ -1800,7 +1806,7 @@ export class PrismWorkflowGraphElement extends LitElement {
             </div>
           </div>
           <p id="create-stage-dialog-copy" class="dialog-copy">
-            Name the stage, choose its key, lane owner, and type, then continue editing in the inspector.
+            Name the stage, choose its key, queue, and type, then continue editing in the inspector.
           </p>
           ${dialog.error ? html`<p class="dialog-error" data-prism-create-stage-error>${dialog.error}</p>` : nothing}
           <div class="dialog-grid">
@@ -1823,13 +1829,13 @@ export class PrismWorkflowGraphElement extends LitElement {
               />
             </label>
             <label class="dialog-field">
-              <span class="dialog-label">Lane owner</span>
+              <span class="dialog-label">Queue</span>
               <input
                 class="dialog-control"
                 data-prism-create-stage-lane
                 .value=${dialog.laneKey}
                 list="create-stage-lane-options"
-                placeholder="planning-officer"
+                placeholder="planning"
                 @input=${(event: Event) => this._updateCreateStageLane((event.currentTarget as HTMLInputElement).value)}
               />
               <datalist id="create-stage-lane-options">
@@ -1991,13 +1997,13 @@ export class PrismWorkflowGraphElement extends LitElement {
               </select>
             </label>
             <label class="dialog-field">
-              <span class="dialog-label">Lane owner</span>
+              <span class="dialog-label">Queue</span>
               <input
                 class="dialog-control"
                 data-prism-create-gateway-lane
                 .value=${dialog.laneKey}
                 list="create-gateway-lane-options"
-                placeholder="public"
+                placeholder="applicant"
                 @input=${(event: Event) => {
                   const laneKey = (event.currentTarget as HTMLInputElement).value;
                   this._createGatewayDialog = this._createGatewayDialog
@@ -2074,8 +2080,8 @@ export class PrismWorkflowGraphElement extends LitElement {
 
       <p class="graph-hint">
         ${this.readOnly
-          ? 'Tab through role bands and stage cards. Enter selects, arrow keys move between stages.'
-          : 'Tab through role bands, stage cards, and gateway nodes. Enter selects a node, E opens the inspector to edit it (including a gateway\u2019s outgoing routes), and Shift+F10 opens the context menu.'}
+          ? 'Tab through queue bands and stage cards. Enter selects, arrow keys move between stages.'
+          : 'Tab through queue bands, stage cards, and gateway nodes. Enter selects a node, E opens the inspector to edit it (including a gateway\u2019s outgoing routes), and Shift+F10 opens the context menu.'}
       </p>
 
       ${isEmpty
@@ -2085,7 +2091,7 @@ export class PrismWorkflowGraphElement extends LitElement {
             role="application"
             tabindex="0"
             aria-label=${`Workflow graph canvas — ${this.workflow?.displayName ?? 'workflow'}`}
-            aria-roledescription=${this.readOnly ? 'Role-first workflow viewer' : 'Role-first workflow editor workspace'}
+            aria-roledescription=${this.readOnly ? 'Queue-first workflow viewer' : 'Queue-first workflow editor workspace'}
             @click=${() => this._dismissContextMenu(false)}
             @contextmenu=${this.readOnly ? nothing : (event: MouseEvent) => this._openContextMenu(event, { kind: 'canvas' })}
           >
@@ -2112,7 +2118,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     aria-describedby=${copyId}
                     data-prism-role-lane=${lane.key}
                     data-prism-lane-container=${lane.key}
-                    @focus=${() => this._announce(`${lane.label} lane. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`)}
+                    @focus=${() => this._announce(`${lane.label} queue. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`)}
                   >
                     <div class="lane-header" data-prism-lane-header=${lane.key}>
                       <div id=${headingId} class="lane-heading">${lane.label}</div>
@@ -2192,8 +2198,8 @@ export class PrismWorkflowGraphElement extends LitElement {
                     class=${`gateway-node ${layout.surface} kind-${layout.gateway.kind.toLowerCase()} ${shapeClass} ${this._selectedGatewayKey === layout.gateway.gatewayKey ? 'selected' : ''}`}
                     aria-pressed=${String(this._selectedGatewayKey === layout.gateway.gatewayKey)}
                     aria-label=${isPill
-                      ? `${layout.gateway.displayName}, single-route gateway via “${triggerLabel}”, ${layout.laneLabel} lane`
-                      : `${layout.gateway.displayName}, ${layout.gateway.kind} gateway, ${layout.laneLabel} lane`}
+                      ? `${layout.gateway.displayName}, single-route gateway via “${triggerLabel}”, ${layout.laneLabel} queue`
+                      : `${layout.gateway.displayName}, ${layout.gateway.kind} gateway, ${layout.laneLabel} queue`}
                     data-prism-gateway=${layout.gateway.gatewayKey}
                     data-prism-gateway-kind=${layout.gateway.kind}
                     data-prism-gateway-route-count=${String(routeCount)}
@@ -2228,7 +2234,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     type="button"
                     class=${`stage-node ${layout.surface} ${this._selectedStageKey === layout.stage.stageKey ? 'selected' : ''} ${this._stageIsInSimulationPath(layout.stage.stageKey) ? 'simulation-path' : ''} ${this.simulationCurrentStageKey === layout.stage.stageKey ? 'simulation-current' : ''}`}
                     aria-pressed=${String(this._selectedStageKey === layout.stage.stageKey)}
-                    aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} lane`}
+                    aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} queue`}
                     data-prism-stage="${layout.stage.stageKey}"
                     data-prism-stage-simulation-path=${String(this._stageIsInSimulationPath(layout.stage.stageKey))}
                     data-prism-stage-simulation-current=${String(this.simulationCurrentStageKey === layout.stage.stageKey)}
@@ -2262,7 +2268,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           ? nothing
           : html`
               <ul class="workspace-empty-tips">
-                <li>Use <strong>Add stage</strong>, then name the lane owner that should own the work.</li>
+                <li>Use <strong>Add stage</strong>, then choose the queue that should own the work.</li>
                 <li><strong>Add the next stage before you branch</strong> — gateways always connect existing stages, never empty space.</li>
                 <li>Use the editor Help button or press <strong>F1</strong> to review shortcuts while you work.</li>
               </ul>
@@ -2288,7 +2294,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         <div class="toolbar">
           <div class="toolbar-title-block">
             <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>
-            <span class="workflow-subtitle">${this.readOnly ? 'Published workflow — read-only viewer' : 'Graph workspace for lane-owned stages, gateways, and transitions'}</span>
+            <span class="workflow-subtitle">${this.readOnly ? 'Published workflow — read-only viewer' : 'Graph workspace for queue-owned stages, gateways, and routes'}</span>
           </div>
         </div>
 
