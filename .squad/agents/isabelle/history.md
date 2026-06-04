@@ -32,3 +32,19 @@ Payment demo editor shows validation false-positives (Join gateway `flattenRoute
 
 ---
 
+
+## 2026-06-04: Flattened Workflow Model Session
+
+**Agents:** Tom Nook, Tangy, Isabelle, Blathers  
+**Session:** Queue-first architecture consolidation  
+**Decision:** Single `WorkflowDefinition` contract approved
+
+**Key outcomes:**
+- AuthoredWorkflow + WorkflowDefinitionFile + ProjectedWorkflow → single canonical schema
+- Lanes renamed to queues; laneKey + queueName merged to single identifier
+- Gateways elevated from metadata to first-class definition elements
+- Editor and runtime both use persisted contract directly
+
+**Team coordination:** Decisions merged from 4 agents into `.squad/decisions.md`
+
+**Isabelle contribution:** Flattened client editor onto persisted workflow definition; Definition tab and visual editor now use same contract; client build and Playwright tests passed.

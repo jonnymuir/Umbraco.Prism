@@ -29,3 +29,19 @@ Isabelle (editor) and Blathers (runtime) now proceed with implementation. Paymen
 
 ---
 
+
+## 2026-06-04: Flattened Workflow Model Session
+
+**Agents:** Tom Nook, Tangy, Isabelle, Blathers  
+**Session:** Queue-first architecture consolidation  
+**Decision:** Single `WorkflowDefinition` contract approved
+
+**Key outcomes:**
+- AuthoredWorkflow + WorkflowDefinitionFile + ProjectedWorkflow → single canonical schema
+- Lanes renamed to queues; laneKey + queueName merged to single identifier
+- Gateways elevated from metadata to first-class definition elements
+- Editor and runtime both use persisted contract directly
+
+**Team coordination:** Decisions merged from 4 agents into `.squad/decisions.md`
+
+**Tom Nook contribution:** Defined flattened single persisted workflow definition strategy; locked architecture decision on queue-first model with single WorkflowDefinition contract.
