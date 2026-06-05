@@ -986,3 +986,735 @@ WorkflowDefinitionFile {
 
 *— Tom Nook, Lead / Architect*  
 *On behalf of Squad*
+
+---
+
+### 2026-06-05T06:20:10.339+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Remove lanes fully and model workflows as top-level queues containing states, gateways, and routes; states route only to gateways, gateways route to states or gateways, and payment must be the clean demo with validations working across the whole stack.
+**Why:** User request — captured for team memory
+
+---
+
+# 2026-06-05T06:20:10.339+01:00 — Queue-only runtime contract follow-through
+
+**Author:** Blathers  
+**Requested by:** Jonny Muir
+
+## Decision
+
+The backend/runtime now treats the queue-only workflow graph as canonical:
+- `queues` replace top-level `lanes`
+- `queueKey` replaces `laneKey` on states and gateways
+- `routes` live on states and gateways
+- join gateways wait on `requiredIncomingQueues`
+- payment-demo is the reference proof flow
+
+## Compatibility rule
+
+To keep existing fixtures, publishing, and runtime tests working during the migration, the backend still reads legacy `lanes`, `laneKey`, `queueName`, `source`, `requiredIncomingLanes`, and `transitions` when present. New queue-only payloads write and validate against the canonical queue-first shape.
+
+## Runtime rule
+
+When a route lands on a join gateway, the runtime preserves the arriving queue identity on the parked cursor. Join release only happens once every required incoming queue has arrived, even when the final arrival came through an intermediate split gateway.
+
+---
+
+# Queue-only editor contract landed
+
+**Date:** 2026-06-05T06:20:10.339+01:00  
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)
+
+## Decision
+
+The workflow editor now treats the queue-only contract as canonical:
+
+- `queues[]` is the top-level ownership model for the editor and Definition tab
+- states own outbound `routes[]`
+- gateways own outbound `routes[]`
+- the editor derives any legacy flat-transition view only as a compatibility helper
+- payment demo is the reference proof for applicant → payments-team queue handoff via split/join gateways
+
+## Why
+
+Jonny's directive was to remove lanes and separate transitions from the authoring experience. Keeping routes on the owning state/gateway makes the canvas, validation rail, Definition tab, and payment proof all teach the same model.
+
+## Frontend implications
+
+1. Editor serialisation now writes queue-first JSON instead of flat `transitions[]`.
+2. Canvas and inspector use queue labels from the host when available, with workflow queues as the fallback source of truth.
+3. Validation and definition-sync tests now prove queue-owned routing instead of lane/transition semantics.
+
+## Follow-up
+
+If any remaining backend/runtime compatibility code still reads legacy lane or flat-transition fields, it should be treated as read-only fallback and removed once the wider stack is fully queue-only.
+
+---
+
+## 2026-06-05T06:20:10.339+01:00: Queue-only behavioural test gate
+
+**Author:** Tangy  
+**Requested by:** Jonny Muir
+
+### Backend behavioural tests that must change
+
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/PaymentDemoReferenceWorkflowTests.cs` — currently proves lane metadata (`definition.Lanes`, `RequiredIncomingLanes`, cursor `LaneKey`) instead of a queue-only contract.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/MultiLaneGatewayContractTests.cs` — every core assertion is phrased in lane ownership terms and must move to queue ownership terms.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/ProjectorEngineGatewayIntegrationTests.cs` — join release proof is tied to “required lanes”; the same runtime proof needs queue wording and queue-owned fixtures.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowGatewayProjectionTests.cs` — projection proof currently sorts and emits `RequiredIncomingLanes`; this must become the queue-only routing rule.
+- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowSimulationServiceTests.cs` and `AuthoredWorkflowValidationTests.cs` — both need explicit queue-only validation cases proving states never route directly to states and gateways only target states or gateways.
+
+### Client behavioural tests that must change
+
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-parallel-lanes.spec.ts` — entire spec is lane-column proof and should become queue-column proof.
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-canvas-lane-fit.spec.ts`
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-layout-proof.spec.ts`
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts`
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-gateways.spec.ts` — currently asserts `data-prism-lane` ownership.
+- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-shell.spec.ts` — payment-demo proof is stale (`provider-processing`) and must assert the real queue-only demo instead.
+- `src/UmbracoPrism.Client/tests/workflow-editor/support/canvas-helpers.ts` — shared geometry helpers still measure lane containers and will keep the visual suite dishonest until moved to queue terminology.
+
+### Acceptance criteria for Blathers
+
+1. Backend validation rejects any queue-only workflow where a state routes directly to a state, or a gateway routes to anything other than a state or gateway.
+2. Queue-only fixtures and projection/runtime tests use queues as the first-class owner model; no behavioural proof should depend on `lanes` or `laneKey`.
+3. Payment demo persists as the clean reference: queue-owned states/gateways/routes, no legacy placeholder stage, applicant submit defers on the waiting gateway, business queue receives the confirmation work item, confirm releases to `payment-complete`.
+
+### Acceptance criteria for Isabelle
+
+1. Editor/shell/canvas tests speak in queue terms, not lane terms, and render queue ownership honestly in DOM/data attributes.
+2. Payment demo in the editor loads the real queue-only graph and passes the validation rail with zero issues.
+3. The editor no longer proves the retired `provider-processing` story; it must instead show the waiting gateway plus the back-office confirmation state from the real payment demo.
+
+---
+
+# Queue-Only Workflow Model — Definition & Implementation Plan
+
+**Author:** Tom Nook (Lead)  
+**Date:** 2026-06-05T06:20:10Z  
+**Status:** ✅ Locked for Blathers & Isabelle implementation  
+**Directive:** User input: "We can remove lanes fully, we only need queues. A queue is a lane. Lets make this as simple as possible. A workflow is made up of queues. Each queue contains states and gateways between states... replace the concept of a separate transition with routes which belong to states... A gateway may route to another gateway or a state... work across all of the workflow code... use the payment workflow... make sure validations work..."
+
+---
+
+## 1. Queue-Only JSON Contract
+
+### Top-Level Shape
+```typescript
+{
+  definitionKey: string                // "payment-demo"
+  displayName: string                  // "Payment Demo"
+  version: number                      // 1
+  initialState: string                 // "enter-details" (stateKey, not gatewayKey)
+  instancePolicy: string               // "single"
+  description?: string
+  
+  // NEW: Queues become the organizational unit (replaces lanes)
+  queues: QueueDefinition[]            // Top-level item replaces lanes
+
+  // UNCHANGED at top level
+  states: StepDefinition[]
+  gateways: WorkflowGatewayDefinition[]
+  
+  // DEPRECATED
+  transitions?: WorkflowTransitionFile[] // Now only in gateway.routes
+  lanes?: WorkflowLaneDefinition[]        // REMOVED—queues replace this
+}
+```
+
+### Queue Definition (replaces Lane)
+```typescript
+interface QueueDefinition {
+  key: string                        // "web-user", "business-user", "applicant" etc
+  displayName: string                // User-facing name
+  
+  // CHANGED: No longer separate lane + queue concept
+  // Queue IS the organizational container and access boundary
+  
+  // Optional metadata
+  description?: string
+  actor?: string                     // Optional human role label
+  roleGates?: string[]               // Optional access-control roles
+  tags?: Record<string, string>
+}
+```
+
+### State Definition (owned by a single queue)
+```typescript
+interface StepDefinition {
+  stateKey: string                   // "enter-details"
+  displayName: string
+  
+  // REQUIRED: Every state belongs to exactly one queue
+  queueKey: string                   // NOT laneKey—now queueKey (queue required, not optional)
+  
+  // Routes now live here (CHANGED)
+  routes?: WorkflowRouteDefinition[] // Outbound routes FROM this state
+  
+  // Existing
+  description?: string
+  stageType?: string
+  actor?: string
+  roleGates?: string[]
+  components: PrismComponent[]
+  actions?: WorkflowActionDefinition[]
+}
+```
+
+### Gateway Definition (owned by a single queue)
+```typescript
+interface WorkflowGatewayDefinition {
+  key: string                        // "submit-payment"
+  displayName: string
+  description?: string
+  
+  // Gateway type (existing)
+  gatewayType: "Split" | "Join"
+  
+  // CHANGED: Queue ownership (not lane)
+  queueKey: string                   // "web-user" or "business-user"
+  
+  // REMOVED: laneKey is redundant with queueKey
+  // REMOVED: source field (see below for routing model)
+  
+  // Routes now live here (CHANGED)
+  routes: WorkflowRouteDefinition[]  // Outbound routes FROM this gateway
+  
+  // Join-only metadata
+  waitingContent?: string
+  waitingExpectedSeconds?: number
+  waitingPollIntervalMs?: number
+  waitingAllowDefer?: boolean
+  waitingDeferMessage?: string
+  requiredIncomingQueues?: string[]  // CHANGED: Was requiredIncomingLanes
+}
+```
+
+### Route Definition (new structure)
+```typescript
+interface WorkflowRouteDefinition {
+  id: string                         // "submit-payment--release--payment-complete"
+  
+  // Target can be a state or gateway key
+  target: string                     // "await-payment-confirmation" or "payment-complete"
+  
+  // What action/event triggers this route
+  trigger: string                    // "submit", "confirm", "release"
+  
+  // Conditions & side effects (existing)
+  requiresRole?: string
+  conditions?: WorkflowConditionDefinition[]
+  actions?: WorkflowActionDefinition[]
+}
+```
+
+### Payment Demo in New Contract
+```json
+{
+  "definitionKey": "payment-demo",
+  "displayName": "Payment Demo",
+  "version": 1,
+  "initialState": "enter-details",
+  "instancePolicy": "single",
+  "description": "Payment flow showing the web queue handing off to the business queue before completion",
+  
+  "queues": [
+    {
+      "key": "web-user",
+      "displayName": "Applicant",
+      "actor": "applicant",
+      "description": "Web user entering payment details and awaiting confirmation"
+    },
+    {
+      "key": "business-user",
+      "displayName": "Payments team",
+      "actor": "reviewer",
+      "description": "Back-office team confirming payment receipt"
+    }
+  ],
+  
+  "states": [
+    {
+      "stateKey": "enter-details",
+      "displayName": "Enter payment details",
+      "queueKey": "web-user",
+      "stageType": "Question",
+      "actor": "applicant",
+      "description": "Provide the payment details for this application.",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Payment details",
+          "children": [
+            {"type": "text", "fieldKey": "cardholderName", "label": "Cardholder name", "required": true},
+            {"type": "decimal", "fieldKey": "amount", "label": "Amount (£)", "required": true}
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "enter-details--submit--split-gateway",
+          "target": "submit-payment",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "stateKey": "confirm-payment-received",
+      "displayName": "Confirm payment received",
+      "queueKey": "business-user",
+      "stageType": "Question",
+      "actor": "reviewer",
+      "description": "Back-office confirmation step for reconciling the payment.",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Confirmation details",
+          "children": [
+            {"type": "text", "fieldKey": "confirmationReference", "label": "Confirmation reference", "required": true},
+            {"type": "decimal", "fieldKey": "amountReceived", "label": "Amount received (£)", "required": true}
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "confirm-payment-received--confirm--route-gateway",
+          "target": "confirm-payment-route",
+          "trigger": "confirm"
+        }
+      ]
+    },
+    {
+      "stateKey": "payment-complete",
+      "displayName": "Payment complete",
+      "queueKey": "web-user",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "description": "Confirms that the payment has been matched and the receipt is on its way.",
+      "components": []
+    }
+  ],
+  
+  "gateways": [
+    {
+      "key": "submit-payment",
+      "displayName": "Submit payment → notify back-office",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "description": "Applicant submits payment; routes to both waiting state and back-office processing.",
+      "routes": [
+        {
+          "id": "submit-payment--split--await-payment-confirmation",
+          "target": "await-payment-confirmation",
+          "trigger": "submit"
+        },
+        {
+          "id": "submit-payment--split--confirm-payment-received",
+          "target": "confirm-payment-received",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "key": "await-payment-confirmation",
+      "displayName": "Awaiting payment confirmation",
+      "gatewayType": "Join",
+      "queueKey": "web-user",
+      "description": "Join point where applicant waits for back-office confirmation.",
+      "requiredIncomingQueues": ["web-user", "business-user"],
+      "waitingContent": "We're waiting for the payments team to confirm receipt of your payment.",
+      "waitingExpectedSeconds": 60,
+      "waitingPollIntervalMs": 5000,
+      "waitingAllowDefer": true,
+      "waitingDeferMessage": "You can leave this page and return later.",
+      "routes": [
+        {
+          "id": "await-payment-confirmation--release--payment-complete",
+          "target": "payment-complete",
+          "trigger": "release"
+        }
+      ]
+    },
+    {
+      "key": "confirm-payment-route",
+      "displayName": "Record payment confirmation",
+      "gatewayType": "Split",
+      "queueKey": "business-user",
+      "description": "Back-office confirms the payment and signals the join gateway.",
+      "routes": [
+        {
+          "id": "confirm-payment-route--confirm--await-payment-confirmation",
+          "target": "await-payment-confirmation",
+          "trigger": "confirm",
+          "requiresRole": "reviewer"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## 2. Routing Model Semantics
+
+### Key Change: Routes belong to source nodes
+- **States can have outbound routes** → point to gateways or terminal states
+- **Gateways can have outbound routes** → point to states or other gateways
+- **No direct state-to-state transitions** (all must go through a gateway for explicit routing logic)
+- **No separate `transitions` array** (routes are now embedded in source nodes)
+
+### Source Inference
+- **For gateways:** If a route target is a state, the runtime knows where the route came from (the gateway's key)
+- **For states:** If a route target is a gateway, the state is the source
+- **NO `source` field needed in gateways** because the gateway itself IS the routing node
+
+### Example Flow
+```
+enter-details (state)
+  └─ routes: [submit-payment (gateway)]
+    
+submit-payment (gateway)
+  └─ routes: [
+       await-payment-confirmation (gateway),
+       confirm-payment-received (state)
+     ]
+
+confirm-payment-received (state)
+  └─ routes: [confirm-payment-route (gateway)]
+
+confirm-payment-route (gateway)
+  └─ routes: [await-payment-confirmation (gateway)]
+
+await-payment-confirmation (gateway)
+  └─ routes: [payment-complete (state)]
+
+payment-complete (state) — terminal, no routes
+```
+
+---
+
+## 3. Code Areas for Implementation
+
+### Blathers (Runtime)
+
+#### 3a. Workflow Definition Loading & Validation
+- **File:** `UmbracoPrism.Shared/Models/Workflow/WorkflowDefinitionFile.cs`
+  - Update `WorkflowDefinitionFile` record:
+    - Remove `Transitions` (legacy field, routes now in states/gateways)
+    - **ADD** `Queues: IReadOnlyList<QueueDefinition>`
+    - Remove `Lanes` from top-level (kept only in legacy Metadata)
+  - Update `StepDefinition`:
+    - Rename `LaneKey` → `QueueKey` (required, not nullable)
+    - **ADD** `Routes: IReadOnlyList<WorkflowRouteDefinition>`
+  - Update `WorkflowGatewayDefinition`:
+    - Rename `LaneKey` → `QueueKey`
+    - Remove `Source` field (no longer needed—gateway IS the routing node)
+    - Rename `RequiredIncomingLanes` → `RequiredIncomingQueues`
+  - **DELETE** `WorkflowLaneDefinition` record (replaced by `QueueDefinition`)
+  - **DELETE** `WorkflowTransitionFile` record (routes now in source nodes)
+
+#### 3b. Backward Compatibility Layer
+- Keep `WorkflowDefinitionMetadata` for loading legacy seeds
+- Add migration logic in `FilesystemWorkflowDefinitionStore.cs`:
+  - Detect old `lanes`/`transitions`/`gateways` in Metadata
+  - Convert to new `queues` + embedded routes on first load
+  - Persist converted form so old seeds are never loaded twice
+  - **Quality gate:** Payment-demo.json roundtrip test proves conversion works
+
+#### 3c. Workflow Routing Engine
+- **File:** `UmbracoPrism.WorkflowRuntime/Services/WorkflowRuntimeEngine.cs`
+  - Update routing logic to traverse routes from `states` and `gateways` instead of `transitions`
+  - Update `GetNextStates()` method:
+    - For current state: read `state.routes[]` to find target gateways
+    - For current gateway: read `gateway.routes[]` to find target states/gateways
+  - Update join gateway logic to use `requiredIncomingQueues` instead of `requiredIncomingLanes`
+  - **RISK:** If routing incorrectly defaults to first route or crashes on missing routes, workflow instances can get stuck
+
+#### 3d. Validation & Quality Gates
+- **File:** Create `UmbracoPrism.Core/Services/Workflow/WorkflowDefinitionValidator.cs` (if not exist)
+  - **Validation 1:** Every state must have `queueKey` (required, never null)
+  - **Validation 2:** Every gateway must have `queueKey` (required)
+  - **Validation 3:** Every route's `target` must resolve to an existing state or gateway key
+  - **Validation 4:** `InitialState` must be a state key, never a gateway
+  - **Validation 5:** Join gateway must have `requiredIncomingQueues` (not optional)
+  - **Validation 6:** Terminal states must have empty or null routes
+  - **Validation 7:** No cycles in route graph (DFS detection)
+  - **Quality gate test:** `PaymentWorkflowDefinitionValidationTests` covering all scenarios
+
+#### 3e. Payment Demo Roundtrip Test
+- **File:** `UmbracoPrism.Core.Tests/Workflow/Components/SeedFileRoundtripTests.cs`
+  - Load `payment-demo.json` from seed
+  - Assert all states have `queueKey` set
+  - Assert all gateways have `queueKey` set
+  - Assert no `transitions` array (routes now embedded)
+  - Assert `queues` array is present and populated
+  - Assert `routes` on first state point to `submit-payment` gateway
+  - Assert join gateway has `requiredIncomingQueues: ["web-user", "business-user"]`
+  - Assert routing engine can traverse from start to end
+
+#### 3f. Impact Analysis — Runtime Instance Projection
+- **File:** `UmbracoPrism.WorkflowRuntime/Services/WorkflowInstanceProjector.cs` (if exists)
+  - Instance state is keyed by state/gateway key (unchanged)
+  - Route traversal now reads from source node instead of querying transitions
+  - **RISK:** If instances exist with unknown state keys, validation will fail—add fallback logging
+
+### Isabelle (Editor)
+
+#### 4a. Authored Workflow Schema
+- **File:** `UmbracoPrism.WorkflowEditor/Authoring/AuthoredWorkflow.cs`
+  - Rename `AuthoredLane` → `AuthoredQueue` (or consolidate into definition)
+  - Update `AuthoredStage` / `AuthoredGateway`:
+    - Add `laneKey` property as legacy alias
+    - Add `queueKey` as canonical property
+    - Routes: ensure they live on source stages/gateways, not in a flat array
+  - **File:** `UmbracoPrism.WorkflowEditor/Authoring/AuthoredTransition.cs`
+    - **DEPRECATE** — routes now live on source nodes
+    - If legacy data still references transitions, convert to embedded routes during load
+
+#### 4b. Workflow Projector
+- **File:** `UmbracoPrism.WorkflowEditor/Authoring/WorkflowProjector.cs`
+  - Update projection logic:
+    - Input: `AuthoredWorkflow` (with queues, states with routes, gateways with routes)
+    - Output: `WorkflowDefinitionFile` (with `queues`, no `transitions`, routes embedded)
+    - Ensure all routes are migrated from old transition/transition-metadata format
+  - **Quality gate test:** `WorkflowProjectorTests` with payment demo proves correct projection
+
+#### 4c. Canvas Editor — Visual Model
+- **File:** `UmbracoPrism.Client/src/workflow-editor/canvas/...`
+  - Update graph rendering:
+    - Nodes: stages + gateways (unchanged visually)
+    - Edges: now read from `state.routes` and `gateway.routes` instead of flat transitions
+    - Lane/queue swim lanes: update to read from `queues` instead of `lanes`
+  - Update node inspector:
+    - States: show `queueKey` dropdown instead of `laneKey`
+    - Gateways: show `queueKey` dropdown, remove `source` field input
+    - Routes: now edited inline on state/gateway instead of in a separate transitions tab
+  - **Quality gate test:** `workflow-parallel-queues.spec.ts` proves visual read matches model
+
+#### 4d. Authoring API / Save Path
+- **File:** `UmbracoPrism.WorkflowEditor/Authoring/AuthoringWorkflowService.cs` (or equivalent)
+  - On save:
+    - Validate all states have `queueKey`
+    - Validate all gateways have `queueKey`
+    - Convert embedded routes to canonical form (no source field needed)
+    - Emit only `queues` (not `lanes`), no `transitions` array
+  - On load (legacy):
+    - If old format (lanes + transitions), migrate to queues + embedded routes
+    - Persist migrated form immediately to prevent re-migration
+
+#### 4e. Live Authored Seed
+- **File:** `src/UmbracoPrism.MockBusinessApp/workflow-authored/planning.workflow.json`
+  - Migrate to new schema:
+    - Add `queues` array
+    - Move routes from `transitions` to embedded in states/gateways
+    - Remove `lanes` top-level (keep only in legacy Metadata if needed)
+    - Remove `source` field from gateways
+  - **Quality gate:** `workflow-authoring-live-seed-contract` skill demands the live authored seed be valid for real API load
+
+---
+
+## 4. Risky Edge Cases & Mitigation
+
+### 4.1 Backward Compatibility Risk
+**Edge Case:** Old seeds with `lanes` + `transitions` + `laneKey` still exist; old fixtures reference them.
+
+**Mitigation:**
+- Keep `WorkflowDefinitionMetadata` for legacy payloads
+- Add `LoadAsync()` converter: detect old format, convert to new, log migration
+- Quality gate: Both old and new formats must roundtrip successfully
+- **Test:** `LegacyWorkflowMigrationTests` covering all old payment-demo variants
+
+### 4.2 Route Graph Integrity
+**Edge Case:** A gateway's route points to a non-existent state/gateway; routing engine crashes or hangs.
+
+**Mitigation:**
+- Validation rule: every route target must resolve in the definition
+- Runtime: add defensive checks before routing (throw clear error if target missing)
+- Quality gate: cyclic path detection (DFS) to prevent infinite loops
+- **Test:** `WorkflowRouteGraphValidationTests`
+
+### 4.3 Join Gateway Required Incoming Queues
+**Edge Case:** Join gateway lists `requiredIncomingQueues: ["web-user", "business-user"]` but a route from `business-user` state points directly to a terminal state, bypassing the join.
+
+**Mitigation:**
+- Validation rule: if a queue has a route to a join gateway, verify all queues in `requiredIncomingQueues` have reachable routes to the join
+- Document expected behavior: join waits for paths from ALL required queues to arrive
+- Quality gate: payment-demo's join validates that both queues contribute
+- **Test:** `JoinGatewayRequiredQueuesTests`
+
+### 4.4 Initial State Accidentally Set to Gateway
+**Edge Case:** `initialState: "await-payment-confirmation"` (a gateway, not a state).
+
+**Mitigation:**
+- Validation rule: `initialState` must resolve to a state key, not a gateway
+- Quality gate test catches this immediately
+- **Test:** `InitialStateValidationTests`
+
+### 4.5 State Orphaned (No Incoming Routes)
+**Edge Case:** A state has no incoming routes (unreachable except as initial state); workflow stalls if instance lands in wrong queue.
+
+**Mitigation:**
+- Validation warning: highlight unreachable states (not fatal, but warn)
+- Document expected: every non-initial state should have at least one incoming route
+- Quality gate: payment-demo has no orphans
+- **Test:** `UnreachableStateWarningTests`
+
+### 4.6 Routes Array Empty or Null
+**Edge Case:** A state is terminal but has `routes: []` (correct) vs. `routes: null` (ambiguous).
+
+**Mitigation:**
+- Standardize: terminal states can omit `routes` or have `routes: []`
+- Runtime treats both as terminal
+- Serialization: omit empty routes to keep JSON clean
+- **Test:** `TerminalStateRoutingTests`
+
+### 4.7 Queue Key Typos or Refactoring
+**Edge Case:** During refactor, `queueKey` changed from `"web-user"` to `"web"` in one state but not others.
+
+**Mitigation:**
+- Validation rule: all states/gateways with routes to each other must share queue context or be explicitly crossing queues
+- Quality gate: payment-demo hard-codes queue keys—catch typos early
+- **Test:** `QueueKeyConsistencyTests`
+
+### 4.8 Legacy Authored Workflow with Mixed Schema
+**Edge Case:** An authored workflow has both `transitions` array AND embedded `routes` in gateways (migration half-applied).
+
+**Mitigation:**
+- Converter: if both exist, prefer embedded routes; log warning about mixed schema
+- Quality gate: live authored seed must be canonical (no mixing)
+- **Test:** `MixedSchemaRejectionTests`
+
+---
+
+## 5. Testing Strategy & Quality Gates
+
+### Blathers (Runtime)
+
+1. **WorkflowDefinitionValidationTests**
+   - Every state must have `queueKey` (not null)
+   - Every gateway must have `queueKey` (not null)
+   - `initialState` must be a state, not a gateway
+   - All route targets must exist
+   - No cycles in route graph
+   - Join gateway must have `requiredIncomingQueues`
+
+2. **PaymentWorkflowSeedRoundtripTests**
+   - Load `payment-demo.json`
+   - Assert structure: `queues`, `states` with `routes`, `gateways` with `routes`
+   - Assert `web-user` queue contains enter-details, await-payment-confirmation, payment-complete
+   - Assert `business-user` queue contains confirm-payment-received
+   - Assert no `transitions` array
+   - Assert no `lanes` at top level
+   - Assert join gateway has two required queues
+   - Assert runtime engine can traverse all paths
+
+3. **WorkflowRuntimeEngineRoutingTests**
+   - Payment demo: applicant enters details → split gateway → two paths (waiting + back-office)
+   - Back-office confirms → routes to join gateway
+   - Join releases → payment-complete (terminal)
+
+### Isabelle (Editor)
+
+1. **WorkflowProjectorTests**
+   - Input: `AuthoredWorkflow` with queues/states/gateways (new model)
+   - Output: `WorkflowDefinitionFile` matching new schema
+   - Assert embedded routes are preserved
+   - Assert no `source` field on gateways (unnecessary)
+
+2. **CanvasRenderingTests** (`workflow-parallel-queues.spec.ts`)
+   - Render payment workflow
+   - Assert swim lanes labeled by queue name (not lane name)
+   - Assert states have outbound edges to gateways
+   - Assert gateways have outbound edges to states/gateways
+   - Assert no direct state-to-state edges
+
+3. **LiveAuthoredSeedTests**
+   - Load `workflow-authored/planning.workflow.json`
+   - Assert structure matches new schema
+   - Assert authoring API can load it successfully
+   - Assert editor can open and display it
+
+---
+
+## 6. Migration Timeline
+
+### Phase 1: Model Definition & Backward Compatibility (Blathers)
+- Update `WorkflowDefinitionFile.cs` schema
+- Add migration converter for legacy seeds
+- Add validation rules
+- Ensure payment-demo roundtrips correctly
+
+### Phase 2: Runtime Routing (Blathers)
+- Update `WorkflowRuntimeEngine` to traverse embedded routes
+- Test with payment demo instance flow
+- Verify join gateway waits for both queues
+
+### Phase 3: Editor Schema & Projection (Isabelle)
+- Update `AuthoredWorkflow` to use queues
+- Update projector to emit new schema
+- Canvas rendering updated
+- Live authored seed migrated
+
+### Phase 4: Quality Gates & Validation (Both)
+- Comprehensive validation tests
+- Payment demo walkthrough (end-to-end)
+- Cleanup legacy test fixtures
+
+---
+
+## 7. Success Criteria
+
+✅ **Payment demo workflow loads, validates, and runs without errors**
+✅ **All states have `queueKey` (required, not optional)**
+✅ **All gateways have `queueKey` (required, not optional)**
+✅ **Routes live on source nodes (states and gateways), not in flat `transitions` array**
+✅ **No `lanes` at top level; `queues` is the new organizational unit**
+✅ **Runtime engine routes correctly through split/join gateways**
+✅ **Backward compatibility: old seeds load and migrate automatically**
+✅ **Editor canvas displays queues (not lanes) and embedded routes correctly**
+✅ **All validation tests pass; no orphaned or unreachable states**
+
+---
+
+## 8. Open Questions for Clarification
+
+- **Q1:** Should join gateway routes be allowed to specify the target state's queue, or always infer from definition?
+  - *Recommendation:* Always infer (no ambiguity); validation ensures consistency.
+
+- **Q2:** If a state has multiple outbound routes with the same trigger, how does runtime choose?
+  - *Recommendation:* Order matters (first route matching conditions wins); validation warns if ambiguous.
+
+- **Q3:** Can a route cross queues (e.g., state in web-user queue routes directly to state in business-user queue)?
+  - *Recommendation:* No—all cross-queue handoffs must go through a gateway (enforced by validation).
+
+- **Q4:** Should legacy `transitions` array be preserved in seeds for compatibility, or removed entirely?
+  - *Recommendation:* Remove on first load; converted to embedded routes; legacy Metadata persists for reference only.
+
+---
+
+## 9. Implementation Checklist
+
+### Blathers
+- [ ] Update `WorkflowDefinitionFile.cs`: Add Queues, rename LaneKey→QueueKey, remove Transitions
+- [ ] Create migration converter for legacy seeds
+- [ ] Add comprehensive validation rules
+- [ ] Update `WorkflowRuntimeEngine` routing logic
+- [ ] Payment demo seed roundtrip test passes
+- [ ] All validation tests pass
+
+### Isabelle
+- [ ] Update `AuthoredWorkflow` schema
+- [ ] Update `WorkflowProjector` to emit new contract
+- [ ] Canvas rendering updated (queues, embedded routes)
+- [ ] Live authored seed migrated
+- [ ] Editor tests pass
+- [ ] Payment demo editor walkthrough passes
+
+### Tom Nook (Oversight)
+- [ ] Code review: both Blathers and Isabelle implementations
+- [ ] Validate payment demo end-to-end
+- [ ] Merge decisions into `.squad/decisions.md`
+
+---
+

@@ -1,3 +1,14 @@
+## 2026-06-05: Queue-only model implementation completed
+
+- Tom Nook: Contract definition and implementation plan locked
+- Tangy: Behavioural test specification and validation gates defined
+- Isabelle: Editor refactor completed (build ✅, Playwright suite ✅)
+- Blathers: Runtime refactor completed (core test suite ✅)
+- Team coordination: All decisions merged to .squad/decisions.md
+- Next: Full integration validation and cross-stack testing
+
+---
+
 ## 2026-06-01T22:34:47Z — Queue Model: Clean Division of Responsibilities
 
 **Task:** Define queue model boundaries; lock shared/host responsibilities  
