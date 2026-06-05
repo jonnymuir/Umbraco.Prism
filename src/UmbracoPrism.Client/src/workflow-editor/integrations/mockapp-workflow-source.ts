@@ -5,7 +5,7 @@
 
 import type { WorkflowSource, WorkflowSummary } from '../workflow-source.js';
 import type { AuthoredWorkflow } from '../types.js';
-import { normaliseWorkflow, serialiseWorkflow } from '../workflow-wire-format.js';
+import { hydrateWorkflowDefinition } from '../types.js';
 
 export interface MockBusinessAppWorkflowSourceOptions {
   /** Origin override for cross-origin development. Defaults to same-origin. */
@@ -39,11 +39,11 @@ export class MockBusinessAppWorkflowSource implements WorkflowSource {
       throw new Error(`Failed to load workflow '${workflowKey}' (${response.status} ${response.statusText}).`);
     }
     const payload = (await response.json()) as Record<string, unknown>;
-    return normaliseWorkflow(payload);
+    return hydrateWorkflowDefinition(payload as unknown as AuthoredWorkflow);
   }
 
   async save(workflowKey: string, workflow: AuthoredWorkflow): Promise<void> {
-    const body = JSON.stringify(serialiseWorkflow(workflow));
+    const body = JSON.stringify(workflow);
     const response = await fetch(`${this.base}/mockapp/workflows/${encodeURIComponent(workflowKey)}`, {
       method: 'PUT',
       headers: {

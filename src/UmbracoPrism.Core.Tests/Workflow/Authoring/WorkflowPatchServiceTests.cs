@@ -31,7 +31,8 @@ public class WorkflowPatchServiceTests
             key         = "site-notice",
             title       = "Site Notice",
             type        = "Question",
-            actor       = "caseworker",
+            actor       = "applicant",
+            queueKey    = "applicant",
             components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
@@ -58,6 +59,7 @@ public class WorkflowPatchServiceTests
                 title       = "Supporting Documents",
                 type        = "Question",
                 actor       = "applicant",
+                queueKey    = "applicant",
                 components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             });
@@ -84,6 +86,7 @@ public class WorkflowPatchServiceTests
                 title       = "Eligibility Check",
                 type        = "Question",
                 actor       = "applicant",
+                queueKey    = "applicant",
                 components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             });
@@ -109,7 +112,7 @@ public class WorkflowPatchServiceTests
             title     = "Orphan",
             type      = "Question",
             actor     = "applicant",
-            laneKey   = "applicant",
+            queueKey  = "applicant",
             components= Array.Empty<object>(),
             roleGates = Array.Empty<string>()
         });
@@ -140,6 +143,7 @@ public class WorkflowPatchServiceTests
             title       = "Updated Details",
             type        = "Question",
             actor       = "applicant",
+            queueKey    = "applicant",
             components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
@@ -165,6 +169,7 @@ public class WorkflowPatchServiceTests
             title       = "Extra Stage",
             type        = "Question",
             actor       = "applicant",
+            queueKey    = "applicant",
             components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
@@ -193,6 +198,7 @@ public class WorkflowPatchServiceTests
             title       = "New Stage",
             type        = "Question",
             actor       = "applicant",
+            queueKey    = "applicant",
             components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });

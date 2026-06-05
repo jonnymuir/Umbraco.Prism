@@ -21,10 +21,10 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
   definitionKey: 'leave-request-same-lane-fan-out',
   displayName: 'Leave Request — Same-Lane Fan-Out',
-  initialStageKey: 'draft',
+  initialState: 'draft',
   stages: [
     {
-      stageKey: 'draft',
+      stateKey: 'draft',
       displayName: 'Draft submission',
       description: 'Capture the initial applicant draft before routing starts.',
       kind: 'Question',
@@ -34,7 +34,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'collect-evidence',
+      stateKey: 'collect-evidence',
       displayName: 'Collect evidence',
       description: 'Gather the supporting evidence for the next decision.',
       kind: 'Question',
@@ -44,7 +44,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'book-site-visit',
+      stateKey: 'book-site-visit',
       displayName: 'Book site visit',
       description: 'Arrange a site visit before the decision is confirmed.',
       kind: 'Question',
@@ -54,7 +54,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'ready-to-decide',
+      stateKey: 'ready-to-decide',
       displayName: 'Ready to decide',
       description: 'The single public lane continues after both routes are complete.',
       kind: 'Confirmation',
@@ -66,9 +66,9 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
   ],
   gateways: [
     {
-      gatewayKey: 'evidence-route',
+      key: 'evidence-route',
       displayName: 'Evidence route',
-      kind: 'Split',
+      gatewayType: 'Split',
       laneKey: 'public',
       actor: 'public',
       source: 'draft',
@@ -79,9 +79,9 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       ],
     },
     {
-      gatewayKey: 'decision-ready',
+      key: 'decision-ready',
       displayName: 'Decision ready',
-      kind: 'Join',
+      gatewayType: 'Join',
       laneKey: 'public',
       actor: 'public',
       roleGates: [],
@@ -184,7 +184,7 @@ export const WorkspaceCanvas: Story = {
     await el.updateComplete;
 
     const root = el.shadowRoot!;
-    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.stages.length);
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.states.length);
     await expect(root.querySelectorAll('[data-prism-transition]').length).toBeGreaterThanOrEqual(0);
   },
 };
@@ -204,7 +204,7 @@ export const InteractiveWorkspace: Story = {
     fillCreateStageDialog(root, 'Evidence Review', 'evidence-review', 'reviewer', 'review');
     root.querySelector<HTMLButtonElement>('[data-prism-create-stage-submit]')!.click();
     await el.updateComplete;
-    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.stages.length + 1);
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.states.length + 1);
 
     const declaration = root.querySelector<HTMLElement>('[data-prism-stage="applicant-details"]')!;
     let inspectorOpened = false;
@@ -363,14 +363,14 @@ export const GraphReadOnly: Story = {
 function buildLargeWorkflow(): AuthoredWorkflow {
   const lanes = ['intake', 'triage', 'review', 'decision', 'archive'];
   const stagesPerLane = 8;
-  const stages: AuthoredWorkflow['stages'] = [];
+  const stages: AuthoredWorkflow['states'] = [];
   const gateways: NonNullable<AuthoredWorkflow['gateways']> = [];
 
   for (const lane of lanes) {
     for (let i = 0; i < stagesPerLane; i++) {
       const stageKey = `${lane}-step-${i + 1}`;
       stages.push({
-        stageKey,
+        stateKey: stageKey,
         displayName: `${lane[0].toUpperCase()}${lane.slice(1)} step ${i + 1}`,
         description: `Synthetic stage ${i + 1} in the ${lane} lane.`,
         kind: i === stagesPerLane - 1 ? 'Confirmation' : 'Question',
@@ -378,13 +378,13 @@ function buildLargeWorkflow(): AuthoredWorkflow {
         actions: [],
         components: [],
         roleGates: [],
-      });
+      } as unknown as AuthoredWorkflow['states'][number]);
       if (i > 0) {
         const prev = `${lane}-step-${i}`;
         gateways.push({
-          gatewayKey: `route-from-${prev}`,
+          key: `route-from-${prev}`,
           displayName: `Route from ${prev}`,
-          kind: 'Split',
+          gatewayType: 'Split',
           laneKey: lane,
           actor: lane,
           source: prev,
@@ -399,12 +399,12 @@ function buildLargeWorkflow(): AuthoredWorkflow {
     definitionKey: 'large-synthetic-workflow',
     displayName: 'Large synthetic workflow',
     version: 1,
-    schemaVersion: '1.0',
     instancePolicy: 'multiple',
-    initialStageKey: `${lanes[0]}-step-1`,
-    stages,
-    gateways,
-  };
+    initialState: `${lanes[0]}-step-1`,
+    states: stages,
+    transitions: gateways.flatMap(gateway => gateway.source ? [{ fromState: gateway.source, toState: gateway.key, action: 'route' }, ...((gateway.routes ?? []).map(route => ({ fromState: gateway.key, toState: route.target, action: route.trigger })))] : []),
+    metadata: { schemaVersion: '1.0', gateways },
+  } as unknown as AuthoredWorkflow;
 }
 
 const LARGE_WORKFLOW: AuthoredWorkflow = buildLargeWorkflow();
@@ -426,6 +426,6 @@ export const LargeWorkflow: Story = {
     const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
     await el.updateComplete;
     const root = el.shadowRoot!;
-    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_WORKFLOW.stages.length);
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_WORKFLOW.states.length);
   },
 };

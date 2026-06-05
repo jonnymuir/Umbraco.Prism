@@ -1,17 +1,3 @@
-/**
- * Route helpers — the single read/write path between editor surfaces (graph,
- * inspector, validation, projection) and the gateways-own-routes authored
- * model that landed with Slice C.
- *
- * AuthoredTransition is gone. Authored routing lives on gateways: each
- * gateway carries a `source` stage and an ordered list of `routes`, and the
- * runtime contract is derived from `gateway.source × gateway.routes` by the
- * projector. Surfaces that need to iterate routes as edges call
- * `flattenRoutes(workflow)`; mutations go through `addRoute` / `updateRoute`
- * / `deleteRoute`, which preserve the gateway shape and produce a new
- * immutable workflow snapshot per call (suitable for snapshot-based undo).
- */
-
 import type {
   AuthoredAction,
   AuthoredGateway,
@@ -19,97 +5,123 @@ import type {
   AuthoredWorkflow,
   RouteView,
 } from './types.js';
+import { gatewayKind, workflowGateways, workflowStates } from './types.js';
 
-/**
- * Return every route in the workflow, in `(gateway, routes[])` order.
- * This is the single iteration helper editor surfaces use to walk routes —
- * no surface should iterate `workflow.transitions` (the field is gone).
- */
-export function flattenRoutes(
-  workflow: Pick<AuthoredWorkflow, 'gateways'> | null | undefined
-): RouteView[] {
-  if (!workflow) return [];
-  const gateways = workflow.gateways ?? [];
-  const gatewayKeys = new Set(gateways.map(gateway => gateway.gatewayKey));
-  const views: RouteView[] = [];
-
-  gateways.forEach(gateway => {
-    const source = gateway.kind === 'Join'
-      ? gateway.gatewayKey
-      : gateway.source ?? '';
-    (gateway.routes ?? []).forEach((route, routeIndex) => {
-      const target = route.target ?? '';
-      const toGateway = gatewayKeys.has(target) ? target : undefined;
-      views.push({
-        gatewayKey: gateway.gatewayKey,
-        routeIndex,
-        routeId: route.id,
-        fromStage: source,
-        toStage: target,
-        action: route.trigger,
-        actions: route.actions,
-        requiresRole: route.requiresRole,
-        condition: route.condition,
-        editorComment: route.editorComment,
-        fromGateway: gateway.kind === 'Split' ? gateway.gatewayKey : undefined,
-        toGateway,
-      });
-    });
-  });
-
-  return views;
+function routeIdFor(sourceKey: string, route: Pick<AuthoredRoute, 'id' | 'trigger' | 'target'>): string {
+  return route.id || `${sourceKey || 'unknown'}--${route.trigger || 'continue'}--${route.target || 'unknown'}`;
 }
 
-/** Build the `(gatewayKey, routeId)` address for a route view. */
-export function routeAddressFromView(view: RouteView): { gatewayKey: string; routeId: string } {
-  return { gatewayKey: view.gatewayKey, routeId: view.routeId };
-}
+type RouteOwner =
+  | { kind: 'state'; key: string; route: AuthoredRoute }
+  | { kind: 'gateway'; key: string; route: AuthoredRoute };
 
-/** Find a route by its (gatewayKey, routeId) address. */
-export function findRoute(
-  workflow: Pick<AuthoredWorkflow, 'gateways'>,
-  gatewayKey: string,
-  routeId: string
-): { gateway: AuthoredGateway; route: AuthoredRoute; routeIndex: number } | null {
-  const gateway = (workflow.gateways ?? []).find(g => g.gatewayKey === gatewayKey);
-  if (!gateway) return null;
-  const routes = gateway.routes ?? [];
-  const routeIndex = routes.findIndex(route => route.id === routeId);
-  if (routeIndex < 0) return null;
-  return { gateway, route: routes[routeIndex], routeIndex };
-}
+function routeOwners(workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'> | null | undefined): RouteOwner[] {
+  if (!workflow) {
+    return [];
+  }
 
-function replaceGateway(
-  workflow: AuthoredWorkflow,
-  gatewayKey: string,
-  mutator: (gateway: AuthoredGateway) => AuthoredGateway
-): AuthoredWorkflow {
-  const gateways = (workflow.gateways ?? []).map(gateway =>
-    gateway.gatewayKey === gatewayKey ? mutator(gateway) : gateway
+  const stateOwners = workflowStates(workflow).flatMap(stage =>
+    (stage.routes ?? []).map(route => ({ kind: 'state' as const, key: stage.stateKey, route }))
   );
-  return { ...workflow, gateways };
+  const gatewayOwners = workflowGateways(workflow).flatMap(gateway =>
+    (gateway.routes ?? []).map(route => ({ kind: 'gateway' as const, key: gateway.key, route }))
+  );
+
+  return [...stateOwners, ...gatewayOwners];
 }
 
-/** Mutate a single route immutably. */
+function mapRouteView(owner: RouteOwner, workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'>, routeIndex: number): RouteView {
+  const gatewayKeys = new Set(workflowGateways(workflow).map(gateway => gateway.key));
+  const fromGateway = owner.kind === 'gateway' ? owner.key : undefined;
+  const toGateway = gatewayKeys.has(owner.route.target) ? owner.route.target : undefined;
+
+  return {
+    fromStage: owner.key,
+    toStage: owner.route.target,
+    action: owner.route.trigger,
+    actions: owner.route.actions,
+    requiresRole: owner.route.requiresRole,
+    condition: owner.route.condition,
+    editorComment: owner.route.editorComment,
+    fromGateway,
+    toGateway,
+    gatewayKey: fromGateway ?? toGateway,
+    key: fromGateway ?? toGateway,
+    routeIndex,
+    routeId: routeIdFor(owner.key, owner.route),
+  };
+}
+
+export function flattenRoutes(
+  workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'> | null | undefined
+): RouteView[] {
+  if (!workflow) {
+    return [];
+  }
+
+  return routeOwners(workflow).map((owner, routeIndex) => mapRouteView(owner, workflow, routeIndex));
+}
+
+export function routeAddressFromView(view: RouteView): { routeId: string } {
+  return { routeId: view.routeId };
+}
+
+export function findRoute(
+  workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'>,
+  routeId: string
+): { route: AuthoredRoute; routeIndex: number } | null {
+  const owners = routeOwners(workflow);
+  const routeIndex = owners.findIndex(owner => routeIdFor(owner.key, owner.route) === routeId);
+  if (routeIndex < 0) {
+    return null;
+  }
+
+  return {
+    route: owners[routeIndex].route,
+    routeIndex,
+  };
+}
+
+function mutateRouteOwners(
+  workflow: AuthoredWorkflow,
+  routeId: string,
+  mutator: (route: AuthoredRoute) => AuthoredRoute | null
+): AuthoredWorkflow {
+  const nextStates = workflowStates(workflow).map(stage => ({
+    ...stage,
+    routes: (stage.routes ?? []).flatMap(route => {
+      const nextRoute = routeIdFor(stage.stateKey, route) === routeId ? mutator(route) : route;
+      return nextRoute ? [nextRoute] : [];
+    }),
+  }));
+  const nextGateways = workflowGateways(workflow).map(gateway => ({
+    ...gateway,
+    routes: (gateway.routes ?? []).flatMap(route => {
+      const nextRoute = routeIdFor(gateway.key, route) === routeId ? mutator(route) : route;
+      return nextRoute ? [nextRoute] : [];
+    }),
+  }));
+
+  return {
+    ...workflow,
+    states: nextStates,
+    gateways: nextGateways,
+  };
+}
+
 export function updateRoute(
   workflow: AuthoredWorkflow,
-  address: { gatewayKey: string; routeId: string },
+  address: { routeId: string },
   mutator: (route: AuthoredRoute) => AuthoredRoute
 ): AuthoredWorkflow {
-  return replaceGateway(workflow, address.gatewayKey, gateway => ({
-    ...gateway,
-    routes: (gateway.routes ?? []).map(route => (route.id === address.routeId ? mutator(route) : route)),
-  }));
+  return mutateRouteOwners(workflow, address.routeId, route => mutator(route));
 }
 
 export function deleteRoute(
   workflow: AuthoredWorkflow,
-  address: { gatewayKey: string; routeId: string }
+  address: { gatewayKey?: string; routeId: string }
 ): AuthoredWorkflow {
-  return replaceGateway(workflow, address.gatewayKey, gateway => ({
-    ...gateway,
-    routes: (gateway.routes ?? []).filter(route => route.id !== address.routeId),
-  }));
+  return mutateRouteOwners(workflow, address.routeId, () => null);
 }
 
 export function addRoute(
@@ -117,73 +129,90 @@ export function addRoute(
   gatewayKey: string,
   route: AuthoredRoute
 ): AuthoredWorkflow {
-  return replaceGateway(workflow, gatewayKey, gateway => ({
-    ...gateway,
-    routes: [...(gateway.routes ?? []), route],
-  }));
+  return {
+    ...workflow,
+    gateways: workflowGateways(workflow).map(gateway =>
+      gateway.key === gatewayKey
+        ? { ...gateway, routes: [...(gateway.routes ?? []), route] }
+        : gateway
+    ),
+  };
 }
 
-/** Build a sensible route id (`source--trigger--target`). */
 export function newRouteId(source: string, trigger: string, target: string): string {
-  return `${source || 'anonymous'}--${trigger || 'continue'}--${target || 'unknown'}`;
+  return routeIdFor(source, { id: '', trigger, target });
 }
 
-/**
- * Find the Split gateway anchored at the given source stage. If none exists,
- * synthesise a minimal one and append it to `workflow.gateways`. Returns the
- * mutated workflow and the gateway key the caller can append routes to.
- */
 export function findOrCreateSplitGateway(
   workflow: AuthoredWorkflow,
   sourceStageKey: string
 ): { workflow: AuthoredWorkflow; gatewayKey: string } {
-  const existing = (workflow.gateways ?? []).find(
-    g => g.kind === 'Split' && g.source === sourceStageKey
+  const existingGateway = workflowGateways(workflow).find(gateway =>
+    gatewayKind(gateway) === 'Split'
+    && workflowStates(workflow)
+      .find(stage => stage.stateKey === sourceStageKey)
+      ?.routes?.some(route => route.target === gateway.key)
   );
-  if (existing) {
-    return { workflow, gatewayKey: existing.gatewayKey };
+
+  if (existingGateway) {
+    return { workflow, gatewayKey: existingGateway.key };
   }
 
-  const stage = workflow.stages.find(s => s.stageKey === sourceStageKey);
+  const stage = workflowStates(workflow).find(candidate => candidate.stateKey === sourceStageKey);
   const gatewayKey = `route-from-${sourceStageKey}`;
   const gateway: AuthoredGateway = {
-    gatewayKey,
-    displayName: stage
-      ? `Route from ${stage.displayName}`
-      : `Route from ${sourceStageKey}`,
+    key: gatewayKey,
+    displayName: stage ? `Route from ${stage.displayName}` : `Route from ${sourceStageKey}`,
+    gatewayType: 'Split',
     kind: 'Split',
-    source: sourceStageKey,
-    laneKey: stage?.actor,
-    roleGates: [],
+    queueKey: stage?.queueKey,
+    actor: stage?.actor,
+    roleGates: stage?.roleGates ?? [],
     routes: [],
   };
+
+  const anchoredStates = workflowStates(workflow).map(candidate =>
+    candidate.stateKey === sourceStageKey
+      ? {
+          ...candidate,
+          routes: candidate.routes?.some(route => route.target === gatewayKey)
+            ? candidate.routes
+            : [
+                ...(candidate.routes ?? []),
+                {
+                  id: newRouteId(sourceStageKey, 'route', gatewayKey),
+                  target: gatewayKey,
+                  trigger: 'route',
+                },
+              ],
+        }
+      : candidate
+  );
 
   return {
     workflow: {
       ...workflow,
-      gateways: [...(workflow.gateways ?? []), gateway],
+      states: anchoredStates,
+      gateways: [...workflowGateways(workflow), gateway],
     },
     gatewayKey,
   };
 }
 
-/** Convenience — return all RouteViews where `fromStage` equals `stageKey`. */
 export function outgoingRouteViews(
-  workflow: Pick<AuthoredWorkflow, 'gateways'>,
+  workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'>,
   stageKey: string
 ): RouteView[] {
   return flattenRoutes(workflow).filter(view => view.fromStage === stageKey);
 }
 
-/** Convenience — return all RouteViews where `toStage` equals `stageKey`. */
 export function inboundRouteViews(
-  workflow: Pick<AuthoredWorkflow, 'gateways'>,
+  workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'>,
   stageKey: string
 ): RouteView[] {
   return flattenRoutes(workflow).filter(view => view.toStage === stageKey);
 }
 
-/** Compose a default route from a source stage to a target stage. */
 export function buildRoute(options: {
   source: string;
   target: string;

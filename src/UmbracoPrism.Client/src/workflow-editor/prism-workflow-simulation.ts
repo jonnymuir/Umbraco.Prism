@@ -150,7 +150,7 @@ export class PrismWorkflowSimulationElement extends LitElement {
               </div>
             `
           : html`
-              <article class="simulation-current-stage" data-prism-simulation-current=${this.currentStage.stageKey}>
+              <article class="simulation-current-stage" data-prism-simulation-current=${this.currentStage.stateKey}>
                 <div class="simulation-current-header">
                   <div>
                     <p class="simulation-current-eyebrow">Current stage</p>
@@ -158,7 +158,7 @@ export class PrismWorkflowSimulationElement extends LitElement {
                       ${this.currentStage.displayName}
                     </h3>
                   </div>
-                  <span class="simulation-kind">${this.currentStage.kind}</span>
+                  <span class="simulation-kind">${this.currentStage.metadata?.stageType ?? "Question"}</span>
                 </div>
               </article>
 

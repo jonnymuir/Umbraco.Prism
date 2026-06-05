@@ -1,5 +1,4 @@
 import type {
-  AuthoredAction,
   AuthoredAccordionComponent,
   AuthoredComponent,
   AuthoredContentComponent,
@@ -11,8 +10,9 @@ import type {
   AuthoredTaskListComponent,
   AuthoredWaitingComponent,
   AuthoredWorkflow,
+  AuthoredRoute,
 } from './types.js';
-import { flattenRoutes } from './workflow-routes.js';
+import { stageActions, stageDescription, stageKind } from './types.js';
 
 export interface ProjectionDiagnostic {
   code: string;
@@ -21,16 +21,7 @@ export interface ProjectionDiagnostic {
   stageKey?: string | null;
 }
 
-export interface ProjectedWorkflowDefinition {
-  definitionKey: string;
-  displayName: string;
-  version: number;
-  initialState: string;
-  instancePolicy: string;
-  states: ProjectedWorkflowState[];
-  transitions: ProjectedWorkflowTransition[];
-  metadata?: ProjectedWorkflowMetadata;
-}
+export type ProjectedWorkflowDefinition = AuthoredWorkflow;
 
 export interface ProjectWorkflowResult {
   file: ProjectedWorkflowDefinition;
@@ -39,59 +30,8 @@ export interface ProjectWorkflowResult {
   hasErrors: boolean;
 }
 
-export interface ProjectedWorkflowState {
-  stateKey: string;
-  displayName: string;
-  components: ProjectedComponent[];
-  metadata?: ProjectedStateMetadata;
-}
-
-export interface ProjectedStateMetadata {
-  description?: string;
-  stageType?: string;
-  actor?: string;
-  roleGates?: string[];
-  actions?: ProjectedActionDefinition[];
-}
-
-export interface ProjectedTransitionMetadata {
-  conditions?: Array<{ kind: string; expression: string; description?: string }>;
-  actions?: ProjectedActionDefinition[];
-}
-
-export interface ProjectedActionDefinition {
-  type: string;
-  timing: string;
-  parameters: Record<string, unknown>;
-  parameterSchemaKey?: string;
-  summary?: string;
-}
-
-export interface ProjectedWorkflowTransition {
-  fromState: string;
-  toState: string;
-  action: string;
-  requiresRole?: string;
-  metadata?: ProjectedTransitionMetadata;
-}
-
-export interface ProjectedWorkflowMetadata {
-  authoredWorkflowId?: string;
-  description?: string;
-  schemaVersion?: string;
-  tags?: Record<string, string>;
-  handoffs?: Array<{
-    id: string;
-    fromState: string;
-    toState: string;
-    label: string;
-    actorChange?: string;
-  }>;
-}
-
-// Authored components and projected components are the same shape — the
-// projector is a pass-through. The Projected* aliases are kept for backwards
-// compatibility with editor surfaces that import them.
+export type ProjectedWorkflowState = AuthoredStage;
+export type ProjectedWorkflowTransition = AuthoredRoute;
 export type ProjectedInputComponent = AuthoredInputComponent;
 export type ProjectedFieldsetComponent = AuthoredFieldsetComponent;
 export type ProjectedAccordionComponent = AuthoredAccordionComponent;
@@ -103,40 +43,9 @@ export type ProjectedContentComponent = AuthoredContentComponent;
 export type ProjectedComponent = AuthoredComponent;
 
 export function projectWorkflowLocally(workflow: AuthoredWorkflow): ProjectWorkflowResult {
-  const states = [...workflow.stages]
-    .sort((left, right) => left.stageKey.localeCompare(right.stageKey))
-    .map(stage => projectStage(stage, workflow));
-
-  const transitions = flattenRoutes(workflow)
-    .slice()
-    .sort((left, right) =>
-      left.fromStage.localeCompare(right.fromStage)
-      || left.toStage.localeCompare(right.toStage)
-      || left.action.localeCompare(right.action))
-    .map(view => ({
-      fromState: view.fromStage,
-      toState: view.toStage,
-      action: view.action,
-      requiresRole: view.requiresRole,
-      metadata: {
-        conditions: view.condition
-          ? [{ kind: 'expression', expression: view.condition }]
-          : undefined,
-        actions: view.actions?.map(projectAction),
-      },
-    }));
-
   const file: ProjectedWorkflowDefinition = {
-    definitionKey: workflow.definitionKey,
-    displayName: workflow.displayName,
-    version: workflow.version,
-    initialState: workflow.initialStageKey,
-    instancePolicy: workflow.instancePolicy,
-    states,
-    transitions,
-    metadata: {
-      description: workflow.authorNote,
-    },
+    ...workflow,
+    states: workflow.states.map(stage => projectStage(stage, workflow)),
   };
 
   return {
@@ -147,37 +56,31 @@ export function projectWorkflowLocally(workflow: AuthoredWorkflow): ProjectWorkf
   };
 }
 
-function projectStage(stage: AuthoredStage, workflow: AuthoredWorkflow): ProjectedWorkflowState {
+function projectStage(stage: AuthoredStage, workflow: AuthoredWorkflow): AuthoredStage {
   return {
-    stateKey: stage.stageKey,
-    displayName: stage.displayName,
+    ...stage,
     components: projectStageComponents(stage, workflow),
     metadata: {
-      description: stage.description,
-      stageType: stage.kind,
-      actor: stage.actor,
-      roleGates: stage.roleGates.length > 0 ? [...stage.roleGates] : undefined,
-      actions: stage.actions?.map(projectAction),
+      ...(stage.metadata ?? {}),
+      description: stageDescription(stage),
+      stageType: stageKind(stage),
+      actions: stageActions(stage),
     },
   };
 }
 
 function projectStageComponents(stage: AuthoredStage, workflow: AuthoredWorkflow): ProjectedComponent[] {
-  // Authored components are the source of truth — pass through as the runtime
-  // shape directly. When a stage declares no components, fall back to a
-  // sensible kind-based default so empty stages still render as the right
-  // shell. This mirrors WorkflowProjector.EmitComponents on the C# side.
   if (stage.components && stage.components.length > 0) {
     return [...stage.components];
   }
 
-  switch (stage.kind) {
+  switch (stageKind(stage)) {
     case 'CheckAnswers':
       return [{
         type: 'summary-list',
-        children: workflow.stages
-          .filter(candidate => candidate.kind === 'Question')
-          .sort((left, right) => left.stageKey.localeCompare(right.stageKey))
+        children: workflow.states
+          .filter(candidate => stageKind(candidate) === 'Question')
+          .sort((left, right) => left.stateKey.localeCompare(right.stateKey))
           .flatMap(candidate => harvestInputs(candidate.components ?? [])),
       }];
     case 'Confirmation':
@@ -218,16 +121,6 @@ function harvestInputs(components: AuthoredComponent[]): AuthoredComponent[] {
     }
   }
   return out;
-}
-
-function projectAction(action: AuthoredAction): ProjectedActionDefinition {
-  return {
-    type: action.type,
-    timing: action.timing,
-    parameters: { ...(action.params ?? {}) },
-    parameterSchemaKey: action.parameterSchemaKey,
-    summary: action.summary,
-  };
 }
 
 function computeChecksum(file: ProjectedWorkflowDefinition): string {

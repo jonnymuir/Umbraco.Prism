@@ -54,7 +54,7 @@ test.describe('Definition (JSON twin-pane) tab', () => {
 
     const text = await readDefinitionText(page);
     expect(text).toContain('"definitionKey"');
-    expect(text).toContain('"stages"');
+    expect(text).toContain('"states"');
     // 2-space indent — first nested key sits at two spaces.
     expect(text).toMatch(/\n {2}"/);
   });
@@ -66,7 +66,7 @@ test.describe('Definition (JSON twin-pane) tab', () => {
     const original = await readDefinitionText(page);
     expect(original).toContain('Application Form');
 
-    const renamed = original.replace('"Application Form"', '"Renamed Form"');
+    const renamed = original.replace(/"displayName": "Application Form"/, '"displayName": "Renamed Form"');
     await setDefinitionText(page, renamed);
 
     // Auto-apply after 250 ms debounce.
@@ -109,14 +109,14 @@ test.describe('Definition (JSON twin-pane) tab', () => {
 
     const original = await readDefinitionText(page);
     // Replace the first "kind" value with the retired Waiting kind.
-    const broken = original.replace(/"kind":\s*"Question"/, '"kind": "Waiting"');
+    const broken = original.replace(/"stageType":\s*"Question"/, '"stageType": "Waiting"');
     expect(broken).not.toEqual(original);
     await setDefinitionText(page, broken);
     await page.waitForTimeout(400);
 
     const banner = page.locator('[data-prism-definition-banner]');
     await expect(banner).toBeVisible();
-    await expect(banner).toContainText('retired kind "Waiting"');
+    await expect(banner).toContainText('unsupported stageType "Waiting"');
     await expect(page.locator('[data-prism-definition-apply]')).toBeDisabled();
   });
 
@@ -152,7 +152,7 @@ test.describe('Definition (JSON twin-pane) tab', () => {
     await openDefinitionTab(page);
 
     const original = await readDefinitionText(page);
-    const renamed = original.replace('"Application Form"', '"From Definition Tab"');
+    const renamed = original.replace(/"displayName": "Application Form"/, '"displayName": "From Definition Tab"');
     expect(renamed).not.toEqual(original);
 
     await setDefinitionText(page, renamed);

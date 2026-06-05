@@ -1,1 +1,302 @@
-{"definitionKey":"planning","displayName":"Planning Application","version":2,"initialState":"declaration","instancePolicy":"single","states":[{"stateKey":"application-form","displayName":"Application Form","components":[{"type":"fieldset","children":[{"type":"textarea","minLength":null,"maxLength":null,"fieldKey":"description","label":"Description of proposed works","hint":"Provide a clear description of the development you are proposing.","required":true,"conditionalOn":null,"visibleWhen":null},{"type":"select","options":["New build","Extension","Change of use","Demolition","Other"],"fieldKey":"development-type","label":"Type of development","hint":null,"required":true,"conditionalOn":null,"visibleWhen":null}],"legend":null,"legendSize":null}],"metadata":{"description":"Captures the substantive planning request.","stageType":"Question","actor":"applicant","actions":[{"type":"forms.save","timing":"OnExit","parameters":{"formDefinitionId":"planning-application"},"parameterSchemaKey":"forms-form-definition","summary":"Persist the application form before moving on."}]}},{"stateKey":"check-answers","displayName":"Check your answers","components":[{"type":"summary-list","children":[{"type":"textarea","minLength":null,"maxLength":null,"fieldKey":"description","label":"Description of proposed works","hint":"Provide a clear description of the development you are proposing.","required":true,"conditionalOn":null,"visibleWhen":null},{"type":"select","options":["New build","Extension","Change of use","Demolition","Other"],"fieldKey":"development-type","label":"Type of development","hint":null,"required":true,"conditionalOn":null,"visibleWhen":null},{"type":"text","minLength":null,"maxLength":null,"pattern":null,"prefix":null,"fieldKey":"applicant-name","label":"Applicant name","hint":"Enter the full name of the person or organisation applying.","required":true,"conditionalOn":null,"visibleWhen":null},{"type":"textarea","minLength":null,"maxLength":null,"fieldKey":"site-address","label":"Site address","hint":"Enter the full address of the site where development is proposed.","required":true,"conditionalOn":null,"visibleWhen":null},{"type":"text","minLength":null,"maxLength":null,"pattern":null,"prefix":null,"fieldKey":"id-document-uploaded","label":"Identity document","hint":null,"required":true,"conditionalOn":null,"visibleWhen":null}],"changeStateKey":null,"title":null}],"metadata":{"description":"Summarises captured answers before final submission.","stageType":"CheckAnswers","actor":"applicant"}},{"stateKey":"declaration","displayName":"Declaration","components":[{"type":"fieldset","children":[{"type":"text","minLength":null,"maxLength":null,"pattern":null,"prefix":null,"fieldKey":"applicant-name","label":"Applicant name","hint":"Enter the full name of the person or organisation applying.","required":true,"conditionalOn":null,"visibleWhen":null},{"type":"textarea","minLength":null,"maxLength":null,"fieldKey":"site-address","label":"Site address","hint":"Enter the full address of the site where development is proposed.","required":true,"conditionalOn":null,"visibleWhen":null}],"legend":null,"legendSize":null}],"metadata":{"description":"Collects applicant and site identity before the full planning form.","stageType":"Question","actor":"applicant","actions":[{"type":"forms.load","timing":"OnEntry","parameters":{"formDefinitionId":"planning-declaration"},"parameterSchemaKey":"forms-form-definition","summary":"Load the declaration form."}]}},{"stateKey":"id-verification","displayName":"Identity Verification","components":[{"type":"fieldset","children":[{"type":"text","minLength":null,"maxLength":null,"pattern":null,"prefix":null,"fieldKey":"id-document-uploaded","label":"Identity document","hint":null,"required":true,"conditionalOn":null,"visibleWhen":null}],"legend":null,"legendSize":null}],"metadata":{"description":null,"stageType":"Question","actor":null}},{"stateKey":"submitted","displayName":"Application submitted","components":[{"type":"panel","heading":"Application submitted"}],"metadata":{"description":"Confirms receipt and moves the case into reviewer handling.","stageType":"Confirmation","actor":"applicant"}}],"transitions":[{"fromState":"application-form","toState":"check-answers","action":"continue","requiresRole":null},{"fromState":"check-answers","toState":"id-verification","action":"continue","requiresRole":null},{"fromState":"check-answers","toState":"submitted","action":"submit","requiresRole":null,"metadata":{"conditions":[{"kind":"expression","expression":"application.isComplete == true","description":"Prevent submission until the applicant has completed the form."}],"actions":[{"type":"forms.submit","timing":"OnTransition","parameters":{"formDefinitionId":"planning-application"},"parameterSchemaKey":"forms-form-definition","summary":"Submit the application form to the business app."}]}},{"fromState":"declaration","toState":"application-form","action":"continue","requiresRole":null},{"fromState":"id-verification","toState":"submitted","action":"continue","requiresRole":null}],"metadata":{"authoredWorkflowId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","description":"Standard planning application workflow for submitting and tracking planning permission requests.","schemaVersion":"1.0","tags":{"owner":"planning-team","serviceArea":"Planning"},"handoffs":[{"id":"applicant-to-caseworker","fromState":"check-answers","toState":"submitted","label":"applicant-to-caseworker","actorChange":"caseworker"}]}}
+{
+  "definitionKey": "planning",
+  "displayName": "Planning Application",
+  "version": 2,
+  "initialState": "declaration",
+  "instancePolicy": "single",
+  "states": [
+    {
+      "stateKey": "application-form",
+      "displayName": "Application Form",
+      "components": [
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "textarea",
+              "minLength": null,
+              "maxLength": null,
+              "fieldKey": "description",
+              "label": "Description of proposed works",
+              "hint": "Provide a clear description of the development you are proposing.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            },
+            {
+              "type": "select",
+              "options": [
+                "New build",
+                "Extension",
+                "Change of use",
+                "Demolition",
+                "Other"
+              ],
+              "fieldKey": "development-type",
+              "label": "Type of development",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            }
+          ],
+          "legend": null,
+          "legendSize": null
+        }
+      ],
+      "description": "Captures the substantive planning request.",
+      "stageType": "Question",
+      "actor": "applicant",
+      "actions": [
+        {
+          "type": "forms.save",
+          "timing": "OnExit",
+          "parameters": {
+            "formDefinitionId": "planning-application"
+          },
+          "parameterSchemaKey": "forms-form-definition",
+          "summary": "Persist the application form before moving on."
+        }
+      ]
+    },
+    {
+      "stateKey": "check-answers",
+      "displayName": "Check your answers",
+      "components": [
+        {
+          "type": "summary-list",
+          "children": [
+            {
+              "type": "textarea",
+              "minLength": null,
+              "maxLength": null,
+              "fieldKey": "description",
+              "label": "Description of proposed works",
+              "hint": "Provide a clear description of the development you are proposing.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            },
+            {
+              "type": "select",
+              "options": [
+                "New build",
+                "Extension",
+                "Change of use",
+                "Demolition",
+                "Other"
+              ],
+              "fieldKey": "development-type",
+              "label": "Type of development",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            },
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": null,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "applicant-name",
+              "label": "Applicant name",
+              "hint": "Enter the full name of the person or organisation applying.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            },
+            {
+              "type": "textarea",
+              "minLength": null,
+              "maxLength": null,
+              "fieldKey": "site-address",
+              "label": "Site address",
+              "hint": "Enter the full address of the site where development is proposed.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            },
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": null,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "id-document-uploaded",
+              "label": "Identity document",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            }
+          ],
+          "changeStateKey": null,
+          "title": null
+        }
+      ],
+      "description": "Summarises captured answers before final submission.",
+      "stageType": "CheckAnswers",
+      "actor": "applicant"
+    },
+    {
+      "stateKey": "declaration",
+      "displayName": "Declaration",
+      "components": [
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": null,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "applicant-name",
+              "label": "Applicant name",
+              "hint": "Enter the full name of the person or organisation applying.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            },
+            {
+              "type": "textarea",
+              "minLength": null,
+              "maxLength": null,
+              "fieldKey": "site-address",
+              "label": "Site address",
+              "hint": "Enter the full address of the site where development is proposed.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            }
+          ],
+          "legend": null,
+          "legendSize": null
+        }
+      ],
+      "description": "Collects applicant and site identity before the full planning form.",
+      "stageType": "Question",
+      "actor": "applicant",
+      "actions": [
+        {
+          "type": "forms.load",
+          "timing": "OnEntry",
+          "parameters": {
+            "formDefinitionId": "planning-declaration"
+          },
+          "parameterSchemaKey": "forms-form-definition",
+          "summary": "Load the declaration form."
+        }
+      ]
+    },
+    {
+      "stateKey": "id-verification",
+      "displayName": "Identity Verification",
+      "components": [
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": null,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "id-document-uploaded",
+              "label": "Identity document",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null
+            }
+          ],
+          "legend": null,
+          "legendSize": null
+        }
+      ],
+      "description": null,
+      "stageType": "Question",
+      "actor": null
+    },
+    {
+      "stateKey": "submitted",
+      "displayName": "Application submitted",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Application submitted"
+        }
+      ],
+      "description": "Confirms receipt and moves the case into reviewer handling.",
+      "stageType": "Confirmation",
+      "actor": "applicant"
+    }
+  ],
+  "transitions": [
+    {
+      "fromState": "application-form",
+      "toState": "check-answers",
+      "action": "continue",
+      "requiresRole": null
+    },
+    {
+      "fromState": "check-answers",
+      "toState": "id-verification",
+      "action": "continue",
+      "requiresRole": null
+    },
+    {
+      "fromState": "check-answers",
+      "toState": "submitted",
+      "action": "submit",
+      "requiresRole": null,
+      "conditions": [
+        {
+          "kind": "expression",
+          "expression": "application.isComplete == true",
+          "description": "Prevent submission until the applicant has completed the form."
+        }
+      ],
+      "actions": [
+        {
+          "type": "forms.submit",
+          "timing": "OnTransition",
+          "parameters": {
+            "formDefinitionId": "planning-application"
+          },
+          "parameterSchemaKey": "forms-form-definition",
+          "summary": "Submit the application form to the business app."
+        }
+      ]
+    },
+    {
+      "fromState": "declaration",
+      "toState": "application-form",
+      "action": "continue",
+      "requiresRole": null
+    },
+    {
+      "fromState": "id-verification",
+      "toState": "submitted",
+      "action": "continue",
+      "requiresRole": null
+    }
+  ],
+  "description": "Standard planning application workflow for submitting and tracking planning permission requests.",
+  "schemaVersion": "1.0",
+  "authoredWorkflowId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "handoffs": [
+    {
+      "id": "applicant-to-caseworker",
+      "fromState": "check-answers",
+      "toState": "submitted",
+      "label": "applicant-to-caseworker",
+      "actorChange": "caseworker"
+    }
+  ],
+  "tags": {
+    "owner": "planning-team",
+    "serviceArea": "Planning"
+  }
+}

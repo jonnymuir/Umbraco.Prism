@@ -1,4 +1,5 @@
 import type { AuthoredGateway, AuthoredWorkflow } from './types.js';
+import { workflowGateways } from './types.js';
 import { flattenRoutes } from './workflow-routes.js';
 import { normaliseLaneKey, stageLaneKey } from './workflow-stage-assignment.js';
 
@@ -28,24 +29,24 @@ function shiftCandidate(
 }
 
 export function gatewayLaneKey(gateway: AuthoredGateway): string {
-  return normaliseLaneKey(gateway.laneKey) || stageLaneKey(gateway);
+  return normaliseLaneKey(gateway.queueKey ?? gateway.laneKey) || normaliseLaneKey(gateway.actor);
 }
 
-export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' | 'gateways'>): GatewayBinding[] {
-  const stageByKey = new Map(workflow.stages.map(stage => [stage.stageKey, stage]));
+export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'states' | 'gateways' | 'metadata'>): GatewayBinding[] {
   const outgoingByStage = new Map<string, number[]>();
   const incomingByStage = new Map<string, number[]>();
   const explicitSplitBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
   const explicitJoinBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
+  const routes = flattenRoutes(workflow);
 
-  (flattenRoutes(workflow)).forEach((transition, index) => {
+  routes.forEach((transition, index) => {
     outgoingByStage.set(transition.fromStage, [...(outgoingByStage.get(transition.fromStage) ?? []), index]);
     incomingByStage.set(transition.toStage, [...(incomingByStage.get(transition.toStage) ?? []), index]);
 
     if (transition.fromGateway) {
       const existing = explicitSplitBindings.get(transition.fromGateway);
       explicitSplitBindings.set(transition.fromGateway, {
-        anchorStageKey: existing?.anchorStageKey ?? transition.fromStage,
+        anchorStageKey: existing?.anchorStageKey ?? routes.find(route => route.toStage === transition.fromGateway && !route.fromGateway)?.fromStage ?? null,
         relatedTransitionIndices: [...(existing?.relatedTransitionIndices ?? []), index],
       });
     }
@@ -53,7 +54,7 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
     if (transition.toGateway) {
       const existing = explicitJoinBindings.get(transition.toGateway);
       explicitJoinBindings.set(transition.toGateway, {
-        anchorStageKey: existing?.anchorStageKey ?? transition.toStage,
+        anchorStageKey: existing?.anchorStageKey ?? routes.find(route => route.toStage === transition.toGateway && !route.fromGateway)?.fromStage ?? null,
         relatedTransitionIndices: [...(existing?.relatedTransitionIndices ?? []), index],
       });
     }
@@ -62,44 +63,28 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
   const splitCandidatesByLane = new Map<string, string[]>();
   const joinCandidatesByLane = new Map<string, string[]>();
 
-  workflow.stages.forEach(stage => {
-    const stageKey = stage.stageKey;
+  workflow.states.forEach(stage => {
+    const stageKey = stage.stateKey;
     const laneKey = stageLaneKey(stage);
     const outgoing = outgoingByStage.get(stageKey) ?? [];
     const incoming = incomingByStage.get(stageKey) ?? [];
 
     if (outgoing.length > 1) {
-      const targetLanes = new Set(
-        outgoing
-          .map(index => stageByKey.get((flattenRoutes(workflow))[index].toStage))
-          .filter(Boolean)
-          .map(target => stageLaneKey(target!))
-      );
-      if (targetLanes.size > 1 || outgoing.length > 1) {
-        splitCandidatesByLane.set(laneKey, [...(splitCandidatesByLane.get(laneKey) ?? []), stageKey]);
-      }
+      splitCandidatesByLane.set(laneKey, [...(splitCandidatesByLane.get(laneKey) ?? []), stageKey]);
     }
 
     if (incoming.length > 1) {
-      const sourceLanes = new Set(
-        incoming
-          .map(index => stageByKey.get((flattenRoutes(workflow))[index].fromStage))
-          .filter(Boolean)
-          .map(source => stageLaneKey(source!))
-      );
-      if (sourceLanes.size > 1 || incoming.length > 1) {
-        joinCandidatesByLane.set(laneKey, [...(joinCandidatesByLane.get(laneKey) ?? []), stageKey]);
-      }
+      joinCandidatesByLane.set(laneKey, [...(joinCandidatesByLane.get(laneKey) ?? []), stageKey]);
     }
   });
 
-  return (workflow.gateways ?? []).map(gateway => {
+  return workflowGateways(workflow).map(gateway => {
     const laneKey = gatewayLaneKey(gateway);
-    const explicitBinding = gateway.kind === 'Split'
-      ? explicitSplitBindings.get(gateway.gatewayKey)
-      : explicitJoinBindings.get(gateway.gatewayKey);
+    const explicitBinding = gateway.gatewayType === 'Split'
+      ? explicitSplitBindings.get(gateway.key)
+      : explicitJoinBindings.get(gateway.key);
     const anchorStageKey = explicitBinding?.anchorStageKey ?? (
-      gateway.kind === 'Split'
+      gateway.gatewayType === 'Split'
         ? shiftCandidate(splitCandidatesByLane, laneKey)
         : shiftCandidate(joinCandidatesByLane, laneKey)
     );
@@ -112,7 +97,7 @@ export function deriveGatewayBindings(workflow: Pick<AuthoredWorkflow, 'stages' 
         explicitBinding?.relatedTransitionIndices
         ?? (anchorStageKey === null
           ? []
-          : gateway.kind === 'Split'
+          : gateway.gatewayType === 'Split'
             ? (outgoingByStage.get(anchorStageKey) ?? [])
             : (incomingByStage.get(anchorStageKey) ?? [])),
     };

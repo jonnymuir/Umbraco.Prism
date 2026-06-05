@@ -3,40 +3,33 @@ using System.Text.Json.Serialization;
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
-/// Gateway definition: a first-class named routing/convergence point in the workflow graph.
-/// Split gateways fan one cursor out into many lane-owned cursors.
-/// Join gateways collect cursors from required incoming lanes before releasing the next step.
+/// Gateway definition: a first-class named routing or convergence point in the workflow graph.
 /// </summary>
 public record AuthoredGateway
 {
+    private string? _queueKey;
+    private string? _source;
+    private IReadOnlyList<string> _requiredIncomingQueues = [];
+
     [JsonPropertyName("key")]
     public string GatewayKey { get; init; } = string.Empty;
 
     [JsonPropertyName("title")]
     public string DisplayName { get; init; } = string.Empty;
 
-    /// <summary>Optional description shown to authors in the editor inspector.</summary>
     [JsonPropertyName("description")]
     public string? Description { get; init; }
 
     [JsonPropertyName("type")]
     public GatewayKind Kind { get; init; } = GatewayKind.Split;
 
-    [JsonPropertyName("laneKey")]
-    public string LaneKey { get; init; } = string.Empty;
+    [JsonPropertyName("queueKey")]
+    public string QueueKey
+    {
+        get => _queueKey ?? string.Empty;
+        init => _queueKey = value;
+    }
 
-    /// <summary>
-    /// The stage key this gateway routes <em>from</em>. Exactly one gateway per source-stage:
-    /// a stage's outgoing routing lives entirely inside that one gateway.
-    /// </summary>
-    [JsonPropertyName("source")]
-    public string Source { get; init; } = string.Empty;
-
-    /// <summary>
-    /// Outgoing routes carried by this gateway. Each route projects 1:1 to a
-    /// <see cref="UmbracoPrism.Shared.Models.Workflow.WorkflowTransitionFile"/>
-    /// at runtime, with the gateway's <see cref="Source"/> as the <c>FromState</c>.
-    /// </summary>
     [JsonPropertyName("routes")]
     public IReadOnlyList<AuthoredRoute> Routes { get; init; } = [];
 
@@ -46,17 +39,67 @@ public record AuthoredGateway
     [JsonPropertyName("roleGates")]
     public IReadOnlyList<string> RoleGates { get; init; } = [];
 
-    /// <summary>
-    /// Waiting copy shown to the owner lane while a join gateway awaits other lanes.
-    /// Required for join gateways; ignored on split gateways.
-    /// </summary>
     [JsonPropertyName("waitingInfo")]
     public WaitingMetadata? WaitingInfo { get; init; }
 
-    /// <summary>
-    /// Lane keys whose cursors must all arrive before this join gateway releases.
-    /// Required for join gateways; ignored on split gateways.
-    /// </summary>
+    [JsonPropertyName("requiredIncomingQueues")]
+    public IReadOnlyList<string> RequiredIncomingQueues
+    {
+        get => _requiredIncomingQueues;
+        init => _requiredIncomingQueues = value;
+    }
+
+    [JsonIgnore]
+    public string? LaneKey
+    {
+        get => _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore]
+    public string? Source
+    {
+        get => _source;
+        init => _source = value;
+    }
+
+    [JsonIgnore]
+    public IReadOnlyList<string> RequiredIncomingLanes
+    {
+        get => _requiredIncomingQueues;
+        init => _requiredIncomingQueues = value;
+    }
+
+    [JsonPropertyName("laneKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyLaneKey
+    {
+        init
+        {
+            if (string.IsNullOrWhiteSpace(_queueKey))
+            {
+                _queueKey = value;
+            }
+        }
+    }
+
+    [JsonPropertyName("source")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacySource
+    {
+        init => _source = value;
+    }
+
     [JsonPropertyName("requiredIncomingLanes")]
-    public IReadOnlyList<string> RequiredIncomingLanes { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? LegacyRequiredIncomingLanes
+    {
+        init
+        {
+            if (_requiredIncomingQueues.Count == 0 && value is not null)
+            {
+                _requiredIncomingQueues = value;
+            }
+        }
+    }
 }

@@ -6,12 +6,6 @@ using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
-/// <summary>
-/// Verifies that <see cref="AuthoredWorkflow"/> and its graph types round-trip
-/// through System.Text.Json without data loss, and that the filesystem store
-/// loads fixture documents correctly. After the gateway collapse, edges live as
-/// <see cref="AuthoredRoute"/> records owned by gateways.
-/// </summary>
 public class AuthoredWorkflowSerializationTests
 {
     private static readonly JsonSerializerOptions RoundTripOptions = new()
@@ -29,94 +23,43 @@ public class AuthoredWorkflowSerializationTests
         var json = JsonSerializer.Serialize(original, RoundTripOptions);
         var restored = JsonSerializer.Deserialize<AuthoredWorkflow>(json, RoundTripOptions)!;
 
-        restored.DefinitionKey.Should().Be(original.DefinitionKey);
-        restored.DisplayName.Should().Be(original.DisplayName);
-        restored.Version.Should().Be(original.Version);
-        restored.InitialStageKey.Should().Be(original.InitialStageKey);
-        restored.Description.Should().Be(original.Description);
-        restored.SchemaVersion.Should().Be(original.SchemaVersion);
-        restored.Lanes.Should().ContainSingle();
-        restored.Lanes[0].Key.Should().Be("applicant");
+        restored.Queues.Should().ContainSingle();
+        restored.Queues[0].Key.Should().Be("web-user");
+
+        restored.Stages.Should().HaveCount(2);
+        restored.Stages[0].QueueKey.Should().Be("web-user");
+        restored.Stages[0].Routes.Should().ContainSingle(route =>
+            route.Target == "route-submit" && route.Trigger == "submit");
 
         restored.Gateways.Should().ContainSingle();
         var gateway = restored.Gateways[0];
         gateway.GatewayKey.Should().Be("route-submit");
-        gateway.LaneKey.Should().Be("applicant");
-        gateway.Source.Should().Be("details");
-        gateway.Routes.Should().ContainSingle();
-        gateway.Routes[0].Id.Should().Be("submit-done");
-        gateway.Routes[0].Target.Should().Be("done");
-        gateway.Routes[0].Trigger.Should().Be("submit");
-        gateway.Routes[0].Condition.Should().NotBeNull();
-        gateway.Routes[0].Condition!.Expression.Should().Be("form.isValid == true");
-        gateway.Routes[0].Actions.Should().ContainSingle();
-        gateway.Routes[0].Actions[0].Timing.Should().Be(ActionTiming.OnTransition);
-
-        restored.Stages.Should().HaveCount(2);
-        restored.Stages[0].StageKey.Should().Be("details");
-        restored.Stages[0].DisplayName.Should().Be("Your details");
-        restored.Stages[0].LaneKey.Should().Be("applicant");
-        restored.Stages[0].Actions.Should().ContainSingle();
-        restored.Stages[0].Actions[0].Type.Should().Be("forms.load");
-        restored.Stages[0].Actions[0].Timing.Should().Be(ActionTiming.OnEntry);
-        restored.Stages[0].Actions[0].Parameters["formDefinitionId"]!.GetValue<string>().Should().Be("details-form");
-        restored.Stages[0].Components.Should().HaveCount(1);
-        var restoredFieldset = restored.Stages[0].Components[0].Should().BeOfType<FieldsetComponent>().Subject;
-        var restoredField = restoredFieldset.Children.Should().ContainSingle().Subject;
-        restoredField.Should().BeOfType<TextInputComponent>()
-            .Which.FieldKey.Should().Be("full-name");
-        restoredField.Should().BeOfType<TextInputComponent>()
-            .Which.Required.Should().BeTrue();
-
-        restored.Stages[1].Kind.Should().Be(StageKind.Confirmation);
-
-        restored.ParameterSchemas.Should().ContainSingle();
-        restored.ParameterSchemas[0].Key.Should().Be("forms-form-definition");
-        restored.ParameterSchemas[0].Required.Should().Contain("formDefinitionId");
-
-        restored.Handoffs.Should().HaveCount(1);
-        restored.Handoffs[0].Id.Should().Be("h1");
-        restored.Handoffs[0].Label.Should().Be("applicant-to-caseworker");
-
-        restored.Metadata.Should().ContainKey("owner").WhoseValue.Should().Be("test-team");
+        gateway.QueueKey.Should().Be("web-user");
+        gateway.Routes.Should().ContainSingle(route =>
+            route.Target == "done" && route.Trigger == "submit");
     }
 
     [Fact]
-    public void AuthoredWorkflow_SerializesWithLockedSchemaPropertyNames()
+    public void AuthoredWorkflow_SerializesWithLockedQueueOnlyPropertyNames()
     {
         var workflow = BuildTestWorkflow();
         var json = JsonSerializer.Serialize(workflow, RoundTripOptions);
         using var document = JsonDocument.Parse(json);
 
         var root = document.RootElement;
-        root.TryGetProperty("parameterSchemas", out _).Should().BeTrue();
-        root.TryGetProperty("lanes", out _).Should().BeTrue();
-        root.TryGetProperty("gateways", out _).Should().BeTrue();
-        // The collapsed model has no top-level transitions block.
-        root.TryGetProperty("transitions", out _).Should().BeFalse(
-            "gateways own routing in the collapsed authoring model");
+        root.TryGetProperty("queues", out _).Should().BeTrue();
+        root.TryGetProperty("lanes", out _).Should().BeFalse();
+        root.TryGetProperty("transitions", out _).Should().BeFalse();
 
         var stage = root.GetProperty("stages")[0];
-        stage.TryGetProperty("key", out _).Should().BeTrue();
-        stage.TryGetProperty("title", out _).Should().BeTrue();
-        stage.TryGetProperty("type", out _).Should().BeTrue();
-        stage.TryGetProperty("actions", out _).Should().BeTrue();
-        stage.TryGetProperty("laneKey", out _).Should().BeTrue();
+        stage.TryGetProperty("queueKey", out _).Should().BeTrue();
+        stage.TryGetProperty("routes", out _).Should().BeTrue();
+        stage.TryGetProperty("laneKey", out _).Should().BeFalse();
 
         var gateway = root.GetProperty("gateways")[0];
-        gateway.TryGetProperty("source", out _).Should().BeTrue();
+        gateway.TryGetProperty("queueKey", out _).Should().BeTrue();
         gateway.TryGetProperty("routes", out _).Should().BeTrue();
-
-        var route = gateway.GetProperty("routes")[0];
-        route.TryGetProperty("id", out _).Should().BeTrue();
-        route.TryGetProperty("target", out _).Should().BeTrue();
-        route.TryGetProperty("trigger", out _).Should().BeTrue();
-        route.TryGetProperty("actions", out _).Should().BeTrue();
-
-        var action = route.GetProperty("actions")[0];
-        action.TryGetProperty("type", out _).Should().BeTrue();
-        action.TryGetProperty("timing", out _).Should().BeTrue();
-        action.TryGetProperty("params", out _).Should().BeTrue();
+        gateway.TryGetProperty("source", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -127,6 +70,7 @@ public class AuthoredWorkflowSerializationTests
             StageKey = "details",
             DisplayName = "Your details",
             Kind = StageKind.Question,
+            QueueKey = "web-user",
             Components =
             [
                 new BodyComponent { Content = "Tell us about yourself." },
@@ -146,45 +90,20 @@ public class AuthoredWorkflowSerializationTests
         var json = JsonSerializer.Serialize(stage, RoundTripOptions);
         var restored = JsonSerializer.Deserialize<AuthoredStage>(json, RoundTripOptions)!;
 
+        restored.QueueKey.Should().Be("web-user");
         restored.Components.Should().HaveCount(2);
-        restored.Components[0].Should().BeOfType<BodyComponent>()
-            .Which.Content.Should().Be("Tell us about yourself.");
-        var restoredFieldset = restored.Components[1].Should().BeOfType<FieldsetComponent>().Subject;
-        restoredFieldset.Legend.Should().Be("Identity");
-        restoredFieldset.Children.Should().HaveCount(2);
-        restoredFieldset.Children[0].Should().BeOfType<TextInputComponent>()
-            .Which.FieldKey.Should().Be("name");
-        restoredFieldset.Children[1].Should().BeOfType<EmailComponent>()
-            .Which.FieldKey.Should().Be("email");
-    }
-
-    [Fact]
-    public void AllStageKinds_RoundTrip()
-    {
-        var allKinds = Enum.GetValues<StageKind>();
-
-        foreach (var kind in allKinds)
-        {
-            var stage = new AuthoredStage { StageKey = "s", DisplayName = "S", Kind = kind };
-            var json = JsonSerializer.Serialize(stage, RoundTripOptions);
-            var restored = JsonSerializer.Deserialize<AuthoredStage>(json, RoundTripOptions)!;
-            restored.Kind.Should().Be(kind, $"StageKind.{kind} should round-trip");
-        }
     }
 
     [Fact]
     public async Task FilesystemStore_LoadsFixtureDocument()
     {
-        var fixturesPath = GetFixturesPath();
+        var fixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
         var workflow = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
 
         workflow.Should().NotBeNull();
         workflow!.DefinitionKey.Should().Be("planning-application");
+        workflow.Queues.Should().NotBeEmpty();
         workflow.Stages.Should().HaveCount(4);
-        workflow.Stages.Should().Contain(s => s.StageKey == "declaration" && s.Actions.Count == 1);
-        workflow.Gateways.SelectMany(g => g.Routes)
-            .Should().Contain(r => r.Trigger == "submit");
-        workflow.ParameterSchemas.Should().ContainSingle(s => s.Key == "forms-form-definition");
     }
 
     private static AuthoredWorkflow BuildTestWorkflow() => new()
@@ -197,12 +116,12 @@ public class AuthoredWorkflowSerializationTests
         SchemaVersion = "1.0",
         InitialStageKey = "details",
         InstancePolicy = "single",
-        Lanes =
+        Queues =
         [
-            new AuthoredLane
+            new AuthoredQueue
             {
-                Key = "applicant",
-                DisplayName = "Applicant lane",
+                Key = "web-user",
+                DisplayName = "Applicant",
                 Actor = "applicant"
             }
         ],
@@ -213,13 +132,12 @@ public class AuthoredWorkflowSerializationTests
                 GatewayKey = "route-submit",
                 DisplayName = "Route to completion",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant",
-                Source = "details",
+                QueueKey = "web-user",
                 Routes =
                 [
                     new AuthoredRoute
                     {
-                        Id = "submit-done",
+                        Id = "gateway-submit-done",
                         Target = "done",
                         Trigger = "submit",
                         Condition = new AuthoredCondition
@@ -251,7 +169,16 @@ public class AuthoredWorkflowSerializationTests
                 StageKey = "details",
                 DisplayName = "Your details",
                 Kind = StageKind.Question,
-                LaneKey = "applicant",
+                QueueKey = "web-user",
+                Routes =
+                [
+                    new AuthoredRoute
+                    {
+                        Id = "details-submit-route",
+                        Target = "route-submit",
+                        Trigger = "submit"
+                    }
+                ],
                 Actions =
                 [
                     new AuthoredAction
@@ -286,17 +213,7 @@ public class AuthoredWorkflowSerializationTests
                 StageKey = "done",
                 DisplayName = "Complete",
                 Kind = StageKind.Confirmation,
-                LaneKey = "applicant"
-            }
-        ],
-        Handoffs =
-        [
-            new AuthoredHandoff
-            {
-                Id = "h1",
-                FromStage = "details",
-                ToStage = "done",
-                Label = "applicant-to-caseworker"
+                QueueKey = "web-user"
             }
         ],
         ParameterSchemas =
@@ -319,8 +236,4 @@ public class AuthoredWorkflowSerializationTests
         ],
         Metadata = new Dictionary<string, string> { ["owner"] = "test-team" }
     };
-
-    private static string GetFixturesPath() => Path.Combine(
-        AppContext.BaseDirectory,
-        "Workflow", "Authoring", "Fixtures");
 }

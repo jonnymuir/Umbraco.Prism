@@ -5,12 +5,12 @@ import type {
   AuthoredAction,
   AuthoredComponent,
   AuthoredGateway,
-  AuthoredRoute,
   AuthoredStage,
   RouteView,
   AuthoredWorkflow,
   EditorStageType,
 } from './types.js';
+import { workflowGateways } from './types.js';
 
 function describeComponent(component: AuthoredComponent): string {
   switch (component.type) {
@@ -136,7 +136,7 @@ export class PrismStepInspectorElement extends LitElement {
       return null;
     }
 
-    return this.workflow.stages.find(stage => stage.stageKey === this.selectedStageKey) ?? null;
+    return this.workflow.states.find(stage => stage.stateKey === this.selectedStageKey) ?? null;
   }
 
   private get _selectedGateway(): AuthoredGateway | null {
@@ -144,7 +144,7 @@ export class PrismStepInspectorElement extends LitElement {
       return null;
     }
 
-    return this.workflow.gateways?.find(gateway => gateway.gatewayKey === this.selectedGatewayKey) ?? null;
+    return workflowGateways(this.workflow).find(gateway => gateway.key === this.selectedGatewayKey) ?? null;
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -200,13 +200,13 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _stageLabel(stageKey: string) {
-    return this.workflow?.stages.find(stage => stage.stageKey === stageKey)?.displayName
-      ?? this.workflow?.gateways?.find(gateway => gateway.gatewayKey === stageKey)?.displayName
+    return this.workflow?.states.find(stage => stage.stateKey === stageKey)?.displayName
+      ?? workflowGateways(this.workflow).find(gateway => gateway.key === stageKey)?.displayName
       ?? stageKey;
   }
 
   private _gatewayLabel(gatewayKey: string) {
-    return this.workflow?.gateways?.find(gateway => gateway.gatewayKey === gatewayKey)?.displayName ?? gatewayKey;
+    return workflowGateways(this.workflow).find(gateway => gateway.key === gatewayKey)?.displayName ?? gatewayKey;
   }
 
   private _routeDescriptor(transition: RouteView) {
@@ -235,7 +235,7 @@ export class PrismStepInspectorElement extends LitElement {
       return [];
     }
 
-    const stage = this.workflow.stages.find(candidate => candidate.stageKey === stageKey);
+    const stage = this.workflow.states.find(candidate => candidate.stateKey === stageKey);
     const laneKey = stage ? stageLaneKey(stage) : '';
 
     return deriveGatewayBindings(this.workflow)
@@ -245,7 +245,7 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _selectedStageOutgoing(stage: AuthoredStage) {
-    return this.workflow ? workflowOutgoingRoutes(this.workflow, stage.stageKey) : [];
+    return this.workflow ? workflowOutgoingRoutes(this.workflow, stage.stateKey) : [];
   }
 
   private _replaceSelectedTransition(nextTransition: RouteView, transitionIndex: number) {
@@ -261,12 +261,12 @@ export class PrismStepInspectorElement extends LitElement {
 
     // Slice C: edits address a gateway-owned route by (gatewayKey, routeId).
     // Project the mutation onto gateways[].routes so it survives serialisation.
-    const gatewayKey = previous.gatewayKey || nextTransition.gatewayKey;
+    const gatewayKey = previous.key || nextTransition.key;
     const routeId = previous.routeId || nextTransition.routeId;
     if (!gatewayKey || !routeId) {
       return;
     }
-    const nextWorkflow = updateRoute(this.workflow, { gatewayKey, routeId }, route => ({
+    const nextWorkflow = updateRoute(this.workflow, { routeId }, route => ({
       ...route,
       target: nextTransition.toStage || route.target,
       trigger: nextTransition.action || route.trigger,
@@ -276,54 +276,60 @@ export class PrismStepInspectorElement extends LitElement {
       editorComment: nextTransition.editorComment,
     }));
 
-    const selectedGatewayKey = this._selectedGateway?.gatewayKey;
+    const selectedGatewayKey = this._selectedGateway?.key;
     this._emitWorkflowUpdated(
       nextWorkflow,
       selectedGatewayKey ? { kind: 'gateway', gatewayKey: selectedGatewayKey } : null
     );
   }
 
-  private _replaceSelectedStage(nextStage: AuthoredStage, previousStageKey = this._selectedStage?.stageKey) {
+  private _replaceSelectedStage(nextStage: AuthoredStage, previousStageKey = this._selectedStage?.stateKey) {
     if (!this.workflow || !previousStageKey) {
       return;
     }
 
-    const stageIndex = this.workflow.stages.findIndex(stage => stage.stageKey === previousStageKey);
+    const stageIndex = this.workflow.states.findIndex(stage => stage.stateKey === previousStageKey);
     if (stageIndex < 0) {
       return;
     }
 
-    const stages = [...this.workflow.stages];
+    const stages = [...this.workflow.states];
     stages[stageIndex] = nextStage;
 
-    let gateways = this.workflow.gateways;
-    let initialStageKey = this.workflow.initialStageKey;
+    let gateways = workflowGateways(this.workflow);
+    let initialStageKey = this.workflow.initialState;
+    let states = stages;
 
-    if (nextStage.stageKey !== previousStageKey) {
-      // Stage rename — repoint gateway sources and route targets that
-      // referenced the old stage key. The derived `transitions` view is
-      // recomputed by `withDerivedTransitions` below.
-      gateways = (this.workflow.gateways ?? []).map(gateway => ({
+    if (nextStage.stateKey !== previousStageKey) {
+      states = stages.map(stage => stage.stateKey === nextStage.stateKey
+        ? stage
+        : ({
+            ...stage,
+            routes: (stage.routes ?? []).map(route => ({
+              ...route,
+              target: route.target === previousStageKey ? nextStage.stateKey : route.target,
+            })),
+          }));
+      gateways = workflowGateways(this.workflow).map(gateway => ({
         ...gateway,
-        source: gateway.source === previousStageKey ? nextStage.stageKey : gateway.source,
         routes: (gateway.routes ?? []).map(route => ({
           ...route,
-          target: route.target === previousStageKey ? nextStage.stageKey : route.target,
+          target: route.target === previousStageKey ? nextStage.stateKey : route.target,
         })),
       }));
       if (initialStageKey === previousStageKey) {
-        initialStageKey = nextStage.stageKey;
+        initialStageKey = nextStage.stateKey;
       }
     }
 
     const workflow: AuthoredWorkflow = {
       ...this.workflow,
-      initialStageKey,
-      stages,
+      initialState: initialStageKey,
+      states,
       gateways,
     };
 
-    this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: nextStage.stageKey });
+    this._emitWorkflowUpdated(workflow, { kind: 'stage', stageKey: nextStage.stateKey });
   }
 
   private _updateSelectedStageActions(event: CustomEvent<ActionsUpdatedDetail>) {
@@ -405,8 +411,8 @@ export class PrismStepInspectorElement extends LitElement {
       return;
     }
 
-    const duplicate = this.workflow.stages.some(candidate =>
-      candidate.stageKey === nextKey && candidate.stageKey !== stage.stageKey
+    const duplicate = this.workflow.states.some(candidate =>
+      candidate.stateKey === nextKey && candidate.stateKey !== stage.stateKey
     );
     if (duplicate) {
       this._stageKeyError = 'Stage key must be unique.';
@@ -414,13 +420,13 @@ export class PrismStepInspectorElement extends LitElement {
       return;
     }
 
-    if (nextKey === stage.stageKey) {
+    if (nextKey === stage.stateKey) {
       this._stageKeyError = null;
       return;
     }
 
     this._stageKeyError = null;
-    this._replaceSelectedStage({ ...stage, stageKey: nextKey }, stage.stageKey);
+    this._replaceSelectedStage({ ...stage, stateKey: nextKey }, stage.stateKey);
     this._announce(`Stage key updated to ${nextKey}.`);
   }
 
@@ -571,11 +577,11 @@ export class PrismStepInspectorElement extends LitElement {
     if (!this.workflow) return;
     const ctx = this._routeTransitionFromEvent(event);
     if (!ctx) return;
-    const gatewayKey = ctx.transition.gatewayKey;
+    const gatewayKey = ctx.transition.key;
     const routeId = ctx.transition.routeId;
     if (!gatewayKey || !routeId) return;
     const nextWorkflow = deleteRoute(this.workflow, { gatewayKey, routeId });
-    const selectedGatewayKey = this._selectedGateway?.gatewayKey;
+    const selectedGatewayKey = this._selectedGateway?.key;
     this._emitWorkflowUpdated(
       nextWorkflow,
       selectedGatewayKey ? { kind: 'gateway', gatewayKey: selectedGatewayKey } : null
@@ -586,8 +592,8 @@ export class PrismStepInspectorElement extends LitElement {
   private _handleAddRoute() {
     if (!this.workflow) return;
 
-    const sourceStageKey = this._selectedStage?.stageKey
-      ?? (this.workflow.gateways ?? []).find(g => g.gatewayKey === this.selectedGatewayKey)?.source
+    const sourceStageKey = this._selectedStage?.stateKey
+      ?? deriveGatewayBindings(this.workflow).find(binding => binding.gateway.key === this.selectedGatewayKey)?.anchorStageKey
       ?? null;
 
     if (!sourceStageKey) return;
@@ -595,14 +601,14 @@ export class PrismStepInspectorElement extends LitElement {
     const { workflow: withGateway, gatewayKey } = findOrCreateSplitGateway(this.workflow, sourceStageKey);
 
     const routeId = newRouteId(sourceStageKey, '', '') + '-' + Date.now().toString(36);
-    const newRoute: AuthoredRoute = {
+    const nextRoute = {
       id: routeId,
       target: '',
       trigger: '',
       actions: [],
     };
 
-    const nextWorkflow = addRoute(withGateway, gatewayKey, newRoute);
+    const nextWorkflow = addRoute(withGateway, gatewayKey, nextRoute);
     this._newlyAddedRouteId = routeId;
     this._emitWorkflowUpdated(nextWorkflow, { kind: 'gateway', gatewayKey });
     this._announce('Route added — choose a destination.');
@@ -672,7 +678,7 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _renderRouteEditor(transition: RouteView, transitionIndex: number) {
     const condition = parseTransitionCondition(transition.condition);
-    const targetOptions = (this.workflow?.stages ?? []).filter(stage => stage.stageKey !== transition.fromStage);
+    const targetOptions = (this.workflow?.states ?? []).filter(stage => stage.stateKey !== transition.fromStage);
     const joinGateways = this._availableJoinGatewaysForStage(transition.toStage);
     const idx = String(transitionIndex);
     const ariaId = `route-${transitionIndex}-title`;
@@ -729,7 +735,7 @@ export class PrismStepInspectorElement extends LitElement {
             >
               <option value="" ?selected=${targetEmpty} disabled>Choose a destination…</option>
               ${targetOptions.map(stage => html`
-                <option value=${stage.stageKey} ?selected=${stage.stageKey === transition.toStage}>${stage.displayName}</option>
+                <option value=${stage.stateKey} ?selected=${stage.stateKey === transition.toStage}>${stage.displayName}</option>
               `)}
             </select>
             ${targetEmpty
@@ -746,7 +752,7 @@ export class PrismStepInspectorElement extends LitElement {
             >
               <option value="">No join gateway</option>
               ${joinGateways.map(g => html`
-                <option value=${g.gatewayKey} ?selected=${g.gatewayKey === transition.toGateway}>${g.displayName}</option>
+                <option value=${g.key} ?selected=${g.key === transition.toGateway}>${g.displayName}</option>
               `)}
             </select>
           </label>
@@ -845,37 +851,41 @@ export class PrismStepInspectorElement extends LitElement {
 
   @state() private _gatewayKeyError: string | null = null;
 
-  private _replaceSelectedGateway(nextGateway: AuthoredGateway, previousGatewayKey = this._selectedGateway?.gatewayKey) {
+  private _replaceSelectedGateway(nextGateway: AuthoredGateway, previousGatewayKey = this._selectedGateway?.key) {
     if (!this.workflow || !previousGatewayKey) {
       return;
     }
 
-    const gatewayIndex = (this.workflow.gateways ?? []).findIndex(g => g.gatewayKey === previousGatewayKey);
+    const gatewayIndex = workflowGateways(this.workflow).findIndex(g => g.key === previousGatewayKey);
     if (gatewayIndex < 0) {
       return;
     }
 
-    const gateways = [...(this.workflow.gateways ?? [])];
+    const gateways = [...workflowGateways(this.workflow)];
     gateways[gatewayIndex] = nextGateway;
 
-    // Gateway rename — repoint any route.target on other gateways that
-    // pointed at this gateway. Routes belonging to the renamed gateway are
-    // unaffected (the key change is internal). Derived `transitions` is
-    // recomputed by `withDerivedTransitions` below.
+    let nextStates = this.workflow.states;
     let nextGateways = gateways;
-    if (nextGateway.gatewayKey !== previousGatewayKey) {
+    if (nextGateway.key !== previousGatewayKey) {
+      nextStates = this.workflow.states.map(stage => ({
+        ...stage,
+        routes: (stage.routes ?? []).map(route => ({
+          ...route,
+          target: route.target === previousGatewayKey ? nextGateway.key : route.target,
+        })),
+      }));
       nextGateways = gateways.map((g, idx) => idx === gatewayIndex ? g : ({
         ...g,
         routes: (g.routes ?? []).map(route => ({
           ...route,
-          target: route.target === previousGatewayKey ? nextGateway.gatewayKey : route.target,
+          target: route.target === previousGatewayKey ? nextGateway.key : route.target,
         })),
       }));
     }
 
     this._emitWorkflowUpdated(
-      { ...this.workflow, gateways: nextGateways },
-      { kind: 'gateway', gatewayKey: nextGateway.gatewayKey }
+      { ...this.workflow, states: nextStates, gateways: nextGateways },
+      { kind: 'gateway', gatewayKey: nextGateway.key }
     );
   }
 
@@ -899,8 +909,8 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     const allKeys = [
-      ...this.workflow.stages.map(s => s.stageKey),
-      ...(this.workflow.gateways ?? []).map(g => g.gatewayKey).filter(k => k !== gateway.gatewayKey),
+      ...this.workflow.states.map(s => s.stateKey),
+      ...workflowGateways(this.workflow).map(g => g.key).filter(k => k !== gateway.key),
     ];
     if (allKeys.includes(nextKey)) {
       this._gatewayKeyError = 'Gateway key must be unique across stages and gateways.';
@@ -908,13 +918,13 @@ export class PrismStepInspectorElement extends LitElement {
       return;
     }
 
-    if (nextKey === gateway.gatewayKey) {
+    if (nextKey === gateway.key) {
       this._gatewayKeyError = null;
       return;
     }
 
     this._gatewayKeyError = null;
-    this._replaceSelectedGateway({ ...gateway, gatewayKey: nextKey }, gateway.gatewayKey);
+    this._replaceSelectedGateway({ ...gateway, key: nextKey }, gateway.key);
     this._announce(`Gateway key updated to ${nextKey}.`);
   }
 
@@ -923,7 +933,7 @@ export class PrismStepInspectorElement extends LitElement {
     if (!gateway) return;
     const laneKey = (event.currentTarget as HTMLInputElement).value.trim();
     if (!laneKey || laneKey === gatewayLaneKey(gateway)) return;
-    this._replaceSelectedGateway({ ...gateway, laneKey, actor: laneKey });
+    this._replaceSelectedGateway({ ...gateway, queueKey: laneKey, actor: laneKey.includes('business') ? 'reviewer' : laneKey });
     this._announce(`${gateway.displayName} queue updated to ${laneKey}.`);
   }
 
@@ -940,7 +950,7 @@ export class PrismStepInspectorElement extends LitElement {
     const gateway = this._selectedGateway;
     if (!gateway || gateway.kind !== 'Join') return;
     const content = (event.currentTarget as HTMLTextAreaElement).value.trim() || undefined;
-    this._replaceSelectedGateway({ ...gateway, waiting: { ...gateway.waiting ?? { allowDefer: false }, content } });
+    this._replaceSelectedGateway({ ...gateway, waitingContent: content });
     this._announce(`${gateway.displayName} waiting message updated.`);
   }
 
@@ -949,7 +959,7 @@ export class PrismStepInspectorElement extends LitElement {
     if (!gateway || gateway.kind !== 'Join') return;
     const raw = (event.currentTarget as HTMLInputElement).value;
     const expectedWaitSeconds = raw ? Number(raw) : undefined;
-    this._replaceSelectedGateway({ ...gateway, waiting: { ...gateway.waiting ?? { allowDefer: false }, expectedWaitSeconds } });
+    this._replaceSelectedGateway({ ...gateway, waitingExpectedSeconds: expectedWaitSeconds });
     this._announce(`${gateway.displayName} expected wait updated.`);
   }
 
@@ -957,10 +967,10 @@ export class PrismStepInspectorElement extends LitElement {
     const gateway = this._selectedGateway;
     if (!gateway || gateway.kind !== 'Join') return;
     const allowDefer = (event.currentTarget as HTMLInputElement).checked;
-    const current = gateway.waiting ?? { allowDefer: false };
     this._replaceSelectedGateway({
       ...gateway,
-      waiting: { ...current, allowDefer, deferMessage: allowDefer ? current.deferMessage : undefined },
+      waitingAllowDefer: allowDefer,
+      waitingDeferMessage: allowDefer ? gateway.waitingDeferMessage : undefined,
     });
     this._announce(allowDefer ? `${gateway.displayName} defer enabled.` : `${gateway.displayName} defer disabled.`);
   }
@@ -969,15 +979,25 @@ export class PrismStepInspectorElement extends LitElement {
     const gateway = this._selectedGateway;
     if (!gateway || gateway.kind !== 'Join') return;
     const deferMessage = (event.currentTarget as HTMLInputElement).value.trim() || undefined;
-    this._replaceSelectedGateway({ ...gateway, waiting: { ...gateway.waiting ?? { allowDefer: true }, deferMessage } });
+    this._replaceSelectedGateway({ ...gateway, waitingDeferMessage: deferMessage });
     this._announce(`${gateway.displayName} defer message updated.`);
   }
 
   private _deleteSelectedGateway() {
     const gateway = this._selectedGateway;
     if (!this.workflow || !gateway) return;
-    const gateways = (this.workflow.gateways ?? []).filter(g => g.gatewayKey !== gateway.gatewayKey);
-    const nextWorkflow = { ...this.workflow, gateways };
+    const gateways = workflowGateways(this.workflow).filter(g => g.key !== gateway.key);
+    const nextWorkflow = {
+      ...this.workflow,
+      states: this.workflow.states.map(stage => ({
+        ...stage,
+        routes: (stage.routes ?? []).filter(route => route.target !== gateway.key),
+      })),
+      gateways: gateways.map(candidate => ({
+        ...candidate,
+        routes: (candidate.routes ?? []).filter(route => route.target !== gateway.key),
+      })),
+    };
     this._emitWorkflowUpdated(nextWorkflow, null);
     this._announce(`${gateway.displayName} gateway deleted.`);
   }
@@ -986,16 +1006,16 @@ export class PrismStepInspectorElement extends LitElement {
     const laneKey = gatewayLaneKey(gateway);
     const laneLabel = stageLaneLabel(this.workflow, laneKey, this.availableQueues);
     const binding = this.workflow
-      ? deriveGatewayBindings(this.workflow).find(candidate => candidate.gateway.gatewayKey === gateway.gatewayKey) ?? null
+      ? deriveGatewayBindings(this.workflow).find(candidate => candidate.gateway.key === gateway.key) ?? null
       : null;
-    const laneOptionsId = `gateway-lane-options-${gateway.gatewayKey}`;
+    const laneOptionsId = `gateway-lane-options-${gateway.key}`;
     const waiting = gateway.waiting;
     const isJoin = gateway.kind === 'Join';
 
     return html`
       <article
         class="inspector-panel"
-        data-prism-gateway-detail="${gateway.gatewayKey}"
+        data-prism-gateway-detail="${gateway.key}"
         data-prism-inspector-kind="gateway"
         aria-labelledby="inspector-gateway-title"
       >
@@ -1031,7 +1051,7 @@ export class PrismStepInspectorElement extends LitElement {
                 class="field-control ${this._gatewayKeyError ? 'field-control-error' : ''}"
                 data-prism-gateway-key
                 aria-invalid=${String(Boolean(this._gatewayKeyError))}
-                .value=${gateway.gatewayKey}
+                .value=${gateway.key}
                 @input=${() => { this._gatewayKeyError = null; }}
                 @change=${this._updateGatewayKey}
               />
@@ -1193,19 +1213,19 @@ export class PrismStepInspectorElement extends LitElement {
     const components = stage.components ?? [];
     const actions = stage.actions ?? [];
     const outgoing = this._selectedStageOutgoing(stage);
-    const stageType = stageKindToEditorStageType(stage.kind);
+    const stageType = stageKindToEditorStageType(stage.kind ?? 'Question');
     const laneKey = stageLaneKey(stage);
     const laneLabel = stageLaneLabel(this.workflow, laneKey, this.availableQueues);
     const laneEyebrow = `${laneLabel} queue`;
-    const laneOptionsId = `stage-lane-options-${stage.stageKey}`;
+    const laneOptionsId = `stage-lane-options-${stage.stateKey}`;
     const unreachable = this.workflow
-      ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
+      ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stateKey === stage.stateKey)
       : false;
     const orphaned = this.workflow
-      ? workflowOrphanedStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
+      ? workflowOrphanedStages(this.workflow).some(candidate => candidate.stateKey === stage.stateKey)
       : false;
     const deadEnd = this.workflow
-      ? workflowDeadEndStages(this.workflow).some(candidate => candidate.stageKey === stage.stageKey)
+      ? workflowDeadEndStages(this.workflow).some(candidate => candidate.stateKey === stage.stateKey)
       : false;
     const validationMessages = [
       ...(this._stageKeyError ? [this._stageKeyError] : []),
@@ -1219,7 +1239,7 @@ export class PrismStepInspectorElement extends LitElement {
     return html`
       <article
         class="inspector-panel"
-        data-prism-stage-detail="${stage.stageKey}"
+        data-prism-stage-detail="${stage.stateKey}"
         data-prism-inspector-kind="stage"
         aria-labelledby="inspector-stage-title"
       >
@@ -1266,7 +1286,7 @@ export class PrismStepInspectorElement extends LitElement {
                 class="field-control ${this._stageKeyError ? 'field-control-error' : ''}"
                 data-prism-stage-key
                 aria-invalid=${String(Boolean(this._stageKeyError))}
-                .value=${stage.stageKey}
+                .value=${stage.stateKey}
                 @input=${() => {
                   this._stageKeyError = null;
                 }}

@@ -119,9 +119,9 @@
               "type": "decimal",
               "fieldKey": "estimatedCost",
               "label": "Estimated cost of works",
-              "hint": "Enter the amount in pounds (do not include commas or the £ symbol)",
+              "hint": "Enter the amount in pounds (do not include commas or the \u00a3 symbol)",
               "required": true,
-              "prefix": "£",
+              "prefix": "\u00a3",
               "min": 0
             }
           ]
@@ -272,9 +272,9 @@
               "type": "decimal",
               "fieldKey": "estimatedCost",
               "label": "Estimated cost of works",
-              "hint": "Enter the amount in pounds (do not include commas or the £ symbol)",
+              "hint": "Enter the amount in pounds (do not include commas or the \u00a3 symbol)",
               "required": true,
-              "prefix": "£",
+              "prefix": "\u00a3",
               "min": 0
             }
           ]

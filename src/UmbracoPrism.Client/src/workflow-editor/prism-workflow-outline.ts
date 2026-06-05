@@ -60,7 +60,7 @@ export class PrismWorkflowOutline extends LitElement {
 
   private _gatewayLabel(gatewayKey: string | undefined | null): string {
     if (!gatewayKey) return '';
-    return this.workflow?.gateways?.find(g => g.gatewayKey === gatewayKey)?.displayName ?? gatewayKey;
+    return this.workflow?.metadata?.gateways?.find(g => g.key === gatewayKey)?.displayName ?? gatewayKey;
   }
 
   private _stageOutboundTransitions(stageKey: string): { transition: RouteView; index: number }[] {
@@ -88,8 +88,8 @@ export class PrismWorkflowOutline extends LitElement {
       return [];
     }
 
-    const groups = new Map<string, { key: string; label: string; stages: AuthoredWorkflow['stages'] }>();
-    for (const stage of this.workflow.stages) {
+    const groups = new Map<string, { key: string; label: string; stages: AuthoredWorkflow['states'] }>();
+    for (const stage of this.workflow.states) {
       const laneKey = stageLaneKey(stage) || stage.actor || 'public';
       const existing = groups.get(laneKey);
       if (existing) {
@@ -116,7 +116,7 @@ export class PrismWorkflowOutline extends LitElement {
       `;
     }
 
-    const stages = this.workflow.stages || [];
+    const stages = this.workflow.states || [];
     const laneGroups = this._laneGroups();
 
     if (stages.length === 0) {
@@ -136,7 +136,7 @@ export class PrismWorkflowOutline extends LitElement {
                 <h2 class="outline-title">Outline</h2>
                 <p class="outline-subtitle">
                   ${stages.length} ${stages.length === 1 ? 'stage' : 'stages'}
-                  ${this.workflow.gateways?.length ? html` · ${this.workflow.gateways.length} gateways` : nothing}
+                  ${this.workflow.metadata?.gateways?.length ? html` · ${this.workflow.metadata?.gateways.length} gateways` : nothing}
                 </p>
               </div>
             `
@@ -150,19 +150,19 @@ export class PrismWorkflowOutline extends LitElement {
                 <p class="outline-lane-meta">Read top to bottom</p>
               </div>
               <ol class="outline-stage-list">
-                ${group.stages.map((stage: AuthoredWorkflow['stages'][number]) => {
-            const isSelected = this.selectedStageKey === stage.stageKey;
-            const transitions = this._stageOutboundTransitions(stage.stageKey);
-            const splitGateways = this._splitGatewaysForStage(stage.stageKey);
+                ${group.stages.map((stage: AuthoredWorkflow['states'][number]) => {
+            const isSelected = this.selectedStageKey === stage.stateKey;
+            const transitions = this._stageOutboundTransitions(stage.stateKey);
+            const splitGateways = this._splitGatewaysForStage(stage.stateKey);
 
             return html`
               <li class="outline-stage-item">
                 <button
                   type="button"
                   class="outline-stage-button ${isSelected ? 'outline-stage-button-selected' : ''}"
-                  @click=${() => this._handleStageClick(stage.stageKey)}
+                  @click=${() => this._handleStageClick(stage.stateKey)}
                   aria-current=${isSelected ? 'location' : nothing}
-                  data-prism-outline-stage="${stage.stageKey}"
+                  data-prism-outline-stage="${stage.stateKey}"
                 >
                   <span class="outline-stage-title">${stage.displayName}</span>
                   <span class="outline-stage-meta">${stage.actor}</span>
@@ -172,15 +172,15 @@ export class PrismWorkflowOutline extends LitElement {
                   ? html`
                       <ul class="outline-gateway-list">
                         ${splitGateways.map(gateway => {
-                          const isGatewaySelected = this.selectedGatewayKey === gateway.gatewayKey;
+                          const isGatewaySelected = this.selectedGatewayKey === gateway.key;
                           return html`
                             <li class="outline-gateway-item">
                               <button
                                 type="button"
                                 class="outline-gateway-button ${isGatewaySelected ? 'outline-gateway-button-selected' : ''}"
-                                @click=${() => this._handleGatewayClick(gateway.gatewayKey)}
+                                @click=${() => this._handleGatewayClick(gateway.key)}
                                 aria-current=${isGatewaySelected ? 'location' : nothing}
-                                data-prism-outline-gateway="${gateway.gatewayKey}"
+                                data-prism-outline-gateway="${gateway.key}"
                               >
                                 <span class="outline-gateway-shape" aria-hidden="true"></span>
                                 <span class="outline-gateway-copy">

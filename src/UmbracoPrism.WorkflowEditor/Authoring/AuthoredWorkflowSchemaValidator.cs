@@ -5,7 +5,6 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Structural validator for the authored workflow schema.
-/// Keeps authoring-only concerns out of the projector while still returning the same diagnostic shape.
 /// </summary>
 public static class AuthoredWorkflowSchemaValidator
 {
@@ -21,252 +20,312 @@ public static class AuthoredWorkflowSchemaValidator
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageKey))
             .Select(stage => stage.StageKey)
             .ToHashSet(StringComparer.Ordinal);
+        var gatewayKeys = authored.Gateways
+            .Where(gateway => !string.IsNullOrWhiteSpace(gateway.GatewayKey))
+            .Select(gateway => gateway.GatewayKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var schemaByKey = BuildSchemaMap(authored.ParameterSchemas, diagnostics);
+        var queuesByKey = BuildQueueMap(GetQueues(authored), diagnostics);
 
         if (string.IsNullOrWhiteSpace(authored.DefinitionKey))
+        {
             diagnostics.Add(Error("PROJ100", "DefinitionKey is required.", null));
+        }
 
         if (string.IsNullOrWhiteSpace(authored.DisplayName))
+        {
             diagnostics.Add(Error("PROJ101", "DisplayName is required.", null));
+        }
 
         if (string.IsNullOrWhiteSpace(authored.InitialStageKey))
+        {
             diagnostics.Add(Error("PROJ102", "InitialStageKey is required.", null));
+        }
 
         if (authored.Stages.Count == 0)
+        {
             diagnostics.Add(Error("PROJ103", "At least one stage is required.", null));
-
-        var schemaByKey = BuildSchemaMap(authored.ParameterSchemas, diagnostics);
-        var lanesByKey = BuildLaneMap(authored.Lanes, diagnostics);
-        var gatewayKeys = new HashSet<string>(StringComparer.Ordinal);
+        }
 
         foreach (var stage in authored.Stages)
         {
-            if (string.IsNullOrWhiteSpace(stage.DisplayName))
-            {
-                diagnostics.Add(Error("PROJ104",
-                    $"Stage '{stage.StageKey}' must define a title.", stage.StageKey));
-            }
+            ValidateStage(stage, gatewayKeys, queuesByKey, schemaByKey, catalogByType, diagnostics);
+        }
 
-            if (!string.IsNullOrWhiteSpace(stage.UnknownKindToken))
+        var validGatewayTargets = new HashSet<string>(stageKeys, StringComparer.Ordinal);
+        validGatewayTargets.UnionWith(gatewayKeys);
+
+        foreach (var gateway in authored.Gateways)
+        {
+            ValidateGateway(gateway, validGatewayTargets, queuesByKey, schemaByKey, catalogByType, diagnostics);
+        }
+    }
+
+    private static void ValidateStage(
+        AuthoredStage stage,
+        IReadOnlySet<string> gatewayKeys,
+        IReadOnlyDictionary<string, AuthoredQueue> queuesByKey,
+        IReadOnlyDictionary<string, AuthoredParameterSchema> schemaByKey,
+        IReadOnlyDictionary<string, ActionCatalogEntry> catalogByType,
+        List<ProjectionDiagnostic> diagnostics)
+    {
+        if (string.IsNullOrWhiteSpace(stage.DisplayName))
+        {
+            diagnostics.Add(Error("PROJ104",
+                $"Stage '{stage.StageKey}' must define a title.",
+                stage.StageKey));
+        }
+
+        if (!string.IsNullOrWhiteSpace(stage.UnknownKindToken))
+        {
+            diagnostics.Add(Error("PROJ005",
+                $"Unknown stage kind '{stage.UnknownKindToken}'. Allowed kinds: Question, CheckAnswers, Confirmation, TaskList.",
+                stage.StageKey));
+        }
+
+        if (string.IsNullOrWhiteSpace(stage.QueueKey))
+        {
+            if (queuesByKey.Count > 0)
             {
-                diagnostics.Add(Error("PROJ005",
-                    $"Unknown stage kind '{stage.UnknownKindToken}'. Allowed kinds: Question, CheckAnswers, Confirmation, TaskList.",
+                diagnostics.Add(Error("PROJ153",
+                    $"Stage '{stage.StageKey}' must reference a queue.",
+                    stage.StageKey));
+            }
+        }
+        else if (!queuesByKey.TryGetValue(stage.QueueKey, out var queue))
+        {
+            diagnostics.Add(Error("PROJ129",
+                $"Stage '{stage.StageKey}' references unknown queue '{stage.QueueKey}'.",
+                stage.StageKey));
+        }
+        else
+        {
+            ValidateAssignmentCompatibility(stage.StageKey, "Stage", stage.Actor, stage.RoleGates, queue, diagnostics);
+        }
+
+        var routeIds = new HashSet<string>(StringComparer.Ordinal);
+        var triggerTargets = new HashSet<(string Trigger, string Target)>();
+        for (var index = 0; index < stage.Routes.Count; index++)
+        {
+            var route = stage.Routes[index];
+
+            if (string.IsNullOrWhiteSpace(route.Id))
+            {
+                diagnostics.Add(Error("PROJ154",
+                    $"Route #{index} on stage '{stage.StageKey}' must define an id.",
+                    stage.StageKey));
+            }
+            else if (!routeIds.Add(route.Id))
+            {
+                diagnostics.Add(Error("PROJ158",
+                    $"Stage '{stage.StageKey}' has duplicate route id '{route.Id}'.",
                     stage.StageKey));
             }
 
-            if (!string.IsNullOrWhiteSpace(stage.LaneKey))
+            if (string.IsNullOrWhiteSpace(route.Trigger))
             {
-                if (!lanesByKey.TryGetValue(stage.LaneKey, out var lane))
-                {
-                    diagnostics.Add(Error("PROJ129",
-                        $"Stage '{stage.StageKey}' references unknown lane '{stage.LaneKey}'.", stage.StageKey));
-                }
-                else
-                {
-                    ValidateAssignmentCompatibility(stage.StageKey, "Stage", stage.Actor, stage.RoleGates, lane, diagnostics);
-                }
+                diagnostics.Add(Error("PROJ155",
+                    $"Route '{route.Id}' on stage '{stage.StageKey}' must define a trigger.",
+                    stage.StageKey));
+            }
+
+            if (string.IsNullOrWhiteSpace(route.Target))
+            {
+                diagnostics.Add(Error("PROJ156",
+                    $"Route '{route.Id}' on stage '{stage.StageKey}' must define a target.",
+                    stage.StageKey));
+            }
+            else if (!gatewayKeys.Contains(route.Target))
+            {
+                diagnostics.Add(Error("PROJ157",
+                    $"Stage '{stage.StageKey}' route '{route.Id}' must target a gateway, but '{route.Target}' is not a known gateway.",
+                    stage.StageKey));
+            }
+
+            if (!string.IsNullOrWhiteSpace(route.Trigger)
+                && !string.IsNullOrWhiteSpace(route.Target)
+                && !triggerTargets.Add((route.Trigger, route.Target)))
+            {
+                diagnostics.Add(Error("PROJ159",
+                    $"Stage '{stage.StageKey}' has duplicate route '{route.Trigger}' → '{route.Target}'.",
+                    stage.StageKey));
+            }
+        }
+
+        ValidateActions(
+            stage.Actions,
+            stage.StageKey,
+            "stage",
+            new HashSet<ActionTiming> { ActionTiming.OnEntry, ActionTiming.OnExit },
+            schemaByKey,
+            catalogByType,
+            diagnostics);
+    }
+
+    private static void ValidateGateway(
+        AuthoredGateway gateway,
+        IReadOnlySet<string> validTargets,
+        IReadOnlyDictionary<string, AuthoredQueue> queuesByKey,
+        IReadOnlyDictionary<string, AuthoredParameterSchema> schemaByKey,
+        IReadOnlyDictionary<string, ActionCatalogEntry> catalogByType,
+        List<ProjectionDiagnostic> diagnostics)
+    {
+        if (string.IsNullOrWhiteSpace(gateway.GatewayKey))
+        {
+            diagnostics.Add(Error("PROJ130", "Gateway key is required.", null));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(gateway.DisplayName))
+        {
+            diagnostics.Add(Error("PROJ132",
+                $"Gateway '{gateway.GatewayKey}' must define a title.",
+                gateway.GatewayKey));
+        }
+
+        if (string.IsNullOrWhiteSpace(gateway.QueueKey))
+        {
+            if (queuesByKey.Count > 0)
+            {
+                diagnostics.Add(Error("PROJ133",
+                    $"Gateway '{gateway.GatewayKey}' must reference a queue.",
+                    gateway.GatewayKey));
+            }
+        }
+        else if (!queuesByKey.TryGetValue(gateway.QueueKey, out var queue))
+        {
+            diagnostics.Add(Error("PROJ134",
+                $"Gateway '{gateway.GatewayKey}' references unknown queue '{gateway.QueueKey}'.",
+                gateway.GatewayKey));
+        }
+        else
+        {
+            ValidateAssignmentCompatibility(gateway.GatewayKey, "Gateway", gateway.Actor, gateway.RoleGates, queue, diagnostics);
+        }
+
+        if (gateway.Routes.Count == 0)
+        {
+            diagnostics.Add(Error("PROJ144",
+                $"Gateway '{gateway.GatewayKey}' must define at least one route.",
+                gateway.GatewayKey));
+        }
+
+        var routeIds = new HashSet<string>(StringComparer.Ordinal);
+        var triggerTargets = new HashSet<(string Trigger, string Target)>();
+        for (var routeIndex = 0; routeIndex < gateway.Routes.Count; routeIndex++)
+        {
+            var route = gateway.Routes[routeIndex];
+
+            if (string.IsNullOrWhiteSpace(route.Id))
+            {
+                diagnostics.Add(Error("PROJ145",
+                    $"Route #{routeIndex} on gateway '{gateway.GatewayKey}' must define an id.",
+                    gateway.GatewayKey));
+            }
+            else if (!routeIds.Add(route.Id))
+            {
+                diagnostics.Add(Error("PROJ146",
+                    $"Gateway '{gateway.GatewayKey}' has duplicate route id '{route.Id}'.",
+                    gateway.GatewayKey));
+            }
+
+            if (string.IsNullOrWhiteSpace(route.Trigger))
+            {
+                diagnostics.Add(Error("PROJ147",
+                    $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' must define a trigger.",
+                    gateway.GatewayKey));
+            }
+
+            if (string.IsNullOrWhiteSpace(route.Target))
+            {
+                diagnostics.Add(Error("PROJ149",
+                    $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' must define a target.",
+                    gateway.GatewayKey));
+            }
+            else if (!validTargets.Contains(route.Target))
+            {
+                diagnostics.Add(Error("PROJ150",
+                    $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' targets '{route.Target}', which is not a known state or gateway.",
+                    gateway.GatewayKey));
+            }
+
+            if (!string.IsNullOrWhiteSpace(route.Trigger)
+                && !string.IsNullOrWhiteSpace(route.Target)
+                && !triggerTargets.Add((route.Trigger, route.Target)))
+            {
+                diagnostics.Add(Error("PROJ148",
+                    $"Gateway '{gateway.GatewayKey}' has duplicate route '{route.Trigger}' → '{route.Target}'.",
+                    gateway.GatewayKey));
+            }
+
+            if (route.Condition is { Expression: var expr } && string.IsNullOrWhiteSpace(expr))
+            {
+                diagnostics.Add(Error("PROJ151",
+                    $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' has a condition with no expression.",
+                    gateway.GatewayKey));
             }
 
             ValidateActions(
-                stage.Actions,
-                stage.StageKey,
-                "stage",
-                new HashSet<ActionTiming> { ActionTiming.OnEntry, ActionTiming.OnExit },
+                route.Actions,
+                gateway.GatewayKey,
+                "route",
+                new HashSet<ActionTiming> { ActionTiming.OnTransition },
                 schemaByKey,
                 catalogByType,
                 diagnostics);
         }
 
-        var routeIdsByGateway = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        var stageSourceToGateway = new Dictionary<string, string>(StringComparer.Ordinal);
-        var validRouteTargets = new HashSet<string>(stageKeys, StringComparer.Ordinal);
-        validRouteTargets.UnionWith(authored.Gateways.Select(g => g.GatewayKey));
-
-        foreach (var gateway in authored.Gateways)
+        if (gateway.Kind != GatewayKind.Join)
         {
-            if (string.IsNullOrWhiteSpace(gateway.GatewayKey))
-            {
-                diagnostics.Add(Error("PROJ130", "Gateway key is required.", null));
-                continue;
-            }
+            return;
+        }
 
-            if (!gatewayKeys.Add(gateway.GatewayKey))
-            {
-                diagnostics.Add(Error("PROJ131", $"Duplicate gateway key '{gateway.GatewayKey}'.", gateway.GatewayKey));
-            }
+        if (gateway.WaitingInfo is null)
+        {
+            diagnostics.Add(Error("PROJ137",
+                $"Join gateway '{gateway.GatewayKey}' must define waitingInfo.",
+                gateway.GatewayKey));
+        }
 
-            if (string.IsNullOrWhiteSpace(gateway.DisplayName))
-            {
-                diagnostics.Add(Error("PROJ132",
-                    $"Gateway '{gateway.GatewayKey}' must define a title.", gateway.GatewayKey));
-            }
+        if (gateway.RequiredIncomingQueues.Count == 0)
+        {
+            diagnostics.Add(Error("PROJ138",
+                $"Join gateway '{gateway.GatewayKey}' must define at least one requiredIncomingQueue.",
+                gateway.GatewayKey));
+            return;
+        }
 
-            if (string.IsNullOrWhiteSpace(gateway.LaneKey))
+        foreach (var requiredQueue in gateway.RequiredIncomingQueues)
+        {
+            if (!queuesByKey.ContainsKey(requiredQueue))
             {
-                diagnostics.Add(Error("PROJ133",
-                    $"Gateway '{gateway.GatewayKey}' must reference a lane.", gateway.GatewayKey));
-                continue;
-            }
-
-            if (!lanesByKey.TryGetValue(gateway.LaneKey, out var lane))
-            {
-                diagnostics.Add(Error("PROJ134",
-                    $"Gateway '{gateway.GatewayKey}' references unknown lane '{gateway.LaneKey}'.", gateway.GatewayKey));
-                continue;
-            }
-
-            ValidateAssignmentCompatibility(gateway.GatewayKey, "Gateway", gateway.Actor, gateway.RoleGates, lane, diagnostics);
-
-            // Source stage: required for Split gateways (the stage that owns this gateway's
-            // outgoing routing); empty for Join gateways (they're entered from multiple stages
-            // via routes that target the join's key).
-            if (gateway.Kind == GatewayKind.Split)
-            {
-                if (string.IsNullOrWhiteSpace(gateway.Source))
-                {
-                    diagnostics.Add(Error("PROJ141",
-                        $"Split gateway '{gateway.GatewayKey}' must define a source stage.", gateway.GatewayKey));
-                }
-                else if (!stageKeys.Contains(gateway.Source))
-                {
-                    diagnostics.Add(Error("PROJ142",
-                        $"Gateway '{gateway.GatewayKey}' source '{gateway.Source}' does not reference a defined stage.",
-                        gateway.GatewayKey));
-                }
-                else if (!stageSourceToGateway.TryAdd(gateway.Source, gateway.GatewayKey))
-                {
-                    diagnostics.Add(Error("PROJ143",
-                        $"Stage '{gateway.Source}' is already owned by gateway '{stageSourceToGateway[gateway.Source]}'. Each stage may own at most one gateway.",
-                        gateway.GatewayKey));
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(gateway.Source))
-            {
-                diagnostics.Add(Error("PROJ152",
-                    $"Join gateway '{gateway.GatewayKey}' must not define a source — joins are entered from multiple stages via routes that target the join.",
+                diagnostics.Add(Error("PROJ139",
+                    $"Join gateway '{gateway.GatewayKey}' requiredIncomingQueue '{requiredQueue}' references an unknown queue.",
                     gateway.GatewayKey));
-            }
-
-            // Routes: at least one, each with a trigger, each targeting a known node, and triggers
-            // unique within this gateway.
-            if (gateway.Routes.Count == 0)
-            {
-                diagnostics.Add(Error("PROJ144",
-                    $"Gateway '{gateway.GatewayKey}' must define at least one route.", gateway.GatewayKey));
-            }
-
-            var routeIds = new HashSet<string>(StringComparer.Ordinal);
-            var triggerTargets = new HashSet<(string Trigger, string Target)>();
-
-            for (var routeIndex = 0; routeIndex < gateway.Routes.Count; routeIndex++)
-            {
-                var route = gateway.Routes[routeIndex];
-
-                if (string.IsNullOrWhiteSpace(route.Id))
-                {
-                    diagnostics.Add(Error("PROJ145",
-                        $"Route #{routeIndex} on gateway '{gateway.GatewayKey}' must define an id.",
-                        gateway.GatewayKey));
-                }
-                else if (!routeIds.Add(route.Id))
-                {
-                    diagnostics.Add(Error("PROJ146",
-                        $"Gateway '{gateway.GatewayKey}' has duplicate route id '{route.Id}'.",
-                        gateway.GatewayKey));
-                }
-
-                if (string.IsNullOrWhiteSpace(route.Trigger))
-                {
-                    diagnostics.Add(Error("PROJ147",
-                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' must define a trigger.",
-                        gateway.GatewayKey));
-                }
-
-                if (string.IsNullOrWhiteSpace(route.Target))
-                {
-                    diagnostics.Add(Error("PROJ149",
-                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' must define a target.",
-                        gateway.GatewayKey));
-                }
-                else if (!validRouteTargets.Contains(route.Target))
-                {
-                    diagnostics.Add(Error("PROJ150",
-                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' targets '{route.Target}', which is not a known stage or gateway.",
-                        gateway.GatewayKey));
-                }
-
-                if (!string.IsNullOrWhiteSpace(route.Trigger) && !string.IsNullOrWhiteSpace(route.Target)
-                    && !triggerTargets.Add((route.Trigger, route.Target)))
-                {
-                    diagnostics.Add(Error("PROJ148",
-                        $"Gateway '{gateway.GatewayKey}' has duplicate route '{route.Trigger}' → '{route.Target}'.",
-                        gateway.GatewayKey));
-                }
-
-                if (route.Condition is { Expression: var expr } && string.IsNullOrWhiteSpace(expr))
-                {
-                    diagnostics.Add(Error("PROJ151",
-                        $"Route '{route.Id}' on gateway '{gateway.GatewayKey}' has a condition with no expression.",
-                        gateway.GatewayKey));
-                }
-
-                ValidateActions(
-                    route.Actions,
-                    gateway.GatewayKey,
-                    "route",
-                    new HashSet<ActionTiming> { ActionTiming.OnTransition },
-                    schemaByKey,
-                    catalogByType,
-                    diagnostics);
-            }
-
-            routeIdsByGateway[gateway.GatewayKey] = routeIds;
-
-            if (gateway.Kind == GatewayKind.Join)
-            {
-                if (gateway.WaitingInfo is null)
-                {
-                    diagnostics.Add(Error("PROJ137",
-                        $"Join gateway '{gateway.GatewayKey}' must define waitingInfo.", gateway.GatewayKey));
-                }
-
-                if (gateway.RequiredIncomingLanes.Count == 0)
-                {
-                    diagnostics.Add(Error("PROJ138",
-                        $"Join gateway '{gateway.GatewayKey}' must define at least one requiredIncomingLane.", gateway.GatewayKey));
-                }
-                else
-                {
-                    foreach (var requiredLane in gateway.RequiredIncomingLanes)
-                    {
-                        if (!lanesByKey.ContainsKey(requiredLane))
-                        {
-                            diagnostics.Add(Error("PROJ139",
-                                $"Join gateway '{gateway.GatewayKey}' requiredIncomingLane '{requiredLane}' references an unknown lane.",
-                                gateway.GatewayKey));
-                        }
-                    }
-                }
             }
         }
     }
 
-    private static Dictionary<string, AuthoredLane> BuildLaneMap(
-        IReadOnlyList<AuthoredLane> lanes,
+    private static IReadOnlyList<AuthoredQueue> GetQueues(AuthoredWorkflow authored) =>
+        authored.Queues.Count > 0 ? authored.Queues : authored.Lanes;
+
+    private static Dictionary<string, AuthoredQueue> BuildQueueMap(
+        IReadOnlyList<AuthoredQueue> queues,
         List<ProjectionDiagnostic> diagnostics)
     {
-        var map = new Dictionary<string, AuthoredLane>(StringComparer.Ordinal);
+        var map = new Dictionary<string, AuthoredQueue>(StringComparer.Ordinal);
 
-        foreach (var lane in lanes)
+        foreach (var queue in queues)
         {
-            if (string.IsNullOrWhiteSpace(lane.Key))
+            if (string.IsNullOrWhiteSpace(queue.Key))
             {
-                diagnostics.Add(Error("PROJ127", "Lane key is required.", null));
+                diagnostics.Add(Error("PROJ127", "Queue key is required.", null));
                 continue;
             }
 
-            if (!map.TryAdd(lane.Key, lane))
+            if (!map.TryAdd(queue.Key, queue))
             {
-                diagnostics.Add(Error("PROJ128", $"Duplicate lane key '{lane.Key}'.", lane.Key));
+                diagnostics.Add(Error("PROJ128", $"Duplicate queue key '{queue.Key}'.", queue.Key));
             }
         }
 
@@ -296,8 +355,8 @@ public static class AuthoredWorkflowSchemaValidator
             ValidateParameterDefinitions(schema.Key, schema.Properties, diagnostics);
 
             var definedKeys = schema.Properties
-                .Select(p => p.Key)
-                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Select(property => property.Key)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
                 .ToHashSet(StringComparer.Ordinal);
 
             foreach (var requiredKey in schema.Required)
@@ -305,7 +364,8 @@ public static class AuthoredWorkflowSchemaValidator
                 if (!definedKeys.Contains(requiredKey))
                 {
                     diagnostics.Add(Error("PROJ112",
-                        $"Parameter schema '{schema.Key}' marks '{requiredKey}' as required but does not define it.", null));
+                        $"Parameter schema '{schema.Key}' marks '{requiredKey}' as required but does not define it.",
+                        null));
                 }
             }
         }
@@ -325,20 +385,23 @@ public static class AuthoredWorkflowSchemaValidator
             if (string.IsNullOrWhiteSpace(definition.Key))
             {
                 diagnostics.Add(Error("PROJ113",
-                    $"Parameter schema '{schemaKey}' contains a property with no key.", null));
+                    $"Parameter schema '{schemaKey}' contains a property with no key.",
+                    null));
                 continue;
             }
 
             if (!seen.Add(definition.Key))
             {
                 diagnostics.Add(Error("PROJ114",
-                    $"Parameter schema '{schemaKey}' contains duplicate property key '{definition.Key}'.", null));
+                    $"Parameter schema '{schemaKey}' contains duplicate property key '{definition.Key}'.",
+                    null));
             }
 
             if (definition.ValueKind == ParameterValueKind.Array && definition.Items is null)
             {
                 diagnostics.Add(Error("PROJ115",
-                    $"Parameter '{definition.Key}' in schema '{schemaKey}' is an array but does not define item metadata.", null));
+                    $"Parameter '{definition.Key}' in schema '{schemaKey}' is an array but does not define item metadata.",
+                    null));
             }
 
             if (definition.ValueKind == ParameterValueKind.Object)
@@ -367,29 +430,34 @@ public static class AuthoredWorkflowSchemaValidator
             if (string.IsNullOrWhiteSpace(action.Type))
             {
                 diagnostics.Add(Error("PROJ116",
-                    $"A {ownerKind} action in '{ownerKey ?? "workflow"}' must define a type.", ownerKey));
+                    $"A {ownerKind} action in '{ownerKey ?? "workflow"}' must define a type.",
+                    ownerKey));
                 continue;
             }
 
             if (!allowedTimings.Contains(action.Timing))
             {
                 diagnostics.Add(Error("PROJ117",
-                    $"Action '{action.Type}' on {ownerKind} '{ownerKey}' has invalid timing '{action.Timing}'.", ownerKey));
+                    $"Action '{action.Type}' on {ownerKind} '{ownerKey}' has invalid timing '{action.Timing}'.",
+                    ownerKey));
             }
 
             var appliesTo = GetAppliesTo(ownerKind, action.Timing);
 
-            if (catalogByType.TryGetValue(action.Type, out var catalogEntry) &&
-                catalogEntry.AppliesTo.Count > 0 &&
-                !catalogEntry.AppliesTo.Contains(appliesTo, StringComparer.Ordinal))
+            if (catalogByType.TryGetValue(action.Type, out var catalogEntry)
+                && catalogEntry.AppliesTo.Count > 0
+                && !catalogEntry.AppliesTo.Contains(appliesTo, StringComparer.Ordinal))
             {
                 diagnostics.Add(Error("PROJ126",
-                    $"Action '{action.Type}' cannot run at '{appliesTo}'.", ownerKey));
+                    $"Action '{action.Type}' cannot run at '{appliesTo}'.",
+                    ownerKey));
             }
 
             var schema = ResolveSchema(action, ownerKey, schemaByKey, catalogByType, diagnostics);
             if (schema is null)
+            {
                 continue;
+            }
 
             ValidateParameterObject(action.Parameters, schema, action.Type, ownerKey, diagnostics);
         }
@@ -406,15 +474,16 @@ public static class AuthoredWorkflowSchemaValidator
         {
             if (!schemaByKey.TryGetValue(action.ParameterSchemaKey, out var schema))
             {
-                if (catalogByType.TryGetValue(action.Type, out var catalogEntry) &&
-                    string.Equals(catalogEntry.ParamsSchema.Key, action.ParameterSchemaKey, StringComparison.Ordinal))
+                if (catalogByType.TryGetValue(action.Type, out var catalogEntry)
+                    && string.Equals(catalogEntry.ParamsSchema.Key, action.ParameterSchemaKey, StringComparison.Ordinal))
                 {
                     schema = catalogEntry.ParamsSchema;
                 }
                 else
                 {
                     diagnostics.Add(Error("PROJ118",
-                        $"Action '{action.Type}' references unknown parameter schema '{action.ParameterSchemaKey}'.", ownerKey));
+                        $"Action '{action.Type}' references unknown parameter schema '{action.ParameterSchemaKey}'.",
+                        ownerKey));
                     return null;
                 }
             }
@@ -422,14 +491,17 @@ public static class AuthoredWorkflowSchemaValidator
             if (schema.AppliesTo.Count > 0 && !schema.AppliesTo.Contains(action.Type, StringComparer.Ordinal))
             {
                 diagnostics.Add(Error("PROJ119",
-                    $"Parameter schema '{schema.Key}' cannot be used with action type '{action.Type}'.", ownerKey));
+                    $"Parameter schema '{schema.Key}' cannot be used with action type '{action.Type}'.",
+                    ownerKey));
             }
 
             return schema;
         }
 
         if (catalogByType.TryGetValue(action.Type, out var catalogEntryByType))
+        {
             return catalogEntryByType.ParamsSchema;
+        }
 
         var matches = schemaByKey.Values
             .Where(schema => schema.AppliesTo.Contains(action.Type, StringComparer.Ordinal))
@@ -450,27 +522,25 @@ public static class AuthoredWorkflowSchemaValidator
         string ownerKind,
         string? actor,
         IReadOnlyList<string> roleGates,
-        AuthoredLane lane,
+        AuthoredQueue queue,
         List<ProjectionDiagnostic> diagnostics)
     {
         if (!string.IsNullOrWhiteSpace(actor)
-            && !string.IsNullOrWhiteSpace(lane.Actor)
-            && !string.Equals(actor, lane.Actor, StringComparison.Ordinal))
+            && !string.IsNullOrWhiteSpace(queue.Actor)
+            && !string.Equals(actor, queue.Actor, StringComparison.Ordinal))
         {
-            diagnostics.Add(Error(
-                "PROJ135",
-                $"{ownerKind} '{ownerKey}' actor '{actor}' does not match lane '{lane.Key}' actor '{lane.Actor}'.",
+            diagnostics.Add(Error("PROJ135",
+                $"{ownerKind} '{ownerKey}' actor '{actor}' does not match queue '{queue.Key}' actor '{queue.Actor}'.",
                 ownerKey));
         }
 
         if (roleGates.Count > 0
-            && lane.RoleGates.Count > 0
+            && queue.RoleGates.Count > 0
             && !roleGates.OrderBy(role => role, StringComparer.Ordinal)
-                .SequenceEqual(lane.RoleGates.OrderBy(role => role, StringComparer.Ordinal), StringComparer.Ordinal))
+                .SequenceEqual(queue.RoleGates.OrderBy(role => role, StringComparer.Ordinal), StringComparer.Ordinal))
         {
-            diagnostics.Add(Error(
-                "PROJ136",
-                $"{ownerKind} '{ownerKey}' role gates do not match lane '{lane.Key}'.",
+            diagnostics.Add(Error("PROJ136",
+                $"{ownerKind} '{ownerKey}' role gates do not match queue '{queue.Key}'.",
                 ownerKey));
         }
     }
@@ -483,14 +553,15 @@ public static class AuthoredWorkflowSchemaValidator
         List<ProjectionDiagnostic> diagnostics)
     {
         parameters ??= [];
-        var propertyMap = schema.Properties.ToDictionary(p => p.Key, StringComparer.Ordinal);
+        var propertyMap = schema.Properties.ToDictionary(property => property.Key, StringComparer.Ordinal);
 
         foreach (var requiredKey in schema.Required)
         {
             if (!parameters.TryGetPropertyValue(requiredKey, out var requiredNode) || requiredNode is null)
             {
                 diagnostics.Add(Error("PROJ120",
-                    $"Action '{actionType}' is missing required parameter '{requiredKey}'.", ownerKey));
+                    $"Action '{actionType}' is missing required parameter '{requiredKey}'.",
+                    ownerKey));
             }
         }
 
@@ -501,7 +572,8 @@ public static class AuthoredWorkflowSchemaValidator
                 if (!schema.AllowAdditionalProperties)
                 {
                     diagnostics.Add(Error("PROJ121",
-                        $"Action '{actionType}' includes unsupported parameter '{key}'.", ownerKey));
+                        $"Action '{actionType}' includes unsupported parameter '{key}'.",
+                        ownerKey));
                 }
 
                 continue;
@@ -512,7 +584,8 @@ public static class AuthoredWorkflowSchemaValidator
                 if (definition.ValueKind != ParameterValueKind.Null)
                 {
                     diagnostics.Add(Error("PROJ122",
-                        $"Action '{actionType}' parameter '{key}' cannot be null.", ownerKey));
+                        $"Action '{actionType}' parameter '{key}' cannot be null.",
+                        ownerKey));
                 }
 
                 continue;
@@ -539,10 +612,10 @@ public static class AuthoredWorkflowSchemaValidator
             return;
         }
 
-        if (definition.AllowedValues.Count > 0 &&
-            actualKind == JsonValueKind.String &&
-            node.GetValue<string?>() is { } stringValue &&
-            !definition.AllowedValues.Contains(stringValue, StringComparer.Ordinal))
+        if (definition.AllowedValues.Count > 0
+            && actualKind == JsonValueKind.String
+            && node.GetValue<string?>() is { } stringValue
+            && !definition.AllowedValues.Contains(stringValue, StringComparer.Ordinal))
         {
             diagnostics.Add(Error("PROJ124",
                 $"Action '{actionType}' parameter '{definition.Key}' must be one of: {string.Join(", ", definition.AllowedValues)}.",
@@ -569,7 +642,8 @@ public static class AuthoredWorkflowSchemaValidator
                 if (item is null)
                 {
                     diagnostics.Add(Error("PROJ125",
-                        $"Action '{actionType}' parameter '{definition.Key}' cannot contain null array items.", ownerKey));
+                        $"Action '{actionType}' parameter '{definition.Key}' cannot contain null array items.",
+                        ownerKey));
                     continue;
                 }
 

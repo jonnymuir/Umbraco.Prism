@@ -6,7 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using UmbracoPrism.WorkflowEditor.Authoring;
+using UmbracoPrism.Shared.Models.Workflow;
 using MockProgram = MockBusinessApp::Program;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -61,7 +61,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
             response.StatusCode.Should().Be(HttpStatusCode.OK,
                 because: $"workflow '{workflowKey}' must be loadable via the source API");
 
-            var workflow = await response.Content.ReadFromJsonAsync<AuthoredWorkflow>();
+            var workflow = await response.Content.ReadFromJsonAsync<WorkflowDefinitionFile>();
             workflow.Should().NotBeNull();
             workflow!.DefinitionKey.Should().NotBeNullOrWhiteSpace();
         }

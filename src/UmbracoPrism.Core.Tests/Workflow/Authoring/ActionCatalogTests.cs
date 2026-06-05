@@ -101,12 +101,22 @@ public class ActionCatalogTests
         DefinitionKey = "catalog-validation",
         DisplayName = "Catalog Validation",
         InitialStageKey = "details",
+        Queues =
+        [
+            new AuthoredQueue
+            {
+                Key = "web-user",
+                DisplayName = "Applicant",
+                Actor = "applicant"
+            }
+        ],
         Stages =
         [
             new AuthoredStage
             {
                 StageKey = "details",
                 DisplayName = "Details",
+                QueueKey = "web-user",
                 Actions =
                 [
                     new AuthoredAction

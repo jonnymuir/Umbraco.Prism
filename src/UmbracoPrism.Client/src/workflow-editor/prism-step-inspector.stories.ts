@@ -118,16 +118,15 @@ export const ActionConfiguration: Story = {
 // A small gateway-shaped workflow so the inspector can render the new
 // outgoing-routes section with a single route whose action editor mirrors
 // the previous transition-action picker scope.
-const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
+const GATEWAY_ROUTE_WORKFLOW = {
   definitionKey: 'gateway-route-action-fixture',
   displayName: 'Gateway route action fixture',
   version: 1,
-  schemaVersion: '1.0',
   instancePolicy: 'single',
-  initialStageKey: 'submitted',
-  stages: [
+  initialState: 'submitted',
+  states: [
     {
-      stageKey: 'submitted',
+      stateKey: 'submitted',
       displayName: 'Submitted',
       kind: 'Question',
       actor: 'public',
@@ -136,7 +135,7 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
     {
-      stageKey: 'reviewer-assessment',
+      stateKey: 'reviewer-assessment',
       displayName: 'Reviewer assessment',
       kind: 'Question',
       actor: 'reviewer',
@@ -145,7 +144,7 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'applicant-amendments',
+      stateKey: 'applicant-amendments',
       displayName: 'Applicant amendments',
       kind: 'Question',
       actor: 'public',
@@ -154,11 +153,15 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
       roleGates: [],
     },
   ],
-  gateways: [
+  transitions: [
+    { fromState: 'submitted', toState: 'review-split', action: 'route' },
+    { fromState: 'review-split', toState: 'reviewer-assessment', action: 'route for review', requiresRole: 'reviewer', metadata: { actions: [{ type: 'forms.submit', timing: 'OnTransition' }] } },
+  ],
+  metadata: { gateways: [
     {
-      gatewayKey: 'review-split',
+      key: 'review-split',
       displayName: 'Review split',
-      kind: 'Split',
+      gatewayType: 'Split',
       laneKey: 'public',
       actor: 'public',
       source: 'submitted',
@@ -178,8 +181,8 @@ const GATEWAY_ROUTE_WORKFLOW: AuthoredWorkflow = {
         },
       ],
     },
-  ],
-};
+  ] },
+} as unknown as AuthoredWorkflow;
 
 export const TransitionSelected: Story = {
   // Slice 3b.1 removed transition-only selection. Route editing now lives in

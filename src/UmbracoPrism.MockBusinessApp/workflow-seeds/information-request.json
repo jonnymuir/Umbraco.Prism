@@ -93,7 +93,7 @@
       "components": [
         {
           "type": "body",
-          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now."
+          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon \u2014 no further action is needed right now."
         }
       ]
     },

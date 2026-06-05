@@ -89,8 +89,9 @@ public sealed class StartupWorkflowPublishingTests
         runtimeDefinition.Should().NotBeNull();
         runtimeDefinition!.States.Select(s => s.StateKey).Should()
             .BeEquivalentTo(authored.Stages.Select(s => s.StageKey));
-        runtimeDefinition.Transitions.Select(t => t.Action).Should()
-            .BeEquivalentTo(authored.Gateways.SelectMany(g => g.Routes).Select(r => r.Trigger));
+        runtimeDefinition.Gateways.Should().NotBeNull();
+        runtimeDefinition.Gateways!.Select(gateway => gateway.Key).Should()
+            .BeEquivalentTo(authored.Gateways.Select(gateway => gateway.GatewayKey));
     }
 
     private static BusinessAppWorkflowEngine CreateTestEngine()

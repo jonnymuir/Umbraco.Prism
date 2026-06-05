@@ -116,7 +116,7 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
                 "INVALID_TRANSITION");
         }
 
-        var transition = definition.Transitions.FirstOrDefault(
+        var transition = GetOutgoingTransitions(definition, visibleWorkItem.StateKey).FirstOrDefault(
             t => t.FromState == visibleWorkItem.StateKey
                  && t.Action == action);
 

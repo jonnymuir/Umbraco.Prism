@@ -8,6 +8,8 @@ import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
 import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 const STORY_QUEUES: WorkflowQueueDefinition[] = [
+  { queueName: 'web-user', displayName: 'Applicant' },
+  { queueName: 'business-user', displayName: 'Payments team' },
   { queueName: 'applicant', displayName: 'Applicant' },
   { queueName: 'reviewer', displayName: 'Reviewer' },
   { queueName: 'payments', displayName: 'Payments' },
@@ -33,7 +35,7 @@ function makeEmptyWorkflow(): AuthoredWorkflow {
   return {
     ...workflow,
     displayName: 'Empty Workflow',
-    initialStageKey: '',
+    initialState: '',
     stages: [],
     gateways: [],
   };
@@ -42,11 +44,11 @@ function makeEmptyWorkflow(): AuthoredWorkflow {
 function makeSimulationBranchWorkflow(): AuthoredWorkflow {
   const workflow = JSON.parse(JSON.stringify(PLANNING_WORKFLOW)) as AuthoredWorkflow;
   workflow.displayName = 'Planning Application Simulation';
-  workflow.stages = [
-    workflow.stages[0],
-    workflow.stages[1],
+  workflow.states = [
+    workflow.states[0],
+    workflow.states[1],
     {
-      stageKey: 'review-decision',
+      stateKey: 'review-decision',
       displayName: 'Reviewer decision',
       description: 'Reviewer chooses whether to approve, reject, or request more checks.',
       kind: 'TaskList',
@@ -56,7 +58,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'checks-pending',
+      stateKey: 'checks-pending',
       displayName: 'Checks pending',
       description: 'The application is paused while further checks run.',
       kind: 'Question',
@@ -66,7 +68,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'approved',
+      stateKey: 'approved',
       displayName: 'Application approved',
       description: 'The application has been approved.',
       kind: 'Confirmation',
@@ -76,7 +78,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'rejected',
+      stateKey: 'rejected',
       displayName: 'Application rejected',
       description: 'The application has been rejected.',
       kind: 'Confirmation',
@@ -88,9 +90,9 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
   ];
   workflow.gateways = [
     {
-      gatewayKey: 'review-decision-routes',
+      key: 'review-decision-routes',
       displayName: 'Review decision routes',
-      kind: 'Split',
+      gatewayType: 'Split',
       source: 'review-decision',
       laneKey: 'reviewer',
       roleGates: [],
@@ -106,9 +108,9 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       ],
     },
     {
-      gatewayKey: 'declaration-routes',
+      key: 'declaration-routes',
       displayName: 'Declaration routes',
-      kind: 'Split',
+      gatewayType: 'Split',
       source: 'declaration',
       laneKey: 'applicant',
       roleGates: [],
@@ -117,9 +119,9 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       ],
     },
     {
-      gatewayKey: 'application-form-routes',
+      key: 'application-form-routes',
       displayName: 'Application form routes',
-      kind: 'Split',
+      gatewayType: 'Split',
       source: 'application-form',
       laneKey: 'applicant',
       roleGates: [],
@@ -134,7 +136,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
 function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
   const workflow = makeSimulationBranchWorkflow();
   workflow.displayName = 'Planning Application Simulation Blockers';
-  const rejectGateway = (workflow.gateways ?? []).find(g => g.gatewayKey === 'review-decision-routes');
+  const rejectGateway = (workflow.gateways ?? []).find(g => g.key === 'review-decision-routes');
   if (rejectGateway) {
     rejectGateway.routes = (rejectGateway.routes ?? []).map(route =>
       route.trigger === 'reject'

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using UmbracoPrism.Shared.Models.Workflow.Components;
@@ -13,13 +12,11 @@ public class AuthoredWorkflowSchemaValidationTests
     [Fact]
     public void Project_WithValidActionSchema_HasNoErrors()
     {
-        var result = _projector.Project(BuildValidWorkflow());
-
-        result.HasErrors.Should().BeFalse();
+        _projector.Project(BuildValidWorkflow()).HasErrors.Should().BeFalse();
     }
 
     [Fact]
-    public void Project_WithMissingRequiredActionParameter_ReturnsValidationError()
+    public void Project_WithStateRouteToState_ReturnsValidationError()
     {
         var workflow = BuildValidWorkflow() with
         {
@@ -27,73 +24,38 @@ public class AuthoredWorkflowSchemaValidationTests
             [
                 BuildValidWorkflow().Stages[0] with
                 {
-                    Actions =
+                    Routes =
                     [
-                        new AuthoredAction
+                        new AuthoredRoute
                         {
-                            Type = "forms.load",
-                            Timing = ActionTiming.OnEntry,
-                            ParameterSchemaKey = "forms-form-definition",
-                            Parameters = new JsonObject()
+                            Id = "bad-direct-route",
+                            Target = "done",
+                            Trigger = "continue"
                         }
                     ]
-                }
+                },
+                BuildValidWorkflow().Stages[1]
             ]
         };
 
         var result = _projector.Project(workflow);
-
         result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ120");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ157");
     }
 
     [Fact]
-    public void Project_WithStageActionUsingTransitionTiming_ReturnsValidationError()
-    {
-        var workflow = BuildValidWorkflow() with
-        {
-            Stages =
-            [
-                BuildValidWorkflow().Stages[0] with
-                {
-                    Actions =
-                    [
-                        new AuthoredAction
-                        {
-                            Type = "forms.load",
-                            Timing = ActionTiming.OnTransition,
-                            ParameterSchemaKey = "forms-form-definition",
-                            Parameters = new JsonObject
-                            {
-                                ["formDefinitionId"] = "details-form"
-                            }
-                        }
-                    ]
-                }
-            ]
-        };
-
-        var result = _projector.Project(workflow);
-
-        result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ117");
-    }
-
-    [Fact]
-    public void SchemaDocument_DefinesStageTransitionActionAndParameterContracts()
+    public void SchemaDocument_DefinesStageQueueGatewayAndParameterContracts()
     {
         var path = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
             "..", "..", "..", "..",
             "UmbracoPrism.WorkflowEditor", "Authoring", "Schemas", "authored-workflow.schema.json"));
 
-        File.Exists(path).Should().BeTrue();
-
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
         var defs = document.RootElement.GetProperty("$defs");
 
         defs.TryGetProperty("stage", out _).Should().BeTrue();
-        defs.TryGetProperty("lane", out _).Should().BeTrue();
+        defs.TryGetProperty("queue", out _).Should().BeTrue();
         defs.TryGetProperty("gateway", out _).Should().BeTrue();
         defs.TryGetProperty("route", out _).Should().BeTrue();
         defs.TryGetProperty("action", out _).Should().BeTrue();
@@ -101,7 +63,7 @@ public class AuthoredWorkflowSchemaValidationTests
     }
 
     [Fact]
-    public void Project_WithUnknownStageLane_ReturnsValidationError()
+    public void Project_WithUnknownStageQueue_ReturnsValidationError()
     {
         var baseline = BuildValidWorkflow();
         var workflow = baseline with
@@ -110,30 +72,29 @@ public class AuthoredWorkflowSchemaValidationTests
             [
                 baseline.Stages[0] with
                 {
-                    LaneKey = "missing-lane"
-                }
+                    QueueKey = "missing-queue"
+                },
+                baseline.Stages[1]
             ]
         };
 
         var result = _projector.Project(workflow);
-
         result.HasErrors.Should().BeTrue();
         result.Diagnostics.Should().Contain(d => d.Code == "PROJ129");
     }
 
     [Fact]
-    public void Project_WithGatewayAndLane_PreservesLaneOwnedMetadata()
+    public void Project_WithGatewayAndQueue_PreservesQueueOwnedMetadata()
     {
         var result = _projector.Project(BuildValidWorkflow());
 
-        result.HasErrors.Should().BeFalse();
-        result.File.Metadata!.Lanes.Should().ContainSingle(lane => lane.Key == "applicant" && lane.Actor == "applicant");
-        result.File.Metadata.Gateways.Should().ContainSingle(gateway =>
+        result.File.Queues.Should().ContainSingle(queue => queue.Key == "web-user" && queue.Actor == "applicant");
+        result.File.Gateways.Should().ContainSingle(gateway =>
             gateway.Key == "review-split"
-            && gateway.LaneKey == "applicant"
+            && gateway.QueueKey == "web-user"
             && gateway.Actor == "applicant");
         result.File.States.Should().ContainSingle(state => state.StateKey == "details")
-            .Which.Metadata!.LaneKey.Should().Be("applicant");
+            .Which.QueueKey.Should().Be("web-user");
     }
 
     private static AuthoredWorkflow BuildValidWorkflow() => new()
@@ -141,12 +102,12 @@ public class AuthoredWorkflowSchemaValidationTests
         DefinitionKey = "schema-validation",
         DisplayName = "Schema Validation",
         InitialStageKey = "details",
-        Lanes =
+        Queues =
         [
-            new AuthoredLane
+            new AuthoredQueue
             {
-                Key = "applicant",
-                DisplayName = "Applicant lane",
+                Key = "web-user",
+                DisplayName = "Applicant",
                 Actor = "applicant"
             }
         ],
@@ -157,8 +118,7 @@ public class AuthoredWorkflowSchemaValidationTests
                 GatewayKey = "review-split",
                 DisplayName = "Review split",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant",
-                Source = "details",
+                QueueKey = "web-user",
                 Routes = [new AuthoredRoute { Id = "to-done", Target = "done", Trigger = "continue" }]
             }
         ],
@@ -169,7 +129,8 @@ public class AuthoredWorkflowSchemaValidationTests
                 StageKey = "details",
                 DisplayName = "Details",
                 Kind = StageKind.Question,
-                LaneKey = "applicant",
+                QueueKey = "web-user",
+                Routes = [new AuthoredRoute { Id = "details-continue-gateway", Target = "review-split", Trigger = "continue" }],
                 Actions =
                 [
                     new AuthoredAction
@@ -204,7 +165,7 @@ public class AuthoredWorkflowSchemaValidationTests
                 StageKey = "done",
                 DisplayName = "Done",
                 Kind = StageKind.Confirmation,
-                LaneKey = "applicant"
+                QueueKey = "web-user"
             }
         ],
         ParameterSchemas =

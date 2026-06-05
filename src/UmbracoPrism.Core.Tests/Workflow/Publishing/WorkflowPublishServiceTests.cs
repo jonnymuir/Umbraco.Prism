@@ -45,10 +45,19 @@ public sealed class WorkflowPublishServiceTests : IDisposable
             workflow.Stages.OrderBy(stage => stage.StageKey, StringComparer.Ordinal).Select(stage => stage.StageKey));
         result.File.States.Should().ContainSingle(state => state.StateKey == "declaration")
             .Which.Metadata!.Actions.Should().ContainSingle(action => action.Type == "forms.load" && action.Timing == "OnEntry");
-        result.File.Transitions.Should().ContainSingle(transition => transition.Action == "submit")
-            .Which.Metadata!.Actions.Should().ContainSingle(action => action.Type == "forms.submit" && action.Timing == "OnTransition");
-        result.File.Transitions.Should().ContainSingle(transition => transition.Action == "submit")
-            .Which.Metadata!.Conditions.Should().ContainSingle(condition => condition.Expression == "application.isComplete == true");
+        result.File.Gateways.Should().NotBeNull();
+        result.File.Gateways!
+            .SelectMany(gateway => gateway.Routes ?? [])
+            .Should()
+            .Contain(route =>
+                route.Trigger == "submit"
+                && route.Actions!.Any(action => action.Type == "forms.submit" && action.Timing == "OnTransition"));
+        result.File.Gateways!
+            .SelectMany(gateway => gateway.Routes ?? [])
+            .Should()
+            .Contain(route =>
+                route.Trigger == "submit"
+                && route.Conditions!.Any(condition => condition.Expression == "application.isComplete == true"));
     }
 
     [Fact]
@@ -83,21 +92,20 @@ public sealed class WorkflowPublishServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PublishAsync_WithNamedLanesAndGateways_PreservesLaneOwnershipMetadata()
+    public async Task PublishAsync_WithNamedQueuesAndGateways_PreservesQueueOwnershipMetadata()
     {
         var workflow = new AuthoredWorkflow
         {
-            DefinitionKey = "lane-owned-workflow",
-            DisplayName = "Lane Owned Workflow",
+            DefinitionKey = "queue-owned-workflow",
+            DisplayName = "Queue Owned Workflow",
             InitialStageKey = "draft",
-            Lanes =
+            Queues =
             [
-                new AuthoredLane
+                new AuthoredQueue
                 {
-                    Key = "applicant",
-                    DisplayName = "Applicant lane",
+                    Key = "web-user",
+                    DisplayName = "Applicant queue",
                     Actor = "applicant",
-                    QueueName = "web-user",
                     RoleGates = ["submitter"]
                 }
             ],
@@ -108,8 +116,7 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     GatewayKey = "fan-out",
                     DisplayName = "Fan out",
                     Kind = GatewayKind.Split,
-                    LaneKey = "applicant",
-                    Source = "draft",
+                    QueueKey = "web-user",
                     Routes = [new AuthoredRoute { Id = "to-join", Target = "fan-in", Trigger = "submit" }]
                 },
                 new AuthoredGateway
@@ -117,13 +124,13 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     GatewayKey = "fan-in",
                     DisplayName = "Fan in",
                     Kind = GatewayKind.Join,
-                    LaneKey = "applicant",
+                    QueueKey = "web-user",
                     WaitingInfo = new WaitingMetadata
                     {
-                        Content = "Waiting for all lanes to complete.",
+                        Content = "Waiting for all queues to complete.",
                         ExpectedWaitSeconds = 60
                     },
-                    RequiredIncomingLanes = ["applicant"],
+                    RequiredIncomingQueues = ["web-user"],
                     Routes = [new AuthoredRoute { Id = "release", Target = "done", Trigger = "release" }]
                 }
             ],
@@ -134,14 +141,15 @@ public sealed class WorkflowPublishServiceTests : IDisposable
                     StageKey = "draft",
                     DisplayName = "Draft",
                     Kind = StageKind.Question,
-                    LaneKey = "applicant"
+                    QueueKey = "web-user",
+                    Routes = [new AuthoredRoute { Id = "draft-submit", Target = "fan-out", Trigger = "submit" }]
                 },
                 new AuthoredStage
                 {
                     StageKey = "done",
                     DisplayName = "Done",
                     Kind = StageKind.Confirmation,
-                    LaneKey = "applicant"
+                    QueueKey = "web-user"
                 }
             ]
         };
@@ -149,8 +157,8 @@ public sealed class WorkflowPublishServiceTests : IDisposable
         var result = await _sut.PublishAsync(workflow);
 
         result.HasErrors.Should().BeFalse();
-        result.File.Metadata!.Lanes.Should().ContainSingle(lane =>
-            lane.Key == "applicant" && lane.Actor == "applicant" && lane.QueueName == "web-user");
+        result.File.Queues.Should().ContainSingle(queue =>
+            queue.Key == "web-user" && queue.Actor == "applicant");
         result.File.Metadata.Gateways.Should().HaveCount(2);
         result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-out" && gateway.GatewayType == "Split");
         result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-in" && gateway.GatewayType == "Join");
@@ -159,7 +167,7 @@ public sealed class WorkflowPublishServiceTests : IDisposable
         stateMetadata.Should().NotBeNull();
         stateMetadata!.StageType.Should().Be("Question");
         stateMetadata.Actor.Should().Be("applicant");
-        stateMetadata.LaneKey.Should().Be("applicant");
+        stateMetadata.QueueKey.Should().Be("web-user");
         stateMetadata.RoleGates.Should().Equal("submitter");
     }
 

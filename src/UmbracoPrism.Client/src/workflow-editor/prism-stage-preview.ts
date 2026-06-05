@@ -7,7 +7,6 @@ import type {
   ProjectedInputComponent,
   ProjectedSummaryListComponent,
   ProjectedTaskListComponent,
-  ProjectedTransitionMetadata,
   ProjectedWaitingComponent,
   ProjectedWorkflowState,
   ProjectedWorkflowTransition,
@@ -124,7 +123,7 @@ export class PrismStagePreviewElement extends LitElement {
         </div>
 
         <div class="preview-runtime">
-          ${projectedState.components.map(component => this._renderComponent(component))}
+          ${(projectedState.components ?? []).map(component => this._renderComponent(component))}
           ${this._renderActions(this.outgoingTransitions)}
         </div>
       </article>
@@ -278,11 +277,11 @@ export class PrismStagePreviewElement extends LitElement {
           <button
             type="button"
             class="govuk-button govuk-button--secondary"
-            data-prism-preview-action=${transition.action}
+            data-prism-preview-action=${transition.trigger}
             disabled
-            title=${transitionSummary(transition.metadata)}
+            title=${transitionSummary(transition)}
           >
-            ${transition.action}
+            ${transition.trigger}
           </button>
         `)}
       </div>
@@ -582,8 +581,8 @@ function shellLabelFor(state: ProjectedWorkflowState): string {
   }
 }
 
-function transitionSummary(metadata?: ProjectedTransitionMetadata): string {
-  const condition = metadata?.conditions?.[0]?.description ?? metadata?.conditions?.[0]?.expression;
+function transitionSummary(route?: ProjectedWorkflowTransition): string {
+  const condition = route?.condition;
   return condition ? `Transition condition: ${condition}` : 'Read-only transition action';
 }
 

@@ -1,19 +1,19 @@
 import type { ActionCatalogEntry, AuthoredAction, AuthoredStage, AuthoredWorkflow, RouteView } from './types.js';
+import { stageActions, stageKind, workflowGateways, workflowStates } from './types.js';
 import { findCatalogEntry, validateAction } from './workflow-action-editing.js';
 import { flattenRoutes, outgoingRouteViews, inboundRouteViews } from './workflow-routes.js';
 
-const TERMINAL_STAGE_KINDS = new Set<AuthoredStage['kind']>(['Confirmation']);
+const TERMINAL_STAGE_KINDS = new Set<AuthoredStage['metadata'] extends never ? never : ReturnType<typeof stageKind>>(['Confirmation']);
 
 export type WorkflowValidationSeverity = 'error' | 'warning';
 
 export type WorkflowValidationLocation =
   | { kind: 'stage'; stageKey: string }
-  | { kind: 'route'; gatewayKey: string; routeId: string }
+  | { kind: 'route'; routeId: string }
   | {
       kind: 'action';
       target: 'stage' | 'route';
       stageKey?: string;
-      gatewayKey?: string;
       routeId?: string;
       actionIndex: number;
       fieldKey?: string;
@@ -28,6 +28,7 @@ export interface WorkflowValidationIssue {
     | 'stage-unreachable'
     | 'stage-dead-end'
     | 'route-missing-stage'
+    | 'route-duplicate'
     | 'action-configuration';
   severity: WorkflowValidationSeverity;
   message: string;
@@ -36,7 +37,7 @@ export interface WorkflowValidationIssue {
 }
 
 export function isTerminalStage(stage: AuthoredStage): boolean {
-  return TERMINAL_STAGE_KINDS.has(stage.kind);
+  return TERMINAL_STAGE_KINDS.has(stageKind(stage));
 }
 
 export function workflowOutgoingRoutes(workflow: AuthoredWorkflow, stageKey: string): RouteView[] {
@@ -48,15 +49,15 @@ export function workflowInboundRoutes(workflow: AuthoredWorkflow, stageKey: stri
 }
 
 export function workflowReachableStageKeys(workflow: AuthoredWorkflow): Set<string> {
-  const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
-  const gatewayKeys = new Set((workflow.gateways ?? []).map(gateway => gateway.gatewayKey));
+  const stageKeys = new Set(workflowStates(workflow).map(stage => stage.stateKey));
+  const gatewayKeys = new Set(workflowGateways(workflow).map(gateway => gateway.key));
   if (stageKeys.size === 0) {
     return new Set<string>();
   }
 
-  const startStageKey = stageKeys.has(workflow.initialStageKey)
-    ? workflow.initialStageKey
-    : workflow.stages[0]?.stageKey;
+  const startStageKey = stageKeys.has(workflow.initialState)
+    ? workflow.initialState
+    : workflow.states[0]?.stateKey;
 
   if (!startStageKey) {
     return new Set<string>();
@@ -94,31 +95,31 @@ export function workflowReachableStageKeys(workflow: AuthoredWorkflow): Set<stri
 }
 
 export function workflowOrphanedStages(workflow: AuthoredWorkflow): AuthoredStage[] {
-  return workflow.stages.filter(stage =>
-    stage.stageKey !== workflow.initialStageKey
-    && workflowInboundRoutes(workflow, stage.stageKey).length === 0
-    && workflowOutgoingRoutes(workflow, stage.stageKey).length === 0
+  return workflow.states.filter(stage =>
+    stage.stateKey !== workflow.initialState
+    && workflowInboundRoutes(workflow, stage.stateKey).length === 0
+    && workflowOutgoingRoutes(workflow, stage.stateKey).length === 0
   );
 }
 
 export function workflowUnreachableStages(workflow: AuthoredWorkflow): AuthoredStage[] {
   const reachable = workflowReachableStageKeys(workflow);
-  const orphanedKeys = new Set(workflowOrphanedStages(workflow).map(stage => stage.stageKey));
-  return workflow.stages.filter(stage => !reachable.has(stage.stageKey) && !orphanedKeys.has(stage.stageKey));
+  const orphanedKeys = new Set(workflowOrphanedStages(workflow).map(stage => stage.stateKey));
+  return workflow.states.filter(stage => !reachable.has(stage.stateKey) && !orphanedKeys.has(stage.stateKey));
 }
 
 export function workflowDeadEndStages(workflow: AuthoredWorkflow): AuthoredStage[] {
-  const orphanedKeys = new Set(workflowOrphanedStages(workflow).map(stage => stage.stageKey));
-  return workflow.stages.filter(stage =>
-    !orphanedKeys.has(stage.stageKey)
+  const orphanedKeys = new Set(workflowOrphanedStages(workflow).map(stage => stage.stateKey));
+  return workflow.states.filter(stage =>
+    !orphanedKeys.has(stage.stateKey)
     && !isTerminalStage(stage)
-    && workflowOutgoingRoutes(workflow, stage.stageKey).length === 0
+    && workflowOutgoingRoutes(workflow, stage.stateKey).length === 0
   );
 }
 
 export function workflowRoutesWithMissingStages(workflow: AuthoredWorkflow): RouteView[] {
-  const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
-  const gatewayKeys = new Set((workflow.gateways ?? []).map(g => g.gatewayKey));
+  const stageKeys = new Set(workflow.states.map(stage => stage.stateKey));
+  const gatewayKeys = new Set(workflowGateways(workflow).map(gateway => gateway.key));
   return flattenRoutes(workflow).filter(route =>
     (!stageKeys.has(route.fromStage) && !gatewayKeys.has(route.fromStage))
     || (!stageKeys.has(route.toStage) && !gatewayKeys.has(route.toStage))
@@ -126,8 +127,8 @@ export function workflowRoutesWithMissingStages(workflow: AuthoredWorkflow): Rou
 }
 
 function stageLabel(workflow: AuthoredWorkflow, stageKey: string) {
-  return workflow.stages.find(stage => stage.stageKey === stageKey)?.displayName
-    ?? workflow.gateways?.find(gateway => gateway.gatewayKey === stageKey)?.displayName
+  return workflow.states.find(stage => stage.stateKey === stageKey)?.displayName
+    ?? workflowGateways(workflow).find(gateway => gateway.key === stageKey)?.displayName
     ?? stageKey;
 }
 
@@ -157,10 +158,10 @@ function actionValidationIssues(
     ? stageLabel(workflow, location.stageKey ?? '')
     : routeView
       ? routeLabel(workflow, routeView)
-      : `${location.gatewayKey ?? ''}/${location.routeId ?? ''}`;
+      : location.routeId ?? '';
 
   const propertyIssues = Object.entries(validation.propertyErrors).map(([fieldKey, message]) => ({
-    id: `${location.target}-${location.stageKey ?? `${location.gatewayKey}-${location.routeId}`}-action-${location.actionIndex}-${fieldKey}`,
+    id: `${location.target}-${location.stageKey ?? location.routeId}-action-${location.actionIndex}-${fieldKey}`,
     code: 'action-configuration' as const,
     severity: 'warning' as const,
     blocking: false,
@@ -177,7 +178,7 @@ function actionValidationIssues(
       }
 
       return [{
-        id: `${location.target}-${location.stageKey ?? `${location.gatewayKey}-${location.routeId}`}-action-${location.actionIndex}-form-${fieldIndex}-${fieldKey}`,
+        id: `${location.target}-${location.stageKey ?? location.routeId}-action-${location.actionIndex}-form-${fieldIndex}-${fieldKey}`,
         code: 'action-configuration' as const,
         severity: 'warning' as const,
         blocking: false,
@@ -197,75 +198,91 @@ function actionValidationIssues(
 }
 
 export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: ActionCatalogEntry[] = []): WorkflowValidationIssue[] {
-  const initialStageExists = workflow.stages.some(stage => stage.stageKey === workflow.initialStageKey);
-  const initialStageIssues = initialStageExists || workflow.stages.length === 0
+  const initialStageExists = workflow.states.some(stage => stage.stateKey === workflow.initialState);
+  const initialStageIssues = initialStageExists || workflow.states.length === 0
     ? []
     : [{
         id: 'initial-stage-missing',
         code: 'initial-stage-missing' as const,
         severity: 'error' as const,
         blocking: true,
-        location: { kind: 'stage', stageKey: workflow.initialStageKey || workflow.stages[0]?.stageKey || '' } as const,
-        message: workflow.initialStageKey
-          ? `The workflow start stage “${workflow.initialStageKey}” is missing. Pick an existing initial stage before you save or simulate this workflow.`
+        location: { kind: 'stage', stageKey: workflow.initialState || workflow.states[0]?.stateKey || '' } as const,
+        message: workflow.initialState
+          ? `The workflow start stage “${workflow.initialState}” is missing. Pick an existing initial stage before you save or simulate this workflow.`
           : 'The workflow does not have an initial stage yet. Pick one before you save or simulate this workflow.',
       }];
 
   const orphanedIssues = workflowOrphanedStages(workflow).map(stage => ({
-    id: `stage-orphaned-${stage.stageKey}`,
+    id: `stage-orphaned-${stage.stateKey}`,
     code: 'stage-orphaned' as const,
     severity: 'error' as const,
     blocking: true,
-    location: { kind: 'stage', stageKey: stage.stageKey } as const,
+    location: { kind: 'stage', stageKey: stage.stateKey } as const,
     message: `Stage “${stage.displayName}” is orphaned. Connect it through a gateway so authors can reach it.`,
   }));
 
   const unreachableIssues = workflowUnreachableStages(workflow).map(stage => ({
-    id: `stage-unreachable-${stage.stageKey}`,
+    id: `stage-unreachable-${stage.stateKey}`,
     code: 'stage-unreachable' as const,
     severity: 'error' as const,
     blocking: true,
-    location: { kind: 'stage', stageKey: stage.stageKey } as const,
+    location: { kind: 'stage', stageKey: stage.stateKey } as const,
     message: `Stage “${stage.displayName}” is unreachable from the workflow start. Add or retarget a route through a gateway so authors can get there.`,
   }));
 
   const deadEndIssues = workflowDeadEndStages(workflow).map(stage => ({
-    id: `stage-dead-end-${stage.stageKey}`,
+    id: `stage-dead-end-${stage.stateKey}`,
     code: 'stage-dead-end' as const,
     severity: 'warning' as const,
     blocking: false,
-    location: { kind: 'stage', stageKey: stage.stageKey } as const,
+    location: { kind: 'stage', stageKey: stage.stateKey } as const,
     message: `Stage “${stage.displayName}” has no outgoing route through a gateway yet.`,
   }));
 
+  const duplicateRouteKeys = new Set<string>();
+  const duplicateRouteIssues = flattenRoutes(workflow).flatMap(view => {
+    const key = `${view.fromStage}::${view.action}::${view.toStage}`;
+    if (duplicateRouteKeys.has(key)) {
+      return [{
+        id: `route-duplicate-${view.routeId}`,
+        code: 'route-duplicate' as const,
+        severity: 'error' as const,
+        blocking: true,
+        location: { kind: 'route', routeId: view.routeId } as const,
+        message: `Route “${view.action}” from “${stageLabel(workflow, view.fromStage)}” to “${stageLabel(workflow, view.toStage)}” is duplicated. Keep each route unique in the flat contract.`,
+      }];
+    }
+
+    duplicateRouteKeys.add(key);
+    return [];
+  });
+
   const missingStageRouteIssues = workflowRoutesWithMissingStages(workflow).map(view => {
-    const stageKeys = new Set(workflow.stages.map(stage => stage.stageKey));
-    const gatewayKeys = new Set((workflow.gateways ?? []).map(g => g.gatewayKey));
+    const stageKeys = new Set(workflow.states.map(stage => stage.stateKey));
+    const gatewayKeys = new Set(workflowGateways(workflow).map(gateway => gateway.key));
     const missingSource = !stageKeys.has(view.fromStage) && !gatewayKeys.has(view.fromStage);
     const missingTarget = !stageKeys.has(view.toStage) && !gatewayKeys.has(view.toStage);
     const missingLabel = missingTarget ? view.toStage : view.fromStage;
     const direction = missingTarget ? 'target' : 'source';
-    const gatewayKey = view.gatewayKey ?? '';
-    const routeId = view.routeId ?? '';
 
     return {
-      id: `route-missing-stage-${gatewayKey}-${routeId}`,
+      id: `route-missing-stage-${view.routeId}`,
       code: 'route-missing-stage' as const,
       severity: 'error' as const,
       blocking: true,
-      location: { kind: 'route', gatewayKey, routeId } as const,
+      location: { kind: 'route', routeId: view.routeId } as const,
       message: missingSource && missingTarget
         ? `Route “${view.action}” is disconnected because both ends are missing. Reconnect it to existing stages before you save or simulate this workflow.`
         : `Route “${view.action}” points to a missing ${direction} step “${missingLabel}”. Reconnect it to an existing stage or gateway before you save or simulate this workflow.`,
     };
   });
 
-  const stageActionIssues = workflow.stages.flatMap(stage =>
-    (stage.actions ?? []).flatMap((action, actionIndex) =>
+  const stageActionIssues = workflow.states.flatMap(stage =>
+    stageActions(stage).flatMap((action, actionIndex) =>
       actionValidationIssues(workflow, actionCatalog, action, {
         kind: 'action',
         target: 'stage',
-        stageKey: stage.stageKey,
+        stageKey: stage.stateKey,
         actionIndex,
       })
     )
@@ -276,8 +293,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
       actionValidationIssues(workflow, actionCatalog, action, {
         kind: 'action',
         target: 'route',
-        gatewayKey: view.gatewayKey ?? '',
-        routeId: view.routeId ?? '',
+        routeId: view.routeId,
         actionIndex,
       }, view)
     )
@@ -288,6 +304,7 @@ export function validateWorkflow(workflow: AuthoredWorkflow, actionCatalog: Acti
     ...orphanedIssues,
     ...unreachableIssues,
     ...deadEndIssues,
+    ...duplicateRouteIssues,
     ...missingStageRouteIssues,
     ...stageActionIssues,
     ...routeActionIssues,

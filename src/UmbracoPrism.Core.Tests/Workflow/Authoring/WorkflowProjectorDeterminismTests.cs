@@ -89,13 +89,23 @@ public class WorkflowProjectorDeterminismTests
             DisplayName = "Transition Order Test",
             Version = 1,
             InitialStageKey = "a",
+            Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
             Stages =
             [
-                new AuthoredStage { StageKey = "a", DisplayName = "A", Kind = StageKind.Question, LaneKey = "applicant" },
-                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation, LaneKey = "applicant" },
-                new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation, LaneKey = "applicant" }
+                new AuthoredStage
+                {
+                    StageKey = "a",
+                    DisplayName = "A",
+                    Kind = StageKind.Question,
+                    QueueKey = "applicant",
+                    Routes =
+                    [
+                        new AuthoredRoute { Id = "route-a", Target = "out-of-a", Trigger = "continue" }
+                    ]
+                },
+                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation, QueueKey = "applicant" },
+                new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation, QueueKey = "applicant" }
             ],
-            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
             Gateways =
             [
                 new AuthoredGateway
@@ -103,11 +113,10 @@ public class WorkflowProjectorDeterminismTests
                     GatewayKey = "out-of-a",
                     DisplayName = "Out of A",
                     Kind = GatewayKind.Split,
-                    LaneKey = "applicant",
-                    Source = "a",
+                    QueueKey = "applicant",
                     Routes =
                     [
-                        new AuthoredRoute { Id = "to-c", Target = "c", Trigger = "skip" },
+                        new AuthoredRoute { Id = "to-c", Target = "c", Trigger = "continue" },
                         new AuthoredRoute { Id = "to-b", Target = "b", Trigger = "continue" }
                     ]
                 }
@@ -117,7 +126,7 @@ public class WorkflowProjectorDeterminismTests
         var result = _projector.Project(authored);
 
         result.File.Transitions.Select(t => t.ToState)
-            .Should().ContainInOrder(new[] { "b", "c" },
+            .Should().ContainInOrder(new[] { "out-of-a", "b", "c" },
                 because: "transitions must be emitted sorted by (source, target, trigger)");
     }
 
@@ -131,6 +140,7 @@ public class WorkflowProjectorDeterminismTests
         SchemaVersion = "1.0",
         InitialStageKey = "collect",
         InstancePolicy = "single",
+        Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
         Stages =
         [
             new AuthoredStage
@@ -138,7 +148,8 @@ public class WorkflowProjectorDeterminismTests
                 StageKey = "collect",
                 DisplayName = "Collect details",
                 Kind = StageKind.Question,
-                LaneKey = "applicant",
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "collect-continue", Target = "after-collect", Trigger = "continue" }],
                 Components =
                 [
                     new FieldsetComponent
@@ -156,17 +167,17 @@ public class WorkflowProjectorDeterminismTests
                 StageKey = "review",
                 DisplayName = "Check your answers",
                 Kind = StageKind.CheckAnswers,
-                LaneKey = "applicant"
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "review-submit", Target = "after-review", Trigger = "submit" }]
             },
             new AuthoredStage
             {
                 StageKey = "done",
                 DisplayName = "Application submitted",
                 Kind = StageKind.Confirmation,
-                LaneKey = "applicant"
+                QueueKey = "applicant"
             }
         ],
-        Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
         Gateways =
         [
             new AuthoredGateway
@@ -174,8 +185,7 @@ public class WorkflowProjectorDeterminismTests
                 GatewayKey = "after-collect",
                 DisplayName = "After collect",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant",
-                Source = "collect",
+                QueueKey = "applicant",
                 Routes = [new AuthoredRoute { Id = "to-review", Target = "review", Trigger = "continue" }]
             },
             new AuthoredGateway
@@ -183,8 +193,7 @@ public class WorkflowProjectorDeterminismTests
                 GatewayKey = "after-review",
                 DisplayName = "After review",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant",
-                Source = "review",
+                QueueKey = "applicant",
                 Routes = [new AuthoredRoute { Id = "to-done", Target = "done", Trigger = "submit" }]
             }
         ],

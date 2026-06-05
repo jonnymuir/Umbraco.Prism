@@ -39,7 +39,7 @@ test.describe('Workflow editor shell proof', () => {
     await expect(shell).toHaveAttribute('data-prism-active-workflow', 'payment-demo');
     await expect(editorTitle).toHaveText('Payment Demo');
     await expect(editor.locator('[data-prism-stage="payment-complete"]')).toBeVisible();
-    await expect(editor.locator('[data-prism-stage="provider-processing"]')).toBeVisible();
+    await expect(editor.locator('[data-prism-stage="confirm-payment-received"]')).toBeVisible();
     await expect(editor.locator('[data-prism-stage="review-enquiry"]')).toHaveCount(0);
   });
 
@@ -90,9 +90,9 @@ test.describe('Workflow editor shell proof', () => {
     await waitForWorkflowLoad(page, 'payment-demo');
 
     await expect(editor.locator('.editor-title')).toHaveText('Payment Demo');
-    await expect(editor.locator('[data-prism-stage="provider-processing"]')).toHaveAttribute(
+    await expect(editor.locator('[data-prism-stage="confirm-payment-received"]')).toHaveAttribute(
       'aria-label',
-      'Provider processing, Payments queue'
+      'Confirm payment received, Payments team queue'
     );
 
     await page.getByRole('tab', { name: 'Validation' }).click();

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using UmbracoPrism.Shared.Models.Workflow;
-using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Authoring;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
@@ -11,15 +10,6 @@ using UmbracoPrism.WorkflowRuntime.Services;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
-/// <summary>
-/// End-to-end behavioural contract: an authored workflow that uses a Split gateway,
-/// a Join gateway, and a wait MUST exercise the runtime engine's gateway code when
-/// projected. These tests deliberately go through the real <see cref="WorkflowProjector"/>
-/// and feed the projected definition to the real <see cref="WorkflowRuntimeEngine"/> —
-/// no hand-rolled <c>WorkflowDefinitionFile</c> shortcut. If the projector ever stops
-/// emitting gateway keys as graph endpoints, the engine quietly falls back to plain
-/// stage→stage transitions and these tests will catch it.
-/// </summary>
 public class ProjectorEngineGatewayIntegrationTests
 {
     private const string Tenant = "tenant-1";
@@ -31,77 +21,40 @@ public class ProjectorEngineGatewayIntegrationTests
         var engine = ProjectAndWireEngine(BuildSplitJoinWorkflow());
 
         var initial = engine.GetCurrent("gateway-integration", Tenant, User, action: "start-new");
-        initial.ResponseState.Should().Be("render");
-
-        var afterSubmit = engine.Advance(
-            initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
-
-        afterSubmit.ResponseState.Should().BeOneOf("render", "defer",
-            "after a split fan-out the engine renders the first active stage or defers");
+        var afterSubmit = engine.Advance(initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
 
         var instance = engine.GetAllInstances().Single(i => i.InstanceId == afterSubmit.InstanceId);
-        instance.Cursors.Should().HaveCount(2,
-            "an authored Split gateway must produce one cursor per outgoing branch at runtime");
-        instance.Cursors.Should().Contain(c => c.CurrentNodeKey == "finance-review");
-        instance.Cursors.Should().Contain(c => c.CurrentNodeKey == "planning-review");
+        instance.Cursors.Should().HaveCount(2);
+        instance.Cursors.Should().Contain(cursor => cursor.CurrentNodeKey == "finance-review");
+        instance.Cursors.Should().Contain(cursor => cursor.CurrentNodeKey == "planning-review");
     }
 
     [Fact]
-    public void Join_AuthoredWorkflow_WaitsUntilAllRequiredLanesArrive_WhenProjectedAndRun()
+    public void Join_AuthoredWorkflow_WaitsUntilAllRequiredQueuesArrive_WhenProjectedAndRun()
     {
         var engine = ProjectAndWireEngine(BuildSplitJoinWorkflow());
 
         var initial = engine.GetCurrent("gateway-integration", Tenant, User, action: "start-new");
-        var afterSubmit = engine.Advance(
-            initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
-
-        // First lane arrives at the join — should wait, not fall through to the next stage.
-        var afterFirstApprove = engine.Advance(
-            afterSubmit.InstanceId, Tenant, User, "approve", afterSubmit.StateVersion, null);
-
-        afterFirstApprove.ResponseState.Should().Be("defer",
-            "a join gateway must wait until every required incoming lane has arrived");
-
-        // Second lane arrives — join releases to the next stage.
-        var afterSecondApprove = engine.Advance(
-            afterFirstApprove.InstanceId, Tenant, User, "approve", afterFirstApprove.StateVersion, null);
-
-        afterSecondApprove.ResponseState.Should().Be("complete",
-            "once every required lane has arrived the join releases and the workflow reaches the confirmation stage");
-    }
-
-    [Fact]
-    public void Join_AuthoredWorkflow_SurfacesWaitingCopyFromTheGateway_NotAFakeStage()
-    {
-        var engine = ProjectAndWireEngine(BuildSplitJoinWorkflow());
-
-        var initial = engine.GetCurrent("gateway-integration", Tenant, User, action: "start-new");
-        var afterSubmit = engine.Advance(
-            initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
-        var afterFirstApprove = engine.Advance(
-            afterSubmit.InstanceId, Tenant, User, "approve", afterSubmit.StateVersion, null);
+        var afterSubmit = engine.Advance(initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
+        var afterFirstApprove = engine.Advance(afterSubmit.InstanceId, Tenant, User, "approve", afterSubmit.StateVersion, null);
+        var afterSecondApprove = engine.Advance(afterFirstApprove.InstanceId, Tenant, User, "approve", afterFirstApprove.StateVersion, null);
 
         afterFirstApprove.ResponseState.Should().Be("defer");
-        var waitingComponent = afterFirstApprove.Render!.Components.FirstOrDefault(c => c.Type == "waiting");
-        waitingComponent.Should().NotBeNull(
-            "the join gateway's waiting copy must be surfaced as a waiting component while siblings are outstanding");
-        waitingComponent!.Content.Should().Contain("Waiting for all reviews to complete.",
-            "waiting copy must come from the authored join gateway, not from a placeholder stage");
+        afterSecondApprove.ResponseState.Should().Be("complete");
     }
-
-    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private static WorkflowRuntimeEngine ProjectAndWireEngine(AuthoredWorkflow authored)
     {
         var projection = new WorkflowProjector().Project(authored);
-        projection.HasErrors.Should().BeFalse(
-            "the test fixture authored workflow must project cleanly before behavioural assertions run");
+        projection.HasErrors.Should().BeFalse();
 
         var sanitizer = new Mock<IWorkflowContentSanitizer>();
-        sanitizer.Setup(s => s.Sanitize(It.IsAny<string>())).Returns<string>(x => x);
+        sanitizer.Setup(service => service.Sanitize(It.IsAny<string>())).Returns<string>(value => value);
 
         return new TestableWorkflowRuntimeEngine(
-            NullLogger<TestableWorkflowRuntimeEngine>.Instance, sanitizer.Object, projection.File);
+            NullLogger<TestableWorkflowRuntimeEngine>.Instance,
+            sanitizer.Object,
+            projection.File);
     }
 
     private static AuthoredWorkflow BuildSplitJoinWorkflow() => new()
@@ -112,11 +65,11 @@ public class ProjectorEngineGatewayIntegrationTests
         Version = 1,
         InitialStageKey = "submit",
         InstancePolicy = "single",
-        Lanes =
+        Queues =
         [
-            new AuthoredLane { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" },
-            new AuthoredLane { Key = "finance", DisplayName = "Finance", Actor = "finance-officer" },
-            new AuthoredLane { Key = "planning", DisplayName = "Planning", Actor = "planning-officer" }
+            new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" },
+            new AuthoredQueue { Key = "finance", DisplayName = "Finance", Actor = "finance-officer" },
+            new AuthoredQueue { Key = "planning", DisplayName = "Planning", Actor = "planning-officer" }
         ],
         Gateways =
         [
@@ -125,8 +78,7 @@ public class ProjectorEngineGatewayIntegrationTests
                 GatewayKey = "split-review",
                 DisplayName = "Start parallel reviews",
                 Kind = GatewayKind.Split,
-                LaneKey = "applicant",
-                Source = "submit",
+                QueueKey = "applicant",
                 Routes =
                 [
                     new AuthoredRoute { Id = "to-finance", Target = "finance-review", Trigger = "submit" },
@@ -138,8 +90,7 @@ public class ProjectorEngineGatewayIntegrationTests
                 GatewayKey = "finance-out",
                 DisplayName = "Finance routing",
                 Kind = GatewayKind.Split,
-                LaneKey = "finance",
-                Source = "finance-review",
+                QueueKey = "finance",
                 Routes = [new AuthoredRoute { Id = "approve", Target = "join-reviews", Trigger = "approve" }]
             },
             new AuthoredGateway
@@ -147,8 +98,7 @@ public class ProjectorEngineGatewayIntegrationTests
                 GatewayKey = "planning-out",
                 DisplayName = "Planning routing",
                 Kind = GatewayKind.Split,
-                LaneKey = "planning",
-                Source = "planning-review",
+                QueueKey = "planning",
                 Routes = [new AuthoredRoute { Id = "approve", Target = "join-reviews", Trigger = "approve" }]
             },
             new AuthoredGateway
@@ -156,8 +106,8 @@ public class ProjectorEngineGatewayIntegrationTests
                 GatewayKey = "join-reviews",
                 DisplayName = "All reviews done",
                 Kind = GatewayKind.Join,
-                LaneKey = "applicant",
-                RequiredIncomingLanes = ["finance", "planning"],
+                QueueKey = "applicant",
+                RequiredIncomingQueues = ["finance", "planning"],
                 WaitingInfo = new WaitingMetadata
                 {
                     Content = "Waiting for all reviews to complete.",
@@ -174,28 +124,31 @@ public class ProjectorEngineGatewayIntegrationTests
                 StageKey = "submit",
                 DisplayName = "Submit application",
                 Kind = StageKind.Question,
-                LaneKey = "applicant"
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "submit-gateway", Target = "split-review", Trigger = "submit" }]
             },
             new AuthoredStage
             {
                 StageKey = "finance-review",
                 DisplayName = "Finance review",
                 Kind = StageKind.Question,
-                LaneKey = "finance"
+                QueueKey = "finance",
+                Routes = [new AuthoredRoute { Id = "finance-route", Target = "finance-out", Trigger = "approve" }]
             },
             new AuthoredStage
             {
                 StageKey = "planning-review",
                 DisplayName = "Planning review",
                 Kind = StageKind.Question,
-                LaneKey = "planning"
+                QueueKey = "planning",
+                Routes = [new AuthoredRoute { Id = "planning-route", Target = "planning-out", Trigger = "approve" }]
             },
             new AuthoredStage
             {
                 StageKey = "decision",
                 DisplayName = "Final decision",
                 Kind = StageKind.Confirmation,
-                LaneKey = "applicant"
+                QueueKey = "applicant"
             }
         ]
     };

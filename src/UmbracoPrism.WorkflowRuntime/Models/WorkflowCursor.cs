@@ -10,12 +10,18 @@ public record WorkflowCursor
     /// <summary>Stable identifier for this cursor within the instance.</summary>
     public string CursorId { get; init; } = "";
 
-    /// <summary>The lane this cursor belongs to.</summary>
-    public string LaneKey { get; init; } = "";
+    /// <summary>The queue this cursor belongs to.</summary>
+    public string QueueKey { get; init; } = "";
 
     /// <summary>The stage or gateway key where this cursor is currently positioned.</summary>
     public string CurrentNodeKey { get; init; } = "";
 
     /// <summary>True when this cursor is positioned at a gateway node rather than a stage.</summary>
     public bool IsAtGateway { get; init; }
+
+    public string LaneKey
+    {
+        get => QueueKey;
+        init => QueueKey = value;
+    }
 }

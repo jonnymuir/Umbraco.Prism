@@ -12,7 +12,6 @@ using UmbracoPrism.MockBusinessApp.Services.WorkflowActions;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.WorkflowEditor.Authoring;
 using UmbracoPrism.WorkflowEditor.Extensions;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Extensions;
@@ -33,10 +32,9 @@ builder.Services.AddHttpClient();
 // The real GDS allowlist sanitizer (WorkflowContentSanitizer) is wired up in TestSite via Core.
 builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>();
 
-// Slice B: the editor library no longer ships an authored-workflow store. Each host
-// owns its own persistence. The reference app keeps the four demo workflows in memory
-// and exposes them through `/mockapp/workflows/*` for the editor's TS WorkflowSource.
-builder.Services.AddSingleton<ReferenceAuthoredWorkflowStore>();
+// The reference app keeps the four demo workflows in memory and exposes the same
+// flattened workflow-definition contract through `/mockapp/workflows/*`.
+builder.Services.AddSingleton<ReferenceWorkflowSourceStore>();
 builder.Services.AddSingleton<IPublishedWorkflowStore, InMemoryRuntimePublishedWorkflowStore>();
 
 // Editor library — projector / patch / simulation / action catalog only.
@@ -141,10 +139,10 @@ var mockWorkflowJsonOptions = new JsonSerializerOptions
     WriteIndented = false,
 };
 
-app.MapGet("/mockapp/workflows", (ReferenceAuthoredWorkflowStore store) =>
+app.MapGet("/mockapp/workflows", (ReferenceWorkflowSourceStore store) =>
     Results.Json(store.List(), mockWorkflowJsonOptions));
 
-app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceAuthoredWorkflowStore store) =>
+app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceWorkflowSourceStore store) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -159,7 +157,7 @@ app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceAuthoredWorkflowSto
         : Results.Json(workflow, mockWorkflowJsonOptions);
 });
 
-app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceAuthoredWorkflowStore store) =>
+app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceWorkflowSourceStore store) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -169,10 +167,10 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, Refer
             title: "Invalid workflow key");
     }
 
-    AuthoredWorkflow? workflow;
+    WorkflowDefinitionFile? workflow;
     try
     {
-        workflow = await JsonSerializer.DeserializeAsync<AuthoredWorkflow>(
+        workflow = await JsonSerializer.DeserializeAsync<WorkflowDefinitionFile>(
             ctx.Request.Body, mockWorkflowJsonOptions, ctx.RequestAborted);
     }
     catch (JsonException ex)
@@ -405,18 +403,18 @@ app.MapGet("/debug/auth", (IConfiguration config) =>
 
 // ── Admin UI (no auth — local dev only) ─────────────────────────────────────
 
-app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthoredWorkflowStore authoredWorkflowStore) =>
+app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceWorkflowSourceStore workflowSourceStore) =>
 {
     var instances = engine.GetAllInstances().OrderBy(i => i.CreatedAt).ToList();
     var businessQueue = engine.GetQueueWorkItems(ReferenceWorkflowQueues.BusinessUserProfile()).Items;
     var defs = engine.GetAllDefinitions().ToList();
     var defsByKey = defs.ToDictionary(d => d.DefinitionKey, StringComparer.OrdinalIgnoreCase);
-    var authoredWorkflowEntries = authoredWorkflowStore.List();
-    var authoredWorkflowRouteKeysByDefinitionKey = authoredWorkflowEntries
+    var sourceWorkflowEntries = workflowSourceStore.List();
+    var sourceWorkflowRouteKeysByDefinitionKey = sourceWorkflowEntries
         .Where(entry => !string.IsNullOrWhiteSpace(entry.DefinitionKey))
         .GroupBy(entry => entry.DefinitionKey, StringComparer.OrdinalIgnoreCase)
         .ToDictionary(group => group.Key, group => group.First().WorkflowKey, StringComparer.OrdinalIgnoreCase);
-    var loadableAuthoredWorkflowKeys = authoredWorkflowEntries
+    var loadableSourceWorkflowKeys = sourceWorkflowEntries
         .Select(entry => entry.WorkflowKey)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -488,9 +486,9 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceAuthor
         ? """<tr><td colspan="2" style="text-align:center;color:#888;padding:1.5rem">No definitions loaded</td></tr>"""
         : string.Join("\n", defs.Select(def =>
         {
-            var authoredWorkflowKey = authoredWorkflowRouteKeysByDefinitionKey.TryGetValue(def.DefinitionKey, out var resolvedWorkflowKey)
+            var authoredWorkflowKey = sourceWorkflowRouteKeysByDefinitionKey.TryGetValue(def.DefinitionKey, out var resolvedWorkflowKey)
                 ? resolvedWorkflowKey
-                : loadableAuthoredWorkflowKeys.Contains(def.DefinitionKey)
+                : loadableSourceWorkflowKeys.Contains(def.DefinitionKey)
                     ? def.DefinitionKey
                     : null;
             var editorShortcut = authoredWorkflowKey is not null

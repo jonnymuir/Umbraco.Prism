@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-workflow-editor-shell.js';
 import type { PrismWorkflowEditorShellElement } from './prism-workflow-editor-shell.js';
 import { PAYMENT_DEMO_WORKFLOW, PLANNING_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
-import type { AuthoredWorkflow, AuthoredStage } from './types.js';
+import type { AuthoredWorkflow } from './types.js';
 import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
 import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
@@ -11,10 +11,10 @@ type WorkflowSeed = {
   definitionKey: string;
   displayName: string;
   stages: Array<{
-    stageKey: string;
+    stateKey: string;
     displayName: string;
-    actor?: AuthoredStage['actor'];
-    kind?: AuthoredStage['kind'];
+    actor?: string;
+    kind?: string;
     roleGates?: string[];
   }>;
   transitionActions: string[];
@@ -27,10 +27,10 @@ function cloneWorkflow<T>(value: T): T {
 function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
   const workflow = cloneWorkflow(PLANNING_WORKFLOW);
   const stages = seed.stages.map((stageSeed, index) => {
-    const baseStage = workflow.stages[Math.min(index, workflow.stages.length - 1)];
+    const baseStage = workflow.states[Math.min(index, workflow.states.length - 1)];
     return {
       ...baseStage,
-      stageKey: stageSeed.stageKey,
+      stateKey: stageSeed.stateKey,
       displayName: stageSeed.displayName,
       actor: stageSeed.actor ?? baseStage.actor,
       kind: stageSeed.kind ?? baseStage.kind,
@@ -43,22 +43,25 @@ function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
     ...workflow,
     definitionKey: seed.definitionKey,
     displayName: seed.displayName,
-    initialStageKey: builtStages[0]?.stageKey ?? workflow.initialStageKey,
-    stages: builtStages,
-    gateways: builtStages.slice(0, -1).map((stage, index) => ({
-      gatewayKey: `route-from-${stage.stageKey}`,
+    initialState: builtStages[0]?.stateKey ?? workflow.initialState,
+    states: builtStages,
+    transitions: builtStages.slice(0, -1).flatMap((stage, index) => {
+      const gatewayKey = `route-from-${stage.stateKey}`;
+      const targetKey = builtStages[index + 1].stateKey;
+      return [
+        { fromState: stage.stateKey, toState: gatewayKey, action: 'route' },
+        { fromState: gatewayKey, toState: targetKey, action: seed.transitionActions[index] ?? 'continue' },
+      ];
+    }),
+    metadata: { gateways: builtStages.slice(0, -1).map(stage => ({
+      key: `route-from-${stage.stateKey}`,
       displayName: `Route from ${stage.displayName}`,
-      kind: 'Split' as const,
-      source: stage.stageKey,
+      gatewayType: 'Split' as const,
+      laneKey: stage.metadata?.laneKey ?? 'public',
+      actor: stage.metadata?.actor,
       roleGates: [],
-      routes: [{
-        id: `${stage.stageKey}--${seed.transitionActions[index] ?? 'continue'}--${builtStages[index + 1].stageKey}`,
-        target: builtStages[index + 1].stageKey,
-        trigger: seed.transitionActions[index] ?? 'continue',
-        actions: [],
-      }],
-    })),
-  };
+    })) },
+  } as unknown as AuthoredWorkflow;
 }
 
 function buildShellSource(): InMemoryWorkflowSource {
@@ -68,17 +71,17 @@ function buildShellSource(): InMemoryWorkflowSource {
     definitionKey: 'community-enquiry',
     displayName: 'Community Enquiry',
     stages: [
-      { stageKey: 'raise-enquiry', displayName: 'Raise enquiry', actor: 'public' },
-      { stageKey: 'share-supporting-detail', displayName: 'Share supporting detail', actor: 'public' },
+      { stateKey: 'raise-enquiry', displayName: 'Raise enquiry', actor: 'public' },
+      { stateKey: 'share-supporting-detail', displayName: 'Share supporting detail', actor: 'public' },
       {
-        stageKey: 'review-enquiry',
+        stateKey: 'review-enquiry',
         displayName: 'Review enquiry',
         actor: 'reviewer',
         kind: 'TaskList',
         roleGates: ['reviewer'],
       },
       {
-        stageKey: 'enquiry-closed',
+        stateKey: 'enquiry-closed',
         displayName: 'Enquiry closed',
         actor: 'reviewer',
         kind: 'Confirmation',
@@ -92,17 +95,17 @@ function buildShellSource(): InMemoryWorkflowSource {
     definitionKey: 'information-request',
     displayName: 'Information Request',
     stages: [
-      { stageKey: 'request-summary', displayName: 'Request summary', actor: 'public' },
-      { stageKey: 'upload-evidence', displayName: 'Upload evidence', actor: 'public' },
+      { stateKey: 'request-summary', displayName: 'Request summary', actor: 'public' },
+      { stateKey: 'upload-evidence', displayName: 'Upload evidence', actor: 'public' },
       {
-        stageKey: 'review-response-pack',
+        stateKey: 'review-response-pack',
         displayName: 'Review response pack',
         actor: 'reviewer',
         kind: 'TaskList',
         roleGates: ['reviewer'],
       },
       {
-        stageKey: 'response-sent',
+        stateKey: 'response-sent',
         displayName: 'Response sent',
         actor: 'system',
         kind: 'Confirmation',
@@ -125,6 +128,8 @@ function buildShellSource(): InMemoryWorkflowSource {
 }
 
 const REFERENCE_QUEUES: WorkflowQueueDefinition[] = [
+  { queueName: 'web-user', displayName: 'Applicant' },
+  { queueName: 'business-user', displayName: 'Payments team' },
   { queueName: 'applicant', displayName: 'Applicant' },
   { queueName: 'public', displayName: 'Public' },
   { queueName: 'reviewer', displayName: 'Reviewer' },

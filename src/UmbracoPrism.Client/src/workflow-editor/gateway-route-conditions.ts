@@ -69,17 +69,17 @@ export function describeTransitionCondition(condition?: string): string {
 }
 
 export function defaultTransitionTarget(workflow: AuthoredWorkflow, sourceStageKey: string): string | null {
-  const currentIndex = workflow.stages.findIndex(stage => stage.stageKey === sourceStageKey);
+  const currentIndex = workflow.states.findIndex(stage => stage.stateKey === sourceStageKey);
   if (currentIndex >= 0) {
-    const nextStage = workflow.stages[currentIndex + 1];
+    const nextStage = workflow.states[currentIndex + 1];
     if (nextStage) {
-      return nextStage.stageKey;
+      return nextStage.stateKey;
     }
   }
 
-  return workflow.stages.find(stage => stage.stageKey !== sourceStageKey)?.stageKey ?? null;
+  return workflow.states.find(stage => stage.stateKey !== sourceStageKey)?.stateKey ?? null;
 }
 
 export function defaultTransitionAction(workflow: AuthoredWorkflow, targetStageKey: string): string {
-  return targetStageKey === workflow.initialStageKey ? 'return' : 'continue';
+  return targetStageKey === workflow.initialState ? 'return' : 'continue';
 }

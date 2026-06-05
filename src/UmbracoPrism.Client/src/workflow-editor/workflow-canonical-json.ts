@@ -1,40 +1,95 @@
-import type { AuthoredWorkflow } from './types.js';
+import type { AuthoredGateway, AuthoredRoute, AuthoredStage, AuthoredWorkflow } from './types.js';
 
 /**
- * Stable, deterministic JSON serialization for the AuthoredWorkflow document
- * used by the Definition tab. Top-level keys are emitted in a fixed
- * authoring-friendly order; all other object keys are sorted alphabetically.
- * Output uses 2-space indentation.
- *
- * Stable order matters because the JSON pane and the visual pane round-trip
- * the document — a deterministic shape avoids spurious diffs.
+ * Stable, deterministic JSON serialization for the flattened workflow definition
+ * used by the Definition tab.
  */
 const TOP_LEVEL_KEY_ORDER: readonly string[] = [
   'definitionKey',
   'displayName',
   'version',
-  'schemaVersion',
+  'initialState',
   'instancePolicy',
-  'initialStageKey',
-  'authorNote',
-  'roles',
-  'lanes',
-  'stages',
+  'description',
+  'schemaVersion',
+  'queues',
+  'states',
   'gateways',
-  'handoffs',
   'parameterSchemas',
-  'metadata',
 ];
+
+function serialisableRoute(route: AuthoredRoute): Record<string, unknown> {
+  return {
+    id: route.id,
+    target: route.target,
+    trigger: route.trigger,
+    condition: route.condition,
+    requiresRole: route.requiresRole,
+    actions: route.actions,
+    editorComment: route.editorComment,
+  };
+}
+
+function serialisableState(stage: AuthoredStage): Record<string, unknown> {
+  return {
+    stateKey: stage.stateKey,
+    displayName: stage.displayName,
+    components: stage.components ?? [],
+    description: stage.description,
+    stageType: stage.kind,
+    actor: stage.actor,
+    queueKey: stage.queueKey,
+    routes: (stage.routes ?? []).map(serialisableRoute),
+    actions: stage.actions,
+    roleGates: stage.roleGates,
+    editorComment: stage.editorComment,
+  };
+}
+
+function serialisableGateway(gateway: AuthoredGateway): Record<string, unknown> {
+  return {
+    key: gateway.key,
+    displayName: gateway.displayName,
+    description: gateway.description,
+    gatewayType: gateway.gatewayType ?? gateway.kind,
+    queueKey: gateway.queueKey,
+    actor: gateway.actor,
+    roleGates: gateway.roleGates,
+    routes: (gateway.routes ?? []).map(serialisableRoute),
+    waitingContent: gateway.waitingContent,
+    waitingExpectedSeconds: gateway.waitingExpectedSeconds,
+    waitingPollIntervalMs: gateway.waitingPollIntervalMs,
+    waitingAllowDefer: gateway.waitingAllowDefer,
+    waitingDeferMessage: gateway.waitingDeferMessage,
+    requiredIncomingQueues: gateway.requiredIncomingQueues,
+  };
+}
+
+function serialisableWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
+  return {
+    definitionKey: workflow.definitionKey,
+    displayName: workflow.displayName,
+    version: workflow.version,
+    initialState: workflow.initialState,
+    instancePolicy: workflow.instancePolicy,
+    description: workflow.description,
+    schemaVersion: workflow.schemaVersion,
+    queues: workflow.queues ?? [],
+    states: workflow.states.map(serialisableState),
+    gateways: (workflow.gateways ?? []).map(serialisableGateway),
+    parameterSchemas: workflow.parameterSchemas,
+  };
+}
 
 function orderTopLevel(value: Record<string, unknown>): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
   for (const key of TOP_LEVEL_KEY_ORDER) {
-    if (key in value) {
+    if (key in value && value[key] !== undefined) {
       ordered[key] = value[key];
     }
   }
   for (const key of Object.keys(value).sort()) {
-    if (!(key in ordered)) {
+    if (!(key in ordered) && value[key] !== undefined) {
       ordered[key] = value[key];
     }
   }
@@ -49,7 +104,9 @@ function sortKeys(value: unknown): unknown {
     const record = value as Record<string, unknown>;
     const sorted: Record<string, unknown> = {};
     for (const key of Object.keys(record).sort()) {
-      sorted[key] = sortKeys(record[key]);
+      if (record[key] !== undefined) {
+        sorted[key] = sortKeys(record[key]);
+      }
     }
     return sorted;
   }
@@ -57,10 +114,7 @@ function sortKeys(value: unknown): unknown {
 }
 
 export function serializeAuthoredWorkflow(workflow: AuthoredWorkflow): string {
-  // Drop the deprecated derived `transitions` view; canonical JSON is the
-  // wire shape, and Slice C moved routing onto gateway.routes[].
-  const { transitions: _legacy, ...rest } = workflow as AuthoredWorkflow & { transitions?: unknown };
-  const top = orderTopLevel(rest as unknown as Record<string, unknown>);
+  const top = orderTopLevel(serialisableWorkflow(workflow));
   const canonical: Record<string, unknown> = {};
   for (const key of Object.keys(top)) {
     canonical[key] = sortKeys(top[key]);
@@ -68,7 +122,6 @@ export function serializeAuthoredWorkflow(workflow: AuthoredWorkflow): string {
   return JSON.stringify(canonical, null, 2);
 }
 
-/** Quick semantic equality — both sides through the same canonical form. */
 export function authoredWorkflowJsonEquals(
   left: AuthoredWorkflow | null,
   right: AuthoredWorkflow | null
