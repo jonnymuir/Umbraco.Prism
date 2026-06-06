@@ -20,7 +20,16 @@
 
 See `.squad/decisions.md` and `.squad/log/2026-06-04T21-31-07Z-flattened-workflow-model.md` for details.
 
-## Session: 2026-06-06 Graph Cleanup Orchestration
+## Session: 2026-06-06 Save Error Orchestration
 
-Scribe processed team decisions and orchestration from this session's work. All three agents' outcomes documented in decisions.md. Session included payment-demo backend simplification (Blathers), client save path and graph UI fixes (Isabelle), and regression contract clarification (Tangy).
+**Status:** ✅ Complete
+
+**Tangy contribution:** Added focused Playwright contracts for save error outcomes: successful save, structured failure, persistent/copyable reporting, recovery after retry. Fixtures include stack-trace-shaped noise to prove sanitization. Tests stay at editor boundary by swapping host workflowSource.
+
+**Team outcomes:**
+- Blathers: Backend save validation and structured errors
+- Isabelle: Persistent, copyable, sanitised error UI
+- Tangy: 4-contract regression coverage
+
+**Integration:** All decisions merged to .squad/decisions.md. Orchestration logged in .squad/orchestration-log/. Session log at .squad/log/2026-06-06T10-27-53Z-save-error-fix.md
 

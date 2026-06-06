@@ -60,7 +60,16 @@ Payment demo editor shows validation false-positives (Join gateway `flattenRoute
 
 **Isabelle contribution:** Flattened client editor onto persisted workflow definition; Definition tab and visual editor now use same contract; client build and Playwright tests passed.
 
-## Session: 2026-06-06 Graph Cleanup Orchestration
+## Session: 2026-06-06 Save Error Orchestration
 
-Scribe processed team decisions and orchestration from this session's work. All three agents' outcomes documented in decisions.md. Session included payment-demo backend simplification (Blathers), client save path and graph UI fixes (Isabelle), and regression contract clarification (Tangy).
+**Status:** ✅ Complete
+
+**Isabelle contribution:** Replaced flashing save error toast with persistent inline error surface. Error surface shows title, summary, detail lines, reference id, with copyable text area and copy button. Integrated structured backend errors; sanitises fallback errors to prevent stack trace leakage.
+
+**Team outcomes:**
+- Blathers: Backend save validation and structured errors
+- Isabelle: Persistent, copyable, sanitised error UI
+- Tangy: 4-contract regression coverage
+
+**Integration:** All decisions merged to .squad/decisions.md. Orchestration logged in .squad/orchestration-log/. Session log at .squad/log/2026-06-06T10-27-53Z-save-error-fix.md
 

@@ -1767,3 +1767,43 @@ Treat the current payment-demo cleanup as four separate regression contracts:
 - Jonny's directive asks for cleaner graph copy and a simpler payment demo, so Tangy's checks should separate what already works from what is still pending.
 - Keeping the copy-cleanup and shell-side route-shape checks as pending behavioural contracts lets Isabelle finish the graph cleanup without losing the target outcome, while the backend contract stays locked by the new passing authoring test.
 
+---
+
+## 2026-06-06T11:06:20.868+01:00: User directive
+
+**By:** Jonny Muir (via Copilot)
+
+**What:** Fix the save error and replace the current flashing error behaviour with a more standard, safer error-reporting approach that users can read and copy reliably.
+
+**Why:** User request — captured for team memory
+
+---
+
+## 2026-06-06T11:06:20.868+01:00 — Workflow save errors use structured Problem Details
+
+**Author:** Blathers
+
+- The MockBusinessApp workflow save endpoint now validates nested workflow components before deserializing the payload.
+- Save failures return `application/problem+json` with a stable `errorCode`, `traceId`, and per-error `code` / `message` / `path` entries instead of leaking raw serializer exceptions or stack traces.
+- Missing or unsupported component `type` discriminators are reported as a client-safe `workflow-component-invalid` problem so Isabelle can map save failures onto a durable editor error surface without depending on server exception text.
+
+---
+
+## 2026-06-06T11:06:20.868+01:00 — Stable save errors in the workflow editor
+
+**Author:** Isabelle
+
+- Save failures in `prism-workflow-editor` now stay visible in a persistent inline error surface instead of disappearing in a toast.
+- The error surface shows a short title, a user-safe summary, optional structured detail lines, and an optional reference id, with a copyable text area plus a copy button for support/debugging.
+- Host save adapters should throw structured save errors when they can (`title`, `summary`, `detailLines`, `traceId`); the editor sanitises fallback errors so stack traces and exception dumps are not shown to authors.
+- A successful retry clears the save error surface and returns the editor to the normal saved state.
+
+---
+
+## 2026-06-06T11:06:20.868+01:00 — Tangy save error regression coverage
+
+**Author:** Tangy
+
+- Save error coverage now uses focused Playwright contracts for four user-facing outcomes: successful save, structured save failure, persistent/copyable error reporting, and recovery after retry.
+- The failure fixtures deliberately include stack-trace-shaped noise so the tests prove authors only see sanitised copy plus the support reference id.
+- These checks stay at the workflow editor boundary by swapping the host `workflowSource`, which keeps the regression signal on host/editor save behaviour instead of implementation details.
