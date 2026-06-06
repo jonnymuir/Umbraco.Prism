@@ -1,7 +1,81 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
+}
+
+type SaveAttempt =
+  | { kind: 'success' }
+  | {
+    kind: 'error';
+    error: {
+      title: string;
+      summary: string;
+      detailLines: string[];
+      traceId: string;
+      message: string;
+    };
+  };
+
+const structuredSaveFailure = {
+  title: 'We couldn’t save this workflow',
+  summary: 'The host app rejected these changes. Review the details below and try again.',
+  detailLines: [
+    'Workflow key did not match the route.',
+    'Fix the workflow key and try again.',
+    'System.InvalidOperationException: do not expose this detail',
+    '   at SaveWorkflow() in WorkflowController.cs:line 42',
+  ],
+  traceId: 'trace-save-001',
+  message: 'System.InvalidOperationException: hidden internal failure',
+};
+
+async function configureSaveAttempts(page: Page, attempts: SaveAttempt[]): Promise<void> {
+  await page.locator('prism-workflow-editor').evaluate((node, plannedAttempts: SaveAttempt[]) => {
+    const editor = node as HTMLElement & {
+      workflowSource?: {
+        list: () => Promise<unknown>;
+        load: (key: string) => Promise<unknown>;
+        save: (key: string, workflow: unknown) => Promise<void>;
+      };
+    };
+    const currentSource = editor.workflowSource;
+    if (!currentSource) {
+      throw new Error('Workflow source not found.');
+    }
+
+    let attemptIndex = 0;
+    Object.defineProperty(window, '__prismCopiedSaveError', {
+      configurable: true,
+      writable: true,
+      value: '',
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          (window as typeof window & { __prismCopiedSaveError: string }).__prismCopiedSaveError = value;
+        },
+      },
+    });
+
+    editor.workflowSource = {
+      list: () => currentSource.list(),
+      load: (key: string) => currentSource.load(key),
+      save: async (key: string, workflow: unknown) => {
+        const currentAttempt = plannedAttempts[Math.min(attemptIndex, plannedAttempts.length - 1)] ?? { kind: 'success' };
+        attemptIndex += 1;
+        if (currentAttempt.kind === 'error') {
+          const error = new Error(currentAttempt.error.message);
+          error.name = 'WorkflowSaveError';
+          Object.assign(error, currentAttempt.error);
+          throw error;
+        }
+
+        return currentSource.save(key, workflow);
+      },
+    };
+  }, attempts);
 }
 
 test.describe('Workflow editor validation rail', () => {
@@ -112,5 +186,114 @@ test.describe('Workflow editor validation rail', () => {
     await page.locator('[data-prism-validation-issue*="declaration-action-0-formDefinitionId"]').click();
     await expect(page.locator('[data-prism-stage-detail="declaration"]')).toBeVisible();
     await expect(actionInput).toBeFocused();
+  });
+
+  test('reports a successful save in plain language', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await configureSaveAttempts(page, [{ kind: 'success' }]);
+
+    await page.locator('[data-prism-save]').click();
+
+    await expect(page.locator('[data-prism-save-error]')).toHaveCount(0);
+    await expect(page.locator('[data-prism-save-status]')).toContainText('Workflow saved.');
+    await expect(page.locator('[data-prism-toast]')).toContainText('Workflow saved.');
+  });
+
+  test('shows structured save failures in plain language', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await configureSaveAttempts(page, [{ kind: 'error', error: structuredSaveFailure }]);
+
+    await page.locator('[data-prism-save]').click();
+
+    const saveError = page.locator('[data-prism-save-error]');
+    await expect(saveError).toBeVisible();
+    await expect(saveError).toContainText(structuredSaveFailure.title);
+    await expect(saveError).toContainText(structuredSaveFailure.summary);
+    await expect(saveError).toContainText('Workflow key did not match the route.');
+    await expect(saveError).toContainText('Fix the workflow key and try again.');
+    await expect(saveError).toContainText(`Reference: ${structuredSaveFailure.traceId}`);
+    await expect(saveError).not.toContainText('InvalidOperationException');
+    await expect(saveError).not.toContainText('SaveWorkflow()');
+    await expect(page.locator('[data-prism-save-status]')).toContainText(
+      structuredSaveFailure.summary
+    );
+  });
+
+  test('keeps save failures visible and copyable for support handoff', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await configureSaveAttempts(page, [{ kind: 'error', error: structuredSaveFailure }]);
+
+    await page.locator('[data-prism-save]').click();
+
+    const saveError = page.locator('[data-prism-save-error]');
+    await expect(saveError).toBeVisible();
+
+    await page.waitForTimeout(3_500);
+    await expect(saveError).toBeVisible();
+    await expect(page.locator('[data-prism-save-error-details]')).toHaveValue(
+      [
+        structuredSaveFailure.title,
+        structuredSaveFailure.summary,
+        'Workflow key did not match the route.',
+        'Fix the workflow key and try again.',
+        'do not expose this detail',
+        `Reference: ${structuredSaveFailure.traceId}`,
+      ].join('\n')
+    );
+
+    await page.locator('[data-prism-copy-save-error]').click();
+    await expect(page.locator('[data-prism-save-error-copy-status]')).toContainText('Save error details copied.');
+
+    const copiedError = await page.evaluate(() =>
+      (window as typeof window & { __prismCopiedSaveError: string }).__prismCopiedSaveError
+    );
+    expect(copiedError).toContain(structuredSaveFailure.title);
+    expect(copiedError).toContain('Workflow key did not match the route.');
+    expect(copiedError).toContain('do not expose this detail');
+    expect(copiedError).toContain(`Reference: ${structuredSaveFailure.traceId}`);
+    expect(copiedError).not.toContain('InvalidOperationException');
+    expect(copiedError).not.toContain('SaveWorkflow()');
+  });
+
+  test('clears the save error surface after a successful retry', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await configureSaveAttempts(page, [
+      { kind: 'error', error: structuredSaveFailure },
+      { kind: 'success' },
+    ]);
+
+    await page.locator('[data-prism-save]').click();
+    await expect(page.locator('[data-prism-save-error]')).toBeVisible();
+
+    await page.locator('[data-prism-save]').click();
+    await expect(page.locator('[data-prism-save-error]')).toHaveCount(0);
+    await expect(page.locator('[data-prism-save-status]')).toContainText('Workflow saved.');
+    await expect(page.locator('[data-prism-toast]')).toContainText('Workflow saved.');
+  });
+
+  test('dismiss button removes the save error surface without needing a retry', async ({ page }) => {
+    await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
+
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await configureSaveAttempts(page, [{ kind: 'error', error: structuredSaveFailure }]);
+
+    await page.locator('[data-prism-save]').click();
+
+    const saveError = page.locator('[data-prism-save-error]');
+    await expect(saveError).toBeVisible();
+    await expect(saveError).toContainText(structuredSaveFailure.title);
+
+    await page.locator('[data-prism-dismiss-save-error]').click();
+
+    await expect(saveError).toHaveCount(0);
+    await expect(page.locator('[data-prism-save-error-copy-status]')).toHaveCount(0);
   });
 });
