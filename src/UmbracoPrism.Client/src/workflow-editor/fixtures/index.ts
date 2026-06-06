@@ -316,3 +316,240 @@ export const PAYMENT_DEMO_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition
     },
   ],
 });
+
+/**
+ * Community Enquiry workflow — migrated to queues/gateways/routes format.
+ * Single-lane (applicant), simple linear flow with one Split gateway.
+ */
+export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
+  definitionKey: 'community-enquiry',
+  displayName: 'Get in Touch',
+  version: 1,
+  description: 'Simple contact workflow for community enquiries.',
+  schemaVersion: '1.0',
+  initialStageKey: 'collecting-details',
+  instancePolicy: 'single',
+  lanes: [
+    { key: 'applicant', title: 'Applicant', actor: 'applicant', roleGates: [] },
+  ],
+  gateways: [
+    {
+      key: 'route-submitted',
+      title: 'Route to submitted',
+      type: 'Split',
+      laneKey: 'applicant',
+      source: 'collecting-details',
+      roleGates: [],
+      routes: [
+        { id: 'collecting-details--submit--submitted', target: 'submitted', trigger: 'submit', actions: [] },
+      ],
+    },
+  ],
+  stages: [
+    {
+      key: 'collecting-details',
+      title: 'Your details',
+      type: 'Question',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+    {
+      key: 'submitted',
+      title: 'Thank you',
+      type: 'Confirmation',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+  ],
+} as unknown as AuthoredWorkflow);
+
+/**
+ * Information Request workflow — migrated to queues/gateways/routes format.
+ * Two-lane (applicant + caseworker) with a Split gateway and a Join gateway.
+ */
+export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
+  definitionKey: 'information-request',
+  displayName: 'Information Request',
+  version: 1,
+  schemaVersion: '1.0',
+  initialStageKey: 'collecting-info',
+  instancePolicy: 'single',
+  lanes: [
+    { key: 'applicant', title: 'Applicant', actor: 'applicant', roleGates: [] },
+    { key: 'caseworker', title: 'Caseworker', actor: 'caseworker', roleGates: [] },
+  ],
+  gateways: [
+    {
+      key: 'request-submitted',
+      title: 'Request submitted',
+      type: 'Split',
+      laneKey: 'applicant',
+      source: 'collecting-info',
+      roleGates: [],
+      routes: [
+        { id: 'collecting-info--submit--review-complete', target: 'review-complete', trigger: 'submit', actions: [] },
+        { id: 'collecting-info--submit--caseworker-review', target: 'caseworker-review', trigger: 'submit', actions: [] },
+      ],
+    },
+    {
+      key: 'caseworker-route',
+      title: 'Route from caseworker review',
+      type: 'Split',
+      laneKey: 'caseworker',
+      source: 'caseworker-review',
+      roleGates: [],
+      routes: [
+        { id: 'caseworker-review--complete-review--review-complete', target: 'review-complete', trigger: 'complete-review', actions: [] },
+      ],
+    },
+    {
+      key: 'review-complete',
+      title: 'Review complete',
+      type: 'Join',
+      laneKey: 'applicant',
+      roleGates: [],
+      waitingInfo: {
+        content: 'We\'ve received your submission and it\'s currently being reviewed.',
+        expectedWaitSeconds: 30,
+        pollIntervalMs: 5000,
+        allowDefer: false,
+      },
+      requiredIncomingLanes: ['applicant', 'caseworker'],
+      routes: [
+        { id: 'review-complete--release--complete', target: 'complete', trigger: 'release', actions: [] },
+      ],
+    },
+  ],
+  stages: [
+    {
+      key: 'collecting-info',
+      title: 'Tell us about yourself',
+      type: 'Question',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+    {
+      key: 'caseworker-review',
+      title: 'Caseworker review',
+      description: 'Caseworker confirms the review outcome before the applicant sees the final status.',
+      type: 'Question',
+      laneKey: 'caseworker',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+    {
+      key: 'complete',
+      title: 'Request Complete',
+      type: 'Confirmation',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+  ],
+} as unknown as AuthoredWorkflow);
+
+/**
+ * Planning Application workflow — migrated to queues/gateways/routes format.
+ * Single-lane (applicant), linear flow through declaration → form → check → submitted.
+ */
+export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefinition({
+  definitionKey: 'planning-application',
+  displayName: 'Planning Application',
+  version: 1,
+  description: 'Standard planning application workflow for submitting and tracking planning permission requests.',
+  schemaVersion: '1.0',
+  initialStageKey: 'declaration',
+  instancePolicy: 'single',
+  lanes: [
+    { key: 'applicant', title: 'Applicant', actor: 'applicant', roleGates: [] },
+  ],
+  gateways: [
+    {
+      key: 'route-application-form',
+      title: 'Route to application form',
+      type: 'Split',
+      laneKey: 'applicant',
+      source: 'declaration',
+      roleGates: [],
+      routes: [
+        { id: 'declaration--continue--application-form', target: 'application-form', trigger: 'continue', actions: [] },
+      ],
+    },
+    {
+      key: 'route-check-answers',
+      title: 'Route to check answers',
+      type: 'Split',
+      laneKey: 'applicant',
+      source: 'application-form',
+      roleGates: [],
+      routes: [
+        { id: 'application-form--continue--check-answers', target: 'check-answers', trigger: 'continue', actions: [] },
+      ],
+    },
+    {
+      key: 'route-submitted',
+      title: 'Route to submitted',
+      type: 'Split',
+      laneKey: 'applicant',
+      source: 'check-answers',
+      roleGates: [],
+      routes: [
+        { id: 'check-answers--submit--submitted', target: 'submitted', trigger: 'submit', actions: [] },
+      ],
+    },
+  ],
+  stages: [
+    {
+      key: 'declaration',
+      title: 'Declaration',
+      description: 'Collects applicant and site identity before the full planning form.',
+      type: 'Question',
+      actor: 'applicant',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+    {
+      key: 'application-form',
+      title: 'Application Form',
+      description: 'Captures the substantive planning request.',
+      type: 'Question',
+      actor: 'applicant',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+    {
+      key: 'check-answers',
+      title: 'Check your answers',
+      description: 'Summarises captured answers before final submission.',
+      type: 'CheckAnswers',
+      actor: 'applicant',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+    {
+      key: 'submitted',
+      title: 'Application submitted',
+      description: 'Confirms receipt and moves the case into reviewer handling.',
+      type: 'Confirmation',
+      actor: 'applicant',
+      laneKey: 'applicant',
+      actions: [],
+      roleGates: [],
+      components: [],
+    },
+  ],
+} as unknown as AuthoredWorkflow);

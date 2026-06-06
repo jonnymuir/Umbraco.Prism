@@ -4,7 +4,7 @@ import './prism-workflow-graph.js';
 import type { PrismWorkflowGraphElement } from './prism-workflow-graph.js';
 import { STUB_WORKFLOW } from './types.js';
 import type { AuthoredWorkflow } from './types.js';
-import { LEAVE_REQUEST_STARTER_WORKFLOW, PAYMENT_DEMO_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
+import { LEAVE_REQUEST_STARTER_WORKFLOW, PAYMENT_DEMO_WORKFLOW, COMMUNITY_ENQUIRY_WORKFLOW, INFORMATION_REQUEST_WORKFLOW, PLANNING_WORKFLOW_MIGRATED, cloneAuthoredWorkflow } from './fixtures/index.js';
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
@@ -448,5 +448,60 @@ export const LargeWorkflow: Story = {
     await el.updateComplete;
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_WORKFLOW.states.length);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Migrated workflow stories — new queues/gateways/routes format
+// ---------------------------------------------------------------------------
+
+export const PlanningMigrated: Story = {
+  name: 'Planning — migrated format',
+  args: { workflow: cloneAuthoredWorkflow(PLANNING_WORKFLOW_MIGRATED) },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 140));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(4);
+    await expect(root.querySelectorAll('[data-prism-role-lane]').length).toBeGreaterThanOrEqual(1);
+    await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(3);
+  },
+};
+
+export const CommunityEnquiry: Story = {
+  name: 'Community Enquiry — migrated format',
+  args: { workflow: cloneAuthoredWorkflow(COMMUNITY_ENQUIRY_WORKFLOW) },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 140));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(2);
+    await expect(root.querySelectorAll('[data-prism-role-lane]').length).toBeGreaterThanOrEqual(1);
+    await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(1);
+  },
+};
+
+export const InformationRequest: Story = {
+  name: 'Information Request — migrated format',
+  args: { workflow: cloneAuthoredWorkflow(INFORMATION_REQUEST_WORKFLOW) },
+  render: (args) => {
+    const el = makeElement(args);
+    el.style.cssText = 'display:block;height:960px;';
+    return el;
+  },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 140));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(3);
+    await expect(root.querySelectorAll('[data-prism-role-lane]').length).toBeGreaterThanOrEqual(2);
+    await expect(root.querySelector('[data-prism-gateway-kind="Split"]')).not.toBeNull();
+    await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
   },
 };

@@ -470,7 +470,7 @@ function normaliseQueueDefinition(rawQueue: Record<string, unknown>): WorkflowQu
   return {
     key,
     queueName: key,
-    displayName: firstString(rawQueue.displayName, rawQueue.key, rawQueue.queueName) ?? key,
+    displayName: firstString(rawQueue.displayName, rawQueue.title, rawQueue.key, rawQueue.queueName) ?? key,
     description: firstString(rawQueue.description),
     actor: firstString(rawQueue.actor),
     roleGates: asStringArray(rawQueue.roleGates),
@@ -576,7 +576,7 @@ function normaliseStage(
   rawGateways: Array<Record<string, unknown>>
 ): AuthoredStage {
   const metadata = asRecord(rawStage.metadata);
-  const stateKey = firstString(rawStage.stateKey, rawStage.stageKey) ?? '';
+  const stateKey = firstString(rawStage.stateKey, rawStage.stageKey, rawStage.key) ?? '';
   const transitionRoutes = rawTransitions
     .filter(transition => firstString(transition.fromState) === stateKey)
     .map(transition => normaliseLegacyTransitionRoute(stateKey, transition));
@@ -603,10 +603,10 @@ function normaliseStage(
 
   return hydrateStage({
     stateKey,
-    displayName: firstString(rawStage.displayName) ?? stateKey,
+    displayName: firstString(rawStage.displayName, rawStage.title) ?? stateKey,
     components: asArray<AuthoredComponent>(rawStage.components),
     description: firstString(rawStage.description, metadata.description),
-    kind: firstString(rawStage.kind, rawStage.stageType, metadata.stageType) as StageKind | undefined,
+    kind: firstString(rawStage.kind, rawStage.stageType, rawStage.type, metadata.stageType) as StageKind | undefined,
     actor: firstString(rawStage.actor, metadata.actor),
     queueKey: resolveQueueKey(rawStage, queueLookup),
     routes,
@@ -628,10 +628,10 @@ function normaliseGateway(
     .map(transition => normaliseLegacyTransitionRoute(key, transition));
   return hydrateGateway({
     key,
-    displayName: firstString(rawGateway.displayName) ?? key,
+    displayName: firstString(rawGateway.displayName, rawGateway.title) ?? key,
     description: firstString(rawGateway.description, metadata.description),
-    gatewayType: firstString(rawGateway.gatewayType, rawGateway.kind) as GatewayKind ?? 'Split',
-    kind: firstString(rawGateway.kind, rawGateway.gatewayType) as GatewayKind ?? 'Split',
+    gatewayType: firstString(rawGateway.gatewayType, rawGateway.kind, rawGateway.type) as GatewayKind ?? 'Split',
+    kind: firstString(rawGateway.kind, rawGateway.gatewayType, rawGateway.type) as GatewayKind ?? 'Split',
     queueKey: resolveQueueKey(rawGateway, queueLookup),
     actor: firstString(rawGateway.actor, metadata.actor),
     roleGates: asStringArray(rawGateway.roleGates ?? metadata.roleGates),
@@ -642,23 +642,29 @@ function normaliseGateway(
       ],
       route => route.id
     ),
-    waitingContent: firstString(rawGateway.waitingContent, asRecord(rawGateway.waiting).content),
+    waitingContent: firstString(rawGateway.waitingContent, asRecord(rawGateway.waiting).content, asRecord(rawGateway.waitingInfo).content),
     waitingExpectedSeconds: typeof rawGateway.waitingExpectedSeconds === 'number'
       ? rawGateway.waitingExpectedSeconds
       : typeof asRecord(rawGateway.waiting).expectedWaitSeconds === 'number'
         ? asRecord(rawGateway.waiting).expectedWaitSeconds as number
-        : undefined,
+        : typeof asRecord(rawGateway.waitingInfo).expectedWaitSeconds === 'number'
+          ? asRecord(rawGateway.waitingInfo).expectedWaitSeconds as number
+          : undefined,
     waitingPollIntervalMs: typeof rawGateway.waitingPollIntervalMs === 'number'
       ? rawGateway.waitingPollIntervalMs
       : typeof asRecord(rawGateway.waiting).pollIntervalMs === 'number'
         ? asRecord(rawGateway.waiting).pollIntervalMs as number
-        : undefined,
+        : typeof asRecord(rawGateway.waitingInfo).pollIntervalMs === 'number'
+          ? asRecord(rawGateway.waitingInfo).pollIntervalMs as number
+          : undefined,
     waitingAllowDefer: typeof rawGateway.waitingAllowDefer === 'boolean'
       ? rawGateway.waitingAllowDefer
       : typeof asRecord(rawGateway.waiting).allowDefer === 'boolean'
         ? asRecord(rawGateway.waiting).allowDefer as boolean
-        : undefined,
-    waitingDeferMessage: firstString(rawGateway.waitingDeferMessage, asRecord(rawGateway.waiting).deferMessage),
+        : typeof asRecord(rawGateway.waitingInfo).allowDefer === 'boolean'
+          ? asRecord(rawGateway.waitingInfo).allowDefer as boolean
+          : undefined,
+    waitingDeferMessage: firstString(rawGateway.waitingDeferMessage, asRecord(rawGateway.waiting).deferMessage, asRecord(rawGateway.waitingInfo).deferMessage),
     requiredIncomingQueues: asStringArray(rawGateway.requiredIncomingQueues ?? rawGateway.requiredIncomingLanes)
       .map(queueKey => queueLookup.get(queueKey) ?? queueKey),
   });
