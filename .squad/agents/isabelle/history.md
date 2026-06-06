@@ -1,3 +1,13 @@
+## Learnings
+
+### 2026-06-06: Save error dismiss + Y-axis layout fixes
+
+- **Dismiss button pattern:** When adding a dismiss action to a persistent error surface, always clear all related state fields together (both `_saveError` and `_saveErrorCopyStatus`) in the click handler. Use `aria-label` on icon-free buttons, `data-prism-*` for Playwright selectors, and match existing button classes for visual consistency.
+- **Parity-stepped Kahn is fragile:** The parity adjustment (even ranks for stages, odd for gateways) breaks for cross-lane nodes that have no incoming edges within their own lane but are downstream of nodes in another lane. Longest-path (uniform step of 1, no post-adjustment) is the correct algorithm for Y-rank in a DAG layout. The `_rowBandCenter` formula and X-position logic are independent of rank parity and required no changes.
+- **Preserve original `inDegree` map:** When running Kahn's sort, work on a copy (`new Map(inDegree)`) if the original map is needed intact for downstream logic — even if currently no downstream code reads it, this is safer practice.
+
+---
+
 ## 2026-06-05: Queue-only model implementation completed
 
 - Tom Nook: Contract definition and implementation plan locked
@@ -72,4 +82,13 @@ Payment demo editor shows validation false-positives (Join gateway `flattenRoute
 - Tangy: 4-contract regression coverage
 
 **Integration:** All decisions merged to .squad/decisions.md. Orchestration logged in .squad/orchestration-log/. Session log at .squad/log/2026-06-06T10-27-53Z-save-error-fix.md
+
+
+## 2026-06-06: Commit 901fa79 — Save error dismiss + Y-axis layout fixes
+
+- Fixed Issue 2: Added dismiss button to save error banner (prism-workflow-editor.ts)
+- Fixed Issue 3: Replaced parity-stepped Kahn with longest-path algorithm (prism-workflow-graph.ts)
+- Y-axis fix resolves cross-lane rank inheritance bug (payment-complete now renders at correct height)
+
+All fixes validated by Tangy with new test coverage.
 

@@ -1807,3 +1807,97 @@ Treat the current payment-demo cleanup as four separate regression contracts:
 - Save error coverage now uses focused Playwright contracts for four user-facing outcomes: successful save, structured save failure, persistent/copyable error reporting, and recovery after retry.
 - The failure fixtures deliberately include stack-trace-shaped noise so the tests prove authors only see sanitised copy plus the support reference id.
 - These checks stay at the workflow editor boundary by swapping the host `workflowSource`, which keeps the regression signal on host/editor save behaviour instead of implementation details.
+
+---
+
+## 2026-06-06 — AllowOutOfOrderMetadataProperties on mockWorkflowJsonOptions
+
+**Author:** Blathers (Backend Dev)  
+**Status:** Accepted
+
+### Context
+
+`workflow-canonical-json.ts`'s `sortKeys()` function sorts all object keys alphabetically before serialising. This moves the `type` discriminator away from first position on `AuthoredComponent` objects (e.g. `body` → `{ content: ..., type: "body" }`). The server's `PrismComponent` uses `[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]`, which by default requires the discriminator to be the **first** property. When it isn't, .NET throws `NotSupportedException`, caught and returned as "Invalid workflow payload".
+
+### Decision
+
+Set `AllowOutOfOrderMetadataProperties = true` on the `JsonSerializerOptions` instance (`mockWorkflowJsonOptions`) used by the `/mockapp/workflows/{key}` PUT endpoint in `MockBusinessApp/Program.cs`.
+
+**Note:** This property is on `JsonSerializerOptions`, not on `JsonPolymorphicAttribute`. The attribute has no such property in .NET 10.0.
+
+### Alternatives Considered
+
+- **Sorting `type` first in the TS serialiser** — fragile, requires ongoing maintenance if new properties are added.
+- **Custom `JsonConverter`** — heavier than necessary; `AllowOutOfOrderMetadataProperties` is the idiomatic solution.
+
+### Consequences
+
+- The deserialiser buffers each component object in memory before committing to a strategy (minor memory overhead on large payloads — acceptable for an authoring-time API).
+- Any future `JsonSerializerOptions` instances used to deserialise `WorkflowDefinitionFile` must also set this flag if they handle polymorphic components.
+- The frontend `sortKeys()` behaviour is left unchanged; the fix is purely server-side.
+
+### Files Changed
+
+- `src/UmbracoPrism.MockBusinessApp/Program.cs` — added `AllowOutOfOrderMetadataProperties = true` to `mockWorkflowJsonOptions`
+
+---
+
+## 2026-06-06 — Workflow Editor Save Error Dismiss + Y-Axis Layout Algorithm
+
+**Author:** Isabelle (Frontend Dev & Accessibility Lead)  
+**Branch:** fix/workflow-editor-save-and-layout  
+**Commit:** 901fa79
+
+### Issue 2: Dismiss button on save error banner
+
+**Decision:** Added a "Dismiss" button to `_renderSaveErrorSurface()` in `prism-workflow-editor.ts` that clears both `_saveError` and `_saveErrorCopyStatus` when clicked. The button carries `aria-label="Dismiss save error"` for screen-reader accessibility and uses the same `toolbar-btn govuk-button govuk-button--secondary` class as the adjacent "Copy details" button for visual consistency. A `data-prism-dismiss-save-error` attribute is included for test selectors.
+
+**Rationale:** The persistent error surface had no exit path for the user — once a save error appeared, it could only be cleared by a successful save. A dismiss action is required so users can acknowledge and clear the error without being forced to retry.
+
+### Issue 3: Y-axis layout algorithm — longest-path replaces parity-stepped Kahn
+
+**Decision:** Replaced the parity-stepped Kahn topological sort in `prism-workflow-graph.ts` with a standard longest-path algorithm. All nodes start at rank 0; each node's rank is propagated as `max(currentRank, parentRank + 1)` with a uniform step of 1. The post-sort parity-adjustment block (which bumped nodes to even/odd ranks based on kind) has been removed entirely.
+
+**Root cause fixed:** The parity adjustment was designed to enforce stage → gateway → stage reading order, but it could assign rank 0 to cross-lane nodes that should have inherited a higher rank from upstream nodes in a different lane. The symptom was `payment-complete` rendering at the top of its lane despite being downstream of several stages.
+
+**Downstream compatibility:** The `rowRank` field on `StageLayout` and `GatewayLayout` objects is now set to the longest-path rank value. The `data-prism-row-rank` attribute (used only for debugging/testing) reflects this. The `_rowBandCenter(rowRank)` helper and all X-position logic are unchanged.
+
+**Trade-off:** Gateways may now share the same row rank as adjacent stages (e.g., rank 1 rather than forced to rank 1 by parity). Visual separation between stages and gateways is maintained by the `ROW_BAND_PITCH` constant (152 px) relative to `NODE_HEIGHT` (128 px), not by row rank parity.
+
+---
+
+## 2026-06-06 — Validation: workflow-editor-save-and-layout fixes
+
+**Author:** Tangy (Tester & Validation Lead)  
+**Verdict:** ✅ APPROVED
+
+### Fix 1 — JSON polymorphism discriminator order (Blathers)
+
+`AllowOutOfOrderMetadataProperties = true` is correctly applied to the `mockWorkflowJsonOptions` instance in `UmbracoPrism.MockBusinessApp/Program.cs`. This options object is used for all three workflow endpoints (list, load, save PUT). The fix is in the right place.
+
+**Coverage gap:** No Storybook-level Playwright test can cover backend JSON deserialization. An API-level test (sending a PUT with `type` not first) would require the live MockBusinessApp to be running — this is excluded from the current Playwright baseline by infrastructure.
+
+### Fix 2 — Save error dismiss button (Isabelle)
+
+Dismiss button confirmed in `prism-workflow-editor.ts` `_renderSaveErrorSurface()`:
+- `aria-label="Dismiss save error"` ✅
+- `data-prism-dismiss-save-error` ✅
+- Click handler: `this._saveError = null; this._saveErrorCopyStatus = null;` ✅
+
+**New test added:** `workflow-editor-validation.spec.ts` — "dismiss button removes the save error surface without needing a retry". Verifies `[data-prism-save-error]` disappears and `[data-prism-save-error-copy-status]` is gone after click. 7/7 tests pass in the validation spec.
+
+### Fix 3 — Y-axis layout algorithm (Isabelle)
+
+Confirmed in `prism-workflow-graph.ts` lines 472–504: parity-stepped Kahn sort replaced with longest-path algorithm. The `ranks.set(nextId, Math.max(..., currentRank + 1))` update guarantees cross-lane nodes get correct ranks. No residual parity (`% 2`) code in the rank assignment path.
+
+**Coverage gap:** Cross-lane node Y-position tests require a running app for pixel-accurate assertions. The existing `graph-layout-proof.spec.ts` is a live-app test and in the known-failing baseline. A visual regression test is the appropriate long-term contract here, but requires infrastructure.
+
+### Baseline failures (pre-existing, not regressions)
+
+20 Playwright tests fail in the full run — all confirmed pre-existing:
+- Walkthrough tests (8) and four-workflow-contract (1): require the live MockBusinessApp to be running.
+- `add-route-affordance` (b/c/d/e): confirmed failing on the baseline branch before these fixes were applied.
+- Other editor tests: confirmed pre-existing failures unrelated to these three fixes.
+
+The 137 passing tests are unaffected by the branch changes.
+

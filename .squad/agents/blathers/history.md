@@ -9,6 +9,22 @@
 
 ---
 
+## Learnings
+
+### 2026-06-06: AllowOutOfOrderMetadataProperties is on JsonSerializerOptions, not JsonPolymorphicAttribute
+
+When fixing the "Invalid workflow payload: Every workflow component must include a supported 'type' value" save error caused by `sortKeys()` moving the `type` discriminator away from first position:
+
+- `AllowOutOfOrderMetadataProperties` does **not** exist on `[JsonPolymorphicAttribute]` in .NET 10 — only `TypeDiscriminatorPropertyName`, `IgnoreUnrecognizedTypeDiscriminators`, and `UnknownDerivedTypeHandling` are present.
+- `AllowOutOfOrderMetadataProperties` is a property of `JsonSerializerOptions` (available since .NET 9).
+- The correct fix is `new JsonSerializerOptions { AllowOutOfOrderMetadataProperties = true, ... }` at the point of deserialization.
+- Enabling this causes the deserialiser to buffer the entire JSON object in memory before committing to a strategy — acceptable overhead for an authoring-time save API.
+- Any future `JsonSerializerOptions` instance used to deserialise `WorkflowDefinitionFile` (which contains polymorphic `PrismComponent` children) must also set this flag.
+
+**Commit:** 74c52c5 on branch `fix/workflow-editor-save-and-layout`
+
+
+
 ## 2026-06-01 — Queue-Model Slice: Runtime Queue Access & Host Boundary
 
 **Session:** queue-model slice  
@@ -85,3 +101,10 @@ Payment demo demonstrates clean division: runtime projects workflow onto admin q
 - Tangy: 4-contract regression coverage
 
 **Integration:** All decisions merged to .squad/decisions.md. Orchestration logged in .squad/orchestration-log/. Session log at .squad/log/2026-06-06T10-27-53Z-save-error-fix.md
+
+## 2026-06-06: Commit 74c52c5 — AllowOutOfOrderMetadataProperties fix
+
+Fixed PrismComponent JSON polymorphic discriminator order issue by setting `AllowOutOfOrderMetadataProperties = true` on `mockWorkflowJsonOptions` in `MockBusinessApp/Program.cs`. Allows alphabetically-sorted TypeScript keys to work with .NET's `JsonPolymorphic` deserializer.
+
+Decision documented and validated by Tangy.
+

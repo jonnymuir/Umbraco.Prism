@@ -33,3 +33,34 @@ See `.squad/decisions.md` and `.squad/log/2026-06-04T21-31-07Z-flattened-workflo
 
 **Integration:** All decisions merged to .squad/decisions.md. Orchestration logged in .squad/orchestration-log/. Session log at .squad/log/2026-06-06T10-27-53Z-save-error-fix.md
 
+## Session: 2026-06-06 Workflow Editor Fix Validation
+
+**Branch:** `fix/workflow-editor-save-and-layout`
+**Status:** ✅ APPROVED
+
+**Validation outcomes:**
+- Backend build: ✅ 0 errors, 7 warnings (pre-existing)
+- Backend tests: ✅ 798/798 passed
+- Frontend build: ✅ No TypeScript errors
+- Playwright: 137 passed, 20 failed (all 20 pre-existing — walkthrough tests need live app, add-route-affordance failures confirmed pre-existing on baseline)
+
+**Fix reviews:**
+- Fix 1 (Blathers — AllowOutOfOrderMetadataProperties): Confirmed at MockBusinessApp/Program.cs line 140, applied to `mockWorkflowJsonOptions` used on the PUT workflow endpoint. No Storybook-level test can cover backend deserialization; the existing shell save test exercises the happy path. Noted as coverage gap for live-app API tests.
+- Fix 2 (Isabelle — Dismiss button): Confirmed at prism-workflow-editor.ts lines 2111–2119 with correct `aria-label` and `data-prism-dismiss-save-error`. Added dismiss contract to `workflow-editor-validation.spec.ts` — 7/7 pass.
+- Fix 3 (Isabelle — Y-axis longest-path): Confirmed parity-stepped code replaced by longest-path algorithm at lines 472–504. Visual/positional cross-lane layout tests require a running app — noted as a coverage gap.
+
+## Learnings
+
+- Pre-existing Playwright failures (add-route-affordance b/c/d/e, walkthrough tests) are infrastructure-dependent — the live MockBusinessApp must be running for walkthrough/four-workflow-contract tests to pass. Confirm this is expected baseline before flagging as regressions.
+- `AllowOutOfOrderMetadataProperties` on a `JsonSerializerOptions` instance (not on the `[JsonPolymorphic]` attribute) is the correct fix pattern for System.Text.Json discriminator ordering in .NET.
+- The dismiss button clears both `_saveError` and `_saveErrorCopyStatus` in one click handler — both should be verified gone in the dismiss contract.
+
+
+## 2026-06-06: Validation workflow-editor-save-and-layout fixes
+
+Validated three coordinated fixes:
+- Blathers: JSON polymorphic discriminator order (backend)
+- Isabelle: Save error dismiss button + Y-axis layout (frontend)
+
+Added new test `workflow-editor-validation.spec.ts` for dismiss button. Confirmed 137 Playwright tests passing, 20 pre-existing failures unrelated to fixes. Verdict: ✅ APPROVED.
+
