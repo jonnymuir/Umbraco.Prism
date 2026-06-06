@@ -19,3 +19,8 @@
 **Session:** Queue-first architecture consolidation
 
 See `.squad/decisions.md` and `.squad/log/2026-06-04T21-31-07Z-flattened-workflow-model.md` for details.
+
+## Session: 2026-06-06 Graph Cleanup Orchestration
+
+Scribe processed team decisions and orchestration from this session's work. All three agents' outcomes documented in decisions.md. Session included payment-demo backend simplification (Blathers), client save path and graph UI fixes (Isabelle), and regression contract clarification (Tangy).
+

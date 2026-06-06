@@ -1718,3 +1718,52 @@ payment-complete (state) — terminal, no routes
 
 ---
 
+
+---
+
+## 2026-06-06T10:27:40.932+01:00 — Payment join cleanup
+
+**Author:** Blathers
+
+- The payment demo no longer needs the extra `confirm-payment-route` split gateway.
+- `confirm-payment-received` now routes straight to the `await-payment-confirmation` join gateway, which preserves the same split/join behaviour with less graph noise.
+- Backend regression coverage now proves three things together: the simplified payment workflow still publishes cleanly, validation accepts direct stage→join routing, and the MockBusinessApp source API can save and reload the simplified payment definition.
+
+---
+
+### 2026-06-06T10:27:40.932+01:00: User directive
+**By:** Jonny Muir (via Copilot)
+**What:** Remove implementation-detail graph copy and unnecessary split/join labels when the visual form already communicates the behaviour; keep the payment workflow as a clean demo and simplify away any unnecessary gateway.
+**Why:** User request — captured for team memory
+
+---
+
+## 2026-06-06T10:27:40.932+01:00 — Graph cleanup and payment demo simplification
+
+**Author:** Isabelle
+
+- The payment demo graph now uses a direct `confirm-payment-received -> await-payment-confirmation` route, so the extra `confirm-payment-route` split gateway is removed from the client fixture and MockBusinessApp seed.
+- Gateway chrome on the graph should stay product-facing: remove visual Split/Join badges and "related routes" meta from the canvas, while keeping gateway type in accessible names and the inspector.
+- Route chips should avoid node collisions, and single-route pills should size to their trigger text instead of truncating it.
+- MockBusinessApp client saves should send canonical workflow JSON (`serializeAuthoredWorkflow`) so the live editor posts the persisted workflow contract rather than the hydrated in-memory shape.
+
+---
+
+## 2026-06-06T10:27:40.932+01:00 — Tangy graph cleanup regression checks
+
+**Author:** Tangy
+
+### Decision
+
+Treat the current payment-demo cleanup as four separate regression contracts:
+
+1. **Save behaviour:** a validation-clean payment demo must keep Save enabled and confirm a successful save, while existing validation tests continue to prove blocking errors disable Save.
+2. **Graph readability:** the payment demo canvas must keep node text readable and node boxes non-overlapping.
+3. **Graph copy cleanup:** once Isabelle removes implementation-detail canvas copy, the payment graph should stop rendering gateway-kind badges and "related route(s)" meta copy.
+4. **Payment route shape:** the core authoring tests now prove the flattened payment contract uses a direct `confirm-payment-received -> await-payment-confirmation` route with no extra confirmation gateway, and the shell still carries a pending canvas contract so the editor fixture/rendering drops any leftover `confirm-payment-route` node.
+
+### Why
+
+- Jonny's directive asks for cleaner graph copy and a simpler payment demo, so Tangy's checks should separate what already works from what is still pending.
+- Keeping the copy-cleanup and shell-side route-shape checks as pending behavioural contracts lets Isabelle finish the graph cleanup without losing the target outcome, while the backend contract stays locked by the new passing authoring test.
+

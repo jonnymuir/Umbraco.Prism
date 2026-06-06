@@ -72,3 +72,8 @@ Payment demo demonstrates clean division: runtime projects workflow onto admin q
 **Team coordination:** Decisions merged from 4 agents into `.squad/decisions.md`
 
 **Blathers contribution:** Flattened backend/runtime onto single workflow definition; removed _instanceLookup cached map; dotnet build and filtered core tests passed.
+
+## Session: 2026-06-06 Graph Cleanup Orchestration
+
+Scribe processed team decisions and orchestration from this session's work. All three agents' outcomes documented in decisions.md. Session included payment-demo backend simplification (Blathers), client save path and graph UI fixes (Isabelle), and regression contract clarification (Tangy).
+
