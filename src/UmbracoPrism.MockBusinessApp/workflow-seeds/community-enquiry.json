@@ -239,8 +239,8 @@
       "queueKey": "web-user",
       "routes": [
         {
-          "id": "route-save-draft--save-draft--collecting-details",
-          "target": "collecting-details",
+          "id": "route-save-draft--save-draft--join-return-to-form",
+          "target": "join-return-to-form",
           "trigger": "save-draft"
         }
       ]
@@ -257,9 +257,22 @@
           "trigger": "approve"
         },
         {
-          "id": "route-from-under-review--request-changes--collecting-details",
-          "target": "collecting-details",
+          "id": "route-from-under-review--request-changes--join-return-to-form",
+          "target": "join-return-to-form",
           "trigger": "request-changes"
+        }
+      ]
+    },
+    {
+      "key": "join-return-to-form",
+      "displayName": "Return to Form",
+      "gatewayType": "Join",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "join-return-to-form--return--collecting-details",
+          "target": "collecting-details",
+          "trigger": "return"
         }
       ]
     }

@@ -479,6 +479,54 @@ export class PrismWorkflowGraphElement extends LitElement {
       addEdge(routedSourceId, targetStageId, index);
     });
 
+    // 2b. Remove backward edges from Join gateways.
+    //     A Join gateway that routes back to an earlier (upstream) stage creates a
+    //     cycle: Kahn's algorithm cannot rank any node in the cycle, so everything
+    //     collapses to rank 0 and the canvas sprawls horizontally.
+    //     We detect these by BFS: for each outgoing edge of a Join gateway,
+    //     check whether the target stage can reach the gateway itself through the
+    //     rest of the graph. If it can, the edge is backward — remove it from the
+    //     adjacency map and decrement inDegree so the target remains a DAG root.
+    //     The edge is still present in the transitions list and rendered as an
+    //     upward-curving rail in the canvas.
+    const joinGatewayIdSet = new Set(
+      gatewayEntries
+        .filter(entry => entry.gateway.gatewayType === 'Join')
+        .map(entry => entry.id)
+    );
+    for (const fromId of joinGatewayIdSet) {
+      const neighbors = adjacency.get(fromId);
+      if (!neighbors) {
+        continue;
+      }
+      for (const toId of [...neighbors]) {
+        // BFS from toId: if we can reach fromId, this edge closes a backward cycle.
+        const visited = new Set<string>();
+        const searchQueue = [toId];
+        let createsCycle = false;
+        while (searchQueue.length > 0 && !createsCycle) {
+          const current = searchQueue.shift()!;
+          if (current === fromId) {
+            createsCycle = true;
+            break;
+          }
+          if (visited.has(current)) {
+            continue;
+          }
+          visited.add(current);
+          adjacency.get(current)?.forEach(next => {
+            if (!visited.has(next)) {
+              searchQueue.push(next);
+            }
+          });
+        }
+        if (createsCycle) {
+          neighbors.delete(toId);
+          inDegree.set(toId, (inDegree.get(toId) ?? 1) - 1);
+        }
+      }
+    }
+
     // 3. Row-rank via longest-path (Kahn's algorithm). Each node's rank is the
     //    length of the longest path from any root to that node, guaranteeing
     //    that if there is an edge A→B then rank(B) > rank(A) regardless of lane.

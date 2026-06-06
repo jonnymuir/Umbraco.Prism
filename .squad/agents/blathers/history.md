@@ -1,3 +1,28 @@
+## 2026-06-06: Cycle Fix — Join Gateway Pattern for Backward Loops
+
+**Branch:** current working branch
+
+### Problem
+community-enquiry.json (and information-request.json) had backward-edge cycles that broke Kahn's longest-path algorithm. Split gateways routing back to the initial state meant no node had in-degree 0, collapsing all nodes to rank 0 and creating horizontal sprawl.
+
+### Fix (two-part)
+
+**Part A — JSON restructure:**
+- Added `join-return-to-form` (Join) gateway to both community-enquiry.json and information-request.json
+- `route-save-draft` and `route-from-under-review` now route to this Join gateway instead of directly back to the initial state
+- Join gateway's route resolves back to initial state (for runtime correctness)
+
+**Part B — Layout algorithm fix (`prism-workflow-graph.ts`):**
+- After building the adjacency graph, detect backward edges from Join gateways using BFS reachability
+- Remove such edges from the ranking graph (so Kahn's sees a DAG and ranks correctly)
+- Backward edges remain in the transitions list for visual rendering as upward curving rails
+
+**Result:** dotnet build ✅, dotnet test 809 passed ✅
+
+Decision documented in `.squad/decisions/inbox/blathers-cycle-fix-community-enquiry.md`.
+
+---
+
 ## 2026-06-06: Gateway Routing Validation + Three Workflow Fixes
 
 **Branch:** current working branch
