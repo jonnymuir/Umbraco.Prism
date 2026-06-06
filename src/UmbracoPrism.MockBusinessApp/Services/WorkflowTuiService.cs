@@ -14,6 +14,10 @@ public sealed class WorkflowTuiService(BusinessAppWorkflowEngine engine) : Backg
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Skip TUI in non-interactive environments (CI, Aspire, containers, etc.)
+        if (Console.IsInputRedirected)
+            return;
+
         // Let host startup messages settle before printing the banner.
         await Task.Delay(1500, stoppingToken).ConfigureAwait(false);
 
