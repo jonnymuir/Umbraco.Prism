@@ -8,6 +8,25 @@
 
 ---
 
+### 2026-06-06: Y-axis cycle bug (Join gateway backward edge) + field-binding roundtrip guard
+
+**Commit:** 97061d8
+
+#### Y-axis root cause
+The `_layout` getter in `prism-workflow-graph.ts` derived a Join gateway's `anchorStageKey` from `deriveGatewayBindings` — but in the new routes model the anchor is always an *upstream* stage (one of the stages that feed into the join), not the downstream merge target. The gateway entries adjacency loop then called `addEdge(gateway:join, stage:anchor)` — a **backward edge**. Combined with the natural forward edge `stage:anchor → gateway:join` from the transitions loop, this created a cycle. Kahn's algorithm cannot rank cyclic subgraphs, so every node in the cycle (and all nodes reachable only from it) stayed at rank 0, placing them all at the same Y coordinate.
+
+**Secondary bug:** The `joinGatewayKeyByAnchorStage.get(transition.toStage)` fallback in the transitions loop mapped upstream stages to their join gateway, incorrectly intercepting routes to regular stages and adding more backward edges. The same anchor-based lookup in `transitionLayouts` was drawing transition chips through the wrong gateway.
+
+**Fix:** Removed the `addEdge` for Join gateways in the gateway entries loop. Removed the `joinGatewayKeyByAnchorStage.get(…)` fallback from the transitions loop. Removed the `joinLayoutByAnchorStage.get(…)` fallback from `transitionLayouts`. The correct downstream edges are already built by the transitions loop from each gateway's own `routes`.
+
+**Pattern to remember:** When deriving a Join gateway's "anchor" for adjacency, the anchor is upstream (a feeder stage), not downstream. Never use the upstream anchor as the target of an outgoing edge from the join.
+
+#### Field-binding roundtrip guard
+Added `EditorCanonicalJsonRoundtripTests` to `SeedFileRoundtripTests.cs`. Verifies that editor-canonical JSON (keys sorted alphabetically, `"type"` discriminator appearing *after* sibling properties like `"label"`, `"fieldKey"`, `"required"`) deserialises correctly through `AllowOutOfOrderMetadataProperties = true` and preserves label edits end-to-end. Confirmed `.NET 10` handles out-of-order discriminators natively with that option.
+
+---
+
+
 ## 2026-06-05: Queue-only model implementation completed
 
 - Tom Nook: Contract definition and implementation plan locked
