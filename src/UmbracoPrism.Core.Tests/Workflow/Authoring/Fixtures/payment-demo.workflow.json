@@ -48,22 +48,6 @@
       ]
     },
     {
-      "key": "confirm-payment-route",
-      "title": "Record payment confirmation",
-      "type": "Split",
-      "queueKey": "business-user",
-      "roleGates": [],
-      "routes": [
-        {
-          "id": "confirm-payment-route--confirm--await-payment-confirmation",
-          "target": "await-payment-confirmation",
-          "trigger": "confirm",
-          "requiresRole": "reviewer",
-          "actions": []
-        }
-      ]
-    },
-    {
       "key": "submit-payment",
       "title": "Submit payment → notify back-office",
       "type": "Split",
@@ -171,8 +155,8 @@
       ],
       "routes": [
         {
-          "id": "confirm-payment-received--confirm--confirm-payment-route",
-          "target": "confirm-payment-route",
+          "id": "confirm-payment-received--confirm--await-payment-confirmation",
+          "target": "await-payment-confirmation",
           "trigger": "confirm",
           "actions": []
         }

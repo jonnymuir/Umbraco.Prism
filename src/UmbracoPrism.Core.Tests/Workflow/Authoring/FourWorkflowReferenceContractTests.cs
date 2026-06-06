@@ -2,6 +2,8 @@ extern alias MockBusinessApp;
 
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -147,6 +149,57 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
 
         sourceKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
             because: "both surfaces must show exactly the 4 canonical workflows");
+    }
+
+    [Fact]
+    public async Task SourceApi_SaveAcceptsPaymentWorkflowWithoutIntermediateConfirmationGateway()
+    {
+        var existing = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
+        existing.Should().NotBeNull();
+
+        var updated = existing! with
+        {
+            States = existing.States.Select(state => state.StateKey == "confirm-payment-received"
+                ? state with
+                {
+                    Routes =
+                    [
+                        new WorkflowRouteDefinition
+                        {
+                            Id = "confirm-payment-received--confirm--await-payment-confirmation",
+                            Target = "await-payment-confirmation",
+                            Trigger = "confirm",
+                            RequiresRole = "reviewer"
+                        }
+                    ]
+                }
+                : state).ToArray(),
+            Gateways = existing.Gateways!
+                .Where(gateway => gateway.Key != "confirm-payment-route")
+                .ToArray()
+        };
+
+        try
+        {
+            using var content = new StringContent(JsonSerializer.Serialize(updated), Encoding.UTF8, "application/json");
+            var save = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
+
+            save.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+            var reloaded = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
+            reloaded.Should().NotBeNull();
+            reloaded!.States.Single(state => state.StateKey == "confirm-payment-received")
+                .Routes.Should().ContainSingle(route =>
+                    route.Target == "await-payment-confirmation"
+                    && route.Trigger == "confirm");
+            reloaded.Gateways.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
+        }
+        finally
+        {
+            using var restore = new StringContent(JsonSerializer.Serialize(existing), Encoding.UTF8, "application/json");
+            var restored = await _client.PutAsync("/mockapp/workflows/payment-demo", restore);
+            restored.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        }
     }
 
     /// <summary>

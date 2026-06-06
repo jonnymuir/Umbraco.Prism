@@ -261,8 +261,8 @@ export const PAYMENT_DEMO_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition
       roleGates: ['reviewer'],
       routes: [
         {
-          id: 'confirm-payment-received--confirm--confirm-payment-route',
-          target: 'confirm-payment-route',
+          id: 'confirm-payment-received--confirm--await-payment-confirmation',
+          target: 'await-payment-confirmation',
           trigger: 'confirm',
           requiresRole: 'reviewer',
           actions: [],
@@ -294,18 +294,6 @@ export const PAYMENT_DEMO_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition
       routes: [
         { id: 'submit-payment--submit--await-payment-confirmation', target: 'await-payment-confirmation', trigger: 'submit', actions: [] },
         { id: 'submit-payment--submit--confirm-payment-received', target: 'confirm-payment-received', trigger: 'submit', actions: [] },
-      ],
-    },
-    {
-      key: 'confirm-payment-route',
-      displayName: 'Record payment confirmation',
-      gatewayType: 'Split',
-      kind: 'Split',
-      queueKey: 'business-user',
-      actor: 'reviewer',
-      roleGates: ['reviewer'],
-      routes: [
-        { id: 'confirm-payment-route--confirm--await-payment-confirmation', target: 'await-payment-confirmation', trigger: 'confirm', requiresRole: 'reviewer', actions: [] },
       ],
     },
     {

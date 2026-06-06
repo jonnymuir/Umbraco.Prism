@@ -206,4 +206,71 @@ public class AuthoredWorkflowValidationTests
 
         result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ120");
     }
+
+    [Fact]
+    public void Project_StageRouteCanTargetJoinGatewayDirectly()
+    {
+        var result = _projector.Project(new AuthoredWorkflow
+        {
+            DefinitionKey = "payment-validation-test",
+            DisplayName = "Payment Validation Test",
+            InitialStageKey = "enter-details",
+            Queues =
+            [
+                new AuthoredQueue { Key = "web-user", DisplayName = "Applicant" },
+                new AuthoredQueue { Key = "business-user", DisplayName = "Payments" }
+            ],
+            Gateways =
+            [
+                new AuthoredGateway
+                {
+                    GatewayKey = "submit-payment",
+                    DisplayName = "Submit payment",
+                    Kind = GatewayKind.Split,
+                    QueueKey = "web-user",
+                    Routes =
+                    [
+                        new AuthoredRoute { Id = "submit-to-join", Target = "await-payment-confirmation", Trigger = "submit" },
+                        new AuthoredRoute { Id = "submit-to-confirm", Target = "confirm-payment-received", Trigger = "submit" }
+                    ]
+                },
+                new AuthoredGateway
+                {
+                    GatewayKey = "await-payment-confirmation",
+                    DisplayName = "Await payment confirmation",
+                    Kind = GatewayKind.Join,
+                    QueueKey = "web-user",
+                    WaitingInfo = new WaitingMetadata { Content = "Waiting for payment confirmation." },
+                    RequiredIncomingQueues = ["web-user", "business-user"],
+                    Routes = [new AuthoredRoute { Id = "release", Target = "payment-complete", Trigger = "release" }]
+                }
+            ],
+            Stages =
+            [
+                new AuthoredStage
+                {
+                    StageKey = "enter-details",
+                    DisplayName = "Enter details",
+                    QueueKey = "web-user",
+                    Routes = [new AuthoredRoute { Id = "enter-submit", Target = "submit-payment", Trigger = "submit" }]
+                },
+                new AuthoredStage
+                {
+                    StageKey = "confirm-payment-received",
+                    DisplayName = "Confirm payment received",
+                    QueueKey = "business-user",
+                    Routes = [new AuthoredRoute { Id = "confirm-join", Target = "await-payment-confirmation", Trigger = "confirm" }]
+                },
+                new AuthoredStage
+                {
+                    StageKey = "payment-complete",
+                    DisplayName = "Payment complete",
+                    QueueKey = "web-user"
+                }
+            ]
+        });
+
+        result.HasErrors.Should().BeFalse();
+        result.Diagnostics.Select(d => d.Code).Should().NotContain(new[] { "PROJ138", "PROJ150", "PROJ157" });
+    }
 }

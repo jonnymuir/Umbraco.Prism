@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { measureGraph, rectanglesOverlap } from './support/canvas-helpers';
 
 function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
@@ -8,6 +9,15 @@ async function waitForWorkflowLoad(page: Page, workflowKey: string): Promise<voi
   await expect(page.locator('prism-workflow-editor')).toHaveAttribute('data-prism-workflow-loaded', workflowKey, {
     timeout: 30_000,
   });
+}
+
+async function loadPaymentDemo(page: Page): Promise<void> {
+  await page.goto(storyUrl('workflow-editor-editor-shell--reference-shell'));
+
+  const selector = page.getByRole('combobox', { name: 'Select workflow' });
+  await expect(selector).toBeVisible();
+  await selector.selectOption('payment-demo');
+  await waitForWorkflowLoad(page, 'payment-demo');
 }
 
 test.describe('Workflow editor shell proof', () => {
@@ -80,23 +90,147 @@ test.describe('Workflow editor shell proof', () => {
     await expect(editor.locator('[data-prism-stage="review-response-pack"]')).toBeVisible();
   });
 
-  test('payment demo uses host-provided queues and stays validation-clean in the editor', async ({ page }) => {
-    await page.goto(storyUrl('workflow-editor-editor-shell--reference-shell'));
+  test('payment demo uses host-provided queues, stays validation-clean, and can still save', async ({ page }) => {
+    await loadPaymentDemo(page);
 
-    const selector = page.getByRole('combobox', { name: 'Select workflow' });
     const editor = page.locator('prism-workflow-editor');
-
-    await selector.selectOption('payment-demo');
-    await waitForWorkflowLoad(page, 'payment-demo');
 
     await expect(editor.locator('.editor-title')).toHaveText('Payment Demo');
     await expect(editor.locator('[data-prism-stage="confirm-payment-received"]')).toHaveAttribute(
       'aria-label',
       'Confirm payment received, Payments team queue'
     );
+    await expect(editor.locator('[data-prism-save]')).toBeEnabled();
+
+    await editor.locator('[data-prism-save]').click();
+    await expect(editor.locator('[data-prism-toast]')).toContainText('Workflow saved.');
+    await expect(editor.locator('[data-prism-save]')).toBeEnabled();
 
     await page.getByRole('tab', { name: 'Validation' }).click();
     await expect(page.locator('[data-prism-validation-issue]')).toHaveCount(0);
+    await expect(page.locator('[data-prism-save-status]')).toContainText('Workflow saved.');
+  });
+
+  test.fixme('payment demo graph keeps node copy readable without overlap', async ({ page }) => {
+    await loadPaymentDemo(page);
+
+    const geometry = await measureGraph(page);
+    expect(geometry.nodes.length).toBeGreaterThan(0);
+
+    for (let index = 0; index < geometry.nodes.length; index += 1) {
+      for (let nextIndex = index + 1; nextIndex < geometry.nodes.length; nextIndex += 1) {
+        const left = geometry.nodes[index];
+        const right = geometry.nodes[nextIndex];
+        expect(
+          rectanglesOverlap(left, right),
+          `"${left.label || left.key}" overlaps "${right.label || right.key}" in the payment demo graph.`,
+        ).toBe(false);
+      }
+    }
+
+    const routeChipRects = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+      const root = (graphElement as HTMLElement).shadowRoot;
+      if (!root) {
+        throw new Error('Graph shadow root not found');
+      }
+
+      const scene = root.querySelector<HTMLElement>('.graph-scene');
+      if (!scene) {
+        throw new Error('Graph scene not found');
+      }
+
+      const sceneRect = scene.getBoundingClientRect();
+      const rel = (rect: DOMRect) => ({
+        left: rect.left - sceneRect.left,
+        right: rect.right - sceneRect.left,
+        top: rect.top - sceneRect.top,
+        bottom: rect.bottom - sceneRect.top,
+      });
+
+      return Array.from(root.querySelectorAll<HTMLElement>('[data-prism-transition]'))
+        .map(chip => ({
+          label: chip.textContent?.trim() ?? '',
+          ...rel(chip.getBoundingClientRect()),
+        }));
+    });
+
+    for (const chip of routeChipRects) {
+      for (const node of geometry.nodes) {
+        expect(
+          rectanglesOverlap(chip, node),
+          `Route label "${chip.label}" overlaps "${node.label || node.key}" in the payment demo graph.`,
+        ).toBe(false);
+      }
+    }
+
+    const textMetrics = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+      const root = (graphElement as HTMLElement).shadowRoot;
+      if (!root) {
+        throw new Error('Graph shadow root not found');
+      }
+
+      return Array.from(root.querySelectorAll<HTMLElement>('.node-label, .pill-trigger'))
+        .map(element => ({
+          text: element.textContent?.trim() ?? '',
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+        }))
+        .filter(metric => metric.text.length > 0);
+    });
+
+    expect(textMetrics.length).toBeGreaterThan(0);
+    for (const metric of textMetrics) {
+      expect(
+        metric.scrollWidth,
+        `"${metric.text}" is clipped in the payment demo graph.`,
+      ).toBeLessThanOrEqual(metric.clientWidth + 1);
+    }
+  });
+
+  test('payment demo graph copy stays product-facing and drops implementation-detail gateway badges', async ({ page }) => {
+    await loadPaymentDemo(page);
+
+    const graphCopy = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+      const root = (graphElement as HTMLElement).shadowRoot;
+      if (!root) {
+        throw new Error('Graph shadow root not found');
+      }
+
+      return {
+        subtitle: root.querySelector('.workflow-subtitle')?.textContent?.trim() ?? '',
+        hint: root.querySelector('.graph-hint')?.textContent?.trim() ?? '',
+        roledescription: root.querySelector('.graph-canvas')?.getAttribute('aria-roledescription') ?? '',
+        gatewayBadges: Array.from(root.querySelectorAll<HTMLElement>('.gateway-kind-badge')).map(element => element.textContent?.trim() ?? ''),
+        metaCopy: Array.from(root.querySelectorAll<HTMLElement>('.node-meta')).map(element => element.textContent?.trim() ?? ''),
+      };
+    });
+
+    expect(graphCopy.subtitle).toBe('Visual workflow map');
+    expect(graphCopy.hint).not.toContain('queue-owned stages');
+    expect(graphCopy.hint).not.toContain('outgoing routes');
+    expect(graphCopy.roledescription).toBe('Workflow graph editor');
+    expect(graphCopy.gatewayBadges).toEqual([]);
+    expect(graphCopy.metaCopy.join(' ')).not.toContain('related route');
+    expect(graphCopy.metaCopy.join(' ')).not.toContain('Split gateway');
+    expect(graphCopy.metaCopy.join(' ')).not.toContain('Join gateway');
+  });
+
+  test('payment demo canvas removes the extra confirmation route gateway once the route shape is simplified', async ({ page }) => {
+    await loadPaymentDemo(page);
+
+    const graph = page.locator('prism-workflow-graph');
+    await expect(graph.locator('[data-prism-gateway]')).toHaveCount(2);
+    await expect(graph.locator('[data-prism-gateway="confirm-payment-route"]')).toHaveCount(0);
+  });
+
+  test('payment demo graph visual cleanup stays stable', async ({ page }) => {
+    await loadPaymentDemo(page);
+
+    const graph = page.locator('prism-workflow-graph');
+    await expect(graph).toHaveScreenshot('payment-demo-cleanup.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.02,
+    });
   });
 
   test('graph-canvas is the scrollable region while shell chrome stays anchored', async ({ page }) => {

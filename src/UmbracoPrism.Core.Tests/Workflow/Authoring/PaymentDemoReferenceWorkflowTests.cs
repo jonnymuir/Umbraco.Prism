@@ -35,6 +35,9 @@ public class PaymentDemoReferenceWorkflowTests
             .Should().Be(MockReferenceWorkflowQueues.BusinessUser);
         definition.States.Single(state => state.StateKey == "enter-details").Routes.Should().ContainSingle(route =>
             route.Target == "submit-payment" && route.Trigger == "submit");
+        definition.States.Single(state => state.StateKey == "confirm-payment-received").Routes.Should().ContainSingle(route =>
+            route.Target == "await-payment-confirmation" && route.Trigger == "confirm");
+        definition.Gateways!.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
 
         var joinGateway = definition.Gateways!.Single(gateway => gateway.Key == "await-payment-confirmation");
         joinGateway.QueueKey.Should().Be(MockReferenceWorkflowQueues.WebUser);
@@ -123,6 +126,23 @@ public class PaymentDemoReferenceWorkflowTests
         afterConfirmation.Render!.StateDisplayName.Should().Be("Payment complete");
         afterConfirmation.Render.Components.Should().Contain(component =>
             component.Type == "panel" && component.Heading == "Payment confirmed");
+    }
+
+    [Fact]
+    public void PaymentDemo_UsesDirectConfirmationRoute_WithoutExtraConfirmationGateway()
+    {
+        var definition = MockReferenceWorkflowRepository.GetReferenceWorkflows()
+            .Single(workflow => workflow.Key == "payment-demo")
+            .Value;
+
+        definition.Gateways.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
+        definition.Gateways.Should().HaveCount(2);
+
+        definition.States.Single(state => state.StateKey == "confirm-payment-received")
+            .Routes.Should().ContainSingle(route =>
+                route.Target == "await-payment-confirmation"
+                && route.Trigger == "confirm"
+                && route.RequiresRole == "reviewer");
     }
 
     [Fact]

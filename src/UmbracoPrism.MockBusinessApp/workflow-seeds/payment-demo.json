@@ -130,8 +130,8 @@
       ],
       "routes": [
         {
-          "id": "confirm-payment-received--confirm--confirm-payment-route",
-          "target": "confirm-payment-route",
+          "id": "confirm-payment-received--confirm--await-payment-confirmation",
+          "target": "await-payment-confirmation",
           "trigger": "confirm",
           "requiresRole": "reviewer"
         }
@@ -177,20 +177,6 @@
           "id": "submit-payment--submit--confirm-payment-received",
           "target": "confirm-payment-received",
           "trigger": "submit"
-        }
-      ]
-    },
-    {
-      "key": "confirm-payment-route",
-      "displayName": "Record payment confirmation",
-      "gatewayType": "Split",
-      "queueKey": "business-user",
-      "routes": [
-        {
-          "id": "confirm-payment-route--confirm--await-payment-confirmation",
-          "target": "await-payment-confirmation",
-          "trigger": "confirm",
-          "requiresRole": "reviewer"
         }
       ]
     },

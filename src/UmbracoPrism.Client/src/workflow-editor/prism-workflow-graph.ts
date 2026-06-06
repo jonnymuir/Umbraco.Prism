@@ -91,6 +91,7 @@ type TransitionLayout = {
   visualToKey: string;
   branch: boolean;
   merge: boolean;
+  showLabel: boolean;
 };
 
 /**
@@ -177,7 +178,10 @@ const LANE_INSET = 28;
 const SLOT_GAP = 56;
 const EDGE_LABEL_WIDTH = 132;
 const EDGE_LABEL_HEIGHT = 32;
-const GATEWAY_SIZE = 104;
+const GATEWAY_SIZE = 132;
+const GATEWAY_PILL_HEIGHT = 40;
+const GATEWAY_PILL_MIN_WIDTH = 104;
+const GATEWAY_PILL_MAX_WIDTH = 208;
 // Trunk length below/above a gateway diamond before a rail bends sideways.
 // Keeps incoming branch rails terminating at the join's edge instead of
 // running through the join body.
@@ -541,10 +545,12 @@ export class PrismWorkflowGraphElement extends LitElement {
       const rows = nodesByLaneRow.get(laneKey);
       let widestRow = LANE_WIDTH;
       rows?.forEach(items => {
-        const contentWidth = items.reduce(
-          (sum, item) => sum + (item.kind === 'stage' ? NODE_WIDTH : GATEWAY_SIZE),
-          0
-        );
+        const contentWidth = items.reduce((sum, item) => {
+          if (item.kind === 'stage') {
+            return sum + NODE_WIDTH;
+          }
+          return sum + this._gatewaySize(item.gatewayEntry.gateway).width;
+        }, 0);
         widestRow = Math.max(
           widestRow,
           LANE_INSET * 2 + contentWidth + Math.max(items.length - 1, 0) * SLOT_GAP
@@ -590,17 +596,20 @@ export class PrismWorkflowGraphElement extends LitElement {
           const orderedItems = [...items].sort(
             (left, right) => (nodeOrder.get(left.id) ?? 0) - (nodeOrder.get(right.id) ?? 0)
           );
-          const contentWidth = orderedItems.reduce(
-            (sum, item) => sum + (item.kind === 'stage' ? NODE_WIDTH : GATEWAY_SIZE),
-            0
-          );
+          const contentWidth = orderedItems.reduce((sum, item) => {
+            if (item.kind === 'stage') {
+              return sum + NODE_WIDTH;
+            }
+            return sum + this._gatewaySize(item.gatewayEntry.gateway).width;
+          }, 0);
           const totalWidth = contentWidth + Math.max(orderedItems.length - 1, 0) * SLOT_GAP;
           let cursorX = lane.x + (lane.width - totalWidth) / 2;
           const bandCenter = this._rowBandCenter(rowRank);
 
           orderedItems.forEach(item => {
-            const width = item.kind === 'stage' ? NODE_WIDTH : GATEWAY_SIZE;
-            const height = item.kind === 'stage' ? NODE_HEIGHT : GATEWAY_SIZE;
+            const gatewaySize = item.kind === 'gateway' ? this._gatewaySize(item.gatewayEntry.gateway) : null;
+            const width = item.kind === 'stage' ? NODE_WIDTH : gatewaySize!.width;
+            const height = item.kind === 'stage' ? NODE_HEIGHT : gatewaySize!.height;
             const y = bandCenter - height / 2;
             if (item.kind === 'stage') {
               stageLayouts.push({
@@ -744,6 +753,7 @@ export class PrismWorkflowGraphElement extends LitElement {
           visualToKey: transition.toGateway ?? transition.toStage,
           branch: false,
           merge: false,
+          showLabel: false,
         };
       }
 
@@ -769,6 +779,71 @@ export class PrismWorkflowGraphElement extends LitElement {
         visualToKey: targetGateway?.gateway.key ?? transition.toStage,
         branch: Boolean(sourceGateway?.gateway.gatewayType === 'Split'),
         merge: Boolean(targetGateway?.gateway.gatewayType === 'Join'),
+        showLabel: true,
+      };
+    });
+
+    const occupiedRects = [
+      ...stageLayouts.map(layout => ({
+        left: layout.x - 8,
+        right: layout.x + layout.width + 8,
+        top: layout.y - 8,
+        bottom: layout.y + layout.height + 8,
+      })),
+      ...gatewayLayouts.map(layout => ({
+        left: layout.x - 8,
+        right: layout.x + layout.width + 8,
+        top: layout.y - 8,
+        bottom: layout.y + layout.height + 8,
+      })),
+    ];
+    const placedLabelRects: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+    const resolvedTransitionLayouts = transitionLayouts.map((layout, index) => {
+      if (!layout.showLabel || !layout.path) {
+        return layout;
+      }
+
+      const offsets = [0, -44, 44, -88, 88, -132, 132];
+      for (const offset of offsets) {
+        const candidate = {
+          left: layout.labelX - EDGE_LABEL_WIDTH / 2,
+          right: layout.labelX + EDGE_LABEL_WIDTH / 2,
+          top: layout.labelY - EDGE_LABEL_HEIGHT / 2 + offset,
+          bottom: layout.labelY + EDGE_LABEL_HEIGHT / 2 + offset,
+        };
+        const overlapsNode = occupiedRects.some(rect =>
+          rect.left < candidate.right
+          && candidate.left < rect.right
+          && rect.top < candidate.bottom
+          && candidate.top < rect.bottom
+        );
+        const overlapsLabel = placedLabelRects.some(rect =>
+          rect.left < candidate.right
+          && candidate.left < rect.right
+          && rect.top < candidate.bottom
+          && candidate.top < rect.bottom
+        );
+        if (overlapsNode || overlapsLabel) {
+          continue;
+        }
+
+        placedLabelRects.push(candidate);
+        return {
+          ...layout,
+          labelY: layout.labelY + offset,
+        };
+      }
+
+      const fallbackOffset = index % 2 === 0 ? -44 : 44;
+      placedLabelRects.push({
+        left: layout.labelX - EDGE_LABEL_WIDTH / 2,
+        right: layout.labelX + EDGE_LABEL_WIDTH / 2,
+        top: layout.labelY - EDGE_LABEL_HEIGHT / 2 + fallbackOffset,
+        bottom: layout.labelY + EDGE_LABEL_HEIGHT / 2 + fallbackOffset,
+      });
+      return {
+        ...layout,
+        labelY: layout.labelY + fallbackOffset,
       };
     });
 
@@ -787,7 +862,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       roleLanes,
       stageLayouts,
       gatewayLayouts,
-      transitionLayouts,
+      transitionLayouts: resolvedTransitionLayouts,
       visualRouteLayouts,
     };
   }
@@ -826,6 +901,23 @@ export class PrismWorkflowGraphElement extends LitElement {
 
   private _rowBandCenter(rowRank: number) {
     return TOP_PADDING + LANE_HEADER_OFFSET + NODE_HEIGHT / 2 + rowRank * ROW_BAND_PITCH;
+  }
+
+  private _isPillGateway(gateway: AuthoredGateway) {
+    return gateway.gatewayType === 'Split' && (gateway.routes ?? []).length === 1;
+  }
+
+  private _gatewaySize(gateway: AuthoredGateway) {
+    if (!this._isPillGateway(gateway)) {
+      return { width: GATEWAY_SIZE, height: GATEWAY_SIZE };
+    }
+
+    const pillLabel = (gateway.routes ?? [])[0]?.trigger?.trim() || gateway.displayName;
+    const estimatedWidth = 44 + pillLabel.length * 8;
+    return {
+      width: Math.max(GATEWAY_PILL_MIN_WIDTH, Math.min(GATEWAY_PILL_MAX_WIDTH, estimatedWidth)),
+      height: GATEWAY_PILL_HEIGHT,
+    };
   }
 
   /**
@@ -932,20 +1024,28 @@ export class PrismWorkflowGraphElement extends LitElement {
     if (points.length === 0) {
       return { x: 0, y: 0 };
     }
-    let best = { length: 0, x: points[0].x, y: points[0].y };
+    let bestHorizontal = { length: 0, x: points[0].x, y: points[0].y };
+    let bestAny = { length: 0, x: points[0].x, y: points[0].y };
     for (let index = 1; index < points.length; index += 1) {
       const previous = points[index - 1];
       const current = points[index];
-      const length = Math.abs(current.x - previous.x) + Math.abs(current.y - previous.y);
-      if (length < best.length) {
-        continue;
-      }
-      best = {
-        length,
+      const deltaX = Math.abs(current.x - previous.x);
+      const deltaY = Math.abs(current.y - previous.y);
+      const length = deltaX + deltaY;
+      const midpoint = {
         x: previous.x + (current.x - previous.x) / 2,
         y: previous.y + (current.y - previous.y) / 2,
       };
+
+      if (length >= bestAny.length) {
+        bestAny = { length, ...midpoint };
+      }
+
+      if (deltaY < 0.5 && deltaX >= EDGE_LABEL_WIDTH + 16 && length >= bestHorizontal.length) {
+        bestHorizontal = { length, ...midpoint };
+      }
     }
+    const best = bestHorizontal.length > 0 ? bestHorizontal : bestAny;
     return { x: best.x, y: best.y };
   }
 
@@ -2089,8 +2189,8 @@ export class PrismWorkflowGraphElement extends LitElement {
 
       <p class="graph-hint">
         ${this.readOnly
-          ? 'Tab through queue bands and stage cards. Enter selects, arrow keys move between stages.'
-          : 'Tab through queue bands, stage cards, and gateway nodes. Enter selects a node, E opens the inspector to edit it (including a gateway\u2019s outgoing routes), and Shift+F10 opens the context menu.'}
+          ? 'Tab through queues and stages. Enter selects, and arrow keys move between stages.'
+          : 'Tab through queues, stages, routes, and gateways. Enter selects, E opens details, and Shift+F10 opens the menu.'}
       </p>
 
       ${isEmpty
@@ -2100,7 +2200,7 @@ export class PrismWorkflowGraphElement extends LitElement {
             role="application"
             tabindex="0"
             aria-label=${`Workflow graph canvas — ${this.workflow?.displayName ?? 'workflow'}`}
-            aria-roledescription=${this.readOnly ? 'Queue-first workflow viewer' : 'Queue-first workflow editor workspace'}
+            aria-roledescription=${this.readOnly ? 'Workflow graph viewer' : 'Workflow graph editor'}
             @click=${() => this._dismissContextMenu(false)}
             @contextmenu=${this.readOnly ? nothing : (event: MouseEvent) => this._openContextMenu(event, { kind: 'canvas' })}
           >
@@ -2168,7 +2268,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                 ${dragPath ? svg`<path class="edge-path draft" d=${dragPath}></path>` : nothing}
               </svg>
 
-              ${transitionLayouts.map(layout => layout.path ? html`
+              ${transitionLayouts.map(layout => layout.path && layout.showLabel ? html`
                 <button
                   type="button"
                   class=${`edge-chip ${layout.branch ? 'branch-path' : ''} ${layout.merge ? 'merge-path' : ''} ${this._selectedTransitionIndex === layout.index ? 'selected' : ''} ${this._transitionIsInSimulationPath(layout.index) ? 'simulation-path' : ''}`}
@@ -2189,7 +2289,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
               ${gatewayLayouts.map(layout => {
                 const routeCount = (layout.gateway.routes ?? []).length;
-                const isPill = layout.gateway.gatewayType === 'Split' && routeCount === 1;
+                const isPill = this._isPillGateway(layout.gateway);
                 const shapeClass = isPill ? 'shape-pill' : 'shape-diamond';
                 const route = isPill ? (layout.gateway.routes ?? [])[0] : null;
                 const triggerLabel = route?.trigger ?? '';
@@ -2223,9 +2323,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                           ${hasCondition ? html`<span class="pill-condition" aria-label="conditional route" title="${route?.condition ?? ''}">•</span>` : nothing}
                         `
                       : html`
-                          <span class="gateway-kind-badge">${layout.gateway.gatewayType} gateway</span>
                           <span class="node-label">${layout.gateway.displayName}</span>
-                          <span class="node-meta">${layout.binding.relatedTransitionIndices.length} related route${layout.binding.relatedTransitionIndices.length === 1 ? '' : 's'}</span>
                         `}
                   </button>
                 </div>
@@ -2303,7 +2401,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         <div class="toolbar">
           <div class="toolbar-title-block">
             <span class="workflow-title">${this.workflow?.displayName ?? 'No workflow loaded'}</span>
-            <span class="workflow-subtitle">${this.readOnly ? 'Published workflow — read-only viewer' : 'Graph workspace for queue-owned stages, gateways, and routes'}</span>
+            <span class="workflow-subtitle">${this.readOnly ? 'Published workflow — read-only viewer' : 'Visual workflow map'}</span>
           </div>
         </div>
 
@@ -2721,23 +2819,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       align-self: center;
     }
 
-    .gateway-kind-badge {
-      align-self: center;
-      padding: 0.2rem 0.55rem;
-      border-radius: 999px;
-      background: rgba(124, 58, 237, 0.12);
-      color: #6d28d9;
-      font-size: 0.6875rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .gateway-node.kind-join .gateway-kind-badge {
-      background: rgba(15, 118, 110, 0.12);
-      color: #0f766e;
-    }
-
     /* Single-route Split gateways render as a thin pill — low visual weight
        so straight-through routing reads as "stage → small pill → next stage"
        instead of a heavy diamond. Multi-route Splits and all Joins keep the
@@ -2759,8 +2840,6 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
     .gateway-node.shape-pill .pill-trigger {
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .gateway-node.shape-pill .pill-condition {
       color: #6d28d9;
@@ -2835,6 +2914,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       font-weight: 700;
       color: #0f172a;
       line-height: 1.3;
+      overflow-wrap: anywhere;
     }
 
     .node-meta {

@@ -6,6 +6,7 @@
 import type { WorkflowSource, WorkflowSummary } from '../workflow-source.js';
 import type { AuthoredWorkflow } from '../types.js';
 import { hydrateWorkflowDefinition } from '../types.js';
+import { serializeAuthoredWorkflow } from '../workflow-canonical-json.js';
 
 export interface MockBusinessAppWorkflowSourceOptions {
   /** Origin override for cross-origin development. Defaults to same-origin. */
@@ -43,7 +44,7 @@ export class MockBusinessAppWorkflowSource implements WorkflowSource {
   }
 
   async save(workflowKey: string, workflow: AuthoredWorkflow): Promise<void> {
-    const body = JSON.stringify(workflow);
+    const body = serializeAuthoredWorkflow(workflow);
     const response = await fetch(`${this.base}/mockapp/workflows/${encodeURIComponent(workflowKey)}`, {
       method: 'PUT',
       headers: {

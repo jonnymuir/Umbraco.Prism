@@ -171,6 +171,23 @@ public sealed class WorkflowPublishServiceTests : IDisposable
         stateMetadata.RoleGates.Should().Equal("submitter");
     }
 
+    [Fact]
+    public async Task PublishAsync_PaymentFixtureWithDirectStageToJoinRoute_PublishesWithoutIntermediateGateway()
+    {
+        var workflow = await LoadFixture("payment-demo");
+
+        var result = await _sut.PublishAsync(workflow);
+
+        result.HasErrors.Should().BeFalse();
+        result.File.Gateways.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
+        result.File.States.Single(state => state.StateKey == "confirm-payment-received")
+            .Routes.Should().ContainSingle(route =>
+                route.Target == "await-payment-confirmation"
+                && route.Trigger == "confirm");
+        result.File.Gateways!.Single(gateway => gateway.Key == "await-payment-confirmation")
+            .RequiredIncomingQueues.Should().Equal("business-user", "web-user");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_publishedPath))
@@ -181,5 +198,11 @@ public sealed class WorkflowPublishServiceTests : IDisposable
     {
         return await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning")
             ?? throw new InvalidOperationException("planning fixture not found");
+    }
+
+    private static async Task<AuthoredWorkflow> LoadFixture(string workflowKey)
+    {
+        return await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, workflowKey)
+            ?? throw new InvalidOperationException($"{workflowKey} fixture not found");
     }
 }
