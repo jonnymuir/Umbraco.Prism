@@ -8,7 +8,7 @@
   "states": [
     {
       "stateKey": "collecting-details",
-      "displayName": "Tell us about your enquiry",
+      "displayName": "Your details",
       "stageType": "Question",
       "actor": "applicant",
       "queueKey": "web-user",
@@ -135,50 +135,15 @@
       ],
       "routes": [
         {
-          "id": "collecting-details--submit--route-from-collecting-details",
-          "target": "route-from-collecting-details",
+          "id": "collecting-details--submit--route-submit-enquiry",
+          "target": "route-submit-enquiry",
           "trigger": "submit"
-        },
-        {
-          "id": "collecting-details--save-draft--route-save-draft",
-          "target": "route-save-draft",
-          "trigger": "save-draft"
         }
       ]
     },
     {
-      "stateKey": "under-review",
-      "displayName": "Your enquiry is with us",
-      "stageType": "Question",
-      "actor": "reviewer",
-      "queueKey": "business-user",
-      "roleGates": [
-        "reviewer"
-      ],
-      "components": [
-        {
-          "type": "body",
-          "content": "We\u0027ve received your enquiry and it\u0027s currently being reviewed. A member of the team will be in touch shortly \u2014 no further action is needed right now."
-        }
-      ],
-      "routes": [
-        {
-          "id": "under-review--approve--route-from-under-review",
-          "target": "route-from-under-review",
-          "trigger": "approve",
-          "requiresRole": "reviewer"
-        },
-        {
-          "id": "under-review--request-changes--route-from-under-review",
-          "target": "route-from-under-review",
-          "trigger": "request-changes",
-          "requiresRole": "reviewer"
-        }
-      ]
-    },
-    {
-      "stateKey": "complete",
-      "displayName": "We\u0027re in touch!",
+      "stateKey": "submitted",
+      "displayName": "Thank you",
       "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "web-user",
@@ -210,69 +175,19 @@
       "displayName": "Enquirer",
       "description": "Web user submitting and tracking a community enquiry.",
       "actor": "applicant"
-    },
-    {
-      "key": "business-user",
-      "displayName": "Review team",
-      "description": "Back-office team reviewing and responding to enquiries.",
-      "actor": "reviewer"
     }
   ],
   "gateways": [
     {
-      "key": "route-from-collecting-details",
+      "key": "route-submit-enquiry",
       "displayName": "Submit Enquiry",
       "gatewayType": "Split",
       "queueKey": "web-user",
       "routes": [
         {
-          "id": "route-from-collecting-details--submit--under-review",
-          "target": "under-review",
+          "id": "route-submit-enquiry--submit--submitted",
+          "target": "submitted",
           "trigger": "submit"
-        }
-      ]
-    },
-    {
-      "key": "route-save-draft",
-      "displayName": "Save Draft",
-      "gatewayType": "Split",
-      "queueKey": "web-user",
-      "routes": [
-        {
-          "id": "route-save-draft--save-draft--join-return-to-form",
-          "target": "join-return-to-form",
-          "trigger": "save-draft"
-        }
-      ]
-    },
-    {
-      "key": "route-from-under-review",
-      "displayName": "Route from Review",
-      "gatewayType": "Split",
-      "queueKey": "business-user",
-      "routes": [
-        {
-          "id": "route-from-under-review--approve--complete",
-          "target": "complete",
-          "trigger": "approve"
-        },
-        {
-          "id": "route-from-under-review--request-changes--join-return-to-form",
-          "target": "join-return-to-form",
-          "trigger": "request-changes"
-        }
-      ]
-    },
-    {
-      "key": "join-return-to-form",
-      "displayName": "Return to Form",
-      "gatewayType": "Join",
-      "queueKey": "web-user",
-      "routes": [
-        {
-          "id": "join-return-to-form--return--collecting-details",
-          "target": "collecting-details",
-          "trigger": "return"
         }
       ]
     }
