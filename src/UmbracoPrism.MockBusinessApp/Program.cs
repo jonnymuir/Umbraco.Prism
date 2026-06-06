@@ -158,7 +158,7 @@ app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceWorkflowSourceStore
         : Results.Json(workflow, mockWorkflowJsonOptions);
 });
 
-app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceWorkflowSourceStore store) =>
+app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceWorkflowSourceStore store, IWorkflowRuntimeEngine engine) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -177,6 +177,7 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, Refer
     var workflow = parseResult.Workflow!;
 
     store.Save(key, workflow);
+    engine.UpdateDefinition(key, workflow);
     return Results.NoContent();
 });
 
