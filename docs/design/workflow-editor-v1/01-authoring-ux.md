@@ -182,7 +182,7 @@ Each stage can define:
 - short description
 - actor or owning role
 - optional role gates for reviewer or back-stage access
-- stage type such as form, review, decision, confirmation, or system work
+- stage type such as form, review, decision, waiting, confirmation, or system work
 - actions that run in the stage
 - outbound transitions
 

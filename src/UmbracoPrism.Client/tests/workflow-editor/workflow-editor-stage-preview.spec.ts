@@ -4,6 +4,26 @@ function storyUrl(storyId: string): string {
   return `/iframe.html?id=${storyId}&viewMode=story`;
 }
 
+async function slowProjectPreview(page: import('@playwright/test').Page, delayMs: number) {
+  await page.evaluate(delay => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+
+      if (/\/api\/workflow-authoring\/workflows\/.+\/project$/.test(url)) {
+        await new Promise(resolve => window.setTimeout(resolve, delay));
+      }
+
+      return originalFetch(input, init);
+    };
+  }, delayMs);
+}
+
 async function openPreviewForDeclaration(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /Declaration, Applicant lane/i }).dblclick();
   const previewTab = page.getByRole('tab', { name: 'Preview' });
@@ -38,7 +58,9 @@ test.describe('Workflow editor stage preview', () => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
 
+    await slowProjectPreview(page, 1_500);
     await openPreviewForDeclaration(page);
+    await expect(page.locator('[data-prism-preview-loading]')).toContainText('Rendering preview');
     await expect(page.locator('[data-prism-preview-stage-name]')).toHaveText('Declaration');
 
     await page.getByRole('tab', { name: 'Canvas' }).click();

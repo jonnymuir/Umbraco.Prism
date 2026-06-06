@@ -160,3 +160,7 @@ All changes are additive. Existing field names retain priority.
 - Stage nodes carry `data-prism-lane` (added by Blathers) but are NOT DOM children of `[data-prism-role-lane]` section elements — lane bands and stage nodes are siblings, absolutely positioned in the graph scene.
 - `waitingInfo` is the field name used in C# Fixtures format; `waiting` is the field name used in the in-memory authored format. Both must be checked in `normaliseGateway`.
 
+
+## Learnings
+
+- 2026-05-25T09:54:48.365+01:00 — For workflow surface cleanup, derive lane meaning from actor and role gates, not a parallel `editorSurface` flag. Strip UI-only surface hints before project/publish requests, and when validation links jump to an issue from the Validation tab, switch back to Canvas so the inspector target is actually visible.

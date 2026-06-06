@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-workflow-editor-shell.js';
 import type { PrismWorkflowEditorShellElement } from './prism-workflow-editor-shell.js';
 import { PAYMENT_DEMO_WORKFLOW, PLANNING_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
-import type { AuthoredWorkflow } from './types.js';
+import type { AuthoredStage, AuthoredWorkflow } from './types.js';
 import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
 import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
@@ -13,8 +13,8 @@ type WorkflowSeed = {
   stages: Array<{
     stateKey: string;
     displayName: string;
-    actor?: string;
-    kind?: string;
+    actor?: AuthoredStage['actor'];
+    kind?: AuthoredStage['kind'];
     roleGates?: string[];
   }>;
   transitionActions: string[];

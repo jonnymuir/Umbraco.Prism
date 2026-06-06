@@ -67,6 +67,19 @@ Key points:
 
 ---
 
+## Configuration Boundaries
+
+Keep authoring configuration in your API and docs, not in the editor shell itself.
+
+- **Action catalog** — what actions exist and what parameters they need.
+- **Validation rules** — what makes a workflow valid in your system.
+- **Stage types** — which stage kinds your host supports.
+- **Assignment model** — how authored `actor`, `roleGates`, and queue metadata map to your lane labels.
+
+Keep runtime policies, secrets, analytics, and feature flags out of the editor UI. Preview and publish calls should receive the authored workflow contract only.
+
+---
+
 ## Custom Canonical JSON Helpers
 
 The editor uses `normaliseWorkflow` and `serialiseWorkflow` from `workflow-wire-format.ts` to convert between wire JSON and `AuthoredWorkflow` objects. If you need custom field normalization or serialization (e.g., for backward compatibility with a legacy format), you can wrap these helpers in your own functions.

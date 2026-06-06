@@ -183,6 +183,15 @@ test.describe('Workflow editor validation rail', () => {
     const validationTab = page.getByRole('tab', { name: 'Validation' });
     await validationTab.click();
     await expect(validationTab).toHaveAttribute('aria-selected', 'true');
+
+    const unreachableIssue = page.locator('[data-prism-validation-issue="stage-unreachable-site-visit"]');
+    if (await unreachableIssue.count()) {
+      await unreachableIssue.click();
+      await expect(page.locator('[data-prism-stage-detail="site-visit"]')).toBeVisible();
+      await validationTab.click();
+      await expect(validationTab).toHaveAttribute('aria-selected', 'true');
+    }
+
     await page.locator('[data-prism-validation-issue*="declaration-action-0-formDefinitionId"]').click();
     await expect(page.locator('[data-prism-stage-detail="declaration"]')).toBeVisible();
     await expect(actionInput).toBeFocused();

@@ -104,6 +104,7 @@ export interface AuthoredGateway {
   actor?: string;
   roleGates?: string[];
   routes?: AuthoredRoute[];
+  actions?: AuthoredAction[];
   waitingContent?: string;
   waitingExpectedSeconds?: number;
   waitingPollIntervalMs?: number;
