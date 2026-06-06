@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
@@ -20,11 +21,9 @@ public class WorkflowProjectorDeterminismTests
         var result1 = _projector.Project(authored);
         var result2 = _projector.Project(authored);
 
-        // Checksums must be identical
         result1.Checksum.Should().Be(result2.Checksum,
             "identical inputs must produce identical SHA-256 checksums");
 
-        // Independently serialize the WorkflowDefinitionFile and compare raw bytes
         var bytes1 = JsonSerializer.SerializeToUtf8Bytes(result1.File, WorkflowProjector.CanonicalOptions);
         var bytes2 = JsonSerializer.SerializeToUtf8Bytes(result2.File, WorkflowProjector.CanonicalOptions);
 
@@ -37,7 +36,6 @@ public class WorkflowProjectorDeterminismTests
     {
         var result = _projector.Project(BuildDeterministicWorkflow());
 
-        // SHA-256 hex string is always 64 lowercase hex characters
         result.Checksum.Should().MatchRegex("^[0-9a-f]{64}$",
             "checksum must be a lowercase hex-encoded SHA-256 digest");
     }
@@ -46,9 +44,7 @@ public class WorkflowProjectorDeterminismTests
     public async Task Project_PlanningFixture_IsDeterministic()
     {
         var fixturesPath = GetFixturesPath();
-        var store = new FilesystemAuthoredWorkflowStore(fixturesPath);
-
-        var authored = await store.LoadAsync("planning");
+        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
         authored.Should().NotBeNull("planning fixture must exist");
 
         var result1 = _projector.Project(authored!);
@@ -60,7 +56,6 @@ public class WorkflowProjectorDeterminismTests
     [Fact]
     public void Project_NormalisesStageOrder_BeforeEmitting()
     {
-        // Build workflow with stages in reverse alphabetical order to prove normalisation sorts them
         var authored = new AuthoredWorkflow
         {
             Id = new Guid("aaaabbbb-0000-0000-0000-000000000001"),
@@ -72,8 +67,7 @@ public class WorkflowProjectorDeterminismTests
             [
                 new AuthoredStage { StageKey = "zeta", DisplayName = "Zeta", Kind = StageKind.Confirmation },
                 new AuthoredStage { StageKey = "alpha", DisplayName = "Alpha", Kind = StageKind.Question }
-            ],
-            Transitions = []
+            ]
         };
 
         var result = _projector.Project(authored);
@@ -86,6 +80,8 @@ public class WorkflowProjectorDeterminismTests
     [Fact]
     public void Project_NormalisesTransitionOrder_BeforeEmitting()
     {
+        // Two gateways with different source stages each emit one route; verify that the
+        // projected runtime transitions are sorted by (source, target, trigger).
         var authored = new AuthoredWorkflow
         {
             Id = new Guid("aaaabbbb-0000-0000-0000-000000000002"),
@@ -93,27 +89,46 @@ public class WorkflowProjectorDeterminismTests
             DisplayName = "Transition Order Test",
             Version = 1,
             InitialStageKey = "a",
+            Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
             Stages =
             [
-                new AuthoredStage { StageKey = "a", DisplayName = "A", Kind = StageKind.Question },
-                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation },
-                new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation }
+                new AuthoredStage
+                {
+                    StageKey = "a",
+                    DisplayName = "A",
+                    Kind = StageKind.Question,
+                    QueueKey = "applicant",
+                    Routes =
+                    [
+                        new AuthoredRoute { Id = "route-a", Target = "out-of-a", Trigger = "continue" }
+                    ]
+                },
+                new AuthoredStage { StageKey = "b", DisplayName = "B", Kind = StageKind.Confirmation, QueueKey = "applicant" },
+                new AuthoredStage { StageKey = "c", DisplayName = "C", Kind = StageKind.Confirmation, QueueKey = "applicant" }
             ],
-            Transitions =
+            Gateways =
             [
-                new AuthoredTransition { FromStage = "a", ToStage = "c", Action = "skip" },
-                new AuthoredTransition { FromStage = "a", ToStage = "b", Action = "continue" }
+                new AuthoredGateway
+                {
+                    GatewayKey = "out-of-a",
+                    DisplayName = "Out of A",
+                    Kind = GatewayKind.Split,
+                    QueueKey = "applicant",
+                    Routes =
+                    [
+                        new AuthoredRoute { Id = "to-c", Target = "c", Trigger = "continue" },
+                        new AuthoredRoute { Id = "to-b", Target = "b", Trigger = "continue" }
+                    ]
+                }
             ]
         };
 
         var result = _projector.Project(authored);
 
         result.File.Transitions.Select(t => t.ToState)
-            .Should().ContainInOrder(new[] { "b", "c" },
-                because: "transitions must be emitted sorted by (FromStage, ToStage, Action)");
+            .Should().ContainInOrder(new[] { "out-of-a", "b", "c" },
+                because: "transitions must be emitted sorted by (source, target, trigger)");
     }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static AuthoredWorkflow BuildDeterministicWorkflow() => new()
     {
@@ -125,6 +140,7 @@ public class WorkflowProjectorDeterminismTests
         SchemaVersion = "1.0",
         InitialStageKey = "collect",
         InstancePolicy = "single",
+        Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
         Stages =
         [
             new AuthoredStage
@@ -132,29 +148,54 @@ public class WorkflowProjectorDeterminismTests
                 StageKey = "collect",
                 DisplayName = "Collect details",
                 Kind = StageKind.Question,
-                Fields =
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "collect-continue", Target = "after-collect", Trigger = "continue" }],
+                Components =
                 [
-                    new AuthoredField { Key = "email", Label = "Email address", Type = FieldType.Email, Required = true },
-                    new AuthoredField { Key = "name", Label = "Full name", Type = FieldType.Text, Required = true }
+                    new FieldsetComponent
+                    {
+                        Children =
+                        [
+                            new EmailComponent { FieldKey = "email", Label = "Email address", Required = true },
+                            new TextInputComponent { FieldKey = "name", Label = "Full name", Required = true }
+                        ]
+                    }
                 ]
             },
             new AuthoredStage
             {
                 StageKey = "review",
                 DisplayName = "Check your answers",
-                Kind = StageKind.CheckAnswers
+                Kind = StageKind.CheckAnswers,
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "review-submit", Target = "after-review", Trigger = "submit" }]
             },
             new AuthoredStage
             {
                 StageKey = "done",
                 DisplayName = "Application submitted",
-                Kind = StageKind.Confirmation
+                Kind = StageKind.Confirmation,
+                QueueKey = "applicant"
             }
         ],
-        Transitions =
+        Gateways =
         [
-            new AuthoredTransition { FromStage = "collect", ToStage = "review", Action = "continue" },
-            new AuthoredTransition { FromStage = "review", ToStage = "done", Action = "submit" }
+            new AuthoredGateway
+            {
+                GatewayKey = "after-collect",
+                DisplayName = "After collect",
+                Kind = GatewayKind.Split,
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "to-review", Target = "review", Trigger = "continue" }]
+            },
+            new AuthoredGateway
+            {
+                GatewayKey = "after-review",
+                DisplayName = "After review",
+                Kind = GatewayKind.Split,
+                QueueKey = "applicant",
+                Routes = [new AuthoredRoute { Id = "to-done", Target = "done", Trigger = "submit" }]
+            }
         ],
         Handoffs = [],
         Metadata = new Dictionary<string, string> { ["env"] = "test" }

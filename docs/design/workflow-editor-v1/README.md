@@ -1,17 +1,21 @@
 # Workflow Editor — First Iteration Design (V1)
 
-- **Status:** Draft
+> **Status: Partly historical (2026-05-30 scope reset).** The agentic/AI surfaces (04-agentic-surfaces.md) and Umbraco backoffice mount (03-umbraco-integration.md) were retired. The editor now ships as web components consumed by a separate business app; it is **not** mounted in the Umbraco backoffice. See `docs/walkthroughs/authoring-a-workflow.md` for the current integration recipe. These design docs are kept for reference.
+
+- **Status:** Partly historical (see banner above)
 - **Date:** 2026-05-16
 - **Authors (Squad):**
   - Tom Nook — Lead (architecture, scope, handoffs)
   - Isabelle — UX (authoring experience)
   - Blathers — Runtime (projection, compatibility)
-  - Brewster — Umbraco integration (content and backoffice topology)
-  - Tangy — Agentic surfaces (proposal-first AI loop)
+  - Brewster — Umbraco integration (content and backoffice topology) — *historical*
+  - Tangy — Agentic surfaces (proposal-first AI loop) — *historical*
 
 Keep it simple: this design has three main parts — a **workflow editor**, a **workflow engine**, and a **forms engine**. V1 focuses on getting the workflow editor right. The workflow engine and forms engine matter because the editor must publish something they can use, but they are supporting context for this iteration rather than the headline story.
 
 Projection, Umbraco hosting, validation, and future Copilot or MCP workflows still matter. In this design set they are treated as supporting seams behind the editor, not as extra top-level products.
+
+> **Multi-lane note:** This V1 set is now partial on concurrent lane behaviour. For the canonical design covering lane ownership, independent cursors, split gateways, join gateways, deterministic convergence, and history semantics, use [`../workflow-multi-lane-engine.md`](../workflow-multi-lane-engine.md).
 
 ---
 

@@ -1,22 +1,19 @@
-// Behavioral proof: Layout Professionalization (2026-05-23)
-// 
-// DIRECTIVE: Keep the reference host minimal and easy to use: move explanatory 
-// host chrome into documentation, simplify the launch/header area, remove the 
-// editable authoring API base from the main host flow, and give the mounted editor 
-// enough vertical space to own the screen rather than stacking tabs underneath it.
-//
-// This spec proves:
-// 1. The host no longer foregrounds bulky explanatory chrome
-// 2. The launch flow is simpler and the authoring API base is no longer a mainline distraction
-// 3. The editor surface is the primary mounted experience with substantially more usable space
-// 4. If the editor becomes a tab/primary surface, the mounted flow still works by keyboard and remains screen-reader friendly
-// 5. The outline + graph/list + editing flow remain simple from the mounted browser entry point
-
 import { test, expect } from '@playwright/test';
+
+// Slice D quarantine (2026-05-31):
+// This file tests the previous host shell mounted at `/workflow-editor.html`
+// — the marketing-chrome / launch-card / hero surface that existed before
+// Slice B + Slice C reframed the editor as an integrator-embedded component
+// (see docs/guides/embedding-the-workflow-editor.md). The reference shell
+// is now demo-only; production integrators bring their own host page.
+//
+// TODO Slice E: reframe surviving behavioural intents (skip link, tab
+// order, screen-reader landmark, outline/graph toggle) against the
+// MockBusinessApp host page or the Storybook shell, then delete this file.
 
 const EDITOR_URL = 'http://localhost:5167/workflow-editor.html?workflow=planning';
 
-test.describe('Layout Professionalization', () => {
+test.describe.fixme('Layout Professionalization', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(EDITOR_URL);
     await expect(page.locator('prism-workflow-editor')).toHaveAttribute('data-prism-workflow-loaded', /.+/, {

@@ -2,19 +2,19 @@
   "definitionKey": "information-request",
   "displayName": "Information Request",
   "version": 1,
+  "schemaVersion": "1.0",
   "initialState": "collecting-info",
+  "instancePolicy": "single",
   "states": [
     {
       "stateKey": "collecting-info",
       "displayName": "Tell us about yourself",
-      "allowedActions": [
-        "submit",
-        "save-draft"
-      ],
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "fieldset",
-          "legend": "Your details",
           "children": [
             {
               "type": "text",
@@ -27,7 +27,6 @@
               "type": "text",
               "fieldKey": "lastName",
               "label": "Last name",
-              "hint": null,
               "required": true
             },
             {
@@ -41,27 +40,26 @@
               "type": "email",
               "fieldKey": "email",
               "label": "Email address",
-              "hint": "We'll only use this to contact you about your request",
+              "hint": "We\u0027ll only use this to contact you about your request",
               "required": true
             }
-          ]
+          ],
+          "legend": "Your details"
         },
         {
           "type": "fieldset",
-          "legend": "Your request",
           "children": [
             {
               "type": "select",
-              "fieldKey": "requestType",
-              "label": "What type of request is this?",
-              "hint": null,
-              "required": true,
               "options": [
                 "General enquiry",
                 "Data subject access request",
                 "Complaint",
                 "Technical support"
-              ]
+              ],
+              "fieldKey": "requestType",
+              "label": "What type of request is this?",
+              "required": true
             },
             {
               "type": "textarea",
@@ -72,37 +70,68 @@
             },
             {
               "type": "radio",
-              "fieldKey": "urgency",
-              "label": "How urgent is this?",
-              "hint": null,
-              "required": true,
               "options": [
                 "Standard (5-7 working days)",
                 "Urgent (2 working days)",
                 "Critical (same day)"
-              ]
+              ],
+              "fieldKey": "urgency",
+              "label": "How urgent is this?",
+              "required": true
             }
-          ]
+          ],
+          "legend": "Your request"
+        }
+      ],
+      "routes": [
+        {
+          "id": "collecting-info--submit--route-from-collecting-info",
+          "target": "route-from-collecting-info",
+          "trigger": "submit"
+        },
+        {
+          "id": "collecting-info--save-draft--route-save-draft",
+          "target": "route-save-draft",
+          "trigger": "save-draft"
         }
       ]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your request is being reviewed",
-      "allowedActions": [],
+      "stageType": "Question",
+      "actor": "reviewer",
+      "queueKey": "business-user",
+      "roleGates": [
+        "reviewer"
+      ],
       "components": [
         {
           "type": "body",
-          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now."
+          "content": "We\u0027ve received your submission and it\u0027s currently being reviewed. You\u0027ll hear from us soon \u2014 no further action is needed right now."
+        }
+      ],
+      "routes": [
+        {
+          "id": "under-review--approve--route-from-under-review",
+          "target": "route-from-under-review",
+          "trigger": "approve",
+          "requiresRole": "reviewer"
+        },
+        {
+          "id": "under-review--request-changes--route-from-under-review",
+          "target": "route-from-under-review",
+          "trigger": "request-changes",
+          "requiresRole": "reviewer"
         }
       ]
     },
     {
       "stateKey": "complete",
       "displayName": "Request Complete",
-      "allowedActions": [
-        "start-another"
-      ],
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "panel",
@@ -115,37 +144,87 @@
         },
         {
           "type": "body",
-          "content": "We've sent you a confirmation email."
+          "content": "We\u0027ve sent you a confirmation email."
         },
         {
           "type": "body",
           "content": "A member of our team will be in touch shortly."
         }
-      ]
+      ],
+      "routes": []
     }
   ],
-  "transitions": [
+  "queues": [
     {
-      "fromState": "collecting-info",
-      "toState": "under-review",
-      "action": "submit"
+      "key": "web-user",
+      "displayName": "Requestor",
+      "description": "Web user submitting and tracking an information request.",
+      "actor": "applicant"
     },
     {
-      "fromState": "collecting-info",
-      "toState": "collecting-info",
-      "action": "save-draft"
+      "key": "business-user",
+      "displayName": "Review team",
+      "description": "Back-office team reviewing and responding to requests.",
+      "actor": "reviewer"
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-from-collecting-info",
+      "displayName": "Submit Request",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-from-collecting-info--submit--under-review",
+          "target": "under-review",
+          "trigger": "submit"
+        }
+      ]
     },
     {
-      "fromState": "under-review",
-      "toState": "complete",
-      "action": "approve",
-      "requiresRole": "reviewer"
+      "key": "route-save-draft",
+      "displayName": "Save Draft",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-save-draft--save-draft--join-return-to-form",
+          "target": "join-return-to-form",
+          "trigger": "save-draft"
+        }
+      ]
     },
     {
-      "fromState": "under-review",
-      "toState": "collecting-info",
-      "action": "request-changes",
-      "requiresRole": "reviewer"
+      "key": "route-from-under-review",
+      "displayName": "Route from Review",
+      "gatewayType": "Split",
+      "queueKey": "business-user",
+      "routes": [
+        {
+          "id": "route-from-under-review--approve--complete",
+          "target": "complete",
+          "trigger": "approve"
+        },
+        {
+          "id": "route-from-under-review--request-changes--join-return-to-form",
+          "target": "join-return-to-form",
+          "trigger": "request-changes"
+        }
+      ]
+    },
+    {
+      "key": "join-return-to-form",
+      "displayName": "Return to Form",
+      "gatewayType": "Join",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "join-return-to-form--return--collecting-info",
+          "target": "collecting-info",
+          "trigger": "return"
+        }
+      ]
     }
   ]
 }

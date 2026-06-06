@@ -7,23 +7,50 @@
   "schemaVersion": "1.0",
   "initialStageKey": "collecting-details",
   "instancePolicy": "single",
+  "lanes": [
+    {
+      "key": "applicant",
+      "title": "Applicant",
+      "actor": "applicant",
+      "roleGates": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-submitted",
+      "title": "Route to submitted",
+      "type": "Split",
+      "laneKey": "applicant",
+      "source": "collecting-details",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "collecting-details--submit--submitted",
+          "target": "submitted",
+          "trigger": "submit",
+          "actions": []
+        }
+      ]
+    }
+  ],
   "stages": [
     {
       "key": "collecting-details",
       "title": "Your details",
-      "type": "Question"
+      "type": "Question",
+      "laneKey": "applicant",
+      "actions": [],
+      "roleGates": [],
+      "components": []
     },
     {
       "key": "submitted",
       "title": "Thank you",
-      "type": "Confirmation"
-    }
-  ],
-  "transitions": [
-    {
-      "source": "collecting-details",
-      "target": "submitted",
-      "trigger": "submit"
+      "type": "Confirmation",
+      "laneKey": "applicant",
+      "actions": [],
+      "roleGates": [],
+      "components": []
     }
   ]
 }

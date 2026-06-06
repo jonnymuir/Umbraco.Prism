@@ -1,244 +1,138 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://umbraco-prism.local/schemas/authored-workflow.schema.json",
-  "title": "AuthoredWorkflow",
-  "description": "Editor-native workflow schema saved by Workflow Editor V1 and projected into Prism runtime definitions.",
+  "$id": "https://umbracoprism.dev/schemas/authored-workflow.schema.json",
   "type": "object",
-  "required": [
-    "definitionKey",
-    "displayName",
-    "schemaVersion",
-    "initialStageKey",
-    "stages",
-    "transitions"
-  ],
+  "required": ["definitionKey", "displayName", "initialStageKey", "stages", "gateways"],
   "properties": {
-    "id": {
-      "type": "string",
-      "format": "uuid"
+    "id": { "type": "string", "format": "uuid" },
+    "definitionKey": { "type": "string" },
+    "displayName": { "type": "string" },
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": ["string", "null"] },
+    "schemaVersion": { "type": "string" },
+    "initialStageKey": { "type": "string" },
+    "instancePolicy": { "type": "string" },
+    "queues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/queue" }
     },
-    "definitionKey": {
-      "type": "string"
-    },
-    "displayName": {
-      "type": "string"
-    },
-    "version": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "description": {
-      "type": ["string", "null"]
-    },
-    "schemaVersion": {
-      "type": "string"
-    },
-    "initialStageKey": {
-      "type": "string"
-    },
-    "instancePolicy": {
-      "type": "string"
+    "lanes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/queue" }
     },
     "stages": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/stage"
-      }
+      "items": { "$ref": "#/$defs/stage" }
     },
-    "transitions": {
+    "gateways": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/transition"
-      }
+      "items": { "$ref": "#/$defs/gateway" }
     },
     "handoffs": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/handoff"
-      }
+      "items": { "type": "object" }
     },
     "parameterSchemas": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/parameterSchema"
-      }
+      "items": { "$ref": "#/$defs/parameterSchema" }
     },
     "metadata": {
       "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
+      "additionalProperties": { "type": "string" }
     },
-    "authorNote": {
-      "type": ["string", "null"]
-    }
+    "authorNote": { "type": ["string", "null"] }
   },
   "$defs": {
     "stage": {
       "type": "object",
-      "required": ["key", "title", "type", "actions"],
+      "required": ["key", "title", "type", "queueKey"],
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "type": { "type": "string" },
+        "actor": { "type": ["string", "null"] },
+        "queueKey": { "type": "string" },
+        "laneKey": { "type": ["string", "null"] },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
+        "components": { "type": "array", "items": { "type": "object" } },
+        "roleGates": { "type": "array", "items": { "type": "string" } },
+        "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+        "editorComment": { "type": ["string", "null"] }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "required": ["key", "title"],
       "properties": {
         "key": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": ["string", "null"] },
         "actor": { "type": ["string", "null"] },
-        "type": {
-          "type": "string",
-          "enum": ["Question", "CheckAnswers", "Confirmation", "TaskList", "Waiting", "StatusTimeline"]
-        },
-        "actions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/action" }
-        },
-        "fields": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/field" }
-        },
-        "roleGates": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "waiting": {
-          "type": ["object", "null"]
-        },
-        "editorComment": {
-          "type": ["string", "null"]
-        }
+        "roleGates": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "object", "additionalProperties": { "type": "string" } }
       }
     },
-    "transition": {
+    "gateway": {
       "type": "object",
-      "required": ["source", "target", "trigger", "conditions", "actions"],
+      "required": ["key", "title", "type", "queueKey", "routes"],
       "properties": {
-        "source": { "type": "string" },
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "type": { "enum": ["Split", "Join"] },
+        "queueKey": { "type": "string" },
+        "laneKey": { "type": ["string", "null"] },
+        "source": { "type": ["string", "null"] },
+        "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+        "actor": { "type": ["string", "null"] },
+        "roleGates": { "type": "array", "items": { "type": "string" } },
+        "waitingInfo": {
+          "type": ["object", "null"],
+          "properties": {
+            "content": { "type": ["string", "null"] },
+            "expectedWaitSeconds": { "type": "integer" },
+            "pollIntervalMs": { "type": "integer" },
+            "allowDefer": { "type": "boolean" },
+            "deferMessage": { "type": ["string", "null"] }
+          }
+        },
+        "requiredIncomingQueues": { "type": "array", "items": { "type": "string" } },
+        "requiredIncomingLanes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": ["id", "target", "trigger"],
+      "properties": {
+        "id": { "type": "string" },
         "target": { "type": "string" },
         "trigger": { "type": "string" },
-        "conditions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/condition" }
-        },
-        "actions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/action" }
-        },
-        "requiresRole": {
-          "type": ["string", "null"]
-        }
+        "condition": { "type": ["object", "null"] },
+        "requiresRole": { "type": ["string", "null"] },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } }
       }
     },
     "action": {
       "type": "object",
-      "required": ["type", "timing", "params"],
+      "required": ["type", "timing"],
       "properties": {
         "type": { "type": "string" },
-        "timing": {
-          "type": "string",
-          "enum": ["OnEntry", "OnExit", "OnTransition"]
-        },
-        "params": {
-          "type": "object"
-        },
-        "parameterSchemaKey": {
-          "type": ["string", "null"]
-        },
-        "summary": {
-          "type": ["string", "null"]
-        }
-      }
-    },
-    "condition": {
-      "type": "object",
-      "required": ["kind", "expression"],
-      "properties": {
-        "kind": { "type": "string" },
-        "expression": { "type": "string" },
-        "description": { "type": ["string", "null"] }
-      }
-    },
-    "field": {
-      "type": "object",
-      "required": ["key", "label", "type"],
-      "properties": {
-        "key": { "type": "string" },
-        "label": { "type": "string" },
-        "type": {
-          "type": "string",
-          "enum": ["Text", "Number", "Decimal", "Email", "Date", "Textarea", "Boolean", "Select", "Radios", "Checkboxes"]
-        },
-        "required": { "type": "boolean" },
-        "hint": { "type": ["string", "null"] },
-        "validationPattern": { "type": ["string", "null"] },
-        "options": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
+        "timing": { "type": "string" },
+        "parameterSchemaKey": { "type": ["string", "null"] },
+        "summary": { "type": ["string", "null"] },
+        "params": { "type": ["object", "null"] }
       }
     },
     "parameterSchema": {
       "type": "object",
-      "required": ["key", "valueKind", "properties", "required"],
+      "required": ["key"],
       "properties": {
         "key": { "type": "string" },
-        "title": { "type": ["string", "null"] },
-        "description": { "type": ["string", "null"] },
-        "appliesTo": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "valueKind": {
-          "type": "string",
-          "enum": ["String", "Number", "Integer", "Boolean", "Object", "Array", "Null"]
-        },
+        "appliesTo": { "type": "array", "items": { "type": "string" } },
         "allowAdditionalProperties": { "type": "boolean" },
-        "properties": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/parameterDefinition" }
-        },
-        "required": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
-      }
-    },
-    "parameterDefinition": {
-      "type": "object",
-      "required": ["key", "valueKind"],
-      "properties": {
-        "key": { "type": "string" },
-        "title": { "type": ["string", "null"] },
-        "description": { "type": ["string", "null"] },
-        "valueKind": {
-          "type": "string",
-          "enum": ["String", "Number", "Integer", "Boolean", "Object", "Array", "Null"]
-        },
-        "format": { "type": ["string", "null"] },
-        "editor": { "type": ["string", "null"] },
-        "allowedValues": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "defaultValue": {},
-        "properties": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/parameterDefinition" }
-        },
-        "items": {
-          "anyOf": [
-            { "$ref": "#/$defs/parameterDefinition" },
-            { "type": "null" }
-          ]
-        }
-      }
-    },
-    "handoff": {
-      "type": "object",
-      "required": ["id", "fromStage", "toStage", "label"],
-      "properties": {
-        "id": { "type": "string" },
-        "fromStage": { "type": "string" },
-        "toStage": { "type": "string" },
-        "label": { "type": "string" },
-        "actorChange": { "type": ["string", "null"] }
+        "properties": { "type": "array", "items": { "type": "object" } },
+        "required": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

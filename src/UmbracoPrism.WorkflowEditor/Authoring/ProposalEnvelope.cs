@@ -2,10 +2,20 @@ using System.Text.Json;
 
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
-/// <summary>The agent or human actor that submitted this proposal.</summary>
+/// <summary>
+/// The agent or human actor that submitted this proposal. Optional on
+/// <see cref="ProposalEnvelope"/>: when omitted the endpoint synthesises one
+/// from the authenticated principal.
+/// </summary>
 public record PatchAgent
 {
-    public required string Kind { get; init; }       // github-copilot | custom-agent | human-assisted
+    /// <summary>
+    /// Free-form actor identifier. Historical conventions are
+    /// <c>github-copilot</c>, <c>custom-agent</c>, and <c>human-assisted</c>,
+    /// but any non-blank label is accepted. The endpoint applies a
+    /// cross-stamp check only when this value is <c>human-assisted</c>.
+    /// </summary>
+    public required string Kind { get; init; }
     public required string Identity { get; init; }
     public string? SessionRef { get; init; }
 }
@@ -38,16 +48,22 @@ public record PatchValidationResult
 }
 
 /// <summary>
-/// Canonical proposal envelope — the atomic unit of all agent-initiated workflow changes.
-/// Defined in <c>.squad/decisions.md</c> under "Workflow editor V1 agentic surfaces".
+/// Canonical proposal envelope — the atomic unit of envelope-mediated workflow
+/// changes accepted by <c>POST /api/workflow-authoring/workflows/{key}/apply</c>.
+/// <para>
+/// <see cref="Id"/> and <see cref="CreatedAt"/> are required for provenance audit.
+/// <see cref="Agent"/> and <see cref="Rationale"/> are optional — when omitted the
+/// endpoint synthesises an agent from the authenticated principal. <see cref="Ops"/>
+/// must contain at least one operation; an empty envelope is rejected with 400.
+/// </para>
 /// </summary>
 public record ProposalEnvelope
 {
     public required Guid Id { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
-    public required PatchAgent Agent { get; init; }
+    public PatchAgent? Agent { get; init; }
     public required string TargetWorkflowId { get; init; }
-    public required string Rationale { get; init; }
+    public string? Rationale { get; init; }
     public IReadOnlyList<PatchOp> Ops { get; init; } = [];
     public PatchPlacement? Placement { get; init; }
     public PatchValidationResult? ValidationResult { get; init; }

@@ -1,0 +1,136 @@
+import type { AuthoredGateway, AuthoredRoute, AuthoredStage, AuthoredWorkflow } from './types.js';
+
+/**
+ * Stable, deterministic JSON serialization for the flattened workflow definition
+ * used by the Definition tab.
+ */
+const TOP_LEVEL_KEY_ORDER: readonly string[] = [
+  'definitionKey',
+  'displayName',
+  'version',
+  'initialState',
+  'instancePolicy',
+  'description',
+  'schemaVersion',
+  'queues',
+  'states',
+  'gateways',
+  'parameterSchemas',
+];
+
+function serialisableRoute(route: AuthoredRoute): Record<string, unknown> {
+  return {
+    id: route.id,
+    target: route.target,
+    trigger: route.trigger,
+    condition: route.condition,
+    requiresRole: route.requiresRole,
+    actions: route.actions,
+    editorComment: route.editorComment,
+  };
+}
+
+function serialisableState(stage: AuthoredStage): Record<string, unknown> {
+  return {
+    stateKey: stage.stateKey,
+    displayName: stage.displayName,
+    components: stage.components ?? [],
+    description: stage.description,
+    stageType: stage.kind,
+    actor: stage.actor,
+    queueKey: stage.queueKey,
+    routes: (stage.routes ?? []).map(serialisableRoute),
+    actions: stage.actions,
+    roleGates: stage.roleGates,
+    editorComment: stage.editorComment,
+  };
+}
+
+function serialisableGateway(gateway: AuthoredGateway): Record<string, unknown> {
+  return {
+    key: gateway.key,
+    displayName: gateway.displayName,
+    description: gateway.description,
+    gatewayType: gateway.gatewayType ?? gateway.kind,
+    queueKey: gateway.queueKey,
+    actor: gateway.actor,
+    roleGates: gateway.roleGates,
+    routes: (gateway.routes ?? []).map(serialisableRoute),
+    waitingContent: gateway.waitingContent,
+    waitingExpectedSeconds: gateway.waitingExpectedSeconds,
+    waitingPollIntervalMs: gateway.waitingPollIntervalMs,
+    waitingAllowDefer: gateway.waitingAllowDefer,
+    waitingDeferMessage: gateway.waitingDeferMessage,
+    requiredIncomingQueues: gateway.requiredIncomingQueues,
+  };
+}
+
+function serialisableWorkflow(workflow: AuthoredWorkflow): Record<string, unknown> {
+  return {
+    definitionKey: workflow.definitionKey,
+    displayName: workflow.displayName,
+    version: workflow.version,
+    initialState: workflow.initialState,
+    instancePolicy: workflow.instancePolicy,
+    description: workflow.description,
+    schemaVersion: workflow.schemaVersion,
+    queues: workflow.queues ?? [],
+    states: workflow.states.map(serialisableState),
+    gateways: (workflow.gateways ?? []).map(serialisableGateway),
+    parameterSchemas: workflow.parameterSchemas,
+  };
+}
+
+function orderTopLevel(value: Record<string, unknown>): Record<string, unknown> {
+  const ordered: Record<string, unknown> = {};
+  for (const key of TOP_LEVEL_KEY_ORDER) {
+    if (key in value && value[key] !== undefined) {
+      ordered[key] = value[key];
+    }
+  }
+  for (const key of Object.keys(value).sort()) {
+    if (!(key in ordered) && value[key] !== undefined) {
+      ordered[key] = value[key];
+    }
+  }
+  return ordered;
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortKeys);
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(record).sort()) {
+      if (record[key] !== undefined) {
+        sorted[key] = sortKeys(record[key]);
+      }
+    }
+    return sorted;
+  }
+  return value;
+}
+
+export function serializeAuthoredWorkflow(workflow: AuthoredWorkflow): string {
+  const top = orderTopLevel(serialisableWorkflow(workflow));
+  const canonical: Record<string, unknown> = {};
+  for (const key of Object.keys(top)) {
+    canonical[key] = sortKeys(top[key]);
+  }
+  return JSON.stringify(canonical, null, 2);
+}
+
+export function authoredWorkflowJsonEquals(
+  left: AuthoredWorkflow | null,
+  right: AuthoredWorkflow | null
+): boolean {
+  if (!left && !right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return serializeAuthoredWorkflow(left) === serializeAuthoredWorkflow(right);
+}

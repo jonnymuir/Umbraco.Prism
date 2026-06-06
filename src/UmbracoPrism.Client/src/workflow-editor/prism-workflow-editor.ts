@@ -4,29 +4,32 @@ import {
   type ActionCatalogEntry,
   type AuthoredAction,
   type AuthoredStage,
-  type AuthoredTransition,
   type AuthoredWorkflow,
-  type ProposalEnvelope,
+  hydrateWorkflowDefinition,
 } from './types.js';
-import {
-  defaultAuthoringApiBase,
-  fetchWorkflow,
-  fetchActionCatalog,
-  projectWorkflow,
-  publishWorkflow,
-  applyProposal,
-} from './workflow-authoring-client.js';
+import { projectWorkflowLocally } from './workflow-runtime-projection.js';
+import { WorkflowSaveError, normaliseWorkflowSaveError, type WorkflowSource } from './workflow-source.js';
+import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
+import { BuiltInWorkflowActionCatalog } from './workflow-action-catalog.js';
+import type { WorkflowAuthorContext } from './workflow-author-context.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
+import { flattenRoutes } from './workflow-routes.js';
 import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
-import './prism-proposal-diff.js';
 import './prism-stage-preview.js';
 import './prism-workflow-simulation.js';
 import './prism-workflow-outline.js';
 import './prism-confidence-tabs.js';
 import './prism-help-panel.js';
+import { serializeAuthoredWorkflow, authoredWorkflowJsonEquals } from './workflow-canonical-json.js';
+import {
+  coerceParsedAuthoredWorkflow,
+  lintAuthoredWorkflowDocument,
+  type DefinitionLint,
+} from './workflow-definition-lint.js';
 import type { ConfidenceTab } from './prism-confidence-tabs.js';
 import type {
   WorkflowSimulationHistoryEntry,
@@ -37,7 +40,7 @@ import type { ProjectWorkflowResult, ProjectedWorkflowState, ProjectedWorkflowTr
 
 type WorkflowSelection =
   | { kind: 'stage'; stageKey: string }
-  | { kind: 'transition'; transitionIndex: number }
+  | { kind: 'gateway'; gatewayKey: string }
   | null;
 
 type WorkflowHistoryEntry = {
@@ -71,7 +74,7 @@ const PASTE_SHORTCUT = findWorkflowShortcut('paste');
 const HELP_SHORTCUT = findWorkflowShortcut('help');
 
 function cloneWorkflow(workflow: AuthoredWorkflow): AuthoredWorkflow {
-  return JSON.parse(JSON.stringify(workflow)) as AuthoredWorkflow;
+  return hydrateWorkflowDefinition(JSON.parse(JSON.stringify(workflow)) as AuthoredWorkflow);
 }
 
 function cloneSelection(selection: WorkflowSelection): WorkflowSelection {
@@ -99,15 +102,15 @@ function selectionsEqual(left: WorkflowSelection, right: WorkflowSelection): boo
     return left.stageKey === right.stageKey;
   }
 
-  if (left?.kind === 'transition' && right?.kind === 'transition') {
-    return left.transitionIndex === right.transitionIndex;
+  if (left?.kind === 'gateway' && right?.kind === 'gateway') {
+    return left.gatewayKey === right.gatewayKey;
   }
 
   return left === right;
 }
 
 function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): string {
-  const usedKeys = new Set(workflow.stages.map(stage => stage.stageKey));
+  const usedKeys = new Set(workflow.states.map(stage => stage.stateKey));
   let candidate = `${baseStageKey}-copy`;
   let suffix = 2;
   while (usedKeys.has(candidate)) {
@@ -124,7 +127,6 @@ function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): s
  * Layout:
  *   Left  — prism-workflow-graph (with title bar + mode toggle)
  *   Right — prism-step-inspector
- *   Modal — prism-proposal-diff (overlay when a proposal is active)
  *
  * URL param: ?workflow=<key>  (default: "planning")
  * Prop: initialWorkflow — set directly for Storybook / offline use; skips API fetch.
@@ -133,6 +135,7 @@ function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): s
  *   data-prism-component="workflow-editor"
  *   data-prism-workflow-loaded="{key}" (reflected on the custom-element host once ready)
  *   data-prism-toast  (on the toast confirmation banner)
+ *   data-prism-save-error (on the persistent save error surface)
  */
 @customElement('prism-workflow-editor')
 export class PrismWorkflowEditorElement extends LitElement {
@@ -140,13 +143,28 @@ export class PrismWorkflowEditorElement extends LitElement {
   @property({ type: String, attribute: 'workflow-key' })
   workflowKey = 'planning';
 
-  /** Optional override for the workflow authoring API origin. */
-  @property({ type: String, attribute: 'authoring-api-base' })
-  authoringApiBase = '';
+  /**
+   * Host-supplied source the editor reads workflows from and writes back to.
+   * Required for runtime use; Storybook stories pass `initialWorkflow` instead
+   * and can leave this unset.
+   */
+  @property({ attribute: false })
+  workflowSource?: WorkflowSource;
 
-  /** Name written into apply provenance for the host shell / approver. */
-  @property({ type: String, attribute: 'approver-name' })
-  approverName = 'reference-shell';
+  /**
+   * Host-supplied catalog of action types the editor can render. Falls back
+   * to Prism's built-in catalog when the host does not extend it.
+   */
+  @property({ attribute: false })
+  actionCatalog?: WorkflowActionCatalog;
+
+  /** Optional UX hint about the current author. Never authoritative. */
+  @property({ attribute: false })
+  authorContext?: WorkflowAuthorContext;
+
+  /** Host-supplied queues used for queue labels and authoring pickers. */
+  @property({ attribute: false })
+  availableQueues: WorkflowQueueDefinition[] = [];
 
   /**
    * If set, the component uses this workflow directly instead of fetching from
@@ -156,10 +174,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   initialWorkflow: AuthoredWorkflow | null = null;
 
   @state() private _workflow: AuthoredWorkflow | null = null;
-  @state() private _selectedStageKey: string | null = null;
+  @state() private _selection: WorkflowSelection = null;
   @state() private _selectedTransitionIndex: number | null = null;
-  @state() private _proposal: ProposalEnvelope | null = null;
-  @state() private _modalOpen = false;
   @state() private _toastMessage: string | null = null;
   @state() private _loading = false;
   @state() private _error: string | null = null;
@@ -171,6 +187,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _clipboard: ClipboardEntry | null = null;
   @state() private _saveState: SaveState = 'idle';
   @state() private _saveMessage: string | null = null;
+  @state() private _saveError: WorkflowSaveError | null = null;
+  @state() private _saveErrorCopyStatus: string | null = null;
   @state() private _helpOpen = false;
   @state() private _stagePreviewState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private _stagePreviewError: string | null = null;
@@ -180,6 +198,14 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _activeConfidenceTab: ConfidenceTab = 'canvas';
   @state() private _outlineCollapsed = false;
   @state() private _inspectorCollapsed = false;
+  @state() private _definitionEditorLoaded = false;
+  @state() private _definitionText = '';
+  @state() private _definitionParseError: string | null = null;
+  @state() private _definitionSchemaIssues: DefinitionLint[] = [];
+  @state() private _definitionAnnouncement = '';
+  /** Canonical JSON of the workflow at the moment a Definition→Visual sync was committed. */
+  private _lastAppliedDefinitionCanonical = '';
+  private _definitionDebounceHandle: number | null = null;
 
   private _savedWorkflowSnapshot: AuthoredWorkflow | null = null;
   private _helpReturnTarget: HTMLElement | null = null;
@@ -187,6 +213,14 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _stagePreviewRequestId = 0;
   private _lastLoadedWorkflowKey: string | null = null;
   private _workflowLoadRequestId = 0;
+
+  private get _selectedStageKey(): string | null {
+    return this._selection?.kind === 'stage' ? this._selection.stageKey : null;
+  }
+
+  private get _selectedGatewayKey(): string | null {
+    return this._selection?.kind === 'gateway' ? this._selection.gatewayKey : null;
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -223,6 +257,15 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
   }
 
+  updated(_changedProperties: Map<string, unknown>) {
+    this._refreshDefinitionTextFromWorkflow();
+    if (_changedProperties.has('_saveError') && this._saveError) {
+      this.updateComplete.then(() => {
+        this.shadowRoot?.querySelector<HTMLElement>('[data-prism-save-error]')?.focus();
+      });
+    }
+  }
+
   disconnectedCallback() {
     this.removeEventListener('keydown', this._handleEditorKeydown, true);
     this._clearStagePreviewTimer();
@@ -235,8 +278,20 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._error = null;
     this._reflectWorkflowLoadedState();
     this._lastLoadedWorkflowKey = this.workflowKey;
+
+    if (!this.workflowSource) {
+      // Empty state — no source wired. The shell renders a developer
+      // affordance; the editor element itself stays silently empty so
+      // Storybook stories that drive it via `initialWorkflow` are not
+      // disturbed.
+      this._workflow = null;
+      this._loading = false;
+      this._reflectWorkflowLoadedState();
+      return;
+    }
+
     try {
-      const workflow = await fetchWorkflow(this.workflowKey, this._resolvedAuthoringApiBase);
+      const workflow = await this.workflowSource.load(this.workflowKey);
       if (requestId !== this._workflowLoadRequestId) {
         return;
       }
@@ -256,7 +311,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private async _loadActionCatalog() {
-    this._actionCatalog = await fetchActionCatalog(this._resolvedAuthoringApiBase);
+    const catalog = this.actionCatalog ?? new BuiltInWorkflowActionCatalog();
+    this._actionCatalog = await catalog.entries();
   }
 
   private _initialiseEditorState(workflow: AuthoredWorkflow) {
@@ -268,11 +324,16 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._actionSelection = null;
     this._saveState = 'idle';
     this._saveMessage = null;
+    this._saveError = null;
+    this._saveErrorCopyStatus = null;
     this._projectedWorkflowPreview = null;
     this._stagePreviewState = 'idle';
     this._stagePreviewError = null;
     this._simulation = null;
     this._simulationAnnouncement = '';
+    this._lastAppliedDefinitionCanonical = '';
+    this._definitionParseError = null;
+    this._definitionSchemaIssues = [];
     this._applySelection(null, this._workflow);
     this._announceHistory('Workflow loaded. Undo history is ready for your next edit.');
   }
@@ -292,7 +353,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    return this._workflow.stages.find(stage => stage.stageKey === this._selectedStageKey) ?? null;
+    return this._workflow.states.find(stage => stage.stateKey === this._selectedStageKey) ?? null;
   }
 
   private get _previewedStage(): ProjectedWorkflowState | null {
@@ -301,7 +362,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    return this._projectedWorkflowPreview.file.states.find(state => state.stateKey === selectedStage.stageKey) ?? null;
+    return this._projectedWorkflowPreview.file.states.find(state => state.stateKey === selectedStage.stateKey) ?? null;
   }
 
   private get _previewedTransitions(): ProjectedWorkflowTransition[] {
@@ -310,9 +371,8 @@ export class PrismWorkflowEditorElement extends LitElement {
       return [];
     }
 
-    return this._projectedWorkflowPreview.file.transitions.filter(
-      transition => transition.fromState === selectedStage.stageKey
-    );
+    return (this._projectedWorkflowPreview.file.states.find(stage => stage.stateKey === selectedStage.stateKey)?.routes ?? [])
+      .filter(route => route.target.trim().length > 0);
   }
 
   private get _initialSimulationStage(): AuthoredStage | null {
@@ -320,7 +380,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    return this._workflow.stages.find(stage => stage.stageKey === this._workflow?.initialStageKey) ?? null;
+    return this._workflow.states.find(stage => stage.stateKey === this._workflow?.initialState) ?? null;
   }
 
   private get _simulationCurrentStage(): AuthoredStage | null {
@@ -329,7 +389,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    return this._workflow.stages.find(stage => stage.stageKey === simulation.currentStageKey) ?? null;
+    return this._workflow.states.find(stage => stage.stateKey === simulation.currentStageKey) ?? null;
   }
 
   private _announceSimulation(message: string) {
@@ -371,19 +431,22 @@ export class PrismWorkflowEditorElement extends LitElement {
       return [];
     }
 
-    const transition = this._workflow.transitions[transitionIndex];
+    const transition = (flattenRoutes(this._workflow))[transitionIndex];
     if (!transition) {
       return ['This transition is no longer available.'];
     }
 
-    const targetStage = this._workflow.stages.find(stage => stage.stageKey === transition.toStage);
+    const targetStage = this._workflow.states.find(stage => stage.stateKey === transition.toStage);
     const blockingIssues = this._blockingValidationIssues.filter(issue => {
-      if (issue.location.kind === 'transition') {
-        return issue.location.transitionIndex === transitionIndex;
+      if (issue.location.kind === 'route') {
+        return issue.location.routeId === transition.key
+          && issue.location.routeId === transition.routeId;
       }
 
-      if (issue.location.kind === 'action' && issue.location.target === 'transition') {
-        return issue.location.transitionIndex === transitionIndex && issue.blocking;
+      if (issue.location.kind === 'action' && issue.location.target === 'route') {
+        return issue.location.routeId === transition.key
+          && issue.location.routeId === transition.routeId
+          && issue.blocking;
       }
 
       if (issue.location.kind === 'stage') {
@@ -407,10 +470,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    if (currentStage.kind === 'Waiting') {
-      return 'waiting';
-    }
-
     if (isTerminalStage(currentStage)) {
       return 'terminal';
     }
@@ -423,11 +482,11 @@ export class PrismWorkflowEditorElement extends LitElement {
       return [];
     }
 
-    return this._workflow.transitions
+    return (flattenRoutes(this._workflow))
       .map((transition, transitionIndex) => ({ transition, transitionIndex }))
-      .filter(({ transition }) => transition.fromStage === this._simulationCurrentStage?.stageKey)
+      .filter(({ transition }) => transition.fromStage === this._simulationCurrentStage?.stateKey)
       .map(({ transition, transitionIndex }) => {
-        const targetStage = this._workflow?.stages.find(stage => stage.stageKey === transition.toStage) ?? null;
+        const targetStage = this._workflow?.states.find(stage => stage.stateKey === transition.toStage) ?? null;
         const blockerMessages = this._simulationBlockersForTransition(transitionIndex);
         return {
           transitionIndex,
@@ -444,26 +503,18 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private _currentSelection(): WorkflowSelection {
-    if (this._selectedStageKey) {
-      return { kind: 'stage', stageKey: this._selectedStageKey };
-    }
-
-    if (this._selectedTransitionIndex !== null) {
-      return { kind: 'transition', transitionIndex: this._selectedTransitionIndex };
-    }
-
-    return null;
+    return this._selection;
   }
 
   private _normaliseSelection(
-    selection?: { kind: 'stage' | 'transition'; stageKey?: string; transitionIndex?: number } | null
+    selection?: { kind: 'stage' | 'gateway' | 'transition'; stageKey?: string; gatewayKey?: string; transitionIndex?: number } | null
   ): WorkflowSelection {
     if (selection?.kind === 'stage' && selection.stageKey) {
       return { kind: 'stage', stageKey: selection.stageKey };
     }
 
-    if (selection?.kind === 'transition' && typeof selection.transitionIndex === 'number') {
-      return { kind: 'transition', transitionIndex: selection.transitionIndex };
+    if (selection?.kind === 'gateway' && selection.gatewayKey) {
+      return { kind: 'gateway', gatewayKey: selection.gatewayKey };
     }
 
     return null;
@@ -471,34 +522,41 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   private _applySelection(selection: WorkflowSelection, workflow: AuthoredWorkflow | null = this._workflow) {
     if (!workflow) {
-      this._selectedStageKey = null;
+      this._selection = null;
       this._selectedTransitionIndex = null;
       this._syncStagePreview();
       return;
     }
 
     if (selection?.kind === 'stage') {
-      this._selectedStageKey = workflow.stages.some(stage => stage.stageKey === selection.stageKey)
-        ? selection.stageKey
-        : null;
+      const exists = workflow.states.some(stage => stage.stateKey === selection.stageKey);
+      this._selection = exists ? { kind: 'stage', stageKey: selection.stageKey } : null;
       this._selectedTransitionIndex = null;
       this._syncStagePreview();
       return;
     }
 
-    if (
-      selection?.kind === 'transition'
-      && selection.transitionIndex >= 0
-      && selection.transitionIndex < workflow.transitions.length
-    ) {
-      this._selectedTransitionIndex = selection.transitionIndex;
-      this._selectedStageKey = null;
+    if (selection?.kind === 'gateway') {
+      const exists = workflow.metadata?.gateways?.some(gateway => gateway.key === selection.gatewayKey) ?? false;
+      this._selection = exists ? { kind: 'gateway', gatewayKey: selection.gatewayKey } : null;
+      this._selectedTransitionIndex = null;
       this._syncStagePreview();
       return;
     }
 
-    this._selectedStageKey = null;
+    this._selection = null;
     this._selectedTransitionIndex = null;
+    this._syncStagePreview();
+  }
+
+  private _applyTransitionHighlight(transitionIndex: number, workflow: AuthoredWorkflow | null = this._workflow) {
+    const transitions = flattenRoutes(workflow);
+    if (!workflow || transitionIndex < 0 || transitionIndex >= transitions.length) {
+      this._selectedTransitionIndex = null;
+      return;
+    }
+    this._selection = null;
+    this._selectedTransitionIndex = transitionIndex;
     this._syncStagePreview();
   }
 
@@ -540,7 +598,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._stagePreviewError = null;
 
     try {
-      const preview = await projectWorkflow(this.workflowKey, this._workflow, this._resolvedAuthoringApiBase);
+      const preview = projectWorkflowLocally(this._workflow);
       if (requestId !== this._stagePreviewRequestId) {
         return;
       }
@@ -548,7 +606,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._projectedWorkflowPreview = preview;
       this._stagePreviewState = 'ready';
 
-      if (!preview.file.states.some(state => state.stateKey === this._selectedStage?.stageKey)) {
+      if (!preview.file.states.some(state => state.stateKey === this._selectedStage?.stateKey)) {
         this._stagePreviewState = 'error';
         this._stagePreviewError = `The selected stage could not be found in the projected runtime preview.`;
       }
@@ -617,8 +675,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return null;
     }
 
-    return (currentSelection.kind === 'stage' && this._actionSelection.target === 'stage')
-      || (currentSelection.kind === 'transition' && this._actionSelection.target === 'transition')
+    return currentSelection.kind === 'stage' && this._actionSelection.target === 'stage'
       ? this._actionSelection.index
       : null;
   }
@@ -654,7 +711,10 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private get _canSave() {
-    return Boolean(this._workflow) && !this._hasBlockingValidationIssues && this._saveState !== 'saving';
+    return Boolean(this._workflow)
+      && !this._hasBlockingValidationIssues
+      && this._saveState !== 'saving'
+      && this._canSaveByContext;
   }
 
   private get _dirtyStateSummary() {
@@ -739,13 +799,13 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
 
     if (this._actionSelection.target === 'stage' && this._selectedStageKey) {
-      const stage = this._workflow.stages.find(candidate => candidate.stageKey === this._selectedStageKey);
+      const stage = this._workflow.states.find(candidate => candidate.stateKey === this._selectedStageKey);
       const action = stage?.actions?.[this._actionSelection.index];
       return action ? { action, target: 'stage' } : null;
     }
 
     if (this._actionSelection.target === 'transition' && this._selectedTransitionIndex !== null) {
-      const transition = this._workflow.transitions[this._selectedTransitionIndex];
+      const transition = (flattenRoutes(this._workflow))[this._selectedTransitionIndex];
       const action = transition?.actions?.[this._actionSelection.index];
       return action ? { action, target: 'transition' } : null;
     }
@@ -755,7 +815,7 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   private _canPasteActionIntoSelection(action: AuthoredAction) {
     const currentSelection = this._currentSelection();
-    if (!currentSelection) {
+    if (!currentSelection || currentSelection.kind === 'gateway') {
       return false;
     }
 
@@ -863,7 +923,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    if (this._modalOpen || this._helpOpen || event.defaultPrevented || event.altKey) {
+    if (this._helpOpen || event.defaultPrevented || event.altKey) {
       return;
     }
 
@@ -967,8 +1027,13 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._actionSelection = null;
   }
 
+  private _handleGatewaySelected(e: CustomEvent<{ gatewayKey: string }>) {
+    this._applySelection({ kind: 'gateway', gatewayKey: e.detail.gatewayKey }, this._workflow);
+    this._actionSelection = null;
+  }
+
   private _handleTransitionSelected(e: CustomEvent<{ transitionIndex: number }>) {
-    this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
+    this._applyTransitionHighlight(e.detail.transitionIndex, this._workflow);
     this._actionSelection = null;
   }
 
@@ -981,7 +1046,7 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _handleWorkflowUpdated(
     e: CustomEvent<{
       workflow: AuthoredWorkflow;
-      selection?: { kind: 'stage' | 'transition'; stageKey?: string; transitionIndex?: number } | null;
+      selection?: { kind: 'stage' | 'gateway' | 'transition'; stageKey?: string; gatewayKey?: string; transitionIndex?: number } | null;
     }>
   ) {
     const nextWorkflow = cloneWorkflow(e.detail.workflow);
@@ -1001,14 +1066,173 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._actionSelection = null;
   };
 
+  private _handleOutlineGatewaySelected = (e: CustomEvent<{ gatewayKey: string }>) => {
+    this._applySelection({ kind: 'gateway', gatewayKey: e.detail.gatewayKey }, this._workflow);
+    this._actionSelection = null;
+    const gateway = this._workflow?.metadata?.gateways?.find(g => g.key === e.detail.gatewayKey);
+    if (gateway) {
+      this._announceHistory(`Selected gateway ${gateway.displayName}`);
+    }
+  };
+
   private _handleOutlineTransitionSelected = (e: CustomEvent<{ transitionIndex: number }>) => {
-    this._applySelection({ kind: 'transition', transitionIndex: e.detail.transitionIndex }, this._workflow);
+    this._applyTransitionHighlight(e.detail.transitionIndex, this._workflow);
     this._actionSelection = null;
   };
 
   private _handleConfidenceTabChanged = (e: CustomEvent<{ tab: ConfidenceTab }>) => {
     this._activeConfidenceTab = e.detail.tab;
+    if (e.detail.tab === 'definition') {
+      void this._ensureDefinitionEditorLoaded();
+    }
   };
+
+  // ---------------------------------------------------------------------------
+  // Definition tab — JSON twin-pane sync
+  // ---------------------------------------------------------------------------
+
+  private async _ensureDefinitionEditorLoaded() {
+    if (this._definitionEditorLoaded) {
+      return;
+    }
+    await import('./prism-definition-editor.js');
+    this._definitionEditorLoaded = true;
+  }
+
+  private _refreshDefinitionTextFromWorkflow() {
+    if (!this._workflow) {
+      if (this._definitionText !== '') {
+        this._definitionText = '';
+      }
+      if (this._definitionParseError !== null) {
+        this._definitionParseError = null;
+      }
+      if (this._definitionSchemaIssues.length > 0) {
+        this._definitionSchemaIssues = [];
+      }
+      this._lastAppliedDefinitionCanonical = '';
+      return;
+    }
+    const canonical = serializeAuthoredWorkflow(this._workflow);
+    if (canonical === this._lastAppliedDefinitionCanonical) {
+      return;
+    }
+    this._definitionText = canonical;
+    this._lastAppliedDefinitionCanonical = canonical;
+    if (this._definitionParseError !== null) {
+      this._definitionParseError = null;
+    }
+    if (this._definitionSchemaIssues.length > 0) {
+      this._definitionSchemaIssues = [];
+    }
+  }
+
+  private _handleDefinitionInput = (e: CustomEvent<{ value: string }>) => {
+    this._definitionText = e.detail.value;
+    if (this._definitionDebounceHandle !== null) {
+      window.clearTimeout(this._definitionDebounceHandle);
+    }
+    this._definitionDebounceHandle = window.setTimeout(() => {
+      this._definitionDebounceHandle = null;
+      this._tryApplyDefinitionText();
+    }, 250);
+  };
+
+  private _tryApplyDefinitionText() {
+    const source = this._definitionText;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this._definitionParseError = message;
+      this._definitionSchemaIssues = [];
+      return;
+    }
+
+    const issues = lintAuthoredWorkflowDocument(parsed, source);
+    if (issues.length > 0) {
+      this._definitionParseError = null;
+      this._definitionSchemaIssues = issues;
+      return;
+    }
+
+    const next = coerceParsedAuthoredWorkflow(parsed);
+    this._definitionParseError = null;
+    this._definitionSchemaIssues = [];
+
+    if (authoredWorkflowJsonEquals(this._workflow, next)) {
+      // No semantic change — just remember the text the user typed.
+      this._lastAppliedDefinitionCanonical = serializeAuthoredWorkflow(next);
+      return;
+    }
+
+    // Mark the canonical so the visual→definition sync doesn't echo this back.
+    this._lastAppliedDefinitionCanonical = serializeAuthoredWorkflow(next);
+    this._commitWorkflowUpdate(next, this._currentSelection());
+    const stageCount = next.states.length;
+    const gatewayCount = next.metadata?.gateways?.length ?? 0;
+    this._announceDefinition(
+      `Definition updated. ${stageCount} ${stageCount === 1 ? 'stage' : 'stages'}, ${gatewayCount} ${gatewayCount === 1 ? 'gateway' : 'gateways'}.`
+    );
+  }
+
+  private _announceDefinition(message: string) {
+    this._definitionAnnouncement = '';
+    requestAnimationFrame(() => {
+      this._definitionAnnouncement = message;
+    });
+  }
+
+  private _revertDefinitionText() {
+    if (!this._workflow) {
+      return;
+    }
+    if (this._definitionDebounceHandle !== null) {
+      window.clearTimeout(this._definitionDebounceHandle);
+      this._definitionDebounceHandle = null;
+    }
+    const canonical = serializeAuthoredWorkflow(this._workflow);
+    this._definitionText = canonical;
+    this._lastAppliedDefinitionCanonical = canonical;
+    this._definitionParseError = null;
+    this._definitionSchemaIssues = [];
+    this._announceDefinition('Definition reverted to the current workflow.');
+  }
+
+  private _applyDefinitionTextImmediately() {
+    if (this._definitionDebounceHandle !== null) {
+      window.clearTimeout(this._definitionDebounceHandle);
+      this._definitionDebounceHandle = null;
+    }
+    this._tryApplyDefinitionText();
+  }
+  // Public hook for tests/host: flush debounce and apply if valid.
+  applyDefinitionPending() { this._applyDefinitionTextImmediately(); }
+
+  private get _definitionHasIssues() {
+    return this._definitionParseError !== null || this._definitionSchemaIssues.length > 0;
+  }
+
+  private get _definitionDiagnostics() {
+    const out: Array<{ line: number; severity: 'error' | 'warning'; message: string }> = [];
+    if (this._definitionParseError) {
+      // Try to pull a "line N column M" hint out of JSON.parse errors.
+      const lineMatch = /line (\d+)/i.exec(this._definitionParseError);
+      out.push({
+        line: lineMatch ? Number(lineMatch[1]) : 1,
+        severity: 'error',
+        message: this._definitionParseError,
+      });
+    }
+    for (const issue of this._definitionSchemaIssues) {
+      if (issue.line) {
+        out.push({ line: issue.line, severity: 'error', message: issue.message });
+      }
+    }
+    return out;
+  }
+
 
   private _copySelection() {
     const selectedAction = this._currentAction();
@@ -1030,7 +1254,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return false;
     }
 
-    const stage = this._workflow.stages.find(candidate => candidate.stageKey === this._selectedStageKey);
+    const stage = this._workflow.states.find(candidate => candidate.stateKey === this._selectedStageKey);
     if (!stage) {
       return false;
     }
@@ -1051,15 +1275,15 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     if (this._clipboard.kind === 'stage') {
       const copiedStage = cloneStage(this._clipboard.stage);
-      const stageKey = makeCopiedStageKey(copiedStage.stageKey, this._workflow);
+      const stageKey = makeCopiedStageKey(copiedStage.stateKey, this._workflow);
       const pastedStage: AuthoredStage = {
         ...copiedStage,
         stageKey,
       };
 
-      const stages = [...this._workflow.stages];
+      const stages = [...this._workflow.states];
       const selectedStageIndex = this._selectedStageKey
-        ? stages.findIndex(stage => stage.stageKey === this._selectedStageKey)
+        ? stages.findIndex(stage => stage.stateKey === this._selectedStageKey)
         : -1;
       const insertIndex = selectedStageIndex >= 0 ? selectedStageIndex + 1 : stages.length;
       stages.splice(insertIndex, 0, pastedStage);
@@ -1071,103 +1295,28 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
 
     const currentSelection = this._currentSelection();
-    if (!currentSelection) {
+    if (!currentSelection || currentSelection.kind !== 'stage') {
       return false;
     }
 
-    const target = currentSelection.kind === 'stage' ? 'stage' : 'transition';
-    const pastedAction = this._normalisePastedAction(this._clipboard.action, target);
+    const pastedAction = this._normalisePastedAction(this._clipboard.action, 'stage');
     if (!pastedAction) {
-      this._showToast(`Action ${this._clipboard.label} cannot be pasted into the current ${target}.`);
+      this._showToast(`Action ${this._clipboard.label} cannot be pasted into the current stage.`);
       return false;
     }
 
-    if (currentSelection.kind === 'stage') {
-      const stageIndex = this._workflow.stages.findIndex(stage => stage.stageKey === currentSelection.stageKey);
-      if (stageIndex < 0) {
-        return false;
-      }
-
-      const stages = [...this._workflow.stages];
-      const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
-      stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
-      this._commitWorkflowUpdate({ ...this._workflow, stages }, currentSelection);
-      this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
-      this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
-      return true;
-    }
-
-    const transition = this._workflow.transitions[currentSelection.transitionIndex];
-    if (!transition) {
+    const stageIndex = this._workflow.states.findIndex(stage => stage.stateKey === currentSelection.stageKey);
+    if (stageIndex < 0) {
       return false;
     }
 
-    const transitions = [...this._workflow.transitions];
-    const nextActions = [...(transition.actions ?? []), pastedAction];
-    transitions[currentSelection.transitionIndex] = {
-      ...transition,
-      actions: nextActions,
-    } as AuthoredTransition;
-    this._commitWorkflowUpdate({ ...this._workflow, transitions }, currentSelection);
-    this._actionSelection = { target: 'transition', index: nextActions.length - 1 };
-    this._showToast(`Pasted action ${this._clipboard.label} into transition ${transition.action}.`);
+    const stages = [...this._workflow.states];
+    const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
+    stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
+    this._commitWorkflowUpdate({ ...this._workflow, stages }, currentSelection);
+    this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
+    this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
     return true;
-  }
-
-  private async _handleProposalAccept() {
-    if (!this._proposal) return;
-    try {
-      await applyProposal(
-        this.workflowKey,
-        this._proposal,
-        this._resolvedAuthoringApiBase,
-        this.approverName
-      );
-    } catch {
-      // Apply endpoint may not be live in V1 walkthrough — apply locally
-      this._applyProposalLocally(this._proposal);
-    }
-
-    this._closeModal();
-    this._showToast('Workflow updated successfully.');
-
-    // Re-fetch unless we are running with an injected fixture
-    if (!this.initialWorkflow) {
-      await this._loadWorkflow();
-    }
-  }
-
-  private _applyProposalLocally(proposal: ProposalEnvelope) {
-    if (!this._workflow) return;
-    // V1: find insert-stage ops and splice them into the local workflow.
-    // op.before may be undefined if the target stage doesn't exist yet — fall back to append.
-    let stages = [...this._workflow.stages];
-    for (const op of proposal.ops) {
-      if (op.op === 'insert-stage' && op.value) {
-        const stage = op.value as typeof stages[number];
-        if (op.before) {
-          const idx = stages.findIndex(s => s.stageKey === op.before);
-          if (idx >= 0) {
-            stages = [...stages.slice(0, idx), stage, ...stages.slice(idx)];
-          } else {
-            stages = [...stages, stage];
-          }
-        } else {
-          stages = [...stages, stage];
-        }
-      }
-    }
-    this._workflow = { ...this._workflow, stages };
-  }
-
-  private _handleProposalReject() {
-    this._closeModal();
-    this._showToast('Proposal rejected.');
-  }
-
-  private _closeModal() {
-    this._modalOpen = false;
-    this._proposal = null;
   }
 
   private _showToast(message: string) {
@@ -1215,19 +1364,39 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    if (issue.location.kind === 'transition') {
-      this._applySelection({ kind: 'transition', transitionIndex: issue.location.transitionIndex }, this._workflow);
+    if (issue.location.kind === 'route') {
+      const gatewayKey = issue.location.routeId;
+      const routeId = issue.location.routeId;
+      const transitions = flattenRoutes(this._workflow);
+      const targetIndex = transitions.findIndex(view =>
+        view.key === gatewayKey && view.routeId === routeId
+      );
+      if (targetIndex >= 0) {
+        this._applyTransitionHighlight(targetIndex, this._workflow);
+      }
       this._actionSelection = null;
       this._focusInspectorForValidationIssue(issue);
       return;
     }
 
-    const selection = issue.location.target === 'stage'
-      ? { kind: 'stage' as const, stageKey: issue.location.stageKey ?? '' }
-      : { kind: 'transition' as const, transitionIndex: issue.location.transitionIndex ?? 0 };
-    this._applySelection(selection, this._workflow);
-    this._actionSelection = { target: issue.location.target, index: issue.location.actionIndex };
-    this._focusInspectorForValidationIssue(issue);
+    if (issue.location.kind === 'action' && issue.location.target === 'route') {
+      const gatewayKey = issue.location.routeId;
+      const routeId = issue.location.routeId;
+      const transitions = flattenRoutes(this._workflow);
+      const targetIndex = transitions.findIndex(view =>
+        view.key === gatewayKey && view.routeId === routeId
+      );
+      this._applyTransitionHighlight(targetIndex >= 0 ? targetIndex : 0, this._workflow);
+      this._actionSelection = { target: 'transition', index: issue.location.actionIndex };
+      this._focusInspectorForValidationIssue(issue);
+      return;
+    }
+
+    if (issue.location.kind === 'action' && issue.location.target === 'stage') {
+      this._applySelection({ kind: 'stage', stageKey: issue.location.stageKey ?? '' }, this._workflow);
+      this._actionSelection = { target: 'stage', index: issue.location.actionIndex };
+      this._focusInspectorForValidationIssue(issue);
+    }
   }
 
   private async _handleSave() {
@@ -1237,25 +1406,70 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     if (this._hasBlockingValidationIssues) {
       this._saveState = 'error';
-      this._saveMessage = 'Save blocked. Fix the blocking validation errors first.';
-      this._showToast(this._saveMessage);
+      this._saveError = new WorkflowSaveError({
+        title: 'Can’t save this workflow yet',
+        summary: 'Fix the blocking validation errors first.',
+        detailLines: ['Open Validation to review each blocking error before trying again.'],
+      });
+      this._saveMessage = this._saveError.summary;
+      this._saveErrorCopyStatus = null;
       return;
     }
 
     this._saveState = 'saving';
     this._saveMessage = null;
+    this._saveErrorCopyStatus = null;
+
+    if (!this.workflowSource) {
+      this._saveState = 'error';
+      this._saveError = new WorkflowSaveError({
+        title: 'Save unavailable',
+        summary: 'No workflow source is wired to the editor.',
+        detailLines: ['Connect a workflow source before trying to save.'],
+      });
+      this._saveMessage = this._saveError.summary;
+      this._saveErrorCopyStatus = null;
+      return;
+    }
 
     try {
-      await publishWorkflow(this.workflowKey, this._workflow, this._resolvedAuthoringApiBase);
+      await this.workflowSource.save(this.workflowKey, this._workflow);
       this._savedWorkflowSnapshot = cloneWorkflow(this._workflow);
       this._saveState = 'saved';
-      this._saveMessage = 'Workflow saved and published.';
+      this._saveMessage = 'Workflow saved.';
+      this._saveError = null;
+      this._saveErrorCopyStatus = null;
       this._showToast(this._saveMessage);
     } catch (error) {
       this._saveState = 'error';
-      this._saveMessage = error instanceof Error ? error.message : 'Save failed.';
-      this._showToast(this._saveMessage);
+      this._saveError = normaliseWorkflowSaveError(
+        error,
+        'The editor couldn’t save your changes. Review the details below and try again.'
+      );
+      this._saveMessage = this._saveError.summary;
+      this._saveErrorCopyStatus = null;
     }
+  }
+
+  private async _copySaveErrorDetails() {
+    if (!this._saveError) {
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(this._saveError.copyText);
+        this._saveErrorCopyStatus = 'Save error details copied.';
+        return;
+      }
+    } catch {
+      // Fall through to manual copy support below.
+    }
+
+    const copyField = this.shadowRoot?.querySelector<HTMLTextAreaElement>('[data-prism-save-error-details]');
+    copyField?.focus();
+    copyField?.select();
+    this._saveErrorCopyStatus = 'Clipboard access is unavailable. Select and copy the details manually.';
   }
 
   private _startSimulation() {
@@ -1266,9 +1480,9 @@ export class PrismWorkflowEditorElement extends LitElement {
     }
 
     this._simulation = {
-      currentStageKey: initialStage.stageKey,
+      currentStageKey: initialStage.stateKey,
       history: [{
-        stageKey: initialStage.stageKey,
+        stageKey: initialStage.stateKey,
         stageLabel: initialStage.displayName,
         enteredByTransitionIndex: null,
       }],
@@ -1282,7 +1496,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    const transition = this._workflow.transitions[e.detail.transitionIndex];
+    const transition = (flattenRoutes(this._workflow))[e.detail.transitionIndex];
     if (!transition) {
       return;
     }
@@ -1293,18 +1507,18 @@ export class PrismWorkflowEditorElement extends LitElement {
       return;
     }
 
-    const nextStage = this._workflow.stages.find(stage => stage.stageKey === transition.toStage);
+    const nextStage = this._workflow.states.find(stage => stage.stateKey === transition.toStage);
     if (!nextStage) {
       this._announceSimulation(`Transition ${transition.action} cannot continue because the target stage is missing.`);
       return;
     }
 
     this._simulation = {
-      currentStageKey: nextStage.stageKey,
+      currentStageKey: nextStage.stateKey,
       history: [
         ...this._simulation.history,
         {
-          stageKey: nextStage.stageKey,
+          stageKey: nextStage.stateKey,
           stageLabel: nextStage.displayName,
           enteredByLabel: transition.action,
           enteredByTransitionIndex: e.detail.transitionIndex,
@@ -1313,17 +1527,11 @@ export class PrismWorkflowEditorElement extends LitElement {
       pathTransitionIndices: [...this._simulation.pathTransitionIndices, e.detail.transitionIndex],
     };
 
-    const stopReason = nextStage.kind === 'Waiting'
-      ? 'waiting'
-      : isTerminalStage(nextStage)
-        ? 'terminal'
-        : null;
+    const stopReason = isTerminalStage(nextStage) ? 'terminal' : null;
     this._announceSimulation(
-      stopReason === 'waiting'
-        ? `Simulation stopped at waiting stage ${nextStage.displayName}.`
-        : stopReason === 'terminal'
-          ? `Simulation reached end stage ${nextStage.displayName}.`
-          : `Simulation moved to ${nextStage.displayName}.`
+      stopReason === 'terminal'
+        ? `Simulation reached end stage ${nextStage.displayName}.`
+        : `Simulation moved to ${nextStage.displayName}.`
     );
   }
 
@@ -1398,6 +1606,98 @@ export class PrismWorkflowEditorElement extends LitElement {
     `;
   }
 
+  private _renderDefinitionPanel() {
+    if (!this._workflow) {
+      return html`<div class="definition-empty" data-prism-definition-empty>
+        Loading the workflow definition…
+      </div>`;
+    }
+
+    const banner = this._renderDefinitionBanner();
+    const stageCount = this._workflow.states.length;
+    const gatewayCount = this._workflow.metadata?.gateways?.length ?? 0;
+
+    return html`
+      <div class="definition-panel" data-prism-definition-panel>
+        <div class="definition-header">
+          <div class="definition-header-copy">
+            <h2 class="definition-title">Definition</h2>
+            <p class="definition-subtitle">
+              Power-user view of the authored workflow.
+              ${stageCount} ${stageCount === 1 ? 'stage' : 'stages'},
+              ${gatewayCount} ${gatewayCount === 1 ? 'gateway' : 'gateways'}.
+              Edits apply when valid (250&nbsp;ms after typing stops).
+            </p>
+          </div>
+        </div>
+        ${banner}
+        <div class="definition-editor-frame">
+          ${this._definitionEditorLoaded
+            ? html`
+                <prism-definition-editor
+                  data-prism-definition-editor
+                  .value=${this._definitionText}
+                  .diagnostics=${this._definitionDiagnostics}
+                  @definition-input=${this._handleDefinitionInput}
+                ></prism-definition-editor>
+              `
+            : html`<p class="definition-loading" role="status" data-prism-definition-tab-loading>
+                Preparing the JSON editor…
+              </p>`}
+        </div>
+        <div class="sr-only" role="status" aria-live="polite" data-prism-definition-announcement>
+          ${this._definitionAnnouncement}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderDefinitionBanner() {
+    if (!this._definitionHasIssues) {
+      return nothing;
+    }
+    const summary = this._definitionParseError
+      ? `JSON is not valid: ${this._definitionParseError}`
+      : this._definitionSchemaIssues[0]?.message ?? 'Definition does not match the workflow schema.';
+    const additional = !this._definitionParseError && this._definitionSchemaIssues.length > 1
+      ? html`<ul class="definition-banner-list">
+          ${this._definitionSchemaIssues.slice(1, 5).map(issue => html`<li>${issue.message}</li>`)}
+        </ul>`
+      : nothing;
+
+    return html`
+      <div
+        class="definition-banner"
+        role="alert"
+        data-prism-definition-banner
+      >
+        <p class="definition-banner-summary">
+          <strong>Definition can't be applied:</strong> ${summary}
+        </p>
+        ${additional}
+        <div class="definition-banner-actions">
+          <button
+            type="button"
+            class="govuk-button"
+            data-prism-definition-apply
+            disabled
+            aria-disabled="true"
+          >
+            Apply when valid
+          </button>
+          <button
+            type="button"
+            class="govuk-button govuk-button--secondary"
+            data-prism-definition-revert
+            @click=${this._revertDefinitionText}
+          >
+            Revert to current
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   private _renderShortcutGuide() {
     if (!this._helpOpen) {
       return nothing;
@@ -1466,8 +1766,8 @@ export class PrismWorkflowEditorElement extends LitElement {
     `;
   }
 
-  private get _resolvedAuthoringApiBase(): string {
-    return this.authoringApiBase || defaultAuthoringApiBase();
+  private get _canSaveByContext(): boolean {
+    return this.authorContext?.canSave !== false;
   }
 
   private _renderStagePreview() {
@@ -1505,6 +1805,7 @@ export class PrismWorkflowEditorElement extends LitElement {
         ${this._renderToast()}
         ${this._loading ? html`<div class="loading-banner" role="status">Loading workflow…</div>` : nothing}
         ${this._error ? html`<div class="error-banner" role="alert">${this._error}</div>` : nothing}
+        ${this._renderSaveErrorSurface()}
 
         <!-- Tab-based navigation -->
         <prism-confidence-tabs
@@ -1529,7 +1830,8 @@ export class PrismWorkflowEditorElement extends LitElement {
                       ? nothing
                       : html`
                           <p class="panel-subtitle">
-                            ${(this._workflow?.stages.length ?? 0)} ${(this._workflow?.stages.length ?? 0) === 1 ? 'stage' : 'stages'}
+                            ${(this._workflow?.states.length ?? 0)} ${(this._workflow?.states.length ?? 0) === 1 ? 'stage' : 'stages'}
+                            ${this._workflow?.metadata?.gateways?.length ? ` · ${this._workflow.metadata?.gateways.length} gateways` : ''}
                           </p>
                         `}
                   </div>
@@ -1555,10 +1857,13 @@ export class PrismWorkflowEditorElement extends LitElement {
                     class="editor-outline"
                     data-prism-workflow-outline
                     .workflow=${this._workflow}
+                    .availableQueues=${this.availableQueues}
                     .selectedStageKey=${this._selectedStageKey}
+                    .selectedGatewayKey=${this._selectedGatewayKey}
                     .selectedTransitionIndex=${this._selectedTransitionIndex}
                     .showHeader=${false}
                     @outline-stage-selected=${this._handleOutlineStageSelected}
+                    @outline-gateway-selected=${this._handleOutlineGatewaySelected}
                     @outline-transition-selected=${this._handleOutlineTransitionSelected}
                   ></prism-workflow-outline>
                 </div>
@@ -1575,6 +1880,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                       class="toolbar-btn govuk-button"
                       data-prism-save
                       ?disabled=${!this._canSave}
+                      title=${!this._canSaveByContext ? 'Saving is disabled for the current author.' : nothing}
                       aria-keyshortcuts=${SAVE_SHORTCUT?.ariaKeys ?? nothing}
                       @click=${this._handleSave}
                     >
@@ -1635,19 +1941,46 @@ export class PrismWorkflowEditorElement extends LitElement {
                   <span class="status-chip">Help F1</span>
                   <span class="status-text">${this._historyStatusSummary}</span>
                 </div>
+                ${(() => {
+                  const errorCount = this._blockingValidationIssues.length;
+                  const warningCount = this._warningValidationIssues.length;
+                  const total = errorCount + warningCount;
+                  if (total === 0) return nothing;
+                  const summary = errorCount > 0 && warningCount > 0
+                    ? `${errorCount} error${errorCount === 1 ? '' : 's'} and ${warningCount} warning${warningCount === 1 ? '' : 's'} need attention.`
+                    : errorCount > 0
+                      ? `${errorCount} validation error${errorCount === 1 ? '' : 's'} need attention.`
+                      : `${warningCount} validation warning${warningCount === 1 ? '' : 's'} need attention.`;
+                  return html`
+                    <div
+                      class=${`canvas-health-hint ${errorCount > 0 ? 'is-error' : 'is-warning'}`}
+                      data-prism-canvas-health-hint
+                      role="status"
+                    >
+                      <span class="canvas-health-summary">${summary}</span>
+                      <button
+                        type="button"
+                        class="canvas-health-action"
+                        data-prism-open-validation
+                        @click=${() => { this._activeConfidenceTab = 'validation'; }}
+                      >Open Validation</button>
+                    </div>
+                  `;
+                })()}
                 <div class="sr-only" role="status" aria-live="polite">${this._historyAnnouncement}</div>
 
                 <prism-workflow-graph
                   class="graph-panel"
                   .workflow=${this._workflow}
-                  mode="graph"
-                  .allowLinearMode=${false}
+                  .availableQueues=${this.availableQueues}
                   .selectedStageKey=${this._selectedStageKey}
+                  .selectedGatewayKey=${this._selectedGatewayKey}
                   .selectedTransitionIndex=${this._selectedTransitionIndex}
-                  .simulationCurrentStageKey=${this._simulationCurrentStage?.stageKey ?? null}
+                  .simulationCurrentStageKey=${this._simulationCurrentStage?.stateKey ?? null}
                   .simulationPathStageKeys=${this._simulation?.history.map(entry => entry.stageKey) ?? []}
                   .simulationPathTransitionIndices=${this._simulation?.pathTransitionIndices ?? []}
                   @stage-selected="${this._handleStageSelected}"
+                  @gateway-selected="${this._handleGatewaySelected}"
                   @transition-selected="${this._handleTransitionSelected}"
                   @workflow-updated="${this._handleWorkflowUpdated}"
                   @inspector-requested="${this._handleInspectorRequested}"
@@ -1661,7 +1994,7 @@ export class PrismWorkflowEditorElement extends LitElement {
                     <h2 class="panel-title">Properties</h2>
                     ${this._inspectorCollapsed
                       ? nothing
-                      : html`<p class="panel-subtitle">Selected stage or transition details</p>`}
+                      : html`<p class="panel-subtitle">Selected stage, gateway, or route details</p>`}
                   </div>
                   <button
                     type="button"
@@ -1685,9 +2018,11 @@ export class PrismWorkflowEditorElement extends LitElement {
                     class="inspector-panel"
                     tabindex="0"
                     .workflow=${this._workflow}
+                    .availableQueues=${this.availableQueues}
                     selected-stage-key="${this._selectedStageKey ?? ''}"
-                    .selectedTransitionIndex=${this._selectedTransitionIndex}
+                    selected-gateway-key="${this._selectedGatewayKey ?? ''}"
                     .selectedActionIndex=${this._selectedActionIndex}
+                    .selectedActionTransitionIndex=${this._selectedTransitionIndex}
                     .actionCatalog=${this._actionCatalog}
                     @workflow-updated=${this._handleWorkflowUpdated}
                     @action-selected=${this._handleActionSelected}
@@ -1701,29 +2036,11 @@ export class PrismWorkflowEditorElement extends LitElement {
           <div slot="validation">${this._renderValidationPanel()}</div>
           <div slot="preview">${this._renderStagePreview()}</div>
           <div slot="simulation">${this._renderSimulationPanel()}</div>
+          <div slot="definition">${this._renderDefinitionPanel()}</div>
           <prism-help-panel slot="help"></prism-help-panel>
         </prism-confidence-tabs>
 
         ${this._renderShortcutGuide()}
-
-        <!-- Modal overlay for proposal diff -->
-        ${this._modalOpen && this._proposal
-          ? html`
-              <div
-                class="modal-backdrop"
-                role="presentation"
-                @click="${(e: MouseEvent) => {
-                  if (e.target === e.currentTarget) this._handleProposalReject();
-                }}"
-              >
-                <prism-proposal-diff
-                  .proposal=${this._proposal}
-                  @proposal-accept="${this._handleProposalAccept}"
-                  @proposal-reject="${this._handleProposalReject}"
-                ></prism-proposal-diff>
-              </div>
-            `
-          : nothing}
       </div>
     `;
   }
@@ -1739,6 +2056,72 @@ export class PrismWorkflowEditorElement extends LitElement {
       >
         ${this._toastMessage}
       </div>
+    `;
+  }
+
+  private _renderSaveErrorSurface() {
+    if (!this._saveError) {
+      return nothing;
+    }
+
+    return html`
+      <section
+        class="save-error-surface"
+        aria-labelledby="workflow-save-error-title"
+        tabindex="-1"
+        data-prism-save-error
+      >
+        <div class="save-error-header">
+          <p class="save-error-eyebrow">Save problem</p>
+          <h2 id="workflow-save-error-title" class="save-error-title">${this._saveError.title}</h2>
+          <p class="save-error-summary" role="alert">${this._saveError.summary}</p>
+        </div>
+
+        ${this._saveError.detailLines.length > 0
+          ? html`
+              <ul class="save-error-list">
+                ${this._saveError.detailLines.map(line => html`<li>${line}</li>`)}
+              </ul>
+            `
+          : nothing}
+
+        ${this._saveError.traceId
+          ? html`<p class="save-error-trace"><strong>Reference:</strong> ${this._saveError.traceId}</p>`
+          : nothing}
+
+        <label class="save-error-copy-label" for="workflow-save-error-details">Copyable save error details</label>
+        <textarea
+          id="workflow-save-error-details"
+          class="save-error-copy-field"
+          readonly
+          rows="6"
+          .value=${this._saveError.copyText}
+          data-prism-save-error-details
+        ></textarea>
+
+        <div class="save-error-actions">
+          <button
+            type="button"
+            class="toolbar-btn govuk-button govuk-button--secondary save-error-copy-button"
+            data-prism-copy-save-error
+            @click=${this._copySaveErrorDetails}
+          >
+            Copy details
+          </button>
+          <button
+            type="button"
+            class="toolbar-btn govuk-button govuk-button--secondary"
+            aria-label="Dismiss save error"
+            data-prism-dismiss-save-error
+            @click=${() => { this._saveError = null; this._saveErrorCopyStatus = null; }}
+          >
+            Dismiss
+          </button>
+          <p class="save-error-copy-status" role="status" aria-live="polite" data-prism-save-error-copy-status>
+            ${this._saveErrorCopyStatus ?? ''}
+          </p>
+        </div>
+      </section>
     `;
   }
 
@@ -1807,6 +2190,95 @@ export class PrismWorkflowEditorElement extends LitElement {
       border-radius: 4px;
       font-size: 1rem;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    .save-error-surface {
+      margin: 1rem;
+      padding: 1rem 1.25rem 1.25rem;
+      border: 4px solid #d4351c;
+      background: #ffffff;
+      display: grid;
+      gap: 0.875rem;
+      box-shadow: 0 1px 4px rgba(11, 12, 12, 0.08);
+    }
+
+    .save-error-surface:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 0;
+    }
+
+    .save-error-header,
+    .save-error-actions {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .save-error-eyebrow,
+    .save-error-summary,
+    .save-error-trace,
+    .save-error-copy-label,
+    .save-error-copy-status {
+      margin: 0;
+    }
+
+    .save-error-eyebrow {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #b10e1e;
+    }
+
+    .save-error-title {
+      margin: 0;
+      font-size: 1.1875rem;
+      font-weight: 700;
+      color: #0b0c0c;
+    }
+
+    .save-error-summary,
+    .save-error-trace,
+    .save-error-copy-label,
+    .save-error-copy-status {
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      color: #0b0c0c;
+    }
+
+    .save-error-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      display: grid;
+      gap: 0.375rem;
+    }
+
+    .save-error-copy-label {
+      font-weight: 700;
+    }
+
+    .save-error-copy-field {
+      width: 100%;
+      min-height: 8.5rem;
+      resize: vertical;
+      padding: 0.75rem;
+      border: 2px solid #0b0c0c;
+      border-radius: 4px;
+      font: inherit;
+      line-height: 1.5;
+      color: #0b0c0c;
+      background: #f8f8f8;
+      box-sizing: border-box;
+    }
+
+    .save-error-copy-field:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 0;
+    }
+
+    .save-error-actions {
+      align-items: start;
+    }
+
+    .save-error-copy-button {
+      justify-self: start;
     }
 
     /* ---- Tabs ---- */
@@ -2037,6 +2509,47 @@ export class PrismWorkflowEditorElement extends LitElement {
       color: #505a5f;
     }
 
+    .canvas-health-hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #b1b4b6;
+      font-size: 0.875rem;
+      flex-shrink: 0;
+    }
+
+    .canvas-health-hint.is-error {
+      background: #fef2f2;
+      color: #7a1f1f;
+    }
+
+    .canvas-health-hint.is-warning {
+      background: #fff7e6;
+      color: #594400;
+    }
+
+    .canvas-health-summary {
+      font-weight: 600;
+    }
+
+    .canvas-health-action {
+      margin-left: auto;
+      background: #ffffff;
+      border: 2px solid currentColor;
+      color: inherit;
+      font-weight: 700;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .canvas-health-action:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 2px;
+    }
+
     .graph-panel {
       flex: 1;
       overflow: hidden;
@@ -2180,13 +2693,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       justify-content: center;
       z-index: 100;
       padding: 1rem;
-    }
-
-    prism-proposal-diff {
-      max-width: 720px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
     }
 
     .shortcut-dialog {
@@ -2382,6 +2888,87 @@ export class PrismWorkflowEditorElement extends LitElement {
         padding: 0.5rem 0.75rem;
         font-size: 0.875rem;
       }
+    }
+
+    /* ---- Definition tab ---- */
+
+    .definition-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      background: #ffffff;
+    }
+
+    .definition-header {
+      padding: 1rem 1.25rem 0.75rem;
+      border-bottom: 1px solid #b1b4b6;
+    }
+
+    .definition-title {
+      margin: 0 0 0.25rem;
+      font-size: 1.125rem;
+      font-weight: 700;
+    }
+
+    .definition-subtitle {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #505a5f;
+    }
+
+    .definition-banner {
+      margin: 0.75rem 1.25rem;
+      padding: 0.875rem 1rem;
+      background: #fbeaec;
+      border-left: 4px solid #b10e1e;
+      color: #0b0c0c;
+      border-radius: 4px;
+    }
+
+    .definition-banner-summary {
+      margin: 0 0 0.5rem;
+      font-size: 0.9375rem;
+    }
+
+    .definition-banner-list {
+      margin: 0 0 0.5rem 1.25rem;
+      padding: 0;
+      font-size: 0.875rem;
+    }
+
+    .definition-banner-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .definition-banner-actions button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .definition-editor-frame {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 0 1.25rem 1.25rem;
+    }
+
+    .definition-editor-frame prism-definition-editor {
+      flex: 1;
+      min-height: 0;
+      border: 1px solid #b1b4b6;
+      border-radius: 4px;
+      /* overflow: hidden removed — was blocking mouse wheel events from reaching CodeMirror */
+    }
+
+    .definition-loading,
+    .definition-empty {
+      margin: 1rem 1.25rem;
+      font-size: 0.9375rem;
+      color: #505a5f;
     }
   `;
 }

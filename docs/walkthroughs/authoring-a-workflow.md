@@ -1,386 +1,175 @@
-# Walkthrough — Authoring a New Workflow
+# Walkthrough — Wiring the Prism Workflow Editor into Your Umbraco App
 
-A developer-focused guide to writing a new workflow definition from scratch using the Prism fluent builder API, understanding the polymorphic JSON model, seeding it into the MockBusinessApp, and verifying it end-to-end with hot reload.
+This walkthrough is for integrators starting from a working Umbraco v17 site. By the end, you will have:
 
-> **Prerequisites:** Familiarity with C# and JSON. Stack running via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Read at least one of the existing walkthroughs (e.g., [Planning Notification](planning-notification.md)) to understand the user-facing experience you're building toward.
+- the Prism packages installed
+- the authoring API and editor services registered in DI
+- doctypes and templates that drive a workflow at runtime
+- a clear picture of **where** the editor itself runs — and where it does not
+
+The walkthrough does not cover the editor's UX. For that, see [Planning Workflow Editor](planning-workflow-editor.md).
 
 ---
 
-## Overview
+## How the pieces fit
 
-Every workflow in Prism is described by a **workflow definition** — a directed graph of states connected by transitions, where each state holds a tree of **polymorphic components** (form fields, panels, fieldsets, and more). Definitions live in two forms that are equivalent and interchangeable:
+Prism splits cleanly into three projects:
 
-| Form | Location | When to use |
+| Project | What it does | Where it runs |
 |---|---|---|
-| **JSON seed file** | `src/UmbracoPrism.MockBusinessApp/workflow-seeds/` | Simple definitions; no compile step; hot-reloadable |
-| **Fluent builder** | `src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs` | Complex logic; reusable helpers; IntelliSense; type-safe |
+| `UmbracoPrism` (`UmbracoPrism.Core`) | Umbraco integration: route-hijacking controller, page model, member middleware, sanitiser, view helpers | Inside your Umbraco app |
+| `UmbracoPrism.WorkflowEditor` | Authoring API (`/api/workflow-authoring/*`) and the web-component bundle that authors load | Authoring API on the server; web components in a separate business app |
+| `UmbracoPrism.WorkflowRuntime` | The engine that advances cases through stages at runtime | Inside your business app (or your Umbraco app, if you co-host them) |
 
-This walkthrough builds a **Leave Request** workflow from scratch, using the fluent builder, then showing its equivalent JSON form. The four demo workflows ([Community Enquiry](community-enquiry.md), [Payment Demo](payment-demo.md), [Planning Notification](planning-notification.md), [Information Request](information-request.md)) are living examples of this exact model.
-
----
-
-## Part 1: The Polymorphic JSON Model
-
-### The `type` Discriminator
-
-Every component in a workflow state is a JSON object with a `type` field that tells the renderer which component to display. This is the polymorphic discriminator:
-
-```json
-{ "type": "text",      "fieldKey": "name",    "label": "Full name",        "required": true }
-{ "type": "textarea",  "fieldKey": "reason",  "label": "Reason for leave", "required": true }
-{ "type": "radios",    "fieldKey": "duration", "label": "Duration",         "options": ["Half day", "Full day", "Multiple days"] }
-{ "type": "date",      "fieldKey": "start-date", "label": "Start date",     "required": true }
-{ "type": "panel",     "heading": "Request submitted" }
-{ "type": "body",      "content": "Your manager will review this within one working day." }
-```
-
-Available `type` values:
-
-| Type | C# class | Use |
-|---|---|---|
-| `text` | `TextInputComponent` | Single-line text |
-| `textarea` | `TextareaComponent` | Multi-line text |
-| `email` | `EmailComponent` | Email address |
-| `tel` | `TelComponent` | Telephone number |
-| `number` | `NumberInputComponent` | Integer |
-| `decimal` | `DecimalInputComponent` | Decimal number |
-| `select` | `SelectComponent` | Dropdown |
-| `radios` | `RadiosComponent` | Radio buttons |
-| `checkboxes` | `CheckboxesComponent` | Checkbox group |
-| `date` | `DateInputComponent` | Day/month/year |
-| `boolean` | `BooleanComponent` | Single yes/no checkbox |
-| `fieldset` | `FieldsetComponent` | Container with legend |
-| `summary-list` | `SummaryListComponent` | Check-answers table |
-| `panel` | `PanelComponent` | Confirmation panel |
-| `body` | `BodyComponent` | Paragraph text |
-| `heading` | `HeadingComponent` | Heading (level 1–6) |
-| `inset-text` | `InsetTextComponent` | Highlighted inset |
-| `warning-text` | `WarningTextComponent` | Warning callout |
-| `details` | `DetailsComponent` | Collapsible reveal |
-| `notification-banner` | `NotificationBannerComponent` | Info/success/warning banner |
-| `waiting` | `WaitingComponent` | Polling / long-running state |
-
-### `children[]` — Container Components
-
-`fieldset` and `summary-list` components have a `children` array that holds nested components:
-
-```json
-{
-  "type": "fieldset",
-  "legend": "Leave details",
-  "children": [
-    { "type": "date", "fieldKey": "start-date", "label": "Start date", "required": true },
-    { "type": "date", "fieldKey": "end-date",   "label": "End date",   "required": true }
-  ]
-}
-```
-
-💡 **What's happening:** The renderer walks the component tree depth-first. When it encounters `fieldset`, it wraps the `children` in a `<fieldset>` element with the optional `legend`. This nesting is what gives the GDS forms their visual grouping — you can see it live in [Community Enquiry](community-enquiry.md)'s "About You" section.
-
-### `conditionalChildren` — Conditional Reveals
-
-`radios` and `checkboxes` support a `conditionalChildren` object mapping option values to child component arrays:
-
-```json
-{
-  "type": "radios",
-  "fieldKey": "duration",
-  "label": "Duration",
-  "options": ["Half day", "Full day", "Multiple days"],
-  "conditionalChildren": {
-    "Multiple days": [
-      { "type": "date", "fieldKey": "end-date", "label": "Last day of leave", "required": true }
-    ]
-  }
-}
-```
-
-When the user selects "Multiple days", the `end-date` field is revealed inline. Selecting any other option hides it again. The workflow engine only validates `end-date` when it's visible.
-
-✅ **What you can do:** Chain any number of conditional reveals. Each key in `conditionalChildren` matches an exact option value. The values are case-sensitive.
+**The editor is not mounted in the Umbraco backoffice.** Squad ships it as web components that a separate business app embeds. In this repo, `MockBusinessApp` is the reference authoring host, and `TestSite` is the reference Umbraco runtime. This boundary is deliberate: the Umbraco backoffice stays a content tool; the workflow editor stays a developer/operator tool in your app.
 
 ---
 
-## Part 2: The Fluent Builder API
+## Step 1 — Install the packages
 
-The fluent builder (`src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs`) generates the same JSON model in C# with full IntelliSense:
+Add the Prism packages to your Umbraco project:
 
-### Building the Leave Request Workflow
+- `UmbracoPrism` — published to NuGet today; covers the Core integration.
+- `UmbracoPrism.WorkflowEditor` — the authoring API and web-component bundle. Reference the project in-repo, or the package when published.
+- `UmbracoPrism.WorkflowRuntime` — the engine. Reference the project in-repo, or the package when published.
+
+If you only need the **read-only viewer** for a published workflow on a public page, you can stop at `UmbracoPrism`. The viewer is a single web component (`<prism-workflow-graph read-only>`) — see [Composing the Workflow Editor](../guides/workflow-editor-composition.md#read-only-public-viewer).
+
+---
+
+## Step 2 — Register Prism services and the WorkflowAuthor policy
+
+In `Program.cs`, register Prism alongside Umbraco. The editor's authoring API is locked behind an authorization policy you own.
 
 ```csharp
-using UmbracoPrism.Shared.Builders;
+using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.WorkflowEditor.Extensions;
+using UmbracoPrism.WorkflowRuntime.Extensions;
 
-var workflow = new WorkflowDefinitionBuilder()
-    .Key("leave-request")
-    .DisplayName("Request Annual Leave")
-    .Version(1)
-    .StartsAt("details")
-    .InstancePolicy("multiple")
+var builder = WebApplication.CreateBuilder(args);
 
-    // Step 1: collect leave details
-    .AddState("details", s => s
-        .DisplayName("Tell us about your leave")
-        .InsetText("This request will be sent to your line manager for approval.")
-        .Fieldset(f => f
-            .Legend("Leave dates", "l")
-            .DateInput("start-date", "Start date", required: true)
-            .Radios("duration", "Duration",
-                new[] { "Half day", "Full day", "Multiple days" },
-                required: true,
-                conditional: c => c
-                    .When("Multiple days", o => o
-                        .DateInput("end-date", "Last day of leave", required: true))))
-        .Textarea("reason", "Reason for leave",
-            required: true, hint: "Optional — your manager can see this.", maxLength: 500)
-        .Checkboxes("cover-arranged", "Cover arranged?",
-            new[] { "Yes, a colleague is covering my responsibilities" },
-            required: false))
+builder.Services.AddPrismAuthentication(builder.Configuration);
 
-    // Step 2: check answers
-    .AddState("check-answers", s => s
-        .DisplayName("Check your request")
-        .SummaryList(sl => sl
-            .Title("Leave request")
-            .ChangeStateKey("details")
-            .Children(c => c
-                .DateInput("start-date", "Start date")
-                .Radios("duration", "Duration", new[] { "Half day", "Full day", "Multiple days" })
-                .DateInput("end-date", "Last day of leave")
-                .Textarea("reason", "Reason for leave")
-                .Checkboxes("cover-arranged", "Cover arranged?",
-                    new[] { "Yes, a colleague is covering my responsibilities" }))))
+builder.Services.AddAuthorization(options =>
+{
+    // The editor's /api/workflow-authoring/* routes require this policy.
+    // Default: any authenticated principal. Tighten with your own claim or role gate.
+    options.AddPolicy(
+        WorkflowAuthoringPolicies.WorkflowAuthor,
+        policy => policy.RequireAuthenticatedUser());
+});
 
-    // Step 3: confirmation
-    .AddState("submitted", s => s
-        .DisplayName("Request submitted")
-        .Panel("Request submitted")
-        .Body("Your manager will review this within one working day."))
+// Register the authoring API and supporting services.
+builder.Services.AddPrismWorkflowEditor(
+    authoredWorkflowBasePath: "/path/to/authored",
+    publishedWorkflowBasePath: "/path/to/published");
 
-    .AddTransition("details",       "check-answers", "continue")
-    .AddTransition("check-answers", "details",       "back")
-    .AddTransition("check-answers", "submitted",     "submit")
+var app = builder.Build();
 
-    .Build();
+// Map the authoring routes (group: /api/workflow-authoring).
+app.MapPrismWorkflowEditor();
 ```
 
-💡 **What's happening:** `.Build()` returns a `WorkflowDefinitionFile` — the same strongly-typed object that `System.Text.Json` deserializes from the seed JSON files. You can serialize it back to JSON with `JsonSerializer.Serialize(workflow)` and drop the result into the seed folder — both paths are equivalent.
+Two things to know:
 
-The CRTP pattern (`ComponentCollectionBuilder<TSelf>`) means every builder method returns the most-derived type, so chaining works on both `StateBuilder` and `FieldsetBuilder` without casting.
+1. The `WorkflowAuthor` policy is required. If you skip it, every authoring request returns a 500 at startup. That is by design — the editor never trusts an unauthenticated caller.
+2. The approver on every change is taken from the authenticated principal. The request body cannot set or spoof the approver. (Blathers' Slice 3c.)
 
 ---
 
-## Part 3: JSON Seeds — How They Are Loaded
+## Step 3 — Define your doctypes
 
-### Seed file location
+Workflow runtime pages need three things from Umbraco: a doctype, a Razor template, and a member-aware identity. The reference doctypes in `MockBusinessApp` show one working shape — copy what fits, replace what does not.
 
-```
-src/UmbracoPrism.MockBusinessApp/workflow-seeds/
-├── community-enquiry.json
-├── information-request.json
-├── payment-demo.json
-└── planning-notification.json
-```
+Two starting points:
 
-Each file matches the pattern `{definitionKey}.json`. The engine scans this directory at startup using `Directory.EnumerateFiles(seedsPath, "*.json")` and deserializes each file into a `WorkflowDefinitionFile`.
+- **A workflow hub** doctype that lists available workflows for a signed-in member.
+- **A workflow page** doctype that hosts a single stage's form. Route-hijack this one.
 
-### Adding your new seed
+You do not need to mirror the reference doctype names. The contract is the controller, not the schema.
 
-1. Create `src/UmbracoPrism.MockBusinessApp/workflow-seeds/leave-request.json`.
-2. Paste the JSON equivalent of your builder definition (or serialize it with `JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = true })`).
-3. Restart the MockBusinessApp (or rely on hot reload — see below).
+---
 
-### Minimal seed skeleton
+## Step 4 — Route-hijack the workflow page
 
-```json
+Subclass `PrismWorkflowPageController<T>` for your workflow page doctype. The base class handles GET, POST, antiforgery, nonce binding, field collection, validation, and the post-redirect-get flow.
+
+```csharp
+using UmbracoPrism.Core.Controllers;
+using UmbracoPrism.Core.Models.Workflow;
+
+public class WorkflowPageController(
+    ILogger<RenderController> logger,
+    ICompositeViewEngine compositeViewEngine,
+    IUmbracoContextAccessor umbracoContextAccessor,
+    IBusinessAppWorkflowClient workflowClient,
+    IPublishedValueFallback publishedValueFallback,
+    IAntiforgery antiforgery,
+    IWorkflowStepNonceService nonceService,
+    IWorkflowFieldValidator fieldValidator)
+    : PrismWorkflowPageController<WorkflowViewModel>(
+        logger, compositeViewEngine, umbracoContextAccessor,
+        workflowClient, publishedValueFallback, antiforgery,
+        nonceService, fieldValidator)
 {
-  "definitionKey": "leave-request",
-  "displayName": "Request Annual Leave",
-  "version": 1,
-  "instancePolicy": "multiple",
-  "initialState": "details",
-  "states": [
-    {
-      "stateKey": "details",
-      "displayName": "Tell us about your leave",
-      "components": [
-        {
-          "type": "inset-text",
-          "content": "This request will be sent to your line manager for approval."
-        },
-        {
-          "type": "fieldset",
-          "legend": "Leave dates",
-          "children": [
-            { "type": "date", "fieldKey": "start-date", "label": "Start date", "required": true },
-            {
-              "type": "radios",
-              "fieldKey": "duration",
-              "label": "Duration",
-              "required": true,
-              "options": ["Half day", "Full day", "Multiple days"],
-              "conditionalChildren": {
-                "Multiple days": [
-                  { "type": "date", "fieldKey": "end-date", "label": "Last day of leave", "required": true }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "type": "textarea",
-          "fieldKey": "reason",
-          "label": "Reason for leave",
-          "hint": "Optional — your manager can see this.",
-          "required": true,
-          "maxLength": 500
-        }
-      ]
-    },
-    {
-      "stateKey": "check-answers",
-      "displayName": "Check your request",
-      "components": [
-        {
-          "type": "summary-list",
-          "title": "Leave request",
-          "changeStateKey": "details",
-          "children": [
-            { "type": "date",    "fieldKey": "start-date", "label": "Start date" },
-            { "type": "radios",  "fieldKey": "duration",   "label": "Duration", "options": ["Half day", "Full day", "Multiple days"] },
-            { "type": "date",    "fieldKey": "end-date",   "label": "Last day of leave" },
-            { "type": "textarea","fieldKey": "reason",     "label": "Reason for leave" }
-          ]
-        }
-      ]
-    },
-    {
-      "stateKey": "submitted",
-      "displayName": "Request submitted",
-      "components": [
-        { "type": "panel", "heading": "Request submitted" },
-        { "type": "body",  "content": "Your manager will review this within one working day." }
-      ]
-    }
-  ],
-  "transitions": [
-    { "fromState": "details",       "toState": "check-answers", "action": "continue" },
-    { "fromState": "check-answers", "toState": "details",       "action": "back" },
-    { "fromState": "check-answers", "toState": "submitted",     "action": "submit" }
-  ]
+    // Override to pre-populate fields from member claims, or to add custom dispatch.
 }
 ```
 
----
-
-## Part 4: Hot Reload During Development
-
-The MockBusinessApp watches the `workflow-seeds/` directory. In development mode, saving a seed file triggers an in-process reload — no restart needed.
-
-### Enabling hot reload
-
-1. Start the AppHost with `dotnet watch`:
-   ```bash
-   cd src/UmbracoPrism.AppHost
-   dotnet watch
-   ```
-2. Open the TestSite in your browser (`https://localhost:44345`).
-3. Make a change to a seed file — for example, rename a field label or add a new step.
-4. Save the file. The MockBusinessApp reloads the definition in the background.
-5. Refresh the browser (no full stack restart needed).
-
-💡 **What's happening:** The file watcher calls `IWorkflowSeedLoader.ReloadAsync()`, which re-reads all JSON files and replaces the in-memory definition dictionary. Any in-flight workflow *instances* keep their state (fields already filled in) but will pick up the new definition from the next state onward. Completed instances are unaffected.
-
-✅ **What you can do during hot reload:**
-- **Rename a field label** — reflected immediately on next page load.
-- **Add a new state/transition** — new path becomes available to users.
-- **Change field validation rules** — server-side validation uses the reloaded definition.
-- **Restructure fieldset children** — the renderer picks up the new tree.
-
-> ⚠️ **Instance compatibility:** If you rename a `fieldKey` that already has user data collected, the existing instance will have an orphaned key. For development this is fine (use the test reset API: `DELETE /api/test/reset`). In production, treat field key renames as a schema migration requiring a version bump.
+TestSite's `WorkflowPageController` is the reference. It pre-populates a few fields from claims; everything else is base-class behaviour.
 
 ---
 
-## Part 5: Validation
+## Step 5 — Add the Razor templates
 
-### Client-side Validation
+Each workflow page doctype needs a template that renders the current stage. TestSite has working examples — `workflowDemoPage.cshtml` and `workflowHub.cshtml` — that you can crib from. They use Prism's view helpers to render the stage shell, the field group, and the action buttons.
 
-Client-side validation is driven by the field definitions the server returns:
-
-- **`required: true`** → HTML5 `required` attribute; the browser blocks submission if blank.
-- **`maxLength`** → HTML5 `maxlength` attribute + a live character counter rendered below the field.
-- **`pattern`** → HTML5 `pattern` attribute; validated on blur and submit.
-- **`min` / `max`** on number inputs → HTML5 `min`/`max` attributes; spinner enforces range.
-- **Conditional reveals** → Hidden fields are removed from the DOM, so they are never submitted or validated when invisible.
-
-💡 **What's happening:** The TestSite Razor partials (`_WorkflowStep-Question.cshtml`) read the component tree returned by the engine and emit the corresponding HTML attributes. Character counters are implemented as a Lit web component (`prism-char-count`) that wraps each textarea and updates on every `input` event.
-
-### Server-side Validation
-
-When you POST to `/api/workflow/{key}/advance`, the MockBusinessApp engine:
-
-1. Fetches the current state's component tree.
-2. Iterates every visible field (conditional fields not triggered are excluded).
-3. Checks `required`, `minLength`, `maxLength`, `min`, `max`, and `pattern` against the submitted value.
-4. Passes the value through `PrismSanitizer.Sanitize()` — which HTML-encodes user input and strips any inline event attributes — before storing it.
-5. If any check fails, returns `WorkflowResponseEnvelope { IsValid = false, ErrorMessages = [...] }`.
-6. The TestSite re-renders the step with the error messages displayed above the relevant fields (GDS error summary + inline field errors).
-
-✅ **What you can do:** Add custom server-side validation by implementing `IWorkflowStepValidator` in the MockBusinessApp and registering it with DI. Your validator receives the current state key and the submitted field map and can return custom error messages.
+Keep templates thin. The base controller has already done the work; the template just renders the view model.
 
 ---
 
-## Part 6: Wiring to the TestSite
+## Step 6 — Decide where to host the editor
 
-After seeding the workflow, create a Umbraco content page that links to it:
+The Prism workflow editor is shipped as web components. **Mount them in your business app, not in the Umbraco backoffice.**
 
-1. Log into the Umbraco backoffice at `https://localhost:44345/umbraco`.
-   - Username: `admin@prism.local`
-   - Password: `PrismLocal!12345`
-2. Navigate to **Content** and create a new child page under **Home**.
-3. Set the document type to **Workflow Page**.
-4. Set the **Workflow Key** property to `leave-request` (must match `definitionKey` in the seed).
-5. Set the **URL segment** to `leave-request`.
-6. Click **Save and Publish**.
-7. Navigate to `https://localhost:44345/leave-request` — you'll see your workflow.
+In this repo:
 
-<!-- manual capture: Umbraco backoffice content editing requires manual authentication and navigation to the Workflow Key property -->
+- **MockBusinessApp** is the reference authoring host. It mounts `<prism-workflow-editor>` (or `<prism-workflow-editor-shell>`) on a normal page and points it at the authoring API.
+- **TestSite** is the reference Umbraco runtime. It does not host the editor.
 
-💡 **What's happening:** The Umbraco `WorkflowPageController` reads the **Workflow Key** property from the content node and passes it to `BusinessAppWorkflowClient.GetCurrentAsync()`. The client calls the MockBusinessApp at `https://localhost:7245/api/workflow/leave-request/current` using the current user's bearer token.
+This split is the load-bearing boundary. The Umbraco backoffice stays for content; the editor stays in the place where your developers and operators already work. If you need to embed a *published* workflow as a read-only diagram on a public Umbraco page, use `<prism-workflow-graph read-only>` — see [Composing the Workflow Editor](../guides/workflow-editor-composition.md#read-only-public-viewer).
 
----
+A minimal mount in your business app:
 
-## Schema Quick Reference
+```html
+<prism-workflow-editor
+  workflow-key="planning"
+  authoring-api-base="https://your-umbraco-app/api/workflow-authoring">
+</prism-workflow-editor>
+```
 
-For the full component schema, including all optional properties and their types, see:
-- [Workflow GDS Components Guide](../guides/workflow-gds-components.md)
-- [Workflow Forms Validation Guide](../guides/workflow-forms-validation.md)
-
-### Common optional properties (all input components)
-
-| Property | Type | Effect |
-|---|---|---|
-| `hint` | `string` | Hint text shown below the label |
-| `required` | `bool` | Marks the field required |
-| `conditionalOn` | `string` (fieldKey) | Only render this component when another field has a value |
-| `visibleWhen` | `string` (value) | The value the `conditionalOn` field must have |
+The element is keyboard-reachable and announces edits to a polite live region. Accessibility is on by default — you do not need to add screen-reader scaffolding.
 
 ---
 
-## Related Walkthroughs
+## Step 7 — Open the editor and use it
 
-The four demo workflows demonstrate every component type in real use:
+Once an author signs into your business app and loads the page that mounts `<prism-workflow-editor>`, they can:
 
-| Walkthrough | Notable components |
-|---|---|
-| [Community Enquiry](community-enquiry.md) | `fieldset`, `select`, `radios` + conditional reveal, `checkboxes` |
-| [Payment Demo](payment-demo.md) | `decimal` with prefix, `check-answers`, `waiting` panel |
-| [Planning Notification](planning-notification.md) | `date`, `currency`, `file`, multi-state flow |
-| [Information Request](information-request.md) | `select`, `radios` + urgency conditional, `textarea` |
+- pick a workflow
+- edit stages and gateways in the **Canvas** tab (vertical lanes, top-to-bottom flow)
+- read or edit the JSON in the **Definition** tab
+- check warnings in the **Validation** tab
+- save and publish through the authoring API
 
----
-
-[← Back to Walkthroughs](README.md)
+For a tour of the editor itself — what each tab does, how the lanes read, how the keyboard reach works — see [Planning Workflow Editor](planning-workflow-editor.md).
 
 ---
 
-**Executable spec:** This walkthrough is executed on every PR by [`authoring-a-workflow.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/authoring-a-workflow.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.
+## Related guides
+
+- **Editor composition and the read-only viewer:** [Composing the Workflow Editor](../guides/workflow-editor-composition.md)
+- **Component API (public elements, attributes, events):** [`src/UmbracoPrism.Client/src/workflow-editor/README.md`](../../src/UmbracoPrism.Client/src/workflow-editor/README.md)
+- **Editor visual test contract:** [`docs/testing/workflow-editor-visual-tests.md`](../testing/workflow-editor-visual-tests.md)
+- **Workflow setup deep-dive:** [Setting Up a Prism Workflow](../guides/workflow-setup.md)
+- **Reference workflow contract:** [Reference Workflow Contract](../guides/reference-workflow-contract.md)

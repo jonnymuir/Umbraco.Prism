@@ -5,16 +5,17 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.WorkflowEditor.Authoring;
+using BusinessAppWorkflowEngine = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.BusinessAppWorkflowEngine;
+using ReferenceWorkflowDefinitionStore = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowDefinitionStore;
 using MockReferenceWorkflowRepository = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowRepository;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
 /// <summary>
-/// Validates that authored workflow seeds in MockBusinessApp align with the
-/// four-workflow reference contract and maintain the authored → published traceability.
+/// Validates that MockBusinessApp reference workflow seeds use the flattened
+/// workflow-definition contract and stay aligned with the four-workflow reference set.
 /// </summary>
 public class MockBusinessAppPlanningWorkflowSeedTests
 {
@@ -67,21 +68,28 @@ public class MockBusinessAppPlanningWorkflowSeedTests
         var planningWorkflow = referenceWorkflows.FirstOrDefault(kvp => kvp.Key == "planning").Value;
 
         planningWorkflow.Should().NotBeNull();
-        planningWorkflow!.DefinitionKey.Should().Be("planning-application");
-        planningWorkflow.Stages.Should().NotBeEmpty();
-        planningWorkflow.Transitions.Should().NotBeEmpty();
+        planningWorkflow!.DefinitionKey.Should().Be("planning");
+        planningWorkflow.States.Should().NotBeEmpty();
+        planningWorkflow.Queues.Should().NotBeNullOrEmpty(
+            because: "planning workflow v3 uses the queues/routes format — top-level Transitions are no longer used");
+        planningWorkflow.States.Should().AllSatisfy(s =>
+            s.Routes.Should().NotBeNull(
+                because: $"every state in the new format must have a Routes list (state: '{s.StateKey}')"));
     }
 
     [Fact]
-    public void AllReferenceWorkflows_HaveUniqueIds()
+    public void ReferenceWorkflows_WithTraceIds_HaveUniqueIds()
     {
         var referenceWorkflows = MockReferenceWorkflowRepository.GetReferenceWorkflows();
-        
-        var workflowIds = referenceWorkflows.Select(kvp => kvp.Value.Id).ToList();
+
+        var workflowIds = referenceWorkflows
+            .Select(kvp => kvp.Value.AuthoredWorkflowId)
+            .Where(id => id is not null)
+            .ToList();
         var distinctIds = workflowIds.Distinct().ToList();
 
         workflowIds.Should().HaveCount(distinctIds.Count,
-            because: "each workflow must have a unique ID");
+            because: "any preserved trace ids should remain unique");
     }
 
     [Fact]
@@ -97,7 +105,7 @@ public class MockBusinessAppPlanningWorkflowSeedTests
             NullLogger<BusinessAppWorkflowEngine>.Instance,
             environment.Object,
             sanitizer.Object,
-            new ReferenceWorkflowDefinitionStore(new WorkflowProjector()));
+            new ReferenceWorkflowDefinitionStore());
 
         var current = engine.GetCurrent("planning", "tenant", "user");
 

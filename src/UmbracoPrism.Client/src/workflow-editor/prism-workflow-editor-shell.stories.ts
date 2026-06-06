@@ -1,19 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-workflow-editor-shell.js';
 import type { PrismWorkflowEditorShellElement } from './prism-workflow-editor-shell.js';
-import type { WorkflowAuthoringSummary } from './workflow-authoring-client.js';
-import { PLANNING_WORKFLOW } from './fixtures/index.js';
-import { STUB_ACTION_CATALOG, type AuthoredWorkflow, type AuthoredStage } from './types.js';
-import { projectWorkflowLocally } from './workflow-runtime-projection.js';
-
-const AUTHORING_API_BASE = 'https://example.test';
+import { PAYMENT_DEMO_WORKFLOW, PLANNING_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
+import type { AuthoredStage, AuthoredWorkflow } from './types.js';
+import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 type WorkflowSeed = {
   workflowKey: string;
   definitionKey: string;
   displayName: string;
   stages: Array<{
-    stageKey: string;
+    stateKey: string;
     displayName: string;
     actor?: AuthoredStage['actor'];
     kind?: AuthoredStage['kind'];
@@ -29,10 +27,10 @@ function cloneWorkflow<T>(value: T): T {
 function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
   const workflow = cloneWorkflow(PLANNING_WORKFLOW);
   const stages = seed.stages.map((stageSeed, index) => {
-    const baseStage = workflow.stages[Math.min(index, workflow.stages.length - 1)];
+    const baseStage = workflow.states[Math.min(index, workflow.states.length - 1)];
     return {
       ...baseStage,
-      stageKey: stageSeed.stageKey,
+      stateKey: stageSeed.stateKey,
       displayName: stageSeed.displayName,
       actor: stageSeed.actor ?? baseStage.actor,
       kind: stageSeed.kind ?? baseStage.kind,
@@ -40,39 +38,50 @@ function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
     };
   });
 
+  const builtStages = stages;
   return {
     ...workflow,
     definitionKey: seed.definitionKey,
     displayName: seed.displayName,
-    initialStageKey: stages[0]?.stageKey ?? workflow.initialStageKey,
-    stages,
-    transitions: stages.slice(0, -1).map((stage, index) => ({
-      fromStage: stage.stageKey,
-      toStage: stages[index + 1].stageKey,
-      action: seed.transitionActions[index] ?? 'continue',
-      actions: [],
-    })),
-  };
+    initialState: builtStages[0]?.stateKey ?? workflow.initialState,
+    states: builtStages,
+    transitions: builtStages.slice(0, -1).flatMap((stage, index) => {
+      const gatewayKey = `route-from-${stage.stateKey}`;
+      const targetKey = builtStages[index + 1].stateKey;
+      return [
+        { fromState: stage.stateKey, toState: gatewayKey, action: 'route' },
+        { fromState: gatewayKey, toState: targetKey, action: seed.transitionActions[index] ?? 'continue' },
+      ];
+    }),
+    metadata: { gateways: builtStages.slice(0, -1).map(stage => ({
+      key: `route-from-${stage.stateKey}`,
+      displayName: `Route from ${stage.displayName}`,
+      gatewayType: 'Split' as const,
+      laneKey: stage.metadata?.laneKey ?? 'public',
+      actor: stage.metadata?.actor,
+      roleGates: [],
+    })) },
+  } as unknown as AuthoredWorkflow;
 }
 
-const WORKFLOWS: Record<string, AuthoredWorkflow> = {
-  planning: cloneWorkflow(PLANNING_WORKFLOW),
-  'community-enquiry': buildWorkflow({
+function buildShellSource(): InMemoryWorkflowSource {
+  const planning = cloneWorkflow(PLANNING_WORKFLOW);
+  const communityEnquiry = buildWorkflow({
     workflowKey: 'community-enquiry',
     definitionKey: 'community-enquiry',
     displayName: 'Community Enquiry',
     stages: [
-      { stageKey: 'raise-enquiry', displayName: 'Raise enquiry', actor: 'public' },
-      { stageKey: 'share-supporting-detail', displayName: 'Share supporting detail', actor: 'public' },
+      { stateKey: 'raise-enquiry', displayName: 'Raise enquiry', actor: 'public' },
+      { stateKey: 'share-supporting-detail', displayName: 'Share supporting detail', actor: 'public' },
       {
-        stageKey: 'review-enquiry',
+        stateKey: 'review-enquiry',
         displayName: 'Review enquiry',
         actor: 'reviewer',
         kind: 'TaskList',
         roleGates: ['reviewer'],
       },
       {
-        stageKey: 'enquiry-closed',
+        stateKey: 'enquiry-closed',
         displayName: 'Enquiry closed',
         actor: 'reviewer',
         kind: 'Confirmation',
@@ -80,23 +89,23 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
       },
     ],
     transitionActions: ['continue', 'send to review', 'close enquiry'],
-  }),
-  'information-request': buildWorkflow({
+  });
+  const informationRequest = buildWorkflow({
     workflowKey: 'information-request',
     definitionKey: 'information-request',
     displayName: 'Information Request',
     stages: [
-      { stageKey: 'request-summary', displayName: 'Request summary', actor: 'public' },
-      { stageKey: 'upload-evidence', displayName: 'Upload evidence', actor: 'public' },
+      { stateKey: 'request-summary', displayName: 'Request summary', actor: 'public' },
+      { stateKey: 'upload-evidence', displayName: 'Upload evidence', actor: 'public' },
       {
-        stageKey: 'review-response-pack',
+        stateKey: 'review-response-pack',
         displayName: 'Review response pack',
         actor: 'reviewer',
         kind: 'TaskList',
         roleGates: ['reviewer'],
       },
       {
-        stageKey: 'response-sent',
+        stateKey: 'response-sent',
         displayName: 'Response sent',
         actor: 'system',
         kind: 'Confirmation',
@@ -104,133 +113,36 @@ const WORKFLOWS: Record<string, AuthoredWorkflow> = {
       },
     ],
     transitionActions: ['continue', 'submit evidence', 'send response'],
-  }),
-  'payment-demo': buildWorkflow({
-    workflowKey: 'payment-demo',
-    definitionKey: 'payment-demo',
-    displayName: 'Payment Demo',
-    stages: [
-      { stageKey: 'start-payment', displayName: 'Start payment', actor: 'public' },
-      { stageKey: 'capture-card-details', displayName: 'Capture card details', actor: 'public' },
-      {
-        stageKey: 'review-payment',
-        displayName: 'Review payment',
-        actor: 'reviewer',
-        kind: 'TaskList',
-        roleGates: ['reviewer'],
-      },
-      {
-        stageKey: 'payment-received',
-        displayName: 'Payment received',
-        actor: 'system',
-        kind: 'Confirmation',
-        roleGates: ['reviewer'],
-      },
-    ],
-    transitionActions: ['continue', 'submit payment', 'confirm payment'],
-  }),
-};
+  });
+  const paymentDemo = cloneAuthoredWorkflow(PAYMENT_DEMO_WORKFLOW);
 
-const WORKFLOW_SUMMARIES: WorkflowAuthoringSummary[] = [
-  {
-    workflowKey: 'planning',
-    id: 'planning-story',
-    definitionKey: WORKFLOWS.planning.definitionKey,
-    displayName: WORKFLOWS.planning.displayName,
-  },
-  {
-    workflowKey: 'community-enquiry',
-    id: 'community-enquiry-story',
-    definitionKey: WORKFLOWS['community-enquiry'].definitionKey,
-    displayName: WORKFLOWS['community-enquiry'].displayName,
-  },
-  {
-    workflowKey: 'information-request',
-    id: 'information-request-story',
-    definitionKey: WORKFLOWS['information-request'].definitionKey,
-    displayName: WORKFLOWS['information-request'].displayName,
-  },
-  {
-    workflowKey: 'payment-demo',
-    id: 'payment-demo-story',
-    definitionKey: WORKFLOWS['payment-demo'].definitionKey,
-    displayName: WORKFLOWS['payment-demo'].displayName,
-  },
+  // workflowKey for planning is 'planning' even though the definitionKey is
+  // 'planning-application', so the shell's selector entries match the four
+  // reference workflows the existing Playwright suite drives.
+  return new InMemoryWorkflowSource([
+    { workflowKey: 'planning', workflow: planning },
+    { workflowKey: 'community-enquiry', workflow: communityEnquiry },
+    { workflowKey: 'information-request', workflow: informationRequest },
+    { workflowKey: 'payment-demo', workflow: paymentDemo },
+  ]);
+}
+
+const REFERENCE_QUEUES: WorkflowQueueDefinition[] = [
+  { queueName: 'web-user', displayName: 'Applicant' },
+  { queueName: 'business-user', displayName: 'Payments team' },
+  { queueName: 'applicant', displayName: 'Applicant' },
+  { queueName: 'public', displayName: 'Public' },
+  { queueName: 'reviewer', displayName: 'Reviewer' },
+  { queueName: 'payments', displayName: 'Payments' },
+  { queueName: 'system', displayName: 'System' },
 ];
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-function stubFetchFor(element: PrismWorkflowEditorShellElement): void {
-  const originalFetch = window.fetch;
-
-  const stubbedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const request = input instanceof Request ? input : undefined;
-    const urlString = typeof input === 'string'
-      ? input
-      : input instanceof URL
-        ? input.href
-        : request?.url ?? '';
-    const method = (init?.method ?? request?.method ?? 'GET').toUpperCase();
-
-    if (/\/api\/workflow-authoring\/action-catalog(?:\?.*)?$/.test(urlString)) {
-      return jsonResponse(STUB_ACTION_CATALOG);
-    }
-
-    if (/\/api\/workflow-authoring\/workflows(?:\?.*)?$/.test(urlString) && method === 'GET') {
-      return jsonResponse(WORKFLOW_SUMMARIES);
-    }
-
-    const workflowMatch = urlString.match(/\/api\/workflow-authoring\/workflows\/([^/?#]+)(?:\/([^/?#]+))?(?:\?.*)?$/);
-    if (workflowMatch) {
-      const workflowKey = decodeURIComponent(workflowMatch[1]);
-      const operation = workflowMatch[2] ?? null;
-      const workflow = WORKFLOWS[workflowKey];
-      if (!workflow) {
-        return jsonResponse({ error: `Workflow '${workflowKey}' not found.` }, 404);
-      }
-
-      if (!operation && method === 'GET') {
-        return jsonResponse(workflow);
-      }
-
-      const body = init?.body ? JSON.parse(String(init.body)) : workflow;
-      if (operation === 'project' && method === 'POST') {
-        return jsonResponse(projectWorkflowLocally(body as AuthoredWorkflow));
-      }
-
-      if (['preview', 'apply', 'publish', 'save'].includes(operation ?? '') && method === 'POST') {
-        return jsonResponse(body);
-      }
-    }
-
-    return originalFetch(input, init);
-  };
-
-  window.fetch = stubbedFetch;
-
-  const observer = new MutationObserver(() => {
-    if (!document.contains(element)) {
-      if (window.fetch === stubbedFetch) {
-        window.fetch = originalFetch;
-      }
-      observer.disconnect();
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-}
 
 function makeShell(): PrismWorkflowEditorShellElement {
   const element = document.createElement('prism-workflow-editor-shell') as PrismWorkflowEditorShellElement;
   element.workflowKey = 'planning';
-  element.authoringApiBase = AUTHORING_API_BASE;
+  element.workflowSource = buildShellSource();
+  element.availableQueues = REFERENCE_QUEUES;
   element.style.cssText = 'display:block;min-height:860px;';
-  stubFetchFor(element);
   return element;
 }
 

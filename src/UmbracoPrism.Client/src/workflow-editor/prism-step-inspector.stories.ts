@@ -8,7 +8,7 @@ import type { ActionCatalogEntry, AuthoredWorkflow } from './types.js';
 type StoryArgs = {
   workflow: AuthoredWorkflow | null;
   selectedStageKey: string | null;
-  selectedTransitionIndex?: number | null;
+  selectedGatewayKey?: string | null;
   actionCatalog: ActionCatalogEntry[];
 };
 
@@ -16,23 +16,23 @@ function makeElement(args: StoryArgs): PrismStepInspectorElement {
   const el = document.createElement('prism-step-inspector') as PrismStepInspectorElement;
   el.workflow = args.workflow;
   el.selectedStageKey = args.selectedStageKey;
-  el.selectedTransitionIndex = args.selectedTransitionIndex ?? null;
+  el.selectedGatewayKey = args.selectedGatewayKey ?? null;
   el.actionCatalog = args.actionCatalog;
   el.addEventListener('workflow-updated', event => {
     const detail = (event as CustomEvent<{
       workflow: AuthoredWorkflow;
-      selection?: { kind?: 'stage' | 'transition'; stageKey?: string; transitionIndex?: number } | null;
+      selection?: { kind?: 'stage' | 'gateway'; stageKey?: string; gatewayKey?: string } | null;
     }>).detail;
     el.workflow = detail.workflow;
-    if (detail.selection?.kind === 'transition') {
-      el.selectedTransitionIndex = detail.selection.transitionIndex ?? null;
+    if (detail.selection?.kind === 'gateway') {
+      el.selectedGatewayKey = detail.selection.gatewayKey ?? null;
       el.selectedStageKey = null;
     } else if (detail.selection?.stageKey) {
       el.selectedStageKey = detail.selection.stageKey;
-      el.selectedTransitionIndex = null;
+      el.selectedGatewayKey = null;
     } else {
       el.selectedStageKey = null;
-      el.selectedTransitionIndex = null;
+      el.selectedGatewayKey = null;
     }
   });
   el.style.cssText = 'display:block;width:380px;height:640px;';
@@ -56,7 +56,7 @@ const meta: Meta<StoryArgs> = {
   args: {
     workflow: null,
     selectedStageKey: null,
-    selectedTransitionIndex: null,
+    selectedGatewayKey: null,
     actionCatalog: STUB_ACTION_CATALOG,
   },
   render: args => makeElement(args),
@@ -90,9 +90,9 @@ export const EditableStage: Story = {
     title.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
 
-    const actor = root.querySelector<HTMLSelectElement>('[data-prism-stage-actor]')!;
-    actor.value = 'member';
-    actor.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    const lane = root.querySelector<HTMLInputElement>('[data-prism-stage-lane]')!;
+    lane.value = 'member';
+    lane.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
 
     const stageType = root.querySelector<HTMLSelectElement>('[data-prism-stage-type]')!;
@@ -115,52 +115,115 @@ export const ActionConfiguration: Story = {
   },
 };
 
+// A small gateway-shaped workflow so the inspector can render the new
+// outgoing-routes section with a single route whose action editor mirrors
+// the previous transition-action picker scope.
+const GATEWAY_ROUTE_WORKFLOW = {
+  definitionKey: 'gateway-route-action-fixture',
+  displayName: 'Gateway route action fixture',
+  version: 1,
+  instancePolicy: 'single',
+  initialState: 'submitted',
+  states: [
+    {
+      stateKey: 'submitted',
+      displayName: 'Submitted',
+      kind: 'Question',
+      actor: 'public',
+      actions: [],
+      components: [],
+      roleGates: [],
+    },
+    {
+      stateKey: 'reviewer-assessment',
+      displayName: 'Reviewer assessment',
+      kind: 'Question',
+      actor: 'reviewer',
+      actions: [],
+      components: [],
+      roleGates: ['reviewer'],
+    },
+    {
+      stateKey: 'applicant-amendments',
+      displayName: 'Applicant amendments',
+      kind: 'Question',
+      actor: 'public',
+      actions: [],
+      components: [],
+      roleGates: [],
+    },
+  ],
+  transitions: [
+    { fromState: 'submitted', toState: 'review-split', action: 'route' },
+    { fromState: 'review-split', toState: 'reviewer-assessment', action: 'route for review', requiresRole: 'reviewer', metadata: { actions: [{ type: 'forms.submit', timing: 'OnTransition' }] } },
+  ],
+  metadata: { gateways: [
+    {
+      key: 'review-split',
+      displayName: 'Review split',
+      gatewayType: 'Split',
+      laneKey: 'public',
+      actor: 'public',
+      source: 'submitted',
+      roleGates: [],
+      routes: [
+        {
+          id: 'submitted--route-for-review--reviewer-assessment',
+          target: 'reviewer-assessment',
+          trigger: 'route for review',
+          requiresRole: 'reviewer',
+          actions: [
+            {
+              type: 'forms.submit',
+              timing: 'OnTransition',
+            },
+          ],
+        },
+      ],
+    },
+  ] },
+} as unknown as AuthoredWorkflow;
+
 export const TransitionSelected: Story = {
+  // Slice 3b.1 removed transition-only selection. Route editing now lives in
+  // the gateway inspector — this story mounts a split gateway with two routes
+  // so the editor-host gateway-route specs have a backing fixture.
   args: {
-    workflow: STUB_WORKFLOW,
-    selectedTransitionIndex: 0,
-  },
-  play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const el = canvasElement.querySelector('prism-step-inspector') as PrismStepInspectorElement;
-    await el.updateComplete;
-
-    const root = el.shadowRoot!;
-    await expect(root.querySelector('[data-prism-inspector-kind="transition"]')).not.toBeNull();
-
-    const labelInput = root.querySelector<HTMLInputElement>('[data-prism-transition-label]')!;
-    labelInput.value = 'route-for-review';
-    labelInput.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    await el.updateComplete;
-
-    const actionPreset = root.querySelector<HTMLSelectElement>('[data-prism-transition-action]')!;
-    actionPreset.value = 'submit';
-    actionPreset.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    await el.updateComplete;
-
-    const targetSelect = root.querySelector<HTMLSelectElement>('[data-prism-transition-target]')!;
-    targetSelect.value = 'reviewer-assessment';
-    targetSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    await el.updateComplete;
-
-    const conditionMode = root.querySelector<HTMLSelectElement>('[data-prism-transition-condition-mode]')!;
-    conditionMode.value = 'event';
-    conditionMode.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    await el.updateComplete;
-
-    const conditionValue = root.querySelector<HTMLInputElement>('[data-prism-transition-condition-value]')!;
-    conditionValue.value = 'application-submitted';
-    conditionValue.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    await el.updateComplete;
-
-    await expect(root.querySelector<HTMLInputElement>('[data-prism-transition-label]')?.value).toBe('submit');
-    await expect(root.querySelector('[data-prism-transition-detail="applicant-details-submit-reviewer-assessment"]')).not.toBeNull();
+    workflow: GATEWAY_ROUTE_WORKFLOW,
+    selectedStageKey: null,
+    selectedGatewayKey: 'review-split',
   },
 };
 
 export const TransitionActionConfiguration: Story = {
+  // The previous transition-action picker filter check now runs against a
+  // route action editor mounted inside the gateway inspector's outgoing
+  // routes panel. The action-editor data attributes (data-prism-action-*)
+  // are identical so existing tests keep working.
   args: {
-    workflow: STUB_WORKFLOW,
-    selectedTransitionIndex: 0,
+    workflow: GATEWAY_ROUTE_WORKFLOW,
+    selectedStageKey: null,
+    selectedGatewayKey: 'review-split',
+  },
+};
+
+// Stage with no gateway — "+ Add route" button must be visible and
+// must create the gateway on click. The `applicant-amendments` stage in
+// GATEWAY_ROUTE_WORKFLOW has no Split gateway attached.
+export const AddRouteNoGateway: Story = {
+  args: {
+    workflow: GATEWAY_ROUTE_WORKFLOW,
+    selectedStageKey: 'applicant-amendments',
+    selectedGatewayKey: null,
+  },
+};
+
+// Gateway that already has one route — "+ Add route" button must be
+// visible and must append a second route on click.
+export const AddRouteExistingGateway: Story = {
+  args: {
+    workflow: GATEWAY_ROUTE_WORKFLOW,
+    selectedStageKey: null,
+    selectedGatewayKey: 'review-split',
   },
 };

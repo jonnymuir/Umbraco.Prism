@@ -1,62 +1,162 @@
 /**
- * TypeScript interfaces mirroring Blathers' C# AuthoredWorkflow model.
- * Field names match the camelCase JSON emitted by the projection API
- * (WorkflowProjector.CanonicalOptions: PropertyNamingPolicy = CamelCase).
+ * Client-side workflow definition types aligned with Prism's queue-only
+ * authored contract. The editor still exposes compatibility getters for older
+ * lane/transition terminology, but canonical JSON now serialises top-level
+ * queues plus routes owned by states and gateways.
  */
 
 // ---------------------------------------------------------------------------
-// Authored Workflow
+// Canonical workflow definition
 // ---------------------------------------------------------------------------
 
 export interface AuthoredWorkflow {
   definitionKey: string;
   displayName: string;
   version: number;
-  schemaVersion: string;
+  initialState: string;
   instancePolicy: string;
-  initialStageKey: string;
-  stages: AuthoredStage[];
-  transitions: AuthoredTransition[];
-  /** Client-side convenience — not present in C# AuthoredWorkflow; guard all accesses. */
-  roles?: AuthoredRole[];
+  description?: string;
+  schemaVersion?: string;
+  queues?: WorkflowQueueDefinition[];
+  states: AuthoredStage[];
+  gateways?: AuthoredGateway[];
+  parameterSchemas?: AuthoredParameterSchema[];
+  metadata?: WorkflowDefinitionMetadata;
+  transitions?: AuthoredTransition[];
+  lanes?: WorkflowQueueDefinition[];
+  stages?: AuthoredStage[];
+  initialStageKey?: string;
   authorNote?: string;
 }
 
+export interface WorkflowDefinitionMetadata {
+  authoredWorkflowId?: string;
+  description?: string;
+  schemaVersion?: string;
+  lanes?: WorkflowQueueDefinition[];
+  gateways?: AuthoredGateway[];
+  handoffs?: WorkflowHandoffDefinition[];
+  tags?: Record<string, string>;
+}
+
+export interface WorkflowQueueDefinition {
+  key: string;
+  displayName: string;
+  description?: string;
+  actor?: string;
+  roleGates?: string[];
+  tags?: Record<string, string>;
+  queueName?: string;
+}
+
+export interface WorkflowHandoffDefinition {
+  id: string;
+  fromState: string;
+  toState: string;
+  label: string;
+  actorChange?: string;
+}
+
 // ---------------------------------------------------------------------------
-// Authored Stage
+// States / stages
 // ---------------------------------------------------------------------------
 
 export interface AuthoredStage {
-  stageKey: string;
+  stateKey: string;
+  displayName: string;
+  components?: AuthoredComponent[];
+  description?: string;
+  kind?: StageKind;
+  actor?: string;
+  queueKey?: string;
+  routes?: AuthoredRoute[];
+  actions?: AuthoredAction[];
+  roleGates?: string[];
+  editorComment?: string;
+  metadata?: WorkflowStateMetadata;
+  stageKey?: string;
+}
+
+export interface WorkflowStateMetadata {
+  description?: string;
+  stageType?: StageKind;
+  actor?: string;
+  laneKey?: string;
+  queueKey?: string;
+  queueName?: string;
+  roleGates?: string[];
+  actions?: AuthoredAction[];
+  editorComment?: string;
+  waiting?: WaitingMetadata;
+}
+
+// ---------------------------------------------------------------------------
+// Gateways / transitions
+// ---------------------------------------------------------------------------
+
+export interface AuthoredGateway {
+  key: string;
   displayName: string;
   description?: string;
-  kind: StageKind;
-  /** Actor/persona for this stage (informational). */
+  gatewayType: GatewayKind;
+  kind?: GatewayKind;
+  queueKey?: string;
   actor?: string;
-  /** Typed stage actions from the authoring catalog. */
+  roleGates?: string[];
+  routes?: AuthoredRoute[];
   actions?: AuthoredAction[];
-  /** Fields collected at this stage — matches C# AuthoredStage.Fields. */
-  fields?: AuthoredField[];
-  roleGates: string[];
+  waitingContent?: string;
+  waitingExpectedSeconds?: number;
+  waitingPollIntervalMs?: number;
+  waitingAllowDefer?: boolean;
+  waitingDeferMessage?: string;
+  requiredIncomingQueues?: string[];
+  requiredIncomingLanes?: string[];
+  gatewayKey?: string;
+  laneKey?: string;
+  queueName?: string;
+  source?: string;
   waiting?: WaitingMetadata;
+}
+
+export interface AuthoredTransition {
+  fromState: string;
+  toState: string;
+  action: string;
+  requiresRole?: string;
+  metadata?: WorkflowTransitionMetadata;
+  target?: string;
+  trigger?: string;
+  condition?: string;
+  actions?: AuthoredAction[];
   editorComment?: string;
 }
 
+export interface WorkflowTransitionMetadata {
+  conditions?: WorkflowConditionDefinition[];
+  actions?: AuthoredAction[];
+}
+
+export interface WorkflowConditionDefinition {
+  kind: string;
+  expression: string;
+  description?: string;
+}
+
+// Closed union — mirrors the C# StageKind enum exactly.
 export type StageKind =
   | 'Question'
   | 'CheckAnswers'
   | 'Confirmation'
-  | 'TaskList'
-  | 'Waiting'
-  | 'StatusTimeline';
+  | 'TaskList';
+
+export type GatewayKind = 'Split' | 'Join';
 
 export type EditorStageType =
   | 'form'
   | 'review'
   | 'decision'
-  | 'waiting'
-  | 'confirmation'
-  | 'system-work';
+  | 'confirmation';
 
 export function stageKindToEditorStageType(kind: StageKind): EditorStageType {
   switch (kind) {
@@ -64,12 +164,8 @@ export function stageKindToEditorStageType(kind: StageKind): EditorStageType {
       return 'review';
     case 'TaskList':
       return 'decision';
-    case 'Waiting':
-      return 'waiting';
     case 'Confirmation':
       return 'confirmation';
-    case 'StatusTimeline':
-      return 'system-work';
     case 'Question':
     default:
       return 'form';
@@ -82,12 +178,8 @@ export function editorStageTypeToStageKind(type: EditorStageType): StageKind {
       return 'CheckAnswers';
     case 'decision':
       return 'TaskList';
-    case 'waiting':
-      return 'Waiting';
     case 'confirmation':
       return 'Confirmation';
-    case 'system-work':
-      return 'StatusTimeline';
     case 'form':
     default:
       return 'Question';
@@ -140,11 +232,575 @@ export interface WaitingMetadata {
   deferMessage?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Authored Transition
-// ---------------------------------------------------------------------------
+export function workflowStates(workflow: Pick<AuthoredWorkflow, 'states'> | null | undefined): AuthoredStage[] {
+  return workflow?.states ?? [];
+}
 
-export interface AuthoredTransition {
+export function workflowTransitions(
+  workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'> | null | undefined
+): AuthoredTransition[] {
+  return buildLegacyTransitions(workflow);
+}
+
+export function workflowMetadata(
+  workflow: Pick<AuthoredWorkflow, 'metadata'> | null | undefined
+): WorkflowDefinitionMetadata | undefined {
+  return workflow?.metadata;
+}
+
+export function workflowGateways(
+  workflow: Pick<AuthoredWorkflow, 'gateways'> | Pick<AuthoredWorkflow, 'metadata'> | null | undefined
+): AuthoredGateway[] {
+  return (workflow as AuthoredWorkflow | null | undefined)?.gateways
+    ?? (workflow as AuthoredWorkflow | null | undefined)?.metadata?.gateways
+    ?? [];
+}
+
+export function workflowQueues(
+  workflow: Pick<AuthoredWorkflow, 'queues'> | Pick<AuthoredWorkflow, 'metadata'> | null | undefined
+): WorkflowQueueDefinition[] {
+  return (workflow as AuthoredWorkflow | null | undefined)?.queues
+    ?? ((workflow as AuthoredWorkflow | null | undefined)?.metadata?.lanes as WorkflowQueueDefinition[] | undefined)
+    ?? [];
+}
+
+export function workflowLanes(
+  workflow: Pick<AuthoredWorkflow, 'queues'> | Pick<AuthoredWorkflow, 'metadata'> | null | undefined
+): WorkflowQueueDefinition[] {
+  return workflowQueues(workflow);
+}
+
+export function stageActions(stage: Pick<AuthoredStage, 'actions' | 'metadata'>): AuthoredAction[] {
+  return stage.actions ?? stage.metadata?.actions ?? [];
+}
+
+export function stageRoleGates(stage: Pick<AuthoredStage, 'roleGates' | 'metadata'>): string[] {
+  return stage.roleGates ?? stage.metadata?.roleGates ?? [];
+}
+
+export function stageLane(stage: Pick<AuthoredStage, 'queueKey' | 'metadata'>): string | undefined {
+  return stage.queueKey ?? stage.metadata?.queueKey ?? stage.metadata?.queueName ?? stage.metadata?.laneKey;
+}
+
+export function stageActor(stage: Pick<AuthoredStage, 'actor' | 'metadata'>): string | undefined {
+  return stage.actor ?? stage.metadata?.actor;
+}
+
+export function stageKind(stage: Pick<AuthoredStage, 'kind' | 'metadata'>): StageKind {
+  return stage.kind ?? stage.metadata?.stageType ?? 'Question';
+}
+
+export function stageDescription(stage: Pick<AuthoredStage, 'description' | 'metadata'>): string | undefined {
+  return stage.description ?? stage.metadata?.description;
+}
+
+export function stageEditorComment(stage: Pick<AuthoredStage, 'editorComment' | 'metadata'>): string | undefined {
+  return stage.editorComment ?? stage.metadata?.editorComment;
+}
+
+export function stageWaiting(stage: Pick<AuthoredStage, 'metadata'>): WaitingMetadata | undefined {
+  return stage.metadata?.waiting;
+}
+
+export function withStageMetadata(stage: AuthoredStage, metadata: WorkflowStateMetadata): AuthoredStage {
+  return hydrateStage({
+    ...stage,
+    description: metadata.description ?? stage.description,
+    kind: metadata.stageType ?? stage.kind,
+    actor: metadata.actor ?? stage.actor,
+    queueKey: metadata.queueKey ?? metadata.queueName ?? metadata.laneKey ?? stage.queueKey,
+    actions: metadata.actions ?? stage.actions,
+    roleGates: metadata.roleGates ?? stage.roleGates,
+    editorComment: metadata.editorComment ?? stage.editorComment,
+  });
+}
+
+export function withStageKind(stage: AuthoredStage, nextKind: StageKind): AuthoredStage {
+  return hydrateStage({ ...stage, kind: nextKind });
+}
+
+export function withStageAssignment(stage: AuthoredStage, laneKey: string, actor?: string, roleGates: string[] = []): AuthoredStage {
+  return hydrateStage({
+    ...stage,
+    queueKey: laneKey,
+    actor,
+    roleGates,
+  });
+}
+
+export function withStageKey(stage: AuthoredStage, stateKey: string): AuthoredStage {
+  return hydrateStage({ ...stage, stateKey });
+}
+
+export function gatewayKey(gateway: Pick<AuthoredGateway, 'key'>): string {
+  return gateway.key;
+}
+
+export function gatewayKind(gateway: Pick<AuthoredGateway, 'gatewayType' | 'kind'>): GatewayKind {
+  return gateway.kind ?? gateway.gatewayType;
+}
+
+export function gatewayRoleGates(gateway: Pick<AuthoredGateway, 'roleGates'>): string[] {
+  return gateway.roleGates ?? [];
+}
+
+export function transitionActions(transition: Pick<AuthoredTransition, 'metadata' | 'actions'>): AuthoredAction[] {
+  return transition.actions ?? transition.metadata?.actions ?? [];
+}
+
+export function transitionConditions(
+  transition: Pick<AuthoredTransition, 'metadata' | 'condition'>
+): WorkflowConditionDefinition[] {
+  if (transition.metadata?.conditions?.length) {
+    return transition.metadata.conditions;
+  }
+  return transition.condition
+    ? [{ kind: 'expression', expression: transition.condition }]
+    : [];
+}
+
+function defineCompatGetter(target: object, key: string, getter: () => unknown) {
+  if (Object.prototype.hasOwnProperty.call(target, key)) {
+    return;
+  }
+  Object.defineProperty(target, key, {
+    configurable: true,
+    enumerable: false,
+    get: getter,
+  });
+}
+
+export function hydrateWorkflowDefinition<T extends AuthoredWorkflow>(workflow: T): T {
+  const root = workflow as unknown as Record<string, unknown>;
+  const metadata = asRecord(root.metadata);
+  const rawStates = asArray<Record<string, unknown>>(root.states ?? root.stages);
+  const rawGateways = asArray<Record<string, unknown>>(root.gateways ?? metadata.gateways);
+  const rawTransitions = asArray<Record<string, unknown>>(root.transitions);
+  const rawQueues = dedupeByKey(
+    [
+      ...asArray<Record<string, unknown>>(root.queues),
+      ...asArray<Record<string, unknown>>(root.lanes),
+      ...asArray<Record<string, unknown>>(metadata.lanes),
+    ].map(normaliseQueueDefinition).filter((queue): queue is WorkflowQueueDefinition => Boolean(queue)),
+    queue => queue.key
+  );
+  const queueLookup = buildQueueLookup(rawQueues, rawStates, rawGateways);
+  const normalisedGateways = rawGateways.map(rawGateway => hydrateGateway(normaliseGateway(rawGateway, queueLookup, rawTransitions)));
+  const normalisedStates = rawStates.map(rawStage => hydrateStage(normaliseStage(rawStage, queueLookup, rawTransitions, rawGateways)));
+
+  const normalisedWorkflow = {
+    definitionKey: typeof root.definitionKey === 'string' ? root.definitionKey : '',
+    displayName: typeof root.displayName === 'string' ? root.displayName : '',
+    version: typeof root.version === 'number' ? root.version : 1,
+    initialState: typeof root.initialState === 'string'
+      ? root.initialState
+      : typeof root.initialStageKey === 'string'
+        ? root.initialStageKey
+        : normalisedStates[0]?.stateKey ?? '',
+    instancePolicy: typeof root.instancePolicy === 'string' ? root.instancePolicy : 'single',
+    description: firstString(root.description, metadata.description, root.authorNote),
+    schemaVersion: firstString(root.schemaVersion, metadata.schemaVersion),
+    queues: rawQueues,
+    states: normalisedStates,
+    gateways: normalisedGateways,
+    parameterSchemas: asArray<AuthoredParameterSchema>(root.parameterSchemas),
+  } as AuthoredWorkflow;
+
+  const legacyMetadata: WorkflowDefinitionMetadata = {
+    authoredWorkflowId: typeof metadata.authoredWorkflowId === 'string' ? metadata.authoredWorkflowId : undefined,
+    handoffs: asArray<WorkflowHandoffDefinition>(metadata.handoffs),
+    tags: asRecord(metadata.tags) as Record<string, string>,
+  };
+
+  defineCompatGetter(normalisedWorkflow, 'stages', () => normalisedWorkflow.states);
+  defineCompatGetter(normalisedWorkflow, 'initialStageKey', () => normalisedWorkflow.initialState);
+  defineCompatGetter(normalisedWorkflow, 'authorNote', () => normalisedWorkflow.description);
+  defineCompatGetter(normalisedWorkflow, 'lanes', () => normalisedWorkflow.queues);
+  defineCompatGetter(normalisedWorkflow, 'metadata', () => legacyMetadata);
+  defineCompatGetter(legacyMetadata, 'description', () => normalisedWorkflow.description);
+  defineCompatGetter(legacyMetadata, 'schemaVersion', () => normalisedWorkflow.schemaVersion);
+  defineCompatGetter(legacyMetadata, 'gateways', () => normalisedWorkflow.gateways);
+  defineCompatGetter(legacyMetadata, 'lanes', () => normalisedWorkflow.queues);
+  defineCompatGetter(normalisedWorkflow, 'transitions', () => buildLegacyTransitions(normalisedWorkflow));
+
+  return normalisedWorkflow as T;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+function asStringArray(value: unknown): string[] {
+  return asArray<unknown>(value)
+    .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    .map(entry => entry.trim());
+}
+
+function dedupeByKey<T>(items: T[], keyFor: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    const key = keyFor(item);
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function normaliseQueueDefinition(rawQueue: Record<string, unknown>): WorkflowQueueDefinition | null {
+  const key = firstString(rawQueue.key, rawQueue.queueName);
+  if (!key) {
+    return null;
+  }
+  return {
+    key,
+    queueName: key,
+    displayName: firstString(rawQueue.displayName, rawQueue.title, rawQueue.key, rawQueue.queueName) ?? key,
+    description: firstString(rawQueue.description),
+    actor: firstString(rawQueue.actor),
+    roleGates: asStringArray(rawQueue.roleGates),
+    tags: asRecord(rawQueue.tags) as Record<string, string>,
+  };
+}
+
+function buildQueueLookup(
+  queues: WorkflowQueueDefinition[],
+  rawStates: Array<Record<string, unknown>>,
+  rawGateways: Array<Record<string, unknown>>
+): Map<string, string> {
+  const lookup = new Map<string, string>();
+  queues.forEach(queue => {
+    lookup.set(queue.key, queue.key);
+    if (queue.queueName) {
+      lookup.set(queue.queueName, queue.key);
+    }
+  });
+
+  const registerLegacyKey = (rawNode: Record<string, unknown>) => {
+    const queueKey = firstString(
+      rawNode.queueKey,
+      rawNode.queueName,
+      asRecord(rawNode.metadata).queueKey,
+      asRecord(rawNode.metadata).queueName,
+      rawNode.laneKey,
+      asRecord(rawNode.metadata).laneKey
+    );
+    const legacyLaneKey = firstString(rawNode.laneKey, asRecord(rawNode.metadata).laneKey);
+    if (queueKey) {
+      lookup.set(queueKey, queueKey);
+      if (legacyLaneKey) {
+        lookup.set(legacyLaneKey, queueKey);
+      }
+    }
+  };
+
+  rawStates.forEach(registerLegacyKey);
+  rawGateways.forEach(registerLegacyKey);
+  return lookup;
+}
+
+function resolveQueueKey(rawNode: Record<string, unknown>, queueLookup: Map<string, string>): string | undefined {
+  const candidates = [
+    rawNode.queueKey,
+    rawNode.queueName,
+    asRecord(rawNode.metadata).queueKey,
+    asRecord(rawNode.metadata).queueName,
+    rawNode.laneKey,
+    asRecord(rawNode.metadata).laneKey,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return queueLookup.get(candidate.trim()) ?? candidate.trim();
+    }
+  }
+  return undefined;
+}
+
+function routeId(sourceKey: string, trigger: string, targetKey: string) {
+  return `${sourceKey || 'unknown'}--${trigger || 'continue'}--${targetKey || 'unknown'}`;
+}
+
+function normaliseLegacyTransitionRoute(
+  sourceKey: string,
+  transition: Record<string, unknown>
+): AuthoredRoute {
+  const trigger = firstString(transition.action, transition.trigger) ?? 'continue';
+  return {
+    id: firstString(transition.id) ?? routeId(sourceKey, trigger, firstString(transition.toState, transition.target) ?? ''),
+    target: firstString(transition.toState, transition.target) ?? '',
+    trigger,
+    condition: firstString(
+      transition.condition,
+      asRecord(transition.metadata).conditions && Array.isArray(asRecord(transition.metadata).conditions)
+        ? (asRecord(asArray(asRecord(transition.metadata).conditions)[0]).expression as string | undefined)
+        : undefined
+    ),
+    requiresRole: firstString(transition.requiresRole),
+    actions: transitionActions(transition as unknown as AuthoredTransition),
+    editorComment: firstString(transition.editorComment),
+  };
+}
+
+function normaliseRoute(rawRoute: Record<string, unknown>, sourceKey: string): AuthoredRoute {
+  const trigger = firstString(rawRoute.trigger, rawRoute.action) ?? 'continue';
+  return {
+    id: firstString(rawRoute.id) ?? routeId(sourceKey, trigger, firstString(rawRoute.target, rawRoute.toState) ?? ''),
+    target: firstString(rawRoute.target, rawRoute.toState) ?? '',
+    trigger,
+    condition: firstString(rawRoute.condition),
+    requiresRole: firstString(rawRoute.requiresRole),
+    actions: asArray<AuthoredAction>(rawRoute.actions),
+    editorComment: firstString(rawRoute.editorComment),
+  };
+}
+
+function normaliseStage(
+  rawStage: Record<string, unknown>,
+  queueLookup: Map<string, string>,
+  rawTransitions: Array<Record<string, unknown>>,
+  rawGateways: Array<Record<string, unknown>>
+): AuthoredStage {
+  const metadata = asRecord(rawStage.metadata);
+  const stateKey = firstString(rawStage.stateKey, rawStage.stageKey, rawStage.key) ?? '';
+  const transitionRoutes = rawTransitions
+    .filter(transition => firstString(transition.fromState) === stateKey)
+    .map(transition => normaliseLegacyTransitionRoute(stateKey, transition));
+  const sourcedGatewayRoutes = rawGateways
+    .filter(rawGateway => firstString(rawGateway.source) === stateKey)
+    .map(rawGateway => {
+      const gatewayKey = firstString(rawGateway.key, rawGateway.gatewayKey) ?? '';
+      const firstGatewayRoute = asArray<Record<string, unknown>>(rawGateway.routes)[0];
+      const trigger = firstString(firstGatewayRoute?.trigger, firstGatewayRoute?.action) ?? 'continue';
+      return {
+        id: routeId(stateKey, trigger, gatewayKey),
+        target: gatewayKey,
+        trigger,
+      } satisfies AuthoredRoute;
+    });
+  const routes = dedupeByKey(
+    [
+      ...asArray<Record<string, unknown>>(rawStage.routes).map(route => normaliseRoute(route, stateKey)),
+      ...transitionRoutes,
+      ...sourcedGatewayRoutes,
+    ],
+    route => route.id
+  );
+
+  return hydrateStage({
+    stateKey,
+    displayName: firstString(rawStage.displayName, rawStage.title) ?? stateKey,
+    components: asArray<AuthoredComponent>(rawStage.components),
+    description: firstString(rawStage.description, metadata.description),
+    kind: firstString(rawStage.kind, rawStage.stageType, rawStage.type, metadata.stageType) as StageKind | undefined,
+    actor: firstString(rawStage.actor, metadata.actor),
+    queueKey: resolveQueueKey(rawStage, queueLookup),
+    routes,
+    actions: asArray<AuthoredAction>(rawStage.actions ?? metadata.actions),
+    roleGates: asStringArray(rawStage.roleGates ?? metadata.roleGates),
+    editorComment: firstString(rawStage.editorComment, metadata.editorComment),
+  });
+}
+
+function normaliseGateway(
+  rawGateway: Record<string, unknown>,
+  queueLookup: Map<string, string>,
+  rawTransitions: Array<Record<string, unknown>>
+): AuthoredGateway {
+  const key = firstString(rawGateway.key, rawGateway.gatewayKey) ?? '';
+  const metadata = asRecord(rawGateway.metadata);
+  const transitionRoutes = rawTransitions
+    .filter(transition => firstString(transition.fromState) === key)
+    .map(transition => normaliseLegacyTransitionRoute(key, transition));
+  return hydrateGateway({
+    key,
+    displayName: firstString(rawGateway.displayName, rawGateway.title) ?? key,
+    description: firstString(rawGateway.description, metadata.description),
+    gatewayType: firstString(rawGateway.gatewayType, rawGateway.kind, rawGateway.type) as GatewayKind ?? 'Split',
+    kind: firstString(rawGateway.kind, rawGateway.gatewayType, rawGateway.type) as GatewayKind ?? 'Split',
+    queueKey: resolveQueueKey(rawGateway, queueLookup),
+    actor: firstString(rawGateway.actor, metadata.actor),
+    roleGates: asStringArray(rawGateway.roleGates ?? metadata.roleGates),
+    routes: dedupeByKey(
+      [
+        ...asArray<Record<string, unknown>>(rawGateway.routes).map(route => normaliseRoute(route, key)),
+        ...transitionRoutes,
+      ],
+      route => route.id
+    ),
+    waitingContent: firstString(rawGateway.waitingContent, asRecord(rawGateway.waiting).content, asRecord(rawGateway.waitingInfo).content),
+    waitingExpectedSeconds: typeof rawGateway.waitingExpectedSeconds === 'number'
+      ? rawGateway.waitingExpectedSeconds
+      : typeof asRecord(rawGateway.waiting).expectedWaitSeconds === 'number'
+        ? asRecord(rawGateway.waiting).expectedWaitSeconds as number
+        : typeof asRecord(rawGateway.waitingInfo).expectedWaitSeconds === 'number'
+          ? asRecord(rawGateway.waitingInfo).expectedWaitSeconds as number
+          : undefined,
+    waitingPollIntervalMs: typeof rawGateway.waitingPollIntervalMs === 'number'
+      ? rawGateway.waitingPollIntervalMs
+      : typeof asRecord(rawGateway.waiting).pollIntervalMs === 'number'
+        ? asRecord(rawGateway.waiting).pollIntervalMs as number
+        : typeof asRecord(rawGateway.waitingInfo).pollIntervalMs === 'number'
+          ? asRecord(rawGateway.waitingInfo).pollIntervalMs as number
+          : undefined,
+    waitingAllowDefer: typeof rawGateway.waitingAllowDefer === 'boolean'
+      ? rawGateway.waitingAllowDefer
+      : typeof asRecord(rawGateway.waiting).allowDefer === 'boolean'
+        ? asRecord(rawGateway.waiting).allowDefer as boolean
+        : typeof asRecord(rawGateway.waitingInfo).allowDefer === 'boolean'
+          ? asRecord(rawGateway.waitingInfo).allowDefer as boolean
+          : undefined,
+    waitingDeferMessage: firstString(rawGateway.waitingDeferMessage, asRecord(rawGateway.waiting).deferMessage, asRecord(rawGateway.waitingInfo).deferMessage),
+    requiredIncomingQueues: asStringArray(rawGateway.requiredIncomingQueues ?? rawGateway.requiredIncomingLanes)
+      .map(queueKey => queueLookup.get(queueKey) ?? queueKey),
+  });
+}
+
+function hydrateStage(stage: AuthoredStage): AuthoredStage {
+  const hydrated = {
+    ...stage,
+    components: stage.components ?? [],
+    kind: stage.kind ?? 'Question',
+    actions: stage.actions ?? [],
+    roleGates: stage.roleGates ?? [],
+    routes: stage.routes ?? [],
+  } as AuthoredStage;
+
+  defineCompatGetter(hydrated, 'stageKey', () => hydrated.stateKey);
+  defineCompatGetter(hydrated, 'metadata', () => ({
+    description: hydrated.description,
+    stageType: hydrated.kind,
+    actor: hydrated.actor,
+    queueKey: hydrated.queueKey,
+    queueName: hydrated.queueKey,
+    laneKey: hydrated.queueKey,
+    roleGates: hydrated.roleGates,
+    actions: hydrated.actions,
+    editorComment: hydrated.editorComment,
+  } satisfies WorkflowStateMetadata));
+
+  return hydrated;
+}
+
+function hydrateGateway(gateway: AuthoredGateway): AuthoredGateway {
+  const hydrated = {
+    ...gateway,
+    gatewayType: gateway.gatewayType ?? gateway.kind ?? 'Split',
+    kind: gateway.kind ?? gateway.gatewayType ?? 'Split',
+    routes: gateway.routes ?? [],
+    roleGates: gateway.roleGates ?? [],
+    requiredIncomingQueues: gateway.requiredIncomingQueues ?? [],
+  } as AuthoredGateway;
+
+  defineCompatGetter(hydrated, 'gatewayKey', () => hydrated.key);
+  defineCompatGetter(hydrated, 'laneKey', () => hydrated.queueKey);
+  defineCompatGetter(hydrated, 'queueName', () => hydrated.queueKey);
+  defineCompatGetter(hydrated, 'requiredIncomingLanes', () => hydrated.requiredIncomingQueues);
+  defineCompatGetter(hydrated, 'waiting', () => ({
+    content: hydrated.waitingContent,
+    expectedWaitSeconds: hydrated.waitingExpectedSeconds,
+    pollIntervalMs: hydrated.waitingPollIntervalMs,
+    allowDefer: hydrated.waitingAllowDefer ?? false,
+    deferMessage: hydrated.waitingDeferMessage,
+  } satisfies WaitingMetadata));
+
+  return hydrated;
+}
+
+function buildLegacyTransitions(
+  workflow: Pick<AuthoredWorkflow, 'states' | 'gateways'> | null | undefined
+): AuthoredTransition[] {
+  if (!workflow) {
+    return [];
+  }
+
+  const stageTransitions = workflow.states.flatMap(stage =>
+    (stage.routes ?? []).map(route => {
+      const metadata: WorkflowTransitionMetadata = {
+        conditions: route.condition
+          ? [{ kind: 'expression', expression: route.condition }]
+          : undefined,
+        actions: route.actions ?? [],
+      };
+      const transition: AuthoredTransition = {
+        fromState: stage.stateKey,
+        toState: route.target,
+        action: route.trigger,
+        requiresRole: route.requiresRole,
+        metadata,
+        condition: route.condition,
+        actions: route.actions ?? [],
+        editorComment: route.editorComment,
+      };
+      defineCompatGetter(transition, 'target', () => transition.toState);
+      defineCompatGetter(transition, 'trigger', () => transition.action);
+      return transition;
+    })
+  );
+
+  const gatewayTransitions = (workflow.gateways ?? []).flatMap(gateway =>
+    (gateway.routes ?? []).map(route => {
+      const metadata: WorkflowTransitionMetadata = {
+        conditions: route.condition
+          ? [{ kind: 'expression', expression: route.condition }]
+          : undefined,
+        actions: route.actions ?? [],
+      };
+      const transition: AuthoredTransition = {
+        fromState: gateway.key,
+        toState: route.target,
+        action: route.trigger,
+        requiresRole: route.requiresRole,
+        metadata,
+        condition: route.condition,
+        actions: route.actions ?? [],
+        editorComment: route.editorComment,
+      };
+      defineCompatGetter(transition, 'target', () => transition.toState);
+      defineCompatGetter(transition, 'trigger', () => transition.action);
+      return transition;
+    })
+  );
+
+  return [...stageTransitions, ...gatewayTransitions];
+}
+
+// ---------------------------------------------------------------------------
+// Route view
+// ---------------------------------------------------------------------------
+//
+// Editor surfaces still render routes as a flattened view. The view is derived
+// from the canonical transition list plus metadata.gateways.
+
+/**
+ * Read-only flattening of a transition into a route/editor view.
+ */
+export interface AuthoredRoute {
+  id: string;
+  target: string;
+  trigger: string;
+  condition?: string;
+  requiresRole?: string;
+  actions?: AuthoredAction[];
+  editorComment?: string;
+}
+
+export interface RouteView {
   fromStage: string;
   toStage: string;
   action: string;
@@ -152,6 +808,12 @@ export interface AuthoredTransition {
   requiresRole?: string;
   condition?: string;
   editorComment?: string;
+  fromGateway?: string;
+  toGateway?: string;
+  gatewayKey?: string;
+  key?: string;
+  routeIndex: number;
+  routeId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,39 +869,110 @@ export interface ActionCatalogEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Authored Role & Field
+// Authored Components
 // ---------------------------------------------------------------------------
+//
+// Stages carry a tree of `AuthoredComponent` instances directly — the same
+// polymorphic hierarchy the runtime renders. Containers (fieldset, accordion,
+// summary-list, panel), inputs (text, email, textarea, number, decimal,
+// select, radio, checkboxlist, date, boolean), and content (body, heading,
+// inset-text, warning-text, details, notification-banner, waiting,
+// task-list) are all peers in this tree. The projector hands the tree
+// straight through to the runtime.
 
-export interface AuthoredRole {
-  roleKey: string;
-  displayName: string;
-  claimMapping?: string;
+interface AuthoredComponentBase {
+  type: string;
 }
 
-export interface AuthoredField {
+export interface AuthoredInputComponent extends AuthoredComponentBase {
+  type:
+    | 'text'
+    | 'number'
+    | 'decimal'
+    | 'select'
+    | 'radio'
+    | 'checkboxlist'
+    | 'date'
+    | 'email'
+    | 'textarea'
+    | 'boolean';
   fieldKey: string;
   label: string;
-  kind: FieldKind;
+  hint?: string;
   required: boolean;
-  hintText?: string;
-  validationPattern?: string;
-  defaultValue?: unknown;
-  options: string[];
-  editorComment?: string;
+  conditionalOn?: string | null;
+  visibleWhen?: string | null;
+  options?: string[];
+  minLength?: number | null;
+  maxLength?: number | null;
+  pattern?: string | null;
+  prefix?: string | null;
+  min?: number | null;
+  max?: number | null;
 }
 
-export type FieldKind =
-  | 'TextInput'
-  | 'NumberInput'
-  | 'Textarea'
-  | 'Radios'
-  | 'Checkboxes'
-  | 'Select'
-  | 'DateInput'
-  | 'EmailInput'
-  | 'Toggle'
-  | 'FileUpload'
-  | 'Hidden';
+export interface AuthoredFieldsetComponent extends AuthoredComponentBase {
+  type: 'fieldset';
+  children: AuthoredComponent[];
+  legend?: string | null;
+  legendSize?: string | null;
+}
+
+export interface AuthoredAccordionComponent extends AuthoredComponentBase {
+  type: 'accordion';
+  sections: Array<{
+    heading: string;
+    summary?: string | null;
+    children: AuthoredComponent[];
+  }>;
+}
+
+export interface AuthoredPanelComponent extends AuthoredComponentBase {
+  type: 'panel';
+  heading: string;
+}
+
+export interface AuthoredWaitingComponent extends AuthoredComponentBase {
+  type: 'waiting';
+  content: string;
+  expectedWaitSeconds: number;
+  pollIntervalMs: number;
+  allowDefer: boolean;
+  deferMessage?: string;
+}
+
+export interface AuthoredSummaryListComponent extends AuthoredComponentBase {
+  type: 'summary-list';
+  children: AuthoredComponent[];
+  changeStateKey?: string | null;
+  title?: string | null;
+}
+
+export interface AuthoredTaskListComponent extends AuthoredComponentBase {
+  type: 'task-list';
+  sections?: Array<{
+    heading: string;
+    tasks: Array<{ label: string; stateKey?: string | null; href?: string | null }>;
+  }> | null;
+}
+
+export interface AuthoredContentComponent extends AuthoredComponentBase {
+  type: 'body' | 'heading' | 'inset-text' | 'warning-text' | 'details' | 'notification-banner';
+  content?: string;
+  heading?: string;
+  level?: number;
+  bannerType?: string;
+}
+
+export type AuthoredComponent =
+  | AuthoredInputComponent
+  | AuthoredFieldsetComponent
+  | AuthoredAccordionComponent
+  | AuthoredPanelComponent
+  | AuthoredWaitingComponent
+  | AuthoredSummaryListComponent
+  | AuthoredTaskListComponent
+  | AuthoredContentComponent;
 
 export type ActionFormFieldType = 'text' | 'number' | 'textarea' | 'select' | 'radio' | 'date';
 
@@ -254,48 +987,6 @@ export interface ActionFormFieldConfig {
   options: string[];
 }
 
-// ---------------------------------------------------------------------------
-// Proposal Envelope — Tangy's canonical schema
-// ---------------------------------------------------------------------------
-
-export interface ProposalEnvelope {
-  id: string;
-  createdAt: string;
-  agent: ProposalAgent;
-  targetWorkflowId: string;
-  rationale: string;
-  ops: ProposalOp[];
-  placement: ProposalPlacement;
-  validationResult: ValidationResult;
-  previewArtifactRef?: string | null;
-}
-
-export interface ProposalAgent {
-  kind: 'github-copilot' | 'custom-agent' | 'human-assisted';
-  identity: string;
-  sessionRef?: string;
-}
-
-export interface ProposalOp {
-  op: 'insert-stage' | 'remove-stage' | 'update-stage' | 'insert-handoff' | 'update-transition';
-  path: string;
-  value?: unknown;
-  before?: string;
-  after?: string;
-}
-
-export interface ProposalPlacement {
-  insertAfterStageKey?: string | null;
-  insertBeforeStageKey?: string | null;
-  handoffId?: string | null;
-  transitionId?: string | null;
-}
-
-export interface ValidationResult {
-  status: 'pass' | 'fail' | 'not-run';
-  checkedAt: string | null;
-  errors: string[];
-}
 
 // ---------------------------------------------------------------------------
 // Stub data for Storybook / development
@@ -597,16 +1288,15 @@ export const STUB_ACTION_CATALOG: ActionCatalogEntry[] = [
   },
 ];
 
-export const STUB_WORKFLOW: AuthoredWorkflow = {
+export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
   definitionKey: 'planning-permission',
   displayName: 'Planning Permission Application',
   version: 1,
-  schemaVersion: '1.0',
   instancePolicy: 'single',
-  initialStageKey: 'applicant-details',
-  stages: [
+  initialState: 'applicant-details',
+  states: [
     {
-      stageKey: 'applicant-details',
+      stateKey: 'applicant-details',
       displayName: 'Applicant Details',
       description: 'Collect applicant details and site context.',
       kind: 'Question',
@@ -631,36 +1321,21 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
           summary: 'Send email to Planning Officers',
         },
       ],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
-      stageKey: 'check-answers',
+      stateKey: 'check-answers',
       displayName: 'Check Your Answers',
       description: 'Review the captured answers before submission.',
       kind: 'CheckAnswers',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
     {
-      stageKey: 'waiting-for-review',
-      displayName: 'Waiting for Review',
-      description: 'Pause while the planning team picks up the case.',
-      kind: 'Waiting',
-      actor: 'public',
-      actions: [],
-      fields: [],
-      roleGates: [],
-      waiting: {
-        allowDefer: true,
-        content: 'Your application is under review by a planning officer.',
-        expectedWaitSeconds: 86400,
-      },
-    },
-    {
-      stageKey: 'reviewer-assessment',
+      stateKey: 'reviewer-assessment',
       displayName: 'Reviewer Assessment',
       description: 'Internal assessment and decision making.',
       kind: 'Question',
@@ -697,74 +1372,93 @@ export const STUB_WORKFLOW: AuthoredWorkflow = {
           summary: 'Request evidence form: 1 field',
         },
       ],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'confirmation',
+      stateKey: 'confirmation',
       displayName: 'Application Submitted',
       description: 'Confirm the application has been submitted.',
       kind: 'Confirmation',
       actor: 'public',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: [],
     },
   ],
   transitions: [
+    { fromState: 'applicant-details', toState: 'route-check-answers', action: 'route' },
+    { fromState: 'route-check-answers', toState: 'check-answers', action: 'submit', metadata: { actions: [{ type: 'forms.submit', timing: 'OnTransition', parameterSchemaKey: 'forms.form-reference', params: { formDefinitionId: 'planning-applicant-details' }, summary: 'Submit the applicant details form.' }] } },
+    { fromState: 'check-answers', toState: 'route-reviewer-assessment', action: 'route' },
+    { fromState: 'route-reviewer-assessment', toState: 'reviewer-assessment', action: 'submit' },
+    { fromState: 'reviewer-assessment', toState: 'route-reviewer-decision', action: 'route' },
+    { fromState: 'route-reviewer-decision', toState: 'confirmation', action: 'approve', requiresRole: 'reviewer' },
+    { fromState: 'route-reviewer-decision', toState: 'applicant-details', action: 'reject', requiresRole: 'reviewer' },
+  ],
+  metadata: { schemaVersion: '1.0', gateways: [
     {
-      fromStage: 'applicant-details',
-      toStage: 'check-answers',
-      action: 'submit',
-      actions: [
+      key: 'route-check-answers',
+      displayName: 'Route to check answers',
+      gatewayType: 'Split',
+      source: 'applicant-details',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
         {
-          type: 'forms.submit',
-          timing: 'OnTransition',
-          parameterSchemaKey: 'forms.form-reference',
-          params: { formDefinitionId: 'planning-applicant-details' },
-          summary: 'Submit the applicant details form.',
+          id: 'applicant-details--submit--check-answers',
+          target: 'check-answers',
+          trigger: 'submit',
+          actions: [
+            {
+              type: 'forms.submit',
+              timing: 'OnTransition',
+              parameterSchemaKey: 'forms.form-reference',
+              params: { formDefinitionId: 'planning-applicant-details' },
+              summary: 'Submit the applicant details form.',
+            },
+          ],
         },
       ],
     },
-    { fromStage: 'check-answers', toStage: 'waiting-for-review', action: 'submit', actions: [] },
-    { fromStage: 'reviewer-assessment', toStage: 'confirmation', action: 'approve', requiresRole: 'reviewer', actions: [] },
-    { fromStage: 'reviewer-assessment', toStage: 'applicant-details', action: 'reject', requiresRole: 'reviewer', actions: [] },
-  ],
-  roles: [{ roleKey: 'reviewer', displayName: 'Planning Officer' }],
-};
-
-export const STUB_PROPOSAL: ProposalEnvelope = {
-  id: 'a3f7c221-8b14-4e02-9d61-f23a10b5e7c9',
-  createdAt: '2026-05-16T13:20:33.659+01:00',
-  agent: {
-    kind: 'github-copilot',
-    identity: 'github-copilot/gpt-4o',
-    sessionRef: 'copilot-session-2026-05-16-planning-idv',
-  },
-  targetWorkflowId: 'planning-permission',
-  rationale:
-    'Insert a mandatory external identity-and-verification (ID&V) stage between application submission and reviewer assessment. The ID&V step validates the applicant\'s identity with an external provider before the case is assigned to a planning officer.',
-  ops: [
     {
-      op: 'insert-stage',
-      path: '/stages/2',
-      before: 'reviewer-assessment',
+      key: 'route-reviewer-assessment',
+      displayName: 'Route to reviewer assessment',
+      gatewayType: 'Split',
+      source: 'check-answers',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        {
+          id: 'check-answers--submit--reviewer-assessment',
+          target: 'reviewer-assessment',
+          trigger: 'submit',
+          actions: [],
+        },
+      ],
     },
     {
-      op: 'update-transition',
-      path: '/transitions/0',
+      key: 'route-reviewer-decision',
+      displayName: 'Route from reviewer assessment',
+      gatewayType: 'Split',
+      source: 'reviewer-assessment',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        {
+          id: 'reviewer-assessment--approve--confirmation',
+          target: 'confirmation',
+          trigger: 'approve',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+        {
+          id: 'reviewer-assessment--reject--applicant-details',
+          target: 'applicant-details',
+          trigger: 'reject',
+          requiresRole: 'reviewer',
+          actions: [],
+        },
+      ],
     },
   ],
-  placement: {
-    insertAfterStageKey: 'check-answers',
-    insertBeforeStageKey: 'reviewer-assessment',
-    handoffId: null,
-    transitionId: null,
-  },
-  validationResult: {
-    status: 'pass',
-    checkedAt: '2026-05-16T13:20:33.659+01:00',
-    errors: [],
-  },
-  previewArtifactRef: null,
-};
+  }} as unknown as AuthoredWorkflow));

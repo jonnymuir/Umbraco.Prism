@@ -27,6 +27,8 @@ The test validates that:
 - All critical paths (approval, rejection, re-submission) work end-to-end
 - Validation blocks invalid submissions at appropriate stages
 
+Every move from one stage to another happens through a gateway. Single-route gateways render as a small pill; multi-route gateways open up as a diamond.
+
 ---
 
 ## Phase 1: Workflow Editor — Authoring and Publishing
@@ -61,7 +63,7 @@ The workflow graph renders the planning workflow stages as a directed graph.
 
 **What to verify:**
 - All four stages visible in graph
-- Transitions between stages shown as edges
+- Routes between stages through gateways shown as edges
 - Graph is keyboard-accessible (`role="application"`)
 
 **Source:** [`prism-workflow-graph.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts)
@@ -497,7 +499,7 @@ The planning workflow complete E2E test validates:
 
 ✅ **Editor Phase:**
 - Workflow loads in editor
-- Graph shows all stages and transitions
+- Graph shows all stages and gateways
 - Validation passes (no errors)
 - Publish succeeds
 
@@ -527,7 +529,7 @@ The planning workflow complete E2E test validates:
 
 ✅ **State Transitions:**
 - Declaration → Application Form → Check Answers → Submitted → Review → Approved/Rejected
-- All transitions execute correctly
+- All stage routes execute correctly
 - Instance state persists across stages
 
 ---

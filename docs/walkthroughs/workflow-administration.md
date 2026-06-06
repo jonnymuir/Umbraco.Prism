@@ -1,8 +1,8 @@
 # Walkthrough — Workflow Administration
 
-A guide to using the MockBusinessApp workflow administration panel — a development-only tool for inspecting, editing, and managing workflow instances and definitions during testing and debugging.
+A guide to using the MockBusinessApp workflow administration panel. This is a development-only tool for inspecting workflow instances and definitions.
 
-> **Important:** This walkthrough describes features of the **development harness**. The workflow admin panel is your tool for **playing the "reviewer" role** during local testing and is **not available in production**. See [Deployment Security Guide](../DEPLOYMENT_SECURITY.md) for details.
+> **Important:** This walkthrough describes features of the **development harness**. The workflow admin panel is your tool for **playing the "reviewer" role** during local testing. It is **not available in production**. See [Deployment Security Guide](../DEPLOYMENT_SECURITY.md) for details.
 > 
 > **For complete workflows:** See [Payment Demo](payment-demo.md), [Community Enquiry](community-enquiry.md), and [Information Request](information-request.md) for full end-to-end stories showing user submission + reviewer approval cycles. This admin panel is how you complete those cycles in the local demo.
 
@@ -12,13 +12,10 @@ A guide to using the MockBusinessApp workflow administration panel — a develop
 
 ## Overview
 
-The workflow administration panel (`/admin/workflow` on the MockBusinessApp) is a **testing and debugging tool** exclusively for developers and operators. It allows you to:
+The workflow administration panel (`/admin/workflow` on the MockBusinessApp) is a **testing and debugging tool** for developers and operators. It allows you to:
 
-- **View all workflow instances** — see the current state of every running workflow across all users and tenants
-- **View workflow definitions** — read the JSON schema that defines workflow structure (fields, state transitions, etc.)
-- **Edit definitions** — modify workflow JSON live without restarting (development only)
-- **Manually advance workflow state** — trigger state transitions for testing edge cases or recovery scenarios
-- **Inspect field groups** — view the reusable field component definitions referenced by workflows
+- **View all workflow instances** — see the current state of every running workflow
+- **View workflow definitions** — see which workflows are available for editing
 - **Reset instances** — clear all instances to return to a clean testing state
 
 This panel is **only accessible during development**. In production environments, all admin endpoints return `404 Not Found`.
@@ -68,6 +65,8 @@ The admin panel's main view is a **Workflow Instances** section. You see a list 
 
 ![Workflow Admin panel — instance list view](../images/walkthroughs/workflow-administration/02-admin-instance-list.png)
 
+> Screenshot pending: simplified admin page rendering (Slice D).
+
 Each instance entry shows:
 
 - **Workflow key** (e.g., `community-enquiry`, `payment-demo`) — the definition being run
@@ -76,7 +75,6 @@ Each instance entry shows:
 - **Tenant ID** — which tenant the instance belongs to
 - **Current state** — the workflow step the user is on (e.g., `initial`, `under-review`, `confirmation`)
 - **Created at** — when the instance was started
-- **Reviewer actions** — development-only **Approve** / **Request Changes** buttons for transitions that require the mock reviewer role
 
 ### Step 2: Understand the Instance State
 
@@ -90,115 +88,70 @@ Look at the state field for each instance. The state reflects where the user is 
 | `under-review` | After submission | The workflow is waiting for async processing or operator review |
 | `confirmation` | Workflow complete | User sees the final confirmation page |
 
----
+### Step 3: Reset All Instances
 
-## Part 3: Edit Workflow Definitions (Development Only)
+At the bottom of the instances section, you find a **Reset All** button. Click it to delete all workflow instances in memory, returning the system to a clean state.
 
-### Step 1: View Available Workflow Definitions
-
-On the admin panel, below the instances section, you see the **Workflow Definitions** editor. It lists all seeded workflows — exactly four reference workflows:
-
-- `planning`
-- `community-enquiry`
-- `payment-demo`
-- `information-request`
-
-![Workflow Admin panel — definition editor](../images/walkthroughs/workflow-administration/03-admin-definition-editor.png)
-
-### Step 2: Inspect a Workflow Definition
-
-Click on a workflow name (e.g., `payment-demo`) to expand it and see the full JSON definition.
-
-The definition includes:
-
-- **Metadata:** Name, description, version
-- **States:** Each state in the workflow (transitions, entry/exit actions)
-- **Field groups:** References to reusable field components (e.g., `project-info`, `timeline-cost`)
-- **Validation rules:** Field constraints and conditional logic
-
-Example structure:
-
-```json
-{
-  "key": "payment-demo",
-  "definition": {
-    "initialState": "initial",
-    "states": [
-      {
-        "key": "initial",
-        "stepType": "question",
-        "components": [...]
-      }
-    ]
-  }
-}
-```
-
-### Step 3: Make a Small Edit (Testing Only)
-
-For testing, you can make live edits to a workflow definition by clicking the **Edit** button in the admin panel. For example:
-
-- Change a field label to test that your frontend renders the update
-- Add a required flag to a field to test validation
-- Change a state transition to test state machine logic
-
-⚠️ **Important:** Changes are **not persisted** to disk. They persist in memory only for the current MockBusinessApp instance. On restart, seeded definitions reload from `workflow-seeds/`.
+⚠️ **Use case:** After running multiple test workflows, you may want to clear them to start fresh.
 
 ---
 
-## Part 4: Manually Manage Workflow Instances
+## Part 3: View Workflow Definitions
 
-### Step 1: Access Instance Management
+Below the instances section, you see the **Workflow Definitions** list. It shows all workflows available in the MockBusinessApp:
 
-Clicking an instance in the list shows its details and management options. You can:
+- `planning` — Planning application workflow
+- `leave-request` — Leave request (demonstrates 5-gateway fan-in pattern)
+- `community-enquiry` — Community enquiry form
+- `information-request` — Information request form
 
-- **View the current state** — see which step the user is on
-- **Inspect the data collected so far** — see form field values, uploads, etc.
-- **Manually advance the workflow** — trigger a state transition without waiting for user action
+![Workflow Admin panel — definitions list](../images/walkthroughs/workflow-administration/03-admin-definitions-list.png)
 
-### Step 2: Use Case — Testing Edge Cases
+> Screenshot pending: simplified admin page rendering (Slice D).
 
-**Scenario:** You want to test what happens when a workflow times out or gets stuck in a "processing" state.
+Each entry shows:
 
-1. Start a workflow normally and fill in the first form.
-2. Open the admin panel.
-3. Find the instance in the list.
-4. Manually set its state to `processing` or `waiting`.
-5. Return to the TestSite and refresh the user's page — they should see the new state.
+- **Display name** — human-readable workflow name
+- **Edit workflow** link — opens the workflow editor for that workflow
 
-This allows you to test state transitions and UI rendering for edge cases without writing special test code.
+### Step 1: Open the Workflow Editor
 
-### Step 2b: Complete Approval Workflows
+Click the **Edit workflow** link next to any workflow. It opens the workflow editor in a new tab.
 
-For walkthroughs such as **Community Enquiry**, **Information Request**, and **Payment Demo**, the admin panel is the easiest way to keep the story going after the user reaches a waiting or under-review state:
+The editor shows:
 
-#### Walking Through the Full Handoff
+- The visual canvas (stages and gateways)
+- The inspector panel (stage and gateway properties)
+- The validation rail (any issues with the workflow)
+- The history panel (undo/redo)
+- The simulation panel (test the workflow path)
+
+For a full editor tour, see [Planning Workflow Editor](planning-workflow-editor.md).
+
+---
+
+## Part 4: Complete Approval Workflows
+
+For walkthroughs such as **Community Enquiry**, **Information Request**, and **Payment Demo**, the admin panel is the easiest way to keep the story going after the user reaches a waiting or under-review state.
+
+### Walking Through the Full Handoff
 
 1. **In TestSite:** Submit the workflow as the demo member (e.g., `demo@prism.local`)
 2. **In TestSite:** See the confirmation message showing the workflow is waiting for review
 3. **Open Workflow Admin** from the dashboard (visible in the **Admin** section)
 4. **Find your instance:** Locate the matching workflow instance in the list (search by workflow key or user)
 5. **Review the state:** Confirm the instance is in `under-review` or similar waiting state
-6. **View the workflow definition:** Click on the workflow name to see which transitions are available
-7. **Choose your action:**
-   - **Approve** – advances the instance to its terminal completion state; user sees confirmation
-   - **Request Changes** – sends the instance back to `collecting-details` or similar; user can revise and resubmit
-8. **Return to TestSite:** Refresh or navigate back to see the outcome from the user's perspective
+6. **Use your business logic:** In a real system, a reviewer would process the submission here. In the dev harness, you can manually reset the instance or advance it via the MockBusinessApp runtime engine.
+7. **Return to TestSite:** Refresh or navigate back to see the outcome from the user's perspective
 
 This demonstrates the complete "operator-adjacent review flow" — a realistic handoff where the public user interface shows clear waiting states, and the review/approval happens in a separate admin interface (not exposed to users).
 
-#### Key Points
+### Key Points
 
-- The workflow definition shows which transitions require `requiresRole: "reviewer"`, enforcing authorization
+- The workflow definition shows which stages and routes require `requiresRole: "reviewer"`, enforcing authorization
 - The admin panel is the "reviewer" role in this demo — in production, a real operator portal would replace it
 - Instance data (form answers, urgency flags, uploaded files) is visible to the reviewer, enabling informed decisions
 - After approval/changes, users see their outcome on next page load or poll
-
-### Step 3: Reset All Instances
-
-At the bottom of the admin panel, you find a **Reset All** button. Click it to delete all workflow instances in memory, returning the system to a clean state.
-
-⚠️ **Use case:** After running multiple test workflows, you may want to clear them to start fresh.
 
 ---
 
@@ -209,10 +162,7 @@ At the bottom of the admin panel, you find a **Reset All** button. Click it to d
 The workflow admin panel is powered by unguarded HTTP endpoints on the MockBusinessApp:
 
 ```
-GET  /admin/workflow                      — List all instances and definitions
-GET  /admin/workflow/definition/{key}     — Fetch a single workflow definition
-PUT  /admin/workflow/definition/{key}     — Update a workflow definition (edit)
-POST /admin/workflow/{instanceId}/action/{action}  — Manually advance an instance
+GET  /admin/workflow                      — List all instances and render the admin page
 POST /admin/workflow/reset-all            — Delete all instances
 ```
 
@@ -237,40 +187,14 @@ In a production system, workflow administration would be:
 
 ---
 
-## Part 6: Workflow Definitions and Field Groups
-
-### Structure
-
-Every workflow instance references a **workflow definition**, which is a directed graph of states. Each state contains **components** — form fields, panels, buttons, etc. — described in the polymorphic JSON model.
-
-Related concept: **Field groups** are reusable collections of components (e.g., "contact details" with name, email, phone) that can be shared across workflows.
-
-The admin panel shows both:
-
-1. **Workflow definitions** — full state machine for a workflow
-2. **Field group definitions** — reusable component templates
-
-### Editing Limitations
-
-The admin panel definition cards expand in-place, and the **Edit JSON** action opens a modal editor for the live in-memory definition. If editing is enabled:
-
-- Changes apply immediately in memory
-- No validation is performed (you can break the JSON)
-- Changes are **not persisted** to the seeded files
-- Changes are lost on MockBusinessApp restart
-
-For production-grade workflow authoring, use the Umbraco backoffice integration (planned for future releases) or edit the seed files directly in the repository.
-
----
-
 ## Summary — When to Use the Admin Panel
 
 | Task | Use Admin Panel? | Alternative |
 |------|:---:|---|
 | **View current instances** | ✅ Yes | SQL query to in-memory store (if debugging) |
-| **Test a state transition manually** | ✅ Yes | Write a test spec that triggers the transition |
-| **Check if a field is being saved** | ✅ Yes | Browser DevTools → Network tab, inspect API responses |
-| **Make a permanent change to a workflow** | ❌ No | Edit the seed file and restart |
+| **Reset test instances** | ✅ Yes | Restart MockBusinessApp |
+| **Edit a workflow definition** | ✅ Yes | Open the workflow editor |
+| **Check if a field is being saved** | ❌ No | Browser DevTools → Network tab, inspect API responses |
 | **Test a workflow in production** | ❌ No | Admin panel doesn't exist in production — use real end-to-end tests |
 
 ---
@@ -278,8 +202,8 @@ For production-grade workflow authoring, use the Umbraco backoffice integration 
 ## Related Resources
 
 - [Deployment Security Guide](../DEPLOYMENT_SECURITY.md) — why admin endpoints must not go to production
-- [Authoring a Workflow](authoring-a-workflow.md) — how to write workflow definitions in C# or JSON
-- [Design System](design-system.md) — understand the polymorphic component model used in workflows
+- [Authoring a Workflow](authoring-a-workflow.md) — how to write workflow definitions
+- [Embedding the Workflow Editor](../guides/embedding-the-workflow-editor.md) — integrator recipe
 
 ---
 

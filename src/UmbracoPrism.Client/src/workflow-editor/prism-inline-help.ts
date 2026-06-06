@@ -1,6 +1,9 @@
 import { LitElement, css, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-inline-help')
 export class PrismInlineHelpElement extends LitElement {
   @property({ type: String })

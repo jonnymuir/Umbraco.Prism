@@ -19,7 +19,6 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
     private readonly IWorkflowContentSanitizer _sanitizer;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
-    private readonly ConcurrentDictionary<string, string> _instanceLookup = new();
 
     public WorkflowRuntimeEngine(
         ILogger logger,
@@ -51,6 +50,21 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         string tenantId,
         string userId,
         string? instanceId = null,
+        string? action = null) =>
+        GetCurrent(
+            workflowKey,
+            tenantId,
+            userId,
+            WorkflowAccessProfile.UnrestrictedOwner,
+            instanceId,
+            action);
+
+    public WorkflowResponseEnvelope GetCurrent(
+        string workflowKey,
+        string tenantId,
+        string userId,
+        WorkflowAccessProfile accessProfile,
+        string? instanceId = null,
         string? action = null)
     {
         if (!_definitions.TryGetValue(workflowKey, out var definition))
@@ -68,17 +82,21 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
             }
 
-            if (!string.Equals(specificInstance.TenantId, tenantId, StringComparison.Ordinal)
-                || !string.Equals(specificInstance.UserId, userId, StringComparison.Ordinal))
+            if (!CanAccessInstance(specificInstance, tenantId, userId, accessProfile))
             {
                 return ErrorEnvelope("Access denied to this workflow instance.", "ACCESS_DENIED");
             }
 
             Logger.LogInformation("Resuming specific instance {Id}", instanceId);
-            return BuildEnvelope(specificInstance, definition);
+            return BuildEnvelope(specificInstance, definition, accessProfile, accessProfile.UseLegacyLaneVisibility);
         }
 
-        var lookupKey = LookupKey(tenantId, userId, workflowKey);
+        var existingInstance = FindLatestInstance(tenantId, userId, workflowKey);
+
+        if (!CanStartInitialState(definition, accessProfile))
+        {
+            return ErrorEnvelope("Access denied to start this workflow queue.", "ACCESS_DENIED");
+        }
 
         if (string.Equals(action, "start-new", StringComparison.OrdinalIgnoreCase))
         {
@@ -87,20 +105,18 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 tenantId,
                 userId,
                 definition,
-                lookupKey,
+                accessProfile,
                 action,
-                persistLookup: true,
                 "Created new workflow instance {Id} for key={Key} (action=start-new)",
                 workflowKey);
         }
 
         if (string.Equals(action, "resume", StringComparison.OrdinalIgnoreCase))
         {
-            if (_instanceLookup.TryGetValue(lookupKey, out var resumeInstanceId)
-                && _instancesById.TryGetValue(resumeInstanceId, out var resumeInstance))
+            if (existingInstance is not null)
             {
-                Logger.LogInformation("Resuming existing instance {Id} (action=resume)", resumeInstanceId);
-                return BuildEnvelope(resumeInstance, definition);
+                Logger.LogInformation("Resuming existing instance {Id} (action=resume)", existingInstance.InstanceId);
+                return BuildEnvelope(existingInstance, definition, accessProfile, accessProfile.UseLegacyLaneVisibility);
             }
 
             return CreateAndRegisterNewInstance(
@@ -108,9 +124,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 tenantId,
                 userId,
                 definition,
-                lookupKey,
+                accessProfile,
                 action,
-                persistLookup: true,
                 "Created workflow instance {Id} for key={Key} (action=resume, no existing)",
                 workflowKey);
         }
@@ -124,34 +139,32 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 tenantId,
                 userId,
                 definition,
-                lookupKey,
+                accessProfile,
                 action,
-                persistLookup: false,
                 "Created new workflow instance {Id} for key={Key} (policy=multiple)",
                 workflowKey);
         }
 
         if (string.Equals(policy, "prompt", StringComparison.OrdinalIgnoreCase))
         {
-            if (_instanceLookup.TryGetValue(lookupKey, out var promptInstanceId)
-                && _instancesById.TryGetValue(promptInstanceId, out var promptInstance))
+            if (existingInstance is not null)
             {
-                var currentState = definition.States.FirstOrDefault(s => s.StateKey == promptInstance.CurrentState);
+                var currentState = definition.States.FirstOrDefault(s => s.StateKey == existingInstance.CurrentState);
                 var isTerminal = currentState != null && currentState.Components.InferStepType() == "confirmation";
 
                 if (!isTerminal)
                 {
                     Logger.LogInformation(
                         "Active instance {Id} exists for key={Key}; returning instance_picker",
-                        promptInstanceId,
+                        existingInstance.InstanceId,
                         workflowKey);
 
                     return new WorkflowResponseEnvelope
                     {
-                        InstanceId = promptInstanceId,
+                        InstanceId = existingInstance.InstanceId,
                         ResponseState = "instance_picker",
-                        StateVersion = promptInstance.StateVersion,
-                        CorrelationId = promptInstanceId,
+                        StateVersion = existingInstance.StateVersion,
+                        CorrelationId = existingInstance.InstanceId,
                         ServerTimeUtc = DateTimeOffset.UtcNow,
                         InstancePolicy = "prompt",
                         Render = new StepContent
@@ -170,36 +183,50 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 tenantId,
                 userId,
                 definition,
-                lookupKey,
+                accessProfile,
                 action,
-                persistLookup: true,
                 "Created workflow instance {Id} for key={Key} (policy=prompt, no active)",
                 workflowKey);
         }
 
-        if (!_instanceLookup.TryGetValue(lookupKey, out var singleInstanceId)
-            || !_instancesById.TryGetValue(singleInstanceId, out var singleInstance))
+        if (existingInstance is null)
         {
             return CreateAndRegisterNewInstance(
                 workflowKey,
                 tenantId,
                 userId,
                 definition,
-                lookupKey,
+                accessProfile,
                 action,
-                persistLookup: true,
                 "Created workflow instance {Id} for key={Key} tenant={Tenant}",
                 workflowKey,
                 tenantId);
         }
 
-        return BuildEnvelope(singleInstance, definition);
+        return BuildEnvelope(existingInstance, definition, accessProfile, accessProfile.UseLegacyLaneVisibility);
     }
 
     public virtual WorkflowResponseEnvelope Advance(
         string instanceId,
         string tenantId,
         string userId,
+        string action,
+        int expectedStateVersion,
+        Dictionary<string, object?>? fieldValues) =>
+        Advance(
+            instanceId,
+            tenantId,
+            userId,
+            WorkflowAccessProfile.UnrestrictedOwner,
+            action,
+            expectedStateVersion,
+            fieldValues);
+
+    public virtual WorkflowResponseEnvelope Advance(
+        string instanceId,
+        string tenantId,
+        string userId,
+        WorkflowAccessProfile accessProfile,
         string action,
         int expectedStateVersion,
         Dictionary<string, object?>? fieldValues)
@@ -209,8 +236,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
         }
 
-        if (!string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal)
-            || !string.Equals(instance.UserId, userId, StringComparison.Ordinal))
+        if (!CanAccessInstance(instance, tenantId, userId, accessProfile))
         {
             return ErrorEnvelope("Access denied to this workflow instance.", "ACCESS_DENIED");
         }
@@ -247,24 +273,67 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 "Change-link: jumped instance {Id} to state '{State}'",
                 instanceId,
                 targetStateKey);
-            return BuildEnvelope(jumped, definition);
+            return BuildEnvelope(jumped, definition, accessProfile, allowFallbackWhenHidden: true);
         }
 
-        var transition = definition.Transitions.FirstOrDefault(
-            t => t.FromState == instance.CurrentState
-                 && t.Action == action
-                 && t.RequiresRole == null);
+        var visibleWorkItem = FindAccessibleWorkItems(instance, definition, accessProfile)
+            .FirstOrDefault(item => item.AvailableActions.Any(candidate =>
+                string.Equals(candidate.ActionKey, action, StringComparison.Ordinal)))
+            ?? FindFallbackActionWorkItem(instance, definition, accessProfile, action);
+
+        if (visibleWorkItem is null)
+        {
+            return ErrorEnvelope(
+                $"Action '{action}' is not valid from the current queue view.",
+                "INVALID_TRANSITION");
+        }
+
+        var transition = GetOutgoingTransitions(definition, visibleWorkItem.StateKey).FirstOrDefault(
+            t => t.FromState == visibleWorkItem.StateKey
+                 && t.Action == action);
 
         if (transition == null)
         {
             return ErrorEnvelope(
-                $"Action '{action}' is not valid from state '{instance.CurrentState}'.",
+                $"Action '{action}' is not valid from state '{visibleWorkItem.StateKey}'.",
                 "INVALID_TRANSITION");
         }
 
         if (ValidateAdvance(instance, definition, fieldValues) is { } validationEnvelope)
         {
             return validationEnvelope;
+        }
+
+        // Check if the target is a gateway rather than a plain stage.
+        var nextGateway = FindGateway(definition, transition.ToState);
+        if (nextGateway != null)
+        {
+            return string.Equals(nextGateway.GatewayType, "Split", StringComparison.Ordinal)
+                ? HandleSplitGatewayAdvance(instance, definition, transition, nextGateway, fieldValues, accessProfile)
+                : HandleJoinGatewayAdvance(instance, definition, transition, nextGateway, fieldValues, accessProfile);
+        }
+
+        // Regular stage transition (single- or multi-cursor).
+        if (instance.Cursors.Count > 0)
+        {
+            // Multi-cursor: advance only the cursor currently at this stage.
+            var sourceCursor = instance.Cursors.FirstOrDefault(c =>
+                c.CurrentNodeKey == visibleWorkItem.StateKey && !c.IsAtGateway);
+            var updatedCursors = MoveCursor(instance.Cursors, sourceCursor?.CursorId, transition.ToState, isAtGateway: false);
+            var primaryState = FirstActiveStageCursorKey(updatedCursors) ?? transition.ToState;
+            var updatedMulti = instance with
+            {
+                CurrentState = primaryState,
+                Cursors = updatedCursors,
+                StateVersion = instance.StateVersion + 1,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                FieldValues = Merge(instance.FieldValues, fieldValues)
+            };
+            SaveInstance(updatedMulti);
+            Logger.LogInformation(
+                "Multi-cursor advance instance {Id}: cursor {CursorId} → {To}",
+                instanceId, sourceCursor?.CursorId ?? "(none)", transition.ToState);
+            return BuildEnvelope(updatedMulti, definition, accessProfile, allowFallbackWhenHidden: true);
         }
 
         var updated = instance with
@@ -279,10 +348,10 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         Logger.LogInformation(
             "Advanced instance {Id}: {From} → {To}",
             instanceId,
-            instance.CurrentState,
+            visibleWorkItem.StateKey,
             transition.ToState);
 
-        return BuildEnvelope(updated, definition);
+        return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
     }
 
     public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instancesById.Values;
@@ -322,6 +391,32 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         };
     }
 
+    public WorkflowQueueWorkListEnvelope GetQueueWorkItems(WorkflowAccessProfile accessProfile)
+    {
+        var items = _instancesById.Values
+            .SelectMany(instance =>
+            {
+                if (!_definitions.TryGetValue(instance.WorkflowKey, out var definition))
+                {
+                    return Array.Empty<WorkflowQueueWorkItem>();
+                }
+
+                return FindAccessibleWorkItems(instance, definition, accessProfile)
+                    .Where(item => item.AvailableActions.Count > 0)
+                    .Select(item => item.ToEnvelopeItem(instance, definition))
+                    .ToArray();
+            })
+            .OrderBy(item => item.WorkflowDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.StateDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.InstanceId, StringComparer.Ordinal)
+            .ToArray();
+
+        return new WorkflowQueueWorkListEnvelope
+        {
+            Items = items
+        };
+    }
+
     public IEnumerable<WorkflowDefinitionFile> GetAllDefinitions() => _definitions.Values;
 
     public WorkflowDefinitionFile? GetDefinition(string key) =>
@@ -346,8 +441,6 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             return false;
         }
 
-        var lookupKey = LookupKey(instance.TenantId, instance.UserId, instance.WorkflowKey);
-        _instanceLookup.TryRemove(lookupKey, out _);
         Logger.LogInformation("Reset (deleted) instance {Id}", instanceId);
         return true;
     }
@@ -355,7 +448,6 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
     public void ResetAll()
     {
         _instancesById.Clear();
-        _instanceLookup.Clear();
         Logger.LogInformation("ResetAll: all workflow instances cleared");
     }
 
@@ -377,25 +469,37 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     protected WorkflowResponseEnvelope BuildEnvelope(
         WorkflowInstanceState instance,
-        WorkflowDefinitionFile definition)
+        WorkflowDefinitionFile definition,
+        WorkflowAccessProfile accessProfile,
+        bool allowFallbackWhenHidden = false)
     {
-        var state = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
+        var workItems = FindAccessibleWorkItems(instance, definition, accessProfile);
+        var visibleItem = workItems.FirstOrDefault()
+            ?? (allowFallbackWhenHidden ? FindFallbackWorkItem(instance, definition, accessProfile) : null);
+
+        if (visibleItem is null)
+        {
+            return ErrorEnvelope(
+                "Access denied to the current workflow queue.",
+                "ACCESS_DENIED");
+        }
+
+        if (visibleItem.IsJoinGateway)
+        {
+            var joinGateway = FindGateway(definition, visibleItem.StateKey);
+            if (joinGateway is not null)
+            {
+                return BuildJoinWaitingEnvelope(instance, definition, joinGateway);
+            }
+        }
+
+        var state = definition.States.FirstOrDefault(s => s.StateKey == visibleItem.StateKey);
         if (state == null)
         {
             return ErrorEnvelope(
-                $"State '{instance.CurrentState}' not found in definition '{definition.DefinitionKey}'.",
+                $"State '{visibleItem.StateKey}' not found in definition '{definition.DefinitionKey}'.",
                 "STATE_NOT_FOUND");
         }
-
-        var actions = definition.Transitions
-            .Where(t => t.FromState == instance.CurrentState && t.RequiresRole == null)
-            .Select(t => new WorkflowAction
-            {
-                ActionKey = t.Action,
-                Label = ActionLabel(t.Action),
-                Style = ActionStyle(t.Action)
-            })
-            .ToArray();
 
         var components = BuildComponents(state.Components, instance.FieldValues);
         var effectiveStepType = state.Components.InferStepType();
@@ -406,7 +510,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             StepType = effectiveStepType,
             StateDisplayName = state.DisplayName,
             Components = components,
-            AvailableActions = actions
+            AvailableActions = visibleItem.AvailableActions.ToArray()
         };
 
         var responseState = effectiveStepType switch
@@ -429,6 +533,506 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         };
     }
 
+    protected bool CanAccessInstance(
+        WorkflowInstanceState instance,
+        string tenantId,
+        string userId,
+        WorkflowAccessProfile accessProfile)
+    {
+        if (!string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return !accessProfile.RestrictToInstanceOwner
+               || string.Equals(instance.UserId, userId, StringComparison.Ordinal);
+    }
+
+    protected bool CanStartInitialState(WorkflowDefinitionFile definition, WorkflowAccessProfile accessProfile)
+    {
+        if (accessProfile.UseLegacyLaneVisibility)
+        {
+            return true;
+        }
+
+        var initialState = definition.States.FirstOrDefault(state =>
+            string.Equals(state.StateKey, definition.InitialState, StringComparison.Ordinal));
+
+        var queueName = initialState is null ? null : ResolveQueueName(definition, initialState);
+        return accessProfile.CanViewQueue(queueName) && accessProfile.CanStartQueue(queueName);
+    }
+
+    protected IReadOnlyList<AccessibleWorkItem> FindAccessibleWorkItems(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowAccessProfile accessProfile)
+    {
+        var items = new List<AccessibleWorkItem>();
+
+        if (instance.Cursors.Count == 0)
+        {
+            var state = definition.States.FirstOrDefault(candidate =>
+                string.Equals(candidate.StateKey, instance.CurrentState, StringComparison.Ordinal));
+
+            if (state is not null)
+            {
+                var queueKey = GetQueueKey(state);
+                var queueName = ResolveQueueName(definition, state);
+                if (CanViewQueue(definition, queueKey, queueName, accessProfile))
+                {
+                    items.Add(new AccessibleWorkItem(
+                        state.StateKey,
+                        state.DisplayName,
+                        queueName,
+                        IsJoinGateway: false,
+                        BuildAvailableActions(definition, state.StateKey, queueName, accessProfile)));
+                }
+                else if (accessProfile.UseLegacyLaneVisibility)
+                {
+                    items.Add(new AccessibleWorkItem(
+                        state.StateKey,
+                        state.DisplayName,
+                        queueName,
+                        IsJoinGateway: false,
+                        BuildAvailableActions(definition, state.StateKey, queueName, accessProfile)));
+                }
+            }
+
+            return items;
+        }
+
+        foreach (var cursor in instance.Cursors.Where(candidate => !candidate.IsAtGateway))
+        {
+            var state = definition.States.FirstOrDefault(candidate =>
+                string.Equals(candidate.StateKey, cursor.CurrentNodeKey, StringComparison.Ordinal));
+
+            if (state is null)
+            {
+                continue;
+            }
+
+            var queueName = ResolveQueueName(definition, cursor.QueueKey);
+            if (!CanViewQueue(definition, cursor.QueueKey, queueName, accessProfile))
+            {
+                continue;
+            }
+
+            items.Add(new AccessibleWorkItem(
+                state.StateKey,
+                state.DisplayName,
+                queueName,
+                IsJoinGateway: false,
+                BuildAvailableActions(definition, state.StateKey, queueName, accessProfile)));
+        }
+
+        foreach (var cursor in instance.Cursors.Where(candidate => candidate.IsAtGateway))
+        {
+            var gateway = FindGateway(definition, cursor.CurrentNodeKey);
+            if (gateway is null || !string.Equals(gateway.GatewayType, "Join", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var queueName = ResolveQueueName(definition, gateway);
+            if (!CanViewQueue(definition, gateway.QueueKey, queueName, accessProfile))
+            {
+                continue;
+            }
+
+            items.Add(new AccessibleWorkItem(
+                gateway.Key,
+                gateway.DisplayName,
+                queueName,
+                IsJoinGateway: true,
+                []));
+        }
+
+        if (items.Count == 0 && accessProfile.UseLegacyLaneVisibility)
+        {
+            var fallbackStageCursor = instance.Cursors.FirstOrDefault(candidate => !candidate.IsAtGateway);
+            if (fallbackStageCursor is not null)
+            {
+                var fallbackState = definition.States.FirstOrDefault(candidate =>
+                    string.Equals(candidate.StateKey, fallbackStageCursor.CurrentNodeKey, StringComparison.Ordinal));
+
+                if (fallbackState is not null)
+                {
+                    var queueName = ResolveQueueName(definition, fallbackStageCursor.QueueKey);
+                    items.Add(new AccessibleWorkItem(
+                        fallbackState.StateKey,
+                        fallbackState.DisplayName,
+                        queueName,
+                        IsJoinGateway: false,
+                        BuildAvailableActions(definition, fallbackState.StateKey, queueName, accessProfile)));
+                }
+            }
+            else
+            {
+                var fallbackGateway = instance.Cursors
+                    .Where(candidate => candidate.IsAtGateway)
+                    .Select(candidate => FindGateway(definition, candidate.CurrentNodeKey))
+                    .FirstOrDefault(candidate => candidate is not null && string.Equals(candidate.GatewayType, "Join", StringComparison.Ordinal));
+
+                if (fallbackGateway is not null)
+                {
+                    items.Add(new AccessibleWorkItem(
+                        fallbackGateway.Key,
+                        fallbackGateway.DisplayName,
+                        ResolveQueueName(definition, fallbackGateway),
+                        IsJoinGateway: true,
+                        []));
+                }
+            }
+        }
+
+        return items
+            .OrderByDescending(item => string.Equals(item.StateKey, instance.CurrentState, StringComparison.Ordinal))
+            .ThenBy(item => item.IsJoinGateway)
+            .ThenBy(item => item.StateKey, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private AccessibleWorkItem? FindFallbackWorkItem(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowAccessProfile accessProfile)
+    {
+        var fallbackStageCursor = instance.Cursors.FirstOrDefault(candidate => !candidate.IsAtGateway);
+        if (fallbackStageCursor is not null)
+        {
+            var state = definition.States.FirstOrDefault(candidate =>
+                string.Equals(candidate.StateKey, fallbackStageCursor.CurrentNodeKey, StringComparison.Ordinal));
+
+            if (state is not null)
+            {
+                var queueName = ResolveQueueName(definition, fallbackStageCursor.QueueKey);
+                return new AccessibleWorkItem(
+                    state.StateKey,
+                    state.DisplayName,
+                    queueName,
+                    IsJoinGateway: false,
+                    BuildAvailableActions(definition, state.StateKey, queueName, accessProfile));
+            }
+        }
+
+        if (instance.Cursors.Count > 0)
+        {
+            var gateway = instance.Cursors
+                .Where(candidate => candidate.IsAtGateway)
+                .Select(candidate => FindGateway(definition, candidate.CurrentNodeKey))
+                .FirstOrDefault(candidate => candidate is not null && string.Equals(candidate.GatewayType, "Join", StringComparison.Ordinal));
+
+            if (gateway is not null)
+            {
+                return new AccessibleWorkItem(
+                    gateway.Key,
+                    gateway.DisplayName,
+                    ResolveQueueName(definition, gateway),
+                    IsJoinGateway: true,
+                    []);
+            }
+        }
+
+        var currentState = definition.States.FirstOrDefault(candidate =>
+            string.Equals(candidate.StateKey, instance.CurrentState, StringComparison.Ordinal));
+
+        if (currentState is null)
+        {
+            return null;
+        }
+
+        var currentQueue = ResolveQueueName(definition, currentState);
+        return new AccessibleWorkItem(
+            currentState.StateKey,
+            currentState.DisplayName,
+            currentQueue,
+            IsJoinGateway: false,
+            BuildAvailableActions(definition, currentState.StateKey, currentQueue, accessProfile));
+    }
+
+    protected AccessibleWorkItem? FindFallbackActionWorkItem(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowAccessProfile accessProfile,
+        string action)
+    {
+        if (!accessProfile.UseLegacyLaneVisibility)
+        {
+            return null;
+        }
+
+        foreach (var cursor in instance.Cursors.Where(candidate => !candidate.IsAtGateway))
+        {
+            var state = definition.States.FirstOrDefault(candidate =>
+                string.Equals(candidate.StateKey, cursor.CurrentNodeKey, StringComparison.Ordinal));
+
+            if (state is null)
+            {
+                continue;
+            }
+
+            var queueName = ResolveQueueName(definition, cursor.QueueKey);
+            var actions = BuildAvailableActions(definition, state.StateKey, queueName, accessProfile);
+            if (actions.Any(candidate => string.Equals(candidate.ActionKey, action, StringComparison.Ordinal)))
+            {
+                return new AccessibleWorkItem(
+                    state.StateKey,
+                    state.DisplayName,
+                    queueName,
+                    IsJoinGateway: false,
+                    actions);
+            }
+        }
+
+        return null;
+    }
+
+    protected bool CanViewQueue(
+        WorkflowDefinitionFile definition,
+        string? queueKey,
+        string? queueName,
+        WorkflowAccessProfile accessProfile)
+    {
+        if (accessProfile.UseLegacyLaneVisibility)
+        {
+            return IsLegacyVisibleQueue(definition, queueKey);
+        }
+
+        return accessProfile.CanViewQueue(queueName);
+    }
+
+    protected IReadOnlyList<WorkflowAction> BuildAvailableActions(
+        WorkflowDefinitionFile definition,
+        string stateKey,
+        string? queueName,
+        WorkflowAccessProfile accessProfile)
+    {
+        var transitions = GetOutgoingTransitions(definition, stateKey);
+
+        if (accessProfile.UseLegacyLaneVisibility || string.IsNullOrWhiteSpace(queueName))
+        {
+            transitions = transitions.Where(transition => transition.RequiresRole is null).ToArray();
+        }
+        else if (!accessProfile.CanActInQueue(queueName))
+        {
+            return [];
+        }
+
+        return transitions
+            .Select(transition => new WorkflowAction
+            {
+                ActionKey = transition.Action,
+                Label = ActionLabel(transition.Action),
+                Style = ActionStyle(transition.Action)
+            })
+            .ToArray();
+    }
+
+    protected static string? ResolveQueueName(WorkflowDefinitionFile definition, string? queueKey)
+    {
+        if (string.IsNullOrWhiteSpace(queueKey))
+        {
+            return null;
+        }
+
+        var queue = GetQueues(definition).FirstOrDefault(candidate =>
+            string.Equals(candidate.Key, queueKey, StringComparison.Ordinal));
+
+        return queue?.Key ?? queueKey;
+    }
+
+    protected static string? ResolveQueueName(WorkflowDefinitionFile definition, StepDefinition? state) =>
+        state is null
+            ? null
+            : ResolveQueueName(definition, GetQueueKey(state));
+
+    protected static string? ResolveQueueName(WorkflowDefinitionFile definition, WorkflowGatewayDefinition? gateway) =>
+        gateway is null
+            ? null
+            : ResolveQueueName(definition, gateway.QueueKey);
+
+    protected static string? GetQueueKey(StepDefinition? state) =>
+        FirstNonEmpty(
+            state?.QueueKey,
+            state?.Metadata?.QueueKey,
+            state?.LaneKey,
+            state?.Metadata?.LaneKey);
+
+    protected static IReadOnlyList<WorkflowQueueDefinition> GetQueues(WorkflowDefinitionFile definition) =>
+        definition.Queues
+        ?? definition.Lanes?.Select(lane => new WorkflowQueueDefinition
+        {
+            Key = lane.Key,
+            DisplayName = lane.DisplayName,
+            Description = lane.Description,
+            Actor = lane.Actor,
+            RoleGates = lane.RoleGates,
+            Tags = lane.Tags
+        }).ToArray()
+        ?? definition.Metadata?.Lanes?.Select(lane => new WorkflowQueueDefinition
+        {
+            Key = lane.Key,
+            DisplayName = lane.DisplayName,
+            Description = lane.Description,
+            Actor = lane.Actor,
+            RoleGates = lane.RoleGates,
+            Tags = lane.Tags
+        }).ToArray()
+        ?? [];
+
+    protected static IReadOnlyList<WorkflowGatewayDefinition> GetGateways(WorkflowDefinitionFile definition) =>
+        definition.Gateways ?? definition.Metadata?.Gateways ?? [];
+
+    protected static IReadOnlyList<WorkflowTransitionFile> GetOutgoingTransitions(
+        WorkflowDefinitionFile definition,
+        string sourceKey)
+    {
+        var state = definition.States.FirstOrDefault(candidate =>
+            string.Equals(candidate.StateKey, sourceKey, StringComparison.Ordinal));
+        if (state?.Routes is { Count: > 0 })
+        {
+            return state.Routes
+                .Select(route => new WorkflowTransitionFile
+                {
+                    FromState = sourceKey,
+                    ToState = route.Target,
+                    Action = route.Trigger,
+                    RequiresRole = route.RequiresRole,
+                    Conditions = route.Conditions,
+                    Actions = route.Actions
+                })
+                .OrderBy(transition => transition.ToState, StringComparer.Ordinal)
+                .ThenBy(transition => transition.Action, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        var gateway = FindGateway(definition, sourceKey);
+        if (gateway?.Routes is { Count: > 0 })
+        {
+            return gateway.Routes
+                .Select(route => new WorkflowTransitionFile
+                {
+                    FromState = gateway.Key,
+                    ToState = route.Target,
+                    Action = route.Trigger,
+                    RequiresRole = route.RequiresRole,
+                    Conditions = route.Conditions,
+                    Actions = route.Actions
+                })
+                .OrderBy(transition => transition.ToState, StringComparer.Ordinal)
+                .ThenBy(transition => transition.Action, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        var declaredTransitions = definition.Transitions
+            ?.Where(transition => string.Equals(transition.FromState, sourceKey, StringComparison.Ordinal))
+            .ToArray();
+
+        if (declaredTransitions is { Length: > 0 })
+        {
+            return declaredTransitions;
+        }
+
+        var sourceGateway = GetGateways(definition)
+            .Where(candidate =>
+                string.Equals(candidate.Source, sourceKey, StringComparison.Ordinal))
+            .OrderBy(candidate => candidate.Key, StringComparer.Ordinal)
+            .ToArray();
+
+        if (sourceGateway.Length == 0)
+        {
+            return [];
+        }
+
+        var transitions = new List<WorkflowTransitionFile>();
+
+        foreach (var candidate in sourceGateway)
+        {
+            var routes = candidate.Routes ?? [];
+            var distinctTriggers = routes
+                .Select(route => route.Trigger)
+                .Where(trigger => !string.IsNullOrWhiteSpace(trigger))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            var isParallelFork = string.Equals(candidate.GatewayType, "Split", StringComparison.OrdinalIgnoreCase)
+                                 && routes.Count >= 2
+                                 && distinctTriggers.Length == 1;
+
+            if (isParallelFork)
+            {
+                transitions.Add(new WorkflowTransitionFile
+                {
+                    FromState = sourceKey,
+                    ToState = candidate.Key,
+                    Action = distinctTriggers[0]
+                });
+
+                continue;
+            }
+
+            transitions.AddRange(routes.Select(route => new WorkflowTransitionFile
+            {
+                FromState = sourceKey,
+                ToState = route.Target,
+                Action = route.Trigger,
+                RequiresRole = route.RequiresRole,
+                Conditions = route.Conditions,
+                Actions = route.Actions
+            }));
+        }
+
+        return transitions
+            .OrderBy(transition => transition.ToState, StringComparer.Ordinal)
+            .ThenBy(transition => transition.Action, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static bool IsLegacyVisibleQueue(WorkflowDefinitionFile definition, string? queueKey)
+    {
+        if (string.IsNullOrWhiteSpace(queueKey))
+        {
+            return true;
+        }
+
+        var queue = GetQueues(definition).FirstOrDefault(candidate =>
+            string.Equals(candidate.Key, queueKey, StringComparison.Ordinal));
+
+        if (queue is null)
+        {
+            return true;
+        }
+
+        return string.Equals(queue.Actor, "applicant", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(queue.Key, "applicant", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(queue.Key, "web-user", StringComparison.OrdinalIgnoreCase);
+    }
+
+    protected sealed record AccessibleWorkItem(
+        string StateKey,
+        string DisplayName,
+        string? QueueName,
+        bool IsJoinGateway,
+        IReadOnlyList<WorkflowAction> AvailableActions)
+    {
+        public WorkflowQueueWorkItem ToEnvelopeItem(
+            WorkflowInstanceState instance,
+            WorkflowDefinitionFile definition) =>
+            new()
+            {
+                InstanceId = instance.InstanceId,
+                WorkflowKey = instance.WorkflowKey,
+                WorkflowDisplayName = definition.DisplayName,
+                StateKey = StateKey,
+                StateDisplayName = DisplayName,
+                QueueName = QueueName,
+                TenantId = instance.TenantId,
+                UserId = instance.UserId,
+                StateVersion = instance.StateVersion,
+                AvailableActions = AvailableActions
+            };
+    }
+
     protected static WorkflowResponseEnvelope ErrorEnvelope(string message, string code) =>
         new()
         {
@@ -445,9 +1049,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         string tenantId,
         string userId,
         WorkflowDefinitionFile definition,
-        string lookupKey,
+        WorkflowAccessProfile accessProfile,
         string? action,
-        bool persistLookup,
         string logMessage,
         params object?[] additionalLogArgs)
     {
@@ -458,13 +1061,9 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         }
 
         _instancesById[instance.InstanceId] = instance;
-        if (persistLookup)
-        {
-            _instanceLookup[lookupKey] = instance.InstanceId;
-        }
 
         Logger.LogInformation(logMessage, [instance.InstanceId, .. additionalLogArgs]);
-        return BuildEnvelope(instance, definition);
+        return BuildEnvelope(instance, definition, accessProfile, accessProfile.UseLegacyLaneVisibility);
     }
 
     private static WorkflowInstanceState CreateNewInstance(
@@ -816,8 +1415,382 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             : raw;
     }
 
-    private static string LookupKey(string tenantId, string userId, string workflowKey) =>
-        $"{tenantId}:{userId}:{workflowKey}";
+    // ─── Gateway helpers ──────────────────────────────────────────────────────
+
+    protected static WorkflowGatewayDefinition? FindGateway(WorkflowDefinitionFile definition, string nodeKey) =>
+        GetGateways(definition).FirstOrDefault(g =>
+            string.Equals(g.Key, nodeKey, StringComparison.Ordinal));
+
+    protected WorkflowResponseEnvelope HandleSplitGatewayAdvance(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowTransitionFile arrivingTransition,
+        WorkflowGatewayDefinition splitGateway,
+        Dictionary<string, object?>? fieldValues,
+        WorkflowAccessProfile accessProfile)
+    {
+        // Find all outgoing branches from the split gateway.
+        // Split gateway transitions carry the action "split-auto" by convention or any action
+        // — we follow ALL outgoing transitions from the gateway deterministically.
+        var outgoing = GetOutgoingTransitions(definition, splitGateway.Key)
+            .Where(transition => string.Equals(transition.Action, arrivingTransition.Action, StringComparison.Ordinal)
+                || string.Equals(transition.Action, "split-auto", StringComparison.Ordinal))
+            .OrderBy(transition => transition.ToState, StringComparer.Ordinal)
+            .ToList();
+
+        if (outgoing.Count == 0)
+        {
+            outgoing = GetOutgoingTransitions(definition, splitGateway.Key)
+                .OrderBy(transition => transition.ToState, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        if (outgoing.Count == 0)
+        {
+            return ErrorEnvelope(
+                $"Split gateway '{splitGateway.Key}' has no outgoing transitions.",
+                "GATEWAY_NO_OUTGOING");
+        }
+
+        // Identify the cursor being advanced (if we are already in multi-cursor mode).
+        var sourceCursor = instance.Cursors
+            .FirstOrDefault(c => c.CurrentNodeKey == arrivingTransition.FromState && !c.IsAtGateway);
+        var sourceCursorId = sourceCursor?.CursorId;
+
+        // Remove the arriving cursor (or primary state in single-cursor mode) and fan out.
+        var remainingCursors = sourceCursorId != null
+            ? instance.Cursors.Where(c => c.CursorId != sourceCursorId).ToList()
+            : new List<WorkflowCursor>();
+
+        var newCursors = outgoing.Select(t =>
+        {
+            var targetGateway = FindGateway(definition, t.ToState);
+            var targetQueueKey = FirstNonEmpty(
+                string.Equals(targetGateway?.GatewayType, "Join", StringComparison.OrdinalIgnoreCase)
+                    ? sourceCursor?.QueueKey
+                    : targetGateway?.QueueKey,
+                GetQueueKey(definition.States.FirstOrDefault(state => state.StateKey == t.ToState)),
+                sourceCursor?.QueueKey,
+                splitGateway.QueueKey);
+
+            return new WorkflowCursor
+            {
+                CursorId = Guid.NewGuid().ToString(),
+                QueueKey = targetQueueKey ?? string.Empty,
+                CurrentNodeKey = t.ToState,
+                IsAtGateway = targetGateway != null
+            };
+        }).ToList();
+
+        var allCursors = remainingCursors.Concat(newCursors).ToArray();
+        var primaryState = FirstActiveStageCursorKey(allCursors) ?? newCursors[0].CurrentNodeKey;
+        var joinArrivals = new Dictionary<string, IReadOnlyList<string>>(instance.JoinArrivals);
+
+        foreach (var joinGroup in newCursors
+                     .Where(cursor => cursor.IsAtGateway)
+                     .GroupBy(cursor => cursor.CurrentNodeKey, StringComparer.Ordinal))
+        {
+            var gateway = FindGateway(definition, joinGroup.Key);
+            if (!string.Equals(gateway?.GatewayType, "Join", StringComparison.Ordinal))
+                continue;
+
+            var existingArrivals = joinArrivals.TryGetValue(joinGroup.Key, out var existing)
+                ? existing.ToList()
+                : new List<string>();
+
+            foreach (var cursorId in joinGroup.Select(cursor => cursor.CursorId))
+            {
+                if (!existingArrivals.Contains(cursorId))
+                    existingArrivals.Add(cursorId);
+            }
+
+            joinArrivals[joinGroup.Key] = existingArrivals;
+        }
+
+        var updated = instance with
+        {
+            CurrentState = primaryState,
+            Cursors = allCursors,
+            JoinArrivals = joinArrivals,
+            StateVersion = instance.StateVersion + 1,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            FieldValues = Merge(instance.FieldValues, fieldValues)
+        };
+
+        foreach (var joinKey in newCursors
+                     .Where(cursor => cursor.IsAtGateway)
+                     .Select(cursor => cursor.CurrentNodeKey)
+                     .Distinct(StringComparer.Ordinal))
+        {
+            var joinGateway = FindGateway(definition, joinKey);
+            if (joinGateway is null)
+            {
+                continue;
+            }
+
+            if (TryReleaseJoinIfReady(updated, definition, joinGateway, accessProfile) is { } released)
+            {
+                return released;
+            }
+        }
+
+        SaveInstance(updated);
+        Logger.LogInformation(
+            "Split gateway '{Gateway}': instance {Id} fanned out to {Count} cursors.",
+            splitGateway.Key, instance.InstanceId, newCursors.Count);
+
+        return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
+    }
+
+    protected WorkflowResponseEnvelope HandleJoinGatewayAdvance(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowTransitionFile arrivingTransition,
+        WorkflowGatewayDefinition joinGateway,
+        Dictionary<string, object?>? fieldValues,
+        WorkflowAccessProfile accessProfile)
+    {
+        var gatewayKey = joinGateway.Key;
+        var requiredQueues = joinGateway.RequiredIncomingQueues ?? [];
+
+        // Identify the arriving cursor.
+        var arrivingCursor = instance.Cursors.Count > 0
+            ? instance.Cursors.FirstOrDefault(c => c.CurrentNodeKey == arrivingTransition.FromState && !c.IsAtGateway)
+            : new WorkflowCursor
+            {
+                CursorId = Guid.NewGuid().ToString(),
+                QueueKey = FirstNonEmpty(
+                               GetQueueKey(definition.States.FirstOrDefault(state => state.StateKey == arrivingTransition.FromState)),
+                               joinGateway.QueueKey)
+                           ?? string.Empty,
+                CurrentNodeKey = arrivingTransition.FromState,
+                IsAtGateway = false
+            };
+
+        var arrivingCursorId = arrivingCursor?.CursorId ?? Guid.NewGuid().ToString();
+        var arrivingQueueKey = FirstNonEmpty(arrivingCursor?.QueueKey, joinGateway.QueueKey) ?? string.Empty;
+
+        // Record arrival in join token bookkeeping.
+        var existingArrivals = instance.JoinArrivals.TryGetValue(gatewayKey, out var existing)
+            ? existing.ToList()
+            : new List<string>();
+
+        if (!existingArrivals.Contains(arrivingCursorId))
+            existingArrivals.Add(arrivingCursorId);
+
+        // Move the arriving cursor to the join gateway.
+        var cursorsAfterArrival = instance.Cursors.Count > 0
+            ? MoveCursor(instance.Cursors, arrivingCursor?.CursorId, gatewayKey, isAtGateway: true)
+            : [new WorkflowCursor { CursorId = arrivingCursorId, QueueKey = arrivingQueueKey, CurrentNodeKey = gatewayKey, IsAtGateway = true }];
+
+        var updatedArrivals = new Dictionary<string, IReadOnlyList<string>>(instance.JoinArrivals)
+        {
+            [gatewayKey] = existingArrivals
+        };
+
+        // Check if all required queues have a cursor at this gateway.
+        var arrivedCursorIds = new HashSet<string>(existingArrivals, StringComparer.Ordinal);
+        var arrivedQueues = cursorsAfterArrival
+            .Where(c => c.IsAtGateway && string.Equals(c.CurrentNodeKey, gatewayKey, StringComparison.Ordinal)
+                                      && arrivedCursorIds.Contains(c.CursorId))
+            .Select(c => c.QueueKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var allRequiredArrived = requiredQueues.Count == 0 || requiredQueues.All(queue => arrivedQueues.Contains(queue));
+
+        if (!allRequiredArrived)
+        {
+            // Waiting — record arrival but do not release.
+            var waitingInstance = instance with
+            {
+                CurrentState = FirstActiveStageCursorKey(cursorsAfterArrival) ?? gatewayKey,
+                Cursors = cursorsAfterArrival,
+                JoinArrivals = updatedArrivals,
+                StateVersion = instance.StateVersion + 1,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                FieldValues = Merge(instance.FieldValues, fieldValues)
+            };
+
+            SaveInstance(waitingInstance);
+            Logger.LogInformation(
+                "Join gateway '{Gateway}': instance {Id} waiting ({Arrived}/{Required} queues).",
+                gatewayKey, instance.InstanceId, arrivedQueues.Count, requiredQueues.Count);
+
+            return BuildJoinWaitingEnvelope(waitingInstance, definition, joinGateway);
+        }
+
+        var arrivedInstance = instance with
+        {
+            CurrentState = FirstActiveStageCursorKey(cursorsAfterArrival) ?? gatewayKey,
+            Cursors = cursorsAfterArrival,
+            JoinArrivals = updatedArrivals,
+            StateVersion = instance.StateVersion + 1,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            FieldValues = Merge(instance.FieldValues, fieldValues)
+        };
+
+        return TryReleaseJoinIfReady(arrivedInstance, definition, joinGateway, accessProfile)
+               ?? BuildJoinWaitingEnvelope(arrivedInstance, definition, joinGateway);
+    }
+
+    protected WorkflowResponseEnvelope BuildJoinWaitingEnvelope(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowGatewayDefinition joinGateway)
+    {
+        var waitingContent = joinGateway.WaitingContent
+                             ?? "Please wait while other parts of this workflow are completed.";
+        var pollMs = joinGateway.WaitingPollIntervalMs > 0 ? joinGateway.WaitingPollIntervalMs : 3000;
+        var expectedSeconds = joinGateway.WaitingExpectedSeconds > 0 ? joinGateway.WaitingExpectedSeconds : 30;
+        var allowDefer = joinGateway.WaitingDeferMessage is not null || joinGateway.WaitingAllowDefer;
+
+        var waitingArrivals = instance.JoinArrivals.TryGetValue(joinGateway.Key, out var arr) ? arr : [];
+        var requiredQueues = joinGateway.RequiredIncomingQueues ?? [];
+        var pendingQueues = requiredQueues
+            .Where(queue => instance.Cursors.All(c =>
+                !(c.IsAtGateway
+                  && string.Equals(c.CurrentNodeKey, joinGateway.Key, StringComparison.Ordinal)
+                  && string.Equals(c.QueueKey, queue, StringComparison.Ordinal))))
+            .ToArray();
+
+        var statusContent = pendingQueues.Length > 0
+            ? $"{waitingContent} Waiting for: {string.Join(", ", pendingQueues)}."
+            : waitingContent;
+
+        var render = new StepContent
+        {
+            StepType = "status-timeline",
+            StateDisplayName = joinGateway.DisplayName,
+            Components =
+            [
+                new PrismComponentRenderPayload
+                {
+                    Type = "waiting",
+                    Content = statusContent,
+                    ExpectedWaitSeconds = expectedSeconds,
+                    PollIntervalMs = pollMs,
+                    AllowDefer = allowDefer,
+                    DeferMessage = joinGateway.WaitingDeferMessage
+                }
+            ],
+            AvailableActions = Array.Empty<WorkflowAction>()
+        };
+
+        return new WorkflowResponseEnvelope
+        {
+            InstanceId = instance.InstanceId,
+            ResponseState = "defer",
+            StateVersion = instance.StateVersion,
+            CorrelationId = instance.InstanceId,
+            ServerTimeUtc = DateTimeOffset.UtcNow,
+            PollAfterMs = pollMs,
+            Render = render,
+            InstancePolicy = definition.InstancePolicy
+        };
+    }
+
+    private WorkflowResponseEnvelope? TryReleaseJoinIfReady(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        WorkflowGatewayDefinition joinGateway,
+        WorkflowAccessProfile accessProfile)
+    {
+        var gatewayKey = joinGateway.Key;
+        var requiredQueues = joinGateway.RequiredIncomingQueues ?? [];
+        var arrivedCursorIds = instance.JoinArrivals.TryGetValue(gatewayKey, out var arrivals)
+            ? new HashSet<string>(arrivals, StringComparer.Ordinal)
+            : [];
+        var arrivedQueues = instance.Cursors
+            .Where(cursor => cursor.IsAtGateway
+                && string.Equals(cursor.CurrentNodeKey, gatewayKey, StringComparison.Ordinal)
+                && arrivedCursorIds.Contains(cursor.CursorId))
+            .Select(cursor => cursor.QueueKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (requiredQueues.Count > 0 && !requiredQueues.All(queue => arrivedQueues.Contains(queue)))
+        {
+            return null;
+        }
+
+        var outgoing = GetOutgoingTransitions(definition, gatewayKey)
+            .OrderBy(transition => transition.ToState, StringComparer.Ordinal)
+            .ToList();
+
+        if (outgoing.Count == 0)
+        {
+            return ErrorEnvelope(
+                $"Join gateway '{gatewayKey}' has no outgoing transitions.",
+                "GATEWAY_NO_OUTGOING");
+        }
+
+        var cursorsWithoutJoin = instance.Cursors
+            .Where(cursor => !(cursor.IsAtGateway && string.Equals(cursor.CurrentNodeKey, gatewayKey, StringComparison.Ordinal)))
+            .ToList();
+
+        var releaseCursors = outgoing.Select(transition =>
+        {
+            var targetGateway = FindGateway(definition, transition.ToState);
+            return new WorkflowCursor
+            {
+                CursorId = Guid.NewGuid().ToString(),
+                QueueKey = FirstNonEmpty(
+                               targetGateway?.QueueKey,
+                               GetQueueKey(definition.States.FirstOrDefault(state => state.StateKey == transition.ToState)),
+                               joinGateway.QueueKey)
+                           ?? string.Empty,
+                CurrentNodeKey = transition.ToState,
+                IsAtGateway = targetGateway != null
+            };
+        }).ToList();
+
+        var releasedCursors = cursorsWithoutJoin.Concat(releaseCursors).ToArray();
+        var cleanedArrivals = new Dictionary<string, IReadOnlyList<string>>(instance.JoinArrivals);
+        cleanedArrivals.Remove(gatewayKey);
+
+        var releasedInstance = instance with
+        {
+            CurrentState = FirstActiveStageCursorKey(releasedCursors) ?? outgoing[0].ToState,
+            Cursors = releasedCursors,
+            JoinArrivals = cleanedArrivals
+        };
+
+        SaveInstance(releasedInstance);
+        return BuildEnvelope(releasedInstance, definition, accessProfile, allowFallbackWhenHidden: true);
+    }
+
+    private static IReadOnlyList<WorkflowCursor> MoveCursor(
+        IReadOnlyList<WorkflowCursor> cursors,
+        string? cursorId,
+        string newNodeKey,
+        bool isAtGateway)
+    {
+        if (cursorId == null)
+            return cursors;
+
+        return cursors
+            .Select(c => c.CursorId == cursorId
+                ? c with { CurrentNodeKey = newNodeKey, IsAtGateway = isAtGateway }
+                : c)
+            .ToArray();
+    }
+
+    private static string? FirstActiveStageCursorKey(IReadOnlyList<WorkflowCursor> cursors) =>
+        cursors.FirstOrDefault(c => !c.IsAtGateway)?.CurrentNodeKey;
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+    // ─── end Gateway helpers ──────────────────────────────────────────────────
+
+    private WorkflowInstanceState? FindLatestInstance(string tenantId, string userId, string workflowKey) =>
+        _instancesById.Values
+            .Where(instance =>
+                string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal)
+                && string.Equals(instance.UserId, userId, StringComparison.Ordinal)
+                && string.Equals(instance.WorkflowKey, workflowKey, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(instance => instance.UpdatedAt)
+            .ThenByDescending(instance => instance.CreatedAt)
+            .FirstOrDefault();
 
     private static Dictionary<string, object?> Merge(
         Dictionary<string, object?> existing,

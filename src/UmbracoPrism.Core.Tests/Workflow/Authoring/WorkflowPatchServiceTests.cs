@@ -28,11 +28,12 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
-            stageKey    = "site-notice",
-            displayName = "Site Notice",
-            kind        = "Question",
-            actor       = "caseworker",
-            fields      = Array.Empty<object>(),
+            key         = "site-notice",
+            title       = "Site Notice",
+            type        = "Question",
+            actor       = "applicant",
+            queueKey    = "applicant",
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
@@ -54,11 +55,12 @@ public class WorkflowPatchServiceTests
             before: "submitted",
             value: new
             {
-                stageKey    = "supporting-docs",
-                displayName = "Supporting Documents",
-                kind        = "Question",
+                key         = "supporting-docs",
+                title       = "Supporting Documents",
+                type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                queueKey    = "applicant",
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             });
 
@@ -80,11 +82,12 @@ public class WorkflowPatchServiceTests
             after: "collecting-details",
             value: new
             {
-                stageKey    = "eligibility-check",
-                displayName = "Eligibility Check",
-                kind        = "Question",
+                key         = "eligibility-check",
+                title       = "Eligibility Check",
+                type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                queueKey    = "applicant",
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             });
 
@@ -102,14 +105,27 @@ public class WorkflowPatchServiceTests
     {
         var original = await LoadReferenceFixture();
 
-        var envelope = BuildEnvelope("remove-stage", path: "/stages/submitted");
+        // Insert an orphan stage first so removing it does not leave dangling routes.
+        var insertEnvelope = BuildEnvelope("insert-stage", value: new
+        {
+            key       = "orphan-stage",
+            title     = "Orphan",
+            type      = "Question",
+            actor     = "applicant",
+            queueKey  = "applicant",
+            components= Array.Empty<object>(),
+            roleGates = Array.Empty<string>()
+        });
+        var withOrphan = _sut.Apply(insertEnvelope, original);
+        withOrphan.HasErrors.Should().BeFalse();
 
-        var result = _sut.Apply(envelope, original);
+        var removeEnvelope = BuildEnvelope("remove-stage", path: "/stages/orphan-stage");
+        var result = _sut.Apply(removeEnvelope, withOrphan.Updated);
 
-        // Projection may warn about dangling transitions but the stage should be gone.
-        result.Updated.Stages.Should().NotContain(s => s.StageKey == "submitted",
+        result.HasErrors.Should().BeFalse();
+        result.Updated.Stages.Should().NotContain(s => s.StageKey == "orphan-stage",
             because: "remove-stage should eliminate the target stage");
-        result.Updated.Stages.Count.Should().Be(original.Stages.Count - 1);
+        result.Updated.Stages.Count.Should().Be(original.Stages.Count);
 
         original.Stages.Should().HaveCount(original.Stages.Count,
             because: "original must not be mutated");
@@ -123,11 +139,12 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("update-stage", path: "/stages/collecting-details", value: new
         {
-            stageKey    = "collecting-details",
-            displayName = "Updated Details",
-            kind        = "Question",
+            key         = "collecting-details",
+            title       = "Updated Details",
+            type        = "Question",
             actor       = "applicant",
-            fields      = Array.Empty<object>(),
+            queueKey    = "applicant",
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
@@ -148,11 +165,12 @@ public class WorkflowPatchServiceTests
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
-            stageKey    = "extra-stage",
-            displayName = "Extra Stage",
-            kind        = "Question",
+            key         = "extra-stage",
+            title       = "Extra Stage",
+            type        = "Question",
             actor       = "applicant",
-            fields      = Array.Empty<object>(),
+            queueKey    = "applicant",
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
@@ -168,26 +186,27 @@ public class WorkflowPatchServiceTests
         var original = await LoadReferenceFixture();
         var snapshot = new
         {
-            StageCount      = original.Stages.Count,
-            TransitionCount = original.Transitions.Count,
-            HandoffCount    = original.Handoffs.Count,
-            Version         = original.Version
+            StageCount   = original.Stages.Count,
+            GatewayCount = original.Gateways.Count,
+            HandoffCount = original.Handoffs.Count,
+            Version      = original.Version
         };
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
-            stageKey    = "new-stage",
-            displayName = "New Stage",
-            kind        = "Question",
+            key         = "new-stage",
+            title       = "New Stage",
+            type        = "Question",
             actor       = "applicant",
-            fields      = Array.Empty<object>(),
+            queueKey    = "applicant",
+            components  = Array.Empty<object>(),
             roleGates   = Array.Empty<string>()
         });
 
         _sut.Apply(envelope, original);
 
         original.Stages.Count.Should().Be(snapshot.StageCount);
-        original.Transitions.Count.Should().Be(snapshot.TransitionCount);
+        original.Gateways.Count.Should().Be(snapshot.GatewayCount);
         original.Handoffs.Count.Should().Be(snapshot.HandoffCount);
         original.Version.Should().Be(snapshot.Version);
     }
@@ -196,8 +215,7 @@ public class WorkflowPatchServiceTests
 
     private static async Task<AuthoredWorkflow> LoadReferenceFixture()
     {
-        var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        var wf    = await store.LoadAsync("community-enquiry");
+        var wf = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "community-enquiry");
         return wf ?? throw new InvalidOperationException("community-enquiry fixture not found");
     }
 

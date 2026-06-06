@@ -139,7 +139,7 @@ jobs:
                   base_branch: baseBranch,
                   custom_instructions: '',
                   custom_agent: '',
-                  model: ''
+                  model: 'claude-sonnet-4.6'
                 },
                 headers: {
                   'X-GitHub-Api-Version': '2022-11-28'

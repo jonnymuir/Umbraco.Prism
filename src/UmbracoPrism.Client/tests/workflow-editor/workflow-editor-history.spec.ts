@@ -29,7 +29,7 @@ async function pressRedoShortcut(page: import('@playwright/test').Page) {
 }
 
 test.describe('Workflow editor undo and redo', () => {
-  test('toolbar buttons and keyboard shortcuts survive preview flows', async ({ page }) => {
+  test('toolbar buttons and keyboard shortcuts replay stage title edits', async ({ page }) => {
     await page.goto(storyUrl('workflow-editor-editor-host--planning-workflow'));
 
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
@@ -46,13 +46,6 @@ test.describe('Workflow editor undo and redo', () => {
     await expect(page.locator('[data-prism-history-status]')).toContainText('1 change available to undo');
     await expect(page.locator('[data-prism-undo]')).toBeEnabled();
     await expect(page.locator('[data-prism-redo]')).toBeDisabled();
-
-    await page.locator('[data-prism-conversation-input]').fill('insert ID&V before submission');
-    await page.locator('prism-conversation-pane').getByRole('button', { name: /send/i }).click();
-    await expect(page.locator('.modal-backdrop')).toBeVisible();
-    await page.getByRole('button', { name: 'Reject all proposed changes' }).click();
-    await expect(page.locator('.modal-backdrop')).toBeHidden();
-    await expect(page.locator('[data-prism-history-status]')).toContainText('1 change available to undo');
 
     await page.locator('[data-prism-undo]').click();
     await expect(page.locator('[data-prism-stage="declaration"]')).toContainText('Declaration');
@@ -75,7 +68,7 @@ test.describe('Workflow editor undo and redo', () => {
     await expect(createStageDialog).toBeVisible();
     await createStageDialog.locator('[data-prism-create-stage-title]').fill('Site visit');
     await createStageDialog.locator('[data-prism-create-stage-key]').fill('site-visit');
-    await createStageDialog.locator('[data-prism-create-stage-actor]').selectOption('reviewer');
+    await createStageDialog.locator('[data-prism-create-stage-lane]').fill('reviewer');
     await createStageDialog.locator('[data-prism-create-stage-type]').selectOption('review');
     await createStageDialog.getByRole('button', { name: 'Create stage' }).click();
     await expect(createStageDialog).toBeHidden();
@@ -86,34 +79,52 @@ test.describe('Workflow editor undo and redo', () => {
     await page.locator('[data-prism-redo]').click();
     await expectStageSelectionDetails(page, 'site-visit');
 
-    const handle = page.locator('[data-prism-transition-handle="submitted"]');
-    await handle.focus();
-    await handle.press('Enter');
+    // Route mutations are now scoped to the gateway inspector's outgoing-routes panel
+    // (Slice 3b.1: transition creation/edit was removed from the canvas; routes are
+    // only authored from existing gateway transitions). Switch fixtures to exercise
+    // route label edits and route deletion undo/redo on the gateway story.
+    await page.goto(storyUrl('workflow-editor-editor-host--gateway-representation'));
+    await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
 
-    const createTransitionDialog = page.locator('[data-prism-create-transition-dialog]');
-    await expect(createTransitionDialog).toBeVisible();
-    await createTransitionDialog.locator('[data-prism-create-transition-target]').selectOption('application-form');
-    await createTransitionDialog.locator('[data-prism-create-transition-label]').fill('return');
-    await createTransitionDialog.getByRole('button', { name: 'Create transition' }).click();
+    await page.locator('[data-prism-gateway="review-split"]').click();
+    const labelInput = page
+      .locator('[data-prism-gateway-route] [data-prism-route-label]')
+      .first();
+    await expect(labelInput).toBeVisible();
+    const originalLabel = await labelInput.inputValue();
 
-    await expect(page.locator('[data-prism-transition-detail="submitted-return-application-form"]')).toBeVisible();
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(4);
-
-    await page.locator('[data-prism-transition-action]').selectOption('submit');
-    await expect(page.locator('[data-prism-transition-detail="submitted-submit-application-form"]')).toBeVisible();
+    await labelInput.fill('continue applicant branch (edited)');
+    await labelInput.press('Tab');
+    await expect(
+      page
+        .locator('[data-prism-gateway-route] [data-prism-route-label]')
+        .first()
+    ).toHaveValue('continue applicant branch (edited)');
 
     await page.locator('[data-prism-undo]').click();
-    await expect(page.locator('[data-prism-transition-detail="submitted-return-application-form"]')).toBeVisible();
-    await page.locator('[data-prism-redo]').click();
-    await expect(page.locator('[data-prism-transition-detail="submitted-submit-application-form"]')).toBeVisible();
-
-    await page.locator('[data-prism-transition-delete]').click();
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(3);
-    await page.locator('[data-prism-undo]').click();
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(4);
-    await expect(page.locator('[data-prism-transition-detail="submitted-submit-application-form"]')).toBeVisible();
+    await expect(
+      page
+        .locator('[data-prism-gateway-route] [data-prism-route-label]')
+        .first()
+    ).toHaveValue(originalLabel);
     await pressRedoShortcut(page);
-    await expect(page.locator('[data-prism-transition]')).toHaveCount(3);
+    await expect(
+      page
+        .locator('[data-prism-gateway-route] [data-prism-route-label]')
+        .first()
+    ).toHaveValue('continue applicant branch (edited)');
+
+    const routesBefore = await page.locator('[data-prism-gateway-route]').count();
+    await page
+      .locator('[data-prism-gateway-route] [data-prism-route-delete]')
+      .first()
+      .click();
+    await expect(page.locator('[data-prism-gateway-route]')).toHaveCount(routesBefore - 1);
+
+    await page.locator('[data-prism-undo]').click();
+    await expect(page.locator('[data-prism-gateway-route]')).toHaveCount(routesBefore);
+    await pressRedoShortcut(page);
+    await expect(page.locator('[data-prism-gateway-route]')).toHaveCount(routesBefore - 1);
   });
 
   test('action adds, parameter edits, reorders, and deletes replay through history', async ({ page }) => {

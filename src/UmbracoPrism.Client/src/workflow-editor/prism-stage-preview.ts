@@ -7,7 +7,6 @@ import type {
   ProjectedInputComponent,
   ProjectedSummaryListComponent,
   ProjectedTaskListComponent,
-  ProjectedTransitionMetadata,
   ProjectedWaitingComponent,
   ProjectedWorkflowState,
   ProjectedWorkflowTransition,
@@ -28,6 +27,9 @@ function assignmentCopy(projectedState: ProjectedWorkflowState): string {
   return 'Assignment comes from the workflow definition.';
 }
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-stage-preview')
 export class PrismStagePreviewElement extends LitElement {
   @property({ attribute: false })
@@ -121,7 +123,7 @@ export class PrismStagePreviewElement extends LitElement {
         </div>
 
         <div class="preview-runtime">
-          ${projectedState.components.map(component => this._renderComponent(component))}
+          ${(projectedState.components ?? []).map(component => this._renderComponent(component))}
           ${this._renderActions(this.outgoingTransitions)}
         </div>
       </article>
@@ -195,10 +197,6 @@ export class PrismStagePreviewElement extends LitElement {
   }
 
   private _renderFieldset(component: ProjectedFieldsetComponent): TemplateResult {
-    if (!component.legend && component.children.length === 1) {
-      return html`${component.children.map(child => this._renderComponent(child))}`;
-    }
-
     return html`
       <fieldset class="govuk-fieldset preview-fieldset">
         ${component.legend
@@ -279,11 +277,11 @@ export class PrismStagePreviewElement extends LitElement {
           <button
             type="button"
             class="govuk-button govuk-button--secondary"
-            data-prism-preview-action=${transition.action}
+            data-prism-preview-action=${transition.trigger}
             disabled
-            title=${transitionSummary(transition.metadata)}
+            title=${transitionSummary(transition)}
           >
-            ${transition.action}
+            ${transition.trigger}
           </button>
         `)}
       </div>
@@ -577,18 +575,14 @@ function shellLabelFor(state: ProjectedWorkflowState): string {
       return 'Confirmation shell';
     case 'TaskList':
       return 'Task list shell';
-    case 'Waiting':
-      return 'Waiting shell';
-    case 'StatusTimeline':
-      return 'Status timeline shell';
     case 'Question':
     default:
       return 'Question shell';
   }
 }
 
-function transitionSummary(metadata?: ProjectedTransitionMetadata): string {
-  const condition = metadata?.conditions?.[0]?.description ?? metadata?.conditions?.[0]?.expression;
+function transitionSummary(route?: ProjectedWorkflowTransition): string {
+  const condition = route?.condition;
   return condition ? `Transition condition: ${condition}` : 'Read-only transition action';
 }
 

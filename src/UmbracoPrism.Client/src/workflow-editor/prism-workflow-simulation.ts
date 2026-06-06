@@ -29,6 +29,9 @@ const STOP_COPY: Record<Exclude<WorkflowSimulationStopReason, null>, string> = {
   'no-transitions': 'Simulation stopped because this stage has no outbound transitions.',
 };
 
+/**
+ * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
+ */
 @customElement('prism-workflow-simulation')
 export class PrismWorkflowSimulationElement extends LitElement {
   @property({ attribute: false })
@@ -147,7 +150,7 @@ export class PrismWorkflowSimulationElement extends LitElement {
               </div>
             `
           : html`
-              <article class="simulation-current-stage" data-prism-simulation-current=${this.currentStage.stageKey}>
+              <article class="simulation-current-stage" data-prism-simulation-current=${this.currentStage.stateKey}>
                 <div class="simulation-current-header">
                   <div>
                     <p class="simulation-current-eyebrow">Current stage</p>
@@ -155,7 +158,7 @@ export class PrismWorkflowSimulationElement extends LitElement {
                       ${this.currentStage.displayName}
                     </h3>
                   </div>
-                  <span class="simulation-kind">${this.currentStage.kind}</span>
+                  <span class="simulation-kind">${this.currentStage.metadata?.stageType ?? "Question"}</span>
                 </div>
               </article>
 

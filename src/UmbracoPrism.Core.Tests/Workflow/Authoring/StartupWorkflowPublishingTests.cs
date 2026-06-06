@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.MockBusinessApp.Services.Publishing;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Authoring;
 
@@ -24,21 +25,15 @@ public sealed class StartupWorkflowPublishingTests
     [Fact]
     public async Task PublishAsync_ProjectsAuthoredWorkflowIntoRuntimeStore()
     {
-        // Arrange: Set up the same infrastructure as MockBusinessApp startup
-        var authoredStore = new FilesystemAuthoredWorkflowStore(FixturesPath);
         var engine = CreateTestEngine();
         var publishedStore = new InMemoryRuntimePublishedWorkflowStore(engine);
         var publishService = new WorkflowPublishService(
             new WorkflowProjector(),
             publishedStore);
 
-        // Act: Simulate the startup publishing loop
-        var authoredEntries = await authoredStore.ListAsync();
-        var loadableEntries = authoredEntries.Where(entry => entry.IsLoadable).ToList();
-
-        foreach (var entry in loadableEntries)
+        foreach (var key in AuthoredWorkflowFixtureLoader.ListKeys(FixturesPath))
         {
-            var authored = await authoredStore.LoadAsync(entry.WorkflowKey);
+            var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, key);
             if (authored is null) continue;
 
             var result = await publishService.PublishAsync(authored);
@@ -46,8 +41,7 @@ public sealed class StartupWorkflowPublishingTests
                 "startup publishing should succeed for valid authored workflows");
         }
 
-        // Assert: The published store should now have the published workflow
-        var planningWorkflow = await authoredStore.LoadAsync("planning");
+        var planningWorkflow = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
         planningWorkflow.Should().NotBeNull();
 
         var runtimeDefinition = await publishedStore.LoadAsync(planningWorkflow!.DefinitionKey);
@@ -61,21 +55,17 @@ public sealed class StartupWorkflowPublishingTests
     [Fact]
     public async Task PublishedWorkflow_PreservesAuthoredMetadata()
     {
-        // Arrange
-        var authoredStore = new FilesystemAuthoredWorkflowStore(FixturesPath);
         var engine = CreateTestEngine();
         var publishedStore = new InMemoryRuntimePublishedWorkflowStore(engine);
         var publishService = new WorkflowPublishService(
             new WorkflowProjector(),
             publishedStore);
 
-        // Act
-        var authored = await authoredStore.LoadAsync("planning");
+        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
         authored.Should().NotBeNull();
 
         var result = await publishService.PublishAsync(authored!);
 
-        // Assert
         result.HasErrors.Should().BeFalse();
         result.File.Metadata!.AuthoredWorkflowId.Should().Be(authored!.Id);
         result.File.Metadata.Description.Should().Be(authored.Description);
@@ -86,25 +76,22 @@ public sealed class StartupWorkflowPublishingTests
     [Fact]
     public async Task RuntimeDefinition_ReflectsPublishedWorkflowStructure()
     {
-        // Arrange
-        var authoredStore = new FilesystemAuthoredWorkflowStore(FixturesPath);
         var engine = CreateTestEngine();
         var publishedStore = new InMemoryRuntimePublishedWorkflowStore(engine);
         var publishService = new WorkflowPublishService(
             new WorkflowProjector(),
             publishedStore);
 
-        // Act
-        var authored = await authoredStore.LoadAsync("planning");
+        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
         var result = await publishService.PublishAsync(authored!);
 
-        // Assert: Published store should reflect authored structure
         var runtimeDefinition = await publishedStore.LoadAsync(authored!.DefinitionKey);
         runtimeDefinition.Should().NotBeNull();
         runtimeDefinition!.States.Select(s => s.StateKey).Should()
             .BeEquivalentTo(authored.Stages.Select(s => s.StageKey));
-        runtimeDefinition.Transitions.Select(t => t.Action).Should()
-            .BeEquivalentTo(authored.Transitions.Select(t => t.Action));
+        runtimeDefinition.Gateways.Should().NotBeNull();
+        runtimeDefinition.Gateways!.Select(gateway => gateway.Key).Should()
+            .BeEquivalentTo(authored.Gateways.Select(gateway => gateway.GatewayKey));
     }
 
     private static BusinessAppWorkflowEngine CreateTestEngine()

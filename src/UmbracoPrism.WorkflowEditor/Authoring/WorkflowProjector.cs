@@ -10,16 +10,6 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 
 /// <summary>
 /// Deterministic compiler from <see cref="AuthoredWorkflow"/> to <see cref="WorkflowDefinitionFile"/>.
-///
-/// Pipeline stages:
-///   1. Validate   — structural correctness checks; errors block emission.
-///   2. Normalise  — sort stages, transitions and fields into canonical order.
-///   3. Emit       — build StepDefinitions and WorkflowTransitionFiles from authored graph.
-///   4. Checksum   — SHA-256 of canonical UTF-8 JSON (no BOM).
-///
-/// Determinism contract: identical <see cref="AuthoredWorkflow"/> input → byte-identical output on
-/// every invocation, every platform, every .NET version (within the same major). Locked by
-/// <c>WorkflowProjectorDeterminismTests</c>.
 /// </summary>
 public sealed class WorkflowProjector : IWorkflowProjector
 {
@@ -35,11 +25,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
         _actionCatalogProvider = actionCatalogProvider;
     }
 
-    /// <summary>
-    /// Canonical serialization options used for both the checksum computation and external consumers
-    /// that need to reproduce the projected JSON. Exposed as a public static so tests can verify
-    /// byte-identical output without duplicating option configuration.
-    /// </summary>
     public static readonly JsonSerializerOptions CanonicalOptions = new()
     {
         WriteIndented = false,
@@ -57,65 +42,114 @@ public sealed class WorkflowProjector : IWorkflowProjector
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    /// <inheritdoc/>
     public ProjectionResult Project(AuthoredWorkflow authored)
     {
         var diagnostics = new List<ProjectionDiagnostic>();
 
-        // 1. Validate
         Validate(authored, diagnostics);
 
-        // 2. Normalise — sort everything into canonical order before emitting
-        var normalisedStages = authored.Stages
-            .OrderBy(s => s.StageKey, StringComparer.Ordinal)
-            .ToList();
+        var queuesByKey = GetQueues(authored)
+            .ToDictionary(queue => queue.Key, StringComparer.Ordinal);
 
-        var normalisedTransitions = authored.Transitions
-            .OrderBy(t => t.FromStage, StringComparer.Ordinal)
-            .ThenBy(t => t.ToStage, StringComparer.Ordinal)
-            .ThenBy(t => t.Action, StringComparer.Ordinal)
-            .ToList();
+        var states = authored.Stages
+            .OrderBy(stage => stage.StageKey, StringComparer.Ordinal)
+            .Select(stage => EmitStage(authored, stage, diagnostics, queuesByKey))
+            .ToArray();
 
-        // 3. Emit
-        var states = normalisedStages
-            .Select(s => EmitStage(authored, s, diagnostics))
-            .ToList();
+        var gateways = authored.Gateways
+            .OrderBy(gateway => gateway.GatewayKey, StringComparer.Ordinal)
+            .Select(gateway => EmitGateway(gateway, queuesByKey))
+            .ToArray();
 
-        var transitions = normalisedTransitions
-            .Select(EmitTransition)
-            .ToList();
+        var queues = GetQueues(authored)
+            .OrderBy(queue => queue.Key, StringComparer.Ordinal)
+            .Select(queue => new WorkflowQueueDefinition
+            {
+                Key = queue.Key,
+                DisplayName = queue.DisplayName,
+                Description = queue.Description,
+                Actor = queue.Actor,
+                RoleGates = queue.RoleGates.Count == 0 ? null : queue.RoleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray(),
+                Tags = queue.Tags.Count == 0
+                    ? null
+                    : queue.Tags.OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal)
+            })
+            .ToArray();
+
+        var handoffs = authored.Handoffs.Count == 0
+            ? null
+            : authored.Handoffs
+                .OrderBy(handoff => handoff.Id, StringComparer.Ordinal)
+                .Select(handoff => new WorkflowHandoffDefinition
+                {
+                    Id = handoff.Id,
+                    FromState = handoff.FromStage,
+                    ToState = handoff.ToStage,
+                    Label = handoff.Label,
+                    ActorChange = handoff.ActorChange
+                })
+                .ToArray();
+
+        var tags = authored.Metadata.Count == 0
+            ? null
+            : authored.Metadata
+                .OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
+
+        var legacyLanes = queues.Length == 0
+            ? null
+            : queues.Select(queue => new WorkflowLaneDefinition
+            {
+                Key = queue.Key,
+                DisplayName = queue.DisplayName,
+                Description = queue.Description,
+                Actor = queue.Actor,
+                RoleGates = queue.RoleGates,
+                Tags = queue.Tags
+            }).ToArray();
 
         var file = new WorkflowDefinitionFile
         {
             DefinitionKey = authored.DefinitionKey,
             DisplayName = authored.DisplayName,
             Version = authored.Version,
+            Description = authored.Description,
+            SchemaVersion = authored.SchemaVersion,
+            AuthoredWorkflowId = authored.Id,
             InitialState = authored.InitialStageKey,
             InstancePolicy = authored.InstancePolicy,
             States = states,
-            Transitions = transitions,
-            Metadata = EmitWorkflowMetadata(authored)
+            Transitions = EmitLegacyTransitions(states, gateways),
+            Queues = queues.Length == 0 ? null : queues,
+            Gateways = gateways.Length == 0 ? null : gateways,
+            Handoffs = handoffs,
+            Tags = tags,
+            Metadata = new WorkflowDefinitionMetadata
+            {
+                AuthoredWorkflowId = authored.Id,
+                Description = authored.Description,
+                SchemaVersion = authored.SchemaVersion,
+                Lanes = legacyLanes,
+                Gateways = gateways.Length == 0 ? null : gateways,
+                Tags = tags,
+                Handoffs = handoffs
+            }
         };
-
-        // 4. Checksum — SHA-256 of canonical UTF-8 JSON (no BOM)
-        var checksum = ComputeCanonicalChecksum(file);
 
         return new ProjectionResult
         {
             File = file,
-            Checksum = checksum,
+            Checksum = ComputeCanonicalChecksum(file),
             Diagnostics = diagnostics
         };
     }
-
-    // ─── Stage 1: Validate ────────────────────────────────────────────────────
 
     private void Validate(AuthoredWorkflow authored, List<ProjectionDiagnostic> diagnostics)
     {
         AuthoredWorkflowSchemaValidator.Validate(authored, diagnostics, _actionCatalogProvider);
 
         var stageKeys = new HashSet<string>(StringComparer.Ordinal);
-
         foreach (var stage in authored.Stages)
         {
             if (string.IsNullOrWhiteSpace(stage.StageKey))
@@ -127,51 +161,156 @@ public sealed class WorkflowProjector : IWorkflowProjector
             if (!stageKeys.Add(stage.StageKey))
             {
                 diagnostics.Add(Error("PROJ002",
-                    $"Duplicate StageKey '{stage.StageKey}'. All stage keys must be unique.", stage.StageKey));
+                    $"Duplicate StageKey '{stage.StageKey}'. All stage keys must be unique.",
+                    stage.StageKey));
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(authored.InitialStageKey) &&
-            !stageKeys.Contains(authored.InitialStageKey))
+        if (!string.IsNullOrWhiteSpace(authored.InitialStageKey)
+            && !stageKeys.Contains(authored.InitialStageKey))
         {
             diagnostics.Add(Error("PROJ003",
-                $"InitialStageKey '{authored.InitialStageKey}' does not reference any defined stage.", null));
-        }
-
-        foreach (var transition in authored.Transitions)
-        {
-            if (!stageKeys.Contains(transition.FromStage))
-            {
-                diagnostics.Add(Warning("PROJ004",
-                    $"Transition FromStage '{transition.FromStage}' does not reference a defined stage.",
-                    transition.FromStage));
-            }
-
-            if (!stageKeys.Contains(transition.ToStage))
-            {
-                diagnostics.Add(Warning("PROJ004",
-                    $"Transition ToStage '{transition.ToStage}' does not reference a defined stage.",
-                    transition.ToStage));
-            }
+                $"InitialStageKey '{authored.InitialStageKey}' does not reference any defined stage.",
+                null));
         }
     }
-
-    // ─── Stage 3: Emit ────────────────────────────────────────────────────────
 
     private static StepDefinition EmitStage(
         AuthoredWorkflow authored,
         AuthoredStage stage,
-        List<ProjectionDiagnostic> diagnostics)
+        List<ProjectionDiagnostic> diagnostics,
+        IReadOnlyDictionary<string, AuthoredQueue> queuesByKey)
     {
-        var components = EmitComponents(authored, stage, diagnostics);
+        var assignment = ResolveAssignment(stage.QueueKey, stage.Actor, stage.RoleGates, queuesByKey);
+        var actions = EmitActions(stage.Actions);
+        var routes = GetStageRoutes(authored, stage)
+            .OrderBy(route => route.Trigger, StringComparer.Ordinal)
+            .ThenBy(route => route.Target, StringComparer.Ordinal)
+            .ThenBy(route => route.Id, StringComparer.Ordinal)
+            .Select(EmitRoute)
+            .ToArray();
 
         return new StepDefinition
         {
             StateKey = stage.StageKey,
             DisplayName = stage.DisplayName,
-            Components = components,
-            Metadata = EmitStateMetadata(stage)
+            Description = stage.Description,
+            StageType = stage.Kind.ToString(),
+            Actor = assignment.Actor,
+            QueueKey = stage.QueueKey,
+            RoleGates = assignment.RoleGates,
+            Actions = actions,
+            Components = EmitComponents(authored, stage, diagnostics),
+            Routes = routes.Length == 0 ? null : routes,
+            Metadata = new WorkflowStateMetadata
+            {
+                Description = stage.Description,
+                StageType = stage.Kind.ToString(),
+                Actor = assignment.Actor,
+                QueueKey = stage.QueueKey,
+                RoleGates = assignment.RoleGates,
+                Actions = actions
+            }
         };
+    }
+
+    private static WorkflowGatewayDefinition EmitGateway(
+        AuthoredGateway gateway,
+        IReadOnlyDictionary<string, AuthoredQueue> queuesByKey)
+    {
+        var assignment = ResolveAssignment(gateway.QueueKey, gateway.Actor, gateway.RoleGates, queuesByKey);
+        var routes = gateway.Routes
+            .OrderBy(route => route.Trigger, StringComparer.Ordinal)
+            .ThenBy(route => route.Target, StringComparer.Ordinal)
+            .ThenBy(route => route.Id, StringComparer.Ordinal)
+            .Select(EmitRoute)
+            .ToArray();
+
+        return new WorkflowGatewayDefinition
+        {
+            Key = gateway.GatewayKey,
+            DisplayName = gateway.DisplayName,
+            Description = gateway.Description,
+            GatewayType = gateway.Kind.ToString(),
+            QueueKey = gateway.QueueKey,
+            Actor = assignment.Actor,
+            RoleGates = assignment.RoleGates,
+            Routes = routes.Length == 0 ? null : routes,
+            WaitingContent = gateway.WaitingInfo?.Content,
+            WaitingExpectedSeconds = gateway.WaitingInfo?.ExpectedWaitSeconds ?? 0,
+            WaitingPollIntervalMs = gateway.WaitingInfo?.PollIntervalMs ?? 0,
+            WaitingAllowDefer = gateway.WaitingInfo?.AllowDefer ?? true,
+            WaitingDeferMessage = gateway.WaitingInfo?.DeferMessage,
+            RequiredIncomingQueues = gateway.RequiredIncomingQueues.Count == 0
+                ? null
+                : gateway.RequiredIncomingQueues.OrderBy(queue => queue, StringComparer.Ordinal).ToArray()
+        };
+    }
+
+    private static IReadOnlyList<AuthoredQueue> GetQueues(AuthoredWorkflow authored) =>
+        authored.Queues.Count > 0 ? authored.Queues : authored.Lanes;
+
+    private static IReadOnlyList<AuthoredRoute> GetStageRoutes(AuthoredWorkflow authored, AuthoredStage stage)
+    {
+        if (stage.Routes.Count > 0)
+        {
+            return stage.Routes;
+        }
+
+        var legacyRoutes = authored.Gateways
+            .Where(gateway => string.Equals(gateway.Source, stage.StageKey, StringComparison.Ordinal))
+            .SelectMany(gateway => gateway.Routes
+                .Select(route => route.Trigger)
+                .Where(trigger => !string.IsNullOrWhiteSpace(trigger))
+                .Distinct(StringComparer.Ordinal)
+                .Select(trigger => new AuthoredRoute
+                {
+                    Id = $"{stage.StageKey}--{trigger}--{gateway.GatewayKey}",
+                    Target = gateway.GatewayKey,
+                    Trigger = trigger
+                }))
+            .OrderBy(route => route.Trigger, StringComparer.Ordinal)
+            .ThenBy(route => route.Target, StringComparer.Ordinal)
+            .ToArray();
+
+        return legacyRoutes;
+    }
+
+    private static IReadOnlyList<WorkflowTransitionFile> EmitLegacyTransitions(
+        IReadOnlyList<StepDefinition> states,
+        IReadOnlyList<WorkflowGatewayDefinition> gateways)
+    {
+        var transitions = new List<WorkflowTransitionFile>();
+
+        transitions.AddRange(states
+            .Where(state => state.Routes is { Count: > 0 })
+            .SelectMany(state => state.Routes!.Select(route => new WorkflowTransitionFile
+            {
+                FromState = state.StateKey,
+                ToState = route.Target,
+                Action = route.Trigger,
+                RequiresRole = route.RequiresRole,
+                Conditions = route.Conditions,
+                Actions = route.Actions
+            })));
+
+        transitions.AddRange(gateways
+            .Where(gateway => gateway.Routes is { Count: > 0 })
+            .SelectMany(gateway => gateway.Routes!.Select(route => new WorkflowTransitionFile
+            {
+                FromState = gateway.Key,
+                ToState = route.Target,
+                Action = route.Trigger,
+                RequiresRole = route.RequiresRole,
+                Conditions = route.Conditions,
+                Actions = route.Actions
+            })));
+
+        return transitions
+            .OrderBy(transition => transition.FromState, StringComparer.Ordinal)
+            .ThenBy(transition => transition.ToState, StringComparer.Ordinal)
+            .ThenBy(transition => transition.Action, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static IReadOnlyList<PrismComponent> EmitComponents(
@@ -179,44 +318,33 @@ public sealed class WorkflowProjector : IWorkflowProjector
         AuthoredStage stage,
         List<ProjectionDiagnostic> diagnostics)
     {
+        if (stage.Components.Count > 0)
+        {
+            return stage.Components;
+        }
+
         return stage.Kind switch
         {
-            StageKind.Question => EmitQuestionComponents(stage),
-            StageKind.CheckAnswers => EmitCheckAnswersComponents(authored),
-            StageKind.Confirmation => EmitConfirmationComponents(stage),
-            StageKind.TaskList => EmitTaskListComponents(),
-            StageKind.Waiting or StageKind.StatusTimeline => EmitWaitingComponents(stage),
+            StageKind.Question => [new FieldsetComponent()],
+            StageKind.CheckAnswers => EmitDefaultCheckAnswersSummary(authored),
+            StageKind.Confirmation => EmitDefaultConfirmation(stage),
+            StageKind.TaskList => [new TaskListComponent()],
             _ => EmitUnknownKind(stage, diagnostics)
         };
     }
 
-    private static IReadOnlyList<PrismComponent> EmitQuestionComponents(AuthoredStage stage)
+    private static IReadOnlyList<PrismComponent> EmitDefaultCheckAnswersSummary(AuthoredWorkflow authored)
     {
-        var normalisedFields = stage.Fields
-            .OrderBy(f => f.Key, StringComparer.Ordinal)
+        var inputs = authored.Stages
+            .Where(stage => stage.Kind == StageKind.Question)
+            .OrderBy(stage => stage.StageKey, StringComparer.Ordinal)
+            .SelectMany(stage => HarvestInputs(stage.Components))
             .ToList();
 
-        var children = normalisedFields
-            .Select(f => (PrismComponent)MapFieldToInputComponent(f))
-            .ToList();
-
-        return [new FieldsetComponent { Children = children }];
+        return [new SummaryListComponent { Children = inputs }];
     }
 
-    private static IReadOnlyList<PrismComponent> EmitCheckAnswersComponents(AuthoredWorkflow authored)
-    {
-        // Gather all fields from question stages in canonical (sorted) order so the output is stable.
-        var questionFields = authored.Stages
-            .Where(s => s.Kind == StageKind.Question)
-            .OrderBy(s => s.StageKey, StringComparer.Ordinal)
-            .SelectMany(s => s.Fields.OrderBy(f => f.Key, StringComparer.Ordinal))
-            .Select(f => (PrismComponent)MapFieldToInputComponent(f))
-            .ToList();
-
-        return [new SummaryListComponent { Children = questionFields }];
-    }
-
-    private static IReadOnlyList<PrismComponent> EmitConfirmationComponents(AuthoredStage stage)
+    private static IReadOnlyList<PrismComponent> EmitDefaultConfirmation(AuthoredStage stage)
     {
         var components = new List<PrismComponent>
         {
@@ -231,23 +359,34 @@ public sealed class WorkflowProjector : IWorkflowProjector
         return components;
     }
 
-    private static IReadOnlyList<PrismComponent> EmitTaskListComponents()
-        => [new TaskListComponent()];
-
-    private static IReadOnlyList<PrismComponent> EmitWaitingComponents(AuthoredStage stage)
+    private static IEnumerable<PrismComponent> HarvestInputs(IEnumerable<PrismComponent> components)
     {
-        var meta = stage.Waiting ?? new WaitingMetadata();
-        return
-        [
-            new WaitingComponent
+        foreach (var component in components)
+        {
+            switch (component)
             {
-                Content = meta.Content,
-                ExpectedWaitSeconds = meta.ExpectedWaitSeconds,
-                PollIntervalMs = meta.PollIntervalMs,
-                AllowDefer = meta.AllowDefer,
-                DeferMessage = meta.DeferMessage
+                case InputComponent input:
+                    yield return input;
+                    break;
+                case FieldsetComponent fieldset:
+                    foreach (var nested in HarvestInputs(fieldset.Children))
+                    {
+                        yield return nested;
+                    }
+
+                    break;
+                case AccordionComponent accordion:
+                    foreach (var section in accordion.Sections)
+                    {
+                        foreach (var nested in HarvestInputs(section.Children))
+                        {
+                            yield return nested;
+                        }
+                    }
+
+                    break;
             }
-        ];
+        }
     }
 
     private static IReadOnlyList<PrismComponent> EmitUnknownKind(
@@ -261,189 +400,70 @@ public sealed class WorkflowProjector : IWorkflowProjector
         return [new FieldsetComponent()];
     }
 
-    private static WorkflowTransitionFile EmitTransition(AuthoredTransition t) =>
+    private static WorkflowRouteDefinition EmitRoute(AuthoredRoute route) =>
         new()
         {
-            FromState = t.FromStage,
-            ToState = t.ToStage,
-            Action = t.Action,
-            RequiresRole = t.RequiresRole,
-            Metadata = EmitTransitionMetadata(t)
-        };
-
-    private static WorkflowDefinitionMetadata? EmitWorkflowMetadata(AuthoredWorkflow authored)
-    {
-        var handoffs = authored.Handoffs.Count == 0
-            ? null
-            : authored.Handoffs
-                .OrderBy(h => h.Id, StringComparer.Ordinal)
-                .Select(h => new WorkflowHandoffDefinition
+            Id = route.Id,
+            Target = route.Target,
+            Trigger = route.Trigger,
+            RequiresRole = route.RequiresRole,
+            Conditions = route.Condition is null
+                ? null
+                : [new WorkflowConditionDefinition
                 {
-                    Id = h.Id,
-                    FromState = h.FromStage,
-                    ToState = h.ToStage,
-                    Label = h.Label,
-                    ActorChange = h.ActorChange
-                })
-                .ToArray();
+                    Kind = route.Condition.Kind,
+                    Expression = route.Condition.Expression,
+                    Description = route.Condition.Description
+                }],
+            Actions = EmitActions(route.Actions)
+        };
 
-        var tags = authored.Metadata.Count == 0
-            ? null
-            : authored.Metadata
-                .OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
-                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
-
-        if (string.IsNullOrWhiteSpace(authored.Description)
-            && string.IsNullOrWhiteSpace(authored.SchemaVersion)
-            && handoffs is null
-            && tags is null)
+    private static (string? Actor, string[]? RoleGates) ResolveAssignment(
+        string? queueKey,
+        string? actor,
+        IReadOnlyList<string> roleGates,
+        IReadOnlyDictionary<string, AuthoredQueue> queuesByKey)
+    {
+        if (!string.IsNullOrWhiteSpace(queueKey)
+            && queuesByKey.TryGetValue(queueKey, out var queue))
         {
-            return new WorkflowDefinitionMetadata
-            {
-                AuthoredWorkflowId = authored.Id
-            };
+            var effectiveActor = !string.IsNullOrWhiteSpace(actor) ? actor : queue.Actor;
+            var effectiveRoleGates = roleGates.Count > 0
+                ? roleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray()
+                : queue.RoleGates.Count > 0
+                    ? queue.RoleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray()
+                    : null;
+
+            return (effectiveActor, effectiveRoleGates);
         }
 
-        return new WorkflowDefinitionMetadata
-        {
-            AuthoredWorkflowId = authored.Id,
-            Description = authored.Description,
-            SchemaVersion = authored.SchemaVersion,
-            Tags = tags,
-            Handoffs = handoffs
-        };
-    }
-
-    private static WorkflowStateMetadata? EmitStateMetadata(AuthoredStage stage)
-    {
-        var actions = EmitActions(stage.Actions);
-        var roleGates = stage.RoleGates.Count == 0 ? null : stage.RoleGates.ToArray();
-
-        if (string.IsNullOrWhiteSpace(stage.Description)
-            && string.IsNullOrWhiteSpace(stage.Actor)
-            && roleGates is null
-            && actions is null)
-        {
-            return new WorkflowStateMetadata
-            {
-                StageType = stage.Kind.ToString()
-            };
-        }
-
-        return new WorkflowStateMetadata
-        {
-            Description = stage.Description,
-            StageType = stage.Kind.ToString(),
-            Actor = stage.Actor,
-            RoleGates = roleGates,
-            Actions = actions
-        };
-    }
-
-    private static WorkflowTransitionMetadata? EmitTransitionMetadata(AuthoredTransition transition)
-    {
-        var actions = EmitActions(transition.Actions);
-        var conditions = transition.Conditions.Count == 0
-            ? null
-            : transition.Conditions.Select(c => new WorkflowConditionDefinition
-            {
-                Kind = c.Kind,
-                Expression = c.Expression,
-                Description = c.Description
-            }).ToArray();
-
-        return actions is null && conditions is null
-            ? null
-            : new WorkflowTransitionMetadata
-            {
-                Conditions = conditions,
-                Actions = actions
-            };
+        return (
+            actor,
+            roleGates.Count == 0 ? null : roleGates.OrderBy(role => role, StringComparer.Ordinal).ToArray());
     }
 
     private static IReadOnlyList<WorkflowActionDefinition>? EmitActions(IReadOnlyList<AuthoredAction> actions) =>
         actions.Count == 0
             ? null
-            : actions.Select(a => new WorkflowActionDefinition
+            : actions.Select(action => new WorkflowActionDefinition
             {
-                Type = a.Type,
-                Timing = a.Timing.ToString(),
-                ParameterSchemaKey = a.ParameterSchemaKey,
-                Summary = a.Summary,
-                Parameters = CloneParameters(a.Parameters)
+                Type = action.Type,
+                Timing = action.Timing.ToString(),
+                ParameterSchemaKey = action.ParameterSchemaKey,
+                Summary = action.Summary,
+                Parameters = CloneParameters(action.Parameters)
             }).ToArray();
 
     private static JsonObject CloneParameters(JsonObject parameters)
     {
         var clone = new JsonObject();
         foreach (var kvp in parameters)
+        {
             clone[kvp.Key] = kvp.Value?.DeepClone();
+        }
 
         return clone;
     }
-
-    // ─── Field-to-component mapping ───────────────────────────────────────────
-
-    private static InputComponent MapFieldToInputComponent(AuthoredField field) => field.Type switch
-    {
-        FieldType.Textarea => new TextareaComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Email => new EmailComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Pattern = field.ValidationPattern
-        },
-        FieldType.Number => new NumberInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Decimal => new DecimalInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Date => new DateInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Boolean => new BooleanComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint
-        },
-        FieldType.Select => new SelectComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Options = field.Options
-        },
-        FieldType.Radios => new RadiosComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Options = field.Options
-        },
-        FieldType.Checkboxes => new CheckboxesComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Options = field.Options
-        },
-        _ => new TextInputComponent
-        {
-            FieldKey = field.Key, Label = field.Label,
-            Required = field.Required, Hint = field.Hint,
-            Pattern = field.ValidationPattern
-        }
-    };
-
-    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private static ProjectionDiagnostic Error(string code, string message, string? stageKey) =>
         new() { Severity = DiagnosticSeverity.Error, Code = code, Message = message, StageKey = stageKey };

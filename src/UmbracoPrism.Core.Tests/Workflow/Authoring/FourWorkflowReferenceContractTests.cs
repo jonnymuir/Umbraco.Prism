@@ -2,29 +2,29 @@ extern alias MockBusinessApp;
 
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using UmbracoPrism.WorkflowEditor.Authoring;
+using UmbracoPrism.Shared.Models.Workflow;
 using MockProgram = MockBusinessApp::Program;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
 /// <summary>
 /// Validates the four-workflow reference contract: exactly 4 demo workflows
-/// seeded at runtime, in memory, and consistently available through editor,
-/// admin, and runtime paths from the same authored lineage.
+/// seeded at runtime, in memory, and consistently available through the
+/// MockBusinessApp's <c>/mockapp/workflows/*</c> source endpoints, the admin
+/// screen, and the runtime catalog.
 /// </summary>
-public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowReferenceContractTests.ReferenceWorkflowContractWebFactory>
+public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowReferenceContractTests.MockBusinessAppWebFactory>
 {
-    private readonly ReferenceWorkflowContractWebFactory _factory;
     private readonly HttpClient _client;
 
-    /// <summary>
-    /// The canonical four workflows that should exist across all surfaces.
-    /// This is the contract test — any drift from these four is a test failure.
-    /// </summary>
     private static readonly string[] ExpectedWorkflowKeys =
     [
         "community-enquiry",
@@ -33,81 +33,57 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         "planning"
     ];
 
-    public FourWorkflowReferenceContractTests(ReferenceWorkflowContractWebFactory factory)
+    public FourWorkflowReferenceContractTests(MockBusinessAppWebFactory factory)
     {
-        _factory = factory;
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task AuthoringApi_ListsExactlyFourWorkflows()
+    public async Task SourceApi_ListsExactlyFourWorkflows()
     {
-        var response = await _client.GetAsync("/api/workflow-authoring/workflows");
+        var response = await _client.GetAsync("/mockapp/workflows");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var workflows = await response.Content.ReadFromJsonAsync<List<WorkflowAuthoringSummary>>();
+        var workflows = await response.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
 
         workflows.Should().NotBeNull();
-        workflows.Should().HaveCount(4, 
+        workflows.Should().HaveCount(4,
             because: "the reference contract specifies exactly 4 demo workflows");
-        
+
         var actualKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
         actualKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
-            because: "the authoring API should list exactly the 4 canonical workflows");
+            because: "the source API should list exactly the 4 canonical workflows");
     }
 
     [Fact]
-    public async Task AuthoringApi_AllFourWorkflowsAreLoadable()
+    public async Task SourceApi_AllFourWorkflowsAreLoadable()
     {
         foreach (var workflowKey in ExpectedWorkflowKeys)
         {
-            var response = await _client.GetAsync($"/api/workflow-authoring/workflows/{workflowKey}");
-            
-            response.StatusCode.Should().Be(HttpStatusCode.OK,
-                because: $"workflow '{workflowKey}' must be loadable via the authoring API");
+            var response = await _client.GetAsync($"/mockapp/workflows/{workflowKey}");
 
-            var workflow = await response.Content.ReadFromJsonAsync<AuthoredWorkflow>();
+            response.StatusCode.Should().Be(HttpStatusCode.OK,
+                because: $"workflow '{workflowKey}' must be loadable via the source API");
+
+            var workflow = await response.Content.ReadFromJsonAsync<WorkflowDefinitionFile>();
             workflow.Should().NotBeNull();
             workflow!.DefinitionKey.Should().NotBeNullOrWhiteSpace();
-        }
-    }
-
-    public sealed class ReferenceWorkflowContractWebFactory : WebApplicationFactory<MockProgram>
-    {
-        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Development");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["PrismBusinessApp:Tenants:0:Code"] = "smoke",
-                    ["PrismBusinessApp:Tenants:0:Hostname"] = "localhost",
-                    ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "https://localhost:9999/realms/smoke",
-                    ["PrismBusinessApp:Tenants:0:OidcClientId"] = "smoke-client"
-                });
-            });
         }
     }
 
     [Fact]
     public async Task RuntimeStore_PublishesExactlyFourWorkflowsAtStartup()
     {
-        // The runtime workflow engine catalog should show exactly 4 workflows
-        // after startup publishing from authored sources
         var response = await _client.GetAsync("/api/workflow/catalog");
-        
+
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            // Runtime catalog endpoint may not be available in authoring-only test host
-            // This is acceptable — the startup publishing logs prove the contract
             return;
         }
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
-        
-        // Count workflow definitions in the catalog response
+
         var definitionCount = body.Split("definitionKey").Length - 1;
         definitionCount.Should().Be(4,
             because: "the runtime should have exactly 4 workflows published from authored sources");
@@ -127,8 +103,6 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
                 because: $"workflow '{workflowKey}' should appear in the admin screen");
         }
 
-        // Ensure no unexpected workflows appear
-        // Count workflow cards in the admin HTML (each card has data-workflow-key attribute)
         var cardCount = body.Split("data-workflow-key=").Length - 1;
         cardCount.Should().Be(4,
             because: "the admin screen should show exactly the 4 canonical workflows, no more");
@@ -153,17 +127,15 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     [Fact]
-    public async Task WorkflowKeys_MatchAcrossAuthoringAndAdminSurfaces()
+    public async Task WorkflowKeys_MatchAcrossSourceAndAdminSurfaces()
     {
-        // Get workflow keys from authoring API
-        var authoringResponse = await _client.GetAsync("/api/workflow-authoring/workflows");
-        var workflows = await authoringResponse.Content.ReadFromJsonAsync<List<WorkflowAuthoringSummary>>();
-        var authoringKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
+        var sourceResponse = await _client.GetAsync("/mockapp/workflows");
+        var workflows = await sourceResponse.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
+        var sourceKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
 
-        // Get workflow keys from admin screen
         var adminResponse = await _client.GetAsync("/admin/workflow");
         var adminBody = await adminResponse.Content.ReadAsStringAsync();
-        
+
         var adminKeys = new List<string>();
         foreach (var key in ExpectedWorkflowKeys)
         {
@@ -174,10 +146,98 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
         adminKeys = adminKeys.OrderBy(k => k).ToList();
 
-        authoringKeys.Should().BeEquivalentTo(adminKeys,
-            because: "the same workflow keys must appear in both authoring API and admin screen");
-        
-        authoringKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
+        sourceKeys.Should().BeEquivalentTo(adminKeys,
+            because: "the same workflow keys must appear in both source API and admin screen");
+
+        sourceKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
             because: "both surfaces must show exactly the 4 canonical workflows");
     }
+
+    [Fact]
+    public async Task SourceApi_SaveAcceptsClientShapedWorkflowPayload()
+    {
+        var existingJson = await _client.GetStringAsync("/mockapp/workflows/payment-demo");
+        var payload = JsonNode.Parse(existingJson)!.AsObject();
+        var states = payload["states"]!.AsArray();
+        var stage = states
+            .Select(node => node!.AsObject())
+            .Single(node => node["stateKey"]!.GetValue<string>() == "confirm-payment-received");
+
+        stage["displayName"] = "Confirm payment received (saved)";
+
+        try
+        {
+            using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+            var save = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
+
+            save.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+            var reloaded = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
+            reloaded.Should().NotBeNull();
+            reloaded!.States.Single(state => state.StateKey == "confirm-payment-received")
+                .DisplayName.Should().Be("Confirm payment received (saved)");
+        }
+        finally
+        {
+            using var restore = new StringContent(existingJson, Encoding.UTF8, "application/json");
+            var restored = await _client.PutAsync("/mockapp/workflows/payment-demo", restore);
+            restored.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        }
+    }
+
+    [Fact]
+    public async Task SourceApi_SaveReturnsStructuredProblemWhenAComponentTypeIsMissing()
+    {
+        var existingJson = await _client.GetStringAsync("/mockapp/workflows/payment-demo");
+        var payload = JsonNode.Parse(existingJson)!.AsObject();
+        var firstState = payload["states"]!.AsArray()[0]!.AsObject();
+        var firstComponent = firstState["components"]!.AsArray()[0]!.AsObject();
+        firstComponent.Remove("type");
+
+        using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        var response = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = problem.RootElement;
+
+        root.GetProperty("title").GetString().Should().Be("Invalid workflow payload");
+        root.GetProperty("status").GetInt32().Should().Be(StatusCodes.Status400BadRequest);
+        root.GetProperty("detail").GetString().Should().Be("Every workflow component must include a supported 'type' value before the workflow can be saved.");
+        root.GetProperty("errorCode").GetString().Should().Be("workflow-component-invalid");
+        root.GetProperty("traceId").GetString().Should().NotBeNullOrWhiteSpace();
+
+        var errors = root.GetProperty("errors");
+        errors.GetArrayLength().Should().BeGreaterThan(0);
+        errors[0].GetProperty("code").GetString().Should().Be("component-type-missing");
+        errors[0].GetProperty("path").GetString().Should().Be("$.states[0].components[0]");
+        errors[0].GetProperty("message").GetString().Should().Be("Workflow components must declare a supported 'type' value.");
+    }
+
+    /// <summary>
+    /// Anonymous test factory for the MockBusinessApp. The Slice B
+    /// <c>/mockapp/workflows/*</c> endpoints are deliberately unauthenticated
+    /// in the reference app — real downstream apps add their own auth.
+    /// </summary>
+    public sealed class MockBusinessAppWebFactory : WebApplicationFactory<MockProgram>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Development");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["PrismBusinessApp:Tenants:0:Code"] = "smoke",
+                    ["PrismBusinessApp:Tenants:0:Hostname"] = "localhost",
+                    ["PrismBusinessApp:Tenants:0:OidcAuthority"] = "https://localhost:9999/realms/smoke",
+                    ["PrismBusinessApp:Tenants:0:OidcClientId"] = "smoke-client"
+                });
+            });
+        }
+    }
+
+    private sealed record MockAppWorkflowSummary(string WorkflowKey, string DefinitionKey, string DisplayName);
 }

@@ -9,68 +9,74 @@ namespace UmbracoPrism.WorkflowEditor.Authoring;
 /// </summary>
 public record AuthoredWorkflow
 {
-    /// <summary>
-    /// Stable surrogate identifier. Unlike <see cref="DefinitionKey"/>, this is never repurposed
-    /// even if the key is renamed (migration scenario).
-    /// </summary>
+    private IReadOnlyList<AuthoredQueue> _queues = [];
+
     [JsonPropertyName("id")]
     public Guid Id { get; init; } = Guid.NewGuid();
 
-    /// <summary>
-    /// Slug that maps to <c>WorkflowDefinitionFile.DefinitionKey</c> on projection.
-    /// Once set, must not change without a migration step.
-    /// </summary>
     [JsonPropertyName("definitionKey")]
     public required string DefinitionKey { get; init; }
 
-    /// <summary>Human-readable display name. Maps to <c>WorkflowDefinitionFile.DisplayName</c>.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; init; }
 
-    /// <summary>Monotonically increasing version. Incremented by <c>ApplyPatch</c> on each committed edit.</summary>
     [JsonPropertyName("version")]
     public int Version { get; init; } = 1;
 
-    /// <summary>Optional free-text description of the workflow's purpose.</summary>
     [JsonPropertyName("description")]
     public string? Description { get; init; }
 
-    /// <summary>Authored schema version (separate from business version). Used for migration guards.</summary>
     [JsonPropertyName("schemaVersion")]
     public string SchemaVersion { get; init; } = "1.0";
 
-    /// <summary>
-    /// The <see cref="AuthoredStage.StageKey"/> of the stage that becomes <c>WorkflowDefinitionFile.InitialState</c>.
-    /// Must reference a stage in <see cref="Stages"/>.
-    /// </summary>
     [JsonPropertyName("initialStageKey")]
     public required string InitialStageKey { get; init; }
 
-    /// <summary>Instance creation policy forwarded verbatim to the runtime.</summary>
     [JsonPropertyName("instancePolicy")]
     public string InstancePolicy { get; init; } = "single";
 
-    /// <summary>All stages in this workflow. Order is informational; graph edges define execution order.</summary>
     [JsonPropertyName("stages")]
     public IReadOnlyList<AuthoredStage> Stages { get; init; } = [];
 
-    /// <summary>All transitions (graph edges). Projected 1:1 to <c>WorkflowTransitionFile</c>.</summary>
-    [JsonPropertyName("transitions")]
-    public IReadOnlyList<AuthoredTransition> Transitions { get; init; } = [];
+    [JsonPropertyName("queues")]
+    public IReadOnlyList<AuthoredQueue> Queues
+    {
+        get => _queues;
+        init => _queues = value;
+    }
 
-    /// <summary>Named handoff boundaries between stages, used as agent insertion points.</summary>
+    [JsonPropertyName("gateways")]
+    public IReadOnlyList<AuthoredGateway> Gateways { get; init; } = [];
+
     [JsonPropertyName("handoffs")]
     public IReadOnlyList<AuthoredHandoff> Handoffs { get; init; } = [];
 
-    /// <summary>Reusable parameter schema definitions referenced by authored actions.</summary>
     [JsonPropertyName("parameterSchemas")]
     public IReadOnlyList<AuthoredParameterSchema> ParameterSchemas { get; init; } = [];
 
-    /// <summary>Arbitrary string key–value metadata (e.g. owner, service-area tags).</summary>
     [JsonPropertyName("metadata")]
     public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 
-    /// <summary>Editor comment for the current revision. Stripped during projection.</summary>
     [JsonPropertyName("authorNote")]
     public string? AuthorNote { get; init; }
+
+    [JsonIgnore]
+    public IReadOnlyList<AuthoredQueue> Lanes
+    {
+        get => _queues;
+        init => _queues = value;
+    }
+
+    [JsonPropertyName("lanes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<AuthoredLane>? LegacyLanes
+    {
+        init
+        {
+            if (_queues.Count == 0 && value is not null)
+            {
+                _queues = value.ToArray();
+            }
+        }
+    }
 }

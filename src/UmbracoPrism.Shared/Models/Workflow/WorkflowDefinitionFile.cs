@@ -5,100 +5,433 @@ using UmbracoPrism.Shared.Models.Workflow.Components;
 namespace UmbracoPrism.Shared.Models.Workflow;
 
 /// <summary>
-/// JSON-deserialized shape of a workflow definition seed file.
-/// Uses polymorphic component hierarchy with type discriminator for all components.
+/// Persisted workflow definition contract shared by authoring, seed files and runtime loading.
 /// </summary>
 public record WorkflowDefinitionFile
 {
-    /// <summary>The unique identifier for this workflow definition (e.g. "retirement-quote").</summary>
+    /// <summary>
+    /// Validates that every state route targets a gateway, never another state directly.
+    /// Gateway routes may target either states or gateways.
+    /// Returns one error message per violation; empty list means the workflow is valid.
+    /// </summary>
+    public IReadOnlyList<string> ValidateGatewayRouting()
+    {
+        var gatewayKeys = (Gateways ?? [])
+            .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var stateKeys = States
+            .Where(s => !string.IsNullOrWhiteSpace(s.StateKey))
+            .Select(s => s.StateKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var errors = new List<string>();
+
+        foreach (var state in States)
+        {
+            foreach (var route in state.Routes ?? [])
+            {
+                if (string.IsNullOrWhiteSpace(route.Target))
+                {
+                    continue;
+                }
+
+                if (stateKeys.Contains(route.Target))
+                {
+                    errors.Add(
+                        $"State '{state.StateKey}' route '{route.Id}' targets state '{route.Target}' directly. " +
+                        "Routes from states must always target a gateway.");
+                }
+            }
+        }
+
+        return errors;
+    }
+
+
+    private IReadOnlyList<WorkflowQueueDefinition>? _queues;
+    private IReadOnlyList<WorkflowTransitionFile>? _transitions;
+
     public string DefinitionKey { get; init; } = "";
 
-    /// <summary>User-facing display name for the workflow.</summary>
     public string DisplayName { get; init; } = "";
 
-    /// <summary>Version number of the definition (for tracking schema evolution).</summary>
     public int Version { get; init; }
 
-    /// <summary>The state key that instances start in when first created.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SchemaVersion { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? AuthoredWorkflowId { get; init; }
+
     public string InitialState { get; init; } = "";
 
-    /// <summary>Instance creation policy: "single" (reuse existing), "multiple" (always create new), "prompt" (ask user).</summary>
     public string InstancePolicy { get; init; } = "single";
 
-    /// <summary>All states defined in this workflow.</summary>
     public IReadOnlyList<StepDefinition> States { get; init; } = Array.Empty<StepDefinition>();
 
-    /// <summary>All state transitions (edges) defined in this workflow.</summary>
-    public IReadOnlyList<WorkflowTransitionFile> Transitions { get; init; } = Array.Empty<WorkflowTransitionFile>();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowQueueDefinition>? Queues
+    {
+        get => _queues;
+        init => _queues = value;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowGatewayDefinition>? Gateways { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowHandoffDefinition>? Handoffs { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string>? Tags { get; init; }
 
     /// <summary>
-    /// Optional authored-workflow metadata preserved during publish so runtime hosts can inspect
-    /// the original authoring intent without changing the core Prism execution contract.
+    /// Legacy compatibility payload for older seeds that still nest lanes/gateways under metadata.
+    /// New persisted workflow JSON should use the top-level contract instead.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowDefinitionMetadata? Metadata { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowTransitionFile>? Transitions
+    {
+        get => _transitions;
+        init => _transitions = value;
+    }
+
+    [JsonIgnore]
+    public IReadOnlyList<WorkflowLaneDefinition>? Lanes
+    {
+        get => _queues?.Select(queue => new WorkflowLaneDefinition
+        {
+            Key = queue.Key,
+            DisplayName = queue.DisplayName,
+            Description = queue.Description,
+            Actor = queue.Actor,
+            RoleGates = queue.RoleGates,
+            Tags = queue.Tags
+        }).ToArray();
+        init => _queues = value?.Select(lane => new WorkflowQueueDefinition
+        {
+            Key = lane.Key,
+            DisplayName = lane.DisplayName,
+            Description = lane.Description,
+            Actor = lane.Actor,
+            RoleGates = lane.RoleGates,
+            Tags = lane.Tags
+        }).ToArray();
+    }
+
+    [JsonIgnore]
+    public IReadOnlyList<WorkflowTransitionFile>? LegacyTransitions
+    {
+        init => _transitions = value;
+    }
+
+    [JsonPropertyName("lanes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowLaneDefinition>? LegacyLanes
+    {
+        init => _queues = value?.Select(lane => new WorkflowQueueDefinition
+        {
+            Key = lane.Key,
+            DisplayName = lane.DisplayName,
+            Description = lane.Description,
+            Actor = lane.Actor,
+            RoleGates = lane.RoleGates,
+            Tags = lane.Tags
+        }).ToArray();
+    }
 }
 
-/// <summary>
-/// JSON-deserialized shape of a workflow state within a definition.
-/// Describes what to collect/display when the instance reaches this state using polymorphic components.
-/// </summary>
 public record StepDefinition
 {
-    /// <summary>The unique identifier for this state within the workflow (e.g. "collect-details").</summary>
+    private string? _queueKey;
+    private IReadOnlyList<WorkflowRouteDefinition>? _routes;
+
     public string StateKey { get; init; } = "";
 
-    /// <summary>User-facing display name for this state.</summary>
     public string DisplayName { get; init; } = "";
 
-    /// <summary>Polymorphic components to render within this step.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StageType { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Actor { get; init; }
+
+    public string QueueKey
+    {
+        get => _queueKey ?? string.Empty;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RoleGates { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowActionDefinition>? Actions { get; init; }
+
     public IReadOnlyList<PrismComponent> Components { get; init; } = Array.Empty<PrismComponent>();
 
-    /// <summary>
-    /// Optional authored-stage metadata preserved during publish for action execution and
-    /// compatibility diagnostics.
-    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowRouteDefinition>? Routes
+    {
+        get => _routes;
+        init => _routes = value;
+    }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowStateMetadata? Metadata { get; init; }
+
+    [JsonIgnore]
+    public string? LaneKey
+    {
+        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore]
+    public string? QueueName
+    {
+        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonPropertyName("laneKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyLaneKey
+    {
+        init
+        {
+            if (string.IsNullOrWhiteSpace(_queueKey))
+            {
+                _queueKey = value;
+            }
+        }
+    }
+
+    [JsonPropertyName("queueName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyQueueName
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _queueKey = value;
+            }
+        }
+    }
 }
 
-/// <summary>
-/// JSON-deserialized shape of a workflow transition.
-/// Defines a valid state change and the action that triggers it.
-/// </summary>
 public record WorkflowTransitionFile
 {
-    /// <summary>The state this transition originates from.</summary>
     public string FromState { get; init; } = "";
 
-    /// <summary>The state this transition goes to.</summary>
     public string ToState { get; init; } = "";
 
-    /// <summary>The action name that triggers this transition (e.g. "submit", "approve").</summary>
     public string Action { get; init; } = "";
 
-    /// <summary>Optional role restriction: null for any user, "reviewer" for reviewer-only actions.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequiresRole { get; init; }
 
-    /// <summary>
-    /// Optional authored-transition metadata preserved during publish for conditions and runtime
-    /// transition handlers.
-    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowConditionDefinition>? Conditions { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowActionDefinition>? Actions { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowTransitionMetadata? Metadata { get; init; }
 }
 
-/// <summary>
-/// Optional metadata carried alongside the published workflow definition without affecting the
-/// existing Prism runtime contract.
-/// </summary>
+public record WorkflowQueueDefinition
+{
+    private string? _key;
+
+    public string Key
+    {
+        get => _key ?? string.Empty;
+        init => _key = value;
+    }
+
+    public string DisplayName { get; init; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Actor { get; init; }
+
+    [JsonIgnore]
+    public string? QueueName
+    {
+        get => string.IsNullOrWhiteSpace(_key) ? null : _key;
+        init => _key = value;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RoleGates { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string>? Tags { get; init; }
+}
+
+public record WorkflowLaneDefinition : WorkflowQueueDefinition
+{
+}
+
+public record WorkflowGatewayDefinition
+{
+    private string? _queueKey;
+
+    public string Key { get; init; } = "";
+
+    public string DisplayName { get; init; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
+    public string GatewayType { get; init; } = "";
+
+    public string QueueKey
+    {
+        get => _queueKey ?? string.Empty;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Actor { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RoleGates { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowRouteDefinition>? Routes { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WaitingContent { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int WaitingExpectedSeconds { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int WaitingPollIntervalMs { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WaitingAllowDefer { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WaitingDeferMessage { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? RequiredIncomingQueues { get; init; }
+
+    [JsonIgnore]
+    public string? LaneKey
+    {
+        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore]
+    public string? QueueName
+    {
+        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore]
+    public string? Source { get; init; }
+
+    [JsonIgnore]
+    public IReadOnlyList<string>? RequiredIncomingLanes
+    {
+        get => RequiredIncomingQueues;
+        init => RequiredIncomingQueues = value;
+    }
+
+    [JsonPropertyName("laneKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyLaneKey
+    {
+        init
+        {
+            if (string.IsNullOrWhiteSpace(_queueKey))
+            {
+                _queueKey = value;
+            }
+        }
+    }
+
+    [JsonPropertyName("queueName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyQueueName
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _queueKey = value;
+            }
+        }
+    }
+
+    [JsonPropertyName("source")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacySource
+    {
+        init => Source = value;
+    }
+
+    [JsonPropertyName("requiredIncomingLanes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? LegacyRequiredIncomingLanes
+    {
+        init => RequiredIncomingQueues = value;
+    }
+}
+
+public record WorkflowRouteDefinition
+{
+    public string Id { get; init; } = "";
+
+    public string Target { get; init; } = "";
+
+    public string Trigger { get; init; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequiresRole { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowConditionDefinition>? Conditions { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowActionDefinition>? Actions { get; init; }
+}
+
 public record WorkflowDefinitionMetadata
 {
-    public Guid AuthoredWorkflowId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? AuthoredWorkflowId { get; init; }
 
     public string? Description { get; init; }
 
     public string? SchemaVersion { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowLaneDefinition>? Lanes { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<WorkflowGatewayDefinition>? Gateways { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, string>? Tags { get; init; }
@@ -107,7 +440,6 @@ public record WorkflowDefinitionMetadata
     public IReadOnlyList<WorkflowHandoffDefinition>? Handoffs { get; init; }
 }
 
-/// <summary>Preserved authored handoff metadata.</summary>
 public record WorkflowHandoffDefinition
 {
     public string Id { get; init; } = "";
@@ -118,12 +450,14 @@ public record WorkflowHandoffDefinition
 
     public string Label { get; init; } = "";
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ActorChange { get; init; }
 }
 
-/// <summary>Preserved authored-state metadata.</summary>
 public record WorkflowStateMetadata
 {
+    private string? _queueKey;
+
     public string? Description { get; init; }
 
     public string? StageType { get; init; }
@@ -131,13 +465,59 @@ public record WorkflowStateMetadata
     public string? Actor { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QueueKey
+    {
+        get => _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? RoleGates { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<WorkflowActionDefinition>? Actions { get; init; }
+
+    [JsonIgnore]
+    public string? LaneKey
+    {
+        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonIgnore]
+    public string? QueueName
+    {
+        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
+        init => _queueKey = value;
+    }
+
+    [JsonPropertyName("laneKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyLaneKey
+    {
+        init
+        {
+            if (string.IsNullOrWhiteSpace(_queueKey))
+            {
+                _queueKey = value;
+            }
+        }
+    }
+
+    [JsonPropertyName("queueName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyQueueName
+    {
+        init
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _queueKey = value;
+            }
+        }
+    }
 }
 
-/// <summary>Preserved authored-transition metadata.</summary>
 public record WorkflowTransitionMetadata
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -147,26 +527,30 @@ public record WorkflowTransitionMetadata
     public IReadOnlyList<WorkflowActionDefinition>? Actions { get; init; }
 }
 
-/// <summary>Portable action metadata preserved in the published runtime definition.</summary>
 public record WorkflowActionDefinition
 {
     public string Type { get; init; } = "";
 
     public string Timing { get; init; } = "";
 
-    public JsonObject Parameters { get; init; } = [];
-
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parameterSchemaKey")]
     public string? ParameterSchemaKey { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Summary { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("params")]
+    public JsonObject Parameters { get; init; } = [];
 }
 
-/// <summary>Portable transition-condition metadata preserved in the published runtime definition.</summary>
 public record WorkflowConditionDefinition
 {
-    public string Kind { get; init; } = "expression";
+    public string Kind { get; init; } = "";
 
     public string Expression { get; init; } = "";
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; init; }
 }

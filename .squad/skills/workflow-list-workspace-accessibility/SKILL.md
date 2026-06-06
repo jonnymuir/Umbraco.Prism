@@ -19,6 +19,7 @@ Use this when a workflow editor needs a keyboard-first alternative to a visual g
 - Support reordering with both drag handles and keyboard shortcuts (`Alt+ArrowUp` / `Alt+ArrowDown`) so pointer-only gestures are never the sole path.
 - Announce filter changes, row moves, and inline edits through a polite live region instead of forcing focus jumps.
 - Treat filters as visibility controls only; reordering should still operate on the authored stage array so hidden rows do not create a second ordering contract.
+- For slot-based graph editors, make the list/table reorder path the **first shipped movement contract**. Keep graph drag as a later enhancement until it can match the list for keyboard parity, focus retention, and clear move announcements.
 
 ## Examples
 
@@ -32,4 +33,5 @@ Use this when a workflow editor needs a keyboard-first alternative to a visual g
 - Duplicating the workflow data into a separate list-only editing model
 - Expanding detailed inspector-sized forms inside every table row
 - Shipping drag-only reordering with no keyboard equivalent
+- Letting canvas slot position become a second ordering system that can drift from the authored array
 - Making filters change the underlying stage order or selection contract

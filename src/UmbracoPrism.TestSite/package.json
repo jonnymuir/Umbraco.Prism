@@ -4,6 +4,6 @@
   "description": "Frontend dependencies for Umbraco.Prism TestSite",
   "private": true,
   "dependencies": {
-    "govuk-frontend": "^5.9.0"
+    "govuk-frontend": "^5.14.0"
   }
 }

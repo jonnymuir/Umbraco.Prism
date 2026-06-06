@@ -1,0 +1,149 @@
+import type { AuthoredWorkflow } from './types.js';
+import { hydrateWorkflowDefinition } from './types.js';
+
+export type DefinitionLint = {
+  message: string;
+  line?: number;
+  pathHint?: string;
+};
+
+const ALLOWED_STAGE_KINDS = new Set(['Question', 'CheckAnswers', 'Confirmation', 'TaskList']);
+const ALLOWED_GATEWAY_KINDS = new Set(['Split', 'Join']);
+
+function findLine(source: string, needle: string): number | undefined {
+  const index = source.indexOf(needle);
+  if (index < 0) {
+    return undefined;
+  }
+  return source.slice(0, index).split('\n').length;
+}
+
+export function lintAuthoredWorkflowDocument(parsed: unknown, source: string): DefinitionLint[] {
+  const issues: DefinitionLint[] = [];
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    issues.push({ message: 'Definition must be a JSON object.' });
+    return issues;
+  }
+
+  const root = parsed as Record<string, unknown>;
+
+  for (const required of ['definitionKey', 'displayName', 'initialState']) {
+    if (typeof root[required] !== 'string' || !(root[required] as string).trim()) {
+      issues.push({
+        message: `Missing or empty "${required}".`,
+        pathHint: required,
+        line: findLine(source, `"${required}"`),
+      });
+    }
+  }
+
+  if (!Array.isArray(root.queues)) {
+    issues.push({ message: '"queues" must be an array.', pathHint: 'queues' });
+  }
+
+  if (!Array.isArray(root.states)) {
+    issues.push({ message: '"states" must be an array.', pathHint: 'states' });
+  } else {
+    const seenStateKeys = new Set<string>();
+    root.states.forEach((rawState, index) => {
+      if (!rawState || typeof rawState !== 'object' || Array.isArray(rawState)) {
+        issues.push({ message: `State at index ${index} must be an object.` });
+        return;
+      }
+
+      const state = rawState as Record<string, unknown>;
+      const stateKey = typeof state.stateKey === 'string' ? state.stateKey : '';
+      if (!stateKey.trim()) {
+        issues.push({ message: `State at index ${index} is missing "stateKey".` });
+      } else if (seenStateKeys.has(stateKey)) {
+        issues.push({
+          message: `Duplicate state key "${stateKey}".`,
+          line: findLine(source, `"${stateKey}"`),
+        });
+      } else {
+        seenStateKeys.add(stateKey);
+      }
+
+      const kind = typeof (state.metadata as Record<string, unknown> | undefined)?.stageType === 'string'
+        ? String((state.metadata as Record<string, unknown>).stageType)
+        : '';
+      if (kind && !ALLOWED_STAGE_KINDS.has(kind)) {
+        issues.push({
+          message: `State "${stateKey || index}" has unsupported stageType "${kind}". Allowed kinds: ${[...ALLOWED_STAGE_KINDS].join(', ')}.`,
+          line: findLine(source, `"${kind}"`),
+        });
+      }
+
+      if (typeof state.queueKey !== 'string' || !state.queueKey.trim()) {
+        issues.push({ message: `State "${stateKey || index}" is missing "queueKey".` });
+      }
+
+      if (state.routes !== undefined && !Array.isArray(state.routes)) {
+        issues.push({ message: `State "${stateKey || index}" has a non-array "routes" value.` });
+      }
+    });
+  }
+
+  if (!Array.isArray(root.gateways)) {
+    issues.push({ message: '"gateways" must be an array.', pathHint: 'gateways' });
+  } else {
+    const seenGatewayKeys = new Set<string>();
+    root.gateways.forEach((rawGateway, index) => {
+      if (!rawGateway || typeof rawGateway !== 'object' || Array.isArray(rawGateway)) {
+        issues.push({ message: `Gateway at index ${index} must be an object.` });
+        return;
+      }
+
+      const gateway = rawGateway as Record<string, unknown>;
+      const key = typeof gateway.key === 'string' ? gateway.key : '';
+      if (!key.trim()) {
+        issues.push({ message: `Gateway at index ${index} is missing "key".` });
+      } else if (seenGatewayKeys.has(key)) {
+        issues.push({
+          message: `Duplicate gateway key "${key}".`,
+          line: findLine(source, `"${key}"`),
+        });
+      } else {
+        seenGatewayKeys.add(key);
+      }
+
+      const kind = typeof gateway.gatewayType === 'string' ? gateway.gatewayType : '';
+      if (kind && !ALLOWED_GATEWAY_KINDS.has(kind)) {
+        issues.push({
+          message: `Gateway "${key || index}" has unsupported gatewayType "${kind}". Allowed kinds: ${[...ALLOWED_GATEWAY_KINDS].join(', ')}.`,
+          line: findLine(source, `"${kind}"`),
+        });
+      }
+
+      if (typeof gateway.queueKey !== 'string' || !gateway.queueKey.trim()) {
+        issues.push({ message: `Gateway "${key || index}" is missing "queueKey".` });
+      }
+
+      if (!Array.isArray(gateway.routes)) {
+        issues.push({ message: `Gateway "${key || index}" must declare a "routes" array.` });
+      }
+    });
+  }
+
+  return issues;
+}
+
+export function coerceParsedAuthoredWorkflow(parsed: unknown): AuthoredWorkflow {
+  const root = parsed as Record<string, unknown>;
+  return hydrateWorkflowDefinition({
+    definitionKey: String(root.definitionKey ?? ''),
+    displayName: String(root.displayName ?? ''),
+    version: typeof root.version === 'number' ? root.version : 1,
+    initialState: String(root.initialState ?? ''),
+    instancePolicy: String(root.instancePolicy ?? 'single'),
+    description: typeof root.description === 'string' ? root.description : undefined,
+    schemaVersion: typeof root.schemaVersion === 'string' ? root.schemaVersion : undefined,
+    queues: Array.isArray(root.queues) ? (root.queues as AuthoredWorkflow['queues']) : [],
+    states: Array.isArray(root.states) ? (root.states as AuthoredWorkflow['states']) : [],
+    gateways: Array.isArray(root.gateways) ? (root.gateways as AuthoredWorkflow['gateways']) : [],
+    parameterSchemas: Array.isArray(root.parameterSchemas)
+      ? (root.parameterSchemas as AuthoredWorkflow['parameterSchemas'])
+      : undefined,
+  });
+}

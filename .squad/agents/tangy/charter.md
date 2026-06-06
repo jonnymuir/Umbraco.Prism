@@ -40,7 +40,7 @@ node node_modules/.bin/playwright test --reporter=line
 
 ## Preferred Model
 
-`claude-sonnet-4.5` — Code quality matters for tests
+`claude-sonnet-4.6` — Code quality matters for tests
 
 ## Environment
 

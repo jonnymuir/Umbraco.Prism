@@ -68,11 +68,11 @@ public class WorkflowPatchServiceFailureTests
         var envelope = BuildEnvelopeWithValue("insert-stage",
             new
             {
-                stageKey    = "new-stage",
-                displayName = "New Stage",
-                kind        = "Question",
+                key         = "new-stage",
+                title       = "New Stage",
+                type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             },
             before: "nonexistent-stage");
@@ -105,11 +105,11 @@ public class WorkflowPatchServiceFailureTests
         var envelope = BuildEnvelopeWithValue("update-stage",
             new
             {
-                stageKey    = "does-not-exist",
-                displayName = "Ghost Stage",
-                kind        = "Question",
+                key         = "does-not-exist",
+                title       = "Ghost Stage",
+                type        = "Question",
                 actor       = "applicant",
-                fields      = Array.Empty<object>(),
+                components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             },
             path: "/stages/does-not-exist");
@@ -155,8 +155,7 @@ public class WorkflowPatchServiceFailureTests
 
     private static async Task<AuthoredWorkflow> LoadPlanningFixture()
     {
-        var store = new FilesystemAuthoredWorkflowStore(FixturesPath);
-        var wf    = await store.LoadAsync("planning");
+        var wf = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
         return wf ?? throw new InvalidOperationException("planning fixture not found");
     }
 

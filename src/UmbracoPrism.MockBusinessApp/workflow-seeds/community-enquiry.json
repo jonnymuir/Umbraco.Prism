@@ -2,59 +2,59 @@
   "definitionKey": "community-enquiry",
   "displayName": "Get in Touch",
   "version": 1,
-  "instancePolicy": "single",
+  "schemaVersion": "1.0",
   "initialState": "collecting-details",
+  "instancePolicy": "single",
   "states": [
     {
       "stateKey": "collecting-details",
       "displayName": "Tell us about your enquiry",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "inset-text",
-          "content": "We'll only use your contact details to respond to your enquiry. We won't share them with any third parties or add you to a mailing list without your consent."
+          "content": "We\u0027ll only use your contact details to respond to your enquiry. We won\u0027t share them with any third parties or add you to a mailing list without your consent."
         },
         {
           "type": "fieldset",
-          "legend": "About You",
           "children": [
             {
               "type": "text",
+              "maxLength": 100,
               "fieldKey": "full-name",
               "label": "Full name",
-              "hint": null,
-              "required": true,
-              "maxLength": 100
+              "required": true
             },
             {
               "type": "email",
               "fieldKey": "email-address",
               "label": "Email address",
-              "hint": null,
               "required": true
             },
             {
               "type": "text",
+              "maxLength": 100,
               "fieldKey": "organisation",
               "label": "Organisation (optional)",
-              "hint": null,
-              "required": false,
-              "maxLength": 100
+              "required": false
             },
             {
               "type": "select",
-              "fieldKey": "your-role",
-              "label": "Your role",
-              "hint": null,
-              "required": true,
               "options": [
                 "Developer",
                 "Architect",
                 "Technical Lead",
                 "CTO / Head of Engineering",
                 "Other"
-              ]
+              ],
+              "fieldKey": "your-role",
+              "label": "Your role",
+              "required": true
             }
-          ]
+          ],
+          "legend": "About You"
         },
         {
           "type": "details",
@@ -63,37 +63,36 @@
         },
         {
           "type": "fieldset",
-          "legend": "Your Enquiry",
           "children": [
             {
               "type": "radio",
-              "fieldKey": "enquiry-type",
-              "label": "What can we help with?",
-              "hint": null,
-              "required": true,
               "options": [
                 "General enquiry",
                 "Technical support",
                 "Partnership opportunity",
                 "Speaking / events",
                 "Other"
-              ]
+              ],
+              "fieldKey": "enquiry-type",
+              "label": "What can we help with?",
+              "required": true
             },
             {
               "type": "text",
+              "maxLength": 100,
               "fieldKey": "enquiry-type-detail",
               "label": "Please specify your enquiry type",
               "hint": "Please describe your enquiry type in a few words.",
               "required": false,
-              "maxLength": 100,
               "conditionalOn": "enquiry-type",
               "visibleWhen": "Other"
             }
-          ]
+          ],
+          "legend": "Your Enquiry"
         },
         {
           "type": "inset-text",
-          "content": "For technical support, include your Prism version number, a URL, or any error messages you're seeing. This helps us resolve your issue faster."
+          "content": "For technical support, include your Prism version number, a URL, or any error messages you\u0027re seeing. This helps us resolve your issue faster."
         },
         {
           "type": "warning-text",
@@ -101,55 +100,88 @@
         },
         {
           "type": "fieldset",
-          "legend": "Your Message",
           "children": [
             {
               "type": "textarea",
+              "minLength": 20,
+              "maxLength": 1000,
               "fieldKey": "message",
               "label": "Tell us more",
               "hint": "Please be as specific as possible \u2014 the more detail you give, the faster we can help.",
-              "required": true,
-              "minLength": 20,
-              "maxLength": 1000
+              "required": true
             },
             {
               "type": "checkboxlist",
-              "fieldKey": "topics",
-              "label": "Topics you're interested in",
-              "hint": null,
-              "required": false,
               "options": [
                 "Umbraco CMS",
                 ".NET Development",
                 "Mobile Apps",
-                "Cloud & Azure",
+                "Cloud \u0026 Azure",
                 "Design Systems"
-              ]
+              ],
+              "fieldKey": "topics",
+              "label": "Topics you\u0027re interested in",
+              "required": false
             },
             {
               "type": "boolean",
               "fieldKey": "newsletter",
               "label": "Keep me updated with Prism news and releases",
-              "hint": null,
               "required": false
             }
-          ]
+          ],
+          "legend": "Your Message"
+        }
+      ],
+      "routes": [
+        {
+          "id": "collecting-details--submit--route-from-collecting-details",
+          "target": "route-from-collecting-details",
+          "trigger": "submit"
+        },
+        {
+          "id": "collecting-details--save-draft--route-save-draft",
+          "target": "route-save-draft",
+          "trigger": "save-draft"
         }
       ]
     },
     {
       "stateKey": "under-review",
       "displayName": "Your enquiry is with us",
+      "stageType": "Question",
+      "actor": "reviewer",
+      "queueKey": "business-user",
+      "roleGates": [
+        "reviewer"
+      ],
       "components": [
         {
           "type": "body",
-          "content": "We've received your enquiry and it's currently being reviewed. A member of the team will be in touch shortly \u2014 no further action is needed right now."
+          "content": "We\u0027ve received your enquiry and it\u0027s currently being reviewed. A member of the team will be in touch shortly \u2014 no further action is needed right now."
+        }
+      ],
+      "routes": [
+        {
+          "id": "under-review--approve--route-from-under-review",
+          "target": "route-from-under-review",
+          "trigger": "approve",
+          "requiresRole": "reviewer"
+        },
+        {
+          "id": "under-review--request-changes--route-from-under-review",
+          "target": "route-from-under-review",
+          "trigger": "request-changes",
+          "requiresRole": "reviewer"
         }
       ]
     },
     {
       "stateKey": "complete",
-      "displayName": "We're in touch!",
+      "displayName": "We\u0027re in touch!",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "panel",
@@ -162,37 +194,87 @@
         },
         {
           "type": "body",
-          "content": "We've sent you a confirmation email."
+          "content": "We\u0027ve sent you a confirmation email."
         },
         {
           "type": "body",
           "content": "A member of our team will be in touch shortly."
         }
-      ]
+      ],
+      "routes": []
     }
   ],
-  "transitions": [
+  "queues": [
     {
-      "fromState": "collecting-details",
-      "toState": "under-review",
-      "action": "submit"
+      "key": "web-user",
+      "displayName": "Enquirer",
+      "description": "Web user submitting and tracking a community enquiry.",
+      "actor": "applicant"
     },
     {
-      "fromState": "collecting-details",
-      "toState": "collecting-details",
-      "action": "save-draft"
+      "key": "business-user",
+      "displayName": "Review team",
+      "description": "Back-office team reviewing and responding to enquiries.",
+      "actor": "reviewer"
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-from-collecting-details",
+      "displayName": "Submit Enquiry",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-from-collecting-details--submit--under-review",
+          "target": "under-review",
+          "trigger": "submit"
+        }
+      ]
     },
     {
-      "fromState": "under-review",
-      "toState": "complete",
-      "action": "approve",
-      "requiresRole": "reviewer"
+      "key": "route-save-draft",
+      "displayName": "Save Draft",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-save-draft--save-draft--join-return-to-form",
+          "target": "join-return-to-form",
+          "trigger": "save-draft"
+        }
+      ]
     },
     {
-      "fromState": "under-review",
-      "toState": "collecting-details",
-      "action": "request-changes",
-      "requiresRole": "reviewer"
+      "key": "route-from-under-review",
+      "displayName": "Route from Review",
+      "gatewayType": "Split",
+      "queueKey": "business-user",
+      "routes": [
+        {
+          "id": "route-from-under-review--approve--complete",
+          "target": "complete",
+          "trigger": "approve"
+        },
+        {
+          "id": "route-from-under-review--request-changes--join-return-to-form",
+          "target": "join-return-to-form",
+          "trigger": "request-changes"
+        }
+      ]
+    },
+    {
+      "key": "join-return-to-form",
+      "displayName": "Return to Form",
+      "gatewayType": "Join",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "join-return-to-form--return--collecting-details",
+          "target": "collecting-details",
+          "trigger": "return"
+        }
+      ]
     }
   ]
 }

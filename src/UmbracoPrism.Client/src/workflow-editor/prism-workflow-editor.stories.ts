@@ -2,77 +2,31 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import { expect, waitFor, within } from '@storybook/test';
 import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
-import { PLANNING_WORKFLOW } from './fixtures/index.js';
-import { STUB_ACTION_CATALOG, type AuthoredWorkflow } from './types.js';
-import { draftProposal } from './workflow-authoring-mock-drafter.js';
-import { projectWorkflowLocally } from './workflow-runtime-projection.js';
+import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
+import type { AuthoredWorkflow } from './types.js';
+import { InMemoryWorkflowSource } from './in-memory-workflow-source.js';
+import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
-/**
- * Stubs window.fetch for authoring API URLs so stories work fully offline.
- * Called from each story's render function; the original fetch is restored
- * shortly after to avoid cross-story contamination.
- */
-function stubFetchFor(el: PrismWorkflowEditorElement): void {
-  const originalFetch = window.fetch;
-  const WORKFLOW_API_RE = /\/api\/workflow-authoring\/workflows/;
-  const ACTION_CATALOG_RE = /\/api\/workflow-authoring\/action-catalog/;
-
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const urlStr =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.href
-          : (input as Request).url;
-    if (ACTION_CATALOG_RE.test(urlStr)) {
-      return new Response(JSON.stringify(STUB_ACTION_CATALOG), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    if (WORKFLOW_API_RE.test(urlStr)) {
-      const method = (init?.method ?? 'GET').toUpperCase();
-      if (method === 'GET')
-        return new Response(JSON.stringify(PLANNING_WORKFLOW), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      if (method === 'POST') {
-        const body = init?.body ? JSON.parse(init.body as string) : {};
-        if (urlStr.endsWith('/project')) {
-          return new Response(JSON.stringify(projectWorkflowLocally(body as AuthoredWorkflow)), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response(null, { status: 204 });
-    }
-    return originalFetch(input, init);
-  };
-
-  // Restore after story element is removed from the DOM
-  const observer = new MutationObserver(() => {
-    if (!document.contains(el)) {
-      window.fetch = originalFetch;
-      observer.disconnect();
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-}
+const STORY_QUEUES: WorkflowQueueDefinition[] = [
+  { queueName: 'web-user', displayName: 'Applicant' },
+  { queueName: 'business-user', displayName: 'Payments team' },
+  { queueName: 'applicant', displayName: 'Applicant' },
+  { queueName: 'reviewer', displayName: 'Reviewer' },
+  { queueName: 'payments', displayName: 'Payments' },
+  { queueName: 'public', displayName: 'Public' },
+  { queueName: 'system', displayName: 'System' },
+];
 
 function makeEditor(workflow: AuthoredWorkflow = PLANNING_WORKFLOW): PrismWorkflowEditorElement {
   const el = document.createElement('prism-workflow-editor') as PrismWorkflowEditorElement;
-  // Inject the fixture directly — no API fetch needed
-  el.initialWorkflow = workflow;
+  // Stories drive the editor by injecting the workflow directly. The Save
+  // button still needs a `workflowSource` to resolve, so wire an in-memory
+  // one seeded with the same workflow — this proves the integrator pattern.
+  el.workflowSource = new InMemoryWorkflowSource([workflow]);
   el.workflowKey = workflow.definitionKey;
+  el.initialWorkflow = workflow;
+  el.availableQueues = STORY_QUEUES;
   el.style.cssText = 'display: block; width: 1200px; height: 700px;';
-  // Also stub fetch so preview/apply calls work offline if triggered
-  stubFetchFor(el);
   return el;
 }
 
@@ -80,75 +34,100 @@ function makeEmptyWorkflow(): AuthoredWorkflow {
   const workflow = JSON.parse(JSON.stringify(PLANNING_WORKFLOW)) as AuthoredWorkflow;
   return {
     ...workflow,
-    displayName: 'Workflow draft',
-    initialStageKey: '',
-    stages: [],
-    transitions: [],
+    displayName: 'Empty Workflow',
+    initialState: '',
+    states: [],
+    gateways: [],
   };
 }
 
 function makeSimulationBranchWorkflow(): AuthoredWorkflow {
   const workflow = JSON.parse(JSON.stringify(PLANNING_WORKFLOW)) as AuthoredWorkflow;
   workflow.displayName = 'Planning Application Simulation';
-  workflow.stages = [
-    workflow.stages[0],
-    workflow.stages[1],
+  workflow.states = [
+    workflow.states[0],
+    workflow.states[1],
     {
-      stageKey: 'review-decision',
+      stateKey: 'review-decision',
       displayName: 'Reviewer decision',
       description: 'Reviewer chooses whether to approve, reject, or request more checks.',
       kind: 'TaskList',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'checks-pending',
+      stateKey: 'checks-pending',
       displayName: 'Checks pending',
       description: 'The application is paused while further checks run.',
-      kind: 'Waiting',
+      kind: 'Question',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
-      waiting: {
-        allowDefer: false,
-        content: 'Additional planning checks are running before the application can progress.',
-      },
     },
     {
-      stageKey: 'approved',
+      stateKey: 'approved',
       displayName: 'Application approved',
       description: 'The application has been approved.',
       kind: 'Confirmation',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
     {
-      stageKey: 'rejected',
+      stateKey: 'rejected',
       displayName: 'Application rejected',
       description: 'The application has been rejected.',
       kind: 'Confirmation',
       actor: 'reviewer',
       actions: [],
-      fields: [],
+      components: [],
       roleGates: ['reviewer'],
     },
   ];
-  workflow.transitions = [
-    { fromStage: 'declaration', toStage: 'application-form', action: 'continue', actions: [] },
-    { fromStage: 'application-form', toStage: 'review-decision', action: 'submit for review', actions: [] },
-    { fromStage: 'review-decision', toStage: 'approved', action: 'approve', actions: [] },
-    { fromStage: 'review-decision', toStage: 'rejected', action: 'reject', actions: [] },
+  workflow.gateways = [
     {
-      fromStage: 'review-decision',
-      toStage: 'checks-pending',
-      action: 'request more checks',
-      condition: 'siteVisitRequired == true',
-      actions: [],
+      key: 'review-decision-routes',
+      displayName: 'Review decision routes',
+      gatewayType: 'Split',
+      source: 'review-decision',
+      laneKey: 'reviewer',
+      roleGates: [],
+      routes: [
+        { id: 'review-decision--approve--approved', target: 'approved', trigger: 'approve' },
+        { id: 'review-decision--reject--rejected', target: 'rejected', trigger: 'reject' },
+        {
+          id: 'review-decision--request-more-checks--checks-pending',
+          target: 'checks-pending',
+          trigger: 'request more checks',
+          condition: 'siteVisitRequired == true',
+        },
+      ],
+    },
+    {
+      key: 'declaration-routes',
+      displayName: 'Declaration routes',
+      gatewayType: 'Split',
+      source: 'declaration',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        { id: 'declaration--continue--application-form', target: 'application-form', trigger: 'continue' },
+      ],
+    },
+    {
+      key: 'application-form-routes',
+      displayName: 'Application form routes',
+      gatewayType: 'Split',
+      source: 'application-form',
+      laneKey: 'applicant',
+      roleGates: [],
+      routes: [
+        { id: 'application-form--submit--review-decision', target: 'review-decision', trigger: 'submit for review' },
+      ],
     },
   ];
   return workflow;
@@ -157,11 +136,14 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
 function makeSimulationBlockerWorkflow(): AuthoredWorkflow {
   const workflow = makeSimulationBranchWorkflow();
   workflow.displayName = 'Planning Application Simulation Blockers';
-  workflow.transitions = workflow.transitions.map(transition =>
-    transition.action === 'reject'
-      ? { ...transition, toStage: 'missing-rejection-stage' }
-      : transition
-  );
+  const rejectGateway = (workflow.gateways ?? []).find(g => g.key === 'review-decision-routes');
+  if (rejectGateway) {
+    rejectGateway.routes = (rejectGateway.routes ?? []).map(route =>
+      route.trigger === 'reject'
+        ? { ...route, target: 'missing-rejection-stage' }
+        : route
+    );
+  }
   return workflow;
 }
 
@@ -196,28 +178,19 @@ export const PlanningWorkflow: Story = {
 
     const root = el.shadowRoot!;
 
-    // Root container is present with correct test hooks
     const container = root.querySelector('[data-prism-component="workflow-editor"]');
     await expect(container).not.toBeNull();
 
-    // Workflow name appears in the header
     const title = root.querySelector('.editor-title');
     await expect(title?.textContent?.trim()).toBe('Planning Application');
 
-    // Graph panel is rendered
     const graph = root.querySelector('prism-workflow-graph');
     await expect(graph).not.toBeNull();
     await expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-lane]').length ?? 0).toBeGreaterThan(0);
 
-    // Inspector panel is rendered
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();
 
-    // Embedded conversation pane is intentionally not rendered
-    const conversation = root.querySelector('prism-conversation-pane');
-    await expect(conversation).toBeNull();
-
-    // Modal is NOT open by default
     const backdrop = root.querySelector('.modal-backdrop');
     await expect(backdrop).toBeNull();
   },
@@ -237,7 +210,7 @@ export const WithStageSelected: Story = {
     await expect(inspector).not.toBeNull();
 
     const graphCanvas = within(graph!.shadowRoot as unknown as HTMLElement);
-    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant role' }) as HTMLButtonElement;
+    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant queue' }) as HTMLButtonElement;
     declarationStage.click();
 
     await waitFor(() =>
@@ -250,41 +223,6 @@ export const WithStageSelected: Story = {
           ?.trim()
       ).toBe('Declaration')
     );
-  },
-};
-
-export const ModalOpen: Story = {
-  name: 'Proposal Modal Open',
-  render: () => {
-    const el = makeEditor();
-    requestAnimationFrame(async () => {
-      await el.updateComplete;
-      const proposal = draftProposal('insert ID&V before submission', PLANNING_WORKFLOW);
-      if (!proposal) {
-        return;
-      }
-
-      const storyEditor = el as unknown as {
-        _proposal: typeof proposal | null;
-        _modalOpen: boolean;
-        requestUpdate(): void;
-      };
-      storyEditor._proposal = proposal;
-      storyEditor._modalOpen = true;
-      storyEditor.requestUpdate();
-    });
-    return el;
-  },
-  play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 800));
-    const el = canvasElement.querySelector('prism-workflow-editor') as PrismWorkflowEditorElement;
-    await el.updateComplete;
-
-    const root = el.shadowRoot!;
-
-    // Verify the canvas container is still present
-    const container = root.querySelector('[data-prism-component="workflow-editor"]');
-    await expect(container).not.toBeNull();
   },
 };
 
@@ -320,4 +258,9 @@ export const SimulationBranches: Story = {
 export const SimulationBlockers: Story = {
   name: 'Simulation Blockers',
   render: () => makeEditor(makeSimulationBlockerWorkflow()),
+};
+
+export const GatewayRepresentation: Story = {
+  name: 'Gateway Representation',
+  render: () => makeEditor(cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW)),
 };
