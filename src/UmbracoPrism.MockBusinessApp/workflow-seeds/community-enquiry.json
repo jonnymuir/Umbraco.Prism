@@ -1,13 +1,32 @@
 {
   "definitionKey": "community-enquiry",
   "displayName": "Get in Touch",
-  "version": 1,
+  "version": 2,
+  "description": "Community enquiry workflow for public submissions reviewed by the back-office team.",
+  "schemaVersion": "1.0",
   "instancePolicy": "single",
   "initialState": "collecting-details",
+  "queues": [
+    {
+      "key": "applicant",
+      "displayName": "Enquirer",
+      "actor": "applicant",
+      "description": "Public user submitting and tracking their community enquiry."
+    },
+    {
+      "key": "reviewer",
+      "displayName": "Review team",
+      "actor": "reviewer",
+      "description": "Back-office team reviewing and responding to submitted enquiries."
+    }
+  ],
   "states": [
     {
       "stateKey": "collecting-details",
       "displayName": "Tell us about your enquiry",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "applicant",
       "components": [
         {
           "type": "inset-text",
@@ -135,21 +154,55 @@
             }
           ]
         }
+      ],
+      "routes": [
+        {
+          "id": "collecting-details--submit--under-review",
+          "target": "under-review",
+          "trigger": "submit"
+        },
+        {
+          "id": "collecting-details--save-draft--collecting-details",
+          "target": "collecting-details",
+          "trigger": "save-draft"
+        }
       ]
     },
     {
       "stateKey": "under-review",
-      "displayName": "Your enquiry is with us",
+      "displayName": "Review enquiry",
+      "description": "Back-office reviewer reads the enquiry and approves or requests changes.",
+      "stageType": "Question",
+      "actor": "reviewer",
+      "queueKey": "reviewer",
       "components": [
         {
           "type": "body",
-          "content": "We've received your enquiry and it's currently being reviewed. A member of the team will be in touch shortly \u2014 no further action is needed right now."
+          "content": "Review the submitted enquiry and choose to approve it or send it back for changes."
+        }
+      ],
+      "routes": [
+        {
+          "id": "under-review--approve--complete",
+          "target": "complete",
+          "trigger": "approve",
+          "requiresRole": "reviewer"
+        },
+        {
+          "id": "under-review--request-changes--collecting-details",
+          "target": "collecting-details",
+          "trigger": "request-changes",
+          "requiresRole": "reviewer"
         }
       ]
     },
     {
       "stateKey": "complete",
       "displayName": "We're in touch!",
+      "description": "Confirms the enquiry has been acknowledged and the applicant will be contacted.",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "applicant",
       "components": [
         {
           "type": "panel",
@@ -168,31 +221,9 @@
           "type": "body",
           "content": "A member of our team will be in touch shortly."
         }
-      ]
+      ],
+      "routes": []
     }
   ],
-  "transitions": [
-    {
-      "fromState": "collecting-details",
-      "toState": "under-review",
-      "action": "submit"
-    },
-    {
-      "fromState": "collecting-details",
-      "toState": "collecting-details",
-      "action": "save-draft"
-    },
-    {
-      "fromState": "under-review",
-      "toState": "complete",
-      "action": "approve",
-      "requiresRole": "reviewer"
-    },
-    {
-      "fromState": "under-review",
-      "toState": "collecting-details",
-      "action": "request-changes",
-      "requiresRole": "reviewer"
-    }
-  ]
+  "gateways": []
 }

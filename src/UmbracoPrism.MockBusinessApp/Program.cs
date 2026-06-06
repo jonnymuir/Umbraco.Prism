@@ -158,7 +158,7 @@ app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceWorkflowSourceStore
         : Results.Json(workflow, mockWorkflowJsonOptions);
 });
 
-app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceWorkflowSourceStore store, IWorkflowRuntimeEngine engine) =>
+app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceWorkflowSourceStore store, IWorkflowRuntimeEngine engine, IHostEnvironment env, ILogger<Program> logger) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -178,6 +178,25 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, Refer
 
     store.Save(key, workflow);
     engine.UpdateDefinition(key, workflow);
+
+    // Persist to disk so changes survive application restart.
+    try
+    {
+        var seedsDir = Path.Combine(env.ContentRootPath, "workflow-seeds");
+        Directory.CreateDirectory(seedsDir);
+        var seedPath = Path.Combine(seedsDir, $"{key}.json");
+        var diskOptions = new JsonSerializerOptions(mockWorkflowJsonOptions) { WriteIndented = true };
+        var json = JsonSerializer.Serialize(workflow, diskOptions);
+        var tempPath = seedPath + ".tmp";
+        await File.WriteAllTextAsync(tempPath, json, ctx.RequestAborted);
+        File.Move(tempPath, seedPath, overwrite: true);
+        logger.LogInformation("Workflow '{Key}' persisted to {Path}", key, seedPath);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Failed to persist workflow '{Key}' to disk; in-memory update succeeded.", key);
+    }
+
     return Results.NoContent();
 });
 

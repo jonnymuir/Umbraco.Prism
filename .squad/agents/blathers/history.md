@@ -1,4 +1,25 @@
-## 2026-06-06: Runtime definition sync fix
+## 2026-06-06: Disk persistence + 3-workflow format migration
+
+**Branch:** `fix/workflow-editor-save-and-layout` (continued)
+
+**Tasks completed:**
+
+### Part A — Disk persistence
+Added disk write to `PUT /mockapp/workflows/{key}` in `Program.cs`. After `store.Save()` and `engine.UpdateDefinition()`, the handler now serialises the workflow with `WriteIndented = true` to `{ContentRootPath}/workflow-seeds/{key}.json` using an atomic write (temp → `File.Move`). File-write failures log a warning and do not surface as HTTP errors.
+
+### Part B — Workflow migration (3 files)
+- `planning.json` → v3: 1 queue (`applicant`), 5 states with `queueKey`, `routes` on every state, `gateways: []`. Old-format `transitions`, `handoffs`, `actions` removed.
+- `community-enquiry.json` → v2: 2 queues (`applicant`, `reviewer`), 3 states, sequential handoff, no gateways.
+- `information-request.json` → v2: same pattern as community-enquiry.
+
+### Tests
+- Added `WorkflowDiskPersistenceTests` (3 cases): file-write verification, restart-recovery simulation, error-resilience.
+- Updated `MockBusinessAppPlanningWorkflowSeedTests.PlanningSeed_HasExpectedStructure` to check `Queues` instead of `Transitions`.
+- **All 806 core tests pass** (802 baseline + 4 new).
+
+---
+
+
 
 **Branch:** `fix/workflow-editor-save-and-layout`
 **Commit:** 4cd7f60

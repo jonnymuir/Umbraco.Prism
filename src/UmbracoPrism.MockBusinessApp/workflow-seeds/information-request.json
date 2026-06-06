@@ -1,16 +1,31 @@
 {
   "definitionKey": "information-request",
   "displayName": "Information Request",
-  "version": 1,
+  "version": 2,
+  "description": "Information request workflow for members of the public, reviewed by the back-office team.",
+  "schemaVersion": "1.0",
   "initialState": "collecting-info",
+  "queues": [
+    {
+      "key": "applicant",
+      "displayName": "Applicant",
+      "actor": "applicant",
+      "description": "Member of the public submitting and tracking their information request."
+    },
+    {
+      "key": "reviewer",
+      "displayName": "Review team",
+      "actor": "reviewer",
+      "description": "Back-office team reviewing and actioning information requests."
+    }
+  ],
   "states": [
     {
       "stateKey": "collecting-info",
       "displayName": "Tell us about yourself",
-      "allowedActions": [
-        "submit",
-        "save-draft"
-      ],
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "applicant",
       "components": [
         {
           "type": "fieldset",
@@ -27,7 +42,6 @@
               "type": "text",
               "fieldKey": "lastName",
               "label": "Last name",
-              "hint": null,
               "required": true
             },
             {
@@ -54,7 +68,6 @@
               "type": "select",
               "fieldKey": "requestType",
               "label": "What type of request is this?",
-              "hint": null,
               "required": true,
               "options": [
                 "General enquiry",
@@ -74,7 +87,6 @@
               "type": "radio",
               "fieldKey": "urgency",
               "label": "How urgent is this?",
-              "hint": null,
               "required": true,
               "options": [
                 "Standard (5-7 working days)",
@@ -84,25 +96,55 @@
             }
           ]
         }
+      ],
+      "routes": [
+        {
+          "id": "collecting-info--submit--under-review",
+          "target": "under-review",
+          "trigger": "submit"
+        },
+        {
+          "id": "collecting-info--save-draft--collecting-info",
+          "target": "collecting-info",
+          "trigger": "save-draft"
+        }
       ]
     },
     {
       "stateKey": "under-review",
-      "displayName": "Your request is being reviewed",
-      "allowedActions": [],
+      "displayName": "Review request",
+      "description": "Back-office reviewer reads the request and approves it or returns it for changes.",
+      "stageType": "Question",
+      "actor": "reviewer",
+      "queueKey": "reviewer",
       "components": [
         {
           "type": "body",
-          "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon \u2014 no further action is needed right now."
+          "content": "Review the submitted information request and choose to approve it or send it back for changes."
+        }
+      ],
+      "routes": [
+        {
+          "id": "under-review--approve--complete",
+          "target": "complete",
+          "trigger": "approve",
+          "requiresRole": "reviewer"
+        },
+        {
+          "id": "under-review--request-changes--collecting-info",
+          "target": "collecting-info",
+          "trigger": "request-changes",
+          "requiresRole": "reviewer"
         }
       ]
     },
     {
       "stateKey": "complete",
       "displayName": "Request Complete",
-      "allowedActions": [
-        "start-another"
-      ],
+      "description": "Confirms the request has been processed and the applicant will be contacted.",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "applicant",
       "components": [
         {
           "type": "panel",
@@ -121,31 +163,9 @@
           "type": "body",
           "content": "A member of our team will be in touch shortly."
         }
-      ]
+      ],
+      "routes": []
     }
   ],
-  "transitions": [
-    {
-      "fromState": "collecting-info",
-      "toState": "under-review",
-      "action": "submit"
-    },
-    {
-      "fromState": "collecting-info",
-      "toState": "collecting-info",
-      "action": "save-draft"
-    },
-    {
-      "fromState": "under-review",
-      "toState": "complete",
-      "action": "approve",
-      "requiresRole": "reviewer"
-    },
-    {
-      "fromState": "under-review",
-      "toState": "collecting-info",
-      "action": "request-changes",
-      "requiresRole": "reviewer"
-    }
-  ]
+  "gateways": []
 }
