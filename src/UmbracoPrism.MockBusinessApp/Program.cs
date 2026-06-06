@@ -137,6 +137,7 @@ var mockWorkflowJsonOptions = new JsonSerializerOptions
     PropertyNameCaseInsensitive = true,
     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false,
+    AllowOutOfOrderMetadataProperties = true,
 };
 
 app.MapGet("/mockapp/workflows", (ReferenceWorkflowSourceStore store) =>
@@ -167,27 +168,13 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, Refer
             title: "Invalid workflow key");
     }
 
-    WorkflowDefinitionFile? workflow;
-    try
+    var parseResult = await WorkflowSourceSaveRequestParser.ParseAsync(ctx, mockWorkflowJsonOptions, ctx.RequestAborted);
+    if (parseResult.Problem is not null)
     {
-        workflow = await JsonSerializer.DeserializeAsync<WorkflowDefinitionFile>(
-            ctx.Request.Body, mockWorkflowJsonOptions, ctx.RequestAborted);
-    }
-    catch (JsonException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid workflow JSON");
+        return WorkflowSourceSaveRequestParser.ToProblemResult(ctx, parseResult.Problem);
     }
 
-    if (workflow is null)
-    {
-        return Results.Problem(
-            detail: "Request body was empty.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid workflow JSON");
-    }
+    var workflow = parseResult.Workflow!;
 
     store.Save(key, workflow);
     return Results.NoContent();
