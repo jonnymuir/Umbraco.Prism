@@ -17,7 +17,7 @@
 
 ## Preferred Model
 
-`claude-sonnet-4.5` — Security correctness and code judgment are quality-critical
+`claude-sonnet-4.6` — Security correctness and code judgment are quality-critical
 
 ## Environment
 

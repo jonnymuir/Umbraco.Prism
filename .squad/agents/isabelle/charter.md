@@ -27,7 +27,7 @@
 
 ## Preferred Model
 
-`claude-sonnet-4.5` — Code quality matters for UI
+`claude-sonnet-4.6` — Code quality matters for UI
 
 ## Environment
 

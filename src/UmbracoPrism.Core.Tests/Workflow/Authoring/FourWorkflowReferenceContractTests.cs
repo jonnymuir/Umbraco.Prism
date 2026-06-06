@@ -4,7 +4,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -152,36 +154,20 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     [Fact]
-    public async Task SourceApi_SaveAcceptsPaymentWorkflowWithoutIntermediateConfirmationGateway()
+    public async Task SourceApi_SaveAcceptsClientShapedWorkflowPayload()
     {
-        var existing = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
-        existing.Should().NotBeNull();
+        var existingJson = await _client.GetStringAsync("/mockapp/workflows/payment-demo");
+        var payload = JsonNode.Parse(existingJson)!.AsObject();
+        var states = payload["states"]!.AsArray();
+        var stage = states
+            .Select(node => node!.AsObject())
+            .Single(node => node["stateKey"]!.GetValue<string>() == "confirm-payment-received");
 
-        var updated = existing! with
-        {
-            States = existing.States.Select(state => state.StateKey == "confirm-payment-received"
-                ? state with
-                {
-                    Routes =
-                    [
-                        new WorkflowRouteDefinition
-                        {
-                            Id = "confirm-payment-received--confirm--await-payment-confirmation",
-                            Target = "await-payment-confirmation",
-                            Trigger = "confirm",
-                            RequiresRole = "reviewer"
-                        }
-                    ]
-                }
-                : state).ToArray(),
-            Gateways = existing.Gateways!
-                .Where(gateway => gateway.Key != "confirm-payment-route")
-                .ToArray()
-        };
+        stage["displayName"] = "Confirm payment received (saved)";
 
         try
         {
-            using var content = new StringContent(JsonSerializer.Serialize(updated), Encoding.UTF8, "application/json");
+            using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
             var save = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
 
             save.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -189,17 +175,45 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
             var reloaded = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
             reloaded.Should().NotBeNull();
             reloaded!.States.Single(state => state.StateKey == "confirm-payment-received")
-                .Routes.Should().ContainSingle(route =>
-                    route.Target == "await-payment-confirmation"
-                    && route.Trigger == "confirm");
-            reloaded.Gateways.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
+                .DisplayName.Should().Be("Confirm payment received (saved)");
         }
         finally
         {
-            using var restore = new StringContent(JsonSerializer.Serialize(existing), Encoding.UTF8, "application/json");
+            using var restore = new StringContent(existingJson, Encoding.UTF8, "application/json");
             var restored = await _client.PutAsync("/mockapp/workflows/payment-demo", restore);
             restored.StatusCode.Should().Be(HttpStatusCode.NoContent);
         }
+    }
+
+    [Fact]
+    public async Task SourceApi_SaveReturnsStructuredProblemWhenAComponentTypeIsMissing()
+    {
+        var existingJson = await _client.GetStringAsync("/mockapp/workflows/payment-demo");
+        var payload = JsonNode.Parse(existingJson)!.AsObject();
+        var firstState = payload["states"]!.AsArray()[0]!.AsObject();
+        var firstComponent = firstState["components"]!.AsArray()[0]!.AsObject();
+        firstComponent.Remove("type");
+
+        using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        var response = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = problem.RootElement;
+
+        root.GetProperty("title").GetString().Should().Be("Invalid workflow payload");
+        root.GetProperty("status").GetInt32().Should().Be(StatusCodes.Status400BadRequest);
+        root.GetProperty("detail").GetString().Should().Be("Every workflow component must include a supported 'type' value before the workflow can be saved.");
+        root.GetProperty("errorCode").GetString().Should().Be("workflow-component-invalid");
+        root.GetProperty("traceId").GetString().Should().NotBeNullOrWhiteSpace();
+
+        var errors = root.GetProperty("errors");
+        errors.GetArrayLength().Should().BeGreaterThan(0);
+        errors[0].GetProperty("code").GetString().Should().Be("component-type-missing");
+        errors[0].GetProperty("path").GetString().Should().Be("$.states[0].components[0]");
+        errors[0].GetProperty("message").GetString().Should().Be("Workflow components must declare a supported 'type' value.");
     }
 
     /// <summary>

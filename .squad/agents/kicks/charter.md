@@ -19,7 +19,7 @@
 
 ## Preferred Model
 
-`claude-sonnet-4.5` — Writes TypeScript/native integration code; quality matters
+`claude-sonnet-4.6` — Writes TypeScript/native integration code; quality matters
 
 ## Environment
 

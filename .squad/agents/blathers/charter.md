@@ -18,7 +18,7 @@
 
 ## Preferred Model
 
-`claude-sonnet-4.5` — Code quality matters for backend
+`claude-sonnet-4.6` — Code quality matters for backend
 
 ## Environment
 

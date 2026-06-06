@@ -31,7 +31,7 @@ These are breaking changes from pre-v14. Brewster MUST apply them consistently:
 
 ## Preferred Model
 
-`claude-sonnet-4.5` — Needs platform knowledge and code accuracy
+`claude-sonnet-4.6` — Needs platform knowledge and code accuracy
 
 ## Environment
 

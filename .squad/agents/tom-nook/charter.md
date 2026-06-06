@@ -17,7 +17,7 @@
 
 ## Preferred Model
 
-`auto` — Code review uses full models, planning/triage uses cost-efficient models
+`claude-sonnet-4.6` — Code review and architecture; haiku is available for pure triage via task-aware selection
 
 ## Values
 
