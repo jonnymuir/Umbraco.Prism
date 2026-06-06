@@ -251,8 +251,13 @@ In backoffice:
 
 | Guide | Description |
 |---|---|
+| **Workflow Editor** | |
+| [Embedding the Workflow Editor](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/embedding-the-workflow-editor.md) | **Primary integrator recipe.** Build a business app on top of Prism. Implement `WorkflowSource`, wire the editor, extend the action catalog. |
+| [Gateway-First Authoring](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/gateway-first-authoring.md) | How the gateway-and-route model works. Every move from one stage to another happens through a gateway. Worked example: the Leave Request 5-gateway fan-in pattern. |
+| **Walkthroughs** | |
 | [Workflow Walkthrough — Payment Demo](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment workflow — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer workflows |
 | [Alternative Walkthrough — Planning Application Complete](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-workflow-complete.md) | Full end-to-end workflow covering editor authoring, public submission, member continuation, and back-stage review — demonstrates the complete workflow lifecycle |
+| **Setup & Configuration** | |
 | [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
 | [Biometric Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/biometric-setup.md) | Generate signing/encryption keys for mobile biometric auth |
