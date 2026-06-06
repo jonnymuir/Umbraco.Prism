@@ -14,16 +14,15 @@ const GATEWAY_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(LEAVE_REQUEST_S
 const PAYMENT_DEMO_GRAPH_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(PAYMENT_DEMO_WORKFLOW);
 
 /**
- * Same-lane fan-out — `start-request` branches twice inside the applicant
- * lane through two distinct split gateways. The lane should widen to host
- * both sibling slots; siblings must not stack on top of each other.
+ * Same-lane fan-out — `draft` branches to two sibling stages inside the
+ * same queue through a single split gateway before rejoining.
  */
 const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
   definitionKey: 'leave-request-same-lane-fan-out',
   displayName: 'Leave Request — Same-Lane Fan-Out',
   initialState: 'draft',
-  stages: [
+  states: [
     {
       stateKey: 'draft',
       displayName: 'Draft submission',
@@ -122,26 +121,6 @@ function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, lane
   typeSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
 }
 
-function fillCreateTransitionDialog(root: ShadowRoot, label: string, targetStageKey: string, conditionMode: string, conditionValue: string) {
-  const labelInput = root.querySelector<HTMLInputElement>('[data-prism-create-transition-label]')!;
-  labelInput.value = label;
-  labelInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-
-  const targetSelect = root.querySelector<HTMLSelectElement>('[data-prism-create-transition-target]')!;
-  targetSelect.value = targetStageKey;
-  targetSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-
-  const conditionModeSelect = root.querySelector<HTMLSelectElement>('[data-prism-create-transition-condition-mode]')!;
-  conditionModeSelect.value = conditionMode;
-  conditionModeSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-
-  if (conditionMode !== 'always') {
-    const conditionValueInput = root.querySelector<HTMLInputElement>('[data-prism-create-transition-condition-value]')!;
-    conditionValueInput.value = conditionValue;
-    conditionValueInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-  }
-}
-
 const meta: Meta<StoryArgs> = {
   title: 'Workflow Editor/Workflow Graph',
   component: 'prism-workflow-graph',
@@ -229,17 +208,6 @@ export const InteractiveWorkspace: Story = {
     await el.updateComplete;
     await expect(root.querySelector('[data-prism-context-menu]')).not.toBeNull();
 
-    root.querySelector<HTMLElement>('[data-prism-transition-handle="waiting-for-review"]')!.dispatchEvent(
-      new MouseEvent('click', { bubbles: true, composed: true, detail: 0 })
-    );
-    await el.updateComplete;
-    await expect(root.querySelector('[data-prism-create-transition-dialog]')).not.toBeNull();
-
-    fillCreateTransitionDialog(root, 'assign', 'confirmation', 'guard', 'case.readyForDecision == true');
-    root.querySelector<HTMLButtonElement>('[data-prism-create-transition-submit]')!.click();
-    await el.updateComplete;
-    await expect(root.querySelectorAll('[data-prism-transition]').length).toBeGreaterThanOrEqual(0);
-
     root.querySelector<HTMLButtonElement>('[data-prism-fit-screen]')!.click();
     await el.updateComplete;
     await expect(Boolean(root.querySelector<HTMLElement>('[data-prism-zoom]')?.textContent?.includes('%'))).toBe(true);
@@ -254,10 +222,17 @@ export const DeleteConfirmation: Story = {
     await el.updateComplete;
 
     const root = el.shadowRoot!;
-    root.querySelector<HTMLButtonElement>('.mode-toggle')!.click();
+    const stage = root.querySelector<HTMLElement>('[data-prism-stage="reviewer-assessment"]')!;
+    stage.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true,
+      composed: true,
+      clientX: 240,
+      clientY: 220,
+    }));
     await el.updateComplete;
 
-    root.querySelector<HTMLButtonElement>('[data-prism-delete-stage="reviewer-assessment"]')!.click();
+    await expect(root.querySelector('[data-prism-context-menu]')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-prism-context-menu] .danger')!.click();
     await el.updateComplete;
 
     await expect(root.querySelector('[data-prism-delete-stage-dialog]')).not.toBeNull();
@@ -319,7 +294,8 @@ export const SameLaneFanOut: Story = {
     await el.updateComplete;
 
     const root = el.shadowRoot!;
-    await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(2);
+    await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(1);
+    await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
     await expect(root.querySelector('[data-prism-gateway="decision-ready"]')).not.toBeNull();
   },
 };

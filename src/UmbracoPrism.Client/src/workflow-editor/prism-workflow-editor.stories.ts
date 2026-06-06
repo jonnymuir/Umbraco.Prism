@@ -36,7 +36,7 @@ function makeEmptyWorkflow(): AuthoredWorkflow {
     ...workflow,
     displayName: 'Empty Workflow',
     initialState: '',
-    stages: [],
+    states: [],
     gateways: [],
   };
 }
