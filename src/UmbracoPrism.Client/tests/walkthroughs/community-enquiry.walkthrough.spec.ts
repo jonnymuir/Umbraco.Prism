@@ -30,6 +30,11 @@ test.describe('Community enquiry walkthrough', () => {
       heading: 'Your details'
     }, 'community-enquiry');
 
+    // Fill out required form fields (name and email are pre-filled from user profile and readonly)
+    await page.getByLabel('Your role').selectOption('Developer');
+    await page.getByLabel('What can we help with?').check('General enquiry');
+    await page.getByLabel('Tell us more').fill('I have a question about the service.');
+
     await page.getByRole('button', { name: 'Submit' }).click();
     await step(page, '02-submitted.png', {
       url: /\/get-in-touch/,
