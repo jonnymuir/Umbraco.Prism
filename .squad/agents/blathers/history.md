@@ -1,3 +1,24 @@
+## 2026-06-06: Runtime definition sync fix
+
+**Branch:** `fix/workflow-editor-save-and-layout`
+**Commit:** 4cd7f60
+
+**Bug:** Edits made in the payment demo editor (e.g. changing `cardholderName` label) were not reflected in the runtime. User reported "Changes in the payment demo are not picked up in the runtime."
+
+**Root cause:** `PUT /mockapp/workflows/{key}` called `store.Save(key, workflow)` (updating `ReferenceWorkflowSourceStore`) but never called `engine.UpdateDefinition(key, workflow)`. The `BusinessAppWorkflowEngine` holds a separate `_definitions` dictionary populated at startup from seed files; it was never told about the save.
+
+**Fix:** Added `IWorkflowRuntimeEngine engine` to the PUT handler parameter list and called `engine.UpdateDefinition(key, workflow)` after `store.Save()`. The method already existed on `IWorkflowRuntimeEngine` and `WorkflowRuntimeEngine`.
+
+**Test added:** `WorkflowDefinitionUpdateTests` (4 cases):
+- `UpdateDefinition_ReturnsTrue_ForKnownKey`
+- `UpdateDefinition_ReturnsFalse_ForUnknownKey`
+- `UpdateDefinition_TextInputLabel_IsReflectedByGetDefinition` (the regression case — verifies `cardholderName` label change propagates to runtime)
+- `UpdateDefinition_DoesNotAffectOriginalSeedLabel_BeforeUpdate`
+
+**Validation:** `dotnet build` ✅, `dotnet test` 802 passed ✅
+
+---
+
 ## 2026-06-05: Queue-only model implementation completed
 
 - Tom Nook: Contract definition and implementation plan locked
