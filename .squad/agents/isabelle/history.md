@@ -1,3 +1,17 @@
+## 2026-06-06: Migrated Workflow Rendering Validation
+
+**Status:** ✅ Complete
+
+All three Blathers-migrated workflows (planning, community-enquiry, information-request) rendered correctly in the editor after migration to the new queues/gateways/routes format.
+
+**Fix:** Added `data-prism-lane=${layout.laneKey}` to stage `<button>` elements in `prism-workflow-graph.ts` — consistent with how gateway buttons already expose this attribute. Enables lane-membership assertions in Playwright without relying on DOM ancestry (stages are absolutely-positioned siblings of lane bands, not children).
+
+**Tests:** 15 new Playwright tests in `tests/workflow-editor/workflow-migrated-workflows.spec.ts`, all green. Full suite: 90 passed, no regressions.
+
+**Key insight:** Single-route Split gateways render as pills showing the trigger label as text; `displayName` is in `aria-label` only. Tests must check `aria-label` for gateway title assertions.
+
+---
+
 ## Learnings
 
 ### 2026-06-06: Save error dismiss + Y-axis layout fixes
@@ -110,4 +124,39 @@ Payment demo editor shows validation false-positives (Join gateway `flattenRoute
 - Y-axis fix resolves cross-lane rank inheritance bug (payment-complete now renders at correct height)
 
 All fixes validated by Tangy with new test coverage.
+
+---
+
+## 2026-06-06: Commit cfda4bd — Editor hydration for migrated workflow format
+
+**Commit:** cfda4bd
+
+**Task:** Validate and fix editor handling of the three Blathers-migrated workflows (planning, community-enquiry, information-request).
+
+**Fixes applied in `types.ts`:**
+- `normaliseStage`: accepts `key` as alias for `stateKey`, `title` for `displayName`, `type` for `kind`
+- `normaliseGateway`: accepts `title` for `displayName`, `type` for `gatewayType`/`kind`, `waitingInfo` for `waiting` block
+- `normaliseQueueDefinition`: accepts `title` for `displayName`
+
+All changes are additive. Existing field names retain priority.
+
+**Fixtures added (`fixtures/index.ts`):**
+- `COMMUNITY_ENQUIRY_WORKFLOW` — single-lane, Split gateway
+- `INFORMATION_REQUEST_WORKFLOW` — two-lane (applicant + caseworker), Split + Join gateways
+- `PLANNING_WORKFLOW_MIGRATED` — single-lane, 3 Split gateways
+
+**Stories added (`prism-workflow-graph.stories.ts`):**
+- `PlanningMigrated`, `CommunityEnquiry`, `InformationRequest`
+
+**Playwright tests added (`workflow-migrated-workflows.spec.ts`):**
+- 15 tests across 3 workflows; all pass
+- Covers: canvas loads, lane bands, gateway visibility, Y-axis spread, route edges, lane assignment via `data-prism-lane`
+
+**Status:** ✅ TypeScript build clean, 15/15 Playwright tests passing. 17 pre-existing test failures unaffected.
+
+### Key learnings
+
+- Single-route Split gateways render as pills (showing trigger label, not displayName). The displayName is surfaced via `aria-label` — test against `aria-label` not text content.
+- Stage nodes carry `data-prism-lane` (added by Blathers) but are NOT DOM children of `[data-prism-role-lane]` section elements — lane bands and stage nodes are siblings, absolutely positioned in the graph scene.
+- `waitingInfo` is the field name used in C# Fixtures format; `waiting` is the field name used in the in-memory authored format. Both must be checked in `normaliseGateway`.
 
