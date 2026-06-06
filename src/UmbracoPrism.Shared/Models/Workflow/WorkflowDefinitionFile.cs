@@ -9,6 +9,47 @@ namespace UmbracoPrism.Shared.Models.Workflow;
 /// </summary>
 public record WorkflowDefinitionFile
 {
+    /// <summary>
+    /// Validates that every state route targets a gateway, never another state directly.
+    /// Gateway routes may target either states or gateways.
+    /// Returns one error message per violation; empty list means the workflow is valid.
+    /// </summary>
+    public IReadOnlyList<string> ValidateGatewayRouting()
+    {
+        var gatewayKeys = (Gateways ?? [])
+            .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var stateKeys = States
+            .Where(s => !string.IsNullOrWhiteSpace(s.StateKey))
+            .Select(s => s.StateKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var errors = new List<string>();
+
+        foreach (var state in States)
+        {
+            foreach (var route in state.Routes ?? [])
+            {
+                if (string.IsNullOrWhiteSpace(route.Target))
+                {
+                    continue;
+                }
+
+                if (stateKeys.Contains(route.Target))
+                {
+                    errors.Add(
+                        $"State '{state.StateKey}' route '{route.Id}' targets state '{route.Target}' directly. " +
+                        "Routes from states must always target a gateway.");
+                }
+            }
+        }
+
+        return errors;
+    }
+
+
     private IReadOnlyList<WorkflowQueueDefinition>? _queues;
     private IReadOnlyList<WorkflowTransitionFile>? _transitions;
 

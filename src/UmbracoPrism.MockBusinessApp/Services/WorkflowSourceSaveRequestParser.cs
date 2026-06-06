@@ -89,14 +89,30 @@ internal static class WorkflowSourceSaveRequestParser
         try
         {
             var workflow = JsonSerializer.Deserialize<WorkflowDefinitionFile>(payload, serializerOptions);
-            return workflow is null
-                ? WorkflowSourceSaveParseResult.Fail(
+            if (workflow is null)
+            {
+                return WorkflowSourceSaveParseResult.Fail(
                     400,
                     InvalidWorkflowPayloadTitle,
                     "Request body was empty.",
                     "workflow-payload-empty",
-                    [new WorkflowSourceSaveError("request-body-empty", "Provide a workflow JSON document in the request body.", "$")])
-                : WorkflowSourceSaveParseResult.Success(workflow);
+                    [new WorkflowSourceSaveError("request-body-empty", "Provide a workflow JSON document in the request body.", "$")]);
+            }
+
+            var routingErrors = workflow.ValidateGatewayRouting();
+            if (routingErrors.Count > 0)
+            {
+                return WorkflowSourceSaveParseResult.Fail(
+                    400,
+                    InvalidWorkflowPayloadTitle,
+                    "State routes must always target a gateway, never another state directly.",
+                    "workflow-gateway-routing-invalid",
+                    routingErrors.Take(MaxIssues)
+                        .Select(msg => new WorkflowSourceSaveError("state-route-targets-state", msg, "$.states[*].routes[*].target"))
+                        .ToArray());
+            }
+
+            return WorkflowSourceSaveParseResult.Success(workflow);
         }
         catch (JsonException ex)
         {

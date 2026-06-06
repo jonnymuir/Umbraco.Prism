@@ -2347,6 +2347,7 @@ export class PrismWorkflowGraphElement extends LitElement {
                     aria-pressed=${String(this._selectedStageKey === layout.stage.stateKey)}
                     aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} queue`}
                     data-prism-stage="${layout.stage.stateKey}"
+                    data-prism-lane=${layout.laneKey}
                     data-prism-stage-simulation-path=${String(this._stageIsInSimulationPath(layout.stage.stateKey))}
                     data-prism-stage-simulation-current=${String(this.simulationCurrentStageKey === layout.stage.stateKey)}
                     @click=${() => this._selectStage(layout.stage.stateKey, { focusIndex: visualIndex })}

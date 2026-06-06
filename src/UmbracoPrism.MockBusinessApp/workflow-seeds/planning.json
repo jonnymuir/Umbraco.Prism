@@ -1,19 +1,11 @@
 {
   "definitionKey": "planning",
   "displayName": "Planning Application",
-  "version": 3,
+  "version": 2,
   "description": "Standard planning application workflow for submitting and tracking planning permission requests.",
   "schemaVersion": "1.0",
   "initialState": "declaration",
   "instancePolicy": "single",
-  "queues": [
-    {
-      "key": "applicant",
-      "displayName": "Applicant",
-      "actor": "applicant",
-      "description": "Web applicant completing and submitting the planning application."
-    }
-  ],
   "states": [
     {
       "stateKey": "declaration",
@@ -21,7 +13,18 @@
       "description": "Collects applicant and site identity before the full planning form.",
       "stageType": "Question",
       "actor": "applicant",
-      "queueKey": "applicant",
+      "queueKey": "web-user",
+      "actions": [
+        {
+          "type": "forms.load",
+          "timing": "OnEntry",
+          "parameterSchemaKey": "forms-form-definition",
+          "summary": "Load the declaration form.",
+          "params": {
+            "formDefinitionId": "planning-declaration"
+          }
+        }
+      ],
       "components": [
         {
           "type": "fieldset",
@@ -45,8 +48,8 @@
       ],
       "routes": [
         {
-          "id": "declaration--continue--application-form",
-          "target": "application-form",
+          "id": "declaration--continue--route-from-declaration",
+          "target": "route-from-declaration",
           "trigger": "continue"
         }
       ]
@@ -57,7 +60,18 @@
       "description": "Captures the substantive planning request.",
       "stageType": "Question",
       "actor": "applicant",
-      "queueKey": "applicant",
+      "queueKey": "web-user",
+      "actions": [
+        {
+          "type": "forms.save",
+          "timing": "OnExit",
+          "parameterSchemaKey": "forms-form-definition",
+          "summary": "Persist the application form before moving on.",
+          "params": {
+            "formDefinitionId": "planning-application"
+          }
+        }
+      ],
       "components": [
         {
           "type": "fieldset",
@@ -71,24 +85,24 @@
             },
             {
               "type": "select",
-              "fieldKey": "development-type",
-              "label": "Type of development",
-              "required": true,
               "options": [
                 "New build",
                 "Extension",
                 "Change of use",
                 "Demolition",
                 "Other"
-              ]
+              ],
+              "fieldKey": "development-type",
+              "label": "Type of development",
+              "required": true
             }
           ]
         }
       ],
       "routes": [
         {
-          "id": "application-form--continue--check-answers",
-          "target": "check-answers",
+          "id": "application-form--continue--route-from-application-form",
+          "target": "route-from-application-form",
           "trigger": "continue"
         }
       ]
@@ -99,7 +113,7 @@
       "description": "Summarises captured answers before final submission.",
       "stageType": "CheckAnswers",
       "actor": "applicant",
-      "queueKey": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "summary-list",
@@ -113,16 +127,16 @@
             },
             {
               "type": "select",
-              "fieldKey": "development-type",
-              "label": "Type of development",
-              "required": true,
               "options": [
                 "New build",
                 "Extension",
                 "Change of use",
                 "Demolition",
                 "Other"
-              ]
+              ],
+              "fieldKey": "development-type",
+              "label": "Type of development",
+              "required": true
             },
             {
               "type": "text",
@@ -149,13 +163,13 @@
       ],
       "routes": [
         {
-          "id": "check-answers--continue--id-verification",
-          "target": "id-verification",
+          "id": "check-answers--continue--route-from-check-answers",
+          "target": "route-from-check-answers",
           "trigger": "continue"
         },
         {
-          "id": "check-answers--submit--submitted",
-          "target": "submitted",
+          "id": "check-answers--submit--route-from-check-answers",
+          "target": "route-from-check-answers",
           "trigger": "submit"
         }
       ]
@@ -164,8 +178,7 @@
       "stateKey": "id-verification",
       "displayName": "Identity Verification",
       "stageType": "Question",
-      "actor": "applicant",
-      "queueKey": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "fieldset",
@@ -174,7 +187,6 @@
               "type": "text",
               "fieldKey": "id-document-uploaded",
               "label": "Identity document",
-              "hint": "Upload or provide a reference for your proof of identity.",
               "required": true
             }
           ]
@@ -182,8 +194,8 @@
       ],
       "routes": [
         {
-          "id": "id-verification--continue--submitted",
-          "target": "submitted",
+          "id": "id-verification--continue--route-from-id-verification",
+          "target": "route-from-id-verification",
           "trigger": "continue"
         }
       ]
@@ -194,21 +206,101 @@
       "description": "Confirms receipt and moves the case into reviewer handling.",
       "stageType": "Confirmation",
       "actor": "applicant",
-      "queueKey": "applicant",
+      "queueKey": "web-user",
       "components": [
         {
           "type": "panel",
           "heading": "Application submitted"
-        },
-        {
-          "type": "body",
-          "content": "Your planning application has been received. A caseworker will be in touch with next steps."
         }
       ],
       "routes": []
     }
   ],
-  "gateways": [],
+  "queues": [
+    {
+      "key": "web-user",
+      "displayName": "Applicant",
+      "description": "Web user completing the planning application.",
+      "actor": "applicant"
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-from-declaration",
+      "displayName": "Continue to Application Form",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-from-declaration--continue--application-form",
+          "target": "application-form",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-application-form",
+      "displayName": "Continue to Check Answers",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-from-application-form--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-check-answers",
+      "displayName": "Route from Check Answers",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-from-check-answers--continue--id-verification",
+          "target": "id-verification",
+          "trigger": "continue"
+        },
+        {
+          "id": "route-from-check-answers--submit--submitted",
+          "target": "submitted",
+          "trigger": "submit",
+          "conditions": [
+            {
+              "kind": "expression",
+              "expression": "application.isComplete == true",
+              "description": "Prevent submission until the applicant has completed the form."
+            }
+          ],
+          "actions": [
+            {
+              "type": "forms.submit",
+              "timing": "OnTransition",
+              "parameterSchemaKey": "forms-form-definition",
+              "summary": "Submit the application form to the business app.",
+              "params": {
+                "formDefinitionId": "planning-application"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "route-from-id-verification",
+      "displayName": "Continue to Submitted",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "route-from-id-verification--continue--submitted",
+          "target": "submitted",
+          "trigger": "continue"
+        }
+      ]
+    }
+  ],
   "tags": {
     "owner": "planning-team",
     "serviceArea": "Planning"

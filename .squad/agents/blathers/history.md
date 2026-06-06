@@ -1,4 +1,42 @@
-## 2026-06-06: Disk persistence + 3-workflow format migration
+## 2026-06-06: Gateway Routing Validation + Three Workflow Fixes
+
+**Branch:** current working branch
+
+### Part A — Gateway Routing Validation
+
+Added `ValidateGatewayRouting()` instance method to `WorkflowDefinitionFile` in `UmbracoPrism.Shared`. The method:
+- Collects all gateway keys from `Gateways`
+- Checks every state route target: if it matches a state key (not a gateway key), it's a violation
+- Returns one error string per violation; empty list = valid
+
+Wired into `WorkflowSourceSaveRequestParser.ParseAsync()` in MockBusinessApp: called after successful deserialization, returns HTTP 400 `application/problem+json` with `errorCode: "workflow-gateway-routing-invalid"` on violations.
+
+**Rule:** State routes must always target a gateway. Gateway routes may target states or other gateways (gateway→gateway is allowed, e.g. Split→Join in payment-demo).
+
+### Part B — Three Workflow Fixes
+
+Fixed direct state→state routes in three seed files by inserting Split gateways:
+
+- **planning.json**: 4 gateways added (`route-from-declaration`, `route-from-application-form`, `route-from-check-answers`, `route-from-id-verification`). Conditions and actions preserved on gateway routes.
+- **community-enquiry.json**: 3 gateways (`route-from-collecting-details`, `route-save-draft`, `route-from-under-review`). Save-draft loop now goes via `route-save-draft` gateway.
+- **information-request.json**: Same pattern as community-enquiry (3 gateways).
+- **payment-demo.json**: Already correct, unchanged.
+
+### Tests
+
+Added `WorkflowGatewayRoutingValidationTests.cs` (6 cases):
+- Valid: state → gateway → state
+- Invalid: state → state (one error per violation)
+- Valid: gateway → state
+- Valid: gateway → gateway (Split → Join)
+- Multiple violations returns one error per route
+- Workflow with no routes returns no errors
+
+**Result:** `dotnet build` ✅, `dotnet test` 809 passed ✅
+
+---
+
+
 
 **Branch:** `fix/workflow-editor-save-and-layout` (continued)
 
