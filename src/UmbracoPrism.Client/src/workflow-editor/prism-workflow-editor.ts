@@ -8,7 +8,7 @@ import {
   hydrateWorkflowDefinition,
 } from './types.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
-import type { WorkflowSource } from './workflow-source.js';
+import { WorkflowSaveError, normaliseWorkflowSaveError, type WorkflowSource } from './workflow-source.js';
 import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
 import { BuiltInWorkflowActionCatalog } from './workflow-action-catalog.js';
 import type { WorkflowAuthorContext } from './workflow-author-context.js';
@@ -135,6 +135,7 @@ function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): s
  *   data-prism-component="workflow-editor"
  *   data-prism-workflow-loaded="{key}" (reflected on the custom-element host once ready)
  *   data-prism-toast  (on the toast confirmation banner)
+ *   data-prism-save-error (on the persistent save error surface)
  */
 @customElement('prism-workflow-editor')
 export class PrismWorkflowEditorElement extends LitElement {
@@ -186,6 +187,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _clipboard: ClipboardEntry | null = null;
   @state() private _saveState: SaveState = 'idle';
   @state() private _saveMessage: string | null = null;
+  @state() private _saveError: WorkflowSaveError | null = null;
+  @state() private _saveErrorCopyStatus: string | null = null;
   @state() private _helpOpen = false;
   @state() private _stagePreviewState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private _stagePreviewError: string | null = null;
@@ -256,6 +259,11 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   updated(_changedProperties: Map<string, unknown>) {
     this._refreshDefinitionTextFromWorkflow();
+    if (_changedProperties.has('_saveError') && this._saveError) {
+      this.updateComplete.then(() => {
+        this.shadowRoot?.querySelector<HTMLElement>('[data-prism-save-error]')?.focus();
+      });
+    }
   }
 
   disconnectedCallback() {
@@ -316,6 +324,8 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._actionSelection = null;
     this._saveState = 'idle';
     this._saveMessage = null;
+    this._saveError = null;
+    this._saveErrorCopyStatus = null;
     this._projectedWorkflowPreview = null;
     this._stagePreviewState = 'idle';
     this._stagePreviewError = null;
@@ -1396,18 +1406,29 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     if (this._hasBlockingValidationIssues) {
       this._saveState = 'error';
-      this._saveMessage = 'Save blocked. Fix the blocking validation errors first.';
-      this._showToast(this._saveMessage);
+      this._saveError = new WorkflowSaveError({
+        title: 'Can’t save this workflow yet',
+        summary: 'Fix the blocking validation errors first.',
+        detailLines: ['Open Validation to review each blocking error before trying again.'],
+      });
+      this._saveMessage = this._saveError.summary;
+      this._saveErrorCopyStatus = null;
       return;
     }
 
     this._saveState = 'saving';
     this._saveMessage = null;
+    this._saveErrorCopyStatus = null;
 
     if (!this.workflowSource) {
       this._saveState = 'error';
-      this._saveMessage = 'Save unavailable — no workflow source is wired to the editor.';
-      this._showToast(this._saveMessage);
+      this._saveError = new WorkflowSaveError({
+        title: 'Save unavailable',
+        summary: 'No workflow source is wired to the editor.',
+        detailLines: ['Connect a workflow source before trying to save.'],
+      });
+      this._saveMessage = this._saveError.summary;
+      this._saveErrorCopyStatus = null;
       return;
     }
 
@@ -1416,12 +1437,39 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._savedWorkflowSnapshot = cloneWorkflow(this._workflow);
       this._saveState = 'saved';
       this._saveMessage = 'Workflow saved.';
+      this._saveError = null;
+      this._saveErrorCopyStatus = null;
       this._showToast(this._saveMessage);
     } catch (error) {
       this._saveState = 'error';
-      this._saveMessage = error instanceof Error ? error.message : 'Save failed.';
-      this._showToast(this._saveMessage);
+      this._saveError = normaliseWorkflowSaveError(
+        error,
+        'The editor couldn’t save your changes. Review the details below and try again.'
+      );
+      this._saveMessage = this._saveError.summary;
+      this._saveErrorCopyStatus = null;
     }
+  }
+
+  private async _copySaveErrorDetails() {
+    if (!this._saveError) {
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(this._saveError.copyText);
+        this._saveErrorCopyStatus = 'Save error details copied.';
+        return;
+      }
+    } catch {
+      // Fall through to manual copy support below.
+    }
+
+    const copyField = this.shadowRoot?.querySelector<HTMLTextAreaElement>('[data-prism-save-error-details]');
+    copyField?.focus();
+    copyField?.select();
+    this._saveErrorCopyStatus = 'Clipboard access is unavailable. Select and copy the details manually.';
   }
 
   private _startSimulation() {
@@ -1757,6 +1805,7 @@ export class PrismWorkflowEditorElement extends LitElement {
         ${this._renderToast()}
         ${this._loading ? html`<div class="loading-banner" role="status">Loading workflow…</div>` : nothing}
         ${this._error ? html`<div class="error-banner" role="alert">${this._error}</div>` : nothing}
+        ${this._renderSaveErrorSurface()}
 
         <!-- Tab-based navigation -->
         <prism-confidence-tabs
@@ -2010,6 +2059,72 @@ export class PrismWorkflowEditorElement extends LitElement {
     `;
   }
 
+  private _renderSaveErrorSurface() {
+    if (!this._saveError) {
+      return nothing;
+    }
+
+    return html`
+      <section
+        class="save-error-surface"
+        aria-labelledby="workflow-save-error-title"
+        tabindex="-1"
+        data-prism-save-error
+      >
+        <div class="save-error-header">
+          <p class="save-error-eyebrow">Save problem</p>
+          <h2 id="workflow-save-error-title" class="save-error-title">${this._saveError.title}</h2>
+          <p class="save-error-summary" role="alert">${this._saveError.summary}</p>
+        </div>
+
+        ${this._saveError.detailLines.length > 0
+          ? html`
+              <ul class="save-error-list">
+                ${this._saveError.detailLines.map(line => html`<li>${line}</li>`)}
+              </ul>
+            `
+          : nothing}
+
+        ${this._saveError.traceId
+          ? html`<p class="save-error-trace"><strong>Reference:</strong> ${this._saveError.traceId}</p>`
+          : nothing}
+
+        <label class="save-error-copy-label" for="workflow-save-error-details">Copyable save error details</label>
+        <textarea
+          id="workflow-save-error-details"
+          class="save-error-copy-field"
+          readonly
+          rows="6"
+          .value=${this._saveError.copyText}
+          data-prism-save-error-details
+        ></textarea>
+
+        <div class="save-error-actions">
+          <button
+            type="button"
+            class="toolbar-btn govuk-button govuk-button--secondary save-error-copy-button"
+            data-prism-copy-save-error
+            @click=${this._copySaveErrorDetails}
+          >
+            Copy details
+          </button>
+          <button
+            type="button"
+            class="toolbar-btn govuk-button govuk-button--secondary"
+            aria-label="Dismiss save error"
+            data-prism-dismiss-save-error
+            @click=${() => { this._saveError = null; this._saveErrorCopyStatus = null; }}
+          >
+            Dismiss
+          </button>
+          <p class="save-error-copy-status" role="status" aria-live="polite" data-prism-save-error-copy-status>
+            ${this._saveErrorCopyStatus ?? ''}
+          </p>
+        </div>
+      </section>
+    `;
+  }
+
   // ---------------------------------------------------------------------------
   // Styles
   // ---------------------------------------------------------------------------
@@ -2075,6 +2190,95 @@ export class PrismWorkflowEditorElement extends LitElement {
       border-radius: 4px;
       font-size: 1rem;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    .save-error-surface {
+      margin: 1rem;
+      padding: 1rem 1.25rem 1.25rem;
+      border: 4px solid #d4351c;
+      background: #ffffff;
+      display: grid;
+      gap: 0.875rem;
+      box-shadow: 0 1px 4px rgba(11, 12, 12, 0.08);
+    }
+
+    .save-error-surface:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 0;
+    }
+
+    .save-error-header,
+    .save-error-actions {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .save-error-eyebrow,
+    .save-error-summary,
+    .save-error-trace,
+    .save-error-copy-label,
+    .save-error-copy-status {
+      margin: 0;
+    }
+
+    .save-error-eyebrow {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #b10e1e;
+    }
+
+    .save-error-title {
+      margin: 0;
+      font-size: 1.1875rem;
+      font-weight: 700;
+      color: #0b0c0c;
+    }
+
+    .save-error-summary,
+    .save-error-trace,
+    .save-error-copy-label,
+    .save-error-copy-status {
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      color: #0b0c0c;
+    }
+
+    .save-error-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      display: grid;
+      gap: 0.375rem;
+    }
+
+    .save-error-copy-label {
+      font-weight: 700;
+    }
+
+    .save-error-copy-field {
+      width: 100%;
+      min-height: 8.5rem;
+      resize: vertical;
+      padding: 0.75rem;
+      border: 2px solid #0b0c0c;
+      border-radius: 4px;
+      font: inherit;
+      line-height: 1.5;
+      color: #0b0c0c;
+      background: #f8f8f8;
+      box-sizing: border-box;
+    }
+
+    .save-error-copy-field:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 0;
+    }
+
+    .save-error-actions {
+      align-items: start;
+    }
+
+    .save-error-copy-button {
+      justify-self: start;
     }
 
     /* ---- Tabs ---- */

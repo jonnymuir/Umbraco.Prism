@@ -469,16 +469,17 @@ export class PrismWorkflowGraphElement extends LitElement {
       addEdge(routedSourceId, targetStageId, index);
     });
 
-    // 3. Row-rank by Kahn topological sort. Stage parity = 0, gateway parity = 1;
-    //    parity adjustment guarantees stage → gateway → stage reading order
-    //    even when a stage with no incoming edges follows a gateway visually.
+    // 3. Row-rank via longest-path (Kahn's algorithm). Each node's rank is the
+    //    length of the longest path from any root to that node, guaranteeing
+    //    that if there is an edge A→B then rank(B) > rank(A) regardless of lane.
     const ranks = new Map<string, number>();
-    nodeIds.forEach(id => {
-      ranks.set(id, nodeKind.get(id) === 'gateway' ? 1 : 0);
-    });
+    nodeIds.forEach(id => ranks.set(id, 0));
+
+    // Work on a mutable copy of inDegree so adjacency walk is non-destructive.
+    const inDegreeCopy = new Map(inDegree);
 
     const queue = nodeIds
-      .filter(id => (inDegree.get(id) ?? 0) === 0)
+      .filter(id => (inDegreeCopy.get(id) ?? 0) === 0)
       .sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0));
 
     while (queue.length > 0) {
@@ -491,26 +492,16 @@ export class PrismWorkflowGraphElement extends LitElement {
       [...neighbours]
         .sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0))
         .forEach(nextId => {
-          const step = nodeKind.get(currentId) === nodeKind.get(nextId) ? 2 : 1;
-          ranks.set(nextId, Math.max(ranks.get(nextId) ?? 0, currentRank + step));
+          ranks.set(nextId, Math.max(ranks.get(nextId) ?? 0, currentRank + 1));
 
-          const nextInDegree = (inDegree.get(nextId) ?? 0) - 1;
-          inDegree.set(nextId, nextInDegree);
+          const nextInDegree = (inDegreeCopy.get(nextId) ?? 0) - 1;
+          inDegreeCopy.set(nextId, nextInDegree);
           if (nextInDegree === 0) {
             queue.push(nextId);
             queue.sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0));
           }
         });
     }
-
-    nodeIds.forEach(id => {
-      const expectedParity = nodeKind.get(id) === 'gateway' ? 1 : 0;
-      let nextRank = ranks.get(id) ?? expectedParity;
-      if (nextRank % 2 !== expectedParity) {
-        nextRank += 1;
-      }
-      ranks.set(id, nextRank);
-    });
 
     // 4. Bucket nodes by (lane, rowRank) so each band can size and centre
     //    its slot columns. Same-lane fan-out widens the lane horizontally;
