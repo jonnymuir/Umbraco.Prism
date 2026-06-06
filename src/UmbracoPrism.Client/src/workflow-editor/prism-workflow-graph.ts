@@ -442,10 +442,15 @@ export class PrismWorkflowGraphElement extends LitElement {
         }
         addEdge(anchorStageId, entry.id, entry.binding.relatedTransitionIndices);
       } else {
+        // Join gateways: record the mapping for reference but do NOT add an edge
+        // from the join back to its anchor. In the new routes model the anchor is
+        // an upstream stage, not the downstream merge target, so adding that edge
+        // would create a cycle and leave all downstream nodes at rank 0.
+        // The correct downstream edge (join → next stage) is built in the
+        // transitions loop from the gateway's own routes.
         if (!joinGatewayKeyByAnchorStage.has(anchorStageKey)) {
           joinGatewayKeyByAnchorStage.set(anchorStageKey, entry.gateway.key);
         }
-        addEdge(entry.id, anchorStageId, entry.binding.relatedTransitionIndices);
       }
     });
 
@@ -453,7 +458,12 @@ export class PrismWorkflowGraphElement extends LitElement {
       const sourceStageId = `stage:${transition.fromStage}`;
       const targetStageId = `stage:${transition.toStage}`;
       const sourceGatewayKey = transition.fromGateway ?? splitGatewayKeyByAnchorStage.get(transition.fromStage) ?? null;
-      const targetGatewayKey = transition.toGateway ?? joinGatewayKeyByAnchorStage.get(transition.toStage) ?? null;
+      // Do NOT fall back to joinGatewayKeyByAnchorStage here: in the new routes
+      // model the anchor is an upstream stage, so the lookup would incorrectly
+      // intercept direct routes to regular stages and add backward edges. All
+      // routes that genuinely target a join gateway already carry an explicit
+      // toGateway value set by flattenRoutes.
+      const targetGatewayKey = transition.toGateway ?? null;
       const sourceGatewayId = sourceGatewayKey ? `gateway:${sourceGatewayKey}` : null;
       const targetGatewayId = targetGatewayKey ? `gateway:${targetGatewayKey}` : null;
 
@@ -724,9 +734,12 @@ export class PrismWorkflowGraphElement extends LitElement {
       const sourceGateway = transition.fromGateway
         ? gatewayLayoutByKey.get(transition.fromGateway) ?? null
         : splitLayoutByAnchorStage.get(transition.fromStage) ?? null;
+      // Do NOT fall back to joinLayoutByAnchorStage: the anchor is an upstream
+      // stage, so the lookup would draw chip paths through the wrong gateway for
+      // routes that target ordinary stages upstream of a join.
       const targetGateway = transition.toGateway
         ? gatewayLayoutByKey.get(transition.toGateway) ?? null
-        : joinLayoutByAnchorStage.get(transition.toStage) ?? null;
+        : null;
 
       // Slice C: a route may target a gateway directly (e.g. a feeder split
       // pointing into a Join). When the toStage is itself a gateway key, the

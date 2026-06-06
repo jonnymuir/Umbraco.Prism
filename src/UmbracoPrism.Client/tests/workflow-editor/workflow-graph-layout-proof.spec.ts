@@ -248,7 +248,7 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
     ).not.toBe(siteVisitPoints[0]?.x);
   });
 
-  test.fixme('keeps cross-lane fan-out readable as stage, gateway, branch row, join, then next stage', async ({ page }) => {
+  test('keeps cross-lane fan-out readable as stage, gateway, branch row, join, then next stage', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await page.goto(storyUrl('workflow-editor-workflow-graph--gateway-representation'));
 
@@ -288,6 +288,51 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
       joinDecisionPoints[0]?.y,
       'the downstream trunk should start at or below the join attachment'
     ).toBeGreaterThan(join.top);
+  });
+
+  test('renders payment-demo split/join flow with correct top-to-bottom Y ordering', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(storyUrl('workflow-editor-workflow-graph--payment-demo-graph'));
+
+    const graphElement = page.locator('prism-workflow-graph');
+    await expect(graphElement).toBeVisible({ timeout: 10_000 });
+
+    const graph = await measureGraph(page);
+
+    const enterDetails = findNode(graph, 'enter-details');
+    const submitPayment = findNode(graph, 'submit-payment');
+    const confirmPayment = findNode(graph, 'confirm-payment-received');
+    const awaitConfirmation = findNode(graph, 'await-payment-confirmation');
+    const paymentComplete = findNode(graph, 'payment-complete');
+
+    // All five nodes must exist
+    expect(enterDetails).toBeDefined();
+    expect(submitPayment).toBeDefined();
+    expect(confirmPayment).toBeDefined();
+    expect(awaitConfirmation).toBeDefined();
+    expect(paymentComplete).toBeDefined();
+
+    // enter-details → submit-payment (split) → confirm-payment-received (branch)
+    // → await-payment-confirmation (join) → payment-complete
+    expect(
+      centreY(submitPayment),
+      'submit-payment split gateway must sit below enter-details'
+    ).toBeGreaterThan(enterDetails.bottom);
+    expect(
+      centreY(confirmPayment),
+      'confirm-payment-received branch stage must sit below the split gateway'
+    ).toBeGreaterThan(submitPayment.bottom);
+    expect(
+      centreY(awaitConfirmation),
+      'await-payment-confirmation join gateway must sit below the branch stage'
+    ).toBeGreaterThan(confirmPayment.bottom);
+    expect(
+      centreY(paymentComplete),
+      'payment-complete must sit below the join gateway'
+    ).toBeGreaterThan(awaitConfirmation.bottom);
+
+    // No overlaps allowed
+    assertNoNodeOverlaps(graph, 'payment-demo canvas');
   });
 
   test('keeps stages and gateways from overlapping across the canvas stories', async ({ page }) => {

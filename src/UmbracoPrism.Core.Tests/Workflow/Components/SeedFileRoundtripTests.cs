@@ -19,6 +19,19 @@ public class SeedFileRoundtripTests
     };
 
     /// <summary>
+    /// The editor's canonical-JSON serialiser alphabetically sorts all keys, placing the
+    /// polymorphic "type" discriminator AFTER sibling properties (e.g. after "label",
+    /// "fieldKey", "legend"). The save endpoint uses AllowOutOfOrderMetadataProperties
+    /// so the backend must tolerate this ordering.
+    /// </summary>
+    private static readonly JsonSerializerOptions EditorSaveOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        AllowOutOfOrderMetadataProperties = true,
+    };
+
+    /// <summary>
     /// Validates that all seed JSONs deserialize correctly into v2 WorkflowDefinitionFile
     /// and have structurally valid components (no orphaned v1 properties).
     /// </summary>
@@ -151,5 +164,103 @@ public class SeedFileRoundtripTests
                 }
             }
         }
+    }
+}
+
+public class EditorCanonicalJsonRoundtripTests
+{
+    private static readonly JsonSerializerOptions EditorSaveOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        AllowOutOfOrderMetadataProperties = true,
+    };
+
+    /// <summary>
+    /// Verifies that the editor's canonical serialisation format — where JSON object keys
+    /// are sorted alphabetically, placing "type" after all other properties — can be
+    /// round-tripped through the save endpoint's deserialiser without losing component
+    /// content. This is the root-cause regression guard for the payment-demo field-binding
+    /// bug: if AllowOutOfOrderMetadataProperties is ever removed or misconfigured, this
+    /// test will catch the failure before it reaches the runtime.
+    /// </summary>
+    [Fact]
+    public void EditorCanonicalJson_WithTypeDiscriminatorLast_RoundtripsComponentLabels()
+    {
+        // Arrange: editor-canonical JSON has all keys sorted alphabetically.
+        // "type" appears AFTER "fieldKey", "label", "legend", "required", etc.
+        const string canonicalJson = """
+            {
+              "definitionKey": "payment-demo",
+              "displayName": "Payment Demo",
+              "gateways": [],
+              "initialState": "enter-details",
+              "instancePolicy": "single",
+              "queues": [{ "displayName": "Applicant", "key": "web-user" }],
+              "states": [
+                {
+                  "actor": "applicant",
+                  "actions": [],
+                  "components": [
+                    {
+                      "children": [
+                        {
+                          "fieldKey": "cardholderName",
+                          "label": "Card Number",
+                          "required": true,
+                          "type": "text"
+                        },
+                        {
+                          "fieldKey": "amount",
+                          "label": "Amount (\u00a3)",
+                          "required": true,
+                          "type": "decimal"
+                        }
+                      ],
+                      "legend": "Enter Payment Details",
+                      "type": "fieldset"
+                    }
+                  ],
+                  "displayName": "Enter payment details",
+                  "queueKey": "web-user",
+                  "roleGates": [],
+                  "routes": [],
+                  "stageType": "Question",
+                  "stateKey": "enter-details"
+                }
+              ],
+              "version": 1
+            }
+            """;
+
+        // Act: deserialise using the same options as the save endpoint
+        WorkflowDefinitionFile? definition;
+        try
+        {
+            definition = JsonSerializer.Deserialize<WorkflowDefinitionFile>(canonicalJson, EditorSaveOptions);
+        }
+        catch (JsonException ex)
+        {
+            Assert.Fail($"Editor canonical JSON failed to deserialise: {ex.Message}");
+            return;
+        }
+
+        // Assert: components survive the round-trip with the updated label
+        definition.Should().NotBeNull();
+        var enterDetails = definition!.States.Should().ContainSingle(s => s.StateKey == "enter-details").Subject;
+        var fieldset = enterDetails.Components.Should().ContainSingle(c => c is FieldsetComponent).Subject as FieldsetComponent;
+        fieldset.Should().NotBeNull();
+
+        var cardholderField = fieldset!.Children
+            .OfType<InputComponent>()
+            .Should().ContainSingle(c => c.FieldKey == "cardholderName")
+            .Subject;
+
+        cardholderField.Label.Should().Be(
+            "Card Number",
+            "the editor-saved label change must survive C# deserialization when type discriminator appears last");
+
+        // Confirm concrete type (not abstract base)
+        cardholderField.Should().BeOfType<TextInputComponent>();
     }
 }

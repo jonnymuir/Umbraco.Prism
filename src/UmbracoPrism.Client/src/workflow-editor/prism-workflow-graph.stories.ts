@@ -4,13 +4,14 @@ import './prism-workflow-graph.js';
 import type { PrismWorkflowGraphElement } from './prism-workflow-graph.js';
 import { STUB_WORKFLOW } from './types.js';
 import type { AuthoredWorkflow } from './types.js';
-import { LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
+import { LEAVE_REQUEST_STARTER_WORKFLOW, PAYMENT_DEMO_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
 };
 
 const GATEWAY_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(LEAVE_REQUEST_STARTER_WORKFLOW);
+const PAYMENT_DEMO_GRAPH_WORKFLOW: AuthoredWorkflow = cloneAuthoredWorkflow(PAYMENT_DEMO_WORKFLOW);
 
 /**
  * Same-lane fan-out — `start-request` branches twice inside the applicant
@@ -287,6 +288,26 @@ export const GatewayRepresentation: Story = {
     await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(2);
     await expect(root.querySelector('[data-prism-gateway-kind="Split"]')).not.toBeNull();
     await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
+  },
+};
+
+export const PaymentDemoGraph: Story = {
+  name: 'Payment demo — cross-queue split/join',
+  args: { workflow: PAYMENT_DEMO_GRAPH_WORKFLOW },
+  render: (args) => {
+    const el = makeElement(args);
+    el.style.cssText = 'display:block;height:960px;';
+    return el;
+  },
+  play: async ({ canvasElement }) => {
+    await new Promise(resolve => setTimeout(resolve, 140));
+    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+    await el.updateComplete;
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(2);
+    await expect(root.querySelector('[data-prism-gateway="submit-payment"]')).not.toBeNull();
+    await expect(root.querySelector('[data-prism-gateway="await-payment-confirmation"]')).not.toBeNull();
   },
 };
 
