@@ -61,6 +61,11 @@ test.describe('Community enquiry walkthrough', () => {
   test('single-instance flow keeps the completed state when the member returns', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
+    // Fill out required form fields so submission actually succeeds
+    await page.getByRole('combobox', { name: 'Your role' }).selectOption('Developer');
+    await page.getByLabel('General enquiry').check();
+    await page.getByRole('textbox', { name: 'Tell us more' }).fill('Testing single instance flow persistence.');
+
     await page.getByRole('button', { name: 'Submit' }).click();
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
 
@@ -75,6 +80,10 @@ test.describe('Community enquiry walkthrough', () => {
   test('workflow hub lists the completed community enquiry for the signed-in member', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
+    await page.getByRole('combobox', { name: 'Your role' }).selectOption('Developer');
+    await page.getByLabel('General enquiry').check();
+    await page.getByRole('textbox', { name: 'Tell us more' }).fill('Testing single instance flow persistence.');
+    
     await page.getByRole('button', { name: 'Submit' }).click();
 
     await page.goto('/my-workflows');
