@@ -13,7 +13,8 @@ public static class ReferenceWorkflowRepository
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        AllowOutOfOrderMetadataProperties = true
     };
 
     private static readonly string[] ReferenceWorkflowKeys =
@@ -45,9 +46,18 @@ public static class ReferenceWorkflowRepository
             throw new FileNotFoundException($"Reference workflow seed '{workflowKey}' was not found.", filePath);
         }
 
-        var definition = JsonSerializer.Deserialize<WorkflowDefinitionFile>(
+        WorkflowDefinitionFile? definition;
+
+        try
+        {
+            definition = JsonSerializer.Deserialize<WorkflowDefinitionFile>(
             File.ReadAllText(filePath),
             JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Reference workflow seed '{workflowKey}' could not be deserialized.", ex);
+        }
 
         if (definition is null)
         {

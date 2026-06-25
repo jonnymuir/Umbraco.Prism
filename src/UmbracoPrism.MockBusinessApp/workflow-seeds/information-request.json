@@ -2,229 +2,221 @@
   "definitionKey": "information-request",
   "displayName": "Information Request",
   "version": 1,
-  "schemaVersion": "1.0",
   "initialState": "collecting-info",
   "instancePolicy": "single",
+  "schemaVersion": "1.0",
+  "queues": [
+    {
+      "actor": "applicant",
+      "description": "Web user submitting and tracking an information request.",
+      "displayName": "Requestor",
+      "key": "web-user",
+      "queueName": "web-user",
+      "roleGates": [],
+      "tags": {}
+    },
+    {
+      "actor": "reviewer",
+      "description": "Back-office team reviewing and responding to requests.",
+      "displayName": "Review team",
+      "key": "business-user",
+      "queueName": "business-user",
+      "roleGates": [],
+      "tags": {}
+    }
+  ],
   "states": [
     {
-      "stateKey": "collecting-info",
-      "displayName": "Tell us about yourself",
-      "stageType": "Question",
+      "actions": [],
       "actor": "applicant",
-      "queueKey": "web-user",
       "components": [
         {
-          "type": "fieldset",
           "children": [
             {
-              "type": "text",
               "fieldKey": "firstName",
-              "label": "First name",
               "hint": "As it appears on your ID",
-              "required": true
+              "label": "First name",
+              "required": true,
+              "type": "text"
             },
             {
-              "type": "text",
               "fieldKey": "lastName",
               "label": "Last name",
-              "required": true
+              "required": true,
+              "type": "text"
             },
             {
-              "type": "date",
               "fieldKey": "dateOfBirth",
-              "label": "Date of birth",
               "hint": "For example, 12 03 1985",
-              "required": true
+              "label": "Date of birth",
+              "required": true,
+              "type": "date"
             },
             {
-              "type": "email",
               "fieldKey": "email",
+              "hint": "We'll only use this to contact you about your request",
               "label": "Email address",
-              "hint": "We\u0027ll only use this to contact you about your request",
-              "required": true
+              "required": true,
+              "type": "email"
             }
           ],
-          "legend": "Your details"
+          "legend": "Your details",
+          "type": "fieldset"
         },
         {
-          "type": "fieldset",
           "children": [
             {
-              "type": "select",
+              "fieldKey": "requestType",
+              "label": "What type of request is this?",
               "options": [
                 "General enquiry",
                 "Data subject access request",
                 "Complaint",
                 "Technical support"
               ],
-              "fieldKey": "requestType",
-              "label": "What type of request is this?",
-              "required": true
+              "required": true,
+              "type": "select"
             },
             {
-              "type": "textarea",
               "fieldKey": "description",
-              "label": "Tell us more about your request",
               "hint": "Include as much detail as possible. Maximum 1000 characters.",
-              "required": true
+              "label": "Tell us more about your request",
+              "required": true,
+              "type": "textarea"
             },
             {
-              "type": "radio",
+              "fieldKey": "urgency",
+              "label": "How urgent is this?",
               "options": [
                 "Standard (5-7 working days)",
                 "Urgent (2 working days)",
                 "Critical (same day)"
               ],
-              "fieldKey": "urgency",
-              "label": "How urgent is this?",
-              "required": true
+              "required": true,
+              "type": "radio"
             }
           ],
-          "legend": "Your request"
+          "legend": "Your request",
+          "type": "fieldset"
         }
       ],
+      "displayName": "Tell us about yourself",
+      "queueKey": "web-user",
+      "roleGates": [],
       "routes": [
         {
+          "actions": [],
           "id": "collecting-info--submit--route-from-collecting-info",
           "target": "route-from-collecting-info",
           "trigger": "submit"
-        },
-        {
-          "id": "collecting-info--save-draft--route-save-draft",
-          "target": "route-save-draft",
-          "trigger": "save-draft"
         }
-      ]
+      ],
+      "stageType": "Question",
+      "stateKey": "collecting-info"
     },
     {
-      "stateKey": "under-review",
-      "displayName": "Your request is being reviewed",
-      "stageType": "Question",
+      "actions": [],
       "actor": "reviewer",
+      "components": [
+        {
+          "content": "This is a review",
+          "type": "body"
+        }
+      ],
+      "displayName": "Under Review",
       "queueKey": "business-user",
       "roleGates": [
         "reviewer"
       ],
-      "components": [
-        {
-          "type": "body",
-          "content": "We\u0027ve received your submission and it\u0027s currently being reviewed. You\u0027ll hear from us soon \u2014 no further action is needed right now."
-        }
-      ],
       "routes": [
         {
-          "id": "under-review--approve--route-from-under-review",
-          "target": "route-from-under-review",
-          "trigger": "approve",
-          "requiresRole": "reviewer"
-        },
-        {
-          "id": "under-review--request-changes--route-from-under-review",
-          "target": "route-from-under-review",
-          "trigger": "request-changes",
-          "requiresRole": "reviewer"
-        }
-      ]
-    },
-    {
-      "stateKey": "complete",
-      "displayName": "Request Complete",
-      "stageType": "Confirmation",
-      "actor": "applicant",
-      "queueKey": "web-user",
-      "components": [
-        {
-          "type": "panel",
-          "heading": "Application complete"
-        },
-        {
-          "type": "heading",
-          "level": 2,
-          "content": "What happens next"
-        },
-        {
-          "type": "body",
-          "content": "We\u0027ve sent you a confirmation email."
-        },
-        {
-          "type": "body",
-          "content": "A member of our team will be in touch shortly."
+          "actions": [],
+          "id": "under-review--approve--await-review",
+          "requiresRole": "reviewer",
+          "target": "await-review",
+          "trigger": "approve"
         }
       ],
-      "routes": []
-    }
-  ],
-  "queues": [
-    {
-      "key": "web-user",
-      "displayName": "Requestor",
-      "description": "Web user submitting and tracking an information request.",
-      "actor": "applicant"
+      "stageType": "Question",
+      "stateKey": "under-review"
     },
     {
-      "key": "business-user",
-      "displayName": "Review team",
-      "description": "Back-office team reviewing and responding to requests.",
-      "actor": "reviewer"
+      "actions": [],
+      "actor": "applicant",
+      "components": [
+        {
+          "heading": "Application complete",
+          "type": "panel"
+        },
+        {
+          "content": "What happens next",
+          "level": 2,
+          "type": "heading"
+        },
+        {
+          "content": "We've sent you a confirmation email.",
+          "type": "body"
+        },
+        {
+          "content": "A member of our team will be in touch shortly.",
+          "type": "body"
+        }
+      ],
+      "displayName": "Request Complete",
+      "queueKey": "web-user",
+      "roleGates": [],
+      "routes": [],
+      "stageType": "Confirmation",
+      "stateKey": "complete"
     }
   ],
   "gateways": [
     {
-      "key": "route-from-collecting-info",
       "displayName": "Submit Request",
       "gatewayType": "Split",
+      "key": "route-from-collecting-info",
       "queueKey": "web-user",
+      "requiredIncomingQueues": [],
+      "roleGates": [],
       "routes": [
         {
+          "actions": [],
           "id": "route-from-collecting-info--submit--under-review",
           "target": "under-review",
+          "trigger": "submit"
+        },
+        {
+          "actions": [],
+          "id": "route-from-collecting-info--wait--await-review",
+          "target": "await-review",
           "trigger": "submit"
         }
       ]
     },
     {
-      "key": "route-save-draft",
-      "displayName": "Save Draft",
-      "gatewayType": "Split",
-      "queueKey": "web-user",
-      "routes": [
-        {
-          "id": "route-save-draft--save-draft--join-return-to-form",
-          "target": "join-return-to-form",
-          "trigger": "save-draft"
-        }
-      ]
-    },
-    {
-      "key": "route-from-under-review",
-      "displayName": "Route from Review",
-      "gatewayType": "Split",
-      "queueKey": "business-user",
-      "routes": [
-        {
-          "id": "route-from-under-review--approve--complete",
-          "target": "complete",
-          "trigger": "approve"
-        },
-        {
-          "id": "route-from-under-review--request-changes--join-return-to-form",
-          "target": "join-return-to-form",
-          "trigger": "request-changes"
-        }
-      ]
-    },
-    {
-      "key": "join-return-to-form",
-      "displayName": "Return to Form",
+      "displayName": "Your request is being reviewed",
       "gatewayType": "Join",
+      "key": "await-review",
       "queueKey": "web-user",
+      "requiredIncomingQueues": [
+        "web-user",
+        "business-user"
+      ],
+      "roleGates": [],
       "routes": [
         {
-          "id": "join-return-to-form--return--collecting-info",
-          "target": "collecting-info",
-          "trigger": "return"
+          "actions": [],
+          "id": "await-review--release--complete",
+          "target": "complete",
+          "trigger": "release"
         }
-      ]
+      ],
+      "waitingAllowDefer": true,
+      "waitingContent": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
+      "waitingDeferMessage": "You can leave this page and return later.",
+      "waitingExpectedSeconds": 60,
+      "waitingPollIntervalMs": 5000
     }
-  ]
+  ],
+  "parameterSchemas": []
 }
