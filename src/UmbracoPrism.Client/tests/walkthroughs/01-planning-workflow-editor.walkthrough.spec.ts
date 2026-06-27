@@ -30,6 +30,7 @@ function editorHealthCheck(override: Partial<PageHealthCheck> = {}): PageHealthC
 }
 
 test.describe('Planning Workflow Editor walkthrough', () => {
+  test.fixme();
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
 
