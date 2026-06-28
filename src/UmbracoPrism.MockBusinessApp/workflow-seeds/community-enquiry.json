@@ -135,8 +135,8 @@
       ],
       "routes": [
         {
-          "id": "collecting-details--submit--route-submit-enquiry",
-          "target": "route-submit-enquiry",
+          "id": "collecting-details--submit--submit-enquiry",
+          "target": "submit-enquiry",
           "trigger": "submit"
         }
       ]
@@ -150,7 +150,7 @@
       "components": [
         {
           "type": "panel",
-          "heading": "Enquiry received"
+          "heading": "Thank you"
         },
         {
           "type": "heading",
@@ -179,13 +179,13 @@
   ],
   "gateways": [
     {
-      "key": "route-submit-enquiry",
+      "key": "submit-enquiry",
       "displayName": "Submit Enquiry",
       "gatewayType": "Split",
       "queueKey": "web-user",
       "routes": [
         {
-          "id": "route-submit-enquiry--submit--submitted",
+          "id": "submit-enquiry--submit--submitted",
           "target": "submitted",
           "trigger": "submit"
         }
