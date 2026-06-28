@@ -122,13 +122,16 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
         }
     });
 
+var prismClient = builder.AddNpmApp("prism-client", "../UmbracoPrism.Client", "build");
+
 var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", keycloakProxyUrl)
     .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", businessAppUrl)
     .WithEnvironment(TestSiteRuntimeRootEnvironmentVariable, testSiteRuntimeRoot)
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
-    .WaitFor(businessApp);
+    .WaitFor(businessApp)
+    .WaitFor(prismClient);
 
 // In Codespaces, tell the TestSite its public URL so OIDC generates the correct redirect_uri.
 if (testSitePublicUrl != null)
