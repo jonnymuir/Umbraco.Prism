@@ -2,6 +2,20 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.10.1] — 2026-06-27
+
+### Changed
+
+- **Squad is no more:** Due to cost changes in github copilot (move to AI credits) our faithful squad became too expensive. I have manually deferred some of the workflow work - into fixme stuff while I explore how to bring the work in line with either claude code, or something else.
+---
+
+## [v1.10.0] — 2026-06-08
+
+### Changed
+
+- **Major Worfklow changes:** Workflow reworded to include gateways and queues. State can only move between states via a gateway. Note workflow is still pretty nascent at the moment. Expect many more changes over the next few month, it is still very experimental.
+---
+
 ## [v1.9.1] — 2026-05-08
 
 ### Changed

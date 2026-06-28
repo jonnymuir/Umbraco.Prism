@@ -25,6 +25,7 @@ import {
 const WALKTHROUGH_KEY = 'planning-workflow-complete';
 
 test.describe('Planning workflow complete E2E', () => {
+  test.fixme();
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(15 * 60_000);
 

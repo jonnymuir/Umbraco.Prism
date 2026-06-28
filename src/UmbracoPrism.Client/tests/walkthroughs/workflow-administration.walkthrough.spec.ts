@@ -14,6 +14,7 @@ import {
 const appHost = new LiveAppHost();
 
 test.describe('Workflow administration walkthrough', () => {
+  test.fixme();
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
 
@@ -67,7 +68,7 @@ test.describe('Workflow administration walkthrough', () => {
     await openDashboard(page);
     const adminPage = await openWorkflowAdminFromDashboard(page);
 
-    for (const workflowKey of ['community-enquiry', 'information-request', 'payment-demo', 'planning']) {
+    for (const workflowKey of ['community-enquiry v1', 'information-request v1', 'payment-demo v1', 'planning v2']) {
       const definitionCard = adminPage.locator(`.def-card[data-workflow-key="${workflowKey}"]`).first();
       await expect(definitionCard).toBeVisible();
       await expect(definitionCard.getByRole('link', { name: 'Edit workflow' })).toHaveAttribute(

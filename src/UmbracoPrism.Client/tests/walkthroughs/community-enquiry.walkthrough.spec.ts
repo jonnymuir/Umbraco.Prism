@@ -30,6 +30,15 @@ test.describe('Community enquiry walkthrough', () => {
       heading: 'Your details'
     }, 'community-enquiry');
 
+    // 1. Target the dropdown by its accessible name (ignoring the "(required)" suffix wrapper if needed)
+    await page.getByRole('combobox', { name: 'Your role' }).selectOption('Developer');
+
+    // 2. Check the specific radio button by its own literal label text
+    await page.getByLabel('General enquiry').check();
+
+    // 3. Fill the textarea by matching its exact label or accessible role name
+    await page.getByRole('textbox', { name: 'Tell us more' }).fill('I have a question about the service.');
+
     await page.getByRole('button', { name: 'Submit' }).click();
     await step(page, '02-submitted.png', {
       url: /\/get-in-touch/,
@@ -52,6 +61,11 @@ test.describe('Community enquiry walkthrough', () => {
   test('single-instance flow keeps the completed state when the member returns', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
+    // Fill out required form fields so submission actually succeeds
+    await page.getByRole('combobox', { name: 'Your role' }).selectOption('Developer');
+    await page.getByLabel('General enquiry').check();
+    await page.getByRole('textbox', { name: 'Tell us more' }).fill('Testing single instance flow persistence.');
+
     await page.getByRole('button', { name: 'Submit' }).click();
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
 
@@ -66,6 +80,10 @@ test.describe('Community enquiry walkthrough', () => {
   test('workflow hub lists the completed community enquiry for the signed-in member', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
+    await page.getByRole('combobox', { name: 'Your role' }).selectOption('Developer');
+    await page.getByLabel('General enquiry').check();
+    await page.getByRole('textbox', { name: 'Tell us more' }).fill('Testing single instance flow persistence.');
+    
     await page.getByRole('button', { name: 'Submit' }).click();
 
     await page.goto('/my-workflows');

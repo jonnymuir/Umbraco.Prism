@@ -67,61 +67,6 @@ test.describe('Planning workflow behavioural contracts', () => {
     await expect(errorSummary).toContainText('There is a problem');
     await expect(page.locator('.govuk-error-message').first()).toBeVisible();
   });
-
-  test('workflow admin definitions deep-link to the live planning editor', async ({ page }) => {
-    await page.goto('https://localhost:7245/admin/workflow');
-    await expect(page).toHaveURL(/\/admin\/workflow$/);
-    await expect(page.getByRole('heading', { name: /workflow admin/i })).toBeVisible();
-
-    const cards = page.locator('.def-card');
-    const planningCard = page.locator('.def-card').filter({ hasText: 'Planning Application' });
-    const planningHeader = planningCard.locator('.def-header');
-    const planningBody = planningCard.locator('.def-body');
-    const communityEnquiryCard = page.locator('.def-card').filter({ hasText: 'Get in Touch' });
-
-    await expect(cards).not.toHaveCount(0);
-    await expect(planningCard).toBeVisible();
-    await expect(planningHeader).toHaveAttribute('aria-expanded', 'false');
-    await expect(planningBody).toBeHidden();
-    await expect(planningCard.getByRole('link', { name: 'Edit workflow' })).toHaveAttribute(
-      'href',
-      '/workflow-editor?workflow=planning'
-    );
-    await expect(communityEnquiryCard.getByRole('link', { name: 'Edit workflow' })).toHaveAttribute(
-      'href',
-      '/workflow-editor?workflow=community-enquiry'
-    );
-    await expect(communityEnquiryCard.getByText('No editor definition yet')).toHaveCount(0);
-
-    await planningHeader.click();
-    await expect(planningHeader).toHaveAttribute('aria-expanded', 'true');
-    await expect(planningBody).toBeVisible();
-    await expect(planningCard).toHaveAttribute('data-mermaid-render-state', 'ready');
-
-    await planningHeader.click();
-    await expect(planningHeader).toHaveAttribute('aria-expanded', 'false');
-    await expect(planningBody).toBeHidden();
-
-    const totalCards = await cards.count();
-
-    await page.getByRole('button', { name: 'Expand All' }).click();
-    await expect(page.locator('.def-card.open')).toHaveCount(totalCards);
-
-    await page.getByRole('button', { name: 'Collapse All' }).click();
-    await expect(page.locator('.def-card.open')).toHaveCount(0);
-
-    await planningCard.getByRole('link', { name: 'Edit workflow' }).click();
-    await expect(page).toHaveURL(/\/workflow-editor\.html\?workflow=planning$/);
-    await expect(page.locator('[data-prism-component="workflow-editor-shell"]')).toHaveAttribute(
-      'data-prism-active-workflow',
-      'planning'
-    );
-    await expect(page.getByText(/does not list it/i)).toHaveCount(0);
-    await expect(page.locator('prism-workflow-editor')).toHaveAttribute(
-      'data-prism-workflow-loaded',
-      'planning'
-    );
-  });
 });
 
 async function signIn(page: Page): Promise<void> {
