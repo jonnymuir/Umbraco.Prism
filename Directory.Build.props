@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <UmbracoVersion>17.5.0</UmbracoVersion>
+  </PropertyGroup>
+</Project>

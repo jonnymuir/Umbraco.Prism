@@ -34,10 +34,10 @@
     <PackageReference Include="MimeKit" Version="4.16.0" />
     <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="Polly" Version="8.6.6" />
-    <PackageReference Include="Umbraco.Cms.Api.Management" Version="17.4.2" />
-    <PackageReference Include="Umbraco.Cms.Core" Version="17.4.2" />
-    <PackageReference Include="Umbraco.Cms.Web.Common" Version="17.4.2" />
-    <PackageReference Include="Umbraco.Cms.Web.Website" Version="17.4.2" />
+    <PackageReference Include="Umbraco.Cms.Api.Management" Version="$(UmbracoVersion)" />
+    <PackageReference Include="Umbraco.Cms.Core" Version="$(UmbracoVersion)" />
+    <PackageReference Include="Umbraco.Cms.Web.Common" Version="$(UmbracoVersion)" />
+    <PackageReference Include="Umbraco.Cms.Web.Website" Version="$(UmbracoVersion)" />
   </ItemGroup>
 
   <ItemGroup>
