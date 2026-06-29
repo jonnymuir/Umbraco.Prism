@@ -39,6 +39,3 @@ public record AuthoredQueue
     public IReadOnlyDictionary<string, string> Tags { get; init; } = new Dictionary<string, string>();
 }
 
-public record AuthoredLane : AuthoredQueue
-{
-}

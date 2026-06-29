@@ -13,7 +13,7 @@ namespace UmbracoPrism.Core.Tests.Workflow.Components;
 /// <summary>
 /// Behavioural contract tests for the split/join gateway engine.
 /// Verifies: split fan-out, join waiting, deterministic convergence regardless of arrival order,
-/// and that independent lane cursors do not overwrite each other.
+/// and that independent queue cursors do not overwrite each other.
 /// </summary>
 public class WorkflowJoinGatewayEngineTests
 {
@@ -25,7 +25,7 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void SplitGateway_AdvancingToSplit_CreatesOneCursorPerBranch()
     {
-        var (engine, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engine, _) = CreateEngine(BuildTwoQueueDefinition());
 
         var initial = engine.GetCurrent("gateway-test", Tenant, User, action: "start-new");
         initial.ResponseState.Should().Be("render");
@@ -46,7 +46,7 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void SplitGateway_IndependentCursors_DoNotOverwriteSiblingLanePosition()
     {
-        var (engine, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engine, _) = CreateEngine(BuildTwoQueueDefinition());
 
         var initial = engine.GetCurrent("gateway-test", Tenant, User, action: "start-new");
         var afterSubmit = engine.Advance(
@@ -71,7 +71,7 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void JoinGateway_WhenOnlyOneLaneArrives_RemainsWaiting()
     {
-        var (engine, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engine, _) = CreateEngine(BuildTwoQueueDefinition());
 
         // Create instance and fan out.
         var initial = engine.GetCurrent("gateway-test", Tenant, User, action: "start-new");
@@ -91,7 +91,7 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void JoinGateway_WaitingContent_ComesFromGatewayNotAFakeStage()
     {
-        var (engine, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engine, _) = CreateEngine(BuildTwoQueueDefinition());
 
         var initial = engine.GetCurrent("gateway-test", Tenant, User, action: "start-new");
         var afterSubmit = engine.Advance(initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
@@ -108,7 +108,7 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void JoinGateway_WhenAllRequiredLanesArrive_ReleasesToNextStage()
     {
-        var (engine, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engine, _) = CreateEngine(BuildTwoQueueDefinition());
 
         // Fan out.
         var initial = engine.GetCurrent("gateway-test", Tenant, User, action: "start-new");
@@ -133,8 +133,8 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void JoinGateway_ConvergesTheSameWayRegardlessOfLaneArrivalOrder()
     {
-        var (engineA, _) = CreateEngine(BuildTwoLaneDefinition());
-        var (engineB, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engineA, _) = CreateEngine(BuildTwoQueueDefinition());
+        var (engineB, _) = CreateEngine(BuildTwoQueueDefinition());
 
         // Engine A: finance first, then planning.
         var initA = engineA.GetCurrent("gateway-test", Tenant, User, action: "start-new");
@@ -164,7 +164,7 @@ public class WorkflowJoinGatewayEngineTests
     [Fact]
     public void JoinGateway_DoubleArrival_IsIdempotent()
     {
-        var (engine, _) = CreateEngine(BuildTwoLaneDefinition());
+        var (engine, _) = CreateEngine(BuildTwoQueueDefinition());
 
         var initial = engine.GetCurrent("gateway-test", Tenant, User, action: "start-new");
         var afterSubmit = engine.Advance(initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
@@ -195,13 +195,19 @@ public class WorkflowJoinGatewayEngineTests
         return (engine, definition);
     }
 
-    private static WorkflowDefinitionFile BuildTwoLaneDefinition() => new()
+    private static WorkflowDefinitionFile BuildTwoQueueDefinition() => new()
     {
         DefinitionKey = "gateway-test",
         DisplayName = "Gateway Test",
         Version = 1,
         InitialState = "submit",
         InstancePolicy = "single",
+        Queues =
+        [
+            new WorkflowQueueDefinition { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" },
+            new WorkflowQueueDefinition { Key = "finance", DisplayName = "Finance", Actor = "finance-officer" },
+            new WorkflowQueueDefinition { Key = "planning", DisplayName = "Planning", Actor = "planning-officer" }
+        ],
         States =
         [
             new StepDefinition
@@ -215,14 +221,14 @@ public class WorkflowJoinGatewayEngineTests
                 StateKey = "finance-review",
                 DisplayName = "Finance Review",
                 Components = [new FieldsetComponent()],
-                Metadata = new WorkflowStateMetadata { LaneKey = "finance" }
+                QueueKey = "finance"
             },
             new StepDefinition
             {
                 StateKey = "planning-review",
                 DisplayName = "Planning Review",
                 Components = [new FieldsetComponent()],
-                Metadata = new WorkflowStateMetadata { LaneKey = "planning" }
+                QueueKey = "planning"
             },
             new StepDefinition
             {
@@ -243,12 +249,6 @@ public class WorkflowJoinGatewayEngineTests
         Metadata = new WorkflowDefinitionMetadata
         {
             AuthoredWorkflowId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000085"),
-            Lanes =
-            [
-                new WorkflowLaneDefinition { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" },
-                new WorkflowLaneDefinition { Key = "finance", DisplayName = "Finance", Actor = "finance-officer" },
-                new WorkflowLaneDefinition { Key = "planning", DisplayName = "Planning", Actor = "planning-officer" }
-            ],
             Gateways =
             [
                 new WorkflowGatewayDefinition
@@ -256,18 +256,18 @@ public class WorkflowJoinGatewayEngineTests
                     Key = "split-review",
                     DisplayName = "Start parallel reviews",
                     GatewayType = "Split",
-                    LaneKey = "applicant"
+                    QueueKey = "applicant"
                 },
                 new WorkflowGatewayDefinition
                 {
                     Key = "join-reviews",
                     DisplayName = "All reviews done",
                     GatewayType = "Join",
-                    LaneKey = "applicant",
+                    QueueKey = "applicant",
                     WaitingContent = "Waiting for all reviews to complete.",
                     WaitingExpectedSeconds = 60,
                     WaitingPollIntervalMs = 5000,
-                    RequiredIncomingLanes = ["finance", "planning"]
+                    RequiredIncomingQueues = ["finance", "planning"]
                 }
             ]
         }

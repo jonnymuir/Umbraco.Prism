@@ -28,8 +28,8 @@ test.describe('Workflow canvas — lane fit invariant', () => {
       expect(geometry.nodes.length, 'at least one node must render').toBeGreaterThan(0);
 
       for (const node of geometry.nodes) {
-        // Prefer the explicit data-prism-lane attribute when present
-        // (gateways carry it because they are not DOM children of the lane
+        // Prefer the explicit data-prism-queue attribute when present
+        // (gateways carry it because they are not DOM children of the queue
         // column they belong to — see Slice 5 history note).
         const expectedLaneKey = node.laneAttr ?? node.laneByCentre;
         expect(expectedLaneKey, `node ${node.key} (${node.kind}) must be attributable to a lane`).not.toBeNull();

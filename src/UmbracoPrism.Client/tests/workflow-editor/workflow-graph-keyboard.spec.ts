@@ -42,7 +42,7 @@ test.describe('Workflow graph workspace', () => {
 
     await dialog.locator('[data-prism-create-stage-title]').fill('Site visit');
     await keyInput.fill('site-visit');
-    await dialog.locator('[data-prism-create-stage-lane]').fill('reviewer');
+    await dialog.locator('[data-prism-create-stage-queue]').fill('reviewer');
     await dialog.locator('[data-prism-create-stage-type]').selectOption('review');
     await dialog.getByRole('button', { name: 'Create stage' }).click();
 
@@ -71,7 +71,7 @@ test.describe('Workflow graph workspace', () => {
 
     await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
 
-    const lanes = page.locator('[data-prism-role-lane]');
+    const lanes = page.locator('[data-prism-role-queue]');
     await expect(lanes).not.toHaveCount(0);
 
     const firstLane = lanes.first();
@@ -90,7 +90,7 @@ test.describe('Workflow graph workspace', () => {
 
     await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
 
-    const firstLane = page.locator('[data-prism-role-lane]').first();
+    const firstLane = page.locator('[data-prism-role-queue]').first();
     await firstLane.focus();
 
     await page.keyboard.press('Tab');

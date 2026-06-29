@@ -90,7 +90,7 @@ export const EditableStage: Story = {
     title.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
 
-    const lane = root.querySelector<HTMLInputElement>('[data-prism-stage-lane]')!;
+    const lane = root.querySelector<HTMLInputElement>('[data-prism-stage-queue]')!;
     lane.value = 'member';
     lane.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
@@ -162,7 +162,7 @@ const GATEWAY_ROUTE_WORKFLOW = {
       key: 'review-split',
       displayName: 'Review split',
       gatewayType: 'Split',
-      laneKey: 'public',
+      queueKey: 'public',
       actor: 'public',
       source: 'submitted',
       roleGates: [],

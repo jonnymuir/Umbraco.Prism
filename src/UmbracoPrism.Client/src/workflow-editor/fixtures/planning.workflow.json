@@ -7,7 +7,7 @@
   "schemaVersion": "1.0",
   "initialStageKey": "declaration",
   "instancePolicy": "single",
-  "lanes": [
+  "queues": [
     {
       "key": "applicant",
       "title": "Applicant",
@@ -20,7 +20,7 @@
       "key": "route-application-form",
       "title": "Route to application form",
       "type": "Split",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "source": "declaration",
       "roleGates": [],
       "routes": [
@@ -36,7 +36,7 @@
       "key": "route-check-answers",
       "title": "Route to check answers",
       "type": "Split",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "source": "application-form",
       "roleGates": [],
       "routes": [
@@ -52,7 +52,7 @@
       "key": "route-submitted",
       "title": "Route to submitted",
       "type": "Split",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "source": "check-answers",
       "roleGates": [],
       "routes": [
@@ -87,7 +87,7 @@
       "description": "Collects applicant and site identity before the full planning form.",
       "type": "Question",
       "actor": "applicant",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [
         {
           "type": "forms.load",
@@ -131,7 +131,7 @@
       "description": "Captures the substantive planning request.",
       "type": "Question",
       "actor": "applicant",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [
         {
           "type": "forms.save",
@@ -180,7 +180,7 @@
       "description": "Summarises captured answers before final submission.",
       "type": "CheckAnswers",
       "actor": "applicant",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [],
       "roleGates": [],
       "editorComment": "Summary of all answers before final submission.",
@@ -192,7 +192,7 @@
       "description": "Confirms receipt and moves the case into reviewer handling.",
       "type": "Confirmation",
       "actor": "applicant",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [],
       "roleGates": [],
       "components": []

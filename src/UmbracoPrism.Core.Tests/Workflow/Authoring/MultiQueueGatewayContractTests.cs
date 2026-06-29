@@ -5,7 +5,7 @@ using UmbracoPrism.WorkflowEditor.Authoring;
 
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
-public class MultiLaneGatewayContractTests
+public class MultiQueueGatewayContractTests
 {
     private readonly WorkflowProjector _projector = new();
 

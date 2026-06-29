@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { AuthoredGateway, RouteView, AuthoredWorkflow } from './types.js';
 import { deriveGatewayBindings } from './workflow-gateway-representation.js';
 import { flattenRoutes } from './workflow-routes.js';
-import { stageLaneKey, stageLaneLabel, type WorkflowQueueDefinition } from './workflow-stage-assignment.js';
+import { stageQueueKey, stageQueueLabel, type WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 /**
  * @internal Composition detail of <prism-workflow-editor>; not part of the public API surface.
@@ -83,23 +83,23 @@ export class PrismWorkflowOutline extends LitElement {
       .map(binding => binding.gateway);
   }
 
-  private _laneGroups() {
+  private _queueGroups() {
     if (!this.workflow) {
       return [];
     }
 
     const groups = new Map<string, { key: string; label: string; stages: AuthoredWorkflow['states'] }>();
     for (const stage of this.workflow.states) {
-      const laneKey = stageLaneKey(stage) || stage.actor || 'public';
-      const existing = groups.get(laneKey);
+      const queueKey = stageQueueKey(stage) || stage.actor || 'public';
+      const existing = groups.get(queueKey);
       if (existing) {
         existing.stages.push(stage);
         continue;
       }
 
-      groups.set(laneKey, {
-        key: laneKey,
-        label: stageLaneLabel(this.workflow, laneKey, this.availableQueues),
+      groups.set(queueKey, {
+        key: queueKey,
+        label: stageQueueLabel(this.workflow, queueKey, this.availableQueues),
         stages: [stage],
       });
     }
@@ -117,7 +117,7 @@ export class PrismWorkflowOutline extends LitElement {
     }
 
     const stages = this.workflow.states || [];
-    const laneGroups = this._laneGroups();
+    const laneGroups = this._queueGroups();
 
     if (stages.length === 0) {
       return html`
@@ -144,7 +144,7 @@ export class PrismWorkflowOutline extends LitElement {
 
         <div class="outline-lane-groups">
           ${laneGroups.map(group => html`
-            <section class="outline-lane-section" data-prism-outline-lane=${group.key}>
+            <section class="outline-lane-section" data-prism-outline-queue=${group.key}>
               <div class="outline-lane-header">
                 <h3 class="outline-lane-title">${group.label}</h3>
                 <p class="outline-lane-meta">Read top to bottom</p>

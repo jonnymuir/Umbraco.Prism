@@ -60,23 +60,4 @@ public record AuthoredWorkflow
     [JsonPropertyName("authorNote")]
     public string? AuthorNote { get; init; }
 
-    [JsonIgnore]
-    public IReadOnlyList<AuthoredQueue> Lanes
-    {
-        get => _queues;
-        init => _queues = value;
-    }
-
-    [JsonPropertyName("lanes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<AuthoredLane>? LegacyLanes
-    {
-        init
-        {
-            if (_queues.Count == 0 && value is not null)
-            {
-                _queues = value.ToArray();
-            }
-        }
-    }
 }

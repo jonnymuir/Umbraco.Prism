@@ -57,7 +57,7 @@ function buildWorkflow(seed: WorkflowSeed): AuthoredWorkflow {
       key: `route-from-${stage.stateKey}`,
       displayName: `Route from ${stage.displayName}`,
       gatewayType: 'Split' as const,
-      laneKey: stage.metadata?.laneKey ?? 'public',
+      queueKey: stage.metadata?.queueKey ?? 'public',
       actor: stage.metadata?.actor,
       roleGates: [],
     })) },

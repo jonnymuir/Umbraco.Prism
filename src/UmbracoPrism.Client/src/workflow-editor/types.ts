@@ -1,8 +1,7 @@
 /**
  * Client-side workflow definition types aligned with Prism's queue-only
- * authored contract. The editor still exposes compatibility getters for older
- * lane/transition terminology, but canonical JSON now serialises top-level
- * queues plus routes owned by states and gateways.
+ * authored contract. Canonical JSON serialises top-level queues plus routes
+ * owned by states and gateways.
  */
 
 // ---------------------------------------------------------------------------
@@ -23,7 +22,6 @@ export interface AuthoredWorkflow {
   parameterSchemas?: AuthoredParameterSchema[];
   metadata?: WorkflowDefinitionMetadata;
   transitions?: AuthoredTransition[];
-  lanes?: WorkflowQueueDefinition[];
   stages?: AuthoredStage[];
   initialStageKey?: string;
   authorNote?: string;
@@ -33,7 +31,6 @@ export interface WorkflowDefinitionMetadata {
   authoredWorkflowId?: string;
   description?: string;
   schemaVersion?: string;
-  lanes?: WorkflowQueueDefinition[];
   gateways?: AuthoredGateway[];
   handoffs?: WorkflowHandoffDefinition[];
   tags?: Record<string, string>;
@@ -81,7 +78,6 @@ export interface WorkflowStateMetadata {
   description?: string;
   stageType?: StageKind;
   actor?: string;
-  laneKey?: string;
   queueKey?: string;
   queueName?: string;
   roleGates?: string[];
@@ -111,9 +107,7 @@ export interface AuthoredGateway {
   waitingAllowDefer?: boolean;
   waitingDeferMessage?: string;
   requiredIncomingQueues?: string[];
-  requiredIncomingLanes?: string[];
   gatewayKey?: string;
-  laneKey?: string;
   queueName?: string;
   source?: string;
   waiting?: WaitingMetadata;
@@ -257,17 +251,9 @@ export function workflowGateways(
 }
 
 export function workflowQueues(
-  workflow: Pick<AuthoredWorkflow, 'queues'> | Pick<AuthoredWorkflow, 'metadata'> | null | undefined
+  workflow: Pick<AuthoredWorkflow, 'queues'> | null | undefined
 ): WorkflowQueueDefinition[] {
-  return (workflow as AuthoredWorkflow | null | undefined)?.queues
-    ?? ((workflow as AuthoredWorkflow | null | undefined)?.metadata?.lanes as WorkflowQueueDefinition[] | undefined)
-    ?? [];
-}
-
-export function workflowLanes(
-  workflow: Pick<AuthoredWorkflow, 'queues'> | Pick<AuthoredWorkflow, 'metadata'> | null | undefined
-): WorkflowQueueDefinition[] {
-  return workflowQueues(workflow);
+  return (workflow as AuthoredWorkflow | null | undefined)?.queues ?? [];
 }
 
 export function stageActions(stage: Pick<AuthoredStage, 'actions' | 'metadata'>): AuthoredAction[] {
@@ -279,7 +265,7 @@ export function stageRoleGates(stage: Pick<AuthoredStage, 'roleGates' | 'metadat
 }
 
 export function stageLane(stage: Pick<AuthoredStage, 'queueKey' | 'metadata'>): string | undefined {
-  return stage.queueKey ?? stage.metadata?.queueKey ?? stage.metadata?.queueName ?? stage.metadata?.laneKey;
+  return stage.queueKey ?? stage.metadata?.queueKey ?? stage.metadata?.queueName;
 }
 
 export function stageActor(stage: Pick<AuthoredStage, 'actor' | 'metadata'>): string | undefined {
@@ -308,7 +294,7 @@ export function withStageMetadata(stage: AuthoredStage, metadata: WorkflowStateM
     description: metadata.description ?? stage.description,
     kind: metadata.stageType ?? stage.kind,
     actor: metadata.actor ?? stage.actor,
-    queueKey: metadata.queueKey ?? metadata.queueName ?? metadata.laneKey ?? stage.queueKey,
+    queueKey: metadata.queueKey ?? metadata.queueName ?? stage.queueKey,
     actions: metadata.actions ?? stage.actions,
     roleGates: metadata.roleGates ?? stage.roleGates,
     editorComment: metadata.editorComment ?? stage.editorComment,
@@ -319,10 +305,10 @@ export function withStageKind(stage: AuthoredStage, nextKind: StageKind): Author
   return hydrateStage({ ...stage, kind: nextKind });
 }
 
-export function withStageAssignment(stage: AuthoredStage, laneKey: string, actor?: string, roleGates: string[] = []): AuthoredStage {
+export function withStageAssignment(stage: AuthoredStage, queueKey: string, actor?: string, roleGates: string[] = []): AuthoredStage {
   return hydrateStage({
     ...stage,
-    queueKey: laneKey,
+    queueKey,
     actor,
     roleGates,
   });
@@ -377,11 +363,8 @@ export function hydrateWorkflowDefinition<T extends AuthoredWorkflow>(workflow: 
   const rawGateways = asArray<Record<string, unknown>>(root.gateways ?? metadata.gateways);
   const rawTransitions = asArray<Record<string, unknown>>(root.transitions);
   const rawQueues = dedupeByKey(
-    [
-      ...asArray<Record<string, unknown>>(root.queues),
-      ...asArray<Record<string, unknown>>(root.lanes),
-      ...asArray<Record<string, unknown>>(metadata.lanes),
-    ].map(normaliseQueueDefinition).filter((queue): queue is WorkflowQueueDefinition => Boolean(queue)),
+    asArray<Record<string, unknown>>(root.queues)
+      .map(normaliseQueueDefinition).filter((queue): queue is WorkflowQueueDefinition => Boolean(queue)),
     queue => queue.key
   );
   const queueLookup = buildQueueLookup(rawQueues, rawStates, rawGateways);
@@ -415,12 +398,10 @@ export function hydrateWorkflowDefinition<T extends AuthoredWorkflow>(workflow: 
   defineCompatGetter(normalisedWorkflow, 'stages', () => normalisedWorkflow.states);
   defineCompatGetter(normalisedWorkflow, 'initialStageKey', () => normalisedWorkflow.initialState);
   defineCompatGetter(normalisedWorkflow, 'authorNote', () => normalisedWorkflow.description);
-  defineCompatGetter(normalisedWorkflow, 'lanes', () => normalisedWorkflow.queues);
   defineCompatGetter(normalisedWorkflow, 'metadata', () => legacyMetadata);
   defineCompatGetter(legacyMetadata, 'description', () => normalisedWorkflow.description);
   defineCompatGetter(legacyMetadata, 'schemaVersion', () => normalisedWorkflow.schemaVersion);
   defineCompatGetter(legacyMetadata, 'gateways', () => normalisedWorkflow.gateways);
-  defineCompatGetter(legacyMetadata, 'lanes', () => normalisedWorkflow.queues);
   defineCompatGetter(normalisedWorkflow, 'transitions', () => buildLegacyTransitions(normalisedWorkflow));
 
   return normalisedWorkflow as T;
@@ -492,26 +473,20 @@ function buildQueueLookup(
     }
   });
 
-  const registerLegacyKey = (rawNode: Record<string, unknown>) => {
+  const registerQueueKey = (rawNode: Record<string, unknown>) => {
     const queueKey = firstString(
       rawNode.queueKey,
       rawNode.queueName,
       asRecord(rawNode.metadata).queueKey,
-      asRecord(rawNode.metadata).queueName,
-      rawNode.laneKey,
-      asRecord(rawNode.metadata).laneKey
+      asRecord(rawNode.metadata).queueName
     );
-    const legacyLaneKey = firstString(rawNode.laneKey, asRecord(rawNode.metadata).laneKey);
     if (queueKey) {
       lookup.set(queueKey, queueKey);
-      if (legacyLaneKey) {
-        lookup.set(legacyLaneKey, queueKey);
-      }
     }
   };
 
-  rawStates.forEach(registerLegacyKey);
-  rawGateways.forEach(registerLegacyKey);
+  rawStates.forEach(registerQueueKey);
+  rawGateways.forEach(registerQueueKey);
   return lookup;
 }
 
@@ -521,8 +496,6 @@ function resolveQueueKey(rawNode: Record<string, unknown>, queueLookup: Map<stri
     rawNode.queueName,
     asRecord(rawNode.metadata).queueKey,
     asRecord(rawNode.metadata).queueName,
-    rawNode.laneKey,
-    asRecord(rawNode.metadata).laneKey,
   ];
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim()) {
@@ -666,7 +639,7 @@ function normaliseGateway(
           ? asRecord(rawGateway.waitingInfo).allowDefer as boolean
           : undefined,
     waitingDeferMessage: firstString(rawGateway.waitingDeferMessage, asRecord(rawGateway.waiting).deferMessage, asRecord(rawGateway.waitingInfo).deferMessage),
-    requiredIncomingQueues: asStringArray(rawGateway.requiredIncomingQueues ?? rawGateway.requiredIncomingLanes)
+    requiredIncomingQueues: asStringArray(rawGateway.requiredIncomingQueues)
       .map(queueKey => queueLookup.get(queueKey) ?? queueKey),
   });
 }
@@ -688,7 +661,6 @@ function hydrateStage(stage: AuthoredStage): AuthoredStage {
     actor: hydrated.actor,
     queueKey: hydrated.queueKey,
     queueName: hydrated.queueKey,
-    laneKey: hydrated.queueKey,
     roleGates: hydrated.roleGates,
     actions: hydrated.actions,
     editorComment: hydrated.editorComment,
@@ -708,9 +680,7 @@ function hydrateGateway(gateway: AuthoredGateway): AuthoredGateway {
   } as AuthoredGateway;
 
   defineCompatGetter(hydrated, 'gatewayKey', () => hydrated.key);
-  defineCompatGetter(hydrated, 'laneKey', () => hydrated.queueKey);
   defineCompatGetter(hydrated, 'queueName', () => hydrated.queueKey);
-  defineCompatGetter(hydrated, 'requiredIncomingLanes', () => hydrated.requiredIncomingQueues);
   defineCompatGetter(hydrated, 'waiting', () => ({
     content: hydrated.waitingContent,
     expectedWaitSeconds: hydrated.waitingExpectedSeconds,
@@ -1401,7 +1371,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
       displayName: 'Route to check answers',
       gatewayType: 'Split',
       source: 'applicant-details',
-      laneKey: 'applicant',
+      queueKey: 'applicant',
       roleGates: [],
       routes: [
         {
@@ -1425,7 +1395,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
       displayName: 'Route to reviewer assessment',
       gatewayType: 'Split',
       source: 'check-answers',
-      laneKey: 'applicant',
+      queueKey: 'applicant',
       roleGates: [],
       routes: [
         {
@@ -1441,7 +1411,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
       displayName: 'Route from reviewer assessment',
       gatewayType: 'Split',
       source: 'reviewer-assessment',
-      laneKey: 'applicant',
+      queueKey: 'applicant',
       roleGates: [],
       routes: [
         {

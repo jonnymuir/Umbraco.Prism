@@ -111,7 +111,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       const laneAccessibility = await page.locator('prism-workflow-graph').evaluate(graphElement => {
         const g = graphElement as HTMLElement;
         const shadowRoot = g.shadowRoot;
-        const lanes = Array.from(shadowRoot?.querySelectorAll('[data-prism-role-lane]') ?? []);
+        const lanes = Array.from(shadowRoot?.querySelectorAll('[data-prism-role-queue]') ?? []);
         
         return {
           laneCount: lanes.length,
@@ -406,7 +406,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       const laneStructure = await page.locator('prism-workflow-graph').evaluate(graphElement => {
         const graph = graphElement as HTMLElement;
         const shadowRoot = graph.shadowRoot;
-        const lanes = Array.from(shadowRoot?.querySelectorAll('[data-prism-role-lane]') ?? []);
+        const lanes = Array.from(shadowRoot?.querySelectorAll('[data-prism-role-queue]') ?? []);
         
         return {
           laneCount: lanes.length,
@@ -437,7 +437,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       const laneStructureAfterScroll = await page.locator('prism-workflow-graph').evaluate(graphElement => {
         const graph = graphElement as HTMLElement;
         const shadowRoot = graph.shadowRoot;
-        const lanes = Array.from(shadowRoot?.querySelectorAll('[data-prism-role-lane]') ?? []);
+        const lanes = Array.from(shadowRoot?.querySelectorAll('[data-prism-role-queue]') ?? []);
         return lanes.length;
       });
 

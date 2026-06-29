@@ -14,7 +14,7 @@ public record WorkflowInstanceState
     public string UserId { get; init; } = "";
 
     /// <summary>
-    /// Primary cursor position. In single-lane workflows this is the only position.
+    /// Primary cursor position. In single-queue workflows this is the only position.
     /// In multi-cursor mode this reflects the first active stage cursor for backward-compatibility
     /// with API consumers that read only this field.
     /// </summary>
@@ -29,8 +29,8 @@ public record WorkflowInstanceState
     public Dictionary<string, object?> FieldValues { get; init; } = new();
 
     /// <summary>
-    /// Active cursors in a multi-lane workflow. Empty for single-lane instances.
-    /// Each cursor tracks its own lane and current node position independently.
+    /// Active cursors in a multi-queue workflow. Empty for single-queue instances.
+    /// Each cursor tracks its own queue and current node position independently.
     /// </summary>
     public IReadOnlyList<WorkflowCursor> Cursors { get; init; } = [];
 

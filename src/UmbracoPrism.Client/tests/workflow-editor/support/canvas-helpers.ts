@@ -148,9 +148,9 @@ export async function measureGraph(page: Page): Promise<GraphGeometry> {
     });
 
     const lanes = Array.from(
-      root.querySelectorAll<HTMLElement>('[data-prism-lane-container]'),
+      root.querySelectorAll<HTMLElement>('[data-prism-queue-container]'),
     ).map((lane) => ({
-      key: lane.getAttribute('data-prism-lane-container') ?? '',
+      key: lane.getAttribute('data-prism-queue-container') ?? '',
       ...rel(lane.getBoundingClientRect()),
     }));
 
@@ -175,7 +175,7 @@ export async function measureGraph(page: Page): Promise<GraphGeometry> {
       return {
         kind,
         key: shell.getAttribute(shellAttr) ?? '',
-        laneAttr: button?.getAttribute('data-prism-lane') ?? null,
+        laneAttr: button?.getAttribute('data-prism-queue') ?? null,
         laneByCentre: inferLane(r.left, r.right),
         label,
         scrollWidth: labelEl?.scrollWidth ?? 0,

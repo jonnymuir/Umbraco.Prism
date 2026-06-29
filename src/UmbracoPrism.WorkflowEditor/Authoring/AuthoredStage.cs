@@ -63,26 +63,6 @@ public record AuthoredStage
     [JsonPropertyName("editorComment")]
     public string? EditorComment { get; init; }
 
-    [JsonIgnore]
-    public string? LaneKey
-    {
-        get => _queueKey;
-        init => _queueKey = value;
-    }
-
-    [JsonPropertyName("laneKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LegacyLaneKey
-    {
-        init
-        {
-            if (string.IsNullOrWhiteSpace(_queueKey))
-            {
-                _queueKey = value;
-            }
-        }
-    }
-
     private void ApplyKindToken(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

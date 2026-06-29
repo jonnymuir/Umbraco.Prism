@@ -94,7 +94,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       displayName: 'Review decision routes',
       gatewayType: 'Split',
       source: 'review-decision',
-      laneKey: 'reviewer',
+      queueKey: 'reviewer',
       roleGates: [],
       routes: [
         { id: 'review-decision--approve--approved', target: 'approved', trigger: 'approve' },
@@ -112,7 +112,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       displayName: 'Declaration routes',
       gatewayType: 'Split',
       source: 'declaration',
-      laneKey: 'applicant',
+      queueKey: 'applicant',
       roleGates: [],
       routes: [
         { id: 'declaration--continue--application-form', target: 'application-form', trigger: 'continue' },
@@ -123,7 +123,7 @@ function makeSimulationBranchWorkflow(): AuthoredWorkflow {
       displayName: 'Application form routes',
       gatewayType: 'Split',
       source: 'application-form',
-      laneKey: 'applicant',
+      queueKey: 'applicant',
       roleGates: [],
       routes: [
         { id: 'application-form--submit--review-decision', target: 'review-decision', trigger: 'submit for review' },
@@ -186,7 +186,7 @@ export const PlanningWorkflow: Story = {
 
     const graph = root.querySelector('prism-workflow-graph');
     await expect(graph).not.toBeNull();
-    await expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-lane]').length ?? 0).toBeGreaterThan(0);
+    await expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-queue]').length ?? 0).toBeGreaterThan(0);
 
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();

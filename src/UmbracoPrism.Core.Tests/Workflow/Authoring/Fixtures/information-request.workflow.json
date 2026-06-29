@@ -6,7 +6,7 @@
   "schemaVersion": "1.0",
   "initialStageKey": "collecting-info",
   "instancePolicy": "single",
-  "lanes": [
+  "queues": [
     {
       "key": "applicant",
       "title": "Applicant",
@@ -25,7 +25,7 @@
       "key": "request-submitted",
       "title": "Request submitted",
       "type": "Split",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "source": "collecting-info",
       "roleGates": [],
       "routes": [
@@ -47,7 +47,7 @@
       "key": "caseworker-route",
       "title": "Route from caseworker review",
       "type": "Split",
-      "laneKey": "caseworker",
+      "queueKey": "caseworker",
       "source": "caseworker-review",
       "roleGates": [],
       "routes": [
@@ -63,7 +63,7 @@
       "key": "review-complete",
       "title": "Review complete",
       "type": "Join",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "roleGates": [],
       "waitingInfo": {
         "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
@@ -71,7 +71,7 @@
         "pollIntervalMs": 5000,
         "allowDefer": false
       },
-      "requiredIncomingLanes": [
+      "requiredIncomingQueues": [
         "applicant",
         "caseworker"
       ],
@@ -90,7 +90,7 @@
       "key": "collecting-info",
       "title": "Tell us about yourself",
       "type": "Question",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [],
       "roleGates": [],
       "components": [
@@ -165,7 +165,7 @@
       "title": "Caseworker review",
       "description": "Caseworker confirms the review outcome before the applicant sees the final status.",
       "type": "Question",
-      "laneKey": "caseworker",
+      "queueKey": "caseworker",
       "actions": [],
       "roleGates": [],
       "components": []
@@ -174,7 +174,7 @@
       "key": "complete",
       "title": "Request Complete",
       "type": "Confirmation",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [],
       "roleGates": [],
       "components": []

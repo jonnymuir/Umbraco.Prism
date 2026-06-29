@@ -69,7 +69,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       key: 'evidence-route',
       displayName: 'Evidence route',
       gatewayType: 'Split',
-      laneKey: 'public',
+      queueKey: 'public',
       actor: 'public',
       source: 'draft',
       roleGates: [],
@@ -82,7 +82,7 @@ const SAME_LANE_FAN_OUT_WORKFLOW: AuthoredWorkflow = {
       key: 'decision-ready',
       displayName: 'Decision ready',
       gatewayType: 'Join',
-      laneKey: 'public',
+      queueKey: 'public',
       actor: 'public',
       roleGates: [],
       routes: [
@@ -112,7 +112,7 @@ function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, lane
   keyInput.value = key;
   keyInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 
-  const laneInput = root.querySelector<HTMLInputElement>('[data-prism-create-stage-lane]')!;
+  const laneInput = root.querySelector<HTMLInputElement>('[data-prism-create-stage-queue]')!;
   laneInput.value = lane;
   laneInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 
@@ -382,7 +382,7 @@ function buildLargeWorkflow(): AuthoredWorkflow {
           key: `route-from-${prev}`,
           displayName: `Route from ${prev}`,
           gatewayType: 'Split',
-          laneKey: lane,
+          queueKey: lane,
           actor: lane,
           source: prev,
           roleGates: [],
@@ -441,7 +441,7 @@ export const PlanningMigrated: Story = {
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(4);
-    await expect(root.querySelectorAll('[data-prism-role-lane]').length).toBeGreaterThanOrEqual(1);
+    await expect(root.querySelectorAll('[data-prism-role-queue]').length).toBeGreaterThanOrEqual(1);
     await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(3);
   },
 };
@@ -456,7 +456,7 @@ export const CommunityEnquiry: Story = {
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(2);
-    await expect(root.querySelectorAll('[data-prism-role-lane]').length).toBeGreaterThanOrEqual(1);
+    await expect(root.querySelectorAll('[data-prism-role-queue]').length).toBeGreaterThanOrEqual(1);
     await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(1);
   },
 };
@@ -476,7 +476,7 @@ export const InformationRequest: Story = {
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(3);
-    await expect(root.querySelectorAll('[data-prism-role-lane]').length).toBeGreaterThanOrEqual(2);
+    await expect(root.querySelectorAll('[data-prism-role-queue]').length).toBeGreaterThanOrEqual(2);
     await expect(root.querySelector('[data-prism-gateway-kind="Split"]')).not.toBeNull();
     await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
   },

@@ -9,19 +9,19 @@ import type {
 } from './types.js';
 import { editorStageTypeToStageKind } from './types.js';
 import {
-  applyLaneToStage,
-  stageLaneDescription,
-  stageLaneKey,
-  stageLaneLabel,
+  applyQueueToStage,
+  stageQueueDescription,
+  stageQueueKey,
+  stageQueueLabel,
   stageSurface,
   type StageSurface,
   type WorkflowQueueDefinition,
-  workflowLaneOptions,
+  workflowQueueOptions,
 } from './workflow-stage-assignment.js';
 import { workflowGateways } from './types.js';
 import {
   deriveGatewayBindings,
-  gatewayLaneKey,
+  gatewayQueueKey,
   type GatewayBinding,
 } from './workflow-gateway-representation.js';
 import { deleteRoute, flattenRoutes } from './workflow-routes.js';
@@ -56,8 +56,8 @@ type StageLayout = {
   stage: AuthoredStage;
   stageIndex: number;
   surface: StageSurface;
-  laneKey: string;
-  laneLabel: string;
+  queueKey: string;
+  queueLabel: string;
   // Row band the stage sits in. Bands flow top-to-bottom; stages live on
   // even-rank bands and gateways on odd-rank bands so the canvas reads as
   // stage → gateway → stage without crossing wires.
@@ -72,8 +72,8 @@ type GatewayLayout = {
   gateway: AuthoredGateway;
   binding: GatewayBinding;
   surface: StageSurface;
-  laneKey: string;
-  laneLabel: string;
+  queueKey: string;
+  queueLabel: string;
   rowRank: number;
   x: number;
   y: number;
@@ -114,14 +114,14 @@ type VisualRouteLayout = {
 
 type WorkspaceLayout = {
   bounds: { width: number; height: number };
-  roleLanes: RoleLane[];
+  roleQueues: RoleQueue[];
   stageLayouts: StageLayout[];
   gatewayLayouts: GatewayLayout[];
   transitionLayouts: TransitionLayout[];
   visualRouteLayouts: VisualRouteLayout[];
 };
 
-type RoleLane = {
+type RoleQueue = {
   key: string;
   label: string;
   description: string;
@@ -138,7 +138,7 @@ type CreateStageDialogState = {
   referenceStageKey: string | null;
   title: string;
   stageKey: string;
-  laneKey: string;
+  queueKey: string;
   stageType: EditorStageType;
   keyTouched: boolean;
   error: string | null;
@@ -153,7 +153,7 @@ type CreateGatewayDialogState = {
   title: string;
   gatewayKey: string;
   kind: 'Split' | 'Join';
-  laneKey: string;
+  queueKey: string;
   keyTouched: boolean;
   error: string | null;
 };
@@ -347,14 +347,14 @@ export class PrismWorkflowGraphElement extends LitElement {
     //    right in the order the author introduced lanes.
     const stageEntries = stages.map((stage, stageIndex) => {
       const surface = this._surfaceForStage(stage);
-      const laneKey = this._roleKeyForStage(stage, surface);
+      const queueKey = this._roleKeyForStage(stage, surface);
       return {
         id: `stage:${stage.stateKey}`,
         stage,
         stageIndex,
         surface,
-        laneKey,
-        laneLabel: this._roleLabelForLane(laneKey),
+        queueKey,
+        queueLabel: this._roleLabelForQueue(queueKey),
       };
     });
     const gatewayEntries = gatewayBindings.map(binding => {
@@ -364,26 +364,26 @@ export class PrismWorkflowGraphElement extends LitElement {
         gateway: binding.gateway,
         binding,
         surface,
-        laneKey: binding.laneKey || this._laneKeyForGateway(binding.gateway),
-        laneLabel: this._roleLabelForLane(binding.laneKey || this._laneKeyForGateway(binding.gateway)),
+        queueKey: binding.queueKey || this._queueKeyForGateway(binding.gateway),
+        queueLabel: this._roleLabelForQueue(binding.queueKey || this._queueKeyForGateway(binding.gateway)),
       };
     });
 
-    const laneStateByKey = new Map<string, { surface: StageSurface; stageCount: number }>();
-    const laneOrder: string[] = [];
-    const ensureLane = (laneKey: string, surface: StageSurface, isStage: boolean) => {
-      const existing = laneStateByKey.get(laneKey);
+    const queueStateByKey = new Map<string, { surface: StageSurface; stageCount: number }>();
+    const queueOrder: string[] = [];
+    const ensureQueue = (queueKey: string, surface: StageSurface, isStage: boolean) => {
+      const existing = queueStateByKey.get(queueKey);
       if (existing) {
         if (isStage) {
           existing.stageCount += 1;
         }
         return;
       }
-      laneStateByKey.set(laneKey, { surface, stageCount: isStage ? 1 : 0 });
-      laneOrder.push(laneKey);
+      queueStateByKey.set(queueKey, { surface, stageCount: isStage ? 1 : 0 });
+      queueOrder.push(queueKey);
     };
-    stageEntries.forEach(entry => ensureLane(entry.laneKey, entry.surface, true));
-    gatewayEntries.forEach(entry => ensureLane(entry.laneKey, entry.surface, false));
+    stageEntries.forEach(entry => ensureQueue(entry.queueKey, entry.surface, true));
+    gatewayEntries.forEach(entry => ensureQueue(entry.queueKey, entry.surface, false));
 
     // 2. Adjacency graph spanning stages and gateways. Each gateway is wired
     //    to its anchor stage (split: stage→gateway, join: gateway→stage) so
@@ -568,30 +568,30 @@ export class PrismWorkflowGraphElement extends LitElement {
       | { id: string; kind: 'stage'; stageEntry: typeof stageEntries[number] }
       | { id: string; kind: 'gateway'; gatewayEntry: typeof gatewayEntries[number] };
 
-    const nodesByLaneRow = new Map<string, Map<number, LaneRowItem[]>>();
-    const pushLaneRowItem = (laneKey: string, rowRank: number, item: LaneRowItem) => {
-      let rows = nodesByLaneRow.get(laneKey);
+    const nodesByQueueRow = new Map<string, Map<number, LaneRowItem[]>>();
+    const pushQueueRowItem = (queueKey: string, rowRank: number, item: LaneRowItem) => {
+      let rows = nodesByQueueRow.get(queueKey);
       if (!rows) {
         rows = new Map<number, LaneRowItem[]>();
-        nodesByLaneRow.set(laneKey, rows);
+        nodesByQueueRow.set(queueKey, rows);
       }
       const rowItems = rows.get(rowRank) ?? [];
       rowItems.push(item);
       rows.set(rowRank, rowItems);
     };
     stageEntries.forEach(entry => {
-      pushLaneRowItem(entry.laneKey, ranks.get(entry.id) ?? 0, { id: entry.id, kind: 'stage', stageEntry: entry });
+      pushQueueRowItem(entry.queueKey, ranks.get(entry.id) ?? 0, { id: entry.id, kind: 'stage', stageEntry: entry });
     });
     gatewayEntries.forEach(entry => {
-      pushLaneRowItem(entry.laneKey, ranks.get(entry.id) ?? 1, { id: entry.id, kind: 'gateway', gatewayEntry: entry });
+      pushQueueRowItem(entry.queueKey, ranks.get(entry.id) ?? 1, { id: entry.id, kind: 'gateway', gatewayEntry: entry });
     });
 
-    // 5. Lane width = widest row band in that lane (LANE_INSET on either side
-    //    + slot content + SLOT_GAP between siblings). Lanes with only one slot
+    // 5. Queue width = widest row band in that queue (LANE_INSET on either side
+    //    + slot content + SLOT_GAP between siblings). Queues with only one slot
     //    keep the floor width.
-    const laneWidthByKey = new Map<string, number>();
-    laneOrder.forEach(laneKey => {
-      const rows = nodesByLaneRow.get(laneKey);
+    const queueWidthByKey = new Map<string, number>();
+    queueOrder.forEach(queueKey => {
+      const rows = nodesByQueueRow.get(queueKey);
       let widestRow = LANE_WIDTH;
       rows?.forEach(items => {
         const contentWidth = items.reduce((sum, item) => {
@@ -605,37 +605,37 @@ export class PrismWorkflowGraphElement extends LitElement {
           LANE_INSET * 2 + contentWidth + Math.max(items.length - 1, 0) * SLOT_GAP
         );
       });
-      laneWidthByKey.set(laneKey, widestRow);
+      queueWidthByKey.set(queueKey, widestRow);
     });
 
-    const roleLanes: RoleLane[] = [];
-    const laneByKey = new Map<string, RoleLane>();
+    const roleQueues: RoleQueue[] = [];
+    const queueByKey = new Map<string, RoleQueue>();
     let currentLaneX = SIDE_PADDING;
-    laneOrder.forEach((laneKey, columnIndex) => {
-      const laneState = laneStateByKey.get(laneKey)!;
-      const lane: RoleLane = {
-        key: laneKey,
-        label: this._roleLabelForLane(laneKey),
-        description: this._roleDescriptionForLane(laneKey),
-        surface: laneState.surface,
+    queueOrder.forEach((queueKey, columnIndex) => {
+      const queueState = queueStateByKey.get(queueKey)!;
+      const lane: RoleQueue = {
+        key: queueKey,
+        label: this._roleLabelForQueue(queueKey),
+        description: this._roleDescriptionForQueue(queueKey),
+        surface: queueState.surface,
         columnIndex,
         x: currentLaneX,
-        width: laneWidthByKey.get(laneKey) ?? LANE_WIDTH,
-        stageCount: laneState.stageCount,
+        width: queueWidthByKey.get(queueKey) ?? LANE_WIDTH,
+        stageCount: queueState.stageCount,
       };
-      laneByKey.set(laneKey, lane);
-      roleLanes.push(lane);
+      queueByKey.set(queueKey, lane);
+      roleQueues.push(lane);
       currentLaneX += lane.width + LANE_GAP;
     });
 
-    // 6. Place nodes inside their lane × row band. Slots within a band are
+    // 6. Place nodes inside their queue × row band. Slots within a band are
     //    centred and laid left-to-right by node introduction order.
     const stageLayouts: StageLayout[] = [];
     const gatewayLayouts: GatewayLayout[] = [];
 
-    laneOrder.forEach(laneKey => {
-      const lane = laneByKey.get(laneKey);
-      const rows = nodesByLaneRow.get(laneKey);
+    queueOrder.forEach(queueKey => {
+      const lane = queueByKey.get(queueKey);
+      const rows = nodesByQueueRow.get(queueKey);
       if (!lane || !rows) {
         return;
       }
@@ -665,8 +665,8 @@ export class PrismWorkflowGraphElement extends LitElement {
                 stage: item.stageEntry.stage,
                 stageIndex: item.stageEntry.stageIndex,
                 surface: item.stageEntry.surface,
-                laneKey,
-                laneLabel: item.stageEntry.laneLabel,
+                queueKey,
+                queueLabel: item.stageEntry.queueLabel,
                 rowRank,
                 x: cursorX,
                 y,
@@ -678,8 +678,8 @@ export class PrismWorkflowGraphElement extends LitElement {
                 gateway: item.gatewayEntry.gateway,
                 binding: item.gatewayEntry.binding,
                 surface: item.gatewayEntry.surface,
-                laneKey,
-                laneLabel: item.gatewayEntry.laneLabel,
+                queueKey,
+                queueLabel: item.gatewayEntry.queueLabel,
                 rowRank,
                 x: cursorX,
                 y,
@@ -899,7 +899,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       };
     });
 
-    const width = roleLanes.length === 0
+    const width = roleQueues.length === 0
       ? SIDE_PADDING * 2 + LANE_WIDTH
       : currentLaneX - LANE_GAP + SIDE_PADDING;
     const contentBottom = Math.max(
@@ -911,7 +911,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     return {
       bounds: { width, height },
-      roleLanes,
+      roleQueues,
       stageLayouts,
       gatewayLayouts,
       transitionLayouts: resolvedTransitionLayouts,
@@ -928,23 +928,23 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _roleKeyForStage(stage: AuthoredStage, surface = this._surfaceForStage(stage)) {
-    return stageLaneKey(stage) || (surface === 'back-stage' ? 'reviewer' : 'public');
+    return stageQueueKey(stage) || (surface === 'back-stage' ? 'reviewer' : 'public');
   }
 
-  private _laneKeyForGateway(gateway: AuthoredGateway) {
-    return gatewayLaneKey(gateway) || 'public';
+  private _queueKeyForGateway(gateway: AuthoredGateway) {
+    return gatewayQueueKey(gateway) || 'public';
   }
 
-  private _roleLabelForLane(laneKey: string) {
-    return stageLaneLabel(this.workflow, laneKey, this.availableQueues);
+  private _roleLabelForQueue(queueKey: string) {
+    return stageQueueLabel(this.workflow, queueKey, this.availableQueues);
   }
 
-  private _roleDescriptionForLane(laneKey: string) {
-    return stageLaneDescription(this.workflow, laneKey, this.availableQueues);
+  private _roleDescriptionForQueue(queueKey: string) {
+    return stageQueueDescription(this.workflow, queueKey, this.availableQueues);
   }
 
-  private _availableLaneKeys() {
-    return workflowLaneOptions(this.workflow, this.availableQueues);
+  private _availableQueueKeys() {
+    return workflowQueueOptions(this.workflow, this.availableQueues);
   }
 
   private _layoutCenter(layout: StageLayout | GatewayLayout) {
@@ -1216,7 +1216,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       })
     );
     this._emitSelectionChange({ kind: 'gateway', gatewayKey });
-    this._announce(`Gateway “${gateway.displayName}” selected. ${gateway.gatewayType} gateway in the ${this._roleLabelForLane(this._laneKeyForGateway(gateway))} queue.`);
+    this._announce(`Gateway “${gateway.displayName}” selected. ${gateway.gatewayType} gateway in the ${this._roleLabelForQueue(this._queueKeyForGateway(gateway))} queue.`);
 
     if (options?.openInspector) {
       this._requestInspector({ kind: 'gateway', gatewayKey });
@@ -1342,7 +1342,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     return this._makeUniqueStageKey(slug);
   }
 
-  private _defaultLaneForSurface(surface: StageSurface) {
+  private _defaultQueueForSurface(surface: StageSurface) {
     return surface === 'back-stage' ? 'reviewer' : 'public';
   }
 
@@ -1355,7 +1355,7 @@ export class PrismWorkflowGraphElement extends LitElement {
     const referenceStage = referenceStageKey
       ? this.workflow?.states.find(stage => stage.stateKey === referenceStageKey) ?? null
       : null;
-    const defaultLaneKey = referenceStage ? stageLaneKey(referenceStage) : this._defaultLaneForSurface(surfaceHint);
+    const defaultQueueKey = referenceStage ? stageQueueKey(referenceStage) : this._defaultQueueForSurface(surfaceHint);
     const baseTitle = 'New stage';
     this._dialogReturnTarget = returnTarget ?? this._contextReturnTarget ?? null;
     this._createStageDialog = {
@@ -1364,7 +1364,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       referenceStageKey,
       title: baseTitle,
       stageKey: this._slugifyStageKey(baseTitle, 'new-stage'),
-      laneKey: defaultLaneKey,
+      queueKey: defaultQueueKey,
       stageType: 'form',
       keyTouched: false,
       error: null,
@@ -1405,12 +1405,12 @@ export class PrismWorkflowGraphElement extends LitElement {
     };
   }
 
-  private _updateCreateStageLane(value: string) {
+  private _updateCreateStageQueue(value: string) {
     if (!this._createStageDialog) {
       return;
     }
 
-    const previewStage = applyLaneToStage({
+    const previewStage = applyQueueToStage({
       stateKey: '',
       displayName: '',
       metadata: { stageType: 'Question', actions: [], roleGates: [] },
@@ -1421,7 +1421,7 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     this._createStageDialog = {
       ...this._createStageDialog,
-      laneKey: value,
+      queueKey: value,
       surfaceHint: stageSurface(previewStage),
       error: null,
     };
@@ -1457,7 +1457,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
 
-    const newStage = applyLaneToStage({
+    const newStage = applyQueueToStage({
       stageKey,
       displayName: title,
             components: [],
@@ -1467,7 +1467,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         roleGates: [],
         editorComment: 'Created from the graph workspace.',
       },
-    } as unknown as AuthoredStage, dialog.laneKey);
+    } as unknown as AuthoredStage, dialog.queueKey);
 
     const stages = [...this.workflow.states];
     let insertIndex = stages.length;
@@ -1499,12 +1499,12 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
     this._dialogReturnTarget = returnTarget ?? null;
-    const defaultLane = workflowLaneOptions(this.workflow, this.availableQueues)[0] ?? 'public';
+    const defaultQueue = workflowQueueOptions(this.workflow, this.availableQueues)[0] ?? 'public';
     this._createGatewayDialog = {
       title: '',
       gatewayKey: '',
       kind: 'Split',
-      laneKey: defaultLane,
+      queueKey: defaultQueue,
       keyTouched: false,
       error: null,
     };
@@ -1551,8 +1551,8 @@ export class PrismWorkflowGraphElement extends LitElement {
       key,
       displayName: title,
       gatewayType: dialog.kind,
-      laneKey: dialog.laneKey,
-      actor: dialog.laneKey,
+      queueKey: dialog.queueKey,
+      actor: dialog.queueKey,
       roleGates: [],
     };
 
@@ -1993,15 +1993,15 @@ export class PrismWorkflowGraphElement extends LitElement {
               <span class="dialog-label">Queue</span>
               <input
                 class="dialog-control"
-                data-prism-create-stage-lane
-                .value=${dialog.laneKey}
-                list="create-stage-lane-options"
+                data-prism-create-stage-queue
+                .value=${dialog.queueKey}
+                list="create-stage-queue-options"
                 placeholder="planning"
-                @input=${(event: Event) => this._updateCreateStageLane((event.currentTarget as HTMLInputElement).value)}
+                @input=${(event: Event) => this._updateCreateStageQueue((event.currentTarget as HTMLInputElement).value)}
               />
-              <datalist id="create-stage-lane-options">
-                ${this._availableLaneKeys().map(option => html`
-                  <option value=${option}>${this._roleLabelForLane(option)}</option>
+              <datalist id="create-stage-queue-options">
+                ${this._availableQueueKeys().map(option => html`
+                  <option value=${option}>${this._roleLabelForQueue(option)}</option>
                 `)}
               </datalist>
             </label>
@@ -2161,20 +2161,20 @@ export class PrismWorkflowGraphElement extends LitElement {
               <span class="dialog-label">Queue</span>
               <input
                 class="dialog-control"
-                data-prism-create-gateway-lane
-                .value=${dialog.laneKey}
-                list="create-gateway-lane-options"
+                data-prism-create-gateway-queue
+                .value=${dialog.queueKey}
+                list="create-gateway-queue-options"
                 placeholder="applicant"
                 @input=${(event: Event) => {
-                  const laneKey = (event.currentTarget as HTMLInputElement).value;
+                  const queueKey = (event.currentTarget as HTMLInputElement).value;
                   this._createGatewayDialog = this._createGatewayDialog
-                    ? { ...this._createGatewayDialog, laneKey }
+                    ? { ...this._createGatewayDialog, queueKey }
                     : null;
                 }}
               />
-              <datalist id="create-gateway-lane-options">
-                ${this._availableLaneKeys().map(option => html`
-                  <option value=${option}>${this._roleLabelForLane(option)}</option>
+              <datalist id="create-gateway-queue-options">
+                ${this._availableQueueKeys().map(option => html`
+                  <option value=${option}>${this._roleLabelForQueue(option)}</option>
                 `)}
               </datalist>
             </label>
@@ -2189,7 +2189,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   }
 
   private _renderGraph() {
-    const { bounds, roleLanes, stageLayouts, gatewayLayouts, transitionLayouts, visualRouteLayouts } = this._layout;
+    const { bounds, roleQueues, stageLayouts, gatewayLayouts, transitionLayouts, visualRouteLayouts } = this._layout;
     const isEmpty = stageLayouts.length === 0 && gatewayLayouts.length === 0;
     const dragPath: string | null = null;
 
@@ -2267,9 +2267,9 @@ export class PrismWorkflowGraphElement extends LitElement {
               data-prism-component="workflow-graph"
               data-prism-mode="graph"
             >
-              ${roleLanes.map(lane => {
-                const headingId = `lane-heading-${lane.key}`;
-                const copyId = `lane-copy-${lane.key}`;
+              ${roleQueues.map(lane => {
+                const headingId = `queue-heading-${lane.key}`;
+                const copyId = `queue-copy-${lane.key}`;
                 return html`
                   <section
                     class=${`lane ${lane.surface === 'back-stage' ? 'lane-supporting' : 'lane-primary'}`}
@@ -2277,11 +2277,11 @@ export class PrismWorkflowGraphElement extends LitElement {
                     tabindex="0"
                     aria-labelledby=${headingId}
                     aria-describedby=${copyId}
-                    data-prism-role-lane=${lane.key}
-                    data-prism-lane-container=${lane.key}
+                    data-prism-role-queue=${lane.key}
+                    data-prism-queue-container=${lane.key}
                     @focus=${() => this._announce(`${lane.label} queue. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`)}
                   >
-                    <div class="lane-header" data-prism-lane-header=${lane.key}>
+                    <div class="lane-header" data-prism-queue-header=${lane.key}>
                       <div id=${headingId} class="lane-heading">${lane.label}</div>
                       <div class="lane-meta">${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}</div>
                     </div>
@@ -2359,12 +2359,12 @@ export class PrismWorkflowGraphElement extends LitElement {
                     class=${`gateway-node ${layout.surface} kind-${layout.gateway.gatewayType.toLowerCase()} ${shapeClass} ${this._selectedGatewayKey === layout.gateway.key ? 'selected' : ''}`}
                     aria-pressed=${String(this._selectedGatewayKey === layout.gateway.key)}
                     aria-label=${isPill
-                      ? `${layout.gateway.displayName}, single-route gateway via “${triggerLabel}”, ${layout.laneLabel} queue`
-                      : `${layout.gateway.displayName}, ${layout.gateway.gatewayType} gateway, ${layout.laneLabel} queue`}
+                      ? `${layout.gateway.displayName}, single-route gateway via “${triggerLabel}”, ${layout.queueLabel} queue`
+                      : `${layout.gateway.displayName}, ${layout.gateway.gatewayType} gateway, ${layout.queueLabel} queue`}
                     data-prism-gateway=${layout.gateway.key}
                     data-prism-gateway-kind=${layout.gateway.gatewayType}
                     data-prism-gateway-route-count=${String(routeCount)}
-                    data-prism-lane=${layout.laneKey}
+                    data-prism-queue=${layout.queueKey}
                     @click=${() => this._selectGateway(layout.gateway.key)}
                     @dblclick=${() => this._selectGateway(layout.gateway.key, { openInspector: true })}
                     @keydown=${(event: KeyboardEvent) => this._handleGraphNodeKeydown(event, { kind: 'gateway', gateway: layout.gateway })}
@@ -2393,9 +2393,9 @@ export class PrismWorkflowGraphElement extends LitElement {
                     type="button"
                     class=${`stage-node ${layout.surface} ${this._selectedStageKey === layout.stage.stateKey ? 'selected' : ''} ${this._stageIsInSimulationPath(layout.stage.stateKey) ? 'simulation-path' : ''} ${this.simulationCurrentStageKey === layout.stage.stateKey ? 'simulation-current' : ''}`}
                     aria-pressed=${String(this._selectedStageKey === layout.stage.stateKey)}
-                    aria-label=${`${layout.stage.displayName}, ${layout.laneLabel} queue`}
+                    aria-label=${`${layout.stage.displayName}, ${layout.queueLabel} queue`}
                     data-prism-stage="${layout.stage.stateKey}"
-                    data-prism-lane=${layout.laneKey}
+                    data-prism-queue=${layout.queueKey}
                     data-prism-stage-simulation-path=${String(this._stageIsInSimulationPath(layout.stage.stateKey))}
                     data-prism-stage-simulation-current=${String(this.simulationCurrentStageKey === layout.stage.stateKey)}
                     @click=${() => this._selectStage(layout.stage.stateKey, { focusIndex: visualIndex })}

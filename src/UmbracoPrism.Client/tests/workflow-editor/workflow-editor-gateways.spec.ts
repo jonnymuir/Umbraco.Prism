@@ -21,8 +21,8 @@ test.describe('Workflow editor gateway representation', () => {
 
     await expect(splitGateway).toBeVisible();
     await expect(joinGateway).toBeVisible();
-    await expect(splitGateway).toHaveAttribute('data-prism-lane', 'applicant');
-    await expect(joinGateway).toHaveAttribute('data-prism-lane', 'applicant');
+    await expect(splitGateway).toHaveAttribute('data-prism-queue', 'applicant');
+    await expect(joinGateway).toHaveAttribute('data-prism-queue', 'applicant');
     await expect(splitGateway).toContainText('Review split');
     await expect(joinGateway).toContainText('Decision join');
   });

@@ -25,7 +25,7 @@ async function slowProjectPreview(page: import('@playwright/test').Page, delayMs
 }
 
 async function openPreviewForDeclaration(page: import('@playwright/test').Page) {
-  await page.getByRole('button', { name: /Declaration, Applicant lane/i }).dblclick();
+  await page.getByRole('button', { name: /Declaration, Applicant queue/i }).dblclick();
   const previewTab = page.getByRole('tab', { name: 'Preview' });
   await expect(previewTab).toBeVisible();
   await previewTab.click();
@@ -67,7 +67,7 @@ test.describe('Workflow editor stage preview', () => {
     const titleInput = page.getByLabel('Title');
     await titleInput.fill('Declaration preview');
     await titleInput.press('Tab');
-    const laneInput = page.locator('[data-prism-stage-lane]');
+    const laneInput = page.locator('[data-prism-stage-queue]');
     await laneInput.fill('reviewer');
     await laneInput.press('Tab');
     await page.getByRole('tab', { name: 'Preview' }).click();

@@ -16,7 +16,7 @@ test.describe('Workflow graph behavioural rendering', () => {
       await (element as { updateComplete?: Promise<unknown> }).updateComplete;
     });
 
-    const lanes = storyEl.locator('[data-prism-role-lane]');
+    const lanes = storyEl.locator('[data-prism-role-queue]');
     await expect(lanes.first()).toBeVisible();
     expect(await lanes.count()).toBeGreaterThan(0);
 

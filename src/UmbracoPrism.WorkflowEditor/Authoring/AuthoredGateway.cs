@@ -50,37 +50,10 @@ public record AuthoredGateway
     }
 
     [JsonIgnore]
-    public string? LaneKey
-    {
-        get => _queueKey;
-        init => _queueKey = value;
-    }
-
-    [JsonIgnore]
     public string? Source
     {
         get => _source;
         init => _source = value;
-    }
-
-    [JsonIgnore]
-    public IReadOnlyList<string> RequiredIncomingLanes
-    {
-        get => _requiredIncomingQueues;
-        init => _requiredIncomingQueues = value;
-    }
-
-    [JsonPropertyName("laneKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LegacyLaneKey
-    {
-        init
-        {
-            if (string.IsNullOrWhiteSpace(_queueKey))
-            {
-                _queueKey = value;
-            }
-        }
     }
 
     [JsonPropertyName("source")]
@@ -90,16 +63,4 @@ public record AuthoredGateway
         init => _source = value;
     }
 
-    [JsonPropertyName("requiredIncomingLanes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<string>? LegacyRequiredIncomingLanes
-    {
-        init
-        {
-            if (_requiredIncomingQueues.Count == 0 && value is not null)
-            {
-                _requiredIncomingQueues = value;
-            }
-        }
-    }
 }

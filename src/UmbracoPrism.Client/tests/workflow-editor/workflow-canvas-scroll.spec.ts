@@ -73,7 +73,7 @@ test.describe('Workflow canvas — scroll behaviour', () => {
     const before = await graphLocator(page).evaluate((el) => {
       const root = (el as HTMLElement).shadowRoot!;
       const canvas = root.querySelector<HTMLElement>('.graph-canvas')!;
-      const header = root.querySelector<HTMLElement>('[data-prism-lane-header]');
+      const header = root.querySelector<HTMLElement>('[data-prism-queue-header]');
       return {
         scrollTop: canvas.scrollTop,
         scrollLeft: canvas.scrollLeft,
@@ -85,7 +85,7 @@ test.describe('Workflow canvas — scroll behaviour', () => {
       const root = (el as HTMLElement).shadowRoot!;
       const canvas = root.querySelector<HTMLElement>('.graph-canvas')!;
       canvas.scrollTo({ top: 200, left: 200, behavior: 'auto' });
-      const header = root.querySelector<HTMLElement>('[data-prism-lane-header]');
+      const header = root.querySelector<HTMLElement>('[data-prism-queue-header]');
       return {
         scrollTop: canvas.scrollTop,
         scrollLeft: canvas.scrollLeft,
@@ -108,7 +108,7 @@ test.describe('Workflow canvas — scroll behaviour', () => {
     const result = await graphLocator(page).evaluate((el) => {
       const root = (el as HTMLElement).shadowRoot!;
       const canvas = root.querySelector<HTMLElement>('.graph-canvas')!;
-      const header = root.querySelector<HTMLElement>('[data-prism-lane-header]');
+      const header = root.querySelector<HTMLElement>('[data-prism-queue-header]');
       if (!header) return null;
       const before = header.getBoundingClientRect().top;
       canvas.scrollTo({ top: 250, behavior: 'auto' });

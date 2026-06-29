@@ -2,10 +2,7 @@ namespace UmbracoPrism.Shared.Models.Workflow;
 
 public record WorkflowAccessProfile
 {
-    public static WorkflowAccessProfile UnrestrictedOwner { get; } = new()
-    {
-        UseLegacyLaneVisibility = true
-    };
+    public static WorkflowAccessProfile UnrestrictedOwner { get; } = new();
 
     public IReadOnlyList<string> VisibleQueues { get; init; } = [];
 
@@ -14,8 +11,6 @@ public record WorkflowAccessProfile
     public IReadOnlyList<string> ActionableQueues { get; init; } = [];
 
     public bool RestrictToInstanceOwner { get; init; } = true;
-
-    public bool UseLegacyLaneVisibility { get; init; }
 
     public bool CanViewQueue(string? queueName) => IsAllowed(queueName, VisibleQueues);
 

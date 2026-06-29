@@ -37,9 +37,16 @@ public class ProjectorEngineGatewayIntegrationTests
         var initial = engine.GetCurrent("gateway-integration", Tenant, User, action: "start-new");
         var afterSubmit = engine.Advance(initial.InstanceId, Tenant, User, "submit", initial.StateVersion, null);
         var afterFirstApprove = engine.Advance(afterSubmit.InstanceId, Tenant, User, "approve", afterSubmit.StateVersion, null);
-        var afterSecondApprove = engine.Advance(afterFirstApprove.InstanceId, Tenant, User, "approve", afterFirstApprove.StateVersion, null);
 
-        afterFirstApprove.ResponseState.Should().Be("defer");
+        // Check join-wait state before the second approve mutates the instance.
+        var instanceAfterFirst = engine.GetAllInstances().Single(i => i.InstanceId == afterFirstApprove.InstanceId);
+        instanceAfterFirst.Cursors.Should().Contain(c => c.IsAtGateway && c.CurrentNodeKey == "join-reviews",
+            "the first approved cursor should be held at the join gateway");
+        instanceAfterFirst.JoinArrivals.Should().ContainKey("join-reviews",
+            "the join gateway should have recorded the first arrival");
+
+        // After the second approval both required queues have arrived and the join releases.
+        var afterSecondApprove = engine.Advance(afterFirstApprove.InstanceId, Tenant, User, "approve", afterFirstApprove.StateVersion, null);
         afterSecondApprove.ResponseState.Should().Be("complete");
     }
 
