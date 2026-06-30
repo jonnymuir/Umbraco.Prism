@@ -133,6 +133,7 @@ const GATEWAY_ROUTE_WORKFLOW = {
       actions: [],
       components: [],
       roleGates: [],
+      routes: [{ id: 'submitted--route--review-split', target: 'review-split', trigger: 'route' }],
     },
     {
       stateKey: 'reviewer-assessment',

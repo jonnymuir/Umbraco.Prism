@@ -1458,9 +1458,9 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     const newStage = applyQueueToStage({
-      stageKey,
+      stateKey: stageKey,
       displayName: title,
-            components: [],
+      components: [],
       metadata: {
         stageType: editorStageTypeToStageKind(dialog.stageType),
         actions: [],
