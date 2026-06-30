@@ -71,8 +71,8 @@ test.describe('Four-workflow reference contract', () => {
     await expect(page.getByText('No editor definition yet')).not.toBeVisible();
   });
 
-  test('authoring API lists exactly 4 workflows', async ({ request }) => {
-    const response = await request.get('https://localhost:7245/api/workflow-authoring/workflows', {
+  test('workflow source API lists exactly 4 workflows', async ({ request }) => {
+    const response = await request.get('https://localhost:7245/mockapp/workflows', {
       ignoreHTTPSErrors: true
     });
 
@@ -86,10 +86,10 @@ test.describe('Four-workflow reference contract', () => {
     expect(workflowKeys).toEqual(expectedWorkflows.sort());
   });
 
-  test('all 4 workflows are loadable via authoring API', async ({ request }) => {
+  test('all 4 workflows are loadable via workflow source API', async ({ request }) => {
     for (const workflowKey of expectedWorkflows) {
       const response = await request.get(
-        `https://localhost:7245/api/workflow-authoring/workflows/${workflowKey}`,
+        `https://localhost:7245/mockapp/workflows/${workflowKey}`,
         {
           ignoreHTTPSErrors: true
         }
