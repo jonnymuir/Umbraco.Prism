@@ -3,6 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   testMatch: /(localhost-auth-session|workflow-gds-journey|walkthroughs\/.*\.walkthrough)\.spec\.ts/,
+  globalSetup: './tests/support/aspire-prereqs-setup.ts',
   fullyParallel: false,
   workers: 1,
   timeout: 12 * 60_000,

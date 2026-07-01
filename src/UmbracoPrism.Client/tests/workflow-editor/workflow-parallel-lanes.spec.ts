@@ -26,7 +26,7 @@ test.describe('Workflow editor parallel lanes', () => {
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
 
-    const lanes = graph.locator('[data-prism-role-lane]');
+    const lanes = graph.locator('[data-prism-role-queue]');
     const laneCount = await lanes.count();
     expect(laneCount).toBeGreaterThanOrEqual(2,
       { message: 'A multi-lane workflow must show at least two lanes simultaneously' });
@@ -42,7 +42,7 @@ test.describe('Workflow editor parallel lanes', () => {
     await expect(graph).toBeVisible({ timeout: 10_000 });
 
     // Each lane column must contain at least one stage
-    const laneCols = graph.locator('[data-prism-role-lane]');
+    const laneCols = graph.locator('[data-prism-role-queue]');
     const laneCount = await laneCols.count();
     expect(laneCount).toBeGreaterThanOrEqual(2);
 
@@ -78,7 +78,7 @@ test.describe('Workflow editor parallel lanes', () => {
     await expect(splitGateway).toBeVisible();
 
     // The split gateway has exactly one lane — the one that owns the branching decision
-    const laneAttr = await splitGateway.first().getAttribute('data-prism-lane');
+    const laneAttr = await splitGateway.first().getAttribute('data-prism-queue');
     expect(laneAttr).toBeTruthy();
     expect(laneAttr).not.toContain(',');
   });
@@ -95,7 +95,7 @@ test.describe('Workflow editor parallel lanes', () => {
     const joinGateway = graph.locator('[data-prism-gateway-kind="Join"]');
     await expect(joinGateway).toBeVisible();
 
-    const laneAttr = await joinGateway.first().getAttribute('data-prism-lane');
+    const laneAttr = await joinGateway.first().getAttribute('data-prism-queue');
     expect(laneAttr).toBeTruthy();
     expect(laneAttr).not.toContain(',');
   });
@@ -112,7 +112,7 @@ test.describe('Workflow editor parallel lanes', () => {
     await expect(graph).toBeVisible({ timeout: 10_000 });
 
     // Record lane column headings before selection
-    const laneCols = graph.locator('[data-prism-role-lane]');
+    const laneCols = graph.locator('[data-prism-role-queue]');
     const laneCount = await laneCols.count();
     expect(laneCount).toBeGreaterThanOrEqual(2);
 
@@ -122,7 +122,7 @@ test.describe('Workflow editor parallel lanes', () => {
     await anyStage.click();
 
     // All lane columns must still be present after selection.
-    // Gateway nodes carry a data-prism-lane attribute but are rendered as graph siblings —
+    // Gateway nodes carry a data-prism-queue attribute but are rendered as graph siblings —
     // they are not DOM children of the lane column containers.
     await expect(laneCols).toHaveCount(laneCount,
       { timeout: 3_000 });

@@ -7,7 +7,7 @@
   "schemaVersion": "1.0",
   "initialStageKey": "collecting-details",
   "instancePolicy": "single",
-  "lanes": [
+  "queues": [
     {
       "key": "applicant",
       "title": "Applicant",
@@ -20,7 +20,7 @@
       "key": "route-submitted",
       "title": "Route to submitted",
       "type": "Split",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "source": "collecting-details",
       "roleGates": [],
       "routes": [
@@ -38,7 +38,7 @@
       "key": "collecting-details",
       "title": "Your details",
       "type": "Question",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [],
       "roleGates": [],
       "components": []
@@ -47,7 +47,7 @@
       "key": "submitted",
       "title": "Thank you",
       "type": "Confirmation",
-      "laneKey": "applicant",
+      "queueKey": "applicant",
       "actions": [],
       "roleGates": [],
       "components": []

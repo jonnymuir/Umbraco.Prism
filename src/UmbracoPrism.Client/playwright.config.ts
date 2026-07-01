@@ -2,7 +2,14 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testIgnore: ['**/localhost-auth-session.spec.ts', '**/workflow-gds-journey.spec.ts'],
+  testIgnore: [
+    // Live-stack tests: require the Aspire stack (Docker + Keycloak + TestSite).
+    // Run these with: npm run test:playwright:localhost-auth
+    '**/localhost-auth-session.spec.ts',
+    '**/workflow-gds-journey.spec.ts',
+    '**/walkthroughs/**',
+    '**/four-workflow-contract.spec.ts',
+  ],
   timeout: 30_000,
   retries: 1,
   expect: {

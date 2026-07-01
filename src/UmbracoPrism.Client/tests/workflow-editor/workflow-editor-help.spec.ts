@@ -92,7 +92,16 @@ test.describe('Workflow editor help and shortcut reference', () => {
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('[data-prism-empty-state="graph"]')).toContainText('Start building your workflow');
     await expect(page.locator('[data-prism-empty-state="graph"]')).toContainText('Add the next stage before you branch');
+
+    const dialog = page.locator('[data-prism-shortcut-dialog]');
+    // The story play() function clicks the help button and opens the dialog as part of
+    // Storybook's own interaction test. Wait for it to finish, dismiss it, then verify
+    // the button opens it again so we are testing a real user interaction here.
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
     await page.locator('[data-prism-help]').click();
-    await expect(page.locator('[data-prism-shortcut-dialog]')).toBeVisible();
+    await expect(dialog).toBeVisible();
   });
 });

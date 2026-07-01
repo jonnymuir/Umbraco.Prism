@@ -1,9 +1,9 @@
 namespace UmbracoPrism.WorkflowRuntime.Models;
 
 /// <summary>
-/// Tracks a single active execution point within a multi-lane workflow instance.
-/// One cursor per active lane path; a split gateway creates multiple cursors,
-/// a join gateway holds cursors until all required lanes arrive, then releases.
+/// Tracks a single active execution point within a multi-queue workflow instance.
+/// One cursor per active queue path; a split gateway creates multiple cursors,
+/// a join gateway holds cursors until all required queues arrive, then releases.
 /// </summary>
 public record WorkflowCursor
 {
@@ -18,10 +18,4 @@ public record WorkflowCursor
 
     /// <summary>True when this cursor is positioned at a gateway node rather than a stage.</summary>
     public bool IsAtGateway { get; init; }
-
-    public string LaneKey
-    {
-        get => QueueKey;
-        init => QueueKey = value;
-    }
 }

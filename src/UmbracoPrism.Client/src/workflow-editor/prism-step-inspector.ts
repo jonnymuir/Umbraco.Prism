@@ -46,13 +46,13 @@ import {
   stageKindToEditorStageType,
 } from './types.js';
 import {
-  applyLaneToStage,
-  stageLaneKey,
-  stageLaneLabel,
+  applyQueueToStage,
+  stageQueueKey,
+  stageQueueLabel,
   type WorkflowQueueDefinition,
-  workflowLaneOptions,
+  workflowQueueOptions,
 } from './workflow-stage-assignment.js';
-import { deriveGatewayBindings, gatewayLaneKey, type GatewayBinding } from './workflow-gateway-representation.js';
+import { deriveGatewayBindings, gatewayQueueKey, type GatewayBinding } from './workflow-gateway-representation.js';
 import {
   parseTransitionCondition,
   serialiseTransitionCondition,
@@ -236,11 +236,11 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     const stage = this.workflow.states.find(candidate => candidate.stateKey === stageKey);
-    const laneKey = stage ? stageLaneKey(stage) : '';
+    const queueKey = stage ? stageQueueKey(stage) : '';
 
     return deriveGatewayBindings(this.workflow)
       .filter(binding => binding.gateway.kind === 'Join')
-      .filter(binding => binding.anchorStageKey === stageKey || (!binding.anchorStageKey && binding.laneKey === laneKey))
+      .filter(binding => binding.anchorStageKey === stageKey || (!binding.anchorStageKey && binding.queueKey === queueKey))
       .map(binding => binding.gateway);
   }
 
@@ -449,14 +449,14 @@ export class PrismStepInspectorElement extends LitElement {
     this._announce(`${stage.displayName} description updated.`);
   }
 
-  private _updateStageLane(event: Event) {
+  private _updateStageQueue(event: Event) {
     const stage = this._selectedStage;
     if (!stage) {
       return;
     }
 
-    const laneKey = (event.currentTarget as HTMLInputElement).value;
-    const nextStage = applyLaneToStage(stage, laneKey);
+    const queueKey = (event.currentTarget as HTMLInputElement).value;
+    const nextStage = applyQueueToStage(stage, queueKey);
 
     this._replaceSelectedStage(nextStage);
     this._announce(`${stage.displayName} queue updated.`);
@@ -928,13 +928,13 @@ export class PrismStepInspectorElement extends LitElement {
     this._announce(`Gateway key updated to ${nextKey}.`);
   }
 
-  private _updateGatewayLane(event: Event) {
+  private _updateGatewayQueue(event: Event) {
     const gateway = this._selectedGateway;
     if (!gateway) return;
-    const laneKey = (event.currentTarget as HTMLInputElement).value.trim();
-    if (!laneKey || laneKey === gatewayLaneKey(gateway)) return;
-    this._replaceSelectedGateway({ ...gateway, queueKey: laneKey, actor: laneKey.includes('business') ? 'reviewer' : laneKey });
-    this._announce(`${gateway.displayName} queue updated to ${laneKey}.`);
+    const queueKey = (event.currentTarget as HTMLInputElement).value.trim();
+    if (!queueKey || queueKey === gatewayQueueKey(gateway)) return;
+    this._replaceSelectedGateway({ ...gateway, queueKey, actor: queueKey.includes('business') ? 'reviewer' : queueKey });
+    this._announce(`${gateway.displayName} queue updated to ${queueKey}.`);
   }
 
   private _updateGatewayDescription(event: Event) {
@@ -1003,12 +1003,12 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _renderGateway(gateway: AuthoredGateway) {
-    const laneKey = gatewayLaneKey(gateway);
-    const laneLabel = stageLaneLabel(this.workflow, laneKey, this.availableQueues);
+    const queueKey = gatewayQueueKey(gateway);
+    const queueLabel = stageQueueLabel(this.workflow, queueKey, this.availableQueues);
     const binding = this.workflow
       ? deriveGatewayBindings(this.workflow).find(candidate => candidate.gateway.key === gateway.key) ?? null
       : null;
-    const laneOptionsId = `gateway-lane-options-${gateway.key}`;
+    const queueOptionsId = `gateway-queue-options-${gateway.key}`;
     const waiting = gateway.waiting;
     const isJoin = gateway.kind === 'Join';
 
@@ -1021,7 +1021,7 @@ export class PrismStepInspectorElement extends LitElement {
       >
         <div class="inspector-header">
           <div>
-            <p class="eyebrow">${laneLabel} queue</p>
+            <p class="eyebrow">${queueLabel} queue</p>
             <h2 id="inspector-gateway-title" class="stage-title" data-prism-inspector-heading>${gateway.displayName}</h2>
           </div>
           <span class="stage-kind-badge transition-badge" data-prism-field="kind">${gateway.kind} gateway</span>
@@ -1069,15 +1069,15 @@ export class PrismStepInspectorElement extends LitElement {
               </span>
               <input
                 class="field-control"
-                data-prism-gateway-lane
-                .value=${laneKey}
-                list=${laneOptionsId}
+                data-prism-gateway-queue
+                .value=${queueKey}
+                list=${queueOptionsId}
                 placeholder="applicant"
-                @change=${this._updateGatewayLane}
+                @change=${this._updateGatewayQueue}
               />
-              <datalist id=${laneOptionsId}>
-                ${workflowLaneOptions(this.workflow, this.availableQueues).map(option => html`
-                  <option value=${option}>${stageLaneLabel(this.workflow, option, this.availableQueues)}</option>
+              <datalist id=${queueOptionsId}>
+                ${workflowQueueOptions(this.workflow, this.availableQueues).map(option => html`
+                  <option value=${option}>${stageQueueLabel(this.workflow, option, this.availableQueues)}</option>
                 `)}
               </datalist>
             </label>
@@ -1214,10 +1214,10 @@ export class PrismStepInspectorElement extends LitElement {
     const actions = stage.actions ?? [];
     const outgoing = this._selectedStageOutgoing(stage);
     const stageType = stageKindToEditorStageType(stage.kind ?? 'Question');
-    const laneKey = stageLaneKey(stage);
-    const laneLabel = stageLaneLabel(this.workflow, laneKey, this.availableQueues);
-    const laneEyebrow = `${laneLabel} queue`;
-    const laneOptionsId = `stage-lane-options-${stage.stateKey}`;
+    const queueKey = stageQueueKey(stage);
+    const queueLabel = stageQueueLabel(this.workflow, queueKey, this.availableQueues);
+    const queueEyebrow = `${queueLabel} queue`;
+    const queueOptionsId = `stage-queue-options-${stage.stateKey}`;
     const unreachable = this.workflow
       ? workflowUnreachableStages(this.workflow).some(candidate => candidate.stateKey === stage.stateKey)
       : false;
@@ -1245,7 +1245,7 @@ export class PrismStepInspectorElement extends LitElement {
       >
         <div class="inspector-header">
           <div>
-            <p class="eyebrow">${laneEyebrow}</p>
+            <p class="eyebrow">${queueEyebrow}</p>
             <h2 id="inspector-stage-title" class="stage-title">${stage.displayName}</h2>
           </div>
           <span class="stage-kind-badge">${STAGE_TYPE_OPTIONS.find(option => option.value === stageType)?.label ?? stage.kind}</span>
@@ -1306,15 +1306,15 @@ export class PrismStepInspectorElement extends LitElement {
               </span>
               <input
                 class="field-control"
-                data-prism-stage-lane
-                .value=${laneKey}
-                list=${laneOptionsId}
+                data-prism-stage-queue
+                .value=${queueKey}
+                list=${queueOptionsId}
                 placeholder="planning-officer"
-                @change=${this._updateStageLane}
+                @change=${this._updateStageQueue}
               />
-              <datalist id=${laneOptionsId}>
-                ${workflowLaneOptions(this.workflow, this.availableQueues).map(option => html`
-                  <option value=${option}>${stageLaneLabel(this.workflow, option, this.availableQueues)}</option>
+              <datalist id=${queueOptionsId}>
+                ${workflowQueueOptions(this.workflow, this.availableQueues).map(option => html`
+                  <option value=${option}>${stageQueueLabel(this.workflow, option, this.availableQueues)}</option>
                 `)}
               </datalist>
             </label>

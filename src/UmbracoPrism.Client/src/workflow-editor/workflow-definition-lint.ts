@@ -65,9 +65,11 @@ export function lintAuthoredWorkflowDocument(parsed: unknown, source: string): D
         seenStateKeys.add(stateKey);
       }
 
-      const kind = typeof (state.metadata as Record<string, unknown> | undefined)?.stageType === 'string'
-        ? String((state.metadata as Record<string, unknown>).stageType)
-        : '';
+      const kind = typeof state.stageType === 'string' && state.stageType
+        ? state.stageType
+        : typeof (state.metadata as Record<string, unknown> | undefined)?.stageType === 'string'
+          ? String((state.metadata as Record<string, unknown>).stageType)
+          : '';
       if (kind && !ALLOWED_STAGE_KINDS.has(kind)) {
         issues.push({
           message: `State "${stateKey || index}" has unsupported stageType "${kind}". Allowed kinds: ${[...ALLOWED_STAGE_KINDS].join(', ')}.`,

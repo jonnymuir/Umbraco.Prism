@@ -38,15 +38,15 @@ test.describe('Planning workflow — migrated format', () => {
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
 
-    const lanes = graph.locator('[data-prism-role-lane]');
+    const lanes = graph.locator('[data-prism-role-queue]');
     await expect(lanes.first()).toBeVisible({ timeout: 5_000 });
     expect(await lanes.count()).toBeGreaterThanOrEqual(1);
 
-    // All stages must carry data-prism-lane and resolve to the applicant queue.
+    // All stages must carry data-prism-queue and resolve to the applicant queue.
     const stages = graph.locator('[data-prism-stage]');
     await expect(stages.first()).toBeVisible({ timeout: 5_000 });
     const laneAttrs = await stages.evaluateAll(els =>
-      els.map(el => el.getAttribute('data-prism-lane'))
+      els.map(el => el.getAttribute('data-prism-queue'))
     );
     expect(laneAttrs.every(attr => attr === 'applicant')).toBe(true);
   });
@@ -115,7 +115,7 @@ test.describe('Community Enquiry workflow — migrated format', () => {
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
 
-    const lanes = graph.locator('[data-prism-role-lane]');
+    const lanes = graph.locator('[data-prism-role-queue]');
     await expect(lanes.first()).toBeVisible({ timeout: 5_000 });
     expect(await lanes.count()).toBeGreaterThanOrEqual(1);
   });
@@ -171,7 +171,7 @@ test.describe('Information Request workflow — migrated format', () => {
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
 
-    const lanes = graph.locator('[data-prism-role-lane]');
+    const lanes = graph.locator('[data-prism-role-queue]');
     await expect(lanes.first()).toBeVisible({ timeout: 5_000 });
     expect(await lanes.count()).toBeGreaterThanOrEqual(2);
   });
@@ -207,16 +207,16 @@ test.describe('Information Request workflow — migrated format', () => {
     await expect(graph).toBeVisible({ timeout: 10_000 });
     await expect(graph.locator('[data-prism-stage]').first()).toBeVisible({ timeout: 5_000 });
 
-    // data-prism-lane on stages was added by Blathers (prism-workflow-graph.ts).
+    // data-prism-queue on stages was added by Blathers (prism-workflow-graph.ts).
     // Verify caseworker-review stage resolves to the caseworker queue lane.
     const caseworkerStage = graph.locator('[data-prism-stage="caseworker-review"]');
     await expect(caseworkerStage).toBeVisible();
-    await expect(caseworkerStage).toHaveAttribute('data-prism-lane', 'caseworker');
+    await expect(caseworkerStage).toHaveAttribute('data-prism-queue', 'caseworker');
 
-    // The caseworker-route gateway also carries data-prism-lane="caseworker".
+    // The caseworker-route gateway also carries data-prism-queue="caseworker".
     const caseworkerGateway = graph.locator('[data-prism-gateway="caseworker-route"]');
     await expect(caseworkerGateway).toBeVisible();
-    await expect(caseworkerGateway).toHaveAttribute('data-prism-lane', 'caseworker');
+    await expect(caseworkerGateway).toHaveAttribute('data-prism-queue', 'caseworker');
   });
 
   test('stages have distinct Y positions — Join gateway DAG flows top-to-bottom', async ({ page }) => {

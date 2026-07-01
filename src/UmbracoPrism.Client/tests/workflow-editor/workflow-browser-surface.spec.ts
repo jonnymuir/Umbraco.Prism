@@ -74,13 +74,13 @@ test.describe.fixme('Browser-hosted workflow surface: Usability proof', () => {
       );
 
       // BEHAVIORAL REQUIREMENT FOR ISABELLE:
-      // Role lanes ([data-prism-role-lane]) should be visible in the viewport
+      // Role lanes ([data-prism-role-queue]) should be visible in the viewport
       // At least 2-3 swim lanes should be visible without scrolling the editor frame
       
       const graphCanvas = page.getByRole('application');
       await expect(graphCanvas).toBeVisible();
 
-      const roleLanes = page.locator('[data-prism-role-lane]');
+      const roleLanes = page.locator('[data-prism-role-queue]');
       await expect(roleLanes).not.toHaveCount(0);
 
       // At least the first 2 lanes should be in viewport
@@ -183,7 +183,7 @@ test.describe.fixme('Browser-hosted workflow surface: Usability proof', () => {
       // Each role lane must have aria-label="Role: {role-name} lane"
       // Each stage card must have aria-label="{stage-title} stage"
       
-      const firstLane = page.locator('[data-prism-role-lane]').first();
+      const firstLane = page.locator('[data-prism-role-queue]').first();
       await expect(firstLane).toHaveAttribute('aria-label', /lane/i);
 
       const firstStage = page.locator('[data-prism-stage]').first();

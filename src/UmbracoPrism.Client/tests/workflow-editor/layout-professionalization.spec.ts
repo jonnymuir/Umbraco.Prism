@@ -429,7 +429,7 @@ test.describe.fixme('Layout Professionalization', () => {
       const graphCanvas = page.getByRole('application');
       await expect(graphCanvas).toHaveAttribute('aria-roledescription', /role-first/i);
       
-      const roleLanes = page.locator('[data-prism-role-lane]');
+      const roleLanes = page.locator('[data-prism-role-queue]');
       await expect(roleLanes).not.toHaveCount(0);
       
       // At least 2 lanes should be visible in viewport

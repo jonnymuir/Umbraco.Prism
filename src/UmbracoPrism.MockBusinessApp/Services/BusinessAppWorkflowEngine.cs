@@ -106,8 +106,7 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
 
         var visibleWorkItem = FindAccessibleWorkItems(instance, definition, accessProfile)
             .FirstOrDefault(item => item.AvailableActions.Any(candidate =>
-                string.Equals(candidate.ActionKey, action, StringComparison.Ordinal)))
-            ?? FindFallbackActionWorkItem(instance, definition, accessProfile, action);
+                string.Equals(candidate.ActionKey, action, StringComparison.Ordinal)));
 
         if (visibleWorkItem is null)
         {

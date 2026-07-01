@@ -48,7 +48,7 @@ public sealed class WorkflowProjector : IWorkflowProjector
 
         Validate(authored, diagnostics);
 
-        var queuesByKey = GetQueues(authored)
+        var queuesByKey = authored.Queues
             .ToDictionary(queue => queue.Key, StringComparer.Ordinal);
 
         var states = authored.Stages
@@ -61,7 +61,7 @@ public sealed class WorkflowProjector : IWorkflowProjector
             .Select(gateway => EmitGateway(gateway, queuesByKey))
             .ToArray();
 
-        var queues = GetQueues(authored)
+        var queues = authored.Queues
             .OrderBy(queue => queue.Key, StringComparer.Ordinal)
             .Select(queue => new WorkflowQueueDefinition
             {
@@ -97,18 +97,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
                 .OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
 
-        var legacyLanes = queues.Length == 0
-            ? null
-            : queues.Select(queue => new WorkflowLaneDefinition
-            {
-                Key = queue.Key,
-                DisplayName = queue.DisplayName,
-                Description = queue.Description,
-                Actor = queue.Actor,
-                RoleGates = queue.RoleGates,
-                Tags = queue.Tags
-            }).ToArray();
-
         var file = new WorkflowDefinitionFile
         {
             DefinitionKey = authored.DefinitionKey,
@@ -130,7 +118,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
                 AuthoredWorkflowId = authored.Id,
                 Description = authored.Description,
                 SchemaVersion = authored.SchemaVersion,
-                Lanes = legacyLanes,
                 Gateways = gateways.Length == 0 ? null : gateways,
                 Tags = tags,
                 Handoffs = handoffs
@@ -246,9 +233,6 @@ public sealed class WorkflowProjector : IWorkflowProjector
                 : gateway.RequiredIncomingQueues.OrderBy(queue => queue, StringComparer.Ordinal).ToArray()
         };
     }
-
-    private static IReadOnlyList<AuthoredQueue> GetQueues(AuthoredWorkflow authored) =>
-        authored.Queues.Count > 0 ? authored.Queues : authored.Lanes;
 
     private static IReadOnlyList<AuthoredRoute> GetStageRoutes(AuthoredWorkflow authored, AuthoredStage stage)
     {

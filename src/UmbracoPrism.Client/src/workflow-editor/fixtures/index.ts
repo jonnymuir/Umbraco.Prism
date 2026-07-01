@@ -11,6 +11,7 @@ export const PLANNING_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
   version: 1,
   initialState: 'declaration',
   instancePolicy: 'single',
+  queues: [{ key: 'applicant', displayName: 'Applicant', actor: 'applicant', queueName: 'web-user', roleGates: [] }],
   states: [
     {
       stateKey: 'declaration',
@@ -40,7 +41,7 @@ export const PLANNING_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
         description: 'Collects applicant and site identity before the full planning form.',
         stageType: 'Question',
         actor: 'applicant',
-        laneKey: 'applicant',
+        queueKey: 'applicant',
         actions: [{
           type: 'forms.load',
           timing: 'OnEntry',
@@ -80,7 +81,7 @@ export const PLANNING_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
         description: 'Captures the substantive planning request.',
         stageType: 'Question',
         actor: 'applicant',
-        laneKey: 'applicant',
+        queueKey: 'applicant',
         actions: [{
           type: 'forms.save',
           timing: 'OnExit',
@@ -99,7 +100,7 @@ export const PLANNING_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
         description: 'Summarises captured answers before final submission.',
         stageType: 'CheckAnswers',
         actor: 'applicant',
-        laneKey: 'applicant',
+        queueKey: 'applicant',
         actions: [],
         roleGates: [],
         editorComment: 'Summary of all answers before final submission.',
@@ -113,7 +114,7 @@ export const PLANNING_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
         description: 'Confirms receipt and moves the case into reviewer handling.',
         stageType: 'Confirmation',
         actor: 'applicant',
-        laneKey: 'applicant',
+        queueKey: 'applicant',
         actions: [],
         roleGates: [],
       },
@@ -148,11 +149,10 @@ export const PLANNING_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
   metadata: {
     description: 'Standard planning application workflow for submitting and tracking planning permission requests.',
     schemaVersion: '1.0',
-    lanes: [{ key: 'applicant', displayName: 'Applicant', actor: 'applicant', queueName: 'web-user', roleGates: [] }],
     gateways: [
-      { key: 'route-application-form', displayName: 'Route to application form', gatewayType: 'Split', laneKey: 'applicant', actor: 'applicant', roleGates: [] },
-      { key: 'route-check-answers', displayName: 'Route to check answers', gatewayType: 'Split', laneKey: 'applicant', actor: 'applicant', roleGates: [] },
-      { key: 'route-submitted', displayName: 'Route to submitted', gatewayType: 'Split', laneKey: 'applicant', actor: 'applicant', roleGates: [] },
+      { key: 'route-application-form', displayName: 'Route to application form', gatewayType: 'Split', queueKey:'applicant', actor: 'applicant', roleGates: [] },
+      { key: 'route-check-answers', displayName: 'Route to check answers', gatewayType: 'Split', queueKey:'applicant', actor: 'applicant', roleGates: [] },
+      { key: 'route-submitted', displayName: 'Route to submitted', gatewayType: 'Split', queueKey:'applicant', actor: 'applicant', roleGates: [] },
     ],
     handoffs: [{
       id: 'applicant-to-caseworker',
@@ -186,12 +186,16 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = hydrateWorkflowD
   version: 1,
   initialState: 'start-request',
   instancePolicy: 'multiple',
+  queues: [
+    { key: 'applicant', displayName: 'Applicant', actor: 'applicant', queueName: 'web-user', roleGates: [] },
+    { key: 'reviewer', displayName: 'Reviewer', actor: 'reviewer', queueName: 'business-user', roleGates: ['reviewer'] },
+  ],
   states: [
-    { stateKey: 'start-request', displayName: 'Start request', components: [], metadata: { description: 'Collect the request details before the service branches into review work.', stageType: 'Question', actor: 'applicant', laneKey: 'applicant', actions: [], roleGates: [] } },
-    { stateKey: 'applicant-amendments', displayName: 'Applicant amendments', components: [], metadata: { description: 'Applicant updates the request when more detail is needed.', stageType: 'Question', actor: 'applicant', laneKey: 'applicant', actions: [], roleGates: [] } },
-    { stateKey: 'upload-evidence', displayName: 'Upload evidence', components: [], metadata: { description: 'Applicant provides the supporting documents for the request.', stageType: 'Question', actor: 'applicant', laneKey: 'applicant', actions: [], roleGates: [] } },
-    { stateKey: 'reviewer-assessment', displayName: 'Reviewer assessment', components: [], metadata: { description: 'Reviewer checks the request before the service can continue.', stageType: 'Question', actor: 'reviewer', laneKey: 'reviewer', actions: [], roleGates: ['reviewer'] } },
-    { stateKey: 'decision-confirmed', displayName: 'Decision confirmed', components: [], metadata: { description: 'The shared path continues here once every branch is complete.', stageType: 'Confirmation', actor: 'applicant', laneKey: 'applicant', actions: [], roleGates: [] } },
+    { stateKey: 'start-request', displayName: 'Start request', components: [], metadata: { description: 'Collect the request details before the service branches into review work.', stageType: 'Question', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
+    { stateKey: 'applicant-amendments', displayName: 'Applicant amendments', components: [], metadata: { description: 'Applicant updates the request when more detail is needed.', stageType: 'Question', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
+    { stateKey: 'upload-evidence', displayName: 'Upload evidence', components: [], metadata: { description: 'Applicant provides the supporting documents for the request.', stageType: 'Question', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
+    { stateKey: 'reviewer-assessment', displayName: 'Reviewer assessment', components: [], metadata: { description: 'Reviewer checks the request before the service can continue.', stageType: 'Question', actor: 'reviewer', queueKey:'reviewer', actions: [], roleGates: ['reviewer'] } },
+    { stateKey: 'decision-confirmed', displayName: 'Decision confirmed', components: [], metadata: { description: 'The shared path continues here once every branch is complete.', stageType: 'Confirmation', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
   ],
   transitions: [
     { fromState: 'start-request', toState: 'review-split', action: 'route' },
@@ -205,13 +209,9 @@ export const LEAVE_REQUEST_STARTER_WORKFLOW: AuthoredWorkflow = hydrateWorkflowD
   ],
   metadata: {
     schemaVersion: '1.0',
-    lanes: [
-      { key: 'applicant', displayName: 'Applicant', actor: 'applicant', queueName: 'web-user', roleGates: [] },
-      { key: 'reviewer', displayName: 'Reviewer', actor: 'reviewer', queueName: 'business-user', roleGates: ['reviewer'] },
-    ],
     gateways: [
-      { key: 'review-split', displayName: 'Review split', description: 'Branch the request into the next pieces of work.', gatewayType: 'Split', laneKey: 'applicant', actor: 'applicant', roleGates: [] },
-      { key: 'decision-join', displayName: 'Decision join', description: 'Wait for every branch to complete before releasing the next step.', gatewayType: 'Join', laneKey: 'applicant', actor: 'applicant', roleGates: [], waitingContent: 'Waiting for amendments, supporting evidence, and reviewer assessment before the decision can continue.', waitingAllowDefer: false, requiredIncomingLanes: ['applicant', 'reviewer'] },
+      { key: 'review-split', displayName: 'Review split', description: 'Branch the request into the next pieces of work.', gatewayType: 'Split', queueKey:'applicant', actor: 'applicant', roleGates: [] },
+      { key: 'decision-join', displayName: 'Decision join', description: 'Wait for every branch to complete before releasing the next step.', gatewayType: 'Join', queueKey:'applicant', actor: 'applicant', roleGates: [], waitingContent: 'Waiting for amendments, supporting evidence, and reviewer assessment before the decision can continue.', waitingAllowDefer: false, requiredIncomingQueues: ['applicant', 'reviewer'] },
     ],
   },
 });
@@ -319,7 +319,7 @@ export const PAYMENT_DEMO_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition
 
 /**
  * Community Enquiry workflow — migrated to queues/gateways/routes format.
- * Single-lane (applicant), simple linear flow with one Split gateway.
+ * Single-queue (applicant), simple linear flow with one Split gateway.
  */
 export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
   definitionKey: 'community-enquiry',
@@ -329,7 +329,7 @@ export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefin
   schemaVersion: '1.0',
   initialStageKey: 'collecting-details',
   instancePolicy: 'single',
-  lanes: [
+  queues: [
     { key: 'applicant', title: 'Applicant', actor: 'applicant', roleGates: [] },
   ],
   gateways: [
@@ -337,7 +337,7 @@ export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefin
       key: 'route-submitted',
       title: 'Route to submitted',
       type: 'Split',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       source: 'collecting-details',
       roleGates: [],
       routes: [
@@ -350,7 +350,7 @@ export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefin
       key: 'collecting-details',
       title: 'Your details',
       type: 'Question',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -359,7 +359,7 @@ export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefin
       key: 'submitted',
       title: 'Thank you',
       type: 'Confirmation',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -369,7 +369,7 @@ export const COMMUNITY_ENQUIRY_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefin
 
 /**
  * Information Request workflow — migrated to queues/gateways/routes format.
- * Two-lane (applicant + caseworker) with a Split gateway and a Join gateway.
+ * Two-queue (applicant + caseworker) with a Split gateway and a Join gateway.
  */
 export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition({
   definitionKey: 'information-request',
@@ -378,7 +378,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
   schemaVersion: '1.0',
   initialStageKey: 'collecting-info',
   instancePolicy: 'single',
-  lanes: [
+  queues: [
     { key: 'applicant', title: 'Applicant', actor: 'applicant', roleGates: [] },
     { key: 'caseworker', title: 'Caseworker', actor: 'caseworker', roleGates: [] },
   ],
@@ -387,7 +387,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
       key: 'request-submitted',
       title: 'Request submitted',
       type: 'Split',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       source: 'collecting-info',
       roleGates: [],
       routes: [
@@ -399,7 +399,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
       key: 'caseworker-route',
       title: 'Route from caseworker review',
       type: 'Split',
-      laneKey: 'caseworker',
+      queueKey:'caseworker',
       source: 'caseworker-review',
       roleGates: [],
       routes: [
@@ -410,7 +410,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
       key: 'review-complete',
       title: 'Review complete',
       type: 'Join',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       roleGates: [],
       waitingInfo: {
         content: 'We\'ve received your submission and it\'s currently being reviewed.',
@@ -418,7 +418,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
         pollIntervalMs: 5000,
         allowDefer: false,
       },
-      requiredIncomingLanes: ['applicant', 'caseworker'],
+      requiredIncomingQueues: ['applicant', 'caseworker'],
       routes: [
         { id: 'review-complete--release--complete', target: 'complete', trigger: 'release', actions: [] },
       ],
@@ -429,7 +429,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
       key: 'collecting-info',
       title: 'Tell us about yourself',
       type: 'Question',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -439,7 +439,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
       title: 'Caseworker review',
       description: 'Caseworker confirms the review outcome before the applicant sees the final status.',
       type: 'Question',
-      laneKey: 'caseworker',
+      queueKey:'caseworker',
       actions: [],
       roleGates: [],
       components: [],
@@ -448,7 +448,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
       key: 'complete',
       title: 'Request Complete',
       type: 'Confirmation',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -458,7 +458,7 @@ export const INFORMATION_REQUEST_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDef
 
 /**
  * Planning Application workflow — migrated to queues/gateways/routes format.
- * Single-lane (applicant), linear flow through declaration → form → check → submitted.
+ * Single-queue (applicant), linear flow through declaration → form → check → submitted.
  */
 export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefinition({
   definitionKey: 'planning-application',
@@ -468,7 +468,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
   schemaVersion: '1.0',
   initialStageKey: 'declaration',
   instancePolicy: 'single',
-  lanes: [
+  queues: [
     { key: 'applicant', title: 'Applicant', actor: 'applicant', roleGates: [] },
   ],
   gateways: [
@@ -476,7 +476,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       key: 'route-application-form',
       title: 'Route to application form',
       type: 'Split',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       source: 'declaration',
       roleGates: [],
       routes: [
@@ -487,7 +487,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       key: 'route-check-answers',
       title: 'Route to check answers',
       type: 'Split',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       source: 'application-form',
       roleGates: [],
       routes: [
@@ -498,7 +498,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       key: 'route-submitted',
       title: 'Route to submitted',
       type: 'Split',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       source: 'check-answers',
       roleGates: [],
       routes: [
@@ -513,7 +513,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       description: 'Collects applicant and site identity before the full planning form.',
       type: 'Question',
       actor: 'applicant',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -524,7 +524,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       description: 'Captures the substantive planning request.',
       type: 'Question',
       actor: 'applicant',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -535,7 +535,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       description: 'Summarises captured answers before final submission.',
       type: 'CheckAnswers',
       actor: 'applicant',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],
@@ -546,7 +546,7 @@ export const PLANNING_WORKFLOW_MIGRATED: AuthoredWorkflow = hydrateWorkflowDefin
       description: 'Confirms receipt and moves the case into reviewer handling.',
       type: 'Confirmation',
       actor: 'applicant',
-      laneKey: 'applicant',
+      queueKey:'applicant',
       actions: [],
       roleGates: [],
       components: [],

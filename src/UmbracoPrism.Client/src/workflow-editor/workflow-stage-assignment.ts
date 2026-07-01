@@ -8,12 +8,12 @@ export interface WorkflowQueueDefinition {
   description?: string;
 }
 
-type LaneAssignedNode = AuthoredStage | AuthoredGateway;
+type QueueAssignedNode = AuthoredStage | AuthoredGateway;
 
 const FRONT_STAGE_ACTORS = new Set(['applicant', 'resident', 'member', 'citizen', 'customer', 'public']);
 const BACK_STAGE_ACTORS = new Set(['reviewer', 'caseworker', 'officer', 'administrator', 'admin', 'system']);
 
-export function normaliseLaneKey(value: string | null | undefined): string {
+export function normaliseQueueKey(value: string | null | undefined): string {
   return value?.trim().toLowerCase() ?? '';
 }
 
@@ -25,13 +25,13 @@ export function humaniseAssignmentLabel(value: string): string {
     .join(' ');
 }
 
-export function stageSurface(stage: LaneAssignedNode): StageSurface {
+export function stageSurface(stage: QueueAssignedNode): StageSurface {
   const roleGates = 'metadata' in stage ? stageRoleGates(stage) : gatewayRoleGates(stage);
   if (roleGates.length > 0) {
     return 'back-stage';
   }
 
-  const actor = normaliseLaneKey('metadata' in stage ? stageActor(stage) : stage.actor);
+  const actor = normaliseQueueKey('metadata' in stage ? stageActor(stage) : stage.actor);
   if (!actor) {
     return 'front-stage';
   }
@@ -49,22 +49,22 @@ export function stageSurface(stage: LaneAssignedNode): StageSurface {
     : 'front-stage';
 }
 
-export function stageLaneKey(stage: LaneAssignedNode): string {
-  const explicitLane = normaliseLaneKey(
+export function stageQueueKey(stage: QueueAssignedNode): string {
+  const explicitQueue = normaliseQueueKey(
     'metadata' in stage
-      ? (stage as AuthoredStage).queueKey ?? stage.metadata?.queueKey ?? stage.metadata?.queueName ?? stage.metadata?.laneKey
-      : (stage as AuthoredGateway).queueKey ?? (stage as AuthoredGateway).laneKey
+      ? (stage as AuthoredStage).queueKey ?? stage.metadata?.queueKey ?? stage.metadata?.queueName
+      : (stage as AuthoredGateway).queueKey
   );
-  if (explicitLane) {
-    return explicitLane;
+  if (explicitQueue) {
+    return explicitQueue;
   }
 
   const gatedRole = ('metadata' in stage ? stageRoleGates(stage) : gatewayRoleGates(stage)).find(value => value.trim());
   if (gatedRole) {
-    return normaliseLaneKey(gatedRole);
+    return normaliseQueueKey(gatedRole);
   }
 
-  const actor = normaliseLaneKey('metadata' in stage ? stageActor(stage) : stage.actor);
+  const actor = normaliseQueueKey('metadata' in stage ? stageActor(stage) : stage.actor);
   if (actor) {
     return actor;
   }
@@ -72,20 +72,20 @@ export function stageLaneKey(stage: LaneAssignedNode): string {
   return stageSurface(stage) === 'back-stage' ? 'reviewer' : 'public';
 }
 
-export function stageLaneLabel(
-  workflow: Pick<AuthoredWorkflow, 'metadata'> | null | undefined,
-  laneKey: string,
+export function stageQueueLabel(
+  workflow: Pick<AuthoredWorkflow, 'queues'> | null | undefined,
+  queueKey: string,
   availableQueues: ReadonlyArray<WorkflowQueueDefinition> = []
 ): string {
-  const normalised = normaliseLaneKey(laneKey);
-  const configuredQueue = availableQueues.find(queue => normaliseLaneKey(queue.queueName) === normalised);
+  const normalised = normaliseQueueKey(queueKey);
+  const configuredQueue = availableQueues.find(queue => normaliseQueueKey(queue.queueName) === normalised);
   if (configuredQueue?.displayName?.trim()) {
     return configuredQueue.displayName.trim();
   }
 
-  const workflowQueue = workflowQueues(workflow).find(queue => normaliseLaneKey(queue.key || queue.queueName) === normalised);
+  const workflowQueue = workflowQueues(workflow).find(queue => normaliseQueueKey(queue.key || queue.queueName) === normalised);
   if (workflowQueue?.queueName) {
-    const matchingQueue = availableQueues.find(queue => normaliseLaneKey(queue.queueName) === normaliseLaneKey(workflowQueue.queueName));
+    const matchingQueue = availableQueues.find(queue => normaliseQueueKey(queue.queueName) === normaliseQueueKey(workflowQueue.queueName));
     if (matchingQueue?.displayName?.trim()) {
       return matchingQueue.displayName.trim();
     }
@@ -94,76 +94,76 @@ export function stageLaneLabel(
   return workflowQueue?.displayName?.trim() || humaniseAssignmentLabel(normalised);
 }
 
-export function stageLaneDescription(
-  workflow: Pick<AuthoredWorkflow, 'metadata'> | null | undefined,
-  laneKey: string,
+export function stageQueueDescription(
+  workflow: Pick<AuthoredWorkflow, 'queues'> | null | undefined,
+  queueKey: string,
   availableQueues: ReadonlyArray<WorkflowQueueDefinition> = []
 ): string {
-  const normalised = normaliseLaneKey(laneKey);
-  const configuredQueue = availableQueues.find(queue => normaliseLaneKey(queue.queueName) === normalised);
+  const normalised = normaliseQueueKey(queueKey);
+  const configuredQueue = availableQueues.find(queue => normaliseQueueKey(queue.queueName) === normalised);
   if (configuredQueue?.description?.trim()) {
     return configuredQueue.description.trim();
   }
 
-  return `Stages and gateways in the ${stageLaneLabel(workflow, laneKey, availableQueues)} queue`;
+  return `Stages and gateways in the ${stageQueueLabel(workflow, queueKey, availableQueues)} queue`;
 }
 
-export function applyLaneToStage(stage: AuthoredStage, laneKey: string): AuthoredStage {
-  const normalisedLaneKey = normaliseLaneKey(laneKey);
+export function applyQueueToStage(stage: AuthoredStage, queueKey: string): AuthoredStage {
+  const normalisedQueueKey = normaliseQueueKey(queueKey);
 
-  if (!normalisedLaneKey) {
+  if (!normalisedQueueKey) {
     return withStageAssignment(stage, '', undefined, []);
   }
 
-  const inferredActor = normalisedLaneKey.includes('business')
+  const inferredActor = normalisedQueueKey.includes('business')
     ? 'reviewer'
-    : normalisedLaneKey.includes('system')
+    : normalisedQueueKey.includes('system')
       ? 'system'
-      : normalisedLaneKey.includes('review')
+      : normalisedQueueKey.includes('review')
         ? 'reviewer'
-        : normalisedLaneKey;
+        : normalisedQueueKey;
   const usesRoleGate = !FRONT_STAGE_ACTORS.has(inferredActor);
   return withStageAssignment(
     stage,
-    normalisedLaneKey,
+    normalisedQueueKey,
     inferredActor,
     usesRoleGate ? [inferredActor] : []
   );
 }
 
-export function workflowLaneOptions(
-  workflow: Pick<AuthoredWorkflow, 'metadata' | 'states'> | null | undefined,
+export function workflowQueueOptions(
+  workflow: Pick<AuthoredWorkflow, 'queues' | 'states' | 'gateways' | 'metadata'> | null | undefined,
   availableQueues: ReadonlyArray<WorkflowQueueDefinition> = []
 ): string[] {
-  const laneKeys = new Set<string>();
+  const queueKeys = new Set<string>();
 
   availableQueues.forEach(queue => {
-    const key = normaliseLaneKey(queue.queueName);
+    const key = normaliseQueueKey(queue.queueName);
     if (key) {
-      laneKeys.add(key);
+      queueKeys.add(key);
     }
   });
 
   workflowQueues(workflow).forEach(queue => {
-    const key = normaliseLaneKey(queue.key || queue.queueName);
+    const key = normaliseQueueKey(queue.key || queue.queueName);
     if (key) {
-      laneKeys.add(key);
+      queueKeys.add(key);
     }
   });
 
   workflow?.states?.forEach(stage => {
-    const key = stageLaneKey(stage);
+    const key = stageQueueKey(stage);
     if (key) {
-      laneKeys.add(key);
+      queueKeys.add(key);
     }
   });
 
   workflowGateways(workflow).forEach(gateway => {
-    const key = stageLaneKey(gateway);
+    const key = stageQueueKey(gateway);
     if (key) {
-      laneKeys.add(key);
+      queueKeys.add(key);
     }
   });
 
-  return [...laneKeys];
+  return [...queueKeys];
 }

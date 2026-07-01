@@ -21,8 +21,8 @@ test.describe('Workflow editor gateway representation', () => {
 
     await expect(splitGateway).toBeVisible();
     await expect(joinGateway).toBeVisible();
-    await expect(splitGateway).toHaveAttribute('data-prism-lane', 'applicant');
-    await expect(joinGateway).toHaveAttribute('data-prism-lane', 'applicant');
+    await expect(splitGateway).toHaveAttribute('data-prism-queue', 'applicant');
+    await expect(joinGateway).toHaveAttribute('data-prism-queue', 'applicant');
     await expect(splitGateway).toContainText('Review split');
     await expect(joinGateway).toContainText('Decision join');
   });
@@ -34,14 +34,12 @@ test.describe('Workflow editor gateway representation', () => {
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
 
-    // Slice C: routes belong to gateways. The Review split fans out into
-    // three branches; the Decision join is fed by three per-stage feeder
-    // splits, each carrying one merge route. Feeder-split → join edges
-    // satisfy both the branch (source = Split) and merge (target = Join)
-    // styling rules, so the branch-path count includes them too.
-    expect(await storyEl.locator('.edge-path[data-prism-transition-from="review-split"]').count()).toBeGreaterThanOrEqual(4);
-    expect(await storyEl.locator('.edge-path[data-prism-transition-to="decision-join"]').count()).toBeGreaterThanOrEqual(4);
-    expect(await storyEl.locator('.edge-path.branch-path').count()).toBeGreaterThanOrEqual(4);
+    // The Review split fans out into three branches; the Decision join is fed
+    // by three incoming routes. Both source-Split and target-Join edges carry
+    // the appropriate branch/merge styling classes.
+    expect(await storyEl.locator('.edge-path[data-prism-transition-from="review-split"]').count()).toBeGreaterThanOrEqual(3);
+    expect(await storyEl.locator('.edge-path[data-prism-transition-to="decision-join"]').count()).toBeGreaterThanOrEqual(3);
+    expect(await storyEl.locator('.edge-path.branch-path').count()).toBeGreaterThanOrEqual(3);
     expect(await storyEl.locator('.edge-path.merge-path').count()).toBeGreaterThanOrEqual(3);
     await expect(storyEl.locator('[data-prism-stage="start-request"]')).toBeVisible();
     await expect(storyEl.locator('[data-prism-stage="decision-confirmed"]')).toBeVisible();

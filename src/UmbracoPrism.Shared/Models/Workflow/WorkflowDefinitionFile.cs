@@ -90,10 +90,6 @@ public record WorkflowDefinitionFile
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, string>? Tags { get; init; }
 
-    /// <summary>
-    /// Legacy compatibility payload for older seeds that still nest lanes/gateways under metadata.
-    /// New persisted workflow JSON should use the top-level contract instead.
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowDefinitionMetadata? Metadata { get; init; }
 
@@ -105,47 +101,9 @@ public record WorkflowDefinitionFile
     }
 
     [JsonIgnore]
-    public IReadOnlyList<WorkflowLaneDefinition>? Lanes
-    {
-        get => _queues?.Select(queue => new WorkflowLaneDefinition
-        {
-            Key = queue.Key,
-            DisplayName = queue.DisplayName,
-            Description = queue.Description,
-            Actor = queue.Actor,
-            RoleGates = queue.RoleGates,
-            Tags = queue.Tags
-        }).ToArray();
-        init => _queues = value?.Select(lane => new WorkflowQueueDefinition
-        {
-            Key = lane.Key,
-            DisplayName = lane.DisplayName,
-            Description = lane.Description,
-            Actor = lane.Actor,
-            RoleGates = lane.RoleGates,
-            Tags = lane.Tags
-        }).ToArray();
-    }
-
-    [JsonIgnore]
     public IReadOnlyList<WorkflowTransitionFile>? LegacyTransitions
     {
         init => _transitions = value;
-    }
-
-    [JsonPropertyName("lanes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<WorkflowLaneDefinition>? LegacyLanes
-    {
-        init => _queues = value?.Select(lane => new WorkflowQueueDefinition
-        {
-            Key = lane.Key,
-            DisplayName = lane.DisplayName,
-            Description = lane.Description,
-            Actor = lane.Actor,
-            RoleGates = lane.RoleGates,
-            Tags = lane.Tags
-        }).ToArray();
     }
 }
 
@@ -191,45 +149,6 @@ public record StepDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowStateMetadata? Metadata { get; init; }
 
-    [JsonIgnore]
-    public string? LaneKey
-    {
-        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
-        init => _queueKey = value;
-    }
-
-    [JsonIgnore]
-    public string? QueueName
-    {
-        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
-        init => _queueKey = value;
-    }
-
-    [JsonPropertyName("laneKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LegacyLaneKey
-    {
-        init
-        {
-            if (string.IsNullOrWhiteSpace(_queueKey))
-            {
-                _queueKey = value;
-            }
-        }
-    }
-
-    [JsonPropertyName("queueName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LegacyQueueName
-    {
-        init
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                _queueKey = value;
-            }
-        }
-    }
 }
 
 public record WorkflowTransitionFile
@@ -285,10 +204,6 @@ public record WorkflowQueueDefinition
     public IReadOnlyDictionary<string, string>? Tags { get; init; }
 }
 
-public record WorkflowLaneDefinition : WorkflowQueueDefinition
-{
-}
-
 public record WorkflowGatewayDefinition
 {
     private string? _queueKey;
@@ -336,13 +251,6 @@ public record WorkflowGatewayDefinition
     public IReadOnlyList<string>? RequiredIncomingQueues { get; init; }
 
     [JsonIgnore]
-    public string? LaneKey
-    {
-        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
-        init => _queueKey = value;
-    }
-
-    [JsonIgnore]
     public string? QueueName
     {
         get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
@@ -351,26 +259,6 @@ public record WorkflowGatewayDefinition
 
     [JsonIgnore]
     public string? Source { get; init; }
-
-    [JsonIgnore]
-    public IReadOnlyList<string>? RequiredIncomingLanes
-    {
-        get => RequiredIncomingQueues;
-        init => RequiredIncomingQueues = value;
-    }
-
-    [JsonPropertyName("laneKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LegacyLaneKey
-    {
-        init
-        {
-            if (string.IsNullOrWhiteSpace(_queueKey))
-            {
-                _queueKey = value;
-            }
-        }
-    }
 
     [JsonPropertyName("queueName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -390,13 +278,6 @@ public record WorkflowGatewayDefinition
     public string? LegacySource
     {
         init => Source = value;
-    }
-
-    [JsonPropertyName("requiredIncomingLanes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<string>? LegacyRequiredIncomingLanes
-    {
-        init => RequiredIncomingQueues = value;
     }
 }
 
@@ -426,9 +307,6 @@ public record WorkflowDefinitionMetadata
     public string? Description { get; init; }
 
     public string? SchemaVersion { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<WorkflowLaneDefinition>? Lanes { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<WorkflowGatewayDefinition>? Gateways { get; init; }
@@ -478,30 +356,10 @@ public record WorkflowStateMetadata
     public IReadOnlyList<WorkflowActionDefinition>? Actions { get; init; }
 
     [JsonIgnore]
-    public string? LaneKey
-    {
-        get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
-        init => _queueKey = value;
-    }
-
-    [JsonIgnore]
     public string? QueueName
     {
         get => string.IsNullOrWhiteSpace(_queueKey) ? null : _queueKey;
         init => _queueKey = value;
-    }
-
-    [JsonPropertyName("laneKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LegacyLaneKey
-    {
-        init
-        {
-            if (string.IsNullOrWhiteSpace(_queueKey))
-            {
-                _queueKey = value;
-            }
-        }
     }
 
     [JsonPropertyName("queueName")]

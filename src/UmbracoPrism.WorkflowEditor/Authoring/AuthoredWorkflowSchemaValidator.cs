@@ -25,7 +25,7 @@ public static class AuthoredWorkflowSchemaValidator
             .Select(gateway => gateway.GatewayKey)
             .ToHashSet(StringComparer.Ordinal);
         var schemaByKey = BuildSchemaMap(authored.ParameterSchemas, diagnostics);
-        var queuesByKey = BuildQueueMap(GetQueues(authored), diagnostics);
+        var queuesByKey = BuildQueueMap(authored.Queues, diagnostics);
 
         if (string.IsNullOrWhiteSpace(authored.DefinitionKey))
         {
@@ -305,9 +305,6 @@ public static class AuthoredWorkflowSchemaValidator
             }
         }
     }
-
-    private static IReadOnlyList<AuthoredQueue> GetQueues(AuthoredWorkflow authored) =>
-        authored.Queues.Count > 0 ? authored.Queues : authored.Lanes;
 
     private static Dictionary<string, AuthoredQueue> BuildQueueMap(
         IReadOnlyList<AuthoredQueue> queues,

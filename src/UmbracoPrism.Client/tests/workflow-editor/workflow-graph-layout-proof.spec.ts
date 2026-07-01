@@ -55,10 +55,10 @@ async function measureGraph(page: Page): Promise<MeasuredGraph> {
     }
 
     const sceneRect = scene.getBoundingClientRect();
-    const lanes = Array.from(shadowRoot.querySelectorAll<HTMLElement>('[data-prism-role-lane]')).map(lane => {
+    const lanes = Array.from(shadowRoot.querySelectorAll<HTMLElement>('[data-prism-role-queue]')).map(lane => {
       const rect = lane.getBoundingClientRect();
       return {
-        key: lane.getAttribute('data-prism-role-lane') ?? '',
+        key: lane.getAttribute('data-prism-role-queue') ?? '',
         left: rect.left - sceneRect.left,
         right: rect.right - sceneRect.left,
         top: rect.top - sceneRect.top,
@@ -97,7 +97,7 @@ async function measureGraph(page: Page): Promise<MeasuredGraph> {
         kind: 'gateway' as const,
         gatewayKind: gateway.getAttribute('data-prism-gateway-kind'),
         label: gateway.querySelector('.node-label')?.textContent?.trim() ?? '',
-        lane: gateway.getAttribute('data-prism-lane') ?? '',
+        lane: gateway.getAttribute('data-prism-queue') ?? '',
         left: rect.left - sceneRect.left,
         right: rect.right - sceneRect.left,
         top: rect.top - sceneRect.top,

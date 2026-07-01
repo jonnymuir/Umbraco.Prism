@@ -85,55 +85,65 @@ test.describe('Workflow action editor', () => {
     await expect(page.locator('[data-prism-action-picker-option="notifications.send-sms"]')).toBeVisible();
     await expect(page.locator('[data-prism-action-picker-option="notifications.send-email"]')).toHaveCount(0);
 
-    await page.locator('[data-prism-action-picker-option="notifications.send-sms"]').press('Enter');
-    await page.locator('[data-prism-action-picker-add]').press('Enter');
+    await page.locator('[data-prism-action-picker-option="notifications.send-sms"]').click();
+    await expect(page.locator('[data-prism-action-picker-option="notifications.send-sms"]')).toHaveClass(/\bselected\b/);
+    await page.locator('[data-prism-action-picker-add]').click();
 
     await expect(pickerDialog).toBeHidden();
     await expect(page.locator('[data-prism-stage-action]')).toHaveCount(3);
 
-    await page.locator('[data-prism-action-param="2-templateId"]').focus();
-    await page.keyboard.type('review-routed-sms');
-    await page.locator('[data-prism-action-param="2-recipientNumber"]').focus();
-    await page.keyboard.type('+441234567890');
+    await page.locator('[data-prism-action-param="2-templateId"]').fill('review-routed-sms');
+    await page.locator('[data-prism-action-param="2-recipientNumber"]').fill('+441234567890');
     await expect(page.locator('[data-prism-action-errors="2"]')).toBeHidden();
     await expect(page.locator('[data-prism-stage-action="2"] .action-summary')).toContainText('+441234567890');
 
+    // For buttons inside action-list items, use the double-focus pattern: explicit focus()
+    // then locator.press(). The action list's @focusin→requestAnimationFrame can move focus
+    // between steps, but locator.press() refocuses the target before dispatching the key,
+    // so the key always lands on the intended element.
     const addFieldButton = page.locator('[data-prism-add-form-field="1"]');
     await addFieldButton.focus();
+    // Drain the rAF scheduled by _setSelectedAction(1) (focus moved from action 2 to action 1).
+    // Without this, the rAF fires between press()'s internal focus and keydown, stealing focus.
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
     await addFieldButton.press('Enter');
     await expect(page.locator('[data-prism-form-field="1-1"]')).toBeVisible({ timeout: 10_000 });
 
-    await page.locator('[data-prism-form-field-key="1-1"]').focus();
-    await page.keyboard.press('Meta+A');
-    await page.keyboard.type('supporting-date');
-    await page.locator('[data-prism-form-field-label="1-1"]').focus();
-    await page.keyboard.type('Evidence due date');
+    await page.locator('[data-prism-form-field-key="1-1"]').fill('supporting-date');
+    await page.locator('[data-prism-form-field-label="1-1"]').fill('Evidence due date');
     await page.locator('[data-prism-form-field-type="1-1"]').selectOption('date');
 
     const moveFieldUpButton = page.locator('[data-prism-form-field="1-1"]').getByRole('button', { name: 'Move up' });
     await moveFieldUpButton.focus();
-    await page.keyboard.press('Enter');
+    await moveFieldUpButton.press('Enter');
     await expect(page.locator('[data-prism-form-field-key="1-0"]')).toHaveValue('supporting-date');
 
-    await page.locator('[data-prism-stage-action="2"]').focus();
-    await page.keyboard.press('Alt+ArrowUp');
+    const actionItem2 = page.locator('[data-prism-stage-action="2"]');
+    await actionItem2.focus();
+    await actionItem2.press('Alt+ArrowUp');
     await expect(page.locator('[data-prism-stage-action="1"] .action-title')).toContainText('Send SMS');
+    // _moveAction calls _setSelectedAction(1), triggering a Lit render → updated() → rAF for
+    // _focusActionEditor(1). That rAF can fire between press()'s internal focus CDP call and its
+    // keydown CDP call, stealing focus from the remove button. Drain it here so state is stable.
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
 
     const removeButton = page.locator('[data-prism-stage-action-remove="1"]');
     await removeButton.focus();
-    await page.keyboard.press('Enter');
+    await removeButton.press('Enter');
 
     const deleteDialog = page.locator('[data-prism-delete-action-dialog]');
     await expect(deleteDialog).toBeVisible();
     await expect(deleteDialog).toContainText('Delete Send SMS?');
     await expect(page.locator('[data-prism-delete-action-cancel]')).toBeFocused();
-    await page.keyboard.press('Escape');
+    await page.locator('[data-prism-delete-action-cancel]').press('Escape');
 
     await expect(deleteDialog).toBeHidden();
     await expect(removeButton).toBeFocused();
     await expect(page.locator('[data-prism-stage-action]')).toHaveCount(3);
+    await deleteDialog.waitFor({ state: 'detached' });
 
-    await page.keyboard.press('Enter');
+    await removeButton.focus();
+    await removeButton.press('Enter');
     await expect(deleteDialog).toBeVisible();
     await page.locator('[data-prism-delete-action-confirm]').press('Enter');
 

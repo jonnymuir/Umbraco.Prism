@@ -179,7 +179,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Browser surface quality check: Swim lane structure is visible and usable ─
     // The smoke lane should prove the role-first graph rendered a usable authored surface
     // without depending on a specific number of lanes in the seed workflow.
-    const roleLanes = page.locator('[data-prism-role-lane]');
+    const roleLanes = page.locator('[data-prism-role-queue]');
     await expect(roleLanes).not.toHaveCount(0);
     
     const firstLane = roleLanes.first();

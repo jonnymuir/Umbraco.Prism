@@ -6,6 +6,7 @@ import {
   type AuthoredStage,
   type AuthoredWorkflow,
   hydrateWorkflowDefinition,
+  workflowGateways,
 } from './types.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
 import { WorkflowSaveError, normaliseWorkflowSaveError, type WorkflowSource } from './workflow-source.js';
@@ -367,12 +368,21 @@ export class PrismWorkflowEditorElement extends LitElement {
 
   private get _previewedTransitions(): ProjectedWorkflowTransition[] {
     const selectedStage = this._selectedStage;
-    if (!selectedStage || !this._projectedWorkflowPreview) {
+    if (!selectedStage || !this._projectedWorkflowPreview || !this._workflow) {
       return [];
     }
 
-    return (this._projectedWorkflowPreview.file.states.find(stage => stage.stateKey === selectedStage.stateKey)?.routes ?? [])
+    const gatewayMap = new Map(workflowGateways(this._workflow).map(g => [g.key, g]));
+    const stageRoutes = (this._projectedWorkflowPreview.file.states.find(stage => stage.stateKey === selectedStage.stateKey)?.routes ?? [])
       .filter(route => route.target.trim().length > 0);
+
+    return stageRoutes.flatMap(route => {
+      const gateway = gatewayMap.get(route.target);
+      if (gateway) {
+        return (gateway.routes ?? []).filter(r => r.target.trim().length > 0);
+      }
+      return [route];
+    });
   }
 
   private get _initialSimulationStage(): AuthoredStage | null {
@@ -1288,7 +1298,7 @@ export class PrismWorkflowEditorElement extends LitElement {
       const insertIndex = selectedStageIndex >= 0 ? selectedStageIndex + 1 : stages.length;
       stages.splice(insertIndex, 0, pastedStage);
 
-      this._commitWorkflowUpdate({ ...this._workflow, stages }, { kind: 'stage', stageKey });
+      this._commitWorkflowUpdate({ ...this._workflow, states: stages }, { kind: 'stage', stageKey });
       this._showToast(`Pasted stage ${pastedStage.displayName}.`);
       this._handleInspectorRequested();
       return true;
@@ -1313,7 +1323,7 @@ export class PrismWorkflowEditorElement extends LitElement {
     const stages = [...this._workflow.states];
     const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
     stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
-    this._commitWorkflowUpdate({ ...this._workflow, stages }, currentSelection);
+    this._commitWorkflowUpdate({ ...this._workflow, states: stages }, currentSelection);
     this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
     this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
     return true;

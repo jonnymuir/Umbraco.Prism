@@ -17,11 +17,11 @@ public class WorkflowSimulationServiceTests
             DefinitionKey = "split-walk",
             DisplayName = "Split walk",
             InitialStageKey = "start",
-            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
             Stages =
             [
-                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" },
-                new AuthoredStage { StageKey = "end", DisplayName = "End", Kind = StageKind.Confirmation, LaneKey = "applicant" }
+                new AuthoredStage { StageKey = "start", DisplayName = "Start", QueueKey = "applicant" },
+                new AuthoredStage { StageKey = "end", DisplayName = "End", Kind = StageKind.Confirmation, QueueKey = "applicant" }
             ],
             Gateways =
             [
@@ -30,7 +30,7 @@ public class WorkflowSimulationServiceTests
                     GatewayKey = "fan-out",
                     DisplayName = "Fan out",
                     Kind = GatewayKind.Split,
-                    LaneKey = "applicant",
+                    QueueKey = "applicant",
                     Source = "start",
                     Routes = [new AuthoredRoute { Id = "r1", Target = "end", Trigger = "continue" }]
                 }
@@ -60,11 +60,11 @@ public class WorkflowSimulationServiceTests
             DefinitionKey = "join-pause",
             DisplayName = "Join pause",
             InitialStageKey = "start",
-            Lanes = [new AuthoredLane { Key = "applicant", DisplayName = "Applicant" }],
+            Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
             Stages =
             [
-                new AuthoredStage { StageKey = "start", DisplayName = "Start", LaneKey = "applicant" },
-                new AuthoredStage { StageKey = "end", DisplayName = "End", Kind = StageKind.Confirmation, LaneKey = "applicant" }
+                new AuthoredStage { StageKey = "start", DisplayName = "Start", QueueKey = "applicant" },
+                new AuthoredStage { StageKey = "end", DisplayName = "End", Kind = StageKind.Confirmation, QueueKey = "applicant" }
             ],
             Gateways =
             [
@@ -73,7 +73,7 @@ public class WorkflowSimulationServiceTests
                     GatewayKey = "route-to-join",
                     DisplayName = "Route to join",
                     Kind = GatewayKind.Split,
-                    LaneKey = "applicant",
+                    QueueKey = "applicant",
                     Source = "start",
                     Routes = [new AuthoredRoute { Id = "r1", Target = "join-here", Trigger = "continue" }]
                 },
@@ -82,9 +82,9 @@ public class WorkflowSimulationServiceTests
                     GatewayKey = "join-here",
                     DisplayName = "Join here",
                     Kind = GatewayKind.Join,
-                    LaneKey = "applicant",
+                    QueueKey = "applicant",
                     WaitingInfo = new WaitingMetadata { Content = "Waiting for parallel branches." },
-                    RequiredIncomingLanes = ["applicant"],
+                    RequiredIncomingQueues = ["applicant"],
                     Routes = [new AuthoredRoute { Id = "release", Target = "end", Trigger = "release" }]
                 }
             ]
