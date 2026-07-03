@@ -10,6 +10,12 @@ const readinessTimeoutMs = 480_000; // 8 minutes — CI runners vary; 5min was t
 const readinessPollIntervalMs = 10_000;
 const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;
+// A wedged resource (port still listening, process not actually responding) doesn't recover on
+// its own — waiting out the full readinessTimeoutMs just burns the CI budget. If the exact same
+// set of checks has been pending this long with zero progress, restart the whole stack once
+// instead of waiting it out.
+const stallRecoveryThresholdMs = 180_000; // 3 minutes
+const maxRecoveryAttempts = 1;
 
 // Known patterns in Umbraco's default "unseeded" splash page — when we see these,
 // classify as "still seeding" (not a hard failure). CI hardware timing can push
@@ -122,6 +128,16 @@ type ReadinessStatus = {
   failures: string[];
 };
 
+class StallDetectedError extends Error {
+  constructor(
+    readonly reason: string,
+    readonly statuses: ReadinessStatus[]
+  ) {
+    super(`Readiness stalled: ${reason}`);
+    this.name = 'StallDetectedError';
+  }
+}
+
 export class LiveAppHost {
   private child: ChildProcessWithoutNullStreams | undefined;
   private resetTestSiteRuntimeOnNextStart = true;
@@ -132,6 +148,10 @@ export class LiveAppHost {
       return;
     }
 
+    await this.attemptStart(0);
+  }
+
+  private async attemptStart(recoveryAttempt: number): Promise<void> {
     await this.ensurePortsAreAvailable();
 
     this.child = spawn('dotnet', ['run', '--project', appHostProject], {
@@ -154,6 +174,22 @@ export class LiveAppHost {
       this.resetTestSiteRuntimeOnNextStart = false;
     } catch (error) {
       await this.stop().catch(() => undefined);
+
+      if (error instanceof StallDetectedError && recoveryAttempt < maxRecoveryAttempts) {
+        console.log(
+          `[readiness] stack appears wedged (${error.reason}); restarting once and retrying ` +
+            `(recovery attempt ${recoveryAttempt + 1}/${maxRecoveryAttempts}).`
+        );
+        await this.attemptStart(recoveryAttempt + 1);
+        return;
+      }
+
+      if (error instanceof StallDetectedError) {
+        throw new Error(
+          this.buildTimeoutDiagnostics(`Stack stalled: ${error.reason}`, error.statuses)
+        );
+      }
+
       throw error;
     }
   }
@@ -272,6 +308,8 @@ export class LiveAppHost {
     const firstReadyAt = new Map<string, number>();
     const lastObservedFailure = new Map<string, string>();
     let lastCheckpointAt = -readinessCheckpointIntervalMs;
+    let stalledPendingNames = '';
+    let stalledSinceMs = 0;
 
     while (Date.now() - start < readinessTimeoutMs) {
       if (this.child && this.child.exitCode !== null) {
@@ -289,16 +327,41 @@ export class LiveAppHost {
         return;
       }
 
+      const pendingNames = latestStatuses
+        .filter(status => !status.ok)
+        .map(status => status.check.name)
+        .sort()
+        .join(',');
+
+      if (pendingNames !== stalledPendingNames) {
+        stalledPendingNames = pendingNames;
+        stalledSinceMs = elapsedMs;
+      } else if (elapsedMs - stalledSinceMs >= stallRecoveryThresholdMs) {
+        throw new StallDetectedError(
+          `no progress on [${pendingNames}] for ${formatDuration(elapsedMs - stalledSinceMs)}`,
+          latestStatuses
+        );
+      }
+
       await delay(readinessPollIntervalMs);
     }
 
     throw new Error(
-      `Timed out waiting ${formatDuration(readinessTimeoutMs)} for the Aspire localhost stack to become ready.\n\n` +
-        `Readiness diagnostics:\n${formatReadinessDiagnostics(latestStatuses)}\n\n` +
-        `Port diagnostics:\n${formatPortDiagnostics()}\n\n` +
-        `Keycloak container logs:\n${captureDockerContainerLogs('keycloak')}\n\n` +
-        `Relevant resource logs:\n${this.formatResourceLogs()}\n\n` +
-        `Recent logs:\n${this.formatLogs()}`
+      this.buildTimeoutDiagnostics(
+        `Timed out waiting ${formatDuration(readinessTimeoutMs)} for the Aspire localhost stack to become ready.`,
+        latestStatuses
+      )
+    );
+  }
+
+  private buildTimeoutDiagnostics(headline: string, statuses: ReadinessStatus[]): string {
+    return (
+      `${headline}\n\n` +
+      `Readiness diagnostics:\n${formatReadinessDiagnostics(statuses)}\n\n` +
+      `Port diagnostics:\n${formatPortDiagnostics()}\n\n` +
+      `Keycloak container logs:\n${captureDockerContainerLogs('keycloak')}\n\n` +
+      `Relevant resource logs:\n${this.formatResourceLogs()}\n\n` +
+      `Recent logs:\n${this.formatLogs()}`
     );
   }
 

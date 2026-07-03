@@ -523,3 +523,6 @@ src/UmbracoPrism.TestSite/appsettings.Local.json
 # Supply real Entra tenant/client IDs and member emails here.
 # See src/UmbracoPrism.MockBusinessApp/README.md for setup instructions.
 src/UmbracoPrism.MockBusinessApp/appsettings.Local.json
+
+# uSync export files — environment-specific, not source artefacts.
+uSync/

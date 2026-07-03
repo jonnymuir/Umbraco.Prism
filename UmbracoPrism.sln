@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.WorkflowEditor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.WorkflowRuntime", "src\UmbracoPrism.WorkflowRuntime\UmbracoPrism.WorkflowRuntime.csproj", "{129A5F87-526B-41B7-A144-16FC17A35CEE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.uSync", "src\UmbracoPrism.uSync\UmbracoPrism.uSync.csproj", "{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -155,6 +157,18 @@ Global
 		{129A5F87-526B-41B7-A144-16FC17A35CEE}.Release|x64.Build.0 = Release|Any CPU
 		{129A5F87-526B-41B7-A144-16FC17A35CEE}.Release|x86.ActiveCfg = Release|Any CPU
 		{129A5F87-526B-41B7-A144-16FC17A35CEE}.Release|x86.Build.0 = Release|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Debug|x64.Build.0 = Debug|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Debug|x86.Build.0 = Debug|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Release|x64.ActiveCfg = Release|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Release|x64.Build.0 = Release|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Release|x86.ActiveCfg = Release|Any CPU
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -170,5 +184,6 @@ Global
 		{6C8D7E44-BB7B-462D-AEA6-E0F0E9F838E9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{D927198A-179C-4F2A-ACC0-4746D3DCE043} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{129A5F87-526B-41B7-A144-16FC17A35CEE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

@@ -17,6 +17,7 @@ public class TenantService : ITenantService
 
     private readonly IUmbracoDatabaseFactory _databaseFactory;
     private readonly IAppPolicyCache _runtimeCache;
+    private readonly ITenantTokenResolver _tokenResolver;
     private readonly ILogger<TenantService> _logger;
 
     private long _cacheHits;
@@ -29,11 +30,17 @@ public class TenantService : ITenantService
     /// </summary>
     /// <param name="databaseFactory">Factory used to open Umbraco database connections.</param>
     /// <param name="appCaches">Application cache container used for runtime tenant caching.</param>
+    /// <param name="tokenResolver">Resolves {{TOKEN_NAME}} placeholders in tenant fields at runtime.</param>
     /// <param name="logger">Logger used for cache invalidation diagnostics.</param>
-    public TenantService(IUmbracoDatabaseFactory databaseFactory, AppCaches appCaches, ILogger<TenantService> logger)
+    public TenantService(
+        IUmbracoDatabaseFactory databaseFactory,
+        AppCaches appCaches,
+        ITenantTokenResolver tokenResolver,
+        ILogger<TenantService> logger)
     {
         _databaseFactory = databaseFactory;
         _runtimeCache = appCaches.RuntimeCache;
+        _tokenResolver = tokenResolver;
         _logger = logger;
     }
 
@@ -82,26 +89,28 @@ public class TenantService : ITenantService
             var brandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides);
             var mobileBrandingOverrides = ParseBrandingOverrides(tenantSchema.MobileBrandingOverrides);
 
+            // Resolve {{TOKEN_NAME}} placeholders in identity fields. Hostname is the lookup
+            // key and is never stored with tokens — see PrismTenantSyncHandler for details.
             return new PrismTenant
             {
                 Id = tenantSchema.Id,
                 Name = tenantSchema.Name,
                 Hostname = tenantSchema.Hostname,
-                EntraTenantId = tenantSchema.EntraTenantId,
-                EntraClientId = tenantSchema.EntraClientId,
-                SecretKeyName = tenantSchema.SecretKeyName,
+                EntraTenantId = _tokenResolver.Resolve(tenantSchema.EntraTenantId),
+                EntraClientId = _tokenResolver.Resolve(tenantSchema.EntraClientId),
+                SecretKeyName = _tokenResolver.Resolve(tenantSchema.SecretKeyName),
                 BrandingOverrides = brandingOverrides,
                 MobileBrandingOverrides = mobileBrandingOverrides,
                 BrandingCssDeclarations = BuildCssDeclarations(brandingOverrides),
                 MobileBrandingCssDeclarations = BuildCssDeclarations(mobileBrandingOverrides),
                 AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
-                OidcAuthority = tenantSchema.OidcAuthority,
-                OidcClientId = tenantSchema.OidcClientId,
-                OidcClientSecretProvider = tenantSchema.OidcClientSecretProvider
+                OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
+                OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
+                OidcClientSecretProvider = _tokenResolver.Resolve(tenantSchema.OidcClientSecretProvider)
                     ?? (!string.IsNullOrWhiteSpace(tenantSchema.OidcClientSecret)
                         ? PrismSecretProviderNames.Inline
                         : null),
-                OidcClientSecretReference = tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret
+                OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
             };
         }, TimeSpan.FromMinutes(30));
 

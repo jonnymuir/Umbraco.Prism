@@ -25,6 +25,7 @@ public class PrismComposer : IComposer
         // 1. Core Services
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ISecretVaultService, SecretVaultService>();
+        builder.Services.AddSingleton<ITenantTokenResolver, TenantTokenResolver>();
         builder.Services.AddSingleton<ITenantService, TenantService>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
         builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();

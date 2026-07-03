@@ -258,7 +258,8 @@ public class TenantManagementControllerTests
             tenantService.Object,
             Mock.Of<IBrandingService>(),
             Mock.Of<IMobileBundleService>(),
-            Mock.Of<IPrismBrandingMetadataService>());
+            Mock.Of<IPrismBrandingMetadataService>(),
+            Mock.Of<ITenantTokenResolver>());
 
         return (controller, db, tenantService, dbFactory);
     }
