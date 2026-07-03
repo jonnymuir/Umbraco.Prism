@@ -2,6 +2,24 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.11.0] — 2026-07-03
+
+### New Features
+
+- **Environment token resolution for tenants:** Tenant identity fields (OIDC authority, client ID, secret references, etc.) can now hold a `{{TOKEN_NAME}}` placeholder that resolves from app settings or environment variables at runtime, instead of storing secrets and per-environment values directly on the tenant record. A new "token-status" endpoint and an Environment Tokens tab in the tenant create/edit UI show which placeholders are configured.
+- **uSync support for tenants:** Adds a `UmbracoPrism.uSync` project so tenants can be exported and imported via uSync, with the hostname field resolved at import time.
+
+### Bug Fixes & Improvements
+
+- Fixes stage creation in the workflow editor writing an invalid identifier, which could break saving a new stage.
+- Fixes route creation reusing an existing split gateway instead of creating a duplicate.
+- Fixes copy/paste in the workflow editor losing pasted stage actions.
+- Fixes workflow definition linting incorrectly flagging valid "Waiting" stages.
+- Fixes the stage preview showing internal gateway routing instead of the user-facing "continue" action.
+- Removes the legacy lane-based workflow compatibility layer now that the queue model (introduced in v1.10.0) is the only supported format. Workflow definitions still using `lane`/`laneKey` fields must migrate to `queue`/`queueName`.
+
+---
+
 ## [v1.10.1] — 2026-06-27
 
 ### Changed
