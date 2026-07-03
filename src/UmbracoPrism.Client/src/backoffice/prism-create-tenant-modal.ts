@@ -46,6 +46,15 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
   @state() private _activeTab = 'general';
   @state() private _maximized = false;
+  @state() private _tokenStatus: Array<{
+    fieldName: string;
+    rawValue: string;
+    tokenName: string;
+    resolvedValue: string | null;
+    isResolved: boolean;
+  }> = [];
+  @state() private _tokenStatusLoading = false;
+  @state() private _tokenStatusError: string | null = null;
   @state() private _brandingTabs: Array<{
     label: string;
     variables: Array<{
@@ -424,7 +433,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
   private _ensureActiveTab() {
     const brandingTabKeys = this._brandingTabs.map((_, index) => this._brandingTabKey(index));
-    const allowedTabs = new Set(['general', 'identity', 'mobile', ...brandingTabKeys]);
+    const allowedTabs = new Set(['general', 'identity', 'mobile', 'tokens', ...brandingTabKeys]);
 
     if (!allowedTabs.has(this._activeTab)) {
       this._activeTab = 'general';
@@ -491,6 +500,139 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private async _fetchTokenStatus() {
+    if (!this._id) return;
+
+    this._tokenStatusLoading = true;
+    this._tokenStatusError = null;
+
+    try {
+      let token: string | undefined;
+      await Promise.race([
+        new Promise<void>(resolve => {
+          this.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
+            if (authContext) token = await authContext.getLatestToken();
+            resolve();
+          });
+        }),
+        new Promise<void>(resolve => setTimeout(resolve, 500))
+      ]);
+
+      const response = await fetch(
+        `/umbraco/management/api/v1/prism/tenants/${this._id}/token-status`,
+        { headers: token ? { 'Authorization': `Bearer ${token}` } : {} }
+      );
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      this._tokenStatus = await response.json();
+    } catch (err) {
+      this._tokenStatusError = err instanceof Error ? err.message : 'Unknown error';
+    } finally {
+      this._tokenStatusLoading = false;
+    }
+  }
+
+  private _renderTokensTab() {
+    const isEditMode = this._id !== null;
+    const missingTokens = this._tokenStatus.filter(t => !t.isResolved);
+
+    const missingSnippet = missingTokens.length > 0
+      ? '{\n' + missingTokens.map(t => `  "${t.tokenName}": "your-value-here"`).join(',\n') + '\n}'
+      : null;
+
+    return html`
+      <div role="tabpanel" id="tokens-panel" aria-labelledby="tokens-tab" class="tab-content">
+        <uui-box>
+          <h3 style="margin-top:0">Environment Tokens</h3>
+          <p class="description">
+            Any field value in this tenant can hold a <code>{{TOKEN_NAME}}</code> placeholder instead of
+            a literal string. Prism replaces these at runtime from your application configuration.
+            Token names must be <strong>UPPERCASE with underscores</strong>.
+          </p>
+          <p class="description">
+            Tokens resolve from the <strong>root level</strong> of <code>appsettings.json</code> — not
+            nested under any section. For example, to use <code>{{OIDC_AUTHORITY}}</code> in the
+            OIDC Authority field, add this to your <code>appsettings.json</code>:
+          </p>
+          <pre class="token-snippet">{
+  "OIDC_AUTHORITY": "https://auth.example.com/realms/prod"
+}</pre>
+          <p class="description">
+            You can also set tokens as environment variables (<code>OIDC_AUTHORITY=https://…</code>),
+            or via any other .NET configuration source. The Hostname field is resolved at uSync
+            import time rather than runtime.
+          </p>
+
+          ${!isEditMode ? html`
+            <div class="info-banner" role="note">
+              Save this tenant first to inspect its token status.
+            </div>
+          ` : this._tokenStatusLoading ? html`
+            <p class="description">Loading token status…</p>
+          ` : this._tokenStatusError ? html`
+            <small class="error-text" role="alert">Could not load token status: ${this._tokenStatusError}</small>
+          ` : this._tokenStatus.length === 0 ? html`
+            <div class="info-banner" role="note">
+              No <code>{{TOKEN_NAME}}</code> placeholders are currently used in this tenant's identity fields.
+              You can add them by typing <code>{{MY_TOKEN}}</code> directly into any field on the Identity tab and saving.
+            </div>
+          ` : html`
+            <table class="token-table" aria-label="Token resolution status">
+              <thead>
+                <tr>
+                  <th scope="col">Token</th>
+                  <th scope="col">Field</th>
+                  <th scope="col">Resolved value</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this._tokenStatus.map(t => html`
+                  <tr>
+                    <td><code>{{${t.tokenName}}}</code></td>
+                    <td>${t.fieldName}</td>
+                    <td>
+                      ${t.isResolved
+                        ? html`<code class="resolved-value">${t.resolvedValue}</code>`
+                        : html`<span class="token-missing">—</span>`}
+                    </td>
+                    <td>
+                      ${t.isResolved
+                        ? html`<span class="token-badge token-badge--ok" aria-label="Resolved">✓ Resolved</span>`
+                        : html`<span class="token-badge token-badge--missing" aria-label="Missing">⚠ Missing</span>`}
+                    </td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+
+            ${missingSnippet ? html`
+              <div class="missing-tokens-hint">
+                <strong>Add these to your <code>appsettings.json</code> (root level):</strong>
+                <pre class="token-snippet">${missingSnippet}</pre>
+                <p style="margin:0.25rem 0 0">
+                  Or as environment variables, one per line:
+                  <code>${missingTokens.map(t => t.tokenName + '=your-value').join(' · ')}</code>
+                </p>
+              </div>
+            ` : ''}
+
+            <p style="margin-top:0.75rem">
+              <uui-button
+                look="secondary"
+                compact
+                label="Refresh token status"
+                @click=${() => this._fetchTokenStatus()}>
+                Refresh
+              </uui-button>
+            </p>
+          `}
+        </uui-box>
+      </div>
+    `;
+  }
+
   private _handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && this._maximized) {
       event.stopPropagation();
@@ -511,10 +653,12 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     const nextTab = tab.dataset.tabKey;
     if (nextTab && nextTab !== this._activeTab) {
       this._activeTab = nextTab;
-      
-      // Fetch branding metadata when switching to a branding tab
+
       if (nextTab.startsWith('branding-')) {
         this._fetchBrandingMetadata();
+      }
+      if (nextTab === 'tokens') {
+        this._fetchTokenStatus();
       }
     }
   }
@@ -1733,6 +1877,13 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           ?active=${this._activeTab === 'mobile'}>
           Produce Mobile
         </uui-tab>
+        <uui-tab
+          label="Environment Tokens"
+          id="tokens-tab"
+          data-tab-key="tokens"
+          ?active=${this._activeTab === 'tokens'}>
+          Environment Tokens
+        </uui-tab>
         ${brandingTabs.map(({ tab, key }, index) => html`
           <uui-tab
             label=${tab.label}
@@ -1751,9 +1902,11 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
             ? this._renderIdentityTab()
             : this._activeTab === 'mobile'
               ? this._renderMobileTab()
-            : brandingTabs.map(({ key }, index) =>
-                this._activeTab === key ? this._renderBrandingTab(index) : ''
-              )}
+              : this._activeTab === 'tokens'
+                ? this._renderTokensTab()
+                : brandingTabs.map(({ key }, index) =>
+                    this._activeTab === key ? this._renderBrandingTab(index) : ''
+                  )}
       </div>
       </uui-dialog-layout>
     `;
@@ -1942,6 +2095,79 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     .error-text {
       color: var(--uui-color-danger-standalone);
+    }
+    .info-banner {
+      background: var(--uui-color-surface-alt);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      font-size: 0.85rem;
+      color: var(--uui-color-text-alt);
+    }
+    .token-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: var(--uui-size-space-3);
+    }
+    .token-table th {
+      text-align: left;
+      padding: 0.35rem 0.6rem;
+      background: var(--uui-color-surface-alt);
+      border-bottom: 2px solid var(--uui-color-border);
+      font-weight: 600;
+    }
+    .token-table td {
+      padding: 0.35rem 0.6rem;
+      border-bottom: 1px solid var(--uui-color-border-standalone);
+      vertical-align: middle;
+    }
+    .token-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .token-badge--ok {
+      background: color-mix(in srgb, var(--uui-color-positive) 15%, transparent);
+      color: var(--uui-color-positive-standalone);
+    }
+    .token-badge--missing {
+      background: color-mix(in srgb, var(--uui-color-warning) 15%, transparent);
+      color: var(--uui-color-warning-standalone);
+    }
+    .resolved-value {
+      max-width: 220px;
+      display: inline-block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: bottom;
+    }
+    .token-missing {
+      color: var(--uui-color-text-alt);
+    }
+    .token-snippet {
+      background: var(--uui-color-surface-alt);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      font-family: monospace;
+      font-size: 0.82rem;
+      white-space: pre;
+      overflow-x: auto;
+      margin: 0.4rem 0 0.75rem;
+    }
+    .missing-tokens-hint {
+      margin-top: var(--uui-size-space-4);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      background: color-mix(in srgb, var(--uui-color-warning) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--uui-color-warning) 40%, transparent);
+      border-radius: var(--uui-border-radius);
+      font-size: 0.85rem;
     }
     .section-title {
       margin: var(--uui-size-space-5) 0 var(--uui-size-space-2);

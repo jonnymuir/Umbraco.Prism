@@ -26,7 +26,8 @@ public class TenantManagementController(
     ITenantService tenantService,
     IBrandingService brandingService,
     IMobileBundleService mobileBundleService,
-    IPrismBrandingMetadataService brandingMetadataService) : ManagementApiControllerBase
+    IPrismBrandingMetadataService brandingMetadataService,
+    ITenantTokenResolver tokenResolver) : ManagementApiControllerBase
 {
     /// <summary>
     /// Gets all registered tenants.
@@ -232,6 +233,29 @@ public class TenantManagementController(
         tenantService.InvalidateDomain(tenant.Hostname, "tenant-delete");
 
         return Ok();
+    }
+
+    /// <summary>
+    /// Returns the token resolution status for a tenant's identity fields.
+    /// Used by the "Environment Tokens" backoffice tab to show editors what
+    /// {{TOKEN_NAME}} placeholders exist and whether they are configured.
+    /// </summary>
+    [HttpGet("tenants/{id:int}/token-status")]
+    public IActionResult GetTenantTokenStatus(int id)
+    {
+        using var db = databaseFactory.CreateDatabase();
+        var tenant = db.SingleOrDefaultById<PrismTenantSchema>(id);
+        if (tenant is null) return NotFound();
+
+        var tokens = tokenResolver.ExtractTokenStatus(tenant);
+        return Ok(tokens.Select(t => new
+        {
+            fieldName = t.FieldName,
+            rawValue = t.RawValue,
+            tokenName = t.TokenName,
+            resolvedValue = t.ResolvedValue,
+            isResolved = t.IsResolved
+        }));
     }
 
     /// <summary>

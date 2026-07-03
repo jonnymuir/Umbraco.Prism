@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\UmbracoPrism.Core\UmbracoPrism.Core.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.uSync\UmbracoPrism.uSync.csproj" />
   </ItemGroup>
 
   <ItemGroup>

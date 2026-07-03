@@ -319,6 +319,6 @@ public class TenantServiceCacheStrategyTests
         var isolatedCaches = new IsolatedCaches(_ => new ObjectCacheAppCache());
         var appCaches = new AppCaches(runtimeCache, requestCache.Object, isolatedCaches);
 
-        return new TenantService(databaseFactory, appCaches, NullLogger<TenantService>.Instance);
+        return new TenantService(databaseFactory, appCaches, Mock.Of<ITenantTokenResolver>(), NullLogger<TenantService>.Instance);
     }
 }
