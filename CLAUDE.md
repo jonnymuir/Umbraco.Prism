@@ -133,9 +133,25 @@ ordinary (nonce-validated) form, and a named web component (e.g. `prism-money-mo
 `src/UmbracoPrism.Client/src/money-modeller/`) upgrades them in place — hiding the plain
 controls, writing its state back into them, and live-updating sibling `stat-group` cards via
 `data-prism-stat-field`. Structured display data flows via the engine's `BuildRenderData`
-host hook (→ `StepContent.Data`, resolved into the component by `dataKey`). Client figures
-are indicative only: the business app (`MoneyModellerService`) recomputes authoritative
-results on every render/advance and writes them into instance field values.
+host hook (→ `StepContent.Data`, resolved into the component by `dataKey`).
+
+### Declarative calculations
+
+Workflow definitions may carry a `calculations` block (tables + fields + series) — the
+single source of any business maths. It is a total expression language (arithmetic,
+comparisons, boolean logic, `if/min/max/clamp/abs/floor/round/pow/lookup`; no eval, no
+loops, no side effects) with decimal semantics, evaluated by two conformant runtimes:
+
+- C#: `UmbracoPrism.Shared/Services/Calculations` — authoritative; the host supplies
+  `source: "service"` inputs and re-evaluates on every render/advance.
+- TypeScript: `src/UmbracoPrism.Client/src/calculations/calculation-engine.ts` —
+  indicative; islands evaluate the same definitions live between POSTs.
+
+The shared conformance suite is `UmbracoPrism.Shared/calculation-fixtures/calculation-golden.json`,
+executed by `CalculationGoldenTests` (C#) and `npm run test:calc` (TS). Change either
+evaluator only alongside those fixtures. Do NOT hand-write business maths in host services
+or islands — put it in the definition's `calculations` block (or declare a `service` field
+when it lives in an external system of record).
 
 ### Authentication
 

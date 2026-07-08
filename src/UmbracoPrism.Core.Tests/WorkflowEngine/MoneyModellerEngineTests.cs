@@ -40,8 +40,13 @@ public class MoneyModellerEngineTests
         var model = JsonDocument.Parse(interactive.DataJson!);
         model.RootElement.GetProperty("member").GetProperty("name").GetString()
             .Should().Be("Dr Sarah Mitchell");
-        model.RootElement.GetProperty("results").GetProperty("pension").GetDecimal()
+        model.RootElement.GetProperty("results").GetProperty("resultPension").GetDecimal()
             .Should().BeGreaterThan(0);
+        model.RootElement.GetProperty("calculations").GetProperty("fields").GetProperty("resultPension")
+            .GetProperty("expr").GetString()
+            .Should().Be("round(pensionOut)", "the island receives the same definitions the server evaluated");
+        model.RootElement.GetProperty("chart").GetArrayLength()
+            .Should().Be(25, "ages 66 to 90 inclusive");
 
         var slider = interactive.Fields.Should()
             .ContainSingle(field => field.FieldKey == "retireAge").Subject;

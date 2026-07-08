@@ -4,25 +4,46 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { expect, within, userEvent } from '@storybook/test';
 import './prism-money-modeller';
 import type { MoneyModel } from './prism-money-modeller';
+import type { CalculationSet } from '../calculations/calculation-engine.js';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
+// Demo calculation set for stories: same field-name contract as the real
+// money-modeller.json seed, with simplified demo formulas. The real maths lives
+// only in the workflow definition; conformance between the two evaluators is
+// pinned by the shared golden fixtures (npm run test:calc).
 
-const PARAMETERS = {
-  accrualDivisor: 75,
-  lumpAccrualFactor: 3,
-  salaryThreshold: 74208,
-  normalPensionAge: 66,
-  minRetirementAge: 55,
-  maxRetirementAge: 75,
-  earlyPensionReductionPerYear: 0.04,
-  earlyLumpReductionPerYear: 0.025,
-  lateUpliftPerYear: 0.03,
-  commutationRate: 12,
-  taxFreeShare: 0.25,
-  dcDrawdownYears: 20,
-  statePensionAmount: 11975,
-  statePensionAge: 68,
-  aboveThresholdDcRate: 0.2,
+const DEMO_CALCULATIONS: CalculationSet = {
+  tables: {
+    pensionAgeFactor: { interpolate: 'linear', values: { '55': 0.56, '66': 1.0, '75': 1.27 } },
+  },
+  fields: {
+    member: { source: 'service' },
+    quoteMode: { expr: 'qPension > 0' },
+    npa: { expr: '66' },
+    statePensionAge: { expr: '68' },
+    minRetireAge: { expr: 'max(55, member.age + 1)' },
+    maxRetireAge: { expr: '75' },
+    retireAgeEff: { expr: 'clamp(if(quoteMode, qAge, retireAge), minRetireAge, maxRetireAge)' },
+    hasDc: { expr: 'if(quoteMode, qDC > 0, member.dcPot > 0)' },
+    cashLabel: { expr: "if(benefitOption = 'Take DC pot as cash', 'One-off cash', 'Tax-free cash')" },
+    basePension: { expr: 'if(quoteMode, qPension, member.accruedPension)' },
+    resultPension: { expr: 'round(basePension * lookup(pensionAgeFactor, retireAgeEff))' },
+    resultCash: { expr: 'round(if(quoteMode, qLump, member.accruedLump))' },
+    resultDcIncome: { expr: 'round(if(quoteMode, qDC, member.dcPot) / 20)' },
+    resultTotal: { expr: 'round(resultPension + resultDcIncome)' },
+  },
+  series: {
+    incomeByAge: {
+      over: 'age',
+      from: 'retireAgeEff',
+      to: '90',
+      values: {
+        db: 'resultPension',
+        dc: 'if(age < retireAgeEff + 20, resultDcIncome, 0)',
+        sp: 'if(age >= statePensionAge, 11975, 0)',
+      },
+    },
+  },
 };
 
 const DEFAULT_INPUTS = {
@@ -31,11 +52,11 @@ const DEFAULT_INPUTS = {
   inflation: 2.5,
   salaryGrowth: 3,
   invReturn: 5,
-  todaysMoney: true,
-  quoteMode: false,
-  quotePension: 0,
-  quoteLump: 0,
-  quoteDc: 0,
+  moneyBasis: "Today's money",
+  qPension: 0,
+  qLump: 0,
+  qDC: 0,
+  qAge: 66,
 };
 
 const ACTIVE_DB_DC: MoneyModel = {
@@ -48,9 +69,9 @@ const ACTIVE_DB_DC: MoneyModel = {
     accruedLump: 49200,
     dcPot: 48300,
   },
-  parameters: PARAMETERS,
   inputs: { ...DEFAULT_INPUTS },
-  results: { pension: 0, cash: 0, cashLabel: 'Tax-free cash', dcIncome: 0, total: 0 },
+  calculations: DEMO_CALCULATIONS,
+  results: {},
 };
 
 const ACTIVE_DB_ONLY: MoneyModel = {
@@ -83,11 +104,11 @@ const QUOTE_MODE: MoneyModel = {
   ...ACTIVE_DB_DC,
   inputs: {
     ...DEFAULT_INPUTS,
-    quoteMode: true,
     retireAge: 63,
-    quotePension: 18500,
-    quoteLump: 55500,
-    quoteDc: 48000,
+    qAge: 63,
+    qPension: 18500,
+    qLump: 55500,
+    qDC: 48000,
   },
 };
 
@@ -144,7 +165,7 @@ export const ActiveMemberDbOnly: Story = {
     await new Promise((resolve) => setTimeout(resolve, 50));
     const shadow = within(island.shadowRoot as unknown as HTMLElement);
 
-    // No DC pot and salary under the threshold — the DC cash option is not offered.
+    // No DC pot — the calculated hasDc field is false, so the option is not offered.
     await expect(shadow.queryByText('Take DC pot as cash')).toBeNull();
   },
 };

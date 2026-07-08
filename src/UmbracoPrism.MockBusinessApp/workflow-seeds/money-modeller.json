@@ -6,6 +6,79 @@
   "schemaVersion": "1.0",
   "initialState": "choose-start",
   "instancePolicy": "single",
+  "calculations": {
+    "tables": {
+      "pensionAgeFactor": {
+        "interpolate": "linear",
+        "values": { "55": 0.56, "66": 1.0, "75": 1.27 }
+      },
+      "lumpAgeFactor": {
+        "interpolate": "linear",
+        "values": { "55": 0.725, "66": 1.0, "75": 1.0 }
+      }
+    },
+    "fields": {
+      "member": { "source": "service" },
+
+      "quoteMode": { "expr": "qPension > 0" },
+      "todaysMoney": { "expr": "moneyBasis <> 'Future money'" },
+      "npa": { "expr": "66" },
+      "statePensionAge": { "expr": "68" },
+      "minRetireAge": { "expr": "max(55, member.age + 1)" },
+      "maxRetireAge": { "expr": "75" },
+      "retireAgeEff": { "expr": "clamp(if(quoteMode, qAge, retireAge), minRetireAge, maxRetireAge)" },
+      "hasDc": { "expr": "if(quoteMode, qDC > 0, member.dcPot > 0 or (member.active and member.salary > 74208))" },
+
+      "years": { "expr": "max(0, retireAgeEff - member.age)" },
+      "realGrowth": { "expr": "(salaryGrowth - inflation) / 100" },
+      "realReturn": { "expr": "(invReturn - inflation) / 100" },
+      "cappedSalary": { "expr": "min(member.salary, 74208)" },
+      "futurePension": { "expr": "if(member.active and not quoteMode, years * (cappedSalary / 75) * pow(1 + max(realGrowth, -0.05), years / 2), 0)" },
+      "basePension": { "expr": "if(quoteMode, qPension, member.accruedPension + futurePension)" },
+      "baseLump": { "expr": "if(quoteMode, qLump, member.accruedLump + 3 * futurePension)" },
+      "annualDc": { "expr": "if(member.active and not quoteMode, max(0, member.salary - 74208) * 0.2, 0)" },
+      "growthFactor": { "expr": "pow(1 + realReturn, years)" },
+      "newDcSavings": { "expr": "if(abs(realReturn) > 0.0001, annualDc * ((growthFactor - 1) / realReturn), annualDc * years)" },
+      "pot": { "expr": "if(quoteMode, qDC, member.dcPot * growthFactor + newDcSavings)" },
+
+      "pensionFactor": { "expr": "if(quoteMode, 1, lookup(pensionAgeFactor, retireAgeEff))" },
+      "lumpFactor": { "expr": "if(quoteMode, 1, lookup(lumpAgeFactor, retireAgeEff))" },
+      "moneyFactor": { "expr": "if(todaysMoney, 1, pow(1 + inflation / 100, years))" },
+      "adjPension": { "expr": "basePension * pensionFactor * moneyFactor" },
+      "adjLump": { "expr": "baseLump * lumpFactor * moneyFactor" },
+      "adjPot": { "expr": "pot * moneyFactor" },
+
+      "totalValue": { "expr": "20 * adjPension + adjLump + adjPot" },
+      "maxTfc": { "expr": "0.25 * totalValue" },
+      "extraTfc": { "expr": "max(0, maxTfc - adjLump)" },
+      "tfcFromDc": { "expr": "min(adjPot, extraTfc)" },
+      "tfcShortfall": { "expr": "extraTfc - tfcFromDc" },
+
+      "pensionOut": { "expr": "if(benefitOption = 'Maximum tax-free cash', max(0, adjPension - tfcShortfall / 12), adjPension)" },
+      "cashOut": { "expr": "if(benefitOption = 'Maximum tax-free cash', maxTfc, if(benefitOption = 'Take DC pot as cash', adjLump + adjPot, adjLump))" },
+      "potOut": { "expr": "if(benefitOption = 'Maximum tax-free cash', adjPot - tfcFromDc, if(benefitOption = 'Take DC pot as cash', 0, adjPot))" },
+      "dcIncomeOut": { "expr": "potOut / 20" },
+      "statePension": { "expr": "11975 * moneyFactor" },
+      "cashLabel": { "expr": "if(benefitOption = 'Take DC pot as cash', 'One-off cash', 'Tax-free cash')" },
+
+      "resultPension": { "expr": "round(pensionOut)" },
+      "resultCash": { "expr": "round(cashOut)" },
+      "resultDcIncome": { "expr": "round(dcIncomeOut)" },
+      "resultTotal": { "expr": "round(pensionOut + dcIncomeOut + if(retireAgeEff >= statePensionAge, statePension, 0))" }
+    },
+    "series": {
+      "incomeByAge": {
+        "over": "age",
+        "from": "retireAgeEff",
+        "to": "90",
+        "values": {
+          "db": "round(pensionOut)",
+          "dc": "if(age < retireAgeEff + 20, round(dcIncomeOut), 0)",
+          "sp": "if(age >= statePensionAge, round(statePension), 0)"
+        }
+      }
+    }
+  },
   "queues": [
     {
       "key": "web-user",

@@ -204,11 +204,13 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
     }
 
     /// <summary>
-    /// Supplies the money-modeller model stage with member data and authoritative
-    /// scenario results. Recomputes on every render so the recalculate loop and the
-    /// interactive island always agree with the server's figures. Result fields are
-    /// written back into the instance so stat-groups and downstream summary-lists
-    /// (e.g. the reviewer's quote-request view) read server-computed values.
+    /// Render hook for the money-modeller workflow. The maths lives entirely in the
+    /// definition's declarative <c>calculations</c> block; this hook supplies the one
+    /// declared service input (the member record), evaluates the block, and writes the
+    /// authoritative results back into the instance so stat-groups and downstream
+    /// summary-lists (e.g. the reviewer's quote-request view) render server figures.
+    /// Runs on every render, so the recalculate loop and the client island always
+    /// reconcile against the same definitions.
     /// </summary>
     protected override System.Text.Json.Nodes.JsonObject? BuildRenderData(
         WorkflowInstanceState instance,
@@ -216,12 +218,11 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         StepDefinition state)
     {
         if (_moneyModeller is null
+            || definition.Calculations is null
             || !string.Equals(definition.DefinitionKey, "money-modeller", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
-
-        var member = _moneyModeller.GetMember(instance.UserId);
 
         if (!string.Equals(state.StateKey, "model", StringComparison.Ordinal)
             && !string.Equals(state.StateKey, "review-quote-request", StringComparison.Ordinal))
@@ -229,24 +230,26 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
             return null;
         }
 
-        var inputs = _moneyModeller.ReadInputs(member, instance.FieldValues);
-        var result = _moneyModeller.Compute(member, inputs);
+        var member = _moneyModeller.GetMember(instance.UserId);
+        var scope = _moneyModeller.BuildScope(member, instance.FieldValues);
+        var result = _moneyModeller.Evaluate(definition.Calculations, member, instance.FieldValues);
 
         instance.FieldValues["memberName"] = member.Name;
-        instance.FieldValues["retireAge"] = inputs.RetireAge.ToString();
-        instance.FieldValues["benefitOption"] = inputs.BenefitOption;
-        instance.FieldValues["inflation"] = inputs.Inflation.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        instance.FieldValues["salaryGrowth"] = inputs.SalaryGrowth.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        instance.FieldValues["invReturn"] = inputs.InvReturn.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        instance.FieldValues["moneyBasis"] = inputs.TodaysMoney ? "Today's money" : "Future money";
-        instance.FieldValues["resultPension"] = MoneyModellerService.FormatGbp(result.Pension);
-        instance.FieldValues["resultCash"] = MoneyModellerService.FormatGbp(result.Cash);
-        instance.FieldValues["resultDcIncome"] = MoneyModellerService.FormatGbp(result.DcIncome);
-        instance.FieldValues["resultTotal"] = MoneyModellerService.FormatGbp(result.Total);
+        instance.FieldValues["retireAge"] = ((decimal)result.Fields["retireAgeEff"]!)
+            .ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+        instance.FieldValues["benefitOption"] = scope["benefitOption"];
+        instance.FieldValues["inflation"] = scope["inflation"]?.ToString();
+        instance.FieldValues["salaryGrowth"] = scope["salaryGrowth"]?.ToString();
+        instance.FieldValues["invReturn"] = scope["invReturn"]?.ToString();
+        instance.FieldValues["moneyBasis"] = scope["moneyBasis"];
+        instance.FieldValues["resultPension"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultPension"]!);
+        instance.FieldValues["resultCash"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultCash"]!);
+        instance.FieldValues["resultDcIncome"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultDcIncome"]!);
+        instance.FieldValues["resultTotal"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultTotal"]!);
 
         return new System.Text.Json.Nodes.JsonObject
         {
-            ["moneyModel"] = _moneyModeller.BuildModelData(member, inputs, result)
+            ["moneyModel"] = _moneyModeller.BuildModelData(definition.Calculations, member, scope, result)
         };
     }
 

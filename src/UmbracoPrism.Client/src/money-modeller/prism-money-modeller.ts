@@ -2,64 +2,37 @@
 // This island loads on the member-facing money-modeller workflow stage.
 import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import {
+  Dec,
+  evaluateCalculations,
+  toScope,
+  type CalculationSet,
+  type CalculationOutput,
+} from '../calculations/calculation-engine.js';
 
-/** Mirrors the moneyModel render-data contract built by MoneyModellerService. */
+/**
+ * Mirrors the moneyModel render-data contract built by MoneyModellerService.
+ * There is no maths here or anywhere in this component: `calculations` is the same
+ * declarative block the server evaluated (from the workflow definition), and this
+ * island re-evaluates it locally on every input for instant feedback. The server
+ * re-evaluates authoritatively on every render/advance.
+ */
 export interface MoneyModel {
-  member: {
-    name: string;
-    active: boolean;
-    age: number;
-    salary: number;
-    accruedPension: number;
-    accruedLump: number;
-    dcPot: number;
-  };
-  parameters: {
-    accrualDivisor: number;
-    lumpAccrualFactor: number;
-    salaryThreshold: number;
-    normalPensionAge: number;
-    minRetirementAge: number;
-    maxRetirementAge: number;
-    earlyPensionReductionPerYear: number;
-    earlyLumpReductionPerYear: number;
-    lateUpliftPerYear: number;
-    commutationRate: number;
-    taxFreeShare: number;
-    dcDrawdownYears: number;
-    statePensionAmount: number;
-    statePensionAge: number;
-    aboveThresholdDcRate: number;
-  };
+  member: Record<string, unknown>;
   inputs: {
     retireAge: number;
     benefitOption: string;
     inflation: number;
     salaryGrowth: number;
     invReturn: number;
-    todaysMoney: boolean;
-    quoteMode: boolean;
-    quotePension: number;
-    quoteLump: number;
-    quoteDc: number;
+    moneyBasis: string;
+    qPension: number;
+    qLump: number;
+    qDC: number;
+    qAge: number;
   };
-  results: {
-    pension: number;
-    cash: number;
-    cashLabel: string;
-    dcIncome: number;
-    total: number;
-  };
-}
-
-interface ScenarioResult {
-  pension: number;
-  cash: number;
-  cashLabel: string;
-  dcIncome: number;
-  remainingPot: number;
-  total: number;
-  chart: Array<{ age: number; db: number; dc: number; sp: number }>;
+  calculations: CalculationSet;
+  results: Record<string, unknown>;
 }
 
 interface SavedScenario {
@@ -102,10 +75,10 @@ const gbp = new Intl.NumberFormat('en-GB', {
  *  - reads its model from the sibling `data-prism-interactive-data` JSON script,
  *  - hides the fallback form controls but keeps writing its state into them, so the
  *    nonce-validated POST (Recalculate / Request a formal quote) is unchanged,
- *  - live-updates the page's stat-group cards via their data-prism-stat-field hooks.
- *
- * Figures computed here are indicative — the business app recomputes every rendered
- * and committed figure server-side from the same inputs.
+ *  - live-updates the page's stat-group cards via their data-prism-stat-field hooks,
+ *  - evaluates the workflow definition's own calculations block via the shared
+ *    expression engine — the figures shown are indicative; the server re-evaluates
+ *    the identical definitions authoritatively on every POST.
  */
 @customElement('prism-money-modeller')
 export class PrismMoneyModeller extends LitElement {
@@ -137,7 +110,7 @@ export class PrismMoneyModeller extends LitElement {
     } catch {
       return;
     }
-    if (!parsed?.member || !parsed.parameters || !parsed.inputs) {
+    if (!parsed?.member || !parsed.calculations || !parsed.inputs) {
       return;
     }
 
@@ -147,113 +120,52 @@ export class PrismMoneyModeller extends LitElement {
     this.inflation = parsed.inputs.inflation;
     this.salaryGrowth = parsed.inputs.salaryGrowth;
     this.invReturn = parsed.inputs.invReturn;
-    this.todaysMoney = parsed.inputs.todaysMoney;
+    this.todaysMoney = parsed.inputs.moneyBasis !== 'Future money';
+
+    // If the definitions don't evaluate (bad expression, missing input), stay
+    // un-upgraded: the server-rendered form remains fully usable.
+    if (!this.evaluate()) {
+      this.model = null;
+      return;
+    }
 
     this.querySelector('[data-prism-interactive-fallback]')?.classList.add('prism-interactive--upgraded');
     this.publish();
   }
 
-  /** Port of MoneyModellerService.Compute — keep the two in lockstep. */
-  private compute(retireAge: number, option: string): ScenarioResult {
+  /** Evaluates the workflow's calculation block against the island's current inputs. */
+  private evaluate(): CalculationOutput | null {
     const m = this.model!;
-    const p = m.parameters;
-    const member = m.member;
-    const q = m.inputs;
-
-    const age = Math.min(
-      Math.max(retireAge, Math.max(p.minRetirementAge, member.age + 1)),
-      p.maxRetirementAge,
-    );
-    const years = Math.max(0, age - member.age);
-    const realGrowth = (this.salaryGrowth - this.inflation) / 100;
-    const realReturn = (this.invReturn - this.inflation) / 100;
-
-    let basePension: number;
-    let baseLump: number;
-    let pot: number;
-
-    if (q.quoteMode) {
-      basePension = q.quotePension;
-      baseLump = q.quoteLump;
-      pot = q.quoteDc;
-    } else {
-      const cappedSalary = Math.min(member.salary, p.salaryThreshold);
-      const futurePension = member.active
-        ? years * (cappedSalary / p.accrualDivisor) * Math.pow(1 + Math.max(realGrowth, -0.05), years / 2)
-        : 0;
-      basePension = member.accruedPension + futurePension;
-      baseLump = member.accruedLump + p.lumpAccrualFactor * futurePension;
-
-      const annualDc = member.active
-        ? Math.max(0, member.salary - p.salaryThreshold) * p.aboveThresholdDcRate
-        : 0;
-      const growth = Math.pow(1 + realReturn, years);
-      pot =
-        member.dcPot * growth +
-        (Math.abs(realReturn) > 0.0001 ? annualDc * ((growth - 1) / realReturn) : annualDc * years);
+    try {
+      return evaluateCalculations(
+        m.calculations,
+        toScope({
+          retireAge: this.retireAge,
+          benefitOption: this.benefitOption,
+          inflation: this.inflation,
+          salaryGrowth: this.salaryGrowth,
+          invReturn: this.invReturn,
+          moneyBasis: this.todaysMoney ? "Today's money" : 'Future money',
+          qPension: m.inputs.qPension,
+          qLump: m.inputs.qLump,
+          qDC: m.inputs.qDC,
+          qAge: m.inputs.qAge,
+          member: m.member,
+        }),
+      );
+    } catch (error) {
+      console.warn('prism-money-modeller: calculation evaluation failed', error);
+      return null;
     }
+  }
 
-    let pension = basePension;
-    let lump = baseLump;
-    if (!q.quoteMode) {
-      if (age < p.normalPensionAge) {
-        const earlyYears = p.normalPensionAge - age;
-        pension *= Math.max(0.4, 1 - p.earlyPensionReductionPerYear * earlyYears);
-        lump *= Math.max(0.5, 1 - p.earlyLumpReductionPerYear * earlyYears);
-      } else if (age > p.normalPensionAge) {
-        pension *= 1 + p.lateUpliftPerYear * (Math.min(age, p.maxRetirementAge) - p.normalPensionAge);
-      }
-    }
+  private static num(output: CalculationOutput, field: string): number {
+    const value = output.fields[field];
+    return value instanceof Dec ? value.toNumber() : 0;
+  }
 
-    const moneyFactor = this.todaysMoney ? 1 : Math.pow(1 + this.inflation / 100, years);
-    pension *= moneyFactor;
-    lump *= moneyFactor;
-    pot *= moneyFactor;
-
-    const totalValue = 20 * pension + lump + pot;
-    const maxTfc = p.taxFreeShare * totalValue;
-
-    let resultPension = pension;
-    let resultCash = lump;
-    let remainingPot = pot;
-    let cashLabel = 'Tax-free cash';
-
-    if (option === OPTION_MAX_TFC) {
-      const extra = Math.max(0, maxTfc - lump);
-      const fromDc = Math.min(pot, extra);
-      const shortfall = extra - fromDc;
-      resultPension = Math.max(0, pension - shortfall / p.commutationRate);
-      resultCash = maxTfc;
-      remainingPot = pot - fromDc;
-    } else if (option === OPTION_DC_CASH) {
-      resultCash = lump + pot;
-      remainingPot = 0;
-      cashLabel = 'One-off cash';
-    }
-
-    const dcIncome = remainingPot / p.dcDrawdownYears;
-    const statePension = p.statePensionAmount * moneyFactor;
-    const total = resultPension + dcIncome + (age >= p.statePensionAge ? statePension : 0);
-
-    const chart: ScenarioResult['chart'] = [];
-    for (let a = age; a <= 90; a++) {
-      chart.push({
-        age: a,
-        db: Math.round(resultPension),
-        dc: a < age + p.dcDrawdownYears ? Math.round(dcIncome) : 0,
-        sp: a >= p.statePensionAge ? Math.round(statePension) : 0,
-      });
-    }
-
-    return {
-      pension: Math.round(resultPension),
-      cash: Math.round(resultCash),
-      cashLabel,
-      dcIncome: Math.round(dcIncome),
-      remainingPot: Math.round(remainingPot),
-      total: Math.round(total),
-      chart,
-    };
+  private static bool(output: CalculationOutput, field: string): boolean {
+    return output.fields[field] === true;
   }
 
   /** Push current state into the hidden fallback form fields and the page stat cards. */
@@ -265,11 +177,15 @@ export class PrismMoneyModeller extends LitElement {
     this.syncField('invReturn', String(this.invReturn));
     this.syncRadio('moneyBasis', this.todaysMoney ? "Today's money" : 'Future money');
 
-    const result = this.compute(this.retireAge, this.benefitOption);
-    this.updateStat('resultPension', gbp.format(result.pension));
-    this.updateStat('resultCash', gbp.format(result.cash));
-    this.updateStat('resultDcIncome', gbp.format(result.dcIncome));
-    this.updateStat('resultTotal', gbp.format(result.total));
+    const output = this.evaluate();
+    if (!output) {
+      return;
+    }
+
+    this.updateStat('resultPension', gbp.format(PrismMoneyModeller.num(output, 'resultPension')));
+    this.updateStat('resultCash', gbp.format(PrismMoneyModeller.num(output, 'resultCash')));
+    this.updateStat('resultDcIncome', gbp.format(PrismMoneyModeller.num(output, 'resultDcIncome')));
+    this.updateStat('resultTotal', gbp.format(PrismMoneyModeller.num(output, 'resultTotal')));
   }
 
   private syncField(key: string, value: string): void {
@@ -304,12 +220,16 @@ export class PrismMoneyModeller extends LitElement {
   }
 
   private saveScenario(): void {
-    const result = this.compute(this.retireAge, this.benefitOption);
+    const output = this.evaluate();
+    if (!output) {
+      return;
+    }
+
     this.saved = {
       title: `Retire at ${this.retireAge}, ${this.benefitOption}`,
-      pension: result.pension,
-      cash: result.cash,
-      total: result.total,
+      pension: PrismMoneyModeller.num(output, 'resultPension'),
+      cash: PrismMoneyModeller.num(output, 'resultCash'),
+      total: PrismMoneyModeller.num(output, 'resultTotal'),
     };
   }
 
@@ -319,21 +239,30 @@ export class PrismMoneyModeller extends LitElement {
     }
 
     const m = this.model;
-    const p = m.parameters;
-    const result = this.compute(this.retireAge, this.benefitOption);
-    const options = [OPTION_STANDARD, OPTION_MAX_TFC, ...(this.computeHasDc() ? [OPTION_DC_CASH] : [])];
-    const showSalaryGrowth = m.member.active && !m.inputs.quoteMode;
-    const showInvReturn = this.computeHasDc() && !m.inputs.quoteMode;
+    const output = this.evaluate();
+    if (!output) {
+      return nothing;
+    }
+
+    const quoteMode = PrismMoneyModeller.bool(output, 'quoteMode');
+    const hasDc = PrismMoneyModeller.bool(output, 'hasDc');
+    const npa = PrismMoneyModeller.num(output, 'npa');
+    const minRetireAge = PrismMoneyModeller.num(output, 'minRetireAge');
+    const maxRetireAge = PrismMoneyModeller.num(output, 'maxRetireAge');
+    const memberActive = m.member.active === true;
+    const options = [OPTION_STANDARD, OPTION_MAX_TFC, ...(hasDc ? [OPTION_DC_CASH] : [])];
+    const showSalaryGrowth = memberActive && !quoteMode;
+    const showInvReturn = hasDc && !quoteMode;
 
     return html`
       <div class="modeller" data-prism-modeller>
-        ${m.inputs.quoteMode
+        ${quoteMode
           ? html`<p class="quote-badge" data-prism-quote-badge>
-              Using your retirement quote at age ${m.inputs.retireAge}
+              Using your retirement quote at age ${m.inputs.qAge}
             </p>`
           : nothing}
 
-        ${!m.inputs.quoteMode
+        ${!quoteMode
           ? html`
               <div class="control" data-prism-control="retireAge">
                 <div class="control__head">
@@ -343,22 +272,21 @@ export class PrismMoneyModeller extends LitElement {
                 <input
                   id="mm-retire-age"
                   type="range"
-                  min=${Math.max(p.minRetirementAge, m.member.age + 1)}
-                  max=${p.maxRetirementAge}
+                  min=${minRetireAge}
+                  max=${maxRetireAge}
                   step="1"
                   .value=${String(this.retireAge)}
                   @input=${(e: Event) =>
                     this.setState({ retireAge: Number((e.target as HTMLInputElement).value) })}
                 />
                 <div class="control__bounds">
-                  <span>${Math.max(p.minRetirementAge, m.member.age + 1)}</span>
-                  <span>Normal Pension Age ${p.normalPensionAge}</span>
-                  <span>${p.maxRetirementAge}</span>
+                  <span>${minRetireAge}</span>
+                  <span>Normal Pension Age ${npa}</span>
+                  <span>${maxRetireAge}</span>
                 </div>
-                ${this.retireAge < p.normalPensionAge
+                ${this.retireAge < npa
                   ? html`<p class="note" role="note">
-                      Retiring before ${p.normalPensionAge} reduces your DB pension, because it's paid
-                      for longer.
+                      Retiring before ${npa} reduces your DB pension, because it's paid for longer.
                     </p>`
                   : nothing}
               </div>
@@ -386,7 +314,7 @@ export class PrismMoneyModeller extends LitElement {
           </div>
         </fieldset>
 
-        ${!m.inputs.quoteMode
+        ${!quoteMode
           ? html`
               <div class="control control--assumptions" data-prism-control="assumptions">
                 <button
@@ -434,7 +362,7 @@ export class PrismMoneyModeller extends LitElement {
             `
           : nothing}
 
-        ${this.renderChart(result)}
+        ${this.renderChart(output)}
 
         <div class="compare">
           <button type="button" class="save-btn" data-prism-save-scenario @click=${this.saveScenario}>
@@ -451,9 +379,15 @@ export class PrismMoneyModeller extends LitElement {
                   </div>
                   <div class="compare__col">
                     <h3>Current — Retire at ${this.retireAge}, ${this.benefitOption}</h3>
-                    <p>Pension: <strong>${gbp.format(result.pension)}/yr</strong></p>
-                    <p>Cash: <strong>${gbp.format(result.cash)}</strong></p>
-                    <p>Total income: <strong>${gbp.format(result.total)}/yr</strong></p>
+                    <p>
+                      Pension:
+                      <strong>${gbp.format(PrismMoneyModeller.num(output, 'resultPension'))}/yr</strong>
+                    </p>
+                    <p>Cash: <strong>${gbp.format(PrismMoneyModeller.num(output, 'resultCash'))}</strong></p>
+                    <p>
+                      Total income:
+                      <strong>${gbp.format(PrismMoneyModeller.num(output, 'resultTotal'))}/yr</strong>
+                    </p>
                   </div>
                   <button type="button" class="compare__clear" @click=${() => (this.saved = null)}>
                     Remove
@@ -464,22 +398,15 @@ export class PrismMoneyModeller extends LitElement {
         </div>
 
         <p class="sr-only" aria-live="polite" data-prism-result-announcement>
-          Estimated DB pension ${gbp.format(result.pension)} a year, ${result.cashLabel.toLowerCase()}
-          ${gbp.format(result.cash)}, total income ${gbp.format(result.total)} a year from age
-          ${this.retireAge}.
+          Estimated DB pension ${gbp.format(PrismMoneyModeller.num(output, 'resultPension'))} a year,
+          ${String(output.fields.cashLabel ?? 'cash').toLowerCase()}
+          ${gbp.format(PrismMoneyModeller.num(output, 'resultCash'))}, total income
+          ${gbp.format(PrismMoneyModeller.num(output, 'resultTotal'))} a year from age
+          ${PrismMoneyModeller.num(output, 'retireAgeEff')}.
         </p>
         <slot></slot>
       </div>
     `;
-  }
-
-  private computeHasDc(): boolean {
-    const m = this.model!;
-    return (
-      m.inputs.quoteMode
-        ? m.inputs.quoteDc > 0
-        : m.member.dcPot > 0 || (m.member.active && m.member.salary > m.parameters.salaryThreshold)
-    );
   }
 
   private renderAssumption(
@@ -509,11 +436,18 @@ export class PrismMoneyModeller extends LitElement {
     `;
   }
 
-  private renderChart(result: ScenarioResult) {
-    const bars = result.chart;
-    if (bars.length === 0) {
+  private renderChart(output: CalculationOutput) {
+    const rows = output.series.incomeByAge ?? [];
+    if (rows.length === 0) {
       return nothing;
     }
+
+    const bars = rows.map((row) => ({
+      age: row.age instanceof Dec ? row.age.toNumber() : 0,
+      db: row.db instanceof Dec ? row.db.toNumber() : 0,
+      dc: row.dc instanceof Dec ? row.dc.toNumber() : 0,
+      sp: row.sp instanceof Dec ? row.sp.toNumber() : 0,
+    }));
 
     const width = 720;
     const height = 190;
@@ -526,7 +460,7 @@ export class PrismMoneyModeller extends LitElement {
     return html`
       <figure class="chart" data-prism-chart>
         <figcaption>
-          Your estimated yearly income, age ${bars[0].age} to 90
+          Your estimated yearly income, age ${bars[0].age} to ${bars[bars.length - 1].age}
         </figcaption>
         <div class="chart__legend">
           ${SERIES.map(
@@ -544,15 +478,12 @@ export class PrismMoneyModeller extends LitElement {
           >
             ${bars.map((bar, i) => {
               const x = i * (barWidth + gap);
-              const dbH = scale(bar.db);
-              const dcH = scale(bar.dc);
-              const spH = scale(bar.sp);
               const total = bar.db + bar.dc + bar.sp;
               let y = plotHeight;
               const segments = [
-                { h: dbH, color: SERIES[0].color },
-                { h: dcH, color: SERIES[1].color },
-                { h: spH, color: SERIES[2].color },
+                { h: scale(bar.db), color: SERIES[0].color },
+                { h: scale(bar.dc), color: SERIES[1].color },
+                { h: scale(bar.sp), color: SERIES[2].color },
               ].map((seg) => {
                 y -= seg.h;
                 return svg`<rect x=${x} y=${y + gap / 2} width=${barWidth}
